@@ -63,13 +63,12 @@ class GamificationSeason(models.Model):
     )
 
     # Stats
-    challenge_count = fields.Integer("# Challenges", compute="_compute_counts")
+    challenge_count = fields.Count("challenge_ids", "# Challenges")
     participant_count = fields.Integer("# Participants", compute="_compute_counts")
 
     @api.depends("challenge_ids", "challenge_ids.user_ids")
     def _compute_counts(self):
         for season in self:
-            season.challenge_count = len(season.challenge_ids)
             all_users = season.challenge_ids.mapped("user_ids")
             season.participant_count = len(all_users)
 

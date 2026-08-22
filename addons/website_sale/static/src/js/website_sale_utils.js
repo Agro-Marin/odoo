@@ -210,11 +210,32 @@ function getSelectedAttributeValues(container) {
     )).map(el => parseInt(el.value));
 }
 
+/**
+ * Return the selected attribute values that take part in defining a variant.
+ *
+ * `variant_templates.xml` stamps `js_variant_change` on every attribute and appends the
+ * attribute's `create_variant` as a second class, so the `no_variant` ones are
+ * distinguishable in the DOM. They must be left out of anything compared against
+ * `archived_combinations`, which the server builds from
+ * `product.product_template_attribute_value_ids` of archived variants and therefore
+ * never contains a `no_variant` value.
+ *
+ * @param {Element} container the container to look into
+ */
+function getSelectedVariantAttributeValues(container) {
+    return Array.from(
+        container.querySelectorAll(
+            "input.js_variant_change:checked:not(.no_variant), select.js_variant_change:not(.no_variant)",
+        ),
+    ).map((el) => parseInt(el.value));
+}
+
 export default {
     animateClone: animateClone,
     getClosestProductForm: getClosestProductForm,
     updateCartNavBar: updateCartNavBar,
     showWarning: showWarning,
     getSelectedAttributeValues: getSelectedAttributeValues,
+    getSelectedVariantAttributeValues: getSelectedVariantAttributeValues,
     updateQuickReorderSidebar: updateQuickReorderSidebar,
 };

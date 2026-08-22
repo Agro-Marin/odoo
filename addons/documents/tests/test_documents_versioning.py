@@ -1,8 +1,3 @@
-"""Version history: keeping, restoring and pruning replaced content.
-
-Named for what it protects, not for the review that produced it.
-"""
-
 import base64
 import io
 
@@ -16,14 +11,12 @@ from .test_documents_common import GIF, TEXT, TransactionCaseDocuments
 
 
 def _png(color):
-    """Return a base64 PNG, i.e. content `image_process` can actually decode."""
     buffer = io.BytesIO()
     Image.new("RGB", (400, 300), color).save(buffer, "PNG")
     return base64.b64encode(buffer.getvalue())
 
 
 class TestDocumentsVersioning(TransactionCase):
-    """Going back to an earlier version, and not keeping every one forever."""
 
     @classmethod
     def setUpClass(cls):
@@ -39,7 +32,6 @@ class TestDocumentsVersioning(TransactionCase):
         )
 
     def _document_with_versions(self, contents):
-        """A document whose content was replaced once per entry after the first."""
         document = (
             self.env["documents.document"]
             .with_user(self.user)
@@ -51,12 +43,6 @@ class TestDocumentsVersioning(TransactionCase):
         return document
 
     def test_restore_brings_back_a_chosen_version_without_deleting_any(self):
-        """Reverting used to mean deleting every version newer than the target.
-
-        The only path that promoted an older attachment was
-        `action_delete_from_history`, as a side effect, and it always promoted
-        the newest one.
-        """
         document = self._document_with_versions([b"v1", b"v2", b"v3"])
         self.assertEqual(bytes(document.attachment_id.raw), b"v3")
         self.assertEqual(len(document.previous_attachment_ids), 2)
@@ -119,12 +105,10 @@ class TestDocumentsVersioning(TransactionCase):
             document.with_user(viewer).action_restore_version(previous.id)
 
     def test_history_is_unbounded_by_default(self):
-        """Enabling the cap destroys data, so an upgrade must not enable it."""
         document = self._document_with_versions([b"v1", b"v2", b"v3", b"v4"])
         self.assertEqual(len(document.previous_attachment_ids), 3)
 
     def test_history_is_pruned_to_the_configured_maximum(self):
-        """Otherwise a daily-edited document grows a filestore blob a day."""
         self.env["ir.config_parameter"].sudo().set_param("documents.max_versions", "2")
         document = self._document_with_versions([b"v1", b"v2", b"v3", b"v4"])
 
@@ -170,7 +154,6 @@ class TestDocumentsVersionDeletion(TransactionCaseDocuments):
         self.assertTrue(old_version.sudo().exists())
 
     def test_delete_current_version_is_logged(self):
-        """Rolling the content back by deleting the current version leaves a trace."""
         document = self.env["documents.document"].create(
             {
                 "name": "versioned.txt",
@@ -178,9 +161,6 @@ class TestDocumentsVersionDeletion(TransactionCaseDocuments):
                 "raw": base64.b64encode(b"v1"),
             }
         )
-        # A content write keeps the same `attachment_id` and files a *copy* of
-        # the outgoing bytes in the history, so the previous version is the
-        # freshly added history entry, not the original record.
         document.write({"raw": base64.b64encode(b"v2")})
         first_version = document.previous_attachment_ids
         current = document.attachment_id
@@ -211,7 +191,6 @@ class TestDocumentsVersionDeletion(TransactionCaseDocuments):
 @tagged("post_install", "-at_install")
 class TestDocumentsVersionCreation(TransactionCaseDocuments):
     def test_write_new_attachment_and_datas_versions_once(self):
-        """Writing a new attachment together with datas archives only one version."""
         doc = self.env["documents.document"].create(
             {
                 "type": "binary",
@@ -226,6 +205,4 @@ class TestDocumentsVersionCreation(TransactionCaseDocuments):
             {"name": "replacement", "datas": GIF}
         )
         doc.write({"attachment_id": new_attachment.id, "datas": GIF})
-        # Only the original attachment is archived as a previous version, not an
-        # extra copy from a double-versioning path.
         self.assertEqual(doc.previous_attachment_ids, first_attachment)

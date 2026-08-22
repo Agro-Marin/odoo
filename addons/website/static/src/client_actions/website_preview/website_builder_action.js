@@ -13,7 +13,7 @@ import {
     useState,
     useSubEnv,
 } from "@odoo/owl";
-import { ResizablePanel } from "@web/components/resizable_panel/resizable_panel";
+import { ResizablePanel } from "@web/components/resizable_panel";
 import { LazyComponent, loadBundle } from "@web/core/assets";
 import { browser } from "@web/core/browser/browser";
 import {

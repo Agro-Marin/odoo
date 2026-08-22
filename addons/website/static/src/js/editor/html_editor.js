@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { LinkPopover } from "@html_editor/main/link/link_popover";
 import { useEffect } from "@odoo/owl";
-import { AutoComplete } from "@web/components/autocomplete/autocomplete";
+import { AutoComplete } from "@web/components/autocomplete";
 import { browser } from "@web/core/browser/browser";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";

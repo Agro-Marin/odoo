@@ -44,7 +44,7 @@ class SaleOrder(models.Model):
     cart_quantity = fields.Integer(string="Cart Quantity", compute='_compute_cart_info')
     only_services = fields.Boolean(string="Only Services", compute='_compute_cart_info')
     is_abandoned_cart = fields.Boolean(
-        string="Abandoned Cart", compute='_compute_abandoned_cart', search='_search_abandoned_cart',
+        string="Abandoned Cart", compute='_compute_is_abandoned_cart', search='_search_abandoned_cart',
     )
 
     #=== COMPUTE METHODS ===#
@@ -75,7 +75,7 @@ class SaleOrder(models.Model):
             order.only_services = all(sol.product_id.type == 'service' for sol in order.website_order_line)
 
     @api.depends('website_id', 'date_order', 'line_ids', 'state', 'partner_id')
-    def _compute_abandoned_cart(self):
+    def _compute_is_abandoned_cart(self):
         for order in self:
             # a quotation can be considered as an abandonned cart if it is linked to a website,
             # is in the 'draft' state and has an expiration date

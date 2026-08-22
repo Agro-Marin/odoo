@@ -57,8 +57,8 @@ class TestIndexContent(TransactionCase):
 
     def test_index_read_size_full_for_office_docs(self):
         """Office/pdf mimetypes read the whole file (None cap)."""
-        self.assertIsNone(self.Attachment._index_read_size(DOCX_MIME))
+        self.assertIsNone(self.Attachment._get_index_read_size(DOCX_MIME))
 
     def test_index_read_size_bounded_for_plain_text(self):
         """Plain text defers to the base bounded prefix (not None)."""
-        self.assertIsNotNone(self.Attachment._index_read_size("text/plain"))
+        self.assertIsNotNone(self.Attachment._get_index_read_size("text/plain"))

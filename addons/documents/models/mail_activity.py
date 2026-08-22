@@ -5,19 +5,16 @@ from odoo.fields import Domain
 
 
 class MailActivity(models.Model):
-    """Add document request behaviour to mail activities."""
 
     _inherit = "mail.activity"
 
     @api.model_create_multi
     def create(self, vals_list: list[dict]) -> MailActivity:
-        """Create activities and link or generate their related documents."""
         activities = super().create(vals_list)
         upload_activities = activities.filtered(
             lambda act: act.activity_category == "upload_file"
         )
 
-        # link back documents and activities
         upload_documents_activities = upload_activities.filtered(
             lambda act: act.res_model == "documents.document"
         )
@@ -31,7 +28,6 @@ class MailActivity(models.Model):
                 if not document.request_activity_id:
                     document.request_activity_id = activity.id
 
-        # create underlying documents if related record is not a document
         doc_vals = [
             {
                 "res_model": activity.res_model,
@@ -55,10 +51,6 @@ class MailActivity(models.Model):
         return activities
 
     def write(self, vals: dict) -> bool:
-        """Write activities and sync requestee access expiration on deadline change."""
-        # The deadline must have actually *moved*: several UI actions (e.g.
-        # ``action_reschedule_today``) write ``date_deadline`` unconditionally,
-        # and a no-op write must not silently re-date the requestee's access.
         deadline_changed = "date_deadline" in vals and any(
             activity.date_deadline != fields.Date.to_date(vals["date_deadline"])
             for activity in self
@@ -70,13 +62,6 @@ class MailActivity(models.Model):
             )
         ):
             return write_result
-        # Update expiration access of the requestee when updating the related
-        # request activity deadline. This is bookkeeping owned by the activity,
-        # not the actor's rights on the document: `documents.access.write`
-        # enforces `document_id.check_access("write")`, so without `sudo()` a
-        # user who may reschedule the activity but only has *view* on the target
-        # (a common request setup) would hit an AccessError that rolls the whole
-        # activity write back. Run the sync in sudo instead.
         document_requestee_partner_ids = (
             self.env["documents.document"]
             .sudo()
@@ -101,11 +86,6 @@ class MailActivity(models.Model):
                         "=",
                         document_requestee_partner_id["requestee_partner_id"][0],
                     ),
-                    # `!=` (not `<`) so moving the deadline *earlier* shrinks the
-                    # requestee's access too, instead of leaving it alive past the
-                    # new deadline. `expiration_date != False` is required because
-                    # Odoo renders `!=` as `col != v OR col IS NULL`, which would
-                    # otherwise turn a *permanent* grant into an expiring one.
                     ("expiration_date", "!=", False),
                     ("expiration_date", "!=", new_expiration_date),
                 ]
@@ -162,21 +142,11 @@ class MailActivity(models.Model):
         messages, next_activities = super(
             MailActivity, self.with_context(no_document=True)
         )._action_done(feedback=feedback, attachment_ids=attachment_ids)
-        # Downgrade access link role from edit to view if necessary (if the requestee didn't have a user at the request
-        # time, we previously granted him edit access by setting access_via_link to edit on the document).
         documents.filtered(
             lambda document: document.access_via_link == "edit"
         ).access_via_link = "view"
-        # Remove request information on the document
         documents.requestee_partner_id = False
         documents.request_activity_id = False
-        # Attachment must be set after documents.request_activity_id is set to False to prevent document write to
-        # trigger an action_done.
-        # A request activity maps to a single request document; assigning one
-        # attachment across several documents both trips ``ensure_one`` (see
-        # ``documents.document.write``) and would share one ``ir.attachment``
-        # between documents, so only the single expected request document is
-        # filled.
         if attachment_ids and document_without_attachment:
             document_without_attachment[:1].attachment_id = attachment_ids[0]
         return messages, next_activities

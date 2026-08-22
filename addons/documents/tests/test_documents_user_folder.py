@@ -104,25 +104,24 @@ class TestDocumentsUserFolder(TransactionCaseDocuments):
             )
         )
         cls.test_documents = (
-            cls.company_doc  # no owner, access_internal='view'
-            | cls.company_restr_doc  # no owner, but no access to internal users
-            | cls.internal_drive  # internal_user's drive
-            | cls.folder_a  # doc_user's drive
+            cls.company_doc
+            | cls.company_restr_doc
+            | cls.internal_drive
+            | cls.folder_a
             | cls.folder_a_a
-            | cls.folder_b  # doc_user's drive
+            | cls.folder_b
             | cls.company_folder
-            | cls.sub_company_admin  # Company subfolder, restricted
+            | cls.sub_company_admin
             | cls.shared_doc_company_sub
-            | cls.sub_drive_admin  # internal_user's drive subfolder, restricted
+            | cls.sub_drive_admin
             | cls.shared_doc_drive
             | cls.company_restr_folder
-            | cls.shared_doc_company  # Company folder, restricted
+            | cls.shared_doc_company
         )
         cls.folder_a.action_update_access_rights(
             access_internal="edit",
             partners={cls.portal_user.partner_id: ("view", False)},
         )
-        # Log access to folder_a
         for user in (
             cls.doc_user,
             cls.document_sys_admin,
@@ -240,9 +239,9 @@ class TestDocumentsUserFolder(TransactionCaseDocuments):
         self.assertFalse(my.folder_id)
         self.assertEqual(
             my.owner_id, self.internal_user
-        )  # user_folder_id=MY primes over context defaults
+        )
         self.assertEqual(folder_a_b.folder_id, self.folder_a)
-        self.assertEqual(folder_a_b.owner_id, self.doc_user)  # context default used
+        self.assertEqual(folder_a_b.owner_id, self.doc_user)
         self.assertEqual(folder_a_b_2.folder_id, self.folder_a)
 
         for user_folder_id in ("ALL", "RECENT", "SHARED", "TRASH"):
@@ -259,15 +258,15 @@ class TestDocumentsUserFolder(TransactionCaseDocuments):
                 {
                     "user_folder_id": str(self.folder_a_a.id),
                     "folder_id": self.folder_a.id,
-                },  # different folder_id
+                },
                 {
                     "user_folder_id": "COMPANY",
                     "folder_id": self.folder_a.id,
-                },  # Company has folder_id=False
+                },
                 {
                     "user_folder_id": "COMPANY",
                     "owner_id": self.internal_user.id,
-                },  # Company has owner_id=False
+                },
             )
         ):
             with self.subTest(idx=idx):
@@ -346,11 +345,11 @@ class TestDocumentsUserFolder(TransactionCaseDocuments):
             (
                 self.internal_drive,
                 self.internal_drive | my_subfolder,
-            ),  # not shared_doc_drive
+            ),
             (
                 self.company_folder,
                 self.company_folder | company_subfolder,
-            ),  # not shared_doc_company_sub
+            ),
         ]
         accessible_documents = self.env["documents.document"].search([])
         for folder, expected in cases:
@@ -362,14 +361,6 @@ class TestDocumentsUserFolder(TransactionCaseDocuments):
                 self.assertDocumentsEqual(filtered, expected)
 
     def test_compute_and_search_user_folder_id_equal(self):
-        """Test user_folder_id's compute and search with "equal" operator.
-
-        Cases are shaped as [(user, expected), ...], where:
-            user: test user,
-            expected: records per user_folder_id value, such that
-              * searching for this value (if truthy) should retrieve these records
-              * computing user_folder_id for the records is correct ('False' for inaccessible docs)
-        """
         Document = self.env["documents.document"]
         cases = [
             (
@@ -446,7 +437,6 @@ class TestDocumentsUserFolder(TransactionCaseDocuments):
                             .search(Domain("user_folder_id", "=", user_folder_id))
                         )
                         self.assertDocumentsEqual(actual, documents)
-                    # Test compute except for no records or search-only results
                     if (
                         documents
                         and user_folder_id != "RECENT"
@@ -568,18 +558,6 @@ class TestDocumentsUserFolder(TransactionCaseDocuments):
                 self.assertEqual(user_folder_ids, expected)
 
     def test_numeric_user_folder_id_search_requires_a_reachable_folder(self):
-        """A folder id only answers for documents whose folder is reachable.
-
-        `_compute_user_folder_id` assigns `str(folder.id)` only when that folder
-        is itself accessible, and falls back to SHARED otherwise. The search had
-        no accessibility leg, so a document inside an unreachable folder answered
-        to *both* that folder's id and SHARED -- appearing in two virtual folders
-        at once.
-
-        Note the reverse direction is not a defect: SHARED for a share user, and
-        RECENT for everyone, are deliberately search-only values the webclient
-        relies on (see `test_compute_and_search_user_folder_id_equal`).
-        """
         Document = self.env["documents.document"]
         hidden_folder = Document.create(
             {

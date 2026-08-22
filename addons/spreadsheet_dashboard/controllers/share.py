@@ -29,7 +29,7 @@ class DashboardShareRoute(http.Controller):
     def download(self, token=None, share_id=None):
         share = request.env["spreadsheet.dashboard.share"].sudo().browse(share_id)
         share._check_dashboard_access(token)
-        stream = request.env["ir.binary"]._get_stream_from(
+        stream = request.env["ir.binary"]._get_stream_from_record(
             share, "excel_export", filename=share.name
         )
         return stream.get_response()
@@ -52,7 +52,7 @@ class DashboardShareRoute(http.Controller):
             raise request.not_found()
 
         share._check_dashboard_access(token)
-        stream = request.env["ir.binary"]._get_stream_from(
+        stream = request.env["ir.binary"]._get_stream_from_record(
             share, "spreadsheet_binary_data"
         )
         return stream.get_response()

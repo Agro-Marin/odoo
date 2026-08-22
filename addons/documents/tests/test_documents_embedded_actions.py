@@ -1,8 +1,3 @@
-"""Server actions pinned on a folder.
-
-Named for what it protects, not for the review that produced it.
-"""
-
 from odoo import Command
 from odoo.exceptions import UserError
 from odoo.tests.common import tagged
@@ -12,7 +7,6 @@ from .test_documents_common import TransactionCaseDocuments
 
 @tagged("post_install", "-at_install")
 class TestDocumentsEmbeddedActions(TransactionCaseDocuments):
-    """Pinning and listing must accept exactly the same server actions."""
 
     def _server_action(self, **extra):
         return self.env["ir.actions.server"].create(
@@ -27,14 +21,6 @@ class TestDocumentsEmbeddedActions(TransactionCaseDocuments):
         )
 
     def test_cannot_pin_an_action_the_listing_would_hide(self):
-        """A child action is not embeddable, so pinning it must be refused.
-
-        It used to be accepted: `action_folder_embed_action` filtered on the
-        group domain alone while `_get_folder_embedded_actions` filtered on the
-        stricter embeddable domain. The row it wrote was invisible for good, and
-        clicking again stacked another one because the unpin lookup could not
-        see it either.
-        """
         parent = self._server_action(name="dedup parent")
         child = self._server_action(name="dedup child", parent_id=parent.id)
         folder = self.env["documents.document"].create(
@@ -77,7 +63,6 @@ class TestDocumentsEmbeddedActions(TransactionCaseDocuments):
 @tagged("post_install", "-at_install")
 class TestDocumentsAutomationAvailability(TransactionCaseDocuments):
     def test_check_automation_available_returns_bool(self):
-        """The ACL-safe helper answers without an ir.module.module AccessError."""
         result = (
             self.env["documents.document"]
             .with_user(self.doc_user)
@@ -88,17 +73,8 @@ class TestDocumentsAutomationAvailability(TransactionCaseDocuments):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsEmbeddedActionsGc(TransactionCaseDocuments):
-    """The vacuum must delete what cannot run, not what it cannot see."""
 
     def test_gc_keeps_pins_of_actions_the_vacuum_user_cannot_see(self):
-        """Obsolescence is a property of the action, not of the vacuum's user.
-
-        `_gc_documents_obsolete` asked `_get_embeddable_server_action_domain`,
-        which ANDs in the current user's groups. Run by a user lacking a group
-        -- the autovacuum runs as `__system__`, which is not in every group --
-        every action restricted to it looked non-embeddable, and each folder
-        that had it pinned lost the pin: silently, and with no way back.
-        """
         group = self.env["res.groups"].create({"name": "gc probe group"})
         folder = self.env["documents.document"].create(
             {"name": "gc probe folder", "type": "folder"}
@@ -143,7 +119,6 @@ class TestDocumentsEmbeddedActionsGc(TransactionCaseDocuments):
         )
 
     def test_gc_still_removes_a_child_action_pin(self):
-        """What the vacuum is actually for: a pin that can never be executed."""
         parent = self.env["ir.actions.server"].create(
             {
                 "name": "gc parent action",
@@ -178,7 +153,6 @@ class TestDocumentsEmbeddedActionsGc(TransactionCaseDocuments):
             ]
         )
         self.assertTrue(pinned)
-        # Becoming a child action is what makes it unexecutable from a folder.
         child.parent_id = parent
         removed, more = self.env["ir.embedded.actions"]._gc_documents_obsolete()
         self.assertFalse(pinned.exists(), "an unexecutable pin must be collected")

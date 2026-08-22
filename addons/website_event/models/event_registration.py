@@ -8,5 +8,5 @@ class EventRegistration(models.Model):
 
     visitor_id = fields.Many2one('website.visitor', string='Visitor', ondelete='set null', index='btree_not_null')
 
-    def _get_website_registration_allowed_fields(self):
+    def _get_fields_website_registration_allowed(self):
         return {'name', 'phone', 'email', 'company_name', 'event_id', 'partner_id', 'event_slot_id', 'event_ticket_id'}

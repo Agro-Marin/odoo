@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, onWillStart, useRef, useState } from "@odoo/owl";
 import { useDropzone } from "@web/components/dropzone";
-import { FileInput } from "@web/components/file_input/file_input";
+import { FileInput } from "@web/components/file_input";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useFileUploader } from "@web/core/utils/files";

@@ -324,17 +324,17 @@ class TestWebsiteForm(TransactionCase):
         )
 
     def test_get_authorized_fields_requires_editor(self):
-        """``ir.model.get_authorized_fields`` is RPC-reachable and leaks field
+        """``ir.model.get_fields_authorized`` is RPC-reachable and leaks field
         metadata + SUPERUSER defaults, so it must require the website-editor
         group like its form-builder siblings. The internal submission path
         (which calls it via SUPERUSER) must still work."""
         IrModel = self.env["ir.model"]
         public = self.env.ref("base.public_user")
         with self.assertRaises(AccessError):
-            IrModel.with_user(public).get_authorized_fields("res.partner", {})
+            IrModel.with_user(public).get_fields_authorized("res.partner", {})
 
         # SUPERUSER (internal submission path) is allowed.
-        fields = IrModel.with_user(SUPERUSER_ID).get_authorized_fields(
+        fields = IrModel.with_user(SUPERUSER_ID).get_fields_authorized(
             "res.partner", {}
         )
         self.assertIn("name", fields)

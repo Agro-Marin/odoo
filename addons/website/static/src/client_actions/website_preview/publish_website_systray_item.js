@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, useState, xml } from "@odoo/owl";
-import { CheckBox } from "@web/components/checkbox/checkbox";
+import { CheckBox } from "@web/components/checkbox";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";

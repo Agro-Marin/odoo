@@ -74,7 +74,7 @@ def get_existing_attachment(IrAttachment, vals):
     else:
         if not (raw or datas):
             return None
-        domain.append(('checksum', '=', IrAttachment._content_checksum(raw or b64decode(datas))))
+        domain.append(('checksum', '=', IrAttachment._get_content_checksum(raw or b64decode(datas))))
     return IrAttachment.search(domain, limit=1) or None
 
 
@@ -388,7 +388,7 @@ class HTML_Editor(http.Controller):
         if src.startswith('/web/image'):
             with contextlib.suppress(werkzeug.exceptions.NotFound, MissingError):
                 _, args = request.env['ir.http']._match(src)
-                record = request.env['ir.binary']._find_record(
+                record = request.env['ir.binary']._get_record(
                     xmlid=args.get('xmlid'),
                     res_model=args.get('model', 'ir.attachment'),
                     res_id=args.get('id'),
@@ -668,8 +668,8 @@ class HTML_Editor(http.Controller):
             module = 'html_builder'
         svg = self._get_shape_svg(module, 'image_shapes', filename)
 
-        record = request.env['ir.binary']._find_record(img_key)
-        stream = request.env['ir.binary']._get_image_stream_from(record)
+        record = request.env['ir.binary']._get_record(img_key)
+        stream = request.env['ir.binary']._get_stream_image_from_record(record)
         if stream.type == 'url':
             return stream.get_response()
 

@@ -4,8 +4,8 @@
 import { Component, useEffect } from "@odoo/owl";
 import { useChildRef } from "@web/core/utils/hooks";
 
-import { TagsList } from "@web/components/tags_list/tags_list";
-import { AutoComplete } from "@web/components/autocomplete/autocomplete";
+import { TagsList } from "@web/components/tags_list";
+import { AutoComplete } from "@web/components/autocomplete";
 
 export class TextFilterValue extends Component {
     static template = "spreadsheet.TextFilterValue";

@@ -10,7 +10,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
-import { useSearchBarToggler } from "@web/search/search_bar";
+import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
 import { standardActionServiceProps } from "@web/webclient/actions";
 
 import { Status } from "./dashboard_loader_service.js";

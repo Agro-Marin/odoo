@@ -7,7 +7,6 @@ from odoo.addons.portal.controllers.portal import CustomerPortal
 
 
 class DocumentCustomerPortal(CustomerPortal):
-    """Add the document count to the customer portal home."""
 
     def _prepare_home_portal_values(self, counters: Any) -> dict:
         values = super()._prepare_home_portal_values(counters)

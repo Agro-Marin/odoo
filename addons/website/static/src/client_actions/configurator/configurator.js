@@ -12,7 +12,7 @@ import {
     useState,
     useSubEnv,
 } from "@odoo/owl";
-import { AutoComplete } from "@web/components/autocomplete/autocomplete";
+import { AutoComplete } from "@web/components/autocomplete";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";

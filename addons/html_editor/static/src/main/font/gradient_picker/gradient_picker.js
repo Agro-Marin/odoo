@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, onWillUpdateProps, useRef, useState } from "@odoo/owl";
-import { CustomColorPicker as ColorPicker } from "@web/components/color_picker/custom_color_picker/custom_color_picker";
+import { CustomColorPicker as ColorPicker } from "@web/components/color_picker";
 import {
     convertCSSColorToRgba,
     isColorGradient,

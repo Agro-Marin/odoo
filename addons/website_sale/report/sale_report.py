@@ -13,9 +13,9 @@ class SaleReport(models.Model):
         related='product_tmpl_id.public_categ_ids',
     )
 
-    def _get_select_fields(self):
+    def _get_fields_select(self):
         """Add website_id and is_abandoned_cart to SELECT fields."""
-        fields = super()._get_select_fields()
+        fields = super()._get_fields_select()
         fields['website_id'] = "o.website_id"
         fields['is_abandoned_cart'] = f"""
             o.date_order <= (timezone('utc', now()) - ((COALESCE(w.cart_abandoned_delay, '1.0') || ' hour')::INTERVAL))
@@ -30,9 +30,9 @@ class SaleReport(models.Model):
         tables.append(("website", "w", "LEFT JOIN", "w.id = o.website_id"))
         return tables
 
-    def _get_group_by_fields(self):
+    def _get_fields_group_by(self):
         """Add website_id and cart_abandoned_delay to GROUP BY fields."""
-        fields = super()._get_group_by_fields()
+        fields = super()._get_fields_group_by()
         fields.extend([
             "o.website_id",
             "w.cart_abandoned_delay",

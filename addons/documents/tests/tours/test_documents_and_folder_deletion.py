@@ -44,7 +44,6 @@ class TestDocumentDeletion(HttpCase):
         )
 
     def test_tour_default_action_view(self):
-        # todo: move to a more appropriate place in master
         self.start_tour(
             f"/odoo/documents.document/{self.document.id}",
             "document_default_access_view",

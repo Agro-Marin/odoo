@@ -7,9 +7,19 @@
 # not pinned line numbers, so they survive refactors.
 
 set -u
-WEB="/home/marin/Odoo/addons/odoo/addons/website"
+# Derive the root from this script's own location. It was hardcoded to
+# `/home/marin/Odoo/addons/odoo/addons/website`, a path that exists in no
+# checkout -- one `addons/` too many -- so every path-based assertion resolved
+# against nothing and the run reported 42 failures with 1 pass. A harness whose
+# root is a literal validates the tree it was written on, or, as here, no tree
+# at all; `addons/web/machine_doc_v1/factcheck.sh` carries the same note for the
+# same reason.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WEB="$(dirname "$SCRIPT_DIR")"                 # <repo>/addons/website
 PASS=0
 FAIL=0
+
+DOC="$SCRIPT_DIR"
 
 assert_eq() {
     local name="$1" actual="$2" expected="$3"
@@ -17,6 +27,22 @@ assert_eq() {
         echo "PASS: $name [$actual]"; PASS=$((PASS+1))
     else
         echo "FAIL: $name — expected [$expected] got [$actual]"; FAIL=$((FAIL+1))
+    fi
+}
+# Derive the expected value from the tree and assert the DOCS cite it, instead
+# of holding a second copy here. `assert_eq <measured> <literal>` makes this
+# script a place figures rot: the two below read 45 and 217 against a real 47
+# and 218, and the same numbers were restated across six doc sites, so one fact
+# had eight copies and no owner. With this, the measurement lives once.
+assert_doc_cites() {
+    # $1 = human name, $2 = actual value, $3 = printf pattern with %s, $4 = doc
+    local name="$1" actual="$2" pat="$3"
+    local rendered; rendered=$(printf "$pat" "$actual")
+    local hits; hits=$(grep -cE "$rendered" "$DOC/$4" 2>/dev/null); hits=${hits:-0}
+    if [ "$hits" -ge 1 ]; then
+        echo "PASS: $name [doc cites $actual]"; PASS=$((PASS+1))
+    else
+        echo "FAIL: $name — filesystem says $actual, $4 does not cite it"; FAIL=$((FAIL+1))
     fi
 }
 assert_range() {
@@ -57,11 +83,19 @@ assert_eq "Controller files (incl __init__)" \
 assert_eq "Controller files (excl __init__)" \
     "$(ls "$WEB"/controllers/*.py | grep -vc __init__)" "6"
 assert_eq "Model files" \
-    "$(ls "$WEB"/models/*.py | wc -l)" "36"
+    "$(ls "$WEB"/models/*.py | wc -l)" "43"
 assert_eq "Wizard py files (excl __init__)" \
     "$(ls "$WEB"/wizard/*.py | grep -vc __init__)" "4"
-assert_eq "Python test files (incl __init__ + common)" \
-    "$(ls "$WEB"/tests/*.py | wc -l)" "45"
+PY_TESTS=$(ls "$WEB"/tests/*.py | wc -l)
+assert_doc_cites "ARCHITECTURE cites the real Python test-file count" \
+    "$PY_TESTS" '%s Python test files' ARCHITECTURE.md
+assert_doc_cites "TEST_TAGS cites the real Python test-file count" \
+    "$PY_TESTS" '%s `.py` files' TEST_TAGS.md
+# ARCHITECTURE.md states this twice -- a directory row and a File Counts row.
+# Pin BOTH: guarding one leaves the other free to drift, which is how a mutation
+# of the File Counts row passed a green run while the number was wrong.
+assert_doc_cites "ARCHITECTURE File Counts row cites the real Python test count" \
+    "$PY_TESTS" '\| Python \(tests\) \| %s \|' ARCHITECTURE.md
 
 # ------- ORM model class count (all ^class in models/ + wizard/, minus the two
 # non-ORM classes: PageCannotBeCached(Exception) + ModelConverter) -------
@@ -75,8 +109,11 @@ assert_grep "get_current_website() exists" 'def get_current_website' "$WEB/model
 # COW/COU engine lives in ir_ui_view.py write/unlink
 assert_grep "ir_ui_view extends seo.metadata (COW host)" 'website.seo.metadata' "$WEB/models/ir_ui_view.py"
 # Published mixin
-assert_grep "website.published.mixin defined" 'website.published.mixin' "$WEB/models/mixins.py"
-assert_grep "website.searchable.mixin defined" 'website.searchable.mixin' "$WEB/models/mixins.py"
+# mixins.py was split one-model-per-file and the models renamed mixin.<what
+# they add> (coding_guidelines.rst 5.37 / §2.2.1), so each is asserted where it
+# now lives rather than in the file that used to hold them all.
+assert_grep "mixin.website.published defined" 'mixin.website.published' "$WEB/models/mixin_website_published.py"
+assert_grep "mixin.website.searchable defined" 'mixin.website.searchable' "$WEB/models/mixin_website_searchable.py"
 # Full-page cache
 assert_grep "website.page full-page cache" '_get_response_cached' "$WEB/models/website_page.py"
 # Cookie barrier in ir_qweb
@@ -94,8 +131,19 @@ assert_eq "static/src .js files" \
     "$(find "$WEB/static/src" -name '*.js' -type f | wc -l)" "347"
 assert_eq "static/src directories" \
     "$(find "$WEB/static/src" -type d | wc -l)" "143"
-assert_eq "static/tests .js files" \
-    "$(find "$WEB/static/tests" -name '*.js' -type f | wc -l)" "217"
+JS_TESTS=$(find "$WEB/static/tests" -name '*.js' -type f | wc -l)
+assert_doc_cites "ARCHITECTURE cites the real static/tests JS count" \
+    "$JS_TESTS" '%s `.js` \(HOOT suites' ARCHITECTURE.md
+# TEST_TAGS states it TWICE, and each pattern is anchored to its own sentence.
+# `assert_doc_cites` is an EXISTENCE check -- it asks whether the document
+# mentions the value anywhere -- so a pattern loose enough to match either site
+# is satisfied by the one that is still right, and mutating the other passes a
+# green run. Verified: with a bare '%s `.js`' pattern, changing line 5 to 217
+# did not fail. A pin per site, or the pin is a coin flip over which site rots.
+assert_doc_cites "TEST_TAGS header cites the real static/tests JS count" \
+    "$JS_TESTS" '\(`static/tests/`, %s `\.js`\)' TEST_TAGS.md
+assert_doc_cites "TEST_TAGS body cites the real static/tests JS count" \
+    "$JS_TESTS" '^%s `\.js` files\.' TEST_TAGS.md
 assert_eq "tour definitions (static/tests/tours)" \
     "$(find "$WEB/static/tests/tours" -name '*.js' -type f | wc -l)" "86"
 assert_eq "*.edit.js variants in static/src" \

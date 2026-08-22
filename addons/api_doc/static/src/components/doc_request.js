@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { createRequestCode, LANGUAGES } from "@api_doc/utils/doc_code_gen";
 import { Component, useState } from "@odoo/owl";
-import { CodeEditor } from "@web/components/code_editor/code_editor";
+import { CodeEditor } from "@web/components/code_editor";
 import { browser } from "@web/core/browser/browser";
 
 class CopyableCodeEditor extends CodeEditor {

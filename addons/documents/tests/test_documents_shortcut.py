@@ -1,8 +1,3 @@
-"""Shortcuts: what they mirror, what they may not widen.
-
-Named for what it protects, not for the review that produced it.
-"""
-
 import base64
 import io
 from unittest.mock import patch
@@ -16,7 +11,6 @@ from .test_documents_common import GIF, TEXT, TransactionCaseDocuments
 
 
 def _png(color):
-    """Return a base64 PNG, i.e. content `image_process` can actually decode."""
     buffer = io.BytesIO()
     Image.new("RGB", (400, 300), color).save(buffer, "PNG")
     return base64.b64encode(buffer.getvalue())
@@ -24,10 +18,9 @@ def _png(color):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsShortcutFields(TransactionCaseDocuments):
-    """A shortcut derives what it can; only the rest is copied from the target."""
 
     def test_copy_fields_hold_nothing_the_computes_already_resolve(self):
-        copy_fields = self.env["documents.document"]._get_shortcuts_copy_fields()
+        copy_fields = self.env["documents.document"]._get_fields_shortcuts_copy()
         fields = self.env["documents.document"]._fields
         redundant = sorted(
             name
@@ -66,9 +59,6 @@ class TestDocumentsShortcutFields(TransactionCaseDocuments):
         self.assertEqual(shortcut.type, target.type)
 
     def test_folder_shortcut_keeps_the_target_type(self):
-        """`type` is readonly but NOT computed, so it does land — and it must:
-        `_check_shortcut_fields` requires a shortcut to share its target's type.
-        """
         target = self.env["documents.document"].create(
             {
                 "type": "folder",
@@ -84,7 +74,6 @@ class TestDocumentsShortcutFields(TransactionCaseDocuments):
 @tagged("post_install", "-at_install")
 class TestDocumentsShortcutAccess(TransactionCaseDocuments):
     def test_f2_shortcut_create_inherits_target_access(self):
-        """A plain create() of a shortcut takes its access from the target."""
         target = self.env["documents.document"].create(
             {
                 "type": "binary",
@@ -113,12 +102,10 @@ class TestDocumentsShortcutAccess(TransactionCaseDocuments):
                 "folder_id": public_folder.id,
             }
         )
-        # Must not have been published by the folder it was dropped into.
         self.assertEqual(shortcut.access_via_link, "none")
         self.assertEqual(shortcut.access_internal, "none")
         self.assertTrue(shortcut.is_access_via_link_hidden)
 
-        # Explicit values still win over the target.
         explicit = self.env["documents.document"].create(
             {
                 "shortcut_document_id": target.id,
@@ -129,7 +116,6 @@ class TestDocumentsShortcutAccess(TransactionCaseDocuments):
         self.assertEqual(explicit.access_internal, "edit")
         self.assertEqual(explicit.access_via_link, "none")
 
-        # Non-shortcut documents keep inheriting from their folder.
         plain = self.env["documents.document"].create(
             {
                 "type": "binary",
@@ -142,7 +128,6 @@ class TestDocumentsShortcutAccess(TransactionCaseDocuments):
         self.assertEqual(plain.access_internal, "view")
 
     def test_f3_shortcut_to_company_root_requires_manager(self):
-        """A non-manager cannot inject a folder at the Company root."""
         folder = self.env["documents.document"].create(
             {
                 "type": "folder",
@@ -163,14 +148,12 @@ class TestDocumentsShortcutAccess(TransactionCaseDocuments):
             )
         )
 
-        # A manager may.
         shortcut = folder.with_user(self.document_manager).action_create_shortcut(
             "COMPANY"
         )
         self.assertTrue(shortcut._is_company_root_folder())
 
     def test_f3_shortcut_to_file_at_company_root_still_allowed(self):
-        """Only the folder case is manager-only; files stay allowed."""
         doc = self.env["documents.document"].create(
             {
                 "type": "binary",
@@ -184,12 +167,6 @@ class TestDocumentsShortcutAccess(TransactionCaseDocuments):
         self.assertFalse(shortcut._is_company_root_folder())
 
     def test_f3_shortcut_check_runs_before_sudo(self):
-        """The check must happen before the internal sudo(), not inside create.
-
-        `create`'s manager guard is intentionally sudo-bypassable (see
-        `test_mail_gateway.test_alias_access`), so `action_create_shortcut`,
-        which sudoes on the user's behalf, has to enforce it itself.
-        """
         folder = self.env["documents.document"].create(
             {
                 "type": "folder",
@@ -211,7 +188,6 @@ class TestDocumentsShortcutAccess(TransactionCaseDocuments):
             "a company root folder was created despite the refusal",
         )
 
-    # -- _prepare_create_values batches shortcut read-access checks ---------
     def test_shortcut_access_check_is_batched(self):
         folder = self.env["documents.document"].create(
             {"type": "folder", "name": "f", "owner_id": self.doc_user.id}
@@ -254,7 +230,6 @@ class TestDocumentsShortcutAccess(TransactionCaseDocuments):
                     for i, t in enumerate(targets)
                 ]
             )
-        # A single batched read-check over all 5 targets, not 5 singleton checks.
         self.assertIn(
             len(targets),
             sizes,
@@ -271,13 +246,6 @@ class TestDocumentsShortcutAccess(TransactionCaseDocuments):
 class TestDocumentsShortcutAsParent(TransactionCaseDocuments):
     @users("dtdm")
     def test_move_into_shortcut_folder_via_user_folder_id(self):
-        """`user_folder_id` resolves a shortcut parent, like `folder_id` does.
-
-        The web client sends `user_folder_id`; the re-entrant `write` used to
-        carry the (already normalised) shortcut value alongside the resolved
-        `folder_id`, and `_clean_vals_for_user_folder_id` then rejected its own
-        output with "Conflicting values passed with user_folder_id".
-        """
         Document = self.env["documents.document"]
         target = Document.create({"name": "target folder", "type": "folder"})
         shortcut = target.action_create_shortcut(location_user_folder_id="MY")

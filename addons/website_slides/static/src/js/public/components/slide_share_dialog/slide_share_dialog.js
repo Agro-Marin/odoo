@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, useRef } from "@odoo/owl";
-import { CopyButton } from "@web/components/copy_button/copy_button";
+import { CopyButton } from "@web/components/copy_button";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/translation";
 import { Dialog } from "@web/ui/dialog";

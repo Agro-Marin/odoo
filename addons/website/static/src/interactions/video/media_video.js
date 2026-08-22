@@ -62,7 +62,7 @@ export class MediaVideo extends Interaction {
             );
             if (promise) {
                 this.waitFor(promise).then(
-                    this.protectSyncAfterAsync(() => triggerAutoplay(iframeEl)),
+                    this.bindDeferred(() => triggerAutoplay(iframeEl)),
                 );
             }
         }

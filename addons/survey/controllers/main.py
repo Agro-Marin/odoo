@@ -817,7 +817,7 @@ class Survey(http.Controller):
         survey_sudo, _dummy = self._fetch_from_access_token(survey_token, False)
         return (
             request.env["ir.binary"]
-            ._get_image_stream_from(survey_sudo, "background_image")
+            ._get_stream_image_from_record(survey_sudo, "background_image")
             .get_response()
         )
 
@@ -840,7 +840,7 @@ class Survey(http.Controller):
 
         return (
             request.env["ir.binary"]
-            ._get_image_stream_from(section, "background_image")
+            ._get_stream_image_from_record(section, "background_image")
             .get_response()
         )
 
@@ -885,7 +885,7 @@ class Survey(http.Controller):
 
         return (
             request.env["ir.binary"]
-            ._get_image_stream_from(suggested_answer, "value_image")
+            ._get_stream_image_from_record(suggested_answer, "value_image")
             .get_response()
         )
 
@@ -1149,7 +1149,7 @@ class Survey(http.Controller):
             answer, comment = self._extract_comment_from_answers(
                 question, post.get(str(question.id))
             )
-            errors.update(question.validate_question(answer, comment))
+            errors.update(question._check_answer(answer, comment))
             if not errors.get(question.id):
                 # Enforce quotas on choice answers before saving
                 if (

@@ -1,10 +1,3 @@
-"""The search panel's folder tree, and the "Recent" grouping behind it.
-
-Presentation only: what the client is handed to draw the left-hand tree,
-plus the per-partner last-access bucketing that backs "Recent" and its
-group-by. None of it decides access; it renders what access allows.
-"""
-
 from collections import OrderedDict
 from typing import Any
 
@@ -34,8 +27,6 @@ class DocumentsDocument(models.Model):
             no_access_date = [("id", "not in", query)]
             if len(values) > 1:
                 values.remove(False)
-                # "in [False, X, ...]" means "no access date" OR "in one of the
-                # X groups" -- the two leaves must be OR-ed, not AND-ed.
                 return [
                     "|",
                     *no_access_date,
@@ -49,13 +40,9 @@ class DocumentsDocument(models.Model):
         )
         return [("id", "in", query)]
 
-    # The CTE buckets on `access_ids.last_access_date`, and it filters on the
-    # *current* user's partner, so the result is both value- and user-dependent.
     @api.depends("access_ids", "access_ids.last_access_date")
     @api.depends_context("uid")
     def _compute_last_access_date_group(self) -> None:
-        # Raw SQL: pending ORM writes on the bucketed column would otherwise be
-        # invisible and the compute would report the pre-write bucket.
         self.env["documents.access"].flush_model(["last_access_date"])
         self.env.cr.execute(
             SQL(
@@ -71,20 +58,6 @@ class DocumentsDocument(models.Model):
             document.last_access_date_group = values.get(document.id)
 
     def _field_to_sql(self, alias: str, fname: str, query: Any = None) -> SQL:
-        """Render *fname* as SQL, joining the per-partner access dates on demand.
-
-        ``last_access_date_group`` resolves through a LEFT JOIN rather than a
-        correlated subquery so the expression can be grouped on: PostgreSQL 18
-        rejects a correlated subquery referencing ungrouped outer columns.
-
-        The join therefore has to be added to a *query*, and without one there
-        is nothing to add it to. Returning the alias anyway produced SQL
-        referencing a join that was never made -- a syntax error at execution,
-        blamed on whatever assembled the statement rather than on the caller
-        that omitted the query.
-
-        :raise ValueError: for ``last_access_date_group`` without a *query*
-        """
         if fname == "last_access_date_group":
             if query is None:
                 msg = (
@@ -126,8 +99,7 @@ class DocumentsDocument(models.Model):
         )
 
     @api.model
-    def _get_search_panel_fields(self) -> list:
-        """Return the list of fields used by the search panel."""
+    def _get_fields_search_panel(self) -> list:
         search_panel_fields = [
             "access_internal",
             "access_token",
@@ -157,16 +129,6 @@ class DocumentsDocument(models.Model):
         return search_panel_fields
 
     def _last_access_date_group_case_sql(self) -> SQL:
-        """CASE bucketing ``documents_access.last_access_date`` into the UI groups.
-
-        The cutoffs are computed in Python (``fields.Datetime.now()``, naive UTC)
-        and passed as parameters rather than using SQL ``NOW() - INTERVAL``: the
-        column stores naive UTC, whereas ``NOW()`` on a ``timestamp`` column
-        resolves in the database session's timezone, so the two only agree when
-        that session runs in UTC. Python cutoffs make the bucketing consistent
-        with the ORM clock and deterministic under ``freeze_time``. This is the
-        single source shared by the compute, the search and the group-by SQL.
-        """
         now = fields.Datetime.now()
         return SQL(
             """(CASE
@@ -198,18 +160,7 @@ class DocumentsDocument(models.Model):
         return super()._order_field_to_sql(alias, field_name, direction, nulls, query)
 
     @api.model
-    def _search_panel_folder_counts(self, model_domain: Domain) -> dict:
-        """Count the documents each folder directly holds, for the search panel.
-
-        The generic counter machinery (`_search_panel_domain_image`) can only
-        group on a *stored* many2one/selection: fed ``user_folder_id`` -- a
-        non-stored computed Char -- it took its "selection field" branch and
-        died on ``KeyError: 'selection'``, so ``enable_counters`` was a hard 500
-        on this search panel rather than a supported option. The virtual field
-        is only a presentation of the stored ``folder_id``, so count on that.
-
-        :return: ``{folder_id: number of matching documents directly inside}``
-        """
+    def _search_panel_get_folder_counts(self, model_domain: Domain) -> dict:
         return {
             folder.id: count
             for folder, count in self._read_group(
@@ -221,14 +172,6 @@ class DocumentsDocument(models.Model):
 
     @api.model
     def _search_panel_rollup_folder_counts(self, values_range: dict) -> None:
-        """Add each folder's descendant counts to its ancestors, in place.
-
-        `_search_panel_global_counters` walks the ``user_folder_id`` chain, but
-        that chain leaves ``values_range`` as soon as a folder sits under a
-        virtual root ("MY", "COMPANY", "SHARED"), which is a *string* key it
-        would then look up and ``KeyError`` on. Walk the stored ``folder_id``
-        chain instead: it is an id or ``False``, and it terminates naturally.
-        """
         parent_by_folder = {
             folder.id: folder.folder_id.id for folder in self.browse(values_range)
         }
@@ -240,8 +183,6 @@ class DocumentsDocument(models.Model):
                 continue
             seen = {folder_id}
             parent_id = parent_by_folder.get(folder_id)
-            # `seen` guards against a parent cycle, which the DB does not
-            # prevent across several rows (only `folder_id <> id` is enforced).
             while parent_id and parent_id not in seen:
                 seen.add(parent_id)
                 if parent_id in values_range:
@@ -250,21 +191,15 @@ class DocumentsDocument(models.Model):
 
     @api.model
     def search_panel_select_range(self, field_name: str, **kwargs) -> dict:
-        """Return the search panel range values, with virtual folder roots."""
 
         def convert_user_folder_ids_to_int(vals: dict) -> None:
-            """Key the category tree on the parent's id where there is one.
-
-            The client matches a node's parent by *id*, so a real folder has to
-            come back as an ``int`` while the virtual roots stay strings.
-            """
             user_folder = self._parse_user_folder(vals["user_folder_id"])
             if user_folder is not None and user_folder.is_folder:
                 vals["user_folder_id"] = user_folder.folder_id
 
         if field_name == "user_folder_id":
             enable_counters = kwargs.get("enable_counters", False)
-            search_panel_fields = self._get_search_panel_fields()
+            search_panel_fields = self._get_fields_search_panel()
             domain = Domain("type", "=", "folder")
 
             if unique_folder_id := self.env.context.get("documents_unique_folder_id"):
@@ -275,7 +210,7 @@ class DocumentsDocument(models.Model):
                 for record in values:
                     convert_user_folder_ids_to_int(record)
                     if record["id"] == unique_folder_id:
-                        record["user_folder_id"] = False  # Set as root
+                        record["user_folder_id"] = False
                 return {
                     "parent_field": "user_folder_id",
                     "values": values,
@@ -308,9 +243,8 @@ class DocumentsDocument(models.Model):
                         kwargs.get("filter_domain", []),
                     ]
                 )
-                local_counts = self._search_panel_folder_counts(model_domain)
+                local_counts = self._search_panel_get_folder_counts(model_domain)
 
-            # Read the targets in batch
             targets = self.browse(
                 r["shortcut_document_id"][0]
                 for r in records

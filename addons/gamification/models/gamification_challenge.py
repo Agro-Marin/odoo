@@ -172,7 +172,7 @@ class GamificationChallenge(models.Model):
     )
     last_report_date = fields.Date("Last Report Date", default=fields.Date.today)
     next_report_date = fields.Date(
-        "Next Report Date", compute="_get_next_report_date", store=True
+        "Next Report Date", compute="_compute_next_report_date", store=True
     )
 
     season_id = fields.Many2one(
@@ -219,7 +219,7 @@ class GamificationChallenge(models.Model):
     }
 
     @api.depends("last_report_date", "report_message_frequency")
-    def _get_next_report_date(self) -> None:
+    def _compute_next_report_date(self) -> None:
         """Return the next report date based on the last report date and
         report period.
         """
@@ -431,7 +431,7 @@ class GamificationChallenge(models.Model):
 
     def action_view_users(self) -> dict[str, Any]:
         """Redirect to the participants (users) list."""
-        action = self.env["ir.actions.actions"]._for_xml_id("base.action_res_users")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("base.action_res_users")
         action["domain"] = [("id", "in", self.user_ids.ids)]
         return action
 

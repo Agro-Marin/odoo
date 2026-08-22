@@ -37,18 +37,18 @@ class ResPartner(models.Model):
             )
         return super()._get_current_partner(order_sudo=order_sudo, **kwargs)
 
-    def _get_frontend_writable_fields(self):
+    def _get_fields_frontend_writable(self):
         """ Override `portal` to make website whitelist fields writable in portal address. """
-        frontend_writable_fields = super()._get_frontend_writable_fields()
+        frontend_writable_fields = super()._get_fields_frontend_writable()
         # Internal submission path: run as SUPERUSER to satisfy the editor
-        # gate on ``get_authorized_fields`` (the field *names* are used as a
+        # gate on ``get_fields_authorized`` (the field *names* are used as a
         # whitelist here; no metadata is exposed to the requesting user), as
         # ``extract_data`` already does.
         frontend_writable_fields.update(
             self.env['ir.model']
             .with_user(SUPERUSER_ID)
             ._get('res.partner')
-            ._get_form_writable_fields()
+            ._get_fields_form_writable()
             .keys()
         )
 

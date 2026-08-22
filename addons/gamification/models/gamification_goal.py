@@ -51,7 +51,7 @@ class GamificationGoal(models.Model):
     target_goal = fields.Float("To Reach", required=True)
     # no goal = global index
     current = fields.Float("Current Value", required=True, default=0)
-    completeness = fields.Float("Completeness", compute="_get_completion")
+    completeness = fields.Float("Completeness", compute="_compute_completeness")
     state = fields.Selection(
         [
             ("draft", "Draft"),
@@ -108,7 +108,7 @@ class GamificationGoal(models.Model):
                     goal.color = 5
 
     @api.depends("current", "target_goal", "definition_id.condition")
-    def _get_completion(self) -> None:
+    def _compute_completeness(self) -> None:
         """Return the percentage of completeness of the goal, between 0 and 100"""
         for goal in self:
             if goal.definition_condition == "higher":

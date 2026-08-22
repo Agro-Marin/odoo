@@ -271,7 +271,7 @@ class EventEvent(models.Model):
     def toggle_website_menu(self, val):
         self.website_menu = val
 
-    def _get_menu_update_fields(self):
+    def _get_fields_menu_update(self):
         """" Return a list of fields triggering a split of menu to activate /
         menu to de-activate. Due to saas-13.3 improvement of menu management
         this is done using side-methods to ease inheritance.
@@ -298,7 +298,7 @@ class EventEvent(models.Model):
           'deactivated': subset of self having its menu currently set to False
         } """
         menus_state_by_field = {}
-        for fname in self._get_menu_update_fields():
+        for fname in self._get_fields_menu_update():
             activated = self.filtered(lambda event, fname=fname: event[fname])
             menus_state_by_field[fname] = {
                 'activated': activated,
@@ -321,7 +321,7 @@ class EventEvent(models.Model):
           'deactivated': subset of self having its menu toggled to False
         } """
         menus_update_by_field = {}
-        for fname in self._get_menu_update_fields():
+        for fname in self._get_fields_menu_update():
             if fname in force_update:
                 menus_update_by_field[fname] = self
             else:

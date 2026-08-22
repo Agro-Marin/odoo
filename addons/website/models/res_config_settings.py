@@ -10,13 +10,13 @@ from odoo.tools.translate import _
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
-    def _default_website(self):
+    def _default_website_id(self):
         return self.env["website"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )
 
     website_id = fields.Many2one(
-        "website", string="website", default=_default_website, ondelete="cascade"
+        "website", string="website", default=_default_website_id, ondelete="cascade"
     )
     website_name = fields.Char(
         "Website Name", related="website_id.name", readonly=False

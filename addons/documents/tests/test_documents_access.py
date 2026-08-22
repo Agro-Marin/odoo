@@ -16,7 +16,6 @@ from odoo.addons.mail.tests.common import MockEmail
 
 class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
     def test_change_owner_matches_the_write_rule(self):
-        """`action_change_owner` and `write({"owner_id": ...})` are one rule."""
         document = self.env["documents.document"].create(
             {
                 "type": "binary",
@@ -29,25 +28,20 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             }
         )
 
-        # a Documents manager may re-own a document they do not own
         document.with_user(self.document_manager).action_change_owner(
             self.internal_user.id
         )
         self.assertEqual(document.owner_id, self.internal_user)
 
-        # sudo() on behalf of a plain user opens it, as it does the equivalent write
         document.with_user(self.doc_user).sudo().action_change_owner(self.doc_user.id)
         self.assertEqual(document.owner_id, self.doc_user)
 
-        # ...but that same user, acting as themselves, still may not re-own
-        # a document belonging to someone else
         document.sudo().owner_id = self.document_manager.id
         with self.assertRaises(AccessError):
             document.with_user(self.doc_user).action_change_owner(self.doc_user.id)
         self.assertEqual(document.owner_id, self.document_manager)
 
     def test_move_into_unreadable_non_folder_reports_invalid_folder(self):
-        """Filing into a non-folder is "Invalid folder id", readable or not."""
         hidden = self.env["documents.document"].create(
             {
                 "type": "binary",
@@ -70,7 +64,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     @mute_logger("odoo.addons.base.models.ir_model", "odoo.addons.base.models.ir_rule")
     def test_access_type_internal(self):
-        """Check that the 'internal' access_type_role works as expected."""
         self.assertEqual(self.folder_a.access_internal, "view")
         self._assert_no_members(self.folder_a)
         self.assertTrue(self.public_user._is_public())
@@ -98,12 +91,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         )
 
     def test_forbidden_partner_members(self):
-        """The public user must never be granted a membership role (regression).
-
-        The former constraint read ``partner_id.user_ids`` with the default
-        ``active_test=True``; the public user is inactive, so ``user_ids`` was
-        empty and the check never fired.
-        """
         public_partner = self.env.ref("base.public_user").partner_id
         with self.assertRaises(
             ValidationError, msg="public user should not be a member"
@@ -115,7 +102,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                     "role": "view",
                 }
             )
-        # A role-less access-logging row for the public partner is still allowed.
         self.assertTrue(
             self.env["documents.access"].create(
                 {
@@ -125,7 +111,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                 }
             )
         )
-        # A regular partner can be a member.
         regular_partner = self.env["res.partner"].create({"name": "Regular member"})
         self.assertTrue(
             self.env["documents.access"].create(
@@ -139,7 +124,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_access_from_documents_access(self):
-        """Check recursive access to documents via documents.access records."""
         self.assertEqual(self.folder_a.access_internal, "view")
         self.assertEqual(self.folder_a.access_via_link, "none")
         self.assertEqual(self.folder_a_a.access_internal, "view")
@@ -181,7 +165,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_access_from_past_access(self):
-        """Check recursive access to documents via documents.log records."""
         self.folder_a.access_via_link = "view"
         self.folder_a.access_internal = "none"
         self.folder_a_a.access_via_link = "view"
@@ -195,7 +178,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         folder_a_as_internal = self.folder_a.with_user(self.internal_user)
         self.assertEqual(
             self.folder_a.access_ids.partner_id, self.doc_user.partner_id
-        )  # Owner's log
+        )
         self._assert_raises_check_access_rule(folder_a_as_portal)
         self.env["documents.access"].create(
             {
@@ -217,7 +200,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self._assert_raises_check_access_rule(folder_a_as_portal)
         self._assert_raises_check_access_rule(
             folder_a_a_as_portal
-        )  # logged access it to parent, now mute.
+        )
 
     def test_access_rights_inherited_on_create(self):
         (self.folder_a + self.folder_b).write(
@@ -227,20 +210,19 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         folder_a1 = self.env["documents.document"].create(
             {"name": "Folder A1", "folder_id": self.folder_a.id, "type": "folder"}
         )
-        # Owner of parent folder is given membership
         self.assertEqual(
             folder_a1.access_ids.partner_id, self.folder_a.owner_id.partner_id
         )
         self.assertEqual(folder_a1.access_internal, "none")
         self.assertEqual(folder_a1.access_via_link, "none")
         self.folder_a.access_internal = "view"
-        self.assertEqual(len(self.folder_a.access_ids), 1)  # owner's log
+        self.assertEqual(len(self.folder_a.access_ids), 1)
         self.folder_a.action_update_access_rights(
             partners={self.portal_user.partner_id.id: ("view", False)}
         )
         self.assertEqual(
             len(self.folder_a.access_ids), 2
-        )  # owner's log + portal member
+        )
         self.folder_b.access_via_link = "edit"
         self.folder_b.action_update_access_rights(
             partners={self.portal_user.partner_id.id: (False, False)}
@@ -253,7 +235,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         )
         self.assertEqual(
             len(folder_a2.access_ids), 2
-        )  # inherited portal member + folder_a's owner
+        )
         self.assertEqual(
             folder_a2.access_ids.partner_id,
             (self.portal_user + self.doc_user).partner_id,
@@ -263,7 +245,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
         self.assertEqual(
             folder_b1.access_ids.partner_id, self.doc_user.partner_id
-        )  # parent's owner (!= from child)
+        )
         self.assertEqual(folder_b1.access_internal, "none")
         self.assertEqual(folder_b1.access_via_link, "edit")
 
@@ -303,7 +285,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.folder_a.access_internal = "edit"
         self.folder_a.access_via_link = "view"
 
-        # Create another log
         self.env["documents.access"].create(
             {
                 "document_id": self.folder_a.id,
@@ -320,7 +301,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             .create({"name": "Folder A5", "type": "folder"})
         )
         self.assertEqual(len(folder_a5.access_ids), 2)
-        # Inherited from member + owner, not logged access
         self.assertEqual(
             folder_a5.access_ids.partner_id,
             (self.portal_user + self.doc_user).partner_id,
@@ -425,7 +405,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         with self.assertRaises(AccessError):
             access_admin.with_user(self.doc_user).unlink()
 
-        # check that the user can not upgrade a view access
         access = self.env["documents.access"].create(
             {
                 "role": "view",
@@ -441,7 +420,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_access_users_drive_is_private(self):
-        # Make folder_a a folder in internal users' drive
         self.folder_a.write(
             {
                 "access_internal": "none",
@@ -498,9 +476,14 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.folder_a.action_update_access_rights(access_internal="view")
         test_authorized_users(self.document_manager)
 
+    def _reset_caches_for_query_count(self) -> None:
+        self.env.invalidate_all()
+        self.env["res.groups"]._get_group_definitions()
+        for xmlid in ("base.group_user", "base.group_portal", "base.group_public"):
+            self.env.ref(xmlid)
+
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_action_update_access_rights_partners(self):
-        """Check that we can update partners access to a document."""
         self._assert_no_members(self.folder_a)
         portal_user_2 = self.portal_user.copy()
 
@@ -509,44 +492,32 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self._assert_raises_check_access_rule(folder_a_as_portal)
         self._assert_raises_check_access_rule(folder_a_as_portal_2)
 
-        # Make portal and portal 2 viewers, permanently or for one day, resp.
         IN_ONE_DAY = fields.Datetime.now() + datetime.timedelta(days=1)
         partners = {
             self.portal_user.partner_id.id: ("view", False),
             portal_user_2.partner_id.id: ("view", IN_ONE_DAY),
         }
-        self.env.invalidate_all()
-        # +2 per assertion since `user_permission` became a projection of
-        # `_search_user_permission` instead of a second Python implementation:
-        # the compute now flushes what the domain reads (required -- without it
-        # it reads stale rows and disagrees with the record rules) and evaluates
-        # the domain in SQL. These blocks measure the *cold* path: they
-        # `invalidate_all()` first, which drops the user/company records a real
-        # request has already loaded. Warm, the same call is +1, and the read
-        # path improved (kanban page 5 -> 4 queries, 200-document compute 2 -> 1).
-        with self.assertQueryCount(15):
+        self._reset_caches_for_query_count()
+        with self.assertQueryCount(16):
             self.folder_a.action_update_access_rights(partners=partners)
         folder_a_as_portal.check_access("read")
         folder_a_as_portal_2.check_access("read")
         folder_a_as_internal = self.folder_a.with_user(self.internal_user)
 
-        # Check that expiration was propagated too
         portal_2_a_a_access = self.folder_a_a.access_ids.filtered(
             lambda a: a.partner_id == portal_user_2.partner_id
         )
         self.assertEqual(len(portal_2_a_a_access), 1)
         self.assertEqual(portal_2_a_a_access.expiration_date, IN_ONE_DAY)
-        # Update expiration alone via parent
         IN_12_H = IN_ONE_DAY - datetime.timedelta(hours=12)
-        self.env.invalidate_all()
+        self._reset_caches_for_query_count()
         with self.assertQueryCount(10):
             self.folder_a.action_update_access_rights(
                 partners={portal_user_2.partner_id: ("view", IN_12_H)}
             )
         self.assertEqual(portal_2_a_a_access.expiration_date, IN_12_H)
 
-        # Update role+expiration via parent
-        self.env.invalidate_all()
+        self._reset_caches_for_query_count()
         with self.assertQueryCount(10):
             self.folder_a.action_update_access_rights(
                 partners={portal_user_2.partner_id: ("edit", IN_ONE_DAY)}
@@ -554,8 +525,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.assertEqual(portal_2_a_a_access.expiration_date, IN_ONE_DAY)
         self.assertEqual(portal_2_a_a_access.role, "edit")
 
-        # Update role alone via parent
-        self.env.invalidate_all()
+        self._reset_caches_for_query_count()
         with self.assertQueryCount(10):
             self.folder_a.action_update_access_rights(
                 partners={portal_user_2.partner_id: ("view", None)}
@@ -563,10 +533,9 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.assertEqual(portal_2_a_a_access.expiration_date, IN_ONE_DAY)
         self.assertEqual(portal_2_a_a_access.role, "view")
 
-        # Make portal viewer of grandchild folder only
         partners = {self.portal_user.partner_id.id: (False, None)}
 
-        self.env.invalidate_all()
+        self._reset_caches_for_query_count()
         with self.assertQueryCount(12):
             self.folder_a.action_update_access_rights(partners=partners)
             self.assertFalse(
@@ -585,15 +554,14 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         )
 
         partners = {self.portal_user.partner_id.id: ("view", False)}
-        self.env.invalidate_all()
-        with self.assertQueryCount(9):
+        self._reset_caches_for_query_count()
+        with self.assertQueryCount(15):
             folder_a_a_p.action_update_access_rights(partners=partners)
 
-        # Make portal and internal editors of parent folder, this should propagate down
         partners = dict.fromkeys(
             (self.portal_user | self.internal_user).partner_id.ids, ("edit", False)
         )
-        self.env.invalidate_all()
+        self._reset_caches_for_query_count()
         with self.assertQueryCount(10):
             self.folder_a.action_update_access_rights(partners=partners)
         folder_a_as_portal.check_access("write")
@@ -603,18 +571,16 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
         self._assert_raises_check_access_rule(folder_a_as_portal_2, "write")
 
-        # Remove portal 2 access
         portal_2_partner_id = portal_user_2.partner_id.id
-        self.env.invalidate_all()
-        with self.assertQueryCount(9):
+        self._reset_caches_for_query_count()
+        with self.assertQueryCount(15):
             self.folder_a.action_update_access_rights(
                 partners={portal_2_partner_id: (False, False)}
             )
         self._assert_raises_check_access_rule(folder_a_as_portal_2)
 
-        # Add portal 2 access to 1st level child and remove from 2nd
-        self.env.invalidate_all()
-        with self.assertQueryCount(9):
+        self._reset_caches_for_query_count()
+        with self.assertQueryCount(15):
             self.folder_a_a.action_update_access_rights(
                 partners={portal_2_partner_id: ("view", False)}
             )
@@ -627,7 +593,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             )
         )
 
-        # check that the accesses are propagated on the documents even if they are in the trash
         folder_a_a_p.action_archive()
         self.folder_a_a.action_update_access_rights(
             partners={portal_user_2.partner_id.id: ("edit", None)}
@@ -648,7 +613,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             set((self.folder_b + self.document_gif).mapped("access_internal")), {"none"}
         )
 
-        # check that the accesses are propagated on the documents even if they are in the trash
         self.document_gif.action_archive()
         self.folder_b.action_update_access_rights(access_internal="edit")
         self.assertEqual(
@@ -765,7 +729,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_action_update_access_rights_sudo(self):
-        """Test that the action will update rights on restricted access folder when using sudo."""
         self.folder_a.write(
             {
                 "access_internal": "none",
@@ -777,7 +740,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.folder_a.access_ids = False
         self._assert_no_members(self.folder_a)
         folder_a_as_internal = self.folder_a.with_user(self.internal_user)
-        # Members
         with self.assertRaises(AccessError):
             folder_a_as_internal.action_update_access_rights(
                 partners={self.internal_user.partner_id: ("edit", None)}
@@ -788,7 +750,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     @users("documents@example.com")
     def test_moving_documents(self):
-        """Check that documents can be moved to a new location and have their rights updated except discoverability."""
         self.folder_b.write(
             {
                 "access_internal": "none",
@@ -831,11 +792,9 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         doc_shortcut = self.document_gif.action_create_shortcut(str(shortcut.id))
         self.assertEqual(doc_shortcut.folder_id, self.folder_b)
 
-        # making a shortcut of a shortcut use the target instead
         shortcut = shortcut.action_create_shortcut(location_user_folder_id="MY")
         self.assertEqual(shortcut.shortcut_document_id, self.folder_b)
 
-        # Can't move out if not editor on folder
         self.folder_a.action_update_access_rights(
             partners={self.internal_user.partner_id.id: ("edit", False)}
         )
@@ -848,21 +807,14 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         with self.assertRaises(AccessError):
             self.document_gif.with_user(self.internal_user).folder_id = self.folder_a.id
 
-        # Unless user is the owner
         self.document_gif.owner_id = self.internal_user
         self.document_gif.with_user(self.internal_user).folder_id = self.folder_a
 
     def test_ir_actions_server(self):
-        """Check the behavior of the documents actions.
-
-        To be able to use those actions, they need to be embedded on the folder of
-        the documents on which we execute the action.
-        """
         self.internal_user.group_ids |= self.env.ref("documents.group_documents_user")
         document = self.document_gif.with_user(self.internal_user)
         document.sudo().access_internal = "edit"
 
-        # Sanity check
         self.assertEqual(document.user_permission, "edit")
         self.assertEqual(document.folder_id.user_permission, "view")
         self.assertEqual(self.folder_a.user_permission, "edit")
@@ -883,7 +835,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                 {
                     **action_base_values,
                     "state": "multi",
-                    # Check that the child actions can be executed
                     "child_ids": [
                         Command.create(
                             {
@@ -905,24 +856,20 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             .with_user(self.internal_user)
         )
 
-        # We can not execute the action because it's not pinned on the folder
         with self.assertRaises(UserError):
             action.with_context(
                 active_model="documents.document", active_id=document.id
             ).run()
 
-        # Pin the action on the folder, so we can execute it
         self.env["documents.document"].action_folder_embed_action(
             document.folder_id.id, action.id
         )
 
-        # We can move the documents even if we have no write access on the initial folder
         action.with_context(
             active_model="documents.document", active_id=document.id
         ).run()
         self.assertEqual(document.folder_id, self.folder_a)
 
-        # Check that we can not execute the action if it's pinned on a different folder
         with self.assertRaises(UserError):
             action.with_context(
                 active_model="documents.document", active_id=document.id
@@ -943,7 +890,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                 }
             )
 
-        # internal user can create a file on the root
         self.env["documents.document"].with_user(self.internal_user).create(
             {
                 "name": "document",
@@ -954,7 +900,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         )
 
         with self.assertRaises(UserError):
-            # portal can not be the owner of a document on the root
             self.env["documents.document"].with_user(self.portal_user).create(
                 {
                     "name": "document",
@@ -965,7 +910,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             )
 
         with self.assertRaises(UserError):
-            # and portal can not create a document on the root for an other user
             self.env["documents.document"].with_user(self.portal_user).create(
                 {
                     "name": "document",
@@ -975,7 +919,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                 }
             )
 
-        # but in SUDO, portal should be able to create a document on the root
         self.env["documents.document"].with_user(self.portal_user).sudo().create(
             {
                 "name": "document",
@@ -986,7 +929,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         )
 
         with self.assertRaises(UserError):
-            # even in SUDO, portal can not be set as the owner of a root document
             self.env["documents.document"].with_user(self.portal_user).sudo().create(
                 {
                     "name": "document",
@@ -998,10 +940,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_restrict_write_on_pinned_folders(self):
-        """Check that editing pinned folders is restricted to managers
-
-        Creating inside depends on regular access rights
-        """
         self.assertFalse(self.folder_a.folder_id)
         self.folder_a.owner_id = False
         self.folder_a.action_update_access_rights(
@@ -1015,35 +953,29 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         )
         self.assertEqual(len(access), 1)
         self.assertEqual(access.role, "edit")
-        with self.assertRaises(AccessError):  # Un-pin attempt
+        with self.assertRaises(AccessError):
             self.folder_a.with_user(self.internal_user).folder_id = self.folder_b
-        # That's because
         self._assert_raises_check_access_rule(
             self.folder_a.with_user(self.internal_user), "write"
         )
-        # but user_permission = 'edit' and can create inside
         self.assertEqual(
             self.folder_a.with_user(self.internal_user).user_permission, "edit"
         )
         self.env["documents.document"].with_user(self.internal_user).create(
             {"type": "folder", "name": "a folder", "folder_id": self.folder_a.id}
         )
-        # or create a shortcut inside
         shortcut = self.document_txt.with_user(
             self.internal_user
         ).action_create_shortcut(location_user_folder_id=str(self.folder_a.id))
         self.assertEqual(shortcut.folder_id, self.folder_a)
-        # Managers can unpin by moving to another root folder
         self.folder_b.owner_id = False
         self.folder_a.with_user(self.document_manager).folder_id = self.folder_b
         self.assertFalse(self.folder_a._is_company_root_folder())
-        # Or moving to their own drive
         self.folder_a.with_user(self.document_manager).folder_id = False
         self.folder_a.with_user(self.document_manager).owner_id = self.document_manager
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_pin_folder_create(self):
-        """Check that a normal user can not create a pinned folder."""
         folder = self.env["documents.document"].create(
             {
                 "folder_id": False,
@@ -1066,7 +998,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_pin_folder_folder_id(self):
-        """Check that non-admins cannot (un-)pin company root folders."""
         self.assertFalse(self.folder_a.folder_id)
 
         self.folder_a.owner_id = self.document_manager
@@ -1084,13 +1015,11 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                 self.document_manager.partner_id & child_access_before.partner_id
             )
 
-        # managers pins from their drive
         self.folder_a.with_user(self.document_manager).user_folder_id = "COMPANY"
         self.assertEqual(
             (self.document_manager | self.internal_user).partner_id,
             self.folder_a.access_ids.filtered(lambda a: a.role).partner_id,
         )
-        # Manager access was not added on children
         self.assertEqual(
             [
                 access_ids.filtered(lambda a: a.role)
@@ -1101,7 +1030,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             children_access_before,
         )
 
-        # internal user cannot write on pinned folders
         self._assert_raises_check_access_rule(
             self.folder_a.with_user(self.internal_user), "write"
         )
@@ -1122,15 +1050,12 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         for child_access_before in children_access_before:
             self.assertFalse(self.doc_user.partner_id & child_access_before.partner_id)
 
-        # managers can pin accessible folders (here in other user's drive)
         self.folder_b.with_user(self.document_manager).user_folder_id = "COMPANY"
-        # previous owner is added as member
         self.assertEqual(
             (self.doc_user | self.internal_user).partner_id,
             self.folder_b.access_ids.filtered(lambda a: a.role).partner_id,
         )
 
-        # Previous owner access was not added on children
         self.assertEqual(
             [
                 access_ids.filtered(lambda a: a.role)
@@ -1141,22 +1066,17 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             children_access_before,
         )
 
-        # set_as_company_root changed owner_id
         self.assertFalse((self.folder_a | self.folder_b).owner_id)
 
-        # Normal user cannot pin
         self.folder_a.with_user(self.document_manager).owner_id = self.internal_user
 
         self.folder_a.with_user(self.internal_user).check_access("write")
         with self.assertRaises(AccessError):
             self.folder_a.with_user(self.internal_user).user_folder_id = "COMPANY"
 
-        # with SUDO, a normal user can pin a folder
         self.folder_a.with_user(self.internal_user).sudo().user_folder_id = "COMPANY"
-        # with SUDO, a normal user can move a pinned a folder
         self.folder_a.with_user(self.internal_user).sudo().owner_id = self.internal_user
 
-        # Internal user cannot copy a company root folder
         with self.assertRaises(AccessError):
             self.company_root_folder.with_user(self.internal_user).copy(
                 default={"user_folder_id": "COMPANY"}
@@ -1164,13 +1084,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_unlink_with_children(self):
-        """Check that deletion handles children items and checks access rights
-
-        This is necessary to avoid handling changes of access rights when moving
-        records to parent folders, showing them in the trash etc. This is also
-        important to make sure that an 2nd level folder without owner cannot be
-        pinned by deleting its parent
-        """
         self.folder_a.action_update_access_rights(access_internal="edit")
         self.folder_a_a.action_update_access_rights(access_internal="none")
         with self.assertRaises(AccessError):
@@ -1181,10 +1094,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_archiving_with_children(self):
-        """Check that archiving handles children items and checks access rights.
-
-        See also ``test_unlink_with_children``
-        """
         self.folder_a.action_update_access_rights(access_internal="edit")
         self.folder_a_a.action_update_access_rights(access_internal="none")
         with self.assertRaises(AccessError):
@@ -1195,7 +1104,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_access_expiration(self):
-        """Check that expired access_ids no longer provide access."""
         self._assert_no_members(self.folder_a)
         self.folder_a.action_update_access_rights(
             partners={self.portal_user.partner_id.id: ("view", False)}
@@ -1213,24 +1121,14 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         )
         self.assertEqual(len(first_child_as_portal), 1)
         self._assert_raises_check_access_rule(folder_a_as_portal, "read")
-        # As we did update children
         self._assert_raises_check_access_rule(first_child_as_portal, "read")
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_access_via_link_from_parent_folder(self):
-        """Check that a document accessible via link is accessible to users having access to the parent folder.
-
-        Note that access via link to the parent is only checked if there is an access record (albeit without role).
-        This is used to:
-         * share a folder with its similarly-configured contents to a public user with a single token
-         (incl. download a zip).
-         * make files discoverable when navigating the parent folder in the client without creating `access` records
-          for every file when 'reading' the folder.
-        """
         self._assert_no_members(self.folder_b)
         self.folder_b.action_update_access_rights(
             access_internal="none", access_via_link="none"
-        )  # with propagation
+        )
         self.assertEqual(self.folder_b.access_internal, "none")
         self.assertEqual(self.document_gif.access_internal, "none")
         self.assertEqual(self.document_txt.access_internal, "none")
@@ -1238,7 +1136,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.assertEqual(self.document_txt.access_via_link, "view")
         with mute_logger(
             "odoo.addons.documents.models.documents_document"
-        ):  # Creating document(s) as superuser
+        ):
             document_txt_private = self.document_txt.copy()
         self.assertIn(document_txt_private.access_ids.role, {False, "edit"})
         document_txt_private.is_access_via_link_hidden = True
@@ -1290,12 +1188,11 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                 txt_as_internal.check_access("read")
                 if (
                     case_name == "internal user access"
-                ):  # Difference between internal and portal
+                ):
                     self._assert_raises_check_access_rule(
                         self.document_txt.with_user(self.portal_user), "read"
                     )
 
-            # cleanup
             self.folder_b.write({"access_internal": "none", "access_via_link": "none"})
             self.folder_b.access_ids.unlink()
 
@@ -1315,7 +1212,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
         self._assert_raises_check_access_rule(gif_as_internal, "read")
 
-        # Check that the user can not read the attachment
         self.assertFalse(self.document_gif.res_model)
         with self.assertRaises(AccessError):
             self.assertEqual(
@@ -1323,7 +1219,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                 "file.gif",
             )
 
-        # If we give access to the document, the user should be able to read both the document and the attachment
         self.document_gif.access_internal = "view"
         self.assertEqual(gif_as_internal.with_user(self.internal_user).name, "file.gif")
         self.assertFalse(gif_as_internal.res_model)
@@ -1335,13 +1230,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_access_rights_shortcuts_and_discoverability(self):
-        """Check access rights related to shortcuts:
-
-        * A shortcut pointing to a non-accessible document is hidden.
-        * A shortcut pointing to a non-accessible document but discoverable with link should be visible.
-
-        See also ``test_access_via_link_from_parent_folder``.
-        """
         self._assert_no_members(self.folder_b)
         self.folder_b.folder_id = self.folder_a.id
         self.assertEqual(
@@ -1370,7 +1258,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             self.document_txt.with_user(self.portal_user), "read"
         )
 
-        # Create a shortcut to document_txt in folder_a
         shortcut = self.document_txt.action_create_shortcut(
             location_user_folder_id=str(self.folder_a.id)
         )
@@ -1388,7 +1275,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
         docs = self.document_txt + shortcut
 
-        # Neither internal nor manager can't see any one of the two
         self.assertSetEqual(
             set(docs.with_user(self.internal_user).mapped("user_permission")), {"none"}
         )
@@ -1404,21 +1290,18 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             docs.with_user(self.document_manager), "read"
         )
 
-        # Let internal see both
         self.document_txt.action_update_access_rights(access_internal="view")
         self.assertSetEqual(
             set(docs.with_user(self.internal_user).mapped("user_permission")), {"view"}
         )
         docs.with_user(self.internal_user).check_access("read")
 
-        # Manager now has edit right
         self.assertSetEqual(
             set(docs.with_user(self.document_manager).mapped("user_permission")),
             {"edit"},
         )
         docs.with_user(self.document_manager).check_access("write")
 
-        # Still not portal
         self.assertSetEqual(
             set(docs.with_user(self.portal_user).mapped("user_permission")), {"none"}
         )
@@ -1442,12 +1325,10 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.assertEqual(shortcut.with_user(self.portal_user).user_permission, "view")
         shortcut.with_user(self.portal_user).check_access("read")
 
-        # Shortcut target is still inaccessible, it will be made available when logging access
         self._assert_raises_check_access_rule(
             self.document_txt.with_user(self.portal_user), "read"
         )
 
-        # Updating the access on the target update the access on the shortcut itself
         partner = self.env["res.partner"].create({"name": "Test"})
         shortcut.shortcut_document_id.action_update_access_rights(
             access_internal="edit", partners={partner: ("edit", False)}
@@ -1464,14 +1345,11 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         )
         self.assertFalse(access.exists())
 
-        # Check that own shortcut is deleted when access to the target is removed
-        # (avoids client fetches on inaccessible previews & others).
         self.folder_a.action_update_access_rights(access_internal="edit")
         self.document_txt.action_update_access_rights(
             access_internal="view", access_via_link="none"
         )
 
-        # Access via access_internal
         shortcut = self.document_txt.with_user(
             self.internal_user
         ).action_create_shortcut(location_user_folder_id=str(self.folder_a.id))
@@ -1487,7 +1365,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         )
         self.assertEqual(shortcut.with_user(self.internal_user).user_permission, "none")
 
-        # Access via membership
         self.document_txt.action_update_access_rights(
             partners={self.internal_user.partner_id: ("view", False)}
         )
@@ -1505,7 +1382,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         )
         self.assertEqual(shortcut.with_user(self.internal_user).user_permission, "none")
 
-        # Access via ownership
         self.document_txt.owner_id = self.internal_user
         shortcut = self.document_txt.with_user(
             self.internal_user
@@ -1521,13 +1397,11 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     def test_access_rights_shortcuts_target(self):
         Doc_as_internal = self.env["documents.document"].with_user(self.internal_user)
-        # Check in SUDO to remove the added `user_permission` domain from the access rules
         Doc_as_internal_sudo = Doc_as_internal.sudo()
         shortcut = self.document_txt.action_create_shortcut(
             location_user_folder_id=str(self.folder_a.id)
         )
 
-        # Check edit access on the shortcut when we can only read the target
         self.document_txt.action_update_access_rights(
             access_internal="view", access_via_link="none"
         )
@@ -1575,11 +1449,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                     [("id", "=", shortcut.id), ("user_permission", "=", "edit")]
                 )
             )
-            # Was 2: searching "edit" used to re-enter `_search_user_permission`
-            # for the shortcut-owner leg. That leg now calls the extracted
-            # `_direct_user_permission_domain` instead, so the public entry point
-            # runs once. The observable result is unchanged and still asserted
-            # on the surrounding lines.
             self.assertEqual(patched_search_user_permission.call_count, 1)
         self.assertFalse(
             Doc_as_internal_sudo.search(
@@ -1647,7 +1516,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             )
         )
 
-        # We remove the access on the target
         self.document_txt.action_update_access_rights(access_via_link="none")
         self.assertEqual(shortcut.with_user(self.internal_user).user_permission, "none")
         self.assertEqual(shortcut.with_user(self.internal_user).user_permission, "none")
@@ -1655,7 +1523,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
     @mute_logger("odoo.addons.base.models.ir_rule")
     @users("documents@example.com")
     def test_access_rights_shortcuts_propagation(self):
-        """Test that we update shortcuts if we have edit access on the document"""
         target = self.env["documents.document"].create(
             {
                 "name": "Target",
@@ -1722,7 +1589,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                         }
                     )
                 ],
-                "owner_id": self.document_manager.id,  # not False
+                "owner_id": self.document_manager.id,
             }
         )
 
@@ -1751,20 +1618,15 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.assertEqual(shortcut_2.access_internal, "view")
         self.assertEqual(shortcut_3.access_internal, "none")
 
-        # ** sanity check **
-        # no write access, we should not update it
         self.assertEqual(file_2.with_user(self.internal_user).user_permission, "view")
         self.assertEqual(
             shortcut_2.with_user(self.internal_user).user_permission, "view"
         )
 
-        # we have write access on the target but not on the shortcut
-        # (the shortcut should be updated in "SUDO" in order to keep them synchronized)
         self.assertEqual(file_3.with_user(self.internal_user).user_permission, "edit")
         self.assertEqual(
             shortcut_3.with_user(self.internal_user).user_permission, "none"
         )
-        # ******************
 
         root.with_user(self.internal_user).action_update_access_rights(
             access_via_link="view"
@@ -1780,12 +1642,9 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.assertEqual(sub_folder.access_via_link, "view")
         self.assertEqual(sub_file.access_via_link, "view")
 
-        # The access update is done only from the target to the shortcut,
-        # and not from the shortcut to the target
         self.assertEqual(target.access_via_link, "none")
         self.assertEqual(shortcut.access_via_link, "none")
 
-        # test the propagation of the members
         root.with_user(self.internal_user).action_update_access_rights(
             partners={self.internal_user.partner_id: ("edit", None)}
         )
@@ -1804,13 +1663,10 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.assertEqual(get_access(sub_folder), "edit")
         self.assertEqual(get_access(sub_file), "edit")
 
-        # shortcut always synchronized
         self.assertEqual(get_access(shortcut_1), "edit")
         self.assertEqual(get_access(shortcut_2), False)
         self.assertEqual(get_access(shortcut_3), False)
 
-        # The members' update is done only from the target to the shortcut,
-        # and not from the shortcut to the target
         self.assertEqual(get_access(target), False)
         self.assertEqual(get_access(shortcut), False)
 
@@ -1834,7 +1690,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_copy_document_access(self):
-        """Test that the copy method of Document also copies access rights."""
         IN_ONE_DAY = fields.Datetime.now() + datetime.timedelta(days=1)
         documents = self.document_gif | self.document_txt
 
@@ -1843,7 +1698,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             partners={self.internal_user.partner_id: ("view", False)}
         )
 
-        # If we have no access on the root folder, copy in "My Drive"
         copied_document = documents.with_user(self.internal_user).copy()
         self.assertFalse(copied_document.folder_id)
         self.assertEqual(copied_document.owner_id, self.internal_user)
@@ -1864,7 +1718,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.document_gif.action_update_access_rights(
             partners={self.internal_user.partner_id: ("view", False)}
         )
-        # Copying folders is also possible
         (documents | self.folder_b).with_user(self.internal_user).copy()
 
         gif_copy, txt_copy = documents.with_user(self.internal_user).copy()
@@ -1920,22 +1773,19 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             }
         )
 
-        # Copying shortcuts is also supported
         shortcuts = url_document_in_my_folder | shortcut
         shortcuts.folder_id = self.folder_a
         with mute_logger(
             "odoo.addons.documents.models.documents_document"
-        ):  # Creating document(s) as superuser
+        ):
             copied_shortcuts = shortcuts.copy()
         self.assertEqual(copied_shortcuts.folder_id, self.folder_a)
 
-        # If we have no access on the root folder, create the shortcuts in "My Drive"
         self.document_gif.owner_id = self.internal_user
         copied_shortcuts = shortcuts.with_user(self.internal_user).copy()
         self.assertFalse(copied_shortcuts.folder_id)
         self.assertEqual(copied_shortcuts.owner_id, self.internal_user)
 
-        # If we have no access on the root folder, create the folder copy in "My Drive"
         self.folder_b.folder_id = self.folder_a
         for access in ("edit", "view"):
             self.folder_b.action_update_access_rights(
@@ -1947,7 +1797,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             self.assertEqual(len(copied_folder.children_ids), 6)
             self.assertNotEqual(copied_folder.children_ids, self.folder_b.children_ids)
 
-        # If a manager copies a root folder, do not change the owner
         self.folder_b.folder_id = False
         self.assertEqual(self.folder_b.owner_id, self.doc_user)
         self.assertFalse(self.folder_b._is_company_root_folder())
@@ -1961,14 +1810,11 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.assertFalse(copied_folder.folder_id)
         self.assertFalse(copied_folder.owner_id)
 
-        # The user has the access on the documents, but he can not create pinned folders
-        # Create the copy in "My Drive"
         self.folder_b.access_internal = "edit"
         copied_folder = self.folder_b.with_user(self.internal_user).copy()
         self.assertFalse(copied_folder.folder_id)
         self.assertEqual(copied_folder.owner_id, self.internal_user)
 
-        # Check that portal can not copy in his drive (no drive)
         self.folder_b.action_update_access_rights(
             access_via_link="edit",
             partners={self.portal_user.partner_id: ("edit", False)},
@@ -1978,12 +1824,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_deleting_in_non_edit_folder(self):
-        """Check required rights on document and containing folder to archive/unlink.
-
-        Archiving a document requires being the owner of the document or having
-        edit permission on both the document and its containing folder.
-        """
-        # Manager creates a folder in their drive and gives editor right to user
         folder = (
             self.env["documents.document"]
             .with_user(self.document_manager)
@@ -2000,7 +1840,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                 }
             )
         )
-        # User creates two documents in that folder
         user_doc_1, user_doc_2 = user_docs = (
             self.env["documents.document"]
             .with_user(self.doc_user)
@@ -2016,7 +1855,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             )
         )
         self.assertEqual(user_docs.owner_id, self.doc_user)
-        # Manager removes user's role on the folder
         folder.with_user(self.document_manager).action_update_access_rights(
             partners={self.doc_user.partner_id: (False, None)},
         )
@@ -2079,7 +1917,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             self.folder_a_a.with_user(self.internal_user).user_permission, "none"
         )
 
-        # Add a document in their folder but set their access to viewer.
         self.document_txt.folder_id = self.folder_a_a
         self.document_txt.owner_id = self.document_manager
         self.document_txt.action_update_access_rights(
@@ -2105,7 +1942,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_embedded_action(self):
-        """Test embedding and running actions on the right records"""
         self.folder_a.action_update_access_rights(
             access_internal="edit",
             partners={self.portal_user.partner_id: ("edit", False)},
@@ -2155,7 +1991,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_embedded_action_shortcut_folder(self):
-        """Test embedding and running actions on the right records"""
         self.folder_a.action_update_access_rights(
             access_internal="edit",
             partners={self.portal_user.partner_id: ("edit", False)},
@@ -2176,7 +2011,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             )
         )
 
-        # From here, same as `test_embedded_action` but using the shortcut instead
         with self.assertRaises(AccessError):
             self.env["documents.document"].with_user(
                 self.internal_user
@@ -2226,7 +2060,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             .with_user(self.internal_user)
         )
 
-        # Check that we need write access on the folder to pin it
         self.assertEqual(document.folder_id.user_permission, "view")
         with self.assertRaises(AccessError):
             document.env["documents.document"].action_folder_embed_action(
@@ -2241,7 +2074,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             embedded = capturer.records
         self.assertEqual(len(embedded), 1)
 
-        # Try to move an existing embedded action
         self.assertEqual(
             self.folder_a.with_user(self.internal_user).user_permission, "view"
         )
@@ -2256,9 +2088,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             embedded.with_user(self.internal_user).parent_res_id = self.folder_b.id
 
     def test_groupless_embedded_action_availability(self):
-        """Ensure that an embedded action which should otherwise be visible to a given document
-        record remains visible in the case where it has `group_ids=[]`.
-        """
         embedded_action = self.env["ir.embedded.actions"].create(
             {
                 "name": "public action",
@@ -2316,10 +2145,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     @users("documents@example.com")
     def test_embedded_actions_unembed(self):
-        """Check that actions can be un-embedded as records may exist with/without these groups.
-
-        Groups defined on embedded actions are not supported while those on the server actions
-        are (tested in test_embedded_action)."""
         folder = self.document_txt.folder_id
         self.assertFalse(self.document_txt.available_embedded_actions_ids)
         self.document_txt.invalidate_recordset(["available_embedded_actions_ids"])
@@ -2386,7 +2211,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         )
 
     def test_restricted_folder_dependant_fields(self):
-        """Check that reading fields depending on restricted folder doesn't raise (access) error."""
         self.folder_b.access_internal = "none"
         self.assertEqual(
             self.folder_b.with_user(self.internal_user).user_permission, "none"
@@ -2401,19 +2225,17 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             self.document_gif.with_user(self.internal_user).user_permission, "view"
         )
 
-        self.document_gif.invalidate_recordset()  # cache pollution
+        self.document_gif.invalidate_recordset()
         self.assertFalse(
             self.document_gif.with_user(
                 self.internal_user
             ).available_embedded_actions_ids
         )
 
-        # Private method now returns actions because there are accessible child(ren)
         self.env["documents.document"].with_user(
             self.internal_user
         )._get_folder_embedded_actions(self.folder_b.id)
         with self.assertRaises(UserError):
-            # Public method doesn't need to, actions are only embeddable by folder editors.
             self.env["documents.document"].with_user(
                 self.internal_user
             ).get_documents_actions(self.folder_b.id)
@@ -2434,7 +2256,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
     def test_tracking_creation_on_access_rights_changes(self):
         self.folder_a_a.unlink()
-        # 10 sub folders
         sub_folder_ids = self.env["documents.document"].create(
             [
                 {
@@ -2445,7 +2266,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                 for letter in ("A", "B", "C", "D", "E", "F", "G", "H", "I", "j")
             ]
         )
-        # 10 sub sub folders = 100 sub sub folders in total
         for sub_folder in sub_folder_ids:
             self.env["documents.document"].create(
                 [
@@ -2461,7 +2281,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                             )
                             for count in range(10)
                         ],
-                        # 10 files in each sub sub folders = 1000 files
                     }
                     for count in range(10)
                 ]
@@ -2542,7 +2361,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                 message,
                 [
                     ("access_via_link", "char", "None", "Viewer"),
-                    # 'is_access_via_link_hidden' is not propagated
                 ],
                 strict=True,
             )
@@ -2626,7 +2444,6 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             Access._get_member_from_token(public_access.id, token), public_access
         )
 
-        # use an old token
         token = public_access._get_member_signup_token()
         public_access.expiration_date = fields.Datetime.now() - datetime.timedelta(
             days=1
@@ -2658,7 +2475,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                         }
                     ),
                 ],
-                "owner_id": self.document_manager.id,  # not odoobot
+                "owner_id": self.document_manager.id,
             }
         )
         secret_folder = not_secret_folder.children_ids[0]
@@ -2717,7 +2534,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                         {"partner_id": self.internal_user.partner_id.id, "role": "edit"}
                     )
                 ],
-                "owner_id": self.document_manager.id,  # not odoobot
+                "owner_id": self.document_manager.id,
             }
         )
         secret_folder = member_folder.children_ids[0]

@@ -6,7 +6,7 @@ import {
     DEFAULT_COLORS,
     DEFAULT_THEME_COLOR_VARS,
     useColorPicker,
-} from "@web/components/color_picker/color_picker";
+} from "@web/components/color_picker";
 import { isColorGradient } from "@web/core/utils/format/colors";
 import { useChildRef } from "@web/core/utils/hooks";
 import { effect } from "@web/core/utils/reactive";
@@ -66,7 +66,7 @@ export class ColorSelector extends Component {
         const colorPickerRef = useChildRef();
         this.colorPicker = useColorPicker(
             "root",
-            {
+            () => ({
                 state: this.state,
                 applyColor: this.props.applyColor,
                 applyColorPreview: this.props.applyColorPreview,
@@ -76,7 +76,7 @@ export class ColorSelector extends Component {
                 enabledTabs: this.props.enabledTabs,
                 cssVarColorPrefix: this.props.cssVarColorPrefix,
                 useDefaultThemeColors: this.props.useDefaultThemeColors,
-            },
+            }),
             {
                 env: this.__owl__.childEnv,
                 onClose: () => {

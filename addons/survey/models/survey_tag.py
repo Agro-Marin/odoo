@@ -1,8 +1,4 @@
-from random import randint
-
-from odoo import fields, models
-
-from odoo.addons.base.models.mixin_catalog import name_uniq_index
+from odoo import models
 
 
 class SurveyTag(models.Model):
@@ -10,14 +6,7 @@ class SurveyTag(models.Model):
 
     _name = "survey.tag"
     _description = "Survey Tag"
-    _order = "name"
-
-    def _get_default_color(self) -> int:
-        return randint(1, 11)
-
-    name = fields.Char("Tag Name", required=True, translate=True)
-    color = fields.Integer("Color", default=_get_default_color)
-
-    _name_src_uniq = name_uniq_index(
-        message="Tag name already exists!",
-    )
+    # `name` (translated, unique on the source term), `active`, `color` and
+    # `code` come from the mixin, which already carried the very uniqueness rule
+    # this model was importing on its own. Flat: survey tags do not nest.
+    _inherit = ["mixin.tag"]

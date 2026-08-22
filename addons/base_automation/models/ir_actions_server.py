@@ -187,9 +187,9 @@ class IrActionsServer(models.Model):
     # Existing Methods (standard base_automation)
     # =========================================================================
 
-    def _get_children_domain(self):
+    def _get_domain_children(self):
         """Prevent automation actions from being used as multi-action children."""
-        return super()._get_children_domain() & Domain("base_automation_id", "=", False)
+        return super()._get_domain_children() & Domain("base_automation_id", "=", False)
 
     def _get_eval_context(self, action=None):
         """Add the webhook payload to the eval context for code actions.
@@ -250,9 +250,9 @@ class IrActionsServer(models.Model):
         return warnings
 
     @api.model
-    def _warning_depends(self):
+    def _get_fields_warning_depends(self):
         """Add fields that trigger warning recomputation."""
-        return super()._warning_depends() + [
+        return super()._get_fields_warning_depends() + [
             "model_id",
             "base_automation_id",
         ]

@@ -11,7 +11,7 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
-import { CheckBox } from "@web/components/checkbox/checkbox";
+import { CheckBox } from "@web/components/checkbox";
 import { jsToPyLocale, pyToJsLocale } from "@web/core/l10n/utils";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";

@@ -24,7 +24,7 @@ class WebsiteMail(http.Controller):
         else:
             # mail_thread method
             try:
-                self.env['ir.http']._verify_request_recaptcha_token('website_mail_follow')
+                self.env['ir.http']._check_request_recaptcha_token('website_mail_follow')
             except Exception:
                 no_create = True
             else:

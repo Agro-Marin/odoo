@@ -16,13 +16,16 @@ class SurveySurvey(models.Model):
         'slide.channel', string="Certification Courses", compute='_compute_slide_channel_data',
         help="The courses this survey is linked to through the e-learning application",
         groups='website_slides.group_website_slides_officer')
-    slide_channel_count = fields.Integer("Courses Count", compute='_compute_slide_channel_data', groups='website_slides.group_website_slides_officer')
+    slide_channel_count = fields.Count(
+        "slide_channel_ids",
+        "Courses Count",
+        groups='website_slides.group_website_slides_officer',
+    )
 
     @api.depends('slide_ids.channel_id')
     def _compute_slide_channel_data(self):
         for survey in self:
             survey.slide_channel_ids = survey.slide_ids.mapped('channel_id')
-            survey.slide_channel_count = len(survey.slide_channel_ids)
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_linked_to_course(self):
@@ -51,7 +54,7 @@ class SurveySurvey(models.Model):
         """ Redirect to the channels using the survey as a certification. Open
         in no-create as link between those two comes through a slide, hard to
         keep as default values. """
-        action = self.env["ir.actions.actions"]._for_xml_id("website_slides.slide_channel_action_overview")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("website_slides.slide_channel_action_overview")
         action['display_name'] = _("Courses")
         if self.slide_channel_count == 1:
             action.update({'views': [(False, 'form')],

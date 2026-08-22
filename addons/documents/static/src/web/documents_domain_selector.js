@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { DomainSelector } from "@web/components/domain_selector/domain_selector";
+import { DomainSelector } from "@web/components/domain_selector";
 import { patch } from "@web/core/utils/patch";
 
 patch(DomainSelector.prototype, {

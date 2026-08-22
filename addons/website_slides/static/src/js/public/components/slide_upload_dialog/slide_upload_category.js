@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, onMounted, onWillStart, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown";
-import { SelectMenu } from "@web/components/select_menu/select_menu";
+import { SelectMenu } from "@web/components/select_menu";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { uniqueId } from "@web/core/utils/functions";

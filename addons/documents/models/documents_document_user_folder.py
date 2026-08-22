@@ -1,12 +1,3 @@
-"""The virtual parent: drive roots and the folder tree above a document.
-
-`user_folder_id` is not a column. It is a *presentation* of `folder_id` +
-`owner_id` + reachability -- "My Drive", "Company", "Shared with me",
-"Recent", "Trash", or a real folder id -- and every consumer used to
-re-derive what a given spelling meant. Its compute, its search, and the
-normalisation that turns it back into real columns live together here.
-"""
-
 from odoo import _, api, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
@@ -18,17 +9,11 @@ from odoo.addons.documents.tools import UserFolder
 class DocumentsDocument(models.Model):
     _inherit = "documents.document"
 
-    # `allowed_company_ids`: this reads `folder_id.user_permission`, which is
-    # itself company-scoped (see its own `depends_context`). Without it the cache
-    # key is too coarse, so a request that touches two company scopes in one
-    # transaction reuses the first scope's result: `user_permission` correctly
-    # flipped to `edit` while `user_folder_id` stayed `False`, rendering the
-    # document as unfiled.
     @api.depends_context("uid", "allowed_company_ids")
     @api.depends("folder_id", "folder_id.user_permission", "owner_id", "active")
     def _compute_user_folder_id(self) -> None:
         SHARED = UserFolder.SHARED if not self.env.user.share else False
-        self.user_folder_id = False  # Inaccessible
+        self.user_folder_id = False
         active_documents = self.filtered("active")
         (self - active_documents).user_folder_id = UserFolder.TRASH
         for document in active_documents.filtered(
@@ -44,9 +29,9 @@ class DocumentsDocument(models.Model):
             elif not document.owner_id:
                 document.user_folder_id = UserFolder.COMPANY
             elif document.owner_id == self.env.user:
-                document.user_folder_id = UserFolder.MY  # Root of user's drive
+                document.user_folder_id = UserFolder.MY
             else:
-                document.user_folder_id = SHARED  # Root of another user's drive
+                document.user_folder_id = SHARED
 
     @api.model
     def _search_folder_id(self, operator: str, operand: int | list) -> list:
@@ -63,16 +48,10 @@ class DocumentsDocument(models.Model):
         )
 
     def _search_user_folder_id(self, operator: str, operand: str | int | list) -> list:
-        """Search domain for user_folder_id virtual folder_id.
-
-        Note that searching in "RECENT" is allowed for practicality w.r.t. webclient
-        even though no record will have "RECENT" as computed `user_folder_id`
-        """
         if operator not in ("in", "child_of"):
             return NotImplemented
         values = {operand} if isinstance(operand, str) else set(operand)
         if UserFolder.TRASH in values:
-            # Would need `active_test=False` in context
             raise UserError(_("Searching on TRASH is not supported."))
         domain_parts = []
         folder_ids = []
@@ -103,13 +82,6 @@ class DocumentsDocument(models.Model):
                     )
                 )
             elif user_folder.kind == UserFolder.SHARED:
-                # For a share user this is deliberately *search-only*, like
-                # "RECENT" above: `_compute_user_folder_id` yields False for them
-                # (SHARED is bound to False), but the portal webclient searches
-                # on it to list what has been shared with the visitor. See the
-                # explicit carve-out in
-                # `test_compute_and_search_user_folder_id_equal`.
-                # Find records without permission on folder_id as directly searching on user_permission = 'none' is not allowed.
                 domain_parts.append(
                     Domain("folder_id", "!=", False)
                     & Domain("folder_id", "not any", [])
@@ -119,17 +91,9 @@ class DocumentsDocument(models.Model):
             elif user_folder.is_folder:
                 folder_ids.append(user_folder.folder_id)
             else:
-                # Only TRASH can reach this (rejected above, before the loop);
-                # spelled out so a root added later cannot silently fall through
-                # and be treated as a folder id.
                 raise UserError(_("Searching on %s is not supported.", user_folder))
 
         if folder_ids:
-            # `_compute_user_folder_id` only yields a folder id when that folder
-            # is itself accessible, falling back to SHARED otherwise. Without the
-            # accessibility leg (`any []` = passes the record rules) a document
-            # inside an unreachable folder answered to *both* that folder's id
-            # and SHARED, so it showed up in two virtual folders at once.
             domain_parts.append(
                 Domain("folder_id", "in", folder_ids) & Domain("folder_id", "any", [])
             )
@@ -146,11 +110,6 @@ class DocumentsDocument(models.Model):
 
     @api.model
     def _parse_user_folder(self, value) -> UserFolder | None:
-        """Parse a `user_folder_id`, reporting a bad one as a `UserError`.
-
-        The parser itself stays free of ORM concerns and raises `ValueError`;
-        this is where that becomes a translated, user-facing message.
-        """
         try:
             return UserFolder.parse(value)
         except ValueError as error:
@@ -160,24 +119,6 @@ class DocumentsDocument(models.Model):
     def _clean_vals_for_user_folder_id(
         self, vals: dict, is_create: bool = False
     ) -> None:
-        """Update vals to integrate `user_folder_id`.
-
-        This allows to
-          * Override context-provided values if `user_folder_id` is defined
-          * Handle constraints on moving only on `folder_id` and `owner_id` instead
-            of duplicating them for `user_folder_id`
-          * Centralize logic about vals vs context defaults
-
-        Note that passing any values for `folder_id` and `owner_id` in vals or context
-        will discard default_user_folder_id.
-
-        :param dict vals: Values for record
-        :raises UserError: on invalid new `user_folder_id` or conflict with `folder_id`
-           or `owner_id` in `vals`
-        """
-        # Parsed once, up front: `user_folder_id` may arrive as a virtual root, a
-        # folder id, or a folder id spelled as a string (which is what the web
-        # client sends), and each spelling used to be re-derived further down.
         user_folder = self._parse_user_folder(vals.get("user_folder_id"))
         if user_folder is None:
             if (
@@ -192,21 +133,11 @@ class DocumentsDocument(models.Model):
                 )
             if user_folder is None:
                 return
-        # Normalize the wire value so the (unwritten, computed) field and any
-        # later reader see the same spelling the parser accepted.
         vals["user_folder_id"] = str(user_folder)
 
         if user_folder.kind == UserFolder.COMPANY:
             new_vals = {"owner_id": False, "folder_id": False}
             if is_create and "access_internal" not in vals:
-                # A brand-new document in the shared Company drive has no owner
-                # and no parent folder to grant access from; default it to
-                # company-visible so the creator (and internal users) can see
-                # what they just created, instead of the field default 'none'
-                # which would hide it from everyone but system administrators.
-                # Moving an existing document here (is_create=False) keeps its
-                # access untouched. Restricted company documents are still
-                # possible by passing access_internal explicitly.
                 new_vals["access_internal"] = "view"
         elif user_folder.kind == UserFolder.MY:
             if not self.env.user.active:
@@ -236,7 +167,6 @@ class DocumentsDocument(models.Model):
 
     @api.model
     def _get_child_of_domain(self, roots_domain: Domain, value: str | int) -> Domain:
-        """Make sure that all intermediate folders are also part of the result."""
         if not isinstance(value, str | int):
             raise UserError(
                 _(
@@ -244,7 +174,6 @@ class DocumentsDocument(models.Model):
                 )
             )
         if value == UserFolder.SHARED:
-            # Can't use sudo speedup here
             shared_roots = self.with_context(active_test=False).search_fetch(
                 roots_domain, ["id"]
             )

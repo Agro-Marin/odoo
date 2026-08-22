@@ -169,8 +169,8 @@ class MixinSpreadsheet(models.AbstractModel):
         if file_path.startswith('data:image/png;base64,'):
             return base64.b64decode(file_path.split(',')[1])
         match = re.match(r'/web/image/(\d+)', file_path)
-        file_record = self.env['ir.binary']._find_record(
+        file_record = self.env['ir.binary']._get_record(
             res_model='ir.attachment',
             res_id=int(match.group(1)),
         )
-        return self.env['ir.binary']._get_stream_from(file_record).read()
+        return self.env['ir.binary']._get_stream_from_record(file_record).read()

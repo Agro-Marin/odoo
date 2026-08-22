@@ -32,9 +32,9 @@ class PortalWizardUser(models.TransientModel):
         similar_user_domain.append(("website_id", "in", portal_user_website_ids))
         return similar_user_domain
 
-    def _get_similar_users_fields(self):
+    def _get_fields_similar_users(self):
         """Returns a list of field elements to extract from users."""
-        similar_user_fields = super()._get_similar_users_fields()
+        similar_user_fields = super()._get_fields_similar_users()
         similar_user_fields.append("website_id")
         return similar_user_fields
 

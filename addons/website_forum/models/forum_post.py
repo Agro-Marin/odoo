@@ -86,9 +86,7 @@ class ForumPost(models.Model):
     # favorite
     favourite_ids = fields.Many2many("res.users", string="Favourite")
     user_favourite = fields.Boolean("Is Favourite", compute="_compute_user_favourite")
-    favourite_count = fields.Integer(
-        "Favorite", compute="_compute_favorite_count", store=True
-    )
+    favourite_count = fields.Count("favourite_ids", "Favorite", store=True)
 
     # hierarchy
     is_correct = fields.Boolean("Correct", help="Correct answer or answer accepted")
@@ -104,7 +102,7 @@ class ForumPost(models.Model):
         string="Post Answers",
         domain="[('forum_id', '=', forum_id)]",
     )
-    child_count = fields.Integer("Answers", compute="_compute_child_count", store=True)
+    child_count = fields.Count("child_ids", "Answers", store=True)
     uid_has_answered = fields.Boolean(
         "Has Answered", compute="_compute_uid_has_answered"
     )
@@ -272,20 +270,10 @@ class ForumPost(models.Model):
         for post in self:
             post.user_favourite = post.env.uid in post.favourite_ids.ids
 
-    @api.depends("favourite_ids")
-    def _compute_favorite_count(self):
-        for post in self:
-            post.favourite_count = len(post.favourite_ids)
-
     @api.depends("create_uid", "parent_id")
     def _compute_self_reply(self):
         for post in self:
             post.self_reply = post.parent_id.create_uid == post.create_uid
-
-    @api.depends("child_ids")
-    def _compute_child_count(self):
-        for post in self:
-            post.child_count = len(post.child_ids)
 
     @api.depends_context("uid")
     def _compute_uid_has_answered(self):

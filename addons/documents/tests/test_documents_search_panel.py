@@ -1,8 +1,3 @@
-"""The folder tree the client draws, and the groupings behind it.
-
-Named for what it protects, not for the review that produced it.
-"""
-
 from odoo import fields
 from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase, tagged
@@ -11,16 +6,8 @@ from .test_documents_common import TEXT, TransactionCaseDocuments
 
 
 class TestDocumentsSearchPanelCounters(TransactionCase):
-    """``enable_counters`` must work on the virtual folder field."""
 
     def test_search_panel_counters_do_not_crash_and_roll_up(self):
-        """Counting used to be a hard 500 on this panel.
-
-        ``user_folder_id`` is a non-stored computed Char, so the generic
-        ``_search_panel_domain_image`` took its selection-field branch and raised
-        ``KeyError: 'selection'``. Counts are now taken on the stored
-        ``folder_id`` and rolled up along that same chain.
-        """
         Document = self.env["documents.document"]
         parent = Document.create(
             {"name": "Counted parent", "type": "folder", "access_internal": "edit"}
@@ -51,10 +38,6 @@ class TestDocumentsSearchPanelCounters(TransactionCase):
         }
 
         self.assertEqual(counts[child.id], 2, "a folder counts what it holds")
-        # Like every other search panel, the count is over the records the view
-        # lists, and the Documents views list subfolders alongside files: the
-        # parent holds "direct" plus the child folder itself (2), plus the
-        # child's own 2 documents rolled up.
         self.assertEqual(
             counts[parent.id],
             4,
@@ -62,14 +45,12 @@ class TestDocumentsSearchPanelCounters(TransactionCase):
         )
 
     def test_search_panel_counters_survive_a_parent_cycle(self):
-        """Only `folder_id <> id` is enforced, so a 2-node cycle is possible."""
         Document = self.env["documents.document"]
         first = Document.create({"name": "Cycle A", "type": "folder"})
         second = Document.create(
             {"name": "Cycle B", "type": "folder", "folder_id": first.id}
         )
         Document.create({"name": "in cycle", "type": "binary", "folder_id": second.id})
-        # Bypass the ORM: `_parent_store` would reject the cycle.
         self.env.cr.execute(
             "UPDATE documents_document SET folder_id = %s WHERE id = %s",
             (second.id, first.id),
@@ -86,7 +67,6 @@ class TestDocumentsSearchPanelCounters(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestDocumentsLastAccessGrouping(TransactionCaseDocuments):
     def test_f5_last_access_date_group_not_stale(self):
-        """Changing last_access_date recomputes the bucket."""
         doc = self.document_gif
         access = doc.access_ids.filtered(
             lambda a: a.partner_id == self.doc_user.partner_id
@@ -95,7 +75,6 @@ class TestDocumentsLastAccessGrouping(TransactionCaseDocuments):
         access.last_access_date = fields.Datetime.now()
         self.assertEqual(doc.with_user(self.doc_user).last_access_date_group, "3_day")
 
-        # Backdating must invalidate the computed bucket.
         access.last_access_date = fields.Datetime.subtract(
             fields.Datetime.now(), days=400
         )
@@ -106,7 +85,6 @@ class TestDocumentsLastAccessGrouping(TransactionCaseDocuments):
         )
 
     def test_f5_last_access_date_group_is_per_user(self):
-        """One user reading the field must not poison another user's value."""
         doc = self.document_gif
         doc.action_update_access_rights(
             partners={self.doc_user_2.partner_id.id: ("edit", False)}
@@ -122,7 +100,6 @@ class TestDocumentsLastAccessGrouping(TransactionCaseDocuments):
             fields.Datetime.now(), days=400
         )
 
-        # Whoever reads first used to fill a single shared cache entry.
         self.assertEqual(doc.with_user(self.doc_user).last_access_date_group, "3_day")
         self.assertEqual(
             doc.with_user(self.doc_user_2).last_access_date_group,
@@ -135,7 +112,6 @@ class TestDocumentsLastAccessGrouping(TransactionCaseDocuments):
 @tagged("post_install", "-at_install")
 class TestDocumentsSearchPanelContract(TransactionCaseDocuments):
     def test_f9_user_folder_id_accepts_int(self):
-        """An RPC caller passing an int folder id gets a move, not a traceback."""
         doc = self.env["documents.document"].create(
             {
                 "type": "binary",
@@ -151,14 +127,12 @@ class TestDocumentsSearchPanelContract(TransactionCaseDocuments):
             doc.write({"user_folder_id": ["not", "a", "folder"]})
 
     def test_f9_search_panel_select_range_forwards_kwargs(self):
-        """kwargs reach super() for fields other than user_folder_id."""
         result = self.env["documents.document"].search_panel_select_range(
             "folder_id", enable_counters=True
         )
         self.assertIn("values", result)
 
     def test_f9_search_filter_names_are_unique(self):
-        """The two root filters no longer share a name."""
         view = self.env.ref("documents.document_view_search")
         arch = view.arch_db
         self.assertIn('name="my_drive_filter"', arch)

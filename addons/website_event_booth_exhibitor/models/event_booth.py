@@ -18,7 +18,7 @@ class EventBooth(models.Model):
     sponsor_image_512 = fields.Image(string='Sponsor Logo', related='sponsor_id.image_512')
 
     def action_view_sponsor(self):
-        action = self.env['ir.actions.act_window']._for_xml_id('website_event_exhibitor.event_sponsor_action')
+        action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('website_event_exhibitor.event_sponsor_action')
         action['views'] = [(False, 'form')]
         action['res_id'] = self.sponsor_id.id
         return action

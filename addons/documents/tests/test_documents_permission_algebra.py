@@ -1,42 +1,6 @@
-"""Differential characterization of the ``user_permission`` algebra.
-
-``documents.document.user_permission`` is implemented **twice**: once in Python
-(``_compute_user_permission`` -> ``_get_permission_without_token_multi``) and
-once as domain algebra (``_search_user_permission``, which is what every record
-rule in ``security.xml`` ultimately evaluates). Nothing forces the two to agree,
-and every disagreement is a security-relevant bug in one direction or the other:
-
-* compute says ``none`` / search matches   -> the record is invisible in the UI
-  but reachable through search, export, ``read_group``, or a related field.
-* compute says ``edit`` / search misses    -> the UI offers actions the ORM then
-  refuses, and the record vanishes from its own list view.
-
-This module enumerates the state space both implementations branch on and
-asserts they agree on every cell, for every kind of user. It is what found the
-two divergences that the unification then removed.
-
-**Since the unification, `_compute_user_permission` is derived from
-`_search_user_permission`**, so the agreement assertion no longer cross-checks
-two algorithms. Read honestly, it now guards:
-
-* the derivation plumbing -- unsaved records, archived documents, the
-  reachable/editable split -- which is easy to get wrong and invisible in
-  ordinary tests;
-* the *partition* property (a document is never both "view" and "edit"), which
-  is a property of the domain alone and was violated before;
-* re-divergence, should anyone reintroduce a Python path.
-
-`test_permission_never_undercuts_the_token_less_level` keeps a genuine
-cross-check alive against the one independent implementation that survives,
-`_get_permission_without_token_multi`.
-"""
-
 from odoo import Command, fields
 from odoo.tests.common import TransactionCase, tagged
 
-# Membership states the algebra distinguishes, as
-# ``role, expiration_offset_days`` (None = no ``documents.access`` row at all;
-# a row with ``role=False`` is the access *log* row the module writes on read).
 MEMBERSHIPS = {
     "absent": None,
     "log_only": (False, None),
@@ -74,9 +38,6 @@ class TestPermissionAlgebraDifferential(TransactionCase):
         cls.user_public = cls.env.ref("base.public_user")
         cls.user_other = user("algebra_other", "documents.group_documents_user")
 
-        # Subjects that may hold a membership. The public partner is excluded on
-        # purpose: `documents.access._check_partner_id` forbids giving it a role
-        # (anonymous sharing goes through `access_via_link`).
         cls.member_subjects = (
             cls.user_system | cls.user_manager | cls.user_internal | cls.user_portal
         )
@@ -89,17 +50,8 @@ class TestPermissionAlgebraDifferential(TransactionCase):
         cls._build_shortcut_matrix()
         cls.matrix.flush_recordset()
 
-    # ------------------------------------------------------------------
-    # matrix construction
-    # ------------------------------------------------------------------
     @classmethod
     def _membership_commands(cls, membership):
-        """Grant the same membership state to every subject at once.
-
-        Permission is evaluated per partner, so giving all subjects the
-        identical row lets one document serve as the same cell of the matrix for
-        each of them.
-        """
         spec = MEMBERSHIPS[membership]
         if spec is None:
             return []
@@ -113,7 +65,6 @@ class TestPermissionAlgebraDifferential(TransactionCase):
                     "partner_id": subject.partner_id.id,
                     "role": role,
                     "expiration_date": expiration,
-                    # the constraint requires one of role / last_access_date
                     "last_access_date": fields.Datetime.now() if not role else False,
                 }
             )
@@ -128,7 +79,6 @@ class TestPermissionAlgebraDifferential(TransactionCase):
 
     @classmethod
     def _build_root_matrix(cls):
-        """Documents at a drive root: owner x internal x link x membership x company."""
         for owner in (cls.user_other, cls.env["res.users"]):
             for access_internal in ACCESS_LEVELS:
                 for access_via_link in ACCESS_LEVELS:
@@ -150,11 +100,6 @@ class TestPermissionAlgebraDifferential(TransactionCase):
 
     @classmethod
     def _build_owned_matrix(cls):
-        """The "I own it" cell, which the shared matrix cannot express.
-
-        Share users are skipped: `_check_root_documents_owner_id` forbids them
-        owning a document at a drive root.
-        """
         for subject in cls.member_subjects.filtered(lambda user: not user.share):
             for access_internal in ACCESS_LEVELS:
                 for access_via_link in ACCESS_LEVELS:
@@ -167,13 +112,6 @@ class TestPermissionAlgebraDifferential(TransactionCase):
 
     @classmethod
     def _build_folder_matrix(cls):
-        """Link access granted one level up, and its `hidden` opt-out.
-
-        The parent is varied over every way it can be reachable -- internal
-        access, membership, and ownership -- because the child's link is granted
-        on the strength of the parent being reachable *at all*, not at any
-        particular level.
-        """
         parents = [
             (
                 f"internal-{parent_internal}",
@@ -224,7 +162,6 @@ class TestPermissionAlgebraDifferential(TransactionCase):
 
     @classmethod
     def _build_shortcut_matrix(cls):
-        """Shortcuts, whose permission is partly borrowed from their target."""
         for target_internal in ACCESS_LEVELS:
             for target_link in ACCESS_LEVELS:
                 target = cls._create(
@@ -256,30 +193,12 @@ class TestPermissionAlgebraDifferential(TransactionCase):
                 access_via_link="none",
             )
 
-    # ------------------------------------------------------------------
-    # the differential itself
-    # ------------------------------------------------------------------
     def _computed(self, subject):
-        """What `_compute_user_permission` says, for every cell.
-
-        Read in ``sudo`` so that cells computing to ``none`` -- which the record
-        rule would refuse to even read -- are still observable. ``sudo`` does not
-        change the answer: the compute keys off ``self.env.user`` and
-        ``self.env.companies``, which ``sudo()`` leaves untouched.
-        """
         documents = self.matrix.with_user(subject).sudo()
         documents.invalidate_recordset(["user_permission"])
         return {document.id: document.user_permission for document in documents}
 
     def _searched(self, subject, level):
-        """What `_search_user_permission` matches, for the same cells.
-
-        ``sudo`` only to get past the model-level ACL (the public user has none
-        on ``documents.document``); the field's search method still runs as
-        ``subject``, which is what is under test. Record rules are themselves
-        expressed on ``user_permission``, so dropping them removes a tautology
-        rather than a constraint.
-        """
         return set(
             self.env["documents.document"]
             .with_user(subject)
@@ -321,9 +240,6 @@ class TestPermissionAlgebraDifferential(TransactionCase):
                 f"{subject.login}:\n{lines}"
             )
 
-        # Secondary, and reported only once the levels agree: the two searched
-        # sets must partition. A document answering both `user_permission =
-        # 'view'` and `= 'edit'` shows up in mutually exclusive filters at once.
         if both := edit_ids & view_ids:
             names = "\n".join(
                 f"  {name}" for name in sorted(self.matrix.browse(both).mapped("name"))
@@ -334,7 +250,6 @@ class TestPermissionAlgebraDifferential(TransactionCase):
             )
 
     def test_matrix_is_populated(self):
-        """Guard against the matrix silently collapsing to a handful of rows."""
         self.assertGreater(len(self.matrix), 300)
 
     def test_agreement_for_system_administrator(self):
@@ -353,15 +268,6 @@ class TestPermissionAlgebraDifferential(TransactionCase):
         self._assert_implementations_agree(self.user_public)
 
     def test_permission_never_undercuts_the_token_less_level(self):
-        """Cross-check against the one independent implementation left.
-
-        `_get_permission_without_token_multi` still answers a narrower question
-        in Python -- "what would this user have without following a share link"
-        -- and the controllers rely on it. The full algebra only ever *adds*
-        grants on top of it (a link, a link inherited from the parent, the
-        shortcut-owner extension), so the level it reports must never exceed the
-        one `user_permission` reports. A drift in either direction shows up here.
-        """
         ranking = {"none": 0, "view": 1, "edit": 2}
         for subject in self.subjects:
             documents = self.matrix.with_user(subject).sudo()
@@ -384,29 +290,6 @@ class TestPermissionAlgebraDifferential(TransactionCase):
             )
 
     def test_every_divergence_traces_to_a_known_blind_spot(self):
-        """State the divergence *positively*, not just as an inequality.
-
-        `test_permission_never_undercuts_the_token_less_level` above only pins
-        `token_less <= user_permission`, so the two implementations can drift
-        anywhere inside that band without anything noticing -- which is exactly
-        the room a downstream override needs to get it wrong.
-
-        Enumerating the matrix gives the band a precise shape. The token-less
-        level is blind to exactly three grants, and every divergence is
-        attributable to one of them:
-
-        * the **share link** on the document itself -- the link IS the token, so
-          being blind to it is the whole point;
-        * the **system-administrator** blanket grant, which
-          `_search_user_permission` short-circuits on and the Python side does
-          not implement at all;
-        * the **shortcut-owner extension**, where owning a shortcut to a
-          document you may only view still grants edit (the Python side sets
-          `exclude_ownership` for shortcuts).
-
-        A divergence outside that set means one implementation has grown a rule
-        the other lacks -- the failure mode this whole file exists to catch.
-        """
         ranking = {"none": 0, "view": 1, "edit": 2}
         unexplained = []
         divergent_cells = 0
@@ -442,26 +325,13 @@ class TestPermissionAlgebraDifferential(TransactionCase):
             "explain it, so the two implementations have genuinely drifted:\n"
             + "\n".join(map(str, unexplained)),
         )
-        # Guard the guard: with no divergence at all the assertion above passes
-        # vacuously and pins nothing.
         self.assertTrue(
             divergent_cells,
             "no divergence found at all -- the matrix no longer exercises any "
             "of the three blind spots, so this test proves nothing",
         )
 
-    # ------------------------------------------------------------------
-    # the two divergences this net found, stated in user-visible terms
-    # ------------------------------------------------------------------
     def test_link_shared_child_is_searchable_at_the_level_the_link_grants(self):
-        """A Viewer folder holding an Editor link: the child is editable.
-
-        The search used to require the *parent* to match the level being
-        searched, so this document computed to `edit` but answered neither
-        `user_permission = 'edit'` nor `= 'view'`. It was therefore skipped by
-        every level-specific domain -- including `_get_access_update_domain()`,
-        which decides what an access-rights propagation is allowed to touch.
-        """
         Document = self.env["documents.document"]
         folder = Document.create(
             {"name": "Viewer folder", "type": "folder", "access_internal": "view"}
@@ -489,12 +359,6 @@ class TestPermissionAlgebraDifferential(TransactionCase):
         )
 
     def test_owned_document_is_not_reported_as_view_only(self):
-        """Ownership beats `access_internal`, so an owner is never a viewer.
-
-        `= 'view'` matched on the `access_internal = 'view'` clause alone, so a
-        document the user owns (and computes `edit` on) also answered the
-        "Viewer" filter -- appearing in two mutually exclusive filters at once.
-        """
         Document = self.env["documents.document"]
         owned = Document.create(
             {

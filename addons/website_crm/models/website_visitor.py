@@ -8,12 +8,11 @@ class WebsiteVisitor(models.Model):
     _inherit = 'website.visitor'
 
     lead_ids = fields.Many2many('crm.lead', string='Leads', groups="sales_team.group_sale_salesman")
-    lead_count = fields.Integer('# Leads', compute="_compute_lead_count", groups="sales_team.group_sale_salesman")
-
-    @api.depends('lead_ids')
-    def _compute_lead_count(self):
-        for visitor in self:
-            visitor.lead_count = len(visitor.lead_ids)
+    lead_count = fields.Count(
+        "lead_ids",
+        '# Leads',
+        groups="sales_team.group_sale_salesman",
+    )
 
     @api.depends('partner_id.email_normalized', 'partner_id.phone', 'lead_ids.email_normalized', 'lead_ids.phone')
     def _compute_email_phone(self):

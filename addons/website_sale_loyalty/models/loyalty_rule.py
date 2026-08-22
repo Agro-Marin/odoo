@@ -34,5 +34,5 @@ class LoyaltyRule(models.Model):
         # Prevent coupons and programs from sharing a code
         if self.env['loyalty.card'].search_count([
             ('code', 'in', mapped_codes), ('active', '=', True)
-        ]):
+        ], limit=1):
             raise ValidationError(_('A coupon with the same code was found.'))

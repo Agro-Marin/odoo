@@ -421,7 +421,7 @@ export class FormOptionPlugin extends Plugin {
         return this.authorizedFieldsCache.read({ cacheKey, model, propertyOrigins });
     }
     async _fetchAuthorizedFields({ cacheKey, model, propertyOrigins }) {
-        return this.services.orm.call("ir.model", "get_authorized_fields", [
+        return this.services.orm.call("ir.model", "get_fields_authorized", [
             model,
             propertyOrigins,
         ]);

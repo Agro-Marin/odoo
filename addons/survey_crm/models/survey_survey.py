@@ -42,7 +42,7 @@ class SurveySurvey(models.Model):
     def action_survey_see_leads(self):
         ''' Shows the leads created from the current survey '''
         self.ensure_one()
-        action = self.env['ir.actions.actions']._for_xml_id('crm.crm_lead_all_leads')
+        action = self.env['ir.actions.actions']._get_action_dict_by_xml_id('crm.crm_lead_all_leads')
         action['context'] = dict(
             ast.literal_eval(action.get('context', '{}').strip()),  # ".strip()" prevents a crash of literal_eval which doesn't interpret the "\n" after the dictionary is closed in the string
             create=False,

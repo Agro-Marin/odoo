@@ -111,7 +111,7 @@ class Website(models.Model):
     def _active_languages(self):
         return self.env["res.lang"].search([]).ids
 
-    def _default_language(self):
+    def _default_default_lang_id(self):
         lang_code = self.env["ir.default"]._get("res.partner", "lang")
         def_lang_id = self.env["res.lang"]._get_data(code=lang_code).id
         return def_lang_id or self._active_languages()[0]
@@ -140,11 +140,9 @@ class Website(models.Model):
         default=_active_languages,
         required=True,
     )
-    language_count = fields.Integer(
-        "Number of languages", compute="_compute_language_count"
-    )
+    language_count = fields.Count("language_ids", "Number of languages")
     default_lang_id = fields.Many2one(
-        "res.lang", string="Default Language", default=_default_language, required=True
+        "res.lang", string="Default Language", default=_default_default_lang_id, required=True
     )
     auto_redirect_lang = fields.Boolean(
         "Autoredirect Language",
@@ -243,7 +241,7 @@ class Website(models.Model):
         related="user_id.partner_id", string="Public Partner", readonly=False
     )
     menu_id = fields.Many2one(
-        "website.menu", compute="_compute_menu", string="Main Menu"
+        "website.menu", compute="_compute_menu_id", string="Main Menu"
     )
     homepage_url = fields.Char(help="E.g. /contactus or /shop")
     custom_code_head = fields.Html("Custom <head> code", sanitize=False)
@@ -312,12 +310,7 @@ class Website(models.Model):
         for website in self:
             website.has_social_default_image = bool(website.social_default_image)
 
-    @api.depends("language_ids")
-    def _compute_language_count(self):
-        for website in self:
-            website.language_count = len(website.language_ids)
-
-    def _compute_menu(self):
+    def _compute_menu_id(self):
         # prefetch all accessible menus at once
         all_menus = self.env["website.menu"].search_fetch(
             Domain("website_id", "in", self.ids)
@@ -1685,7 +1678,7 @@ class Website(models.Model):
             url = ("website_url" in record and record.website_url) or record.url
             search_criteria.append((url, website.website_domain()))
 
-        for model_name, field_name in self._get_html_fields():
+        for model_name, field_name in self._get_fields_html():
             Model = self.env[model_name]
             if not Model.has_access("read"):
                 continue
@@ -2307,7 +2300,7 @@ class Website(models.Model):
         if self.env.user.has_group("base.group_system") or self.env.user.has_group(
             "website.group_website_designer"
         ):
-            return self.env["ir.actions.actions"]._for_xml_id(
+            return self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
                 "website.backend_dashboard"
             )
         raise AccessError(
@@ -2325,7 +2318,7 @@ class Website(models.Model):
         return "/odoo/action-website.website_preview?" + urlencode(action_params)
 
     def get_client_action(self, url, mode_edit=False, website_id=False):
-        action = self.env["ir.actions.actions"]._for_xml_id("website.website_preview")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("website.website_preview")
         action["params"] = {
             "path": url,
             "enable_editor": mode_edit,
@@ -2400,14 +2393,14 @@ class Website(models.Model):
     def _get_cached(self, field):
         return self._get_cached_values()[field]
 
-    def _get_html_fields_blacklist(self):
+    def _get_fields_html_blacklist(self):
         return (
             "mail.message",
             "mail.activity",
             "digest.tip",
         )
 
-    def _get_html_fields(self):
+    def _get_fields_html(self):
         html_fields = [("ir.ui.view", "arch_db")]
         cr = self.env.cr
         cr.execute(
@@ -2423,7 +2416,7 @@ class Website(models.Model):
                AND f.model NOT LIKE 'ir.actions%%'
                AND f.model != ALL(%s)
         """,
-            ([list(self._get_html_fields_blacklist())]),
+            ([list(self._get_fields_html_blacklist())]),
         )
         for (
             model_name,
@@ -2514,7 +2507,7 @@ class Website(models.Model):
         )
         # regex will match /module/static/[.../]/snippets/snippet_id/XXX[_variable].asset_type
         # _variable is not kept since only module, snippet_id, asset_version (XXX), asset_type are relevant
-        html_fields = self._get_html_fields()
+        html_fields = self._get_fields_html()
         snippet_used = {}
         for snippet_asset in snippet_assets:
             match = snippet_re.match(snippet_asset.path)

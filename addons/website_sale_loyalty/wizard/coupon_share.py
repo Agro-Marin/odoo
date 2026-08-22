@@ -10,7 +10,7 @@ class CouponShare(models.TransientModel):
     _name = 'coupon.share'
     _description = 'Create links that apply a coupon and redirect to a specific page'
 
-    def _get_default_website_id(self):
+    def _default_website_id(self):
         program_website_id = self.env['loyalty.program'].browse(self.env.context.get('default_program_id')).website_id
         if program_website_id:
             return program_website_id
@@ -19,7 +19,7 @@ class CouponShare(models.TransientModel):
             websites = Website.search([])
             return (len(websites) == 1 and websites) or Website
 
-    website_id = fields.Many2one('website', required=True, default=_get_default_website_id)
+    website_id = fields.Many2one('website', required=True, default=_default_website_id)
     coupon_id = fields.Many2one('loyalty.card', domain="[('program_id', '=', program_id)]")
     program_id = fields.Many2one('loyalty.program', required=True, domain=[
         '|', ('program_type', '=', 'coupons'), # All coupons programs

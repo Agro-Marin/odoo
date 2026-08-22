@@ -1,10 +1,7 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import base64
 from collections import defaultdict
 from contextlib import ExitStack, contextmanager
 from datetime import timedelta
-from unittest import skip
 from unittest.mock import patch
 
 from odoo import Command, fields, http
@@ -23,33 +20,12 @@ file_a = {
 
 
 class TestCaseDocuments(TransactionCaseDocuments):
-    @skip("TODO: move to controller")
-    @users("documents@example.com")
-    def test_documents_action_log_access_archived(self):
-        access = self.env["documents.access"].search(
-            [
-                ("document_id", "=", self.document_txt.id),
-                ("partner_id", "=", self.env.user.partner_id.id),
-            ]
-        )
-        self.assertFalse(access)
-        self.document_txt.action_archive()
-        self.env["documents.document"].action_log_access(self.document_txt.access_token)
-        access = self.env["documents.access"].search(
-            [
-                ("document_id", "=", self.document_txt.id),
-                ("partner_id", "=", self.env.user.partner_id.id),
-            ]
-        )
-        self.assertTrue(access)
-
     def test_documents_action_create_shortcut(self):
-        # Make sure we test copying m2o too
         self.document_gif.partner_id = self.env.user.partner_id
         shortcut = self.document_gif.action_create_shortcut()
         self.assertFalse(shortcut.attachment_id)
         original_file_size = self.document_gif.file_size
-        for field_name in self.env["documents.document"]._get_shortcuts_copy_fields():
+        for field_name in self.env["documents.document"]._get_fields_shortcuts_copy():
             with self.subTest(field_name=field_name):
                 self.assertEqual(shortcut[field_name], self.document_gif[field_name])
         attachment = self.env["ir.attachment"].create(
@@ -65,12 +41,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         self.assertEqual(shortcut.file_extension, self.document_gif.file_extension)
 
     def test_duplicate_multiple_shortcuts_same_target(self):
-        """Duplicating several shortcuts of the same document must not crash.
-
-        ``action_create_shortcut`` used to union-dedupe the resolved targets, so
-        copying two shortcuts of one target returned a single shortcut and the
-        caller's ``strict`` zip raised a bare ValueError (HTTP 500).
-        """
         shortcut_1 = self.document_gif.action_create_shortcut()
         shortcut_2 = self.document_gif.action_create_shortcut()
         self.assertEqual(
@@ -85,25 +55,12 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
 
     def test_res_record_link_requires_target_write(self):
-        """`res_model`/`res_id` may not plant an attachment on an unwritable record.
-
-        `_inverse_res_record` writes the attachment's target under `sudo()` -- it
-        has to, so `res_model` and `res_id` change atomically -- and that sudo used
-        to swallow `ir.attachment`'s own ACL. Core `_check_access` maps
-        create/unlink to *write* on the target, so going through
-        `documents.document` instead of `ir.attachment` let any documents user
-        attach a file to any record of any model, including models they cannot
-        read. The wizards already checked this (see
-        `test_link_to_record_requires_target_write`); the plain create/write paths
-        did not.
-        """
         target = self.env["res.partner"].create({"name": "Unwritable target"})
         Document = self.env["documents.document"].with_user(self.doc_user)
         self.assertFalse(
             self.env["res.partner"].with_user(self.doc_user).has_access("write")
         )
 
-        # Baseline: core already refuses the direct ir.attachment route.
         with self.assertRaises(AccessError):
             self.env["ir.attachment"].with_user(self.doc_user).create(
                 {
@@ -114,7 +71,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
                 }
             )
 
-        # The documents route must refuse it too -- on create...
         with self.assertRaises(AccessError):
             Document.create(
                 {
@@ -126,7 +82,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
                 }
             )
 
-        # ... and on write.
         doc = Document.create(
             {
                 "name": "own.txt",
@@ -137,20 +92,10 @@ class TestCaseDocuments(TransactionCaseDocuments):
         with self.assertRaises(AccessError):
             doc.write({"res_model": "res.partner", "res_id": target.id})
 
-        # The self-link (attachment -> its own document) is unaffected: reaching
-        # the document already gates it.
         self.assertEqual(doc.attachment_id.res_model, "documents.document")
         self.assertEqual(doc.attachment_id.res_id, doc.id)
 
     def test_write_active_false_routes_through_action_archive(self):
-        """`write({"active": False})` may not be a second, unguarded archive door.
-
-        The lock guard, `_raise_if_unauthorized_archive`, `_raise_if_used_folder`,
-        the child cascade and the trash log all live in `action_archive`. A raw
-        write skipped every one of them, so a user who was refused
-        `action_archive` could trash the very same document by writing the field
-        directly -- over plain RPC, and from `/documents/pdf_split`.
-        """
         folder = self.env["documents.document"].create(
             {
                 "name": "Team folder",
@@ -166,7 +111,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
                 "folder_id": folder.id,
             }
         )
-        # Edit on the document, but only view on the folder containing it.
         doc.action_update_access_rights(
             partners={self.doc_user.partner_id.id: ("edit", False)}
         )
@@ -178,28 +122,16 @@ class TestCaseDocuments(TransactionCaseDocuments):
             doc_as_user.action_archive()
         self.assertTrue(doc.active)
 
-        # The raw write must be refused identically, not silently succeed.
         with self.assertRaises(UserError):
             doc_as_user.write({"active": False})
         doc.invalidate_recordset()
         self.assertTrue(doc.active, "write({'active': False}) bypassed the guard")
 
-        # sudo() still bypasses, consistent with the other guards in `write`
-        # (see test_f7_archive_guard_is_su_aware).
         doc_as_user.sudo().write({"active": False})
         doc.invalidate_recordset()
         self.assertFalse(doc.active)
 
     def test_cascade_unlink_reclaims_descendant_attachments(self):
-        """Deleting a folder reclaims its descendants' externally-pointed attachments.
-
-        `unlink` expands to the whole subtree, but the attachment cleanup was
-        scoped to `self`, so deleting a folder orphaned every descendant's
-        attachment (filestore blob + row) that deleting the document directly
-        would have reclaimed. Only attachments pointing *outside*
-        `documents.document` are affected -- the self-linked ones are cascaded by
-        the FK.
-        """
 
         def build(tag):
             folder = self.env["documents.document"].create(
@@ -223,12 +155,10 @@ class TestCaseDocuments(TransactionCaseDocuments):
             )
             return folder, document, attachment
 
-        # Baseline: deleting the document directly reclaims its attachment.
         _folder, document, attachment = build("direct")
         document.unlink()
         self.assertFalse(attachment.exists())
 
-        # The cascade must behave identically.
         folder, _document, attachment = build("cascade")
         folder.unlink()
         self.assertFalse(
@@ -237,15 +167,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
 
     def test_shortcut_cannot_target_another_shortcut(self):
-        """A shortcut must point at a document, never at another shortcut.
-
-        `action_create_shortcut` normalizes a shortcut target back to the real
-        document, and every consumer resolves exactly one hop -- but `create`
-        accepted a chain built by hand. The result was silent data loss: the
-        outer shortcut carried no name and no extension, and deleting the
-        *middle* shortcut cascade-deleted it (`ondelete='cascade'`) while the
-        real document was left untouched.
-        """
         real = self.env["documents.document"].create(
             {
                 "name": "real.txt",
@@ -267,21 +188,9 @@ class TestCaseDocuments(TransactionCaseDocuments):
                 }
             )
 
-        # A shortcut *of a shortcut* requested through the sanctioned action
-        # still resolves to the real document rather than chaining.
         self.assertEqual(shortcut.action_create_shortcut().shortcut_document_id, real)
 
     def test_create_rejects_a_non_folder_parent_like_write(self):
-        """A *file* may not be used as `folder_id`, on create as on write.
-
-        `write` refused this with "Invalid folder id"; `create` accepted it,
-        leaving a child hanging off a binary document -- invisible in the folder
-        tree (which filters `type='folder'`) yet still archived and deleted along
-        with the file it hangs off.
-
-        The shortcut-parent case is deliberately *not* symmetric; see
-        `test_shortcuts_cant_have_children`.
-        """
         real_folder = self.env["documents.document"].create(
             {"name": "RealF", "type": "folder"}
         )
@@ -317,14 +226,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         self.assertEqual(existing.folder_id, real_folder)
 
     def test_user_permission_parent_lookup_is_batched(self):
-        """`user_permission` costs a constant number of queries, not one per folder.
-
-        The link-via-parent branch resolved the parent folder's permission one
-        folder at a time, each call issuing its own `_read_group`. The cost was
-        therefore linear in the number of *distinct folders* and independent of
-        the number of documents -- 100 documents over 40 folders cost 46 queries,
-        the same 100 documents in a single folder cost 7.
-        """
         user = new_test_user(
             self.env,
             "perm_batch",
@@ -359,8 +260,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
             return self.cr.sql_log_count - count0
 
         few, many = measure(2), measure(20)
-        # Ten times the folders must not cost meaningfully more queries; the old
-        # behaviour was roughly two per distinct folder.
         self.assertLess(
             many,
             few + 10,
@@ -368,10 +267,8 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
 
     def test_documents_action_delete_from_history(self):
-        """Test the `action_delete_from_history` action of documents."""
         current_attachment = self.document_gif.attachment_id
 
-        # We can not delete the attachment if the history is empty
         with self.assertRaises(UserError):
             self.document_gif.action_delete_from_history(current_attachment.id)
         self.assertTrue(current_attachment.exists())
@@ -381,21 +278,18 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
         self.document_gif.previous_attachment_ids = new_attachment
 
-        # We can not delete the attachment if it's not in the history of the document
         with self.assertRaises(UserError):
             self.document_gif.action_delete_from_history(other_attachment.id)
         self.assertTrue(current_attachment.exists())
         self.assertTrue(new_attachment.exists())
         self.assertTrue(other_attachment.exists())
 
-        # Delete the history version delete the attachment
         self.document_gif.action_delete_from_history(new_attachment.id)
         self.assertFalse(
             new_attachment.exists(), "The attachment should have been deleted"
         )
         self.assertTrue(current_attachment.exists())
 
-        # Deleting the current attachment restore the most recent version
         current_attachment = self.document_gif.attachment_id
         versions = self.env["ir.attachment"].create([{"name": "Test"}] * 3)
         self.document_gif.previous_attachment_ids = versions
@@ -404,9 +298,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         self.assertEqual(self.document_gif.attachment_id.id, max(versions.ids))
 
     def test_documents_create_from_attachment(self):
-        """
-        Tests a documents.document create method when created from an already existing ir.attachment.
-        """
         attachment = self.env["ir.attachment"].create(
             {
                 "datas": GIF,
@@ -432,7 +323,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         self.assertFalse(document_a.res_id)
 
     def test_documents_create_res_model(self):
-        """Test the model set on a document and its attachment."""
         attachment = self.env["ir.attachment"].create(
             {"name": "test", "res_model": "documents.document"}
         )
@@ -487,10 +377,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
 
     @users("documents@example.com")
     def test_documents_create_write(self):
-        """
-        Tests a documents.document create and write method,
-        documents should automatically create a new ir.attachments in relevant cases.
-        """
         document_a = self.env["documents.document"].create(
             {
                 "name": "Test mimetype gif",
@@ -539,7 +425,7 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
         folders.flush_recordset()
         folders.invalidate_recordset()
-        with self.assertQueryCount(161):
+        with self.assertQueryCount(158):
             self.env["documents.document"].create(
                 [
                     {
@@ -551,9 +437,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
             )
 
     def test_default_res_id_model(self):
-        """
-        Test default res_id and res_model from context are used for linking attachment to document.
-        """
         document = self.env["documents.document"].create(
             {"folder_id": self.folder_b.id}
         )
@@ -585,19 +468,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
 
     def test_versioning(self):
-        """
-        Tests the versioning/history of documents
-
-        Runs as the default (privileged) user rather than
-        ``documents@example.com``: linking an attachment to a record is an
-        ``ir.attachment`` ACL decision -- core ``_check_access`` maps
-        create/unlink to *write* on the target -- and ``_inverse_res_record`` now
-        enforces that instead of sudo-ing past it. The ``res.users`` target below
-        is incidental to the versioning behaviour under test, but a plain
-        documents user cannot write it; relying on that was the
-        attachment-planting bypass. See
-        ``test_res_record_link_requires_target_write`` for the refusal itself.
-        """
         document = self.env["documents.document"].create(
             {
                 "datas": GIF,
@@ -671,9 +541,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         self.assertEqual(document.attachment_id, new_attachment)
 
     def test_write_mimetype(self):
-        """
-        Tests the consistency of documents' mimetypes
-        """
         document = (
             self.env["documents.document"]
             .with_user(self.doc_user.id)
@@ -700,9 +567,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
 
     def test_cascade_delete(self):
-        """
-        Makes sure that documents are unlinked when their attachment is unlinked.
-        """
         document = self.env["documents.document"].create(
             {"datas": GIF, "folder_id": self.folder_b.id}
         )
@@ -722,12 +586,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         self.assertTrue(document.with_user(user).is_favorited)
 
     def test_neuter_mimetype(self):
-        """
-        Tests that potentially harmful mimetypes (XML mimetypes that can lead to XSS attacks) are converted to text
-
-        In fact this logic is implemented in the base `IrAttachment` model but was originally duplicated.
-        The test stays duplicated here to ensure the de-duplicated logic still catches our use cases.
-        """
         self.folder_b.action_update_access_rights(
             partners={self.doc_user.partner_id: ("edit", False)}
         )
@@ -761,9 +619,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
 
     def test_create_from_message_invalid_tags(self):
-        """
-        Create a new document from message with a deleted tag, it should keep only existing tags.
-        """
         message = self.env["documents.document"].message_new(
             {
                 "subject": "Test",
@@ -778,7 +633,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
 
     def test_file_extension(self):
-        """Test the detection of the file extension and its edition."""
         sanitized_extension = "txt"
         for extension in (".txt", " .txt", "..txt", ".txt ", " .txt ", "  .txt   "):
             document = self.env["documents.document"].create(
@@ -811,7 +665,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
                 f'"{extension}" must be sanitized to "{sanitized_extension}" at edition',
             )
 
-        # test extension when filename is changed (i.e. name is edited or file is replaced)
         document.name = "test.png"
         self.assertEqual(
             document.file_extension,
@@ -820,9 +673,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
 
     def test_restricted_folder_multi_company(self):
-        """
-        Tests the behavior of a restricted folder in a multi-company environment
-        """
 
         company_a = self.env.company
         company_b = self.env["res.company"].create({"name": "Company B"})
@@ -855,25 +705,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
 
     def test_unlink_attachments_with_documents(self):
-        """
-        Tests a documents.document unlink method.
-        Attachments should be deleted when related documents are deleted,
-        for which res_model is not 'documents.document' or `False`.
-
-        Test case description:
-            Case 1:
-            - upload a document with res_model 'res.partner'.
-            - check if attachment exists.
-            - unlink the document.
-            - check if attachment exists or not.
-
-            Case 2:
-            - ensure the existing flow for res_model 'documents.document'
-              does not break.
-
-            Case 3:
-            - ensure the existing flow for res_model `False` does not break.
-        """
         documents = self.env["documents.document"].create(
             [
                 {
@@ -904,13 +735,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         self.assertTrue(self.document_txt.active, "the document should be active")
 
     def test_archived_documents_operations(self):
-        """Check (un)authorized moves of archived documents"""
-        # Initial set up:
-        #
-        # folder_1
-        # ├─ folder_3
-        # │  ├─ request
-        # folder_2
         folder_1, folder_2, folder_3 = self.env["documents.document"].create(
             [{"name": f"Test Folder {idx + 1}", "type": "folder"} for idx in range(3)]
         )
@@ -919,23 +743,19 @@ class TestCaseDocuments(TransactionCaseDocuments):
             {"name": "Test Request", "folder_id": folder_3.id}
         )
 
-        # Can't move into archived folders
         folder_2.action_archive()
         with self.assertRaises(UserError):
             folder_3.folder_id = folder_2
         folder_2.action_unarchive()
 
-        # No-op doesn't fail
         folder_1.action_archive()
         folder_3.folder_id = folder_1
 
-        # Can't simply move archived documents
         with self.assertRaises(UserError):
             folder_3.folder_id = folder_2
         with self.assertRaises(UserError):
             folder_3.user_folder_id = str(folder_2.id)
 
-        # Move is allowed if specifying `active` as well (without children) *if the current folder is active*
         with self.assertRaises(UserError):
             folder_3.write({"folder_id": folder_2.id, "active": True})
         (folder_1 | folder_3).write({"folder_id": folder_2.id, "active": True})
@@ -945,7 +765,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
 
     def test_unarchive_document_with_archived_parent(self):
-        """Unarchive a document whose parent folder is archived should send an error."""
         document = self.document_txt
 
         def check_error_message(document):
@@ -959,11 +778,11 @@ class TestCaseDocuments(TransactionCaseDocuments):
                 "- folder B",
             )
 
-        self.folder_b.folder_id = self.folder_a  # when the parent has folder_id
+        self.folder_b.folder_id = self.folder_a
         self.folder_b.action_archive()
         check_error_message(document)
 
-        self.folder_b.folder_id = False  # when the parent has folder_id False
+        self.folder_b.folder_id = False
         check_error_message(document)
 
     def test_delete_document(self):
@@ -989,8 +808,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
                     "file_extension",
                 },
             )
-            # A compute method might be used by multiple fields,
-            # and we can't doubly mock the same compute
             computes_to_mock = defaultdict(list)
             for field in fields_to_recompute:
                 computes_to_mock[field.compute].append(field)
@@ -1012,7 +829,7 @@ class TestCaseDocuments(TransactionCaseDocuments):
         with patched_compute_methods():
             with mute_logger(
                 "odoo.addons.documents.models.documents_document"
-            ):  # Creating document(s) as superuser
+            ):
                 copy = self.document_txt.copy()
             self.assertEqual(copy.name, "file.txt (copy)")
             self.assertNotEqual(
@@ -1022,13 +839,13 @@ class TestCaseDocuments(TransactionCaseDocuments):
             )
             self.assertEqual(copy.raw, self.document_txt.raw)
 
-            self.env.flush_all()  # trigger recomputes
+            self.env.flush_all()
 
             self.assertEqual(copy.is_multipage, self.document_txt.is_multipage)
 
         with mute_logger(
             "odoo.addons.documents.models.documents_document"
-        ):  # Creating document(s) as superuser
+        ):
             copy_with_default = self.document_txt.copy({"name": "test"})
         self.assertEqual(copy_with_default.name, "test")
         self.assertNotEqual(
@@ -1038,13 +855,10 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
         self.assertEqual(copy.raw, self.document_txt.raw)
 
-        # check that we can copy in a folder inside the company folder
         self.assertFalse(self.folder_a.folder_id)
         self.folder_a.owner_id = False
         self.folder_a.access_internal = "edit"
 
-        # Special case where we can not write, but `user_permission == edit` because
-        # the folder is in the company root
         with self.assertRaises(AccessError):
             self.folder_a.with_user(self.internal_user).check_access("write")
         self.assertEqual(
@@ -1054,7 +868,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         self.document_txt.folder_id = self.folder_a
         self.document_txt.with_user(self.internal_user).copy()
 
-        # copy in batch documents of different folder
         self.assertNotEqual(self.document_txt.folder_id, self.document_gif.folder_id)
         copied_documents = (
             (self.document_txt | self.document_gif).with_user(self.internal_user).copy()
@@ -1062,7 +875,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         self.assertEqual(copied_documents[0].name, f"{self.document_txt.name} (copy)")
         self.assertEqual(copied_documents[1].name, f"{self.document_gif.name} (copy)")
 
-        # Check that copied documents res_model and res_id are pointing to themselves
         document_txt_copy = self.document_txt.with_user(self.internal_user).copy()
         copied_documents = (
             (self.document_txt | document_txt_copy).with_user(self.internal_user).copy()
@@ -1091,7 +903,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         self.assertEqual(copied_document.attachment_id.res_model, "documents.document")
 
     def test_copy_document_company_to_company(self):
-        """Manager can copy both the company-root folder and doc to company-root."""
         copied_folder = self.company_root_folder.with_user(self.document_manager).copy(
             default={"user_folder_id": "COMPANY"}
         )
@@ -1109,10 +920,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
 
     def test_copy_document_company_to_my_drive(self):
-        """
-        Manager can copy from company-root folder/doc to My drive.
-        Internal user can copy from company-root folder/doc to MY sets owner to that user.
-        """
         copied_folder = self.company_root_folder.with_user(self.document_manager).copy(
             default={"user_folder_id": "MY"}
         )
@@ -1158,7 +965,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
 
     def test_copy_document_to_itself(self):
-        """Copying a folder into itself or one of its own descendants raises an UserError."""
         folder = self.company_root_folder
         sub_folder = self.company_sub_folder
         with self.assertRaisesRegex(UserError, "cannot copy a folder into itself"):
@@ -1177,7 +983,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
             )
 
     def test_copy_shortcut(self):
-        """Check that copying shortcuts works as intended."""
         manager_shortcut = self.document_txt.with_user(
             self.document_manager
         ).action_create_shortcut()
@@ -1197,7 +1002,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
 
     def test_embedding_actions(self):
-        """Check that embedded actions name is translated."""
         self.env["res.lang"]._activate_lang("fr_FR")
         doc = self.env["documents.document"].create(
             {"name": "A request", "folder_id": self.folder_a.id}
@@ -1213,7 +1017,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         self.assertEqual(embedded_action.with_context(lang="fr_FR").name, "Blablabla")
 
     def test_embedding_actions_permission(self):
-        """Test that embedding actions enforces permissions but allows sudo bypass."""
         user_no_rights = new_test_user(
             self.env, login="user_no_doc_rights", groups="base.group_user"
         )
@@ -1251,11 +1054,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
 
     def test_embedding_actions_requires_folder_edit(self):
-        """A documents user with only view access on a folder cannot pin/unpin.
-
-        Pinning changes the embedded actions every user of the folder sees, so it
-        must require edit access on the folder, not merely view.
-        """
         action = self.env["ir.actions.server"].create(
             {
                 "name": "Test Server Action",
@@ -1263,7 +1061,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
                 "state": "code",
             }
         )
-        # folder_a is owned by doc_user; grant the (documents) portal-less user view only.
         viewer = new_test_user(
             self.env, login="doc_viewer", groups="documents.group_documents_user"
         )
@@ -1277,7 +1074,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
             )
 
     def test_embedding_actions_obsolescence_gc(self):
-        """Actions made children should not be used as embedded actions anymore and are garbage collected."""
         doc = self.env["documents.document"].create(
             {
                 "name": "A request",
@@ -1328,9 +1124,7 @@ class TestCaseDocuments(TransactionCaseDocuments):
 
         actions_before = _visible_action_ids()
         self.assertIn(parent_base.id, actions_before)
-        # Child is no longer visible nor embeddable
         self.assertNotIn(child_base.id, actions_before)
-        # Even if the record still exists, it cannot be used programmatically either
         self.assertNotIn(
             child_base.id, doc.available_embedded_actions_ids.action_id.ids
         )
@@ -1343,12 +1137,10 @@ class TestCaseDocuments(TransactionCaseDocuments):
             doc_in_context.action_execute_embedded_action(
                 embedded_action[child_base.id].id
             )
-        # Child action gets gc'ed
         self.env["ir.embedded.actions"].with_user(
             self.ref("base.user_root")
         )._gc_documents_obsolete()
         self.assertFalse(child_embedded.exists())
-        # Not the parent
         doc_in_context.action_execute_embedded_action(
             embedded_action[parent_base.id].id
         )
@@ -1461,7 +1253,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
 
     def test_document_order_by_is_folder(self):
-        # check that the order is "folder first", and then most recent first
         doc_1 = self.env["documents.document"].create([{"name": "D1"}])
         doc_2 = self.env["documents.document"].create(
             [{"name": "D2", "type": "folder"}]
@@ -1626,7 +1417,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
 
     def test_document_toggle_lock(self):
-        """Test unlocking of the documents when the user_permission is set to edit."""
 
         self.document_txt.write({"owner_id": self.document_manager.id})
         self.document_txt.access_ids.filtered("role").unlink()
@@ -1645,14 +1435,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
         self.assertFalse(self.document_txt.lock_uid, "editor should have unlocked")
 
     def test_lock_blocks_every_way_of_changing_the_content(self):
-        """The lock guards content changes, not just content *arrivals*.
-
-        It keyed on a truthy value, which answers "is new content coming?" where
-        the rule is "is the current content being changed?". Every falsy spelling
-        walked straight past it and emptied the file, and ``attachment_id: False``
-        detached it without even leaving a version behind -- the versioning
-        branch is skipped too, so the history offered no way back.
-        """
         self.document_txt.write({"owner_id": self.document_manager.id})
         self.document_txt.access_internal = "edit"
         self.document_txt.with_user(self.document_manager).toggle_lock()
@@ -1693,7 +1475,6 @@ class TestCaseDocuments(TransactionCaseDocuments):
 @tagged("post_install", "-at_install")
 class TestDocumentsResName(TransactionCaseDocuments):
     def test_f4_compute_res_name_is_batched(self):
-        """res_name costs a constant number of queries per res_model."""
         partners = self.env["res.partner"].create(
             [{"name": f"audit3 partner {i}"} for i in range(20)]
         )
@@ -1720,7 +1501,6 @@ class TestDocumentsResName(TransactionCaseDocuments):
         queries = self.cr.sql_log_count - count0
 
         self.assertEqual(names, partners.mapped("display_name"))
-        # One query per document (the old behaviour) would be >= 20.
         self.assertLess(
             queries,
             len(documents),
@@ -1729,7 +1509,6 @@ class TestDocumentsResName(TransactionCaseDocuments):
         )
 
     def test_f4_compute_res_name_fallbacks_preserved(self):
-        """Deleted and unreadable linked records still degrade gracefully."""
         param = self.env["ir.config_parameter"].create(
             {"key": "documents.audit3_probe", "value": "x"}
         )
@@ -1761,20 +1540,6 @@ class TestDocumentsResName(TransactionCaseDocuments):
         self.assertFalse(doc_missing.res_name)
 
     def test_f4_compute_res_name_ignores_whether_an_attachment_exists(self):
-        """res_name means the same thing with and without an attachment.
-
-        Documents carrying an attachment used to delegate to
-        `attachment_id.res_name`, which was wrong three ways:
-
-        * it raised AccessError for a user holding document-level view but no
-          direct access to the attachment -- a crash computing a field the
-          kanban renders;
-        * `ir.attachment._compute_res_name` degrades an inaccessible linked
-          record to `False`, this model to "Restricted", so the value a user saw
-          depended on whether the document happened to carry an attachment;
-        * a plain upload resolved to its *own* name, since its attachment
-          back-references the document (res_model='documents.document').
-        """
         param = self.env["ir.config_parameter"].create(
             {"key": "documents.audit3_probe_attached", "value": "x"}
         )
@@ -1803,7 +1568,6 @@ class TestDocumentsResName(TransactionCaseDocuments):
         self.assertFalse(without_attachment.attachment_id)
         self.env.invalidate_all()
 
-        # Same linked record, same verdict, attachment or not.
         self.assertEqual(
             with_attachment.with_user(self.doc_user).res_name, "Restricted"
         )
@@ -1811,8 +1575,6 @@ class TestDocumentsResName(TransactionCaseDocuments):
             without_attachment.with_user(self.doc_user).res_name, "Restricted"
         )
 
-        # A plain upload links to nothing, so it names nothing -- it used to
-        # report its own name through its attachment's back-reference.
         plain = self.env["documents.document"].create(
             {
                 "type": "binary",
@@ -1828,7 +1590,6 @@ class TestDocumentsResName(TransactionCaseDocuments):
         self.assertFalse(plain.res_name)
 
     def test_f4_compute_res_name_survives_an_uninstalled_model(self):
-        """A stale res_model must degrade, not raise KeyError."""
         doc = self.env["documents.document"].create(
             {
                 "type": "binary",
@@ -1837,7 +1598,6 @@ class TestDocumentsResName(TransactionCaseDocuments):
                 "owner_id": self.doc_user.id,
             }
         )
-        # res_model is a Char: it outlives the module that declared the model.
         doc.invalidate_recordset()
         self.env.cr.execute(
             "UPDATE documents_document SET res_model = %s, res_id = %s WHERE id = %s",
@@ -1846,11 +1606,8 @@ class TestDocumentsResName(TransactionCaseDocuments):
         doc.invalidate_recordset()
         self.assertFalse(doc.res_name)
 
-    # -- S4: res_name must not leak past the linked record's ACL -------------
     def test_s4_res_name_hidden_for_inaccessible_record(self):
         secret = self.env["res.partner"].create({"name": "SECRET_AUDIT_PARTNER"})
-        # Global rule (no groups) -> ANDed for every non-superuser, so the
-        # linked record is genuinely unreadable by the internal user.
         self.env["ir.rule"].create(
             {
                 "name": "hide secret audit partner",
@@ -1877,8 +1634,6 @@ class TestDocumentsResName(TransactionCaseDocuments):
         )
         doc.action_update_access_rights(access_internal="view")
         self.env.invalidate_all()
-        # Sanity: the internal user genuinely cannot read the linked record
-        # (record rule enforced on actual read, not on has_access/model ACL).
         with self.assertRaises(AccessError):
             secret.with_user(self.internal_user).read(["name"])
         self.assertNotEqual(
@@ -1891,14 +1646,6 @@ class TestDocumentsResName(TransactionCaseDocuments):
 @tagged("post_install", "-at_install")
 class TestDocumentsCreateContract(TransactionCaseDocuments):
     def test_create_preserves_vals_list_order(self):
-        """`create()` honours the `@api.model_create_multi` ordering contract.
-
-        `_prepare_create_values` groups by `res_model` to call
-        `_prepare_create_values_for_model`; `odoo.tools.groupby` gathers every
-        element with the same key, so appending group by group reordered the
-        list whenever two models interleave -- and the ORM returns its records
-        in exactly that order.
-        """
         partner = self.env["res.partner"].create({"name": "linked record"})
         attachments = (
             self.env["ir.attachment"]
@@ -1926,14 +1673,12 @@ class TestDocumentsCreateContract(TransactionCaseDocuments):
         self.assertEqual(documents.mapped("name"), ["A", "B", "C"])
         for document, vals in zip(documents, vals_list, strict=True):
             self.assertEqual(document.attachment_id.id, vals["attachment_id"])
-        # and each self-linked attachment points back at its OWN document
         for document in documents:
             attachment = document.attachment_id
             if attachment.res_model == "documents.document":
                 self.assertEqual(attachment.res_id, document.id)
 
     def test_create_in_folder_inherits_members_in_order(self):
-        """A batch create inside a folder keeps vals/record alignment."""
         partner = self.env["res.partner"].create({"name": "folder member"})
         folder = self.env["documents.document"].create(
             {"name": "shared folder", "type": "folder"}
@@ -1958,7 +1703,6 @@ class TestDocumentsCreateContract(TransactionCaseDocuments):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsUrlPreview(TransactionCaseDocuments):
-    # -- P1: URL preview fetched asynchronously, never in the write txn -------
     def test_p1_url_preview_is_deferred(self):
         calls = []
 
@@ -1970,17 +1714,14 @@ class TestDocumentsUrlPreview(TransactionCaseDocuments):
             doc = self.env["documents.document"].create(
                 {"type": "url", "url": "https://example.com/probe"}
             )
-            # Reading the stored fields must not trigger a synchronous fetch.
-            doc.name  # noqa: B018
-            doc.url_preview_image  # noqa: B018
+            doc.name
+            doc.url_preview_image
             self.assertEqual(calls, [], "URL preview must not be fetched synchronously")
             self.assertTrue(doc.url_preview_pending)
             self.assertEqual(doc.name, "https://example.com/probe")
 
             self.env["documents.document"]._cron_update_url_preview()
 
-        # The cron processes every pending URL document (there may be others,
-        # e.g. from demo data); assert ours was fetched and updated.
         self.assertIn("https://example.com/probe", calls)
         self.assertFalse(doc.url_preview_pending)
         self.assertEqual(doc.name, "Real Title")
@@ -1990,21 +1731,17 @@ class TestDocumentsUrlPreview(TransactionCaseDocuments):
 @tagged("post_install", "-at_install")
 class TestDocumentsFolderHelpers(TransactionCaseDocuments):
     def test_is_folder_containing_document(self):
-        """The folder-delete warning helper reports real containment."""
-        # folder_b holds the gif and txt documents.
         self.assertTrue(self.folder_b.is_folder_containing_document())
         empty = self.env["documents.document"].create(
             {"type": "folder", "name": "empty", "owner_id": self.doc_user.id}
         )
         self.assertFalse(empty.is_folder_containing_document())
-        # A folder holding only sub-folders (no files) is still "empty".
         self.env["documents.document"].create(
             {"type": "folder", "name": "child", "folder_id": empty.id}
         )
         self.assertFalse(empty.is_folder_containing_document())
 
     def test_action_move_folder_stale_before_folder(self):
-        """A concurrently-deleted before_folder must not crash the move."""
         doc_env = self.env["documents.document"].with_user(self.doc_user)
         sub1, sub2 = doc_env.create(
             [
@@ -2019,12 +1756,10 @@ class TestDocumentsFolderHelpers(TransactionCaseDocuments):
         )
         ghost_id = sub2.id
         sub2.unlink()
-        # before_folder_id references the deleted sibling: falls back gracefully.
         sub1.action_move_folder(str(self.folder_a.id), before_folder_id=ghost_id)
         self.assertEqual(sub1.folder_id, self.folder_a)
 
     def test_traceback_folder_survives_a_malformed_parameter(self):
-        """``documents.support_folder`` is admin-editable free-form text."""
         self.env["ir.config_parameter"].sudo().set_param(
             "documents.support_folder", "not-an-int"
         )
@@ -2036,13 +1771,6 @@ class TestDocumentsFolderHelpers(TransactionCaseDocuments):
 @tagged("post_install", "-at_install")
 class TestDocumentsCopy(TransactionCase):
     def test_copy_folders_only_returns_a_well_formed_recordset(self):
-        """``documents_copy_folders_only`` must not return placeholder slots.
-
-        ``copy`` pre-fills its result by input position with empty recordsets;
-        the folders-only mode leaves the file slots untouched, and browsing
-        their ``.id`` (``False``) produced a recordset whose ``len()`` and
-        ``.ids`` disagreed and which raised on the first field read.
-        """
         user = self.env["res.users"].create(
             {
                 "name": "Copy user",

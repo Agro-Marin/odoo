@@ -17,7 +17,7 @@ class SlideChannel(models.Model):
 
     def action_redirect_to_forum(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("website_forum.forum_post_action")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("website_forum.forum_post_action")
         action['view_mode'] = 'list'
         action['context'] = {
             'create': False

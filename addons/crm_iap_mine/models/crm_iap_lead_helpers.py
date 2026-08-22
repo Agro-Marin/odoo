@@ -53,7 +53,7 @@ class CrmIapLeadHelpers(models.Model):
             'city': company_data.get('city', ''),
             'zip': company_data.get('zip') or company_data.get('postal_code', ''),
             'country_id': country_id,
-            'state_id': self._find_state_id(company_data.get('state_code'), country_id),
+            'state_id': self._get_state_id(company_data.get('state_code'), country_id),
         }
 
         # If type is people then add first contact in lead data
@@ -66,7 +66,7 @@ class CrmIapLeadHelpers(models.Model):
         return lead_vals
 
     @api.model
-    def _find_state_id(self, state_code, country_id):
+    def _get_state_id(self, state_code, country_id):
         state_id = self.env['res.country.state'].search([('code', '=', state_code), ('country_id', '=', country_id)])
         if state_id:
             return state_id.id

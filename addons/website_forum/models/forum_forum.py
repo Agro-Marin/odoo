@@ -26,7 +26,7 @@ class ForumForum(models.Model):
     _order = "sequence, id"
 
     @api.model
-    def _get_default_welcome_message(self):
+    def _default_welcome_message(self):
         return Markup("""
                 <h2 class="display-3-fs" style="text-align: center;clear-both;font-weight: bold;">%(message_intro)s</h2>
                 <div class="text-white">
@@ -70,7 +70,7 @@ class ForumForum(models.Model):
     description = fields.Text('Description', translate=True)
     welcome_message = fields.Html(
         'Welcome Message', translate=html_translate,
-        default=_get_default_welcome_message,
+        default=_default_welcome_message,
         sanitize_attributes=False, sanitize_form=False)
     default_order = fields.Selection([
         ('create_date desc', 'Newest'),
@@ -92,8 +92,8 @@ class ForumForum(models.Model):
     total_views = fields.Integer('# Views', compute='_compute_forum_statistics')
     total_answers = fields.Integer('# Answers', compute='_compute_forum_statistics')
     total_favorites = fields.Integer('# Favorites', compute='_compute_forum_statistics')
-    count_posts_waiting_validation = fields.Integer(string="Number of posts waiting for validation", compute='_compute_count_posts_waiting_validation')
-    count_flagged_posts = fields.Integer(string='Number of flagged posts', compute='_compute_count_flagged_posts')
+    count_posts_waiting_validation = fields.Integer(string="Number of posts waiting for validation", compute='_compute_moderation_counts')
+    count_flagged_posts = fields.Integer(string='Number of flagged posts', compute='_compute_moderation_counts')
     # karma generation
     karma_gen_question_new = fields.Integer(string='Asking a question', default=2)
     karma_gen_question_upvote = fields.Integer(string='Question upvoted', default=5)
@@ -221,15 +221,19 @@ class ForumForum(models.Model):
         for record in self:
             record.update(result[record.id])
 
-    def _compute_count_posts_waiting_validation(self):
+    @api.depends('post_ids.state')
+    def _compute_moderation_counts(self):
+        counts = {
+            (forum.id, state): count
+            for forum, state, count in self.env['forum.post']._read_group(
+                [('forum_id', 'in', self.ids), ('state', 'in', ('pending', 'flagged'))],
+                ['forum_id', 'state'],
+                ['__count'],
+            )
+        }
         for forum in self:
-            domain = [('forum_id', '=', forum.id), ('state', '=', 'pending')]
-            forum.count_posts_waiting_validation = self.env['forum.post'].search_count(domain)
-
-    def _compute_count_flagged_posts(self):
-        for forum in self:
-            domain = [('forum_id', '=', forum.id), ('state', '=', 'flagged')]
-            forum.count_flagged_posts = self.env['forum.post'].search_count(domain)
+            forum.count_posts_waiting_validation = counts.get((forum.id, 'pending'), 0)
+            forum.count_flagged_posts = counts.get((forum.id, 'flagged'), 0)
 
     # EXTENDS WEBSITE.MULTI.MIXIN
 

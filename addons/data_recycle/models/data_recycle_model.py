@@ -199,7 +199,7 @@ class Data_RecycleModel(models.Model):
 
     def open_records(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("data_recycle.action_data_recycle_record")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("data_recycle.action_data_recycle_record")
         action['context'] = dict(ast.literal_eval(action.get('context')), searchpanel_default_recycle_model_id=self.id)
         return action
 

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import Command
 from odoo.exceptions import AccessError, UserError
 from odoo.tests.common import TransactionCase
@@ -52,7 +50,6 @@ class TestDocumentsDocumentFolder(TransactionCase):
         )
 
     def test_folder_archive_unarchive(self):
-        """General archive/restore test"""
         self.folder.action_archive()
         self.assertEqual(
             (self.folders | self.document).mapped("active"),
@@ -86,7 +83,6 @@ class TestDocumentsDocumentFolder(TransactionCase):
         )
 
     def test_folder_unlink(self):
-        """To unlink a folder should unlink all its descendant."""
         self.folder.unlink()
         self.assertEqual(
             self.folders.exists(),
@@ -96,10 +92,6 @@ class TestDocumentsDocumentFolder(TransactionCase):
         self.assertFalse(self.document.exists())
 
     def test_folder_archive_unlink(self):
-        """
-        To unlink the last document of an archived folder should unlink
-        that folder too.
-        """
         self.folder.action_archive()
         self.document.unlink()
         self.assertEqual(
@@ -109,9 +101,6 @@ class TestDocumentsDocumentFolder(TransactionCase):
         )
 
     def test_folder_and_document_archive_unlink(self):
-        """
-        Test user should archive and unlink both document and folder once.
-        """
         documents_to_remove = self.child_folder + self.document
         documents_to_remove.action_archive()
         documents_to_remove.unlink()
@@ -144,7 +133,7 @@ class TestDocumentsDocumentFolder(TransactionCase):
         self.folder.owner_id = self.user_portal
         with mute_logger(
             "odoo.addons.documents.models.documents_document"
-        ):  # Creating document(s) as superuser
+        ):
             folder_copy = self.folder.copy()
         self.assertNotEqual(folder_copy.id, self.folder.id)
         self.assertEqual(folder_copy.name, f"{self.folder.name} (copy)")
@@ -156,7 +145,7 @@ class TestDocumentsDocumentFolder(TransactionCase):
         self.assertNotEqual(folder_shortcut.id, self.folder.id)
         with mute_logger(
             "odoo.addons.documents.models.documents_document"
-        ):  # Creating document(s) as superuser
+        ):
             folder_shortcut_copy = folder_shortcut.copy()
         self.assertNotEqual(folder_shortcut_copy.id, folder_shortcut.id)
         self.assertEqual(folder_shortcut_copy.name, f"{folder_shortcut.name} (copy)")
@@ -179,7 +168,6 @@ class TestDocumentsDocumentFolder(TransactionCase):
         self.assertNotEqual(attachment.id, self.document.attachment_id.id)
         self.assertEqual(document_copy.raw, self.document.raw)
 
-        # Check that owner is used for all children documents too
         folder_copy_2 = self.folder.copy({"owner_id": self.user_portal.id})
         self.assertEqual(folder_copy_2.owner_id, self.user_portal)
         self.assertEqual(folder_copy_2.children_ids.owner_id, self.user_portal)
@@ -188,7 +176,6 @@ class TestDocumentsDocumentFolder(TransactionCase):
         )
 
     def test_folder_copy_embedded_actions(self):
-        """Test that copying a folder embeds the same server actions"""
         original_folder = self.env["documents.document"].create(
             {
                 "type": "folder",
@@ -220,7 +207,7 @@ class TestDocumentsDocumentFolder(TransactionCase):
         self.assertEqual(action_original_child.action_id.id, server_action.id)
         with mute_logger(
             "odoo.addons.documents.models.documents_document"
-        ):  # Creating document(s) as superuser
+        ):
             copied_folder = original_folder.copy()
         copied_child = copied_folder.children_ids[0]
         copied_child._compute_available_embedded_actions_ids()
@@ -266,7 +253,6 @@ class TestDocumentsDocumentFolder(TransactionCase):
         )
         self.company_folders = self.folder_cpy_1 | self.folder_cpy_2 | self.folder_cpy_3
 
-        # Moving folders in COMPANY
         for company_folder in self.company_folders:
             self.assertTrue(company_folder._is_company_root_folder())
             self.assertTrue(
@@ -286,7 +272,6 @@ class TestDocumentsDocumentFolder(TransactionCase):
             self.folder_cpy_1.with_user(self.internal_user).action_move_folder(
                 "COMPANY", self.folder_cpy_2.id
             )
-        # Insert before a folder
         self.folder_cpy_3.with_user(self.document_manager).action_move_folder(
             "COMPANY", self.folder_cpy_1.id
         )
@@ -295,14 +280,12 @@ class TestDocumentsDocumentFolder(TransactionCase):
             < self.folder_cpy_1.sequence
             < self.folder_cpy_2.sequence
         )
-        # Move at the end
         self.folder_cpy_3.with_user(self.document_manager).action_move_folder(
             "COMPANY", False
         )
         self.assertTrue(self.folder_cpy_3.sequence > self.folder_cpy_1.sequence)
         self.assertTrue(self.folder_cpy_3.sequence > self.folder_cpy_2.sequence)
 
-        # Moving folders in MY DRIVE
         self.folder_my_1, self.folder_my_2, self.folder_my_3 = self.env[
             "documents.document"
         ].create(
@@ -333,7 +316,6 @@ class TestDocumentsDocumentFolder(TransactionCase):
                 "MY", self.folder_my_1.id
             )
 
-        # Insert before a folder
         self.folder_my_3.with_user(self.internal_user).action_move_folder(
             "MY", self.folder_my_1.id
         )
@@ -342,7 +324,6 @@ class TestDocumentsDocumentFolder(TransactionCase):
             < self.folder_my_1.sequence
             < self.folder_my_2.sequence
         )
-        # Move at the end
         self.folder_my_3.with_user(self.internal_user).action_move_folder("MY", False)
         self.assertTrue(self.folder_my_3.sequence > self.folder_my_1.sequence)
         self.assertTrue(self.folder_my_3.sequence > self.folder_my_2.sequence)

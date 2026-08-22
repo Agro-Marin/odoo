@@ -179,9 +179,9 @@ class TestStandardPerformance(UtilPerf):
         select_tables_perf = {
             "orm_signaling_registry": 1,
             "website": 2,
-            # 1. `_find_record()` performs an access right check through
+            # 1. `_get_record()` performs an access right check through
             #    `exists()` which perform a request on the website.
-            # 2. `_get_stream_from` ends up reading the requested record to
+            # 2. `_get_stream_from_record` ends up reading the requested record to
             #    give a name to the file (downloaded_name)
             "ir_attachment": 2,
             # 1. `_record_to_stream()` does a `search()`..

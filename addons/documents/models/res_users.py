@@ -4,7 +4,6 @@ from odoo.addons.mail.tools.discuss import Store
 
 
 class ResUsers(models.Model):
-    """User model extended with documents store data."""
 
     _inherit = "res.users"
 

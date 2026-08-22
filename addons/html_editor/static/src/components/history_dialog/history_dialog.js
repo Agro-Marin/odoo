@@ -9,7 +9,7 @@ import {
     onWillStart,
     useState,
 } from "@odoo/owl";
-import { Notebook } from "@web/components/notebook/notebook";
+import { Notebook } from "@web/components/notebook";
 import { loadBundle } from "@web/core/assets";
 import { browser } from "@web/core/browser/browser";
 import { colorScheme } from "@web/core/color_scheme";

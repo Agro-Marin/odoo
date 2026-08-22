@@ -43,7 +43,7 @@ class IrModel(models.Model):
     )
     website_form_key = fields.Char(help="Used in FormBuilder Registry")
 
-    def _get_form_writable_fields(self, property_origins=None):
+    def _get_fields_form_writable(self, property_origins=None):
         """
         Restriction of "authorized fields" (fields which can be used in the
         form builders) to fields which have actually been opted into form
@@ -74,13 +74,13 @@ class IrModel(models.Model):
             }
         return {
             k: v
-            for k, v in self.get_authorized_fields(self.model, property_origins).items()
+            for k, v in self.get_fields_authorized(self.model, property_origins).items()
             if k in included
             or ("_property" in v and v["_property"]["field"] in included)
         }
 
     @api.model
-    def get_authorized_fields(self, model_name, property_origins):
+    def get_fields_authorized(self, model_name, property_origins):
         """Return the fields of the given model name as a mapping like method `fields_get`."""
         # RPC-reachable and leaks field metadata + SUPERUSER default values for
         # an arbitrary model, so gate it like its form-builder siblings
@@ -223,7 +223,7 @@ class IrModelFields(models.Model):
     def _check_if_used_in_website_form(self):
         """Prevent field deletion if used in a website form."""
         for field in self:
-            for model_name, field_name in self.env["website"]._get_html_fields():
+            for model_name, field_name in self.env["website"]._get_fields_html():
                 domain = [(field_name, "ilike", f'data-model_name="{field.model}"')]
                 records = (
                     self.env[model_name].with_context(active_test=False).search(domain)

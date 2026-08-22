@@ -2,7 +2,7 @@
 import { getCommonEmbeddedActions } from "@documents/views/utils";
 import { DETAIL_PANEL_REQUIRED_FIELDS } from "@documents/views/hooks";
 import { makeActiveField } from "@web/model/relational_model";
-import { useSearchBarToggler } from "@web/search/search_bar";
+import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { omit } from "@web/core/utils/collections/objects";

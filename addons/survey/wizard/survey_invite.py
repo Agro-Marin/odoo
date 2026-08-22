@@ -17,7 +17,7 @@ class SurveyInvite(models.TransientModel):
     _description = "Survey Invitation Wizard"
 
     @api.model
-    def _get_default_author(self) -> Self:
+    def _default_author_id(self) -> Self:
         return self.env.user.partner_id
 
     # composer content
@@ -38,7 +38,7 @@ class SurveyInvite(models.TransientModel):
         "Author",
         index=True,
         ondelete="set null",
-        default=_get_default_author,
+        default=_default_author_id,
     )
     # recipients
     partner_ids = fields.Many2many(

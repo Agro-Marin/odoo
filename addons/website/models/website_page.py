@@ -58,7 +58,7 @@ class WebsitePage(models.Model):
     menu_ids = fields.One2many("website.menu", "page_id", "Related Menus")
     is_in_menu = fields.Boolean(compute="_compute_website_menu")
     is_homepage = fields.Boolean(compute="_compute_is_homepage", string="Homepage")
-    is_visible = fields.Boolean(compute="_compute_visible", string="Is Visible")
+    is_visible = fields.Boolean(compute="_compute_is_visible", string="Is Visible")
     is_new_page_template = fields.Boolean(
         string="New Page Template",
         help='Add this page to the "+New" page templates. It will be added to the "Custom" category.',
@@ -89,7 +89,7 @@ class WebsitePage(models.Model):
                 website.homepage_url or (page.website_id == website and "/")
             )
 
-    def _compute_visible(self):
+    def _compute_is_visible(self):
         for page in self:
             page.is_visible = page.website_published and (
                 not page.date_publish or page.date_publish < fields.Datetime.now()

@@ -179,10 +179,10 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         for question in self._create_one_question_per_type():
             if question.question_type in ("statement", "calculated"):
                 # These question types collect no direct answer — validation always passes
-                self.assertDictEqual(question.validate_question(""), {})
+                self.assertDictEqual(question._check_answer(""), {})
                 continue
             self.assertDictEqual(
-                question.validate_question(""), {question.id: "TestError"}
+                question._check_answer(""), {question.id: "TestError"}
             )
 
     @users("survey_manager")
@@ -198,19 +198,19 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         )
 
         self.assertEqual(
-            question.validate_question("Is Alfred an answer?"),
+            question._check_answer("Is Alfred an answer?"),
             {question.id: _("This is not a date")},
         )
 
         self.assertEqual(
-            question.validate_question("2015-03-19"), {question.id: "ValidationError"}
+            question._check_answer("2015-03-19"), {question.id: "ValidationError"}
         )
 
         self.assertEqual(
-            question.validate_question("2015-03-26"), {question.id: "ValidationError"}
+            question._check_answer("2015-03-26"), {question.id: "ValidationError"}
         )
 
-        self.assertEqual(question.validate_question("2015-03-25"), {})
+        self.assertEqual(question._check_answer("2015-03-25"), {})
 
     @users("survey_manager")
     def test_answer_validation_numerical(self):
@@ -225,19 +225,19 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         )
 
         self.assertEqual(
-            question.validate_question("Is Alfred an answer?"),
+            question._check_answer("Is Alfred an answer?"),
             {question.id: _("This is not a number")},
         )
 
         self.assertEqual(
-            question.validate_question("2.0"), {question.id: "ValidationError"}
+            question._check_answer("2.0"), {question.id: "ValidationError"}
         )
 
         self.assertEqual(
-            question.validate_question("4.0"), {question.id: "ValidationError"}
+            question._check_answer("4.0"), {question.id: "ValidationError"}
         )
 
-        self.assertEqual(question.validate_question("2.9"), {})
+        self.assertEqual(question._check_answer("2.9"), {})
 
     @users("survey_manager")
     def test_answer_validation_char_box_email(self):
@@ -246,11 +246,11 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         )
 
         self.assertEqual(
-            question.validate_question("not an email"),
+            question._check_answer("not an email"),
             {question.id: _("This answer must be an email address")},
         )
 
-        self.assertEqual(question.validate_question("email@example.com"), {})
+        self.assertEqual(question._check_answer("email@example.com"), {})
 
     @users("survey_manager")
     def test_answer_validation_char_box_length(self):
@@ -265,15 +265,15 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         )
 
         self.assertEqual(
-            question.validate_question("l"), {question.id: "ValidationError"}
+            question._check_answer("l"), {question.id: "ValidationError"}
         )
 
         self.assertEqual(
-            question.validate_question("waytoomuchlonganswer"),
+            question._check_answer("waytoomuchlonganswer"),
             {question.id: "ValidationError"},
         )
 
-        self.assertEqual(question.validate_question("valid"), {})
+        self.assertEqual(question._check_answer("valid"), {})
 
     @users("survey_manager")
     def test_simple_choice_validation_multiple_answers(self):
@@ -323,7 +323,7 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         for case_description, answers, comment, is_multiple_answers in scenarios:
             with self.subTest(answers=answers, comment=comment):
                 self.assertEqual(
-                    question.validate_question(answers, comment),
+                    question._check_answer(answers, comment),
                     {question.id: "For this question, you can only select one answer."}
                     if is_multiple_answers
                     else {},
@@ -346,7 +346,7 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         )
 
         self.assertEqual(
-            question_ok.validate_question(
+            question_ok._check_answer(
                 answer="", comment="This comment is a valid answer."
             ),
             {},
@@ -365,7 +365,7 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         )
 
         self.assertEqual(
-            question_fail.validate_question(
+            question_fail._check_answer(
                 answer="", comment="This comment is not enough."
             ),
             {question_fail.id: "TestError"},

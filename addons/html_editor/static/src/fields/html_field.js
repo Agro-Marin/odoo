@@ -29,6 +29,7 @@ import { _t } from "@web/core/translation";
 import { Mutex } from "@web/core/utils/concurrency";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
+import { dynamicPlaceholderOptions } from "@web/fields/field_options";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { TranslationButton } from "@web/fields/translation_button";
@@ -412,10 +413,6 @@ export const htmlField = {
     component: HtmlField,
     displayName: _t("Html"),
     supportedTypes: ["html"],
-    // `codeview` is declared but never appears in the registry-contract test's
-    // drift report: `extractProps` reads it as `odoo.debug && options.codeview`,
-    // and with debug off the `&&` short-circuits before the option is touched.
-    // It is a real option either way, so it belongs here.
     supportedOptions: [
         {
             label: _t("Height"),
@@ -493,21 +490,7 @@ export const htmlField = {
             type: "boolean",
             help: _t("Run stored content through the upgrade pass. On by default."),
         },
-        {
-            label: _t("Dynamic Placeholder"),
-            name: "dynamic_placeholder",
-            type: "boolean",
-            help: _t(
-                "Offer a picker that inserts a {{object.field}} expression into the text.",
-            ),
-        },
-        {
-            label: _t("Dynamic Placeholder model reference"),
-            name: "dynamic_placeholder_model_reference_field",
-            type: "field",
-            availableTypes: ["char"],
-            help: _t("Field holding the model name whose fields the picker offers."),
-        },
+        ...dynamicPlaceholderOptions(),
         {
             label: _t("Embedded components"),
             name: "embedded_components",
@@ -605,7 +588,10 @@ export const htmlField = {
                     : true,
             sandboxedPreview: Boolean(options.sandboxedPreview),
             cssReadonlyAssetId: options.cssReadonly,
-            codeview: Boolean(odoo.debug && options.codeview),
+            // read the option first: `odoo.debug && options.codeview` short-circuits
+            // with debug off and never touches it, which the registry contract
+            // reads as an option declared but ignored.
+            codeview: Boolean(options.codeview) && Boolean(odoo.debug),
         };
     },
 };

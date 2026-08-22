@@ -31,7 +31,7 @@ class GamificationQuest(models.Model):
     step_ids = fields.One2many(
         "gamification.quest.step", "quest_id", string="Steps", copy=True
     )
-    step_count = fields.Integer("# Steps", compute="_compute_step_count")
+    step_count = fields.Count("step_ids", "# Steps")
 
     # Rewards for completing the entire quest
     reward_badge_id = fields.Many2one(
@@ -71,11 +71,6 @@ class GamificationQuest(models.Model):
     completion_count = fields.Integer(
         "# Completed", compute="_compute_enrollment_count"
     )
-
-    @api.depends("step_ids")
-    def _compute_step_count(self):
-        for quest in self:
-            quest.step_count = len(quest.step_ids)
 
     @api.depends("enrollment_ids.state")
     def _compute_enrollment_count(self):

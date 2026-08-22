@@ -10,9 +10,6 @@ the onboarding tour, the digest KPIs and the Studio automation upsell.
     """,
     "category": "Productivity/Documents",
     "sequence": 80,
-    # Continues the pre-split `documents` module, which shipped 1.5. Declaring
-    # anything lower would be a downgrade on existing databases and would put
-    # migrations/1.5/ permanently out of reach (see odoo/modules/migration.py).
     "version": "1.6",
     "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/documents",
@@ -20,11 +17,6 @@ the onboarding tour, the digest KPIs and the Studio automation upsell.
         "mail",
         "portal",
         "attachment_indexation",
-        # `add_documents_attachment` sets `ir.attachment.original_id` and calls
-        # `_get_media_info`, both defined here. It reached them through mail's
-        # own dependency, so the graph did not record that documents needs this
-        # module -- and the day mail stops depending on it, an editor upload
-        # fails on a field that no longer exists.
         "html_editor",
     ],
     "data": [
@@ -34,7 +26,6 @@ the onboarding tour, the digest KPIs and the Studio automation upsell.
         "data/mail_activity_type_data.xml",
         "data/documents_tag_data.xml",
         "data/documents_document_data.xml",
-        # folder has to exist
         "data/mail_alias_data.xml",
         "data/ir_config_parameter_data.xml",
         "data/ir_cron_data.xml",
@@ -47,7 +38,6 @@ the onboarding tour, the digest KPIs and the Studio automation upsell.
         "views/mail_activity_views.xml",
         "views/mail_activity_plan_views.xml",
         "views/mail_alias_views.xml",
-        # after the action files above, before the files referencing its menus
         "views/documents_menu_views.xml",
         "views/documents_access_log_views.xml",
         "views/documents_templates_portal.xml",
@@ -88,8 +78,6 @@ the onboarding tour, the digest KPIs and the Studio automation upsell.
         "web.assets_unit_tests": [
             "documents/static/tests/**/*",
         ],
-        # The public share page and the portal webclient are served by this
-        # module's controllers, so their bundles live here too.
         "documents.public_page_assets": [
             ("include", "web._assets_helpers"),
             ("include", "web._assets_backend_helpers"),
@@ -102,24 +90,15 @@ the onboarding tour, the digest KPIs and the Studio automation upsell.
         ],
         "documents.webclient": [
             ("include", "web.assets_backend"),
-            # documents webclient overrides
             "documents/static/src/portal_webclient/**/*",
             "web/static/src/boot/start.js",
         ],
     },
     "esm": {
-        # ESM/esbuild bundle taxonomy — aggregated and validated by
-        # odoo.libs.esm_registry (see its docstring for the schema).
         "bundles": [
             "documents.public_page_assets",
             "documents.webclient",
         ],
-        # The documents portal page renders web.assets_tests after this app
-        # bundle in test mode; declare it a secondary so the served import map
-        # carries the singleton-preserving bridges (browser/registry/…) the test
-        # bundle externalises. See web.assets_tests / the 2026-07 split note.
-        # (The public share page renders web.assets_frontend first, already a
-        # declared parent, so it needs no entry here.)
         "secondary_import_map_includes": {
             "documents.webclient": ["web.assets_tests"],
         },

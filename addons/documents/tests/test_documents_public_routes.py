@@ -1,8 +1,3 @@
-"""Public and portal route hardening.
-
-Named for what it protects, not for the review that produced it.
-"""
-
 import base64
 import json
 import zipfile
@@ -21,7 +16,6 @@ from odoo.addons.mail.tests.common import mail_new_test_user
 
 @tagged("post_install", "-at_install")
 class TestDocumentsPublicRouteHardening(HttpCase):
-    """Public/authenticated route hardening."""
 
     @classmethod
     def setUpClass(cls):
@@ -50,12 +44,6 @@ class TestDocumentsPublicRouteHardening(HttpCase):
         )
 
     def test_public_thumbnail_rejects_negative_dimensions(self):
-        """A public route must answer 400, not 500, to a hostile query string.
-
-        ``image_process`` raises a bare ``ValueError`` on a negative dimension.
-        Only the ``int()`` parsing was guarded, so ``?width=-1`` was an
-        unauthenticated 500 -- and a free traceback-log flooder.
-        """
         token = self.shared_image.access_token
         self.assertEqual(
             self.url_open(f"/documents/thumbnail/{token}").status_code, 200
@@ -71,12 +59,6 @@ class TestDocumentsPublicRouteHardening(HttpCase):
 
     @mute_logger("odoo.http")
     def test_pdf_split_rejects_malformed_payloads(self):
-        """Valid JSON of the wrong *shape* used to be a 500.
-
-        The route indexed the client payload inline (``new_file["new_pages"]``,
-        ``page["old_file_type"]``, ...), so any deviation surfaced as a
-        KeyError/TypeError traceback instead of a 400.
-        """
         self.authenticate("round4_uploader", "round4_uploader")
         malformed = [
             '[{"name":"x"}]',
@@ -104,17 +86,6 @@ class TestDocumentsPublicRouteHardening(HttpCase):
 
     @mute_logger("odoo.http")
     def test_pdf_split_refuses_a_source_that_holds_no_pdf(self):
-        """A readable non-PDF source must answer 400, like every other bad input.
-
-        The route resolved each source through ``base64.b64decode(document.datas)``
-        and handed the bytes to PyPDF, which raises ``PdfStreamError`` -- not a
-        ``ValueError``, so it escaped the route's own mapping and surfaced as an
-        HTTP 500 for any document id the caller is merely allowed to read.
-        ``ir.attachment._get_pdf_raw`` is the base primitive answering "these
-        bytes, if this row holds a PDF", so both refusals are expressed once,
-        before anything reaches the parser. The contentless case (a pending
-        request, a shortcut) was already a 400 and must stay one.
-        """
         not_a_pdf = self.env["documents.document"].create(
             {
                 "name": "notes.txt",
@@ -155,14 +126,6 @@ class TestDocumentsPublicRouteHardening(HttpCase):
                 self.assertEqual(res.status_code, 400)
 
     def test_folder_zip_is_streamed_and_complete(self):
-        """The archive goes out as it is produced, not assembled in memory.
-
-        A public folder share used to size the worker's memory by the folder's
-        contents: the whole zip was built in a `BytesIO` and handed over in one
-        piece. It is now generated into the response, so the reply is chunked
-        (no `Content-Length` to know up front) and peak memory is one
-        compression buffer.
-        """
         Document = self.env["documents.document"]
         folder = Document.create(
             {"name": "Streamed", "type": "folder", "access_via_link": "view"}
@@ -182,8 +145,6 @@ class TestDocumentsPublicRouteHardening(HttpCase):
                     "type": "binary",
                     "folder_id": parent.id,
                     "access_via_link": "view",
-                    # Comfortably over the read block, so the streaming path
-                    # runs more than one iteration per file.
                     "raw": bytes(300_000),
                 }
                 for index, parent in enumerate((folder, folder, subfolder))
@@ -211,18 +172,6 @@ class TestDocumentsPublicRouteHardening(HttpCase):
         )
 
     def test_zip_skips_content_the_archive_cannot_carry(self):
-        """A remotely-stored file must be left out, not truncate the archive.
-
-        An attachment whose bytes the *client* fetches from a remote store (a
-        ``cloud_storage`` row, any binary attachment carrying a url) streams as
-        ``type='url'``, and ``Stream.read`` refuses those. The plan pass built
-        such an entry happily -- it only resolves streams, it never reads them --
-        so the ValueError landed in the streaming pass instead, after the 200
-        was already on the wire: an unhandled traceback and an archive that
-        stops mid-entry while still looking like a complete download. The plan
-        pass is the last point at which that is expressible, so the refusal
-        belongs there.
-        """
         Document = self.env["documents.document"]
         folder = Document.create(
             {"name": "Mixed", "type": "folder", "access_via_link": "view"}
@@ -264,12 +213,6 @@ class TestDocumentsPublicRouteHardening(HttpCase):
 
     @mute_logger("odoo.http", "odoo.addons.documents.controllers.documents")
     def test_oversized_zip_is_refused_before_streaming_starts(self):
-        """The caps must still be expressible as a status.
-
-        Once the first byte is on the wire the status is settled, so the limits
-        are checked while planning the archive -- before the response begins --
-        rather than mid-copy, where they could only truncate the download.
-        """
         Document = self.env["documents.document"]
         folder = Document.create(
             {"name": "Too big", "type": "folder", "access_via_link": "view"}
@@ -315,14 +258,6 @@ class TestDocumentsPublicRouteHardening(HttpCase):
         )
 
     def test_pdf_split_accepts_numeric_strings(self):
-        """JSON indices arriving as strings must not 404.
-
-        The route mapped document ids to file positions through a dict keyed by
-        ``int`` id but looked up with the raw payload value, so a string index
-        missed the mapping entirely. Normalizing the payload fixes it; this is
-        the *only* behavioural change the validation introduces on input that
-        was previously accepted-looking.
-        """
         source = self._make_pdf_document(pages=2)
         self.authenticate("round4_uploader", "round4_uploader")
         res = self.url_open(
@@ -350,13 +285,6 @@ class TestDocumentsPublicRouteHardening(HttpCase):
         self.assertEqual(len(self.env["documents.document"].browse(res.json())), 1)
 
     def test_pdf_split_still_splits(self):
-        """Guard the happy path the payload validation now stands in front of.
-
-        No test exercised a *successful* split through the controller (the only
-        one asserted a 403), so the route's payload handling could have been
-        broken without any suite noticing. This must pass both before and after
-        the validation was added -- that is what makes it a regression guard.
-        """
         stream = BytesIO()
         pdf = canvas.Canvas(stream)
         for page in range(3):
@@ -426,14 +354,6 @@ class TestDocumentsPublicRouteHardening(HttpCase):
         )
 
     def test_company_root_upload_grants_the_uploader_edit(self):
-        """Every file of a Company-drive upload must stay manageable.
-
-        A document created at the Company root has no owner and no parent
-        folder, so only ``access_internal`` ("view") applied: the uploader could
-        not rename, move or delete their own upload. The compensation existed but
-        (a) tested ``owner_id == base.user_root``, which such a document never
-        has, and (b) ran on the loop variable, i.e. on the *last* file only.
-        """
         self.authenticate("round4_uploader", "round4_uploader")
         res = self.url_open(
             "/documents/upload/",
@@ -459,9 +379,6 @@ class TestDocumentsPublicRouteHardening(HttpCase):
                     "edit",
                     "the uploader must be able to manage the file they uploaded",
                 )
-        # Granted by the create, not repaired by a second pass: no access-change
-        # tracking entry, and no "gained access" note on a document the uploader
-        # just created.
         self.assertFalse(
             self.env["documents.access.tracking"]
             .search([], order="id desc", limit=1)
@@ -472,8 +389,6 @@ class TestDocumentsPublicRouteHardening(HttpCase):
 
 @tagged("post_install", "-at_install")
 class TestPublicFolderBatch(HttpCase, TransactionCaseDocuments):
-    """The public folder page fetches every subfolder's children in one search
-    (Fix H) and still renders each subfolder's document count correctly."""
 
     def test_nested_public_folder_renders_subfolder_counts(self):
         root = self.env["documents.document"].create(
@@ -496,7 +411,6 @@ class TestPublicFolderBatch(HttpCase, TransactionCaseDocuments):
                 for n in (1, 2)
             ]
         )
-        # one file in sub1, two in sub2 (all link-visible)
         self.env["documents.document"].create(
             [
                 {
@@ -525,7 +439,6 @@ class TestPublicFolderBatch(HttpCase, TransactionCaseDocuments):
         body = res.text
         self.assertIn("sub 1", body)
         self.assertIn("sub 2", body)
-        # template renders "<count> documents" per subfolder (server-side)
         self.assertIn("1 documents", body)
         self.assertIn("2 documents", body)
 

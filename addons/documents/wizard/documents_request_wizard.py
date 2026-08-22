@@ -8,7 +8,6 @@ from odoo.tools.misc import clean_context
 
 
 class DocumentsRequest_Wizard(models.TransientModel):
-    """Wizard to request a document upload from a partner."""
 
     _name = "documents.request_wizard"
     _description = "Document Request"
@@ -60,13 +59,7 @@ class DocumentsRequest_Wizard(models.TransientModel):
                 self.requestee_id = self.activity_type_id.default_user_id.partner_id
 
     def request_document(self) -> models.Model:
-        """Create the requested document and schedule its upload activity."""
         self.ensure_one()
-        # Enforce write access on the target record before linking the requested
-        # document to it. The res_model/res_id fields are RPC-settable and the
-        # model-level UI filtering is not a security boundary, so without this a
-        # documents user could attach a request onto any record of any model
-        # (mirrors the hardening in documents_link_to_record_wizard).
         if self.res_model and self.res_id:
             if self.res_model not in self.env:
                 raise UserError(_("Invalid model %s.", self.res_model))
@@ -111,12 +104,7 @@ class DocumentsRequest_Wizard(models.TransientModel):
         ).activity_schedule(**activity_vals)
         document.request_activity_id = activity
 
-        # Access rights: either user edit with expiration if the requestee has a user or access_via_link=edit otherwise
-        # Note that when uploaded, access_via_link will be set to view automatically (if it was set to edit)
         if self.requestee_id.user_ids:
-            # Built incrementally (not as a dict literal): when the requester
-            # *is* the requestee, a literal would silently drop the requester's
-            # permanent grant in favour of the expiring one.
             partners = {
                 self.requestee_id.id: (
                     "edit",

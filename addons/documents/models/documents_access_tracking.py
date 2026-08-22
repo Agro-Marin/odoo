@@ -8,7 +8,6 @@ _logger = logging.getLogger(__name__)
 
 
 class DocumentsAccessTracking(models.Model):
-    """Queue document access changes for deferred tracking messages."""
 
     _name = "documents.access.tracking"
     _description = "Document Access Tracking"
@@ -45,10 +44,6 @@ class DocumentsAccessTracking(models.Model):
                 ]
             )
 
-        # Same rule as `documents.document._trigger_url_preview_cron`: the cron
-        # record may not have survived an uninstall, and a hard `env.ref` would
-        # take every access-rights update down with a ValueError over a chatter
-        # message that nobody would have read anyway.
         cron = self.env.ref(
             "documents.ir_cron_documents_access_tracking", raise_if_not_found=False
         )
@@ -57,28 +52,7 @@ class DocumentsAccessTracking(models.Model):
 
     @api.model
     def _cron_generate_tracking(self) -> None:
-        """Drain the queued access-change trackings into chatter messages.
-
-        Two properties matter here, and neither used to hold:
-
-        * **Progress.** The queue is drained in a loop for as long as the cron
-          has time, instead of one row per trigger. A single
-          ``action_update_access_rights`` over a large folder queues one row per
-          ``tracking_batch_size`` documents but triggers the cron once, so with
-          one row per run the surplus rows waited for the *monthly* schedule.
-        * **Liveness.** A row that cannot be rendered is dropped (and logged)
-          rather than left at the head of the queue. Rendering reads records
-          referenced by id inside a JSON payload -- a partner deleted between
-          the access change and the cron run raised ``MissingError``, and since
-          the row is only unlinked *after* a successful render and the search is
-          always ordered by id, that one row poisoned the head of the queue
-          forever: every later access change stopped being tracked.
-        """
         Cron = self.env["ir.cron"]
-        # Counted once, then decremented: `search_count([])` per drained row
-        # doubled the query count of the loop to report a number the loop
-        # already knows. A row queued by another transaction mid-drain is picked
-        # up by the `while`, which re-searches anyway.
         remaining = self.search_count([])
         while tracking := self.search([], limit=1):
             try:
@@ -139,9 +113,6 @@ class DocumentsAccessTracking(models.Model):
     def _get_members_change_template_body(self) -> str:
         self.ensure_one()
         members = self.changes["members"]
-        # The template dereferences ``partner_map.get(key).name``, so a member
-        # whose partner no longer exists must not reach it. Drop those entries
-        # instead: the rest of the change is still worth reporting.
         partner_map = self._get_partners_mapping()
         return self.env["ir.qweb"]._render(
             "documents.tracking_access_members_change",
@@ -166,14 +137,6 @@ class DocumentsAccessTracking(models.Model):
         )
 
     def _get_partners_mapping(self) -> dict:
-        """Map each member key of ``changes`` to its (still existing) partner.
-
-        Keys are kept verbatim (``fields.Json`` stringifies dict keys, while the
-        ``removed`` list keeps ints) because the template looks partners up by
-        the very key it iterates over. Partners deleted since the access change
-        was queued are simply absent from the mapping -- resolving them lazily
-        made the render raise ``MissingError``.
-        """
         self.ensure_one()
         members_dict = self.changes["members"]
         keys = [

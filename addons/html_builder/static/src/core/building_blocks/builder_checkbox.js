@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { CheckBox } from "@web/components/checkbox/checkbox";
+import { CheckBox } from "@web/components/checkbox";
 import {
     clickableBuilderComponentProps,
     useActionInfo,

@@ -60,7 +60,7 @@ class SurveyUser_Input(models.Model):
         return {
             'medium_id': self.env['utm.medium']._fetch_or_create_utm_medium('Survey').id,
             'origin_survey_id': survey.id,
-            'source_id': self.env['mixin.utm']._find_or_create_record('utm.source', survey.title).id,
+            'source_id': self.env['mixin.utm']._get_or_create_record('utm.source', survey.title).id,
             'team_id': sales_team.id,
             'type': 'opportunity',  # we assume that the lead is sufficiently qualified based on survey responses to be an opportunity
             'user_id': salesperson.id,
@@ -218,7 +218,7 @@ class SurveyUser_Input(models.Model):
     def action_redirect_lead(self):
         ''' Shows the lead associated, created from inputs '''
         self.ensure_one()
-        action = self.env['ir.actions.act_window']._for_xml_id('crm.crm_lead_opportunities')
+        action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('crm.crm_lead_opportunities')
         action['views'] = [((self.env.ref('crm.crm_lead_view_form').id), 'form')]
         action['res_id'] = self.lead_id.id
         return action

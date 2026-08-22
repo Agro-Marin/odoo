@@ -139,7 +139,7 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
         ev.stopPropagation();
         const isIcon = ev.target.closest(".o_field_documents_type_icon");
         if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) {
-            this.toggleRecordSelection(record, ev);
+            this.toggleRecordSelection(record);
             return;
         }
         if (isIcon) {

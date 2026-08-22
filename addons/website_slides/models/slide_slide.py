@@ -1,7 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import base64
-import contextlib
 import datetime
 import io
 import logging
@@ -13,7 +12,7 @@ from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
 from odoo import _, api, fields, models
-from odoo.exceptions import AccessError, RedirectWarning, UserError
+from odoo.exceptions import AccessError, UserError
 from odoo.http import request
 from odoo.tools import html2plaintext
 from odoo.tools.pdf import PdfFileReader
@@ -296,7 +295,7 @@ class SlideSlide(models.Model):
     embed_ids = fields.One2many(
         "slide.embed", "slide_id", string="External Slide Embeds"
     )
-    embed_count = fields.Integer("# of Embeds", compute="_compute_embed_counts")
+    embed_count = fields.Integer("# of Embeds", compute="_compute_embed_count")
     slide_views = fields.Integer(
         "# of Website Views", store=True, compute="_compute_slide_views"
     )
@@ -500,7 +499,7 @@ class SlideSlide(models.Model):
             slide.slide_views = mapped_data.get(slide.id, 0)
 
     @api.depends("embed_ids.slide_id")
-    def _compute_embed_counts(self):
+    def _compute_embed_count(self):
         read_group_res = self.env["slide.embed"]._read_group(
             [("slide_id", "in", self.ids)],
             ["slide_id"],
@@ -1409,7 +1408,7 @@ class SlideSlide(models.Model):
     def action_view_embeds(self):
         self.ensure_one()
 
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "website_slides.slide_embed_action"
         )
         action["context"] = {"search_default_slide_id": self.id}
@@ -1638,24 +1637,15 @@ class SlideSlide(models.Model):
         :return a tuple (values, error) containing the values of the slide and a potential error
           (e.g: 'File could not be found')"""
 
-        params = {}
-        params["projection"] = "BASIC"
-        if "google.drive.config" in self.env:
-            access_token = False
-            # ignore and use the 'key' fallback
-            with contextlib.suppress(RedirectWarning, UserError):
-                access_token = self.env["google.drive.config"].get_access_token()
-
-            if access_token:
-                params["access_token"] = access_token
-
-        if not params.get("access_token"):
-            params["key"] = (
+        params = {
+            "projection": "BASIC",
+            "key": (
                 self.env["website"]
                 .get_current_website()
                 .sudo()
                 .website_slide_google_app_key
-            )
+            ),
+        }
 
         error_message = False
         try:

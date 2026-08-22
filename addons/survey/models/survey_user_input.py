@@ -425,7 +425,7 @@ class SurveyUser_Input(models.Model):
         """Open a list view of all attempts for the same survey and respondent."""
         self.ensure_one()
 
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "survey.action_survey_user_input"
         )
         context = dict(self.env.context or {})

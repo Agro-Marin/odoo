@@ -21,8 +21,8 @@ class EventRegistration(models.Model):
             answer_descriptions.append(Markup("  - %s<br/>%s") % (answer.question_id.title, answer_value))
         return Markup("%s%s<br/>%s") % (reg_description, _("Questions"), Markup('<br/>').join(answer_descriptions))
 
-    def _get_lead_description_fields(self):
-        res = super(EventRegistration, self)._get_lead_description_fields()
+    def _get_fields_lead_description(self):
+        res = super(EventRegistration, self)._get_fields_lead_description()
         res.append('registration_answer_ids')
         return res
 

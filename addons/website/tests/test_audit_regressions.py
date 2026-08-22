@@ -342,7 +342,7 @@ class TestCustomAssetIsolation(TransactionCase):
     def test_custom_scss_does_not_bleed_across_websites(self):
         """One website's compiled CSS must never be served to another.
 
-        ``_make_custom_asset_url`` mints a URL with no website component, so two
+        ``_prepare_custom_asset_url`` mints a URL with no website component, so two
         websites customising the same file produce attachments sharing a URL and
         (within one transaction) a ``write_date``. The bundle version is hashed
         over exactly those, so it collided while the content differed, and the

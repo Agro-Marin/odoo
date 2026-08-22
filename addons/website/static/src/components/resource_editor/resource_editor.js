@@ -7,9 +7,9 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
-import { CodeEditor } from "@web/components/code_editor/code_editor";
+import { CodeEditor } from "@web/components/code_editor";
 import { CheckboxItem, Dropdown, DropdownItem } from "@web/components/dropdown";
-import { SelectMenu } from "@web/components/select_menu/select_menu";
+import { SelectMenu } from "@web/components/select_menu";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";

@@ -46,8 +46,8 @@ class EventEvent(models.Model):
         for new_event in self:
             new_event.exhibitor_menu_ids.menu_id.parent_id = new_event.menu_id
 
-    def _get_menu_update_fields(self):
-        return super(EventEvent, self)._get_menu_update_fields() + ['exhibitor_menu']
+    def _get_fields_menu_update(self):
+        return super(EventEvent, self)._get_fields_menu_update() + ['exhibitor_menu']
 
     def _update_website_menus(self, menus_update_by_field=None):
         super(EventEvent, self)._update_website_menus(menus_update_by_field=menus_update_by_field)

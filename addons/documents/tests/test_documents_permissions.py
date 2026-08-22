@@ -1,8 +1,3 @@
-"""Who may reach a document, and what they may do with it.
-
-Named for what it protects, not for the review that produced it.
-"""
-
 import base64
 import io
 
@@ -16,7 +11,6 @@ from .test_documents_common import GIF, TEXT, TransactionCaseDocuments
 
 
 def _png(color):
-    """Return a base64 PNG, i.e. content `image_process` can actually decode."""
     buffer = io.BytesIO()
     Image.new("RGB", (400, 300), color).save(buffer, "PNG")
     return base64.b64encode(buffer.getvalue())
@@ -24,16 +18,8 @@ def _png(color):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsPropagationDomain(TransactionCaseDocuments):
-    """Company propagation must not inherit access-only carve-outs."""
 
     def test_access_domain_layers_on_the_propagation_domain(self):
-        """The access rule is the base rule plus whatever extensions narrow it.
-
-        Asserting the two are *equal* would only hold with no extension
-        installed -- `documents_spreadsheet` narrows the access one, and it
-        auto-installs. What must hold either way is that the access domain is
-        still built on the base one.
-        """
         calls = []
         DocumentsDocument = type(self.env["documents.document"])
         base_rule = DocumentsDocument._get_propagation_domain
@@ -51,10 +37,6 @@ class TestDocumentsPropagationDomain(TransactionCaseDocuments):
         )
 
     def test_company_propagation_uses_the_base_rule(self):
-        """`_update_company` must consult `_get_propagation_domain`, not the
-        access one — otherwise an extension exempting a document from *sharing*
-        changes silently also exempts it from *company* moves.
-        """
         company = self.env["res.company"].create({"name": "Dedup Co"})
         folder = self.env["documents.document"].create(
             {
@@ -93,7 +75,6 @@ class TestDocumentsPropagationDomain(TransactionCaseDocuments):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsArchiveWording(TransactionCaseDocuments):
-    """Both halves of the archive gate speak with one voice."""
 
     def test_single_source_for_the_denial_message(self):
         message = self.env["documents.document"]._archive_denied_message()
@@ -106,7 +87,6 @@ class TestDocumentsArchiveWording(TransactionCaseDocuments):
                 "owner_id": self.document_manager.id,
             }
         )
-        # The folder-permission half raises the shared wording verbatim.
         with self.assertRaises(UserError) as caught:
             document.with_user(self.internal_user)._raise_if_unauthorized_archive()
         self.assertEqual(str(caught.exception), message)
@@ -114,14 +94,6 @@ class TestDocumentsArchiveWording(TransactionCaseDocuments):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsUserPermissionContract(TransactionCaseDocuments):
-    """`user_permission` must stay READABLE, not just searchable.
-
-    `_compute_user_permission` passes `company_domains` by keyword to
-    `_search_user_permission`. An override stuck on the older signature raises
-    TypeError on every read while `search()` — which calls positionally — keeps
-    working, so the breakage hides until something renders a list or a kanban.
-    That is exactly how it shipped broken in a downstream module.
-    """
 
     def test_user_permission_is_readable(self):
         document = self.env["documents.document"].create(
@@ -153,7 +125,6 @@ class TestDocumentsUserPermissionContract(TransactionCaseDocuments):
         self.assertEqual(len(levels), 3)
 
     def test_search_side_agrees_with_the_read_side(self):
-        """Both entry points hit the same domain, so they must not disagree."""
         document = self.env["documents.document"].create(
             {
                 "type": "binary",
@@ -186,7 +157,6 @@ class TestDocumentsUserPermissionContract(TransactionCaseDocuments):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsCreateAccessCommands(TransactionCaseDocuments):
-    """`access_ids` at creation accepts grants and clears, and nothing else."""
 
     def setUp(self):
         super().setUp()
@@ -222,7 +192,6 @@ class TestDocumentsCreateAccessCommands(TransactionCaseDocuments):
         )
 
     def test_reparenting_commands_are_refused_cleanly(self):
-        """These used to raise a bare TypeError -- an HTTP 500."""
         for label, commands in (
             ("link", [Command.link(self.foreign.id)]),
             ("set", [Command.set([self.foreign.id])]),
@@ -275,17 +244,8 @@ class TestDocumentsCreateAccessCommands(TransactionCaseDocuments):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsReadCost(TransactionCaseDocuments):
-    """Reading a self-referencing many2one must not be one query per record."""
 
     def test_search_read_of_folder_id_is_batched(self):
-        """The record rule is `user_permission != 'none'`, a search-only field.
-
-        `Many2one.convert_to_read` asks `_filtered_access("read")` per value,
-        and a search-defined domain cannot be answered from the cache, so every
-        single value used to issue its own query. `convert_to_read_multi`
-        resolves the column once; this model is the reason that exists, so the
-        guard belongs here as well as in `TestReadFormatMany2oneBatch`.
-        """
         count = 25
         documents = self.env["documents.document"].create(
             [
@@ -316,7 +276,6 @@ class TestDocumentsReadCost(TransactionCaseDocuments):
         )
 
     def test_batched_read_gives_the_same_answer_as_the_per_record_check(self):
-        """The memo must not turn an unreadable folder into a readable one."""
         hidden = self.env["documents.document"].create(
             {
                 "type": "folder",
@@ -354,7 +313,6 @@ class TestDocumentsReadCost(TransactionCaseDocuments):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsPermissionSingleSource(TransactionCaseDocuments):
-    """The token-less level is the permission domain, minus the link."""
 
     def test_link_inherited_from_the_parent_is_the_only_difference(self):
         parent = self.env["documents.document"].create(
@@ -391,7 +349,6 @@ class TestDocumentsPermissionSingleSource(TransactionCaseDocuments):
         )
 
     def test_membership_agrees_with_the_domain(self):
-        """Everything that is not link-derived must match, level for level."""
         document = self.env["documents.document"].create(
             {
                 "type": "binary",
@@ -449,7 +406,6 @@ class TestDocumentsPermissionSingleSource(TransactionCaseDocuments):
 @tagged("post_install", "-at_install")
 class TestDocumentsAccessErrorSurface(TransactionCaseDocuments):
     def test_access_row_cannot_be_written_without_edit_on_the_document(self):
-        """Guard behind `_validated_create_access_commands`'s refusal."""
         access = self.env["documents.access"].create(
             {
                 "document_id": self.company_root_folder.id,
@@ -464,20 +420,17 @@ class TestDocumentsAccessErrorSurface(TransactionCaseDocuments):
 @tagged("post_install", "-at_install")
 class TestDocumentsMoveAuthorization(TransactionCaseDocuments):
     def test_f1_move_to_root_is_guarded(self):
-        """Moving out of a folder one cannot edit is refused, root included."""
-        doc = self.document_gif  # in folder_b (owner: doc_user, internal: view)
+        doc = self.document_gif
         doc.action_update_access_rights(
             partners={self.doc_user_2.partner_id.id: ("edit", False)}
         )
         doc_as_user_2 = doc.with_user(self.doc_user_2)
-        # Pre-condition: edit on the file, only view on the containing folder.
         self.assertEqual(doc_as_user_2.user_permission, "edit")
         self.assertEqual(
             self.folder_b.with_user(self.doc_user_2).user_permission, "view"
         )
         self.assertFalse(doc_as_user_2.user_can_move)
 
-        # Control: moving into a folder of their own is already refused.
         own_folder = self.env["documents.document"].create(
             {
                 "type": "folder",
@@ -488,7 +441,6 @@ class TestDocumentsMoveAuthorization(TransactionCaseDocuments):
         with self.assertRaises(AccessError):
             doc_as_user_2.write({"folder_id": own_folder.id})
 
-        # The bug: a move to the drive root took a completely unguarded path.
         with self.assertRaises(AccessError):
             doc_as_user_2.write({"folder_id": False})
         with self.assertRaises(AccessError):
@@ -496,7 +448,6 @@ class TestDocumentsMoveAuthorization(TransactionCaseDocuments):
         self.assertEqual(doc.folder_id, self.folder_b)
 
     def test_f1_legitimate_root_moves_still_work(self):
-        """The owner may still move their own document to a drive root."""
         doc = self.env["documents.document"].create(
             {
                 "type": "binary",
@@ -510,38 +461,26 @@ class TestDocumentsMoveAuthorization(TransactionCaseDocuments):
         self.assertFalse(doc.folder_id)
         self.assertEqual(doc.owner_id, self.doc_user)
 
-        # A manager may move it to the Company root.
         doc.with_user(self.document_manager).write({"user_folder_id": "COMPANY"})
         self.assertFalse(doc.folder_id)
         self.assertFalse(doc.owner_id)
 
     def test_f1_archive_escalation_via_root_move_is_closed(self):
-        """The full escalation chain: unauthorized move then trash.
-
-        `_raise_if_unauthorized_archive` authorizes through the *containing
-        folder*, so a document with no folder used to be trashable by anybody
-        with edit on the file. The escalation is closed at the move: the
-        document can no longer reach a root the user does not control.
-        """
-        doc = self.document_gif  # folder_b: owner doc_user, internal view
+        doc = self.document_gif
         doc.action_update_access_rights(
             partners={self.doc_user_2.partner_id.id: ("edit", False)}
         )
         doc_as_user_2 = doc.with_user(self.doc_user_2)
-        # Step 1 (the guard that already worked): direct trash is refused.
         with self.assertRaises(UserError):
             doc_as_user_2.action_archive()
-        # Step 2 (the hole): escaping to a root to lose the guard.
         with self.assertRaises(AccessError):
             doc_as_user_2.write({"folder_id": False})
-        # Still in its folder, still protected.
         self.assertEqual(doc.folder_id, self.folder_b)
         self.assertTrue(doc.active)
         with self.assertRaises(UserError):
             doc_as_user_2.action_archive()
 
     def test_f1_no_regression_on_foldered_documents(self):
-        """Archiving a document in a folder one can edit is still allowed."""
         folder = self.env["documents.document"].create(
             {
                 "type": "folder",
@@ -566,36 +505,23 @@ class TestDocumentsMoveAuthorization(TransactionCaseDocuments):
 @tagged("post_install", "-at_install")
 class TestDocumentsArchiveAuthorization(TransactionCaseDocuments):
     def test_f7_archive_guard_is_su_aware(self):
-        """sudo() bypasses the share-user archive guard like every other one."""
         doc = self.env["documents.document"].create(
             {
                 "type": "binary",
                 "datas": TEXT,
                 "name": "audit3 su archive.txt",
-                # No folder: keeps the trash-chatter branch (which posts as a
-                # non-su portal user and cannot create a mail.message) out of
-                # the way, so this test isolates the share guard itself.
                 "folder_id": False,
                 "owner_id": self.doc_user.id,
             }
         )
         share_env_doc = doc.with_user(self.portal_user)
         self.assertTrue(share_env_doc.env.user.share)
-        # Without sudo, a share user is still refused.
         with self.assertRaises(UserError):
             share_env_doc.write({"active": False})
-        # With sudo, the internal code path goes through, like the other guards.
         share_env_doc.sudo().write({"active": False})
         self.assertFalse(doc.active)
 
     def test_f7_unlink_mixin_uses_action_archive(self):
-        """The mixin's archive path produces the trash chatter.
-
-        No model inheriting ``mixin.documents.unlink`` is installed by the
-        ``documents`` module alone, so this asserts the observable effect the
-        mixin now relies on: ``action_archive`` logs the trash message that a
-        raw ``write({'active': False})`` never produced.
-        """
         doc = self.env["documents.document"].create(
             {
                 "type": "binary",
@@ -620,7 +546,6 @@ class TestDocumentsArchiveAuthorization(TransactionCaseDocuments):
 class TestDocumentsFavourites(TransactionCaseDocuments):
     @users("documents@example.com")
     def test_toggle_favorited_requires_read_access(self):
-        """A user with no permission cannot plant a favourite on a document."""
         hidden = (
             self.env["documents.document"]
             .sudo()
@@ -646,7 +571,6 @@ class TestDocumentsFavourites(TransactionCaseDocuments):
 
     @users("documents@example.com")
     def test_toggle_favorited_still_works_for_a_viewer(self):
-        """Favouriting stays available on a document one may only view."""
         shared = (
             self.env["documents.document"]
             .sudo()
@@ -670,7 +594,6 @@ class TestDocumentsFavourites(TransactionCaseDocuments):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsShareUserCreate(TransactionCaseDocuments):
-    # -- S1a: share users cannot inject broadly-accessible root documents ----
     def test_s1a_share_user_cannot_create_root_document(self):
         Document = self.env["documents.document"].with_user(self.portal_user)
         with self.assertRaises(AccessError):
@@ -686,8 +609,6 @@ class TestDocumentsShareUserCreate(TransactionCaseDocuments):
             )
 
     def test_s1a_share_user_create_does_not_elevate_access(self):
-        # A share user creating inside a folder they may reach must not be able
-        # to set access_internal/access_via_link (they are stripped / inherited).
         folder = self.env["documents.document"].create(
             {
                 "type": "folder",
@@ -699,8 +620,6 @@ class TestDocumentsShareUserCreate(TransactionCaseDocuments):
         folder.action_update_access_rights(
             partners={self.portal_user.partner_id: ("edit", False)}
         )
-        # An explicit access_internal='edit' must not survive; the create either
-        # inherits the folder value or is refused, but never elevates.
         try:
             doc = (
                 self.env["documents.document"]
@@ -717,17 +636,13 @@ class TestDocumentsShareUserCreate(TransactionCaseDocuments):
                 )
             )
         except AccessError:
-            return  # refused outright is acceptable
+            return
         self.assertNotEqual(doc.access_internal, "edit")
 
 
 @tagged("post_install", "-at_install")
 class TestDocumentsAccessRightsUpdate(TransactionCaseDocuments):
-    # -- C5: members added before the caller's own access is downgraded -------
     def test_c5_member_kept_on_internal_downgrade(self):
-        # A manager whose edit right on a company-root document comes from
-        # access_internal downgrades it to 'none' while adding a member in the
-        # same call: the member must still be granted.
         doc = (
             self.env["documents.document"]
             .with_user(self.document_manager)
@@ -737,7 +652,6 @@ class TestDocumentsAccessRightsUpdate(TransactionCaseDocuments):
             access_internal="none",
             partners={self.internal_user.partner_id: ("view", False)},
         )
-        # Read in sudo: the manager just removed their own (internal) access.
         member = doc.sudo().access_ids.filtered(
             lambda a: a.partner_id == self.internal_user.partner_id and a.role
         )
@@ -745,9 +659,6 @@ class TestDocumentsAccessRightsUpdate(TransactionCaseDocuments):
         self.assertEqual(member.role, "view")
 
     def test_c5_sharing_wizard_no_crash_on_self_access_loss(self):
-        # See the note in `test_operation_add_without_attachment_message`:
-        # `documents.sharing` lives in `documents_enterprise`, and a
-        # community-only run must skip rather than error.
         if "documents.sharing" not in self.env:
             self.skipTest("documents_enterprise is not installed")
         doc = (
@@ -758,7 +669,6 @@ class TestDocumentsAccessRightsUpdate(TransactionCaseDocuments):
         Sharing = self.env["documents.sharing"].with_user(self.document_manager)
         wizard = Sharing.browse(Sharing.action_open(doc.ids)["res_id"])
         wizard.write({"access_internal": "write_none"})
-        # Must not raise AccessError while rebuilding the (now inaccessible) wizard.
         result = wizard.action_update_rights()
         self.assertIsInstance(result, dict)
 
@@ -766,7 +676,6 @@ class TestDocumentsAccessRightsUpdate(TransactionCaseDocuments):
 @tagged("post_install", "-at_install")
 class TestDocumentsLock(TransactionCaseDocuments):
     def test_lock_enforced_server_side(self):
-        """A locked document's content/archive is protected from other users."""
         other = self.env["res.users"].create(
             {
                 "login": "doc_user_2",
@@ -778,17 +687,14 @@ class TestDocumentsLock(TransactionCaseDocuments):
         )
         doc = self.document_gif
         doc.action_update_access_rights(partners={other.partner_id.id: ("edit", False)})
-        # The owner locks the document.
         doc.with_user(self.doc_user).toggle_lock()
         self.assertEqual(doc.lock_uid, self.doc_user)
 
-        # Another editor may not replace the content nor trash it.
         with self.assertRaises(UserError):
             doc.with_user(other).write({"datas": TEXT})
         with self.assertRaises(UserError):
             doc.with_user(other).action_archive()
 
-        # The lock owner and a manager may.
         doc.with_user(self.doc_user).write({"datas": TEXT})
         doc.with_user(self.document_manager).write({"datas": GIF})
 
@@ -796,11 +702,9 @@ class TestDocumentsLock(TransactionCaseDocuments):
 @tagged("post_install", "-at_install")
 class TestDocumentsAccessInheritance(TransactionCaseDocuments):
     def test_empty_access_ids_opts_out_of_inheritance(self):
-        """Explicitly empty access_ids skips folder-member inheritance."""
         self.folder_a.action_update_access_rights(
             partners={self.portal_user.partner_id.id: ("view", False)}
         )
-        # Passing an access_ids command list that clears members opts out.
         opted_out = self.env["documents.document"].create(
             {
                 "type": "folder",
@@ -812,7 +716,6 @@ class TestDocumentsAccessInheritance(TransactionCaseDocuments):
         self._assert_no_members(opted_out)
         self.assertFalse(opted_out.access_ids)
 
-        # Not providing access_ids still inherits (default behaviour).
         inherited = self.env["documents.document"].create(
             {"type": "folder", "name": "inherit", "folder_id": self.folder_a.id}
         )
@@ -822,9 +725,7 @@ class TestDocumentsAccessInheritance(TransactionCaseDocuments):
 @tagged("post_install", "-at_install")
 class TestDocumentsLinkedRecordAuthorization(TransactionCaseDocuments):
     def test_request_wizard_requires_target_write_access(self):
-        """The request wizard enforces write access on the linked record."""
         wizard_model = self.env["documents.request_wizard"]
-        # An unknown model is rejected outright.
         bad_model = wizard_model.with_user(self.doc_user).create(
             {
                 "name": "req",
@@ -837,7 +738,6 @@ class TestDocumentsLinkedRecordAuthorization(TransactionCaseDocuments):
         with self.assertRaises(UserError):
             bad_model.request_document()
 
-        # A record the documents user cannot write to is refused.
         param = (
             self.env["ir.config_parameter"]
             .sudo()
@@ -858,12 +758,7 @@ class TestDocumentsLinkedRecordAuthorization(TransactionCaseDocuments):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsOperationWizard(TransactionCaseDocuments):
-    # -- documents.operation 'add' without attachment -----------------------
     def test_operation_add_without_attachment_message(self):
-        # `documents.operation` is declared by `documents_enterprise`. This
-        # module is installable on its own, so its suite has to run green on
-        # its own too -- an unguarded reference turned a community-only run
-        # into a KeyError instead of a skip.
         if "documents.operation" not in self.env:
             self.skipTest("documents_enterprise is not installed")
         wizard = self.env["documents.operation"].create(

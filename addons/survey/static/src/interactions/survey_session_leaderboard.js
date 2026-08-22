@@ -135,7 +135,7 @@ export class SurveySessionLeaderboard extends Interaction {
             `/survey/session/leaderboard/${this.surveyAccessToken}`,
         );
         this.waitFor(Promise.all([fadeOutPromise, leaderboardPromise])).then(
-            this.protectSyncAfterAsync((results) => {
+            this.bindDeferred((results) => {
                 const leaderboardResults = results[1];
                 const renderedTemplate = document.createElement("div");
                 const parser = new DOMParser();

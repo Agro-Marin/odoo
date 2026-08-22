@@ -19,7 +19,7 @@ class CrmLeadScoringFrequencyField(models.Model):
     _name = 'crm.lead.scoring.frequency.field'
     _description = 'Fields that can be used for predictive lead scoring computation'
 
-    def _get_default_color(self):
+    def _default_color(self):
         return randint(1, 11)
 
     name = fields.Char(related="field_id.field_description")
@@ -27,4 +27,4 @@ class CrmLeadScoringFrequencyField(models.Model):
         'ir.model.fields', domain=[('model_id.model', '=', 'crm.lead')], required=True,
         ondelete='cascade',
     )
-    color = fields.Integer('Color', default=_get_default_color)
+    color = fields.Integer('Color', default=_default_color)

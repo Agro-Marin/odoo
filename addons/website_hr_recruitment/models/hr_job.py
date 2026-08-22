@@ -16,10 +16,10 @@ class HrJob(models.Model):
     ]
 
     @mute_logger('odoo.addons.base.models.ir_qweb')
-    def _get_default_website_description(self):
+    def _default_website_description(self):
         return self.env['ir.qweb']._render("website_hr_recruitment.default_website_description", raise_if_not_found=False)
 
-    def _get_default_job_details(self):
+    def _default_job_details(self):
         return _("""
             <span class="text-muted small">Time to Answer</span>
             <h6>2 open days</h6>
@@ -38,7 +38,7 @@ class HrJob(models.Model):
     website_published = fields.Boolean(help='Set if the application is published on the website of the company.', tracking=True)
     website_description = fields.Html(
         'Website description', translate=html_translate,
-        default=_get_default_website_description, prefetch=False,
+        default=_default_website_description, prefetch=False,
         sanitize_overridable=True,
         sanitize_attributes=False, sanitize_form=False)
     job_details = fields.Html(
@@ -46,7 +46,7 @@ class HrJob(models.Model):
         translate=True,
         help="Complementary information that will appear on the job submission page",
         sanitize_attributes=False,
-        default=_get_default_job_details)
+        default=_default_job_details)
     published_date = fields.Date(compute='_compute_published_date', store=True)
     full_url = fields.Char('job URL', compute='_compute_full_url')
 

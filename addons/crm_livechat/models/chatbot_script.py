@@ -19,7 +19,7 @@ class ChatbotScript(models.Model):
 
     def action_view_leads(self):
         self.ensure_one()
-        action = self.env['ir.actions.act_window']._for_xml_id('crm.crm_lead_all_leads')
+        action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('crm.crm_lead_all_leads')
         action['domain'] = [('source_id', '=', self.source_id.id)]
         action['context'] = {'create': False}
         return action

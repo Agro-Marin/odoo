@@ -287,7 +287,7 @@ class Website(Home):
         readonly=True,
     )
     def country_infos(self, country, **kw):
-        fields = country.get_address_fields()
+        fields = country.get_fields_address()
         return {
             "fields": fields,
             "states": [(st.id, st.name, st.code) for st in country.state_ids],

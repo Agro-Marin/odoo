@@ -234,7 +234,7 @@ class WebsiteForm(http.Controller):
 
         authorized_fields = model_sudo.with_user(
             SUPERUSER_ID
-        )._get_form_writable_fields(values)
+        )._get_fields_form_writable(values)
         error_fields = []
         custom_fields = []
 
@@ -414,7 +414,7 @@ class WebsiteForm(http.Controller):
         record = model_sudo.env[model_name].browse(id_record)
         authorized_fields = model_sudo.with_user(
             SUPERUSER_ID
-        )._get_form_writable_fields()
+        )._get_fields_form_writable()
         for file in files:
             custom_field = file.field_name not in authorized_fields
             attachment_value = {

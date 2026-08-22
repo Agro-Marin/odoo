@@ -43,17 +43,17 @@ class IrUiView(models.Model):
     )
     visibility_password = fields.Char(groups="base.group_system", copy=False)
     visibility_password_display = fields.Char(
-        compute="_get_pwd", inverse="_set_pwd", groups="website.group_website_designer"
+        compute="_compute_visibility_password_display", inverse="_inverse_visibility_password_display", groups="website.group_website_designer"
     )
 
     @api.depends("visibility_password")
-    def _get_pwd(self):
+    def _compute_visibility_password_display(self):
         for r in self:
             r.visibility_password_display = (
                 r.sudo().visibility_password and "********"
             ) or ""
 
-    def _set_pwd(self):
+    def _inverse_visibility_password_display(self):
         crypt_context = self.env.user._crypt_context()
         for r in self:
             if r.type == "qweb":
@@ -303,12 +303,12 @@ class IrUiView(models.Model):
         )
         return {
             "sibling_views": sibling_views,
-            "hierarchy": top_level_view._build_hierarchy_datastructure(),
+            "hierarchy": top_level_view._prepare_hierarchy_datastructure(),
         }
 
-    def _build_hierarchy_datastructure(self):
+    def _prepare_hierarchy_datastructure(self):
         inherit_children = [
-            child._build_hierarchy_datastructure()
+            child._prepare_hierarchy_datastructure()
             for child in self.inherit_children_ids
         ]
         return {
@@ -455,8 +455,8 @@ class IrUiView(models.Model):
         )
 
     @api.model
-    def _fetch_template_views(self, ids_or_xmlids):
-        data = super()._fetch_template_views(ids_or_xmlids)
+    def _get_template_views(self, ids_or_xmlids):
+        data = super()._get_template_views(ids_or_xmlids)
         for key in list(data):
             if isinstance(data[key], MissingError):
                 data[key] = MissingError(

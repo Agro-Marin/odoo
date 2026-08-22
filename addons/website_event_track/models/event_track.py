@@ -40,7 +40,7 @@ class EventTrack(models.Model):
     _primary_email = 'contact_email'
 
     @api.model
-    def _get_default_stage_id(self):
+    def _default_stage_id(self):
         return self.env['event.track.stage'].search([], limit=1).id
 
     # description
@@ -59,7 +59,7 @@ class EventTrack(models.Model):
     # management
     stage_id = fields.Many2one(
         'event.track.stage', string='Stage', ondelete='restrict',
-        index=True, copy=False, default=_get_default_stage_id,
+        index=True, copy=False, default=_default_stage_id,
         group_expand='_read_group_expand_full',  # Always display all stages
         required=True, tracking=True)
     legend_blocked = fields.Char(related='stage_id.legend_blocked',
@@ -118,7 +118,7 @@ class EventTrack(models.Model):
     location_id = fields.Many2one('event.track.location', 'Location')
     # time information
     date = fields.Datetime('Track Date', compute='_compute_date', inverse="_inverse_date", store=True)
-    date_end = fields.Datetime('Track End Date', compute='_compute_end_date', inverse="_inverse_end_date", store=True)
+    date_end = fields.Datetime('Track End Date', compute='_compute_end_date', inverse="_inverse_date_end", store=True)
     duration = fields.Float('Duration', default=0.5)
     is_track_live = fields.Boolean(
         'Is Track Live', compute='_compute_track_time_data')
@@ -130,7 +130,7 @@ class EventTrack(models.Model):
         'Is Track Upcoming', compute='_compute_track_time_data')
     is_track_done = fields.Boolean(
         'Is Track Done', compute='_compute_track_time_data')
-    is_one_day = fields.Boolean(compute='_compute_field_is_one_day')
+    is_one_day = fields.Boolean(compute='_compute_is_one_day')
     track_start_remaining = fields.Integer(
         'Minutes before track starts', compute='_compute_track_time_data',
         help="Remaining time before track starts (seconds)")
@@ -306,7 +306,7 @@ class EventTrack(models.Model):
             else:
                 track.date_end = False
 
-    def _inverse_end_date(self):
+    def _inverse_date_end(self):
         for track in self:
             if track.date and track.date_end:
                 track.duration = (track.date_end - track.date).total_seconds() / 3600
@@ -431,7 +431,7 @@ class EventTrack(models.Model):
                 track.website_cta_start_remaining = 0
 
     @api.depends('date', 'date_end', 'event_id')
-    def _compute_field_is_one_day(self):
+    def _compute_is_one_day(self):
         for track in self:
             # Need to localize because it could begin late and finish early in
             # another timezone

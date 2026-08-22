@@ -32,12 +32,7 @@ class BlogBlog(models.Model):
     active = fields.Boolean('Active', default=True)
     content = fields.Html('Content', translate=html_translate, sanitize=False)
     blog_post_ids = fields.One2many('blog.post', 'blog_id', 'Blog Posts')
-    blog_post_count = fields.Integer("Posts", compute='_compute_blog_post_count')
-
-    @api.depends('blog_post_ids')
-    def _compute_blog_post_count(self):
-        for record in self:
-            record.blog_post_count = len(record.blog_post_ids)
+    blog_post_count = fields.Count("blog_post_ids", "Posts")
 
     def write(self, vals):
         res = super().write(vals)
@@ -183,7 +178,7 @@ class BlogPost(models.Model):
     blog_id = fields.Many2one('blog.blog', 'Blog', required=True, index=True, ondelete='cascade', default=lambda self: self.env['blog.blog'].search([], limit=1))
     tag_ids = fields.Many2many('blog.tag', string='Tags')
     content = fields.Html('Content', default=_default_content, translate=html_translate, sanitize=False)
-    teaser = fields.Text('Teaser', compute='_compute_teaser', inverse='_set_teaser', translate=True)
+    teaser = fields.Text('Teaser', compute='_compute_teaser', inverse='_inverse_teaser', translate=True)
     teaser_manual = fields.Text(string='Teaser Content', translate=True)
 
     website_message_ids = fields.One2many(domain=lambda self: [('model', '=', self._name), ('message_type', '=', 'comment')])
@@ -191,7 +186,7 @@ class BlogPost(models.Model):
     # creation / update stuff
     create_date = fields.Datetime('Created on', readonly=True)
     published_date = fields.Datetime('Published Date')
-    post_date = fields.Datetime('Publishing date', compute='_compute_post_date', inverse='_set_post_date', store=True,
+    post_date = fields.Datetime('Publishing date', compute='_compute_post_date', inverse='_inverse_post_date', store=True,
                                 help="The blog post will be visible for your visitors as of this date on the website if it is set as published.")
     create_uid = fields.Many2one('res.users', 'Created by', readonly=True)
     write_date = fields.Datetime('Last Updated on', readonly=True)
@@ -208,7 +203,7 @@ class BlogPost(models.Model):
                 content = text_from_html(blog_post.content, True)
                 blog_post.teaser = content[:200] + '...'
 
-    def _set_teaser(self):
+    def _inverse_teaser(self):
         for blog_post in self:
             if not blog_post.with_context(lang='en_US').teaser_manual:
                 # By default, if no teaser is set in english, it will use the
@@ -228,7 +223,7 @@ class BlogPost(models.Model):
             else:
                 blog_post.post_date = blog_post.create_date
 
-    def _set_post_date(self):
+    def _inverse_post_date(self):
         for blog_post in self:
             blog_post.published_date = blog_post.post_date
             if not blog_post.published_date:

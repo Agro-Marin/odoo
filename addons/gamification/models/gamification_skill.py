@@ -23,13 +23,7 @@ class GamificationSkillTree(models.Model):
     color = fields.Integer("Color Index", default=0)
 
     node_ids = fields.One2many("gamification.skill.node", "tree_id", string="Nodes")
-    node_count = fields.Integer("# Nodes", compute="_compute_node_count")
-
-    @api.depends("node_ids")
-    def _compute_node_count(self):
-        for tree in self:
-            tree.node_count = len(tree.node_ids)
-
+    node_count = fields.Count("node_ids", "# Nodes")
 
 class GamificationSkillNode(models.Model):
     """Individual competency node within a skill tree.
@@ -133,7 +127,8 @@ class GamificationSkillNode(models.Model):
             [
                 ("node_id", "=", self.id),
                 ("user_id", "=", user.id),
-            ]
+            ],
+            limit=1,
         ):
             return False
 

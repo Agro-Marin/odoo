@@ -1526,7 +1526,7 @@ class WebsiteSlides(WebsiteProfile):
 
         return (
             request.env["ir.binary"]
-            ._get_image_stream_from(
+            ._get_stream_image_from_record(
                 slide, field, width=int(width), height=int(height), crop=int(crop)
             )
             .get_response()

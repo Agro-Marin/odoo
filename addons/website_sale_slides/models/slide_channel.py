@@ -7,7 +7,7 @@ from odoo import api, fields, models
 class SlideChannel(models.Model):
     _inherit = 'slide.channel'
 
-    def _get_default_product_id(self):
+    def _default_product_id(self):
         product_courses = self.env['product.product'].search(
             [('service_tracking', '=', 'course')], limit=2)
         return product_courses.id if len(product_courses) == 1 else False
@@ -16,7 +16,7 @@ class SlideChannel(models.Model):
         ('payment', 'On payment')
     ], ondelete={'payment': lambda recs: recs.write({'enroll': 'invite'})})
     product_id = fields.Many2one('product.product', 'Product', domain=[('service_tracking', '=', 'course')],
-                                 index='btree_not_null', default=_get_default_product_id)
+                                 index='btree_not_null', default=_default_product_id)
     product_sale_revenues = fields.Monetary(
         string='Total revenues', compute='_compute_product_sale_revenues',
         groups="sales_team.group_sale_salesman")
@@ -72,6 +72,6 @@ class SlideChannel(models.Model):
             product_to_unpublish.sudo().write({'is_published': False})
 
     def action_view_sales(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("website_sale_slides.sale_report_action_slides")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("website_sale_slides.sale_report_action_slides")
         action['domain'] = [('product_id', 'in', self.product_id.ids)]
         return action

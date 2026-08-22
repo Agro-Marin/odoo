@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { SelectMenu } from "@web/components/select_menu/select_menu";
+import { SelectMenu } from "@web/components/select_menu";
 import { _t } from "@web/core/translation";
 
 import { ImportDataColumnError } from "../import_data_column_error/import_data_column_error.js";

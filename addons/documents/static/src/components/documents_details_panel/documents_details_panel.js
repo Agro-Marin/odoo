@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { _t } from "@web/core/translation";
-import { ModelSelector } from "@web/components/model_selector/model_selector";
+import { ModelSelector } from "@web/components/model_selector";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { formatFloat } from "@web/core/utils/format/numbers";

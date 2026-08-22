@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
-import { EmojiPicker } from "@web/components/emoji_picker/emoji_picker";
+import { EmojiPicker } from "@web/components/emoji_picker";
 import { _t } from "@web/core/translation";
 
 /**

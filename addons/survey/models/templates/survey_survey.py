@@ -503,7 +503,7 @@ class SurveySurvey(models.Model):
         )
 
     def action_show_sample(self) -> dict[str, Any]:
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "survey.action_survey_form"
         )
         action["views"] = [[self.env.ref("survey.survey_survey_view_form").id, "form"]]

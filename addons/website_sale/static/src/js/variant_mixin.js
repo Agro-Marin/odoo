@@ -162,16 +162,25 @@ const VariantMixin = {
         // for example a product with 3 attributes of which 1 combination is unavailable (archived)
         // requires the first 2 to be selected for the third to be grayed out
         if (combinationData.archived_combinations) {
+            // Compare like with like. `archived_combinations` holds the PTAVs of archived
+            // *variants*, so it never contains a `no_variant` selection, while
+            // `combination` is every `js_variant_change` input and does. Measuring one
+            // against the other makes both branches below unreachable the moment the
+            // template carries a `no_variant` attribute (engraving, gift message, any
+            // `multi` attribute): the archived value is then never greyed out, the
+            // shopper picks it, and "Add to cart" silently disables instead.
+            const variantCombination = wSaleUtils.getSelectedVariantAttributeValues(parent);
             combinationData.archived_combinations.forEach((excludedCombination) => {
-                const ptavCommon = excludedCombination.filter((ptav) => combination.includes(ptav));
+                const ptavCommon = excludedCombination.filter(
+                    (ptav) => variantCombination.includes(ptav)
+                );
                 if (
-                    !!ptavCommon
-                    && (combination.length === excludedCombination.length)
-                    && (ptavCommon.length === combination.length)
+                    (variantCombination.length === excludedCombination.length)
+                    && (ptavCommon.length === variantCombination.length)
                 ) {
                     // Selected combination is archived, all attributes must be disabled from each other
-                    combination.forEach((ptav) => {
-                        combination.forEach((ptavOther) => {
+                    variantCombination.forEach((ptav) => {
+                        variantCombination.forEach((ptavOther) => {
                             if (ptav === ptavOther) {
                                 return;
                             }
@@ -184,13 +193,12 @@ const VariantMixin = {
                         });
                     });
                 } else if (
-                    !!ptavCommon
-                    && (combination.length === excludedCombination.length)
-                    && (ptavCommon.length === (combination.length - 1))
+                    (variantCombination.length === excludedCombination.length)
+                    && (ptavCommon.length === (variantCombination.length - 1))
                 ) {
                     // In this case we only need to disable the remaining ptav
                     const unavailablePtav = excludedCombination.find(
-                        (ptav) => !combination.includes(ptav)
+                        (ptav) => !variantCombination.includes(ptav)
                     );
                     excludedCombination.forEach((ptav) => {
                         if (ptav === unavailablePtav) {

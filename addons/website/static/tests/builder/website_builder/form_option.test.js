@@ -100,7 +100,7 @@ test("change action of form changes available options", async () => {
 });
 
 test("'Author' field's type stays selected when you modify the option list", async () => {
-    onRpc("get_authorized_fields", () => ({
+    onRpc("get_fields_authorized", () => ({
         author_id: {
             name: "author_id",
             relation: "res.partner",
@@ -142,7 +142,7 @@ test("'Author' field's type stays selected when you modify the option list", asy
 });
 
 test("undo redo add form field", async () => {
-    onRpc("get_authorized_fields", () => ({}));
+    onRpc("get_fields_authorized", () => ({}));
     const { getEditor } = await setupWebsiteBuilder(
         `<section class="s_website_form"><form data-model_name="mail.mail">
             <div class="s_website_form_field"><label class="s_website_form_label" for="contact1">Name</label><input id="contact1" class="s_website_form_input"/></div>
@@ -172,7 +172,7 @@ test("undo redo add form field", async () => {
 });
 
 test("empty placeholder selection input for selection field", async () => {
-    onRpc("get_authorized_fields", () => ({}));
+    onRpc("get_fields_authorized", () => ({}));
     const { getEditor } = await setupWebsiteBuilder(
         `<section class="s_website_form"><form data-model_name="mail.mail">
             <div data-name="Field" class="s_website_form_field mb-3 col-12 s_website_form_custom" data-type="many2one">
@@ -250,7 +250,7 @@ const formWithCondition = `
 `;
 
 test("Remove visibility dependency on field unavailable (change first)", async () => {
-    onRpc("get_authorized_fields", () => ({}));
+    onRpc("get_fields_authorized", () => ({}));
     const { getEditor } = await setupWebsiteBuilder(formWithCondition);
     getEditor();
     await contains(":iframe input[name=a]").click();
@@ -262,7 +262,7 @@ test("Remove visibility dependency on field unavailable (change first)", async (
 });
 
 test("Remove visibility dependency on field unavailable (change second)", async () => {
-    onRpc("get_authorized_fields", () => ({}));
+    onRpc("get_fields_authorized", () => ({}));
     const { getEditor } = await setupWebsiteBuilder(formWithCondition);
     getEditor();
     await contains(":iframe input[name=b]").click();
@@ -325,7 +325,7 @@ const changeFieldAndCheckDependency = async (
     changeFieldAction,
     fieldDependencyName = "Option 1",
 ) => {
-    onRpc("get_authorized_fields", () => ({}));
+    onRpc("get_fields_authorized", () => ({}));
     await setupWebsiteBuilder(formWithConditionOnChexbox);
     await contains(":iframe input[value='Option 2']").click();
     await changeFieldAction();
@@ -380,7 +380,7 @@ test("Correctly set field dependency name at selected field rename", async () =>
 });
 
 test("Changing max files number option updates file input 'multiple' attribute", async () => {
-    onRpc("get_authorized_fields", () => ({}));
+    onRpc("get_fields_authorized", () => ({}));
     await setupWebsiteBuilder(`
     <section class="s_website_form" data-vcss="001" data-snippet="s_website_form" data-name="Form">
         <form data-model_name="mail.mail">
@@ -414,7 +414,7 @@ test("Changing max files number option updates file input 'multiple' attribute",
 });
 
 test("Last list entry cannot be removed", async () => {
-    onRpc("get_authorized_fields", () => ({}));
+    onRpc("get_fields_authorized", () => ({}));
     await setupWebsiteBuilder(`
 <section class="s_website_form" data-vcss="001" data-snippet="s_website_form" data-name="Form">
     <form data-model_name="mail.mail">
@@ -489,7 +489,7 @@ test("Form using the Outgoing Mails model includes hidden email_to field", async
 });
 
 test("Label falls back to default value (data-translated-name) when removed", async () => {
-    onRpc("get_authorized_fields", () => ({}));
+    onRpc("get_fields_authorized", () => ({}));
     await setupWebsiteBuilder(
         `<section class="s_website_form" data-snippet="s_website_form" data-name="Form">
             <div class="container-fluid">
@@ -521,7 +521,7 @@ test("Label falls back to default value (data-translated-name) when removed", as
 });
 
 test("Option list input editing is disabled for non-custom forms", async () => {
-    onRpc("get_authorized_fields", () => ({}));
+    onRpc("get_fields_authorized", () => ({}));
     const { getEditor } = await setupWebsiteBuilder(
         `<section class="s_website_form"><form data-model_name="mail.mail">
             <div data-name="Field" class="s_website_form_field mb-3 col-12" data-type="many2one">
@@ -557,7 +557,7 @@ test("Option list input editing is disabled for non-custom forms", async () => {
 });
 
 test("Option list input editing is enabled for custom forms", async () => {
-    onRpc("get_authorized_fields", () => ({}));
+    onRpc("get_fields_authorized", () => ({}));
     const { getEditor } = await setupWebsiteBuilder(
         `<section class="s_website_form"><form data-model_name="mail.mail">
             <div data-name="Field" class="s_website_form_field mb-3 col-12 s_website_form_custom" data-type="many2one">

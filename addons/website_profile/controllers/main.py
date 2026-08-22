@@ -87,7 +87,7 @@ class WebsiteProfile(http.Controller):
             width, height = tools.image.image_guess_size_from_field_name(field)
 
         can_sudo = self._check_avatar_access(int(user_id), **post)
-        return request.env['ir.binary']._get_image_stream_from(
+        return request.env['ir.binary']._get_stream_image_from_record(
             request.env['res.users'].sudo(can_sudo).browse(int(user_id)),
             field_name=field, width=int(width), height=int(height), crop=crop
         ).get_response()

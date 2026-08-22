@@ -1,8 +1,3 @@
-"""Thumbnail generation and the routes that serve it.
-
-Named for what it protects, not for the review that produced it.
-"""
-
 import base64
 import io
 import json
@@ -17,7 +12,6 @@ from .test_documents_common import TransactionCaseDocuments
 
 
 def _png(color):
-    """Return a base64 PNG, i.e. content `image_process` can actually decode."""
     buffer = io.BytesIO()
     Image.new("RGB", (400, 300), color).save(buffer, "PNG")
     return base64.b64encode(buffer.getvalue())
@@ -26,15 +20,6 @@ def _png(color):
 @tagged("post_install", "-at_install")
 class TestDocumentsThumbnail(TransactionCaseDocuments):
     def test_thumbnail_survives_a_web_save(self):
-        """Replacing content through the web client keeps the thumbnail.
-
-        `web_save` reads back with `bin_size=True` unconditionally
-        (`web_read.py`), and `_compute_thumbnail` also produces
-        `thumbnail_status`, a Selection -- so `Binary.compute_value` does not
-        clear the flag for it. Reading `raw` there yielded `b"129.00 bytes"`,
-        `image_process` refused it, and the compute STORED
-        `thumbnail_status='error'` with an empty thumbnail.
-        """
         document = self.env["documents.document"].create(
             {"name": "pic.png", "type": "binary", "datas": _png((10, 200, 10))}
         )
@@ -51,7 +36,6 @@ class TestDocumentsThumbnail(TransactionCaseDocuments):
         self.assertTrue(document.thumbnail)
 
     def test_thumbnail_recompute_under_bin_size(self):
-        """The compute reads the payload even when the env carries `bin_size`."""
         document = self.env["documents.document"].create(
             {"name": "pic.png", "type": "binary", "datas": _png((200, 30, 30))}
         )
@@ -70,7 +54,6 @@ class TestDocumentsThumbnail(TransactionCaseDocuments):
         self.assertTrue(document.thumbnail)
 
     def test_thumbnail_status_error_for_undecodable_content(self):
-        """A file that only claims to be an image still reports an error."""
         document = self.env["documents.document"].create(
             {
                 "name": "not-an-image.png",
@@ -170,10 +153,8 @@ class TestDocumentsThumbnailRoutes(HttpCase, TransactionCaseDocuments):
         self.authenticate("audit_view", "audit_view")
         garbage = base64.b64encode(b"<svg onload=alert(1)>NOTIMAGE").decode()
         body = self._post_thumbnail(garbage)
-        # jsonrpc surfaces the BadRequest as an error; nothing is stored.
         self.assertIn("error", body)
         self.assertFalse(self.webp.thumbnail)
-        # A real image is accepted and re-encoded to a clean PNG.
         buffer = io.BytesIO()
         Image.new("RGB", (48, 48)).save(buffer, format="PNG")
         body = self._post_thumbnail(base64.b64encode(buffer.getvalue()).decode())

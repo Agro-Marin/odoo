@@ -179,7 +179,7 @@ class TestCreation(TransactionCase):
             patch.object(cls, "_table", "test_bsr_create", create=True),
             patch.object(
                 cls,
-                "_build_table_query",
+                "_prepare_table_query",
                 lambda self: SQL("SELECT 1 AS a, 2 AS b"),
                 create=True,
             ),
@@ -196,7 +196,7 @@ class TestCreation(TransactionCase):
             patch.object(cls, "_table", "test_bsr_create", create=True),
             patch.object(
                 cls,
-                "_build_table_query",
+                "_prepare_table_query",
                 lambda self: SQL("SELECT 1 AS a"),
                 create=True,
             ),
@@ -213,7 +213,7 @@ class TestCreation(TransactionCase):
             patch.object(cls, "_abstract", False, create=True),
             patch.object(
                 cls,
-                "_build_table_query",
+                "_prepare_table_query",
                 lambda self: SQL("SELECT 1 AS a"),
                 create=True,
             ),
@@ -257,7 +257,7 @@ class TestRebuildSkipAndDeferral(TransactionCase):
             patch.object(cls, "_abstract", False, create=True),
             patch.object(
                 cls,
-                "_build_table_query",
+                "_prepare_table_query",
                 lambda self, code=query_code: SQL(code),
                 create=True,
             ),
@@ -346,8 +346,8 @@ class TestQueryBridge(TransactionCase):
         mixin = self.env["mixin.materialized.view"]
         cls = type(mixin)
         with patch.object(cls, "_table_query", SQL("SELECT 1 AS id"), create=True):
-            # Ensure no _build_table_query is visible
-            with patch.object(cls, "_build_table_query", None, create=True):
+            # Ensure no _prepare_table_query is visible
+            with patch.object(cls, "_prepare_table_query", None, create=True):
                 q = mixin._query()
                 self.assertIsInstance(q, SQL)
                 self.assertEqual(q.code, "SELECT 1 AS id")
@@ -356,7 +356,7 @@ class TestQueryBridge(TransactionCase):
         mixin = self.env["mixin.materialized.view"]
         cls = type(mixin)
         with patch.object(cls, "_table_query", "SELECT 1 AS id", create=True):
-            with patch.object(cls, "_build_table_query", None, create=True):
+            with patch.object(cls, "_prepare_table_query", None, create=True):
                 q = mixin._query()
                 self.assertIsInstance(q, SQL)
                 self.assertEqual(q.code, "SELECT 1 AS id")
@@ -365,6 +365,6 @@ class TestQueryBridge(TransactionCase):
         mixin = self.env["mixin.materialized.view"]
         cls = type(mixin)
         with patch.object(cls, "_table_query", None, create=True):
-            with patch.object(cls, "_build_table_query", None, create=True):
+            with patch.object(cls, "_prepare_table_query", None, create=True):
                 with self.assertRaises(NotImplementedError):
                     mixin._query()

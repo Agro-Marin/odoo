@@ -58,7 +58,7 @@ class SlideChannel(models.Model):
     def _default_access_token(self):
         return str(uuid.uuid4())
 
-    def _get_default_enroll_msg(self):
+    def _default_enroll_msg(self):
         return _("Contact Responsible")
 
     # description
@@ -239,7 +239,7 @@ class SlideChannel(models.Model):
     enroll_msg = fields.Html(
         "Enroll Message",
         help="Message explaining the enroll process",
-        default=_get_default_enroll_msg,
+        default=_default_enroll_msg,
         translate=tools.html_translate,
         sanitize_attributes=False,
     )
@@ -993,7 +993,7 @@ class SlideChannel(models.Model):
         """Redirects to attendees of the course. If status_filter is set to 'invited' /
         'engaged' ('joined' + 'ongoing') / 'completed', attendees are filtered accordingly."""
         action_ctx = {}
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "website_slides.slide_channel_partner_action"
         )
         if status_filter == "engaged":
@@ -1320,7 +1320,7 @@ class SlideChannel(models.Model):
         return mail_ids
 
     def action_view_slides(self):
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "website_slides.slide_slide_action"
         )
         action["context"] = {
@@ -1331,7 +1331,7 @@ class SlideChannel(models.Model):
         return action
 
     def action_view_ratings(self):
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "website_slides.rating_rating_action_slide_channel"
         )
         action["name"] = _("Rating of %s", self.name)

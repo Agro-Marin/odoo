@@ -1,8 +1,3 @@
-"""What a document writes into its own chatter.
-
-Named for what it protects, not for the review that produced it.
-"""
-
 from odoo.orm.runtime import environment as environment_module
 from odoo.tests.common import tagged
 from odoo.tools import translate as translate_tools
@@ -12,21 +7,8 @@ from .test_documents_common import GIF, TransactionCaseDocuments
 
 @tagged("post_install", "-at_install")
 class TestDocumentsTrashChatterTranslation(TransactionCaseDocuments):
-    """The trash/restore messages resolve their own module and language."""
 
     def test_transition_messages_resolve_their_module_and_language(self):
-        """`_()` inside a lambda resolves neither module nor language.
-
-        The frame it inspects for a ``self``/``env``/``cr`` is the lambda's,
-        which has none, so off any HTTP request -- crons, the mail gateway, the
-        archive cascade of `mixin.documents.unlink`, this test -- it fell back
-        to ``("base", "en_US")`` and logged a WARNING with a full stack trace
-        for every parent folder it posted to.
-
-        Asserted in French on purpose: ``en_US`` short-circuits to
-        ``("base", "en_US")`` by design in both implementations, so an English
-        run cannot tell the fix from the bug.
-        """
         self.env["res.lang"]._activate_lang("fr_FR")
         document = self.env["documents.document"].create(
             {
@@ -48,9 +30,6 @@ class TestDocumentsTrashChatterTranslation(TransactionCaseDocuments):
 
             return spy
 
-        # Both namespaces: `Environment._` holds its own reference to
-        # `get_translation`, imported by name, so patching only the tools
-        # module would watch the wrong door.
         self.patch(
             translate_tools,
             "get_translation",

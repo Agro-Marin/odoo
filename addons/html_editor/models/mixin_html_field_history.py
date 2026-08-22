@@ -23,7 +23,7 @@ class MixinHtmlFieldHistory(models.AbstractModel):
     )
 
     @api.model
-    def _get_versioned_fields(self):
+    def _get_fields_versioned(self):
         """This method should be overridden
 
         :return: List[string]: A list of name of the fields to be versioned
@@ -56,7 +56,7 @@ class MixinHtmlFieldHistory(models.AbstractModel):
         rec_db_contents = {}
         if 'html_field_history' in vals:
             del vals['html_field_history']
-        versioned_fields = self._get_versioned_fields()
+        versioned_fields = self._get_fields_versioned()
         vals_contain_versioned_fields = set(vals).intersection(versioned_fields)
 
         if vals_contain_versioned_fields:
@@ -140,7 +140,7 @@ class MixinHtmlFieldHistory(models.AbstractModel):
         :param str field_name: the name of the field
         :raise UserError: if the field is not versioned on this model
         """
-        if field_name not in self._get_versioned_fields():
+        if field_name not in self._get_fields_versioned():
             raise UserError(_(
                 'Field "%(field)s" is not versioned on model "%(model)s".',
                 field=field_name,

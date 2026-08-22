@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { useEffect } from "@odoo/owl";
-import { AutoComplete } from "@web/components/autocomplete/autocomplete";
+import { AutoComplete } from "@web/components/autocomplete";
 
 export class AutoCompleteWithPages extends AutoComplete {
     static props = {

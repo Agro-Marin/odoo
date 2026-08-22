@@ -92,7 +92,7 @@ class ResPartner(models.Model):
         by all its contacts (if company) or by themselves (if not a company).
         Otherwise simply set a domain on required partners. The courses to which
         the partner(s) is not enrolled (e.g. invited) are not shown."""
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "website_slides.slide_channel_partner_action"
         )
         action["display_name"] = _("Courses")

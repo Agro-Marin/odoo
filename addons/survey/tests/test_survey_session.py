@@ -475,38 +475,38 @@ class TestValidateRankingConstantSum(TestSurveyCommon):
 
     def test_ranking_rejects_non_dict_string(self):
         """A non-dict string answer must be rejected, not silently accepted."""
-        errors = self.ranking_question.validate_question("not a dict", None)
+        errors = self.ranking_question._check_answer("not a dict", None)
         self.assertTrue(errors, "Non-dict string should produce a validation error")
 
     def test_ranking_rejects_non_dict_list(self):
         """A non-dict list answer must be rejected."""
-        errors = self.ranking_question.validate_question([1, 2, 3], None)
+        errors = self.ranking_question._check_answer([1, 2, 3], None)
         self.assertTrue(errors, "Non-dict list should produce a validation error")
 
     def test_ranking_accepts_valid_dict(self):
         """A dict with the correct number of entries is accepted."""
         answer_ids = self.ranking_question.suggested_answer_ids.ids
         valid_answer = {str(aid): idx for idx, aid in enumerate(answer_ids)}
-        errors = self.ranking_question.validate_question(valid_answer, None)
+        errors = self.ranking_question._check_answer(valid_answer, None)
         self.assertFalse(errors)
 
     def test_constant_sum_rejects_non_dict_string(self):
         """A non-dict string answer must be rejected."""
-        errors = self.constant_sum_question.validate_question("invalid", None)
+        errors = self.constant_sum_question._check_answer("invalid", None)
         self.assertTrue(errors, "Non-dict string should produce a validation error")
 
     def test_constant_sum_accepts_valid_dict(self):
         """A dict whose values sum to the target is accepted."""
         answer_ids = self.constant_sum_question.suggested_answer_ids.ids
         valid_answer = {str(answer_ids[0]): "60", str(answer_ids[1]): "40"}
-        errors = self.constant_sum_question.validate_question(valid_answer, None)
+        errors = self.constant_sum_question._check_answer(valid_answer, None)
         self.assertFalse(errors)
 
     def test_constant_sum_rejects_wrong_total(self):
         """A dict whose values don't sum to the target is rejected."""
         answer_ids = self.constant_sum_question.suggested_answer_ids.ids
         bad_answer = {str(answer_ids[0]): "70", str(answer_ids[1]): "70"}
-        errors = self.constant_sum_question.validate_question(bad_answer, None)
+        errors = self.constant_sum_question._check_answer(bad_answer, None)
         self.assertTrue(errors)
 
 

@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
-import { CopyButton } from "@web/components/copy_button/copy_button";
+import { CopyButton } from "@web/components/copy_button";
 import { useService } from "@web/core/utils/hooks";
 import { Component } from "@odoo/owl";
 import { standardFieldProps } from "@web/fields/standard_field_props";

@@ -38,13 +38,13 @@ class Website(models.Model):
             return team.id
         return None
 
-    def _default_recovery_mail_template(self):
+    def _default_cart_recovery_mail_template_id(self):
         try:
             return self.env.ref('website_sale.mail_template_sale_cart_recovery').id
         except ValueError:
             return False
 
-    def _default_confirmation_email_template(self):
+    def _default_confirmation_email_template_id(self):
         template_id = self.env['ir.config_parameter'].sudo().get_param(
             'sale.default_confirmation_template'
         )
@@ -99,7 +99,7 @@ class Website(models.Model):
         string="Cart Recovery Email",
         comodel_name='mail.template',
         domain=[('model', '=', 'sale.order')],
-        default=_default_recovery_mail_template,
+        default=_default_cart_recovery_mail_template_id,
     )
     contact_us_button_url = fields.Char(
         string="Contact Us Button URL", translate=True, default="/contactus",
@@ -267,7 +267,7 @@ class Website(models.Model):
     confirmation_email_template_id = fields.Many2one(
         comodel_name='mail.template',
         domain=[('model', '=', 'sale.order')],
-        default=_default_confirmation_email_template,
+        default=_default_confirmation_email_template_id,
     )
 
     #=== COMPUTE METHODS ===#
@@ -862,7 +862,7 @@ class Website(models.Model):
     @api.model
     def action_dashboard_redirect(self):
         if self.env.user.has_group('sales_team.group_sale_salesman'):
-            return self.env['ir.actions.actions']._for_xml_id('website.backend_dashboard')
+            return self.env['ir.actions.actions']._get_action_dict_by_xml_id('website.backend_dashboard')
         return super().action_dashboard_redirect()
 
     def get_suggested_controllers(self):

@@ -7,77 +7,44 @@ from odoo.fields import Domain
 class IrAsset(models.Model):
     _inherit = "ir.asset"
 
-    key = fields.Char(
-        copy=False
-    )  # used to resolve multiple assets in a multi-website environment
+    key = fields.Char(copy=False)
     website_id = fields.Many2one("website", ondelete="cascade")
 
     @api.model
-    def _resolution_fields(self):
-        """``website_id`` and ``key`` decide which record wins, so they count."""
-        return super()._resolution_fields() | {"website_id", "key"}
+    def _get_fields_invalidating_assets_cache(self):
+        return super()._get_fields_invalidating_assets_cache() | {"website_id", "key"}
 
-    def _get_asset_params(self):
-        params = super()._get_asset_params()
+    def _prepare_assets_params(self):
+        params = super()._prepare_assets_params()
         params["website_id"] = (
             self.env["website"].get_current_website(fallback=False).id
         )
         return params
 
-    def _get_asset_url_segments(self, assets_params):
-        """Name the website, so ``content_assets_website`` can rebuild the bundle.
-
-        This is also why base refuses to widen the pattern for
-        ``ignore_params``. That widening copies one bundle's compiled bytes to
-        another URL that resolved to the same ``unique`` version hash, which is
-        sound only if equal version implies equal content -- and for websites it
-        does not: ``Assets._make_custom_asset_url`` mints one URL per
-        (bundle, file) with no website component, so two websites customizing
-        the same SCSS produce attachments sharing a URL, and (when configured in
-        a single transaction, e.g. the configurator or a setup script) sharing a
-        ``write_date`` to the microsecond. The version is hashed over exactly
-        those two values, so it collides while the content differs -- and the
-        widened pattern then served one website's compiled CSS to another,
-        persisted under the victim's own URL.
-
-        The deeper fix is to namespace the custom asset URL by website id so the
-        version becomes honest again; that needs a migration of existing
-        ``/_custom/...`` attachment urls and ir.asset paths.
-        """
-        segments = super()._get_asset_url_segments(assets_params)
+    def _get_asset_bundle_url_segments(self, assets_params):
+        segments = super()._get_asset_bundle_url_segments(assets_params)
         website_id = assets_params.get("website_id", None)
         return (*segments, str(website_id)) if website_id else segments
 
-    def _get_related_assets(self, domain, *, website_id=None, **params):
+    def _get_assets(self, domain, *, website_id=None, **params):
         if website_id:
             domain = (
                 Domain(domain) & self.env["website"].browse(website_id).website_domain()
             )
-        return super()._get_related_assets(domain, **params)
+        return super()._get_assets(domain, **params)
 
     def _filter_bundle_assets(self, assets, *, website_id=None, **params):
-        """Keep the most specific record per ``key``, within one bundle.
-
-        Applied per bundle by ``_fetch_bundle_assets``: ``filter_duplicate``
-        lets a website-specific record hide the generic one it shadows, and two
-        records only shadow each other when they compete for the same slot of
-        the same bundle. A COW write that also moves the record to another
-        bundle produces exactly that pair across two bundles, and filtering them
-        together would drop the generic one from a bundle it still belongs to.
-        """
         return (
             super()._filter_bundle_assets(assets, **params).filter_duplicate(website_id)
         )
 
-    def _get_active_addons_list(self, *, website_id=None, **params):
-        """Overridden to discard inactive themes."""
-        addons_list = super()._get_active_addons_list(**params)
+    def _get_addons_active(self, *, website_id=None, **params):
+        addons_list = super()._get_addons_active(**params)
 
         if not website_id:
             return addons_list
 
         IrModule = self.env["ir.module.module"].sudo()
-        # discard all theme modules except website.theme_id
         themes = (
             IrModule.search(IrModule.get_themes_domain())
             - self.env["website"].browse(website_id).theme_id
@@ -87,12 +54,6 @@ class IrAsset(models.Model):
         return [name for name in addons_list if name not in to_remove]
 
     def filter_duplicate(self, website_id=None):
-        """Filter current recordset only keeping the most suitable asset per distinct name.
-        Every non-accessible asset will be removed from the set:
-
-          * In non website context, every asset with a website will be removed
-          * In a website context, every asset from another website
-        """
         if website_id is None:
             website_id = self.env["website"].get_current_website(fallback=False).id
         if not website_id:
@@ -106,37 +67,24 @@ class IrAsset(models.Model):
         most_specific_assets = []
         for asset in self:
             if asset.website_id:
-                # specific asset: add it if it's for the current website and ignore
-                # it if it's for another website
                 if asset.website_id.id == website_id:
                     most_specific_assets.append(asset)
                 continue
-            if not asset.key:
-                # no key: added either way
-                most_specific_assets.append(asset)
-            elif asset.key not in specific_asset_keys:
-                # generic asset: add it iff for the current website, there is no
-                # specific asset for this asset (based on the same `key` attribute)
+            if asset.key not in specific_asset_keys:
                 most_specific_assets.append(asset)
 
         return self.browse().union(*most_specific_assets)
 
     def write(self, vals):
-        """COW for ir.asset. This way editing websites does not impact other
-        websites. Also this way newly created websites will only
-        contain the default assets.
-        """
         current_website_id = self.env.context.get("website_id")
         if not current_website_id or self.env.context.get("no_cow"):
             return super().write(vals)
 
         for asset in self.with_context(active_test=False):
-            # No need of COW if the asset is already specific
             if asset.website_id:
                 super(IrAsset, asset).write(vals)
                 continue
 
-            # If already a specific asset for this generic asset, write on it
             website_specific_asset = asset.search(
                 [("key", "=", asset.key), ("website_id", "=", current_website_id)],
                 limit=1,

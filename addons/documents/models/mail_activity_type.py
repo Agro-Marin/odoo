@@ -2,7 +2,6 @@ from odoo import fields, models
 
 
 class MailActivityType(models.Model):
-    """Add document folder and tags to activity types."""
 
     _inherit = "mail.activity.type"
 

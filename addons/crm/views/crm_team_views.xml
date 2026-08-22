@@ -284,7 +284,7 @@
                     </xpath>
                     <xpath expr="//div[@name='manage_new']/h5[hasclass('o_kanban_card_manage_title')]" position="after">
                         <div t-if="record.use_leads.raw_value" groups="crm.group_use_lead">
-                            <a name="%(crm_lead_action_open_lead_form)d" type="action">
+                            <a name="%(crm_lead_action_view_lead_form)d" type="action">
                                 Leads
                             </a>
                         </div>

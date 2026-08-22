@@ -9,9 +9,6 @@ from .test_documents_common import GIF, TEXT, TransactionCaseDocuments
 @tagged("mail_activity")
 class TestDocumentsMailActivity(TransactionCaseDocuments):
     def test_request_activity(self):
-        """
-        Makes sure the document request activities are working properly
-        """
         partner = self.env["res.partner"].create({"name": "Pepper Street"})
         activity_type = self.env["mail.activity.type"].create(
             {
@@ -84,10 +81,6 @@ class TestDocumentsMailActivity(TransactionCaseDocuments):
         self.assertFalse(activity_2.active, "the activity_2 should be done")
 
     def test_recurring_document_request(self):
-        """
-        Ensure that separate document requests are created for recurring upload activities
-        Ensure that the next activity is linked to the new document
-        """
         self.doc_partner = self.env["res.partner"].create(
             {
                 "name": "Luke Skywalker",
@@ -119,7 +112,6 @@ class TestDocumentsMailActivity(TransactionCaseDocuments):
 
         self.assertEqual(activity.summary, "Wizard Request")
 
-        # Simulate the document upload controller which create the attachment
         document.write(
             {
                 "attachment_id": self.env["ir.attachment"]
@@ -136,7 +128,6 @@ class TestDocumentsMailActivity(TransactionCaseDocuments):
             document.request_activity_id, "document 1 should have no activity remaining"
         )
 
-        # a new document (request) and file_upload activity should be created
         activity_2 = self.env["mail.activity"].search(
             [
                 ("res_model", "=", "documents.document"),
@@ -159,7 +150,6 @@ class TestDocumentsMailActivity(TransactionCaseDocuments):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsRequestActivityReschedule(TransactionCaseDocuments):
-    # -- mail.activity reschedule no longer needs write on the document -----
     def test_reschedule_request_activity_as_viewer(self):
         doc = self.env["documents.document"].create(
             {
@@ -206,7 +196,6 @@ class TestDocumentsRequestActivityReschedule(TransactionCaseDocuments):
         self.assertEqual(doc.with_user(self.internal_user).user_permission, "view")
 
         new_date = fields.Date.add(fields.Date.today(), days=7)
-        # Must not raise even though internal_user only has *view* on the doc.
         activity.with_user(self.internal_user).write({"date_deadline": new_date})
         self.assertEqual(
             access.expiration_date,

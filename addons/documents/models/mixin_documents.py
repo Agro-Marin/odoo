@@ -2,23 +2,12 @@ from odoo import Command, models
 
 
 class MixinDocuments(models.AbstractModel):
-    """Create a `documents.document` when an `ir.attachment` is linked to a record.
-
-    Add the default values when creating a document related to the model that
-    inherits from this mixin.
-
-    Override this mixin's methods to specify an owner, a folder, tags or
-    access_rights for the document.
-
-    Note: this mixin can be disabled with the context variable "no_document=True".
-    """
 
     _name = "mixin.documents"
     _inherit = "mixin.documents.unlink"
     _description = "Documents creation mixin"
 
     def _get_document_vals(self, attachment: models.Model) -> dict:
-        """Return values used to create a `documents.document`."""
         self.ensure_one()
         document_vals = {}
         if self._check_create_documents():
@@ -44,15 +33,6 @@ class MixinDocuments(models.AbstractModel):
         return document_vals
 
     def _get_document_vals_access_rights(self) -> dict:
-        """Return access rights values to create a `documents.document`.
-
-        In the default implementation, we give the minimal permission and rely on the propagation of the folder
-        permission but this method can be overridden to set more open rights.
-
-        Authorized fields: access_via_link, access_internal, is_access_via_link_hidden.
-        Note: access_ids are handled differently because when set, it prevents inheritance from the parent folder
-        (see specific document override).
-        """
         return {
             "access_via_link": "none",
             "access_internal": "none",
@@ -60,12 +40,6 @@ class MixinDocuments(models.AbstractModel):
         }
 
     def _get_document_owner(self) -> models.Model:
-        """Return the owner value to create a `documents.document`.
-
-        In the default implementation, we return False as owner to avoid giving full access to a user and to rely
-        instead on explicit access managed via `document.access` or via parent folder access inheritance but this
-        method can be overridden to for example give the ownership to the current user.
-        """
         return self.env["res.users"]
 
     def _get_document_tags(self) -> models.Model:
@@ -78,12 +52,6 @@ class MixinDocuments(models.AbstractModel):
         return self.env["res.partner"]
 
     def _get_document_access_ids(self) -> bool | list:
-        """Add or remove members.
-
-        :returns: list of tuple (partner, (role, expiration_date)) or False to avoid
-            inheriting members from parent folder.
-        :rtype: bool | list
-        """
         return []
 
     def _check_create_documents(self) -> bool:
@@ -92,17 +60,6 @@ class MixinDocuments(models.AbstractModel):
     def _prepare_document_create_values_for_linked_records(
         self, res_model: str, vals_list: list[dict], pre_vals_list: list[dict]
     ) -> list[dict]:
-        """Set the related record's document mixin default values when not explicitly set.
-
-        :param str res_model: model referenced by the documents to consider
-        :param list[dict] vals_list: list of values
-        :param list[dict] pre_vals_list: list of values before _prepare_create_values (no permission inherited yet)
-
-        Note:
-        - This method doesn't override existing values (permission, owner, ...).
-        - The related record res_model must inherit from MixinDocuments
-
-        """
         if self._name != res_model:
             raise ValueError(f"Invalid model {res_model} (expected {self._name})")
 
@@ -138,10 +95,9 @@ class MixinDocuments(models.AbstractModel):
             access_ids = vals.get("access_ids") or []
             partner_with_access = {
                 access[2]["partner_id"] for access in access_ids if access[2]
-            }  # list of Command.create tuples
+            }
             related_document_access = related_record._get_document_access_ids()
             if related_document_access is False:
-                # Keep logs but remove members
                 access_ids = [a for a in access_ids if a[2] and not a[2].get("role")]
             else:
                 accesses_to_add = [

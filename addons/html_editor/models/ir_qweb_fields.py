@@ -114,9 +114,9 @@ class IrQweb(models.AbstractModel):
             Markup('data-o-group="%s"') % group if group else '',
             Markup('data-o-label="%s"') % label if label else '',
         )
-        self._append_text(div, compile_context)
+        self._add_text(div, compile_context)
         code = self._compile_node(el, compile_context, indent)
-        self._append_text('</div>', compile_context)
+        self._add_text('</div>', compile_context)
         return code
 
     def _compile_directive_snippet_call(self, el, compile_context, indent):
@@ -146,7 +146,7 @@ class IrQweb(models.AbstractModel):
                 Markup('data-o-group="%s"') % group if group else '',
                 Markup('data-o-label="%s"') % label if label else '',
             )
-            self._append_text(div, compile_context)
+            self._add_text(div, compile_context)
         return []
 
     def _compile_directive_placeholder(self, el, compile_context, indent):

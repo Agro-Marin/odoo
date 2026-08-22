@@ -43,7 +43,7 @@ export class DocumentsSearchModel extends SearchModel {
                 fil.is_default = false;
             });
             for (const key in config.context) {
-                // logic used in extractSearchDefaultsFromGlobalContext, here to group with above
+                // logic used in takeSearchDefaultsFromGlobalContext, here to group with above
                 const searchDefaultMatch = /^search_default_(.*)$/.exec(key);
                 if (searchDefaultMatch) {
                     delete config.context[key];
@@ -105,9 +105,9 @@ export class DocumentsSearchModel extends SearchModel {
     /**
      * @override
      */
-    extractSearchDefaultsFromGlobalContext() {
+    takeSearchDefaultsFromGlobalContext() {
         const { searchDefaults, searchPanelDefaults } =
-            super.extractSearchDefaultsFromGlobalContext(...arguments);
+            super.takeSearchDefaultsFromGlobalContext(...arguments);
         if (searchPanelDefaults.user_folder_id) {
             // The panel keys real folders by number, the virtual roots by string.
             searchPanelDefaults.user_folder_id = toFolderValueId(

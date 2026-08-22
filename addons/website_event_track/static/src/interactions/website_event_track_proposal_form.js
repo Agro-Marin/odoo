@@ -144,7 +144,7 @@ export class WebsiteEventTrackProposalForm extends Interaction {
             const eventId = encodeURIComponent(this.el.dataset.eventId);
 
             const jsonResponse = await this.waitFor(post(`/event/${eventId}/track_proposal/post`, formData));
-            this.protectSyncAfterAsync(() => {
+            this.bindDeferred(() => {
                 if (jsonResponse.success) {
                     // TODO we really should not remove the whole widget element
                     // like that + probably restore the widget before edit mode etc.

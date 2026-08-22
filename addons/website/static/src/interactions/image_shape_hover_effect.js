@@ -22,9 +22,7 @@ export class ImageShapeHoverEffect extends Interaction {
             this.originalImgSrc = this.el.src;
         });
         this.connectSourceObserver();
-        this.adjustImageSourceFrom = this.protectSyncAfterAsync(
-            this.adjustImageSourceFrom,
-        );
+        this.adjustImageSourceFrom = this.bindDeferred(this.adjustImageSourceFrom);
     }
 
     destroy() {

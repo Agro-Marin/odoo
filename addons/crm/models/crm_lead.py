@@ -411,8 +411,8 @@ class CrmLead(models.Model):
             date_close = fields.Datetime.from_string(lead.date_closed)
             lead.day_close = abs((date_close - date_create).days)
 
-    def _get_rotting_depends_fields(self):
-        return super()._get_rotting_depends_fields() + ['won_status', 'type']
+    def _get_fields_rotting_depends(self):
+        return super()._get_fields_rotting_depends() + ['won_status', 'type']
 
     def _get_rotting_domain(self):
         return super()._get_rotting_domain() & Domain([
@@ -1209,7 +1209,7 @@ class CrmLead(models.Model):
             :rtype: dict
         """
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("calendar.action_calendar_event")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("calendar.action_calendar_event")
         partner_ids = self.env.user.partner_id.ids
         if self.partner_id:
             partner_ids.append(self.partner_id.id)
@@ -1314,7 +1314,7 @@ class CrmLead(models.Model):
             :return dict: dictionary value for created kanban view
         """
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("crm.crm_lead_opportunities")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("crm.crm_lead_opportunities")
         action['domain'] = [('id', 'in', self.duplicate_lead_ids.ids)]
         action['context'] = {
             'active_test': False,

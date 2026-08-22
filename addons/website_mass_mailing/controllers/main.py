@@ -36,7 +36,7 @@ class MassMailController(main.MassMailController):
     @route('/website_mass_mailing/subscribe', type='jsonrpc', website=True, auth='public')
     def subscribe(self, list_id, value, subscription_type, **post):
         try:
-            request.env['ir.http']._verify_request_recaptcha_token('website_mass_mailing_subscribe')
+            request.env['ir.http']._check_request_recaptcha_token('website_mass_mailing_subscribe')
         except UserError as e:
             return {
                 'toast_type': 'danger',

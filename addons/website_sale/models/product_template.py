@@ -146,7 +146,7 @@ class ProductTemplate(models.Model):
         string="Base Unit Count",
         help="Display base unit price on your eCommerce pages. Set to 0 to hide it for this product.",
         compute="_compute_base_unit_count",
-        inverse="_set_base_unit_count",
+        inverse="_inverse_base_unit_count",
         store=True,
         required=True,
         default=0,
@@ -156,7 +156,7 @@ class ProductTemplate(models.Model):
         help="Define a custom unit to display in the price per unit of measure field.",
         comodel_name="website.base.unit",
         compute="_compute_base_unit_id",
-        inverse="_set_base_unit_id",
+        inverse="_inverse_base_unit_id",
         store=True,
     )
     base_unit_price = fields.Monetary(
@@ -257,7 +257,7 @@ class ProductTemplate(models.Model):
         ):
             template.base_unit_count = template.product_variant_ids.base_unit_count
 
-    def _set_base_unit_count(self):
+    def _inverse_base_unit_count(self):
         for template in self:
             if len(template.product_variant_ids) == 1:
                 template.product_variant_ids.base_unit_count = template.base_unit_count
@@ -270,7 +270,7 @@ class ProductTemplate(models.Model):
         ):
             template.base_unit_id = template.product_variant_ids.base_unit_id
 
-    def _set_base_unit_id(self):
+    def _inverse_base_unit_id(self):
         for template in self:
             if len(template.product_variant_ids) == 1:
                 template.product_variant_ids.base_unit_id = template.base_unit_id

@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { AutoComplete } from "@web/components/autocomplete/autocomplete";
+import { AutoComplete } from "@web/components/autocomplete";
 
 /**
  * AutoComplete variant that can broaden a country-scoped partner search to a

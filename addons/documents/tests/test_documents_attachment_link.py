@@ -1,8 +1,3 @@
-"""The document <-> ir.attachment binding, and what it must not spawn.
-
-Named for what it protects, not for the review that produced it.
-"""
-
 import base64
 import io
 from unittest.mock import patch
@@ -18,18 +13,12 @@ from .test_documents_common import TransactionCaseDocuments
 
 
 def _png(color):
-    """Return a base64 PNG, i.e. content `image_process` can actually decode."""
     buffer = io.BytesIO()
     Image.new("RGB", (400, 300), color).save(buffer, "PNG")
     return base64.b64encode(buffer.getvalue())
 
 
 class TestDocumentsContentAliases(TransactionCase):
-    """``raw`` and ``datas`` are two writable aliases for the same bytes.
-
-    ``documents.document.write`` used to branch on the literal ``"datas"``, so
-    the two aliases behaved differently on every content-replacement concern.
-    """
 
     @classmethod
     def setUpClass(cls):
@@ -52,11 +41,6 @@ class TestDocumentsContentAliases(TransactionCase):
         )
 
     def test_raw_write_keeps_previous_version(self):
-        """Replacing content through ``raw`` must version like ``datas`` does.
-
-        Otherwise the old file is overwritten in place and the document's
-        history is silently destroyed -- the version is unrecoverable.
-        """
         for field, payload in (("datas", base64.b64encode(b"v2")), ("raw", b"v2")):
             with self.subTest(field=field):
                 document = self._document(f"versioned via {field}", raw=b"v1")
@@ -72,12 +56,6 @@ class TestDocumentsContentAliases(TransactionCase):
                 self.assertEqual(document.attachment_id, original_attachment)
 
     def test_raw_write_creates_the_missing_attachment(self):
-        """Uploading through ``raw`` on a pending request must not vanish.
-
-        A document request has no ``attachment_id`` yet. Writing ``raw`` used to
-        be routed to the related field of an *empty* ``ir.attachment`` recordset:
-        no attachment was created, no error was raised, and the upload was lost.
-        """
         for field, payload in (("datas", base64.b64encode(b"zz")), ("raw", b"zz")):
             with self.subTest(field=field):
                 document = self._document(f"request via {field}")
@@ -91,7 +69,6 @@ class TestDocumentsContentAliases(TransactionCase):
                 self.assertEqual(bytes(document.attachment_id.raw), b"zz")
 
     def test_raw_write_logs_the_request_fulfilment(self):
-        """Fulfilling a request must be traceable whichever alias is written."""
         for field, payload in (("datas", base64.b64encode(b"up")), ("raw", b"up")):
             with self.subTest(field=field):
                 document = self._document(f"logged via {field}")
@@ -108,16 +85,8 @@ class TestDocumentsContentAliases(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsAttachmentVals(TransactionCaseDocuments):
-    """`create()` and `write()` must agree on what belongs to the attachment."""
 
     def test_create_and_write_route_the_same_keys(self):
-        """Every attachment-related key is batched onto the attachment, both ways.
-
-        `write` used to hardcode datas/raw/mimetype while `create` derived the
-        set from the field definitions, so description/attachment_name/
-        attachment_type fell back to the per-record related write on one path
-        only.
-        """
         document = self.env["documents.document"].create(
             {
                 "name": "vals.txt",
@@ -136,12 +105,6 @@ class TestDocumentsAttachmentVals(TransactionCaseDocuments):
         self.assertEqual(document.attachment_id.raw, b"written")
 
     def test_unknown_field_reports_as_an_invalid_field(self):
-        """An unknown key must reach the ORM, not die on a raw KeyError.
-
-        `create` indexed `self._fields[key]` while scanning vals, so a typo in a
-        create() call surfaced as `KeyError` — an HTTP 500 instead of a
-        validation error.
-        """
         with self.assertRaises(ValueError):
             self.env["documents.document"].create(
                 {
@@ -153,15 +116,6 @@ class TestDocumentsAttachmentVals(TransactionCaseDocuments):
 
     @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_derived_attachment_metadata_cannot_be_forged(self):
-        """`checksum`/`index_content` always describe the stored bytes.
-
-        They are `related="attachment_id.*"`, but `ir.attachment` strips them
-        from its own vals, so a caller's value is discarded whichever route it
-        takes. Pinned here because it is the reason `_pop_attachment_vals`
-        deliberately does NOT carve them out: doing so would only move where
-        they get dropped. Muted because the strip is reported now, and this is
-        the caller it is meant to report.
-        """
         document = self.env["documents.document"].create(
             {
                 "name": "derived.txt",
@@ -175,7 +129,7 @@ class TestDocumentsAttachmentVals(TransactionCaseDocuments):
         document.invalidate_recordset()
         self.assertEqual(
             document.checksum,
-            self.env["ir.attachment"]._content_checksum(b"real"),
+            self.env["ir.attachment"]._get_content_checksum(b"real"),
             "checksum must describe the stored bytes, not what the caller sent",
         )
         self.assertNotEqual(document.index_content, "forged-index")
@@ -184,14 +138,6 @@ class TestDocumentsAttachmentVals(TransactionCaseDocuments):
 @tagged("post_install", "-at_install")
 class TestDocumentsAttachmentTargetResolution(TransactionCaseDocuments):
     def test_write_res_id_alone_links_the_pending_document(self):
-        """`write` resolves the target off the record, not off the caller's vals.
-
-        Binding an attachment is routinely done one key at a time -- the model
-        does it itself in `_message_post_after_hook`. `create` already resolved
-        the pair off the attachment; `write` read the raw `vals`, so completing a
-        half-set link left `res_model=None` and `_create_document` matched
-        nothing at all.
-        """
         request_document = self.env["documents.document"].create(
             {"name": "awaiting content", "type": "binary"}
         )
@@ -210,7 +156,6 @@ class TestDocumentsAttachmentTargetResolution(TransactionCaseDocuments):
         )
 
     def test_write_both_keys_still_links_the_pending_document(self):
-        """The pre-existing spelling keeps working unchanged."""
         request_document = self.env["documents.document"].create(
             {"name": "awaiting content", "type": "binary"}
         )
@@ -223,7 +168,6 @@ class TestDocumentsAttachmentTargetResolution(TransactionCaseDocuments):
         self.assertEqual(request_document.attachment_id, attachment)
 
     def test_write_unrelated_values_does_not_link_anything(self):
-        """A write that says nothing about the link must not bind a document."""
         request_document = self.env["documents.document"].create(
             {"name": "awaiting content", "type": "binary"}
         )
@@ -234,7 +178,6 @@ class TestDocumentsAttachmentTargetResolution(TransactionCaseDocuments):
         self.assertFalse(request_document.attachment_id)
 
     def test_write_a_batch_pointing_at_different_targets(self):
-        """Each attachment resolves its own target, not the batch's first."""
         Document = self.env["documents.document"]
         first, second = Document.create(
             [
@@ -258,21 +201,6 @@ class TestDocumentsAttachmentTargetResolution(TransactionCaseDocuments):
 @tagged("post_install", "-at_install")
 class TestDocumentsAttachmentFiling(TransactionCase):
     def test_linking_to_a_record_does_not_spawn_a_second_document(self):
-        """Re-binding the attachment must not re-enter document auto-creation.
-
-        `mixin.documents` makes `ir.attachment.write` create a document for any
-        attachment landing on a bridged model (hr.employee, project.project,
-        product.template, account.move, ...). `_inverse_res_record` guards
-        against that with `no_document` -- but set it on a value that a recordset
-        union then discarded, because union keeps the *left* operand's
-        environment and the accumulator it was unioned into carried the default
-        context.
-
-        Linking a document to such a record therefore created a *second*
-        document for the same attachment: a duplicate where nothing stops it,
-        and a `documents_document_attachment_unique` violation -- surfacing as
-        HTTP 422 from `/documents/upload/` -- where the constraint does.
-        """
         document = self.env["documents.document"].create(
             {"name": "linked.txt", "type": "binary", "raw": b"payload"}
         )
@@ -300,16 +228,6 @@ class TestDocumentsAttachmentFiling(TransactionCase):
         )
 
     def test_attachments_are_filed_once_per_target_record(self):
-        """Filing is per linked record, not per attachment.
-
-        ``_create_document`` takes a *recordset* and files it in a single
-        ``documents.document`` create, but ``ir.attachment.create`` called it
-        once per attachment -- so attaching fifteen files to one record paid
-        fifteen folder resolutions and fifteen creates for work the method does
-        in one pass. ``write`` had already been grouped by target; ``create``
-        had not, which is also why the two disagreed about what ``vals`` the
-        hook received.
-        """
         partner = self.env["res.partner"].create({"name": "Batch target"})
         other = self.env["res.partner"].create({"name": "Other target"})
         attachment_class = type(self.env["ir.attachment"])
@@ -341,16 +259,6 @@ class TestDocumentsAttachmentFiling(TransactionCase):
         )
 
     def test_add_documents_attachment_copies_the_whole_set(self):
-        """Copying to a record must pair each copy with its own origin.
-
-        The copies used to be made one at a time, which defeated
-        ``ir.attachment.copy``'s batching (it creates the rows in one pass and
-        writes a shared store key once per group -- and content-addressed
-        storage makes those groups real, as the two identical payloads below
-        show). ``original_id`` is the one value that differs per copy, so the
-        pairing is what a set-wide copy has to keep right; the whole method had
-        no Python coverage, only a JS test that mocks the RPC.
-        """
         Document = self.env["documents.document"]
         folder = Document.create({"name": "Media", "type": "folder"})
         documents = Document.create(
@@ -390,12 +298,6 @@ class TestDocumentsAttachmentFiling(TransactionCase):
         )
 
     def test_attachment_write_authorizes_before_mutating_the_document(self):
-        """A refused attachment re-link must leave the target document untouched.
-
-        ``ir.attachment.write`` filled ``documents.document.attachment_id`` (in
-        sudo) *before* ``super().write()`` ran the ACL check on the new target,
-        i.e. it mutated a record the caller had not been cleared for.
-        """
         users = self.env["res.users"]
         group = Command.link(self.env.ref("documents.group_documents_user").id)
         owner = users.create(
@@ -423,11 +325,6 @@ class TestDocumentsAttachmentFiling(TransactionCase):
             .create({"name": "outsider.txt", "raw": b"PWNED"})
         )
 
-        # NOT `assertRaises`: it wraps the block in a savepoint, which rolls the
-        # premature mutation back and makes the assertion below vacuous. The
-        # point here is precisely that the side effect must not survive a
-        # *swallowed* AccessError -- the case a caller that suppresses the error
-        # (or any code continuing in the same transaction) would hit.
         raised = False
         try:
             attachment.with_user(outsider).write(

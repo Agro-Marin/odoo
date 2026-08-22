@@ -143,14 +143,6 @@ class TestDocumentsMulticompany(TransactionCaseDocuments):
         )
 
     def _test_company_with_user(self, cases, user):
-        """Test access rights depending on access rights and company.
-
-        :param list[tuple] cases: shaped as (company, expected_edit_indices, expected_view_indices) with:
-            company: company used as documents company_id,
-            expected_edit_indices: indices for documents with expected 'edit' permission,
-            expected_view_indices: indices for documents with expected 'view' permission
-        :param: user used as member or owner when creating documents and to test access for
-        """
         for company, expected_edit_indices, expected_view_indices in cases:
             with self.subTest(company_name=company.name):
                 Documents_with_ctx = (
@@ -328,7 +320,6 @@ class TestDocumentsMulticompany(TransactionCaseDocuments):
         self.assertEqual(shortcut.user_permission, "edit")
 
     def test_company_access_inherit(self):
-        """Check that the accesses are not inherited if the company is disabled."""
         Documents_with_ctx = (
             self.env["documents.document"]
             .with_user(self.internal_user)
@@ -365,7 +356,6 @@ class TestDocumentsMulticompany(TransactionCaseDocuments):
             }
         )
 
-        # sanity check
         self.assertEqual(
             document.with_context(
                 allowed_company_ids=self.company_disabled.ids

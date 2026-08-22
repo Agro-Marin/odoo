@@ -603,7 +603,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         ):
             return request.redirect(self._get_shop_path())
 
-        return request.env['ir.binary']._get_stream_from(
+        return request.env['ir.binary']._get_stream_from_record(
             document.ir_attachment_id,
         ).get_response(as_attachment=True)
 
@@ -1666,7 +1666,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         if not order_sudo.amount_total and not tx_sudo and order_sudo.state != 'done':
             order_sudo._check_cart_is_ready_to_be_paid()
             # Only confirm the order if it wasn't already confirmed.
-            order_sudo._validate_order()
+            order_sudo._confirm_order()
 
         # clean context and session, then redirect to the confirmation page
         request.website.sale_reset()

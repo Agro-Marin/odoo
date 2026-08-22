@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
-import { AutoComplete } from "@web/components/autocomplete/autocomplete";
+import { AutoComplete } from "@web/components/autocomplete";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";

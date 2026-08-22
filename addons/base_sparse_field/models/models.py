@@ -83,8 +83,8 @@ class IrModelFields(models.Model):
         records = self.browse(id_ for ids in updates.values() for id_ in ids)
         self.pool.post_init(records.modified, ['serialization_field_id'])
 
-    def _instantiate_attrs(self, field_data):
-        attrs = super(IrModelFields, self)._instantiate_attrs(field_data)
+    def _prepare_field_attrs(self, field_data):
+        attrs = super(IrModelFields, self)._prepare_field_attrs(field_data)
         if attrs and field_data.get('serialization_field_id'):
             serialization_record = self.browse(field_data['serialization_field_id'])
             attrs['sparse'] = serialization_record.name

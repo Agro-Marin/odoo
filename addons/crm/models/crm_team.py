@@ -702,16 +702,16 @@ class CrmTeam(models.Model):
     #TODO JEM : refactor this stuff with xml action, proper customization,
     @api.model
     def action_your_pipeline(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("crm.crm_lead_action_pipeline")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("crm.crm_lead_action_pipeline")
         return self._action_update_to_pipeline(action)
 
     @api.model
     def action_opportunity_forecast(self):
-        action = self.env['ir.actions.actions']._for_xml_id('crm.crm_lead_action_forecast')
+        action = self.env['ir.actions.actions']._get_action_dict_by_xml_id('crm.crm_lead_action_forecast')
         return self._action_update_to_pipeline(action)
 
     def action_open_leads(self):
-        action = self.env['ir.actions.actions']._for_xml_id('crm.crm_case_form_view_salesteams_opportunity')
+        action = self.env['ir.actions.actions']._get_action_dict_by_xml_id('crm.crm_case_form_view_salesteams_opportunity')
         rcontext = {
             'team': self,
         }

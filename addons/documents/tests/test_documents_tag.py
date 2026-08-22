@@ -1,5 +1,8 @@
+from psycopg.errors import IntegrityError
+
 from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase, tagged
+from odoo.tools import mute_logger
 
 from .test_documents_common import TransactionCaseDocuments
 
@@ -52,22 +55,33 @@ class TestTags(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsTagUniqueness(TransactionCaseDocuments):
+
     def test_f6_tag_name_unique_same_language(self):
         Tag = self.env["documents.tag"]
         Tag.create({"name": "Audit3DupTag"})
-        with self.assertRaises(UserError):
+        with (
+            self.assertRaises(IntegrityError),
+            mute_logger("odoo.db.cursor"),
+            self.cr.savepoint(),
+        ):
             Tag.create({"name": "Audit3DupTag"})
-        with self.assertRaises(UserError):
+        with (
+            self.assertRaises(IntegrityError),
+            mute_logger("odoo.db.cursor"),
+            self.cr.savepoint(),
+        ):
             Tag.create([{"name": "Audit3Batch"}, {"name": "Audit3Batch"}])
 
     def test_f6_tag_name_unique_across_translations(self):
-        """A translated name must not let a duplicate through."""
         self.env["res.lang"]._activate_lang("fr_FR")
         Tag = self.env["documents.tag"]
         tag = Tag.create({"name": "Audit3TransTag"})
         tag.with_context(lang="fr_FR").name = "Audit3TransTagFR"
-        # The jsonb documents now differ, but the English name still collides.
-        with self.assertRaises(UserError):
+        with (
+            self.assertRaises(IntegrityError),
+            mute_logger("odoo.db.cursor"),
+            self.cr.savepoint(),
+        ):
             Tag.create({"name": "Audit3TransTag"})
         self.assertEqual(
             Tag.search([("name", "=", "Audit3TransTag")]),

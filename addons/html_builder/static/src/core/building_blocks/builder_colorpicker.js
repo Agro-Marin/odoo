@@ -1,12 +1,14 @@
 /** @odoo-module native */
+import { getAllUsedColors } from "@html_builder/utils/utils_css";
 import { ColorSelector } from "@html_editor/main/font/color_selector";
 import { Component, useComponent, useRef } from "@odoo/owl";
 import {
-    useColorPicker,
     DEFAULT_COLORS,
     DEFAULT_THEME_COLOR_VARS,
-} from "@web/components/color_picker/color_picker";
-import { BuilderComponent } from "./builder_component.js";
+    useColorPicker,
+} from "@web/components/color_picker";
+import { isColorGradient, isCSSColor } from "@web/core/utils/format/colors";
+
 import {
     basicContainerBuilderComponentProps,
     getAllActionsAndOperations,
@@ -15,8 +17,7 @@ import {
     useDomState,
     useHasPreview,
 } from "../utils.js";
-import { isCSSColor, isColorGradient } from "@web/core/utils/format/colors";
-import { getAllUsedColors } from "@html_builder/utils/utils_css";
+import { BuilderComponent } from "./builder_component.js";
 
 // TODO replace by useInputBuilderComponent after extracting unit handling
 export function useColorPickerBuilderComponent() {
@@ -37,11 +38,11 @@ export function useColorPickerBuilderComponent() {
                         value: applySpec.actionValue,
                         loadResult: applySpec.loadResult,
                         dependencyManager: comp.env.dependencyManager,
-                    })
+                    }),
                 );
             }
             return Promise.all(proms);
-        }
+        },
     );
     function getState(editingElement) {
         // if (!editingElement || !editingElement.isConnected) {
@@ -49,10 +50,13 @@ export function useColorPickerBuilderComponent() {
         //     return {};
         // }
         const actionWithGetValue = getAllActions().find(
-            ({ actionId }) => getAction(actionId).getValue
+            ({ actionId }) => getAction(actionId).getValue,
         );
         const { actionId, actionParam } = actionWithGetValue;
-        const actionValue = getAction(actionId).getValue({ editingElement, params: actionParam });
+        const actionValue = getAction(actionId).getValue({
+            editingElement,
+            params: actionParam,
+        });
         return {
             // defaultTab is the tab to open if the user has not done a selection yet.
             // If the user has already selected a color, the tab of the last selection is opened
@@ -61,7 +65,7 @@ export function useColorPickerBuilderComponent() {
             selectedColor: actionValue || comp.props.defaultColor,
             selectedColorCombination: comp.env.editor.shared.color.getColorCombination(
                 editingElement,
-                actionParam
+                actionParam,
             ),
             getTargetedElements: () => [editingElement],
             selectedTab,
@@ -135,18 +139,20 @@ export class BuilderColorPicker extends Component {
 
     setup() {
         useBuilderComponent();
-        const { state, onApply, onPreview, onPreviewRevert } = useColorPickerBuilderComponent();
+        const { state, onApply, onPreview, onPreviewRevert } =
+            useColorPickerBuilderComponent();
         this.colorButton = useRef("colorButton");
         this.state = state;
         useColorPicker(
             "colorButton",
-            {
+            () => ({
                 state,
                 applyColor: onApply,
                 applyColorPreview: onPreview,
                 applyColorResetPreview: onPreviewRevert,
                 getUsedCustomColors:
-                    this.props.getUsedCustomColors || this.getUsedCustomColors.bind(this),
+                    this.props.getUsedCustomColors ||
+                    this.getUsedCustomColors.bind(this),
                 colorPrefix: "color-prefix-",
                 cssVarColorPrefix: "hb-cp-",
                 noTransparency: this.props.noTransparency,
@@ -155,11 +161,11 @@ export class BuilderColorPicker extends Component {
                 defaultOpacity: this.props.defaultOpacity,
                 className: "o-hb-colorpicker",
                 editColorCombination: this.env.editColorCombination,
-            },
+            }),
             {
                 onClose: onPreviewRevert,
-                popoverClass: "o-hb-colorpicker-popover",
-            }
+                class: "o-hb-colorpicker-popover",
+            },
         );
     }
 
@@ -174,7 +180,10 @@ export class BuilderColorPicker extends Component {
             return `background-color: var(--${this.state.selectedColor})`;
         }
         if (this.state.selectedColorCombination) {
-            const colorCombination = this.state.selectedColorCombination.replace("_", "-");
+            const colorCombination = this.state.selectedColorCombination.replace(
+                "_",
+                "-",
+            );
             return `background-color: var(--hb-cp-${colorCombination}-bg); background-image: var(--hb-cp-${colorCombination}-bg-gradient);`;
         }
         return "";
@@ -200,7 +209,10 @@ export class BuilderColorPicker extends Component {
             ...DEFAULT_COLORS.flat(),
             ...DEFAULT_THEME_COLOR_VARS.map((color) => color.toUpperCase()),
         ];
-        if (isTabEnabled("solid") && solidTabColors.includes(selectedColor.toUpperCase())) {
+        if (
+            isTabEnabled("solid") &&
+            solidTabColors.includes(selectedColor.toUpperCase())
+        ) {
             return "solid";
         }
 

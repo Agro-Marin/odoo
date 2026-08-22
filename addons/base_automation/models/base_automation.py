@@ -1159,8 +1159,8 @@ class BaseAutomation(models.Model):
         return self.is_ip_allowed(remote_addr)
 
     def _webhook_rate_ok(self):
-        """Deprecated: the gate's `_consume_rate_limit`. Kept for overrides."""
-        return self._consume_rate_limit()
+        """Deprecated: the gate's `check_rate_limit`. Kept for overrides."""
+        return self.check_rate_limit()
 
     def _execute_webhook(self, payload):
         """Execute the webhook for the given payload.

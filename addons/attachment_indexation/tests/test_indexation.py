@@ -75,12 +75,12 @@ class TestCaseIndexation(TransactionCase):
         create path, text keeps its bounded prefix, and unindexable media skips
         the read so it streams flat."""
         Att = self.env['ir.attachment']
-        self.assertIsNone(Att._index_read_size('application/pdf'))
-        self.assertIsNone(Att._index_read_size(
+        self.assertIsNone(Att._get_index_read_size('application/pdf'))
+        self.assertIsNone(Att._get_index_read_size(
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'))
-        self.assertEqual(Att._index_read_size('text/plain'), Att._INDEX_MAX_BYTES)
-        self.assertEqual(Att._index_read_size('video/mp4'), 0)
-        self.assertEqual(Att._index_read_size('application/octet-stream'), 0)
+        self.assertEqual(Att._get_index_read_size('text/plain'), Att._INDEX_MAX_BYTES)
+        self.assertEqual(Att._get_index_read_size('video/mp4'), 0)
+        self.assertEqual(Att._get_index_read_size('application/octet-stream'), 0)
 
     @skipIf(PDFResourceManager is None, "pdfminer not installed")
     def test_streamed_pdf_reads_full_content_and_indexes(self):
@@ -92,16 +92,16 @@ class TestCaseIndexation(TransactionCase):
 
         read_sizes = []
         model_cls = type(Att)
-        real_read = model_cls._file_read
+        real_read = model_cls._read_file
 
         def read_spy(model, fname, size=None):
             read_sizes.append(size)
             return real_read(model, fname, size=size)
 
-        with patch.object(model_cls, '_file_read', read_spy):
+        with patch.object(model_cls, '_read_file', read_spy):
             fs = FileStorage(stream=io.BytesIO(pdf), filename='c.pdf',
                              content_type='application/pdf')
-            att = Att._from_request_file(fs, mimetype='TRUST')
+            att = Att._create_from_request_file(fs, mimetype='TRUST')
 
         self.assertTrue(att.store_fname, "PDF must stream to the filestore")
         self.assertEqual(att.index_content, 'TestContent!!')

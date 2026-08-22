@@ -39,46 +39,46 @@ class TestQuestionValidators(common.TestSurveyCommon):
     def test_slider_accepts_value_inside_bounds(self):
         """A value within the configured range validates, edges included."""
         question = self._question("slider", slider_min=10, slider_max=20)
-        self.assertFalse(question._validate_slider(15))
-        self.assertFalse(question._validate_slider(10))
-        self.assertFalse(question._validate_slider(20))
+        self.assertFalse(question._check_answer_slider(15))
+        self.assertFalse(question._check_answer_slider(10))
+        self.assertFalse(question._check_answer_slider(20))
 
     def test_slider_rejects_value_outside_bounds(self):
         """Below the minimum or above the maximum is refused."""
         question = self._question("slider", slider_min=10, slider_max=20)
-        self.assertTrue(question._validate_slider(9))
-        self.assertTrue(question._validate_slider(21))
+        self.assertTrue(question._check_answer_slider(9))
+        self.assertTrue(question._check_answer_slider(21))
 
     def test_slider_rejects_non_numeric(self):
         """A non-numeric payload is reported, never crashed on."""
         question = self._question("slider", slider_min=0, slider_max=100)
-        self.assertIn("numerical", str(question._validate_slider("abc")).lower())
+        self.assertIn("numerical", str(question._check_answer_slider("abc")).lower())
 
     def test_slider_zero_is_an_answer(self):
         """Zero counts as answered even though it is falsy (boundary)."""
         question = self._question("slider", slider_min=0, slider_max=10)
-        self.assertFalse(question._validate_slider(0))
+        self.assertFalse(question._check_answer_slider(0))
         # while a truly missing answer is refused on a mandatory question
-        self.assertTrue(question._validate_slider(None))
+        self.assertTrue(question._check_answer_slider(None))
 
     # --- rating ---------------------------------------------------------
 
     def test_rating_accepts_value_within_scale(self):
         """A rating inside 1..rating_max validates."""
         question = self._question("rating", rating_max=5)
-        self.assertFalse(question._validate_rating(1))
-        self.assertFalse(question._validate_rating(5))
+        self.assertFalse(question._check_answer_rating(1))
+        self.assertFalse(question._check_answer_rating(5))
 
     def test_rating_rejects_value_off_scale(self):
         """Zero and above the maximum are both refused."""
         question = self._question("rating", rating_max=5)
-        self.assertTrue(question._validate_rating(6))
-        self.assertTrue(question._validate_rating(-1))
+        self.assertTrue(question._check_answer_rating(6))
+        self.assertTrue(question._check_answer_rating(-1))
 
     def test_rating_rejects_non_integer(self):
         """A non-integer payload is reported."""
         question = self._question("rating", rating_max=5)
-        self.assertIn("invalid", str(question._validate_rating("abc")).lower())
+        self.assertIn("invalid", str(question._check_answer_rating("abc")).lower())
 
     # --- ranking --------------------------------------------------------
 
@@ -92,9 +92,9 @@ class TestQuestionValidators(common.TestSurveyCommon):
             ],
         )
         answers = question.suggested_answer_ids
-        self.assertTrue(question._validate_ranking({str(answers[0].id): 1}))
+        self.assertTrue(question._check_answer_ranking({str(answers[0].id): 1}))
         self.assertFalse(
-            question._validate_ranking(
+            question._check_answer_ranking(
                 {
                     str(answers[0].id): 1,
                     str(answers[1].id): 2,
@@ -110,27 +110,27 @@ class TestQuestionValidators(common.TestSurveyCommon):
                 Command.create({"value": "Only"}),
             ],
         )
-        self.assertTrue(question._validate_ranking(["1"]))
+        self.assertTrue(question._check_answer_ranking(["1"]))
 
     # --- constant sum ---------------------------------------------------
 
     def test_constant_sum_requires_the_exact_total(self):
         """The distributed values must add up to the configured total."""
         question = self._question("constant_sum", constant_sum_total=100)
-        self.assertFalse(question._validate_constant_sum({"a": 60, "b": 40}))
-        self.assertTrue(question._validate_constant_sum({"a": 60, "b": 30}))
+        self.assertFalse(question._check_answer_constant_sum({"a": 60, "b": 40}))
+        self.assertTrue(question._check_answer_constant_sum({"a": 60, "b": 30}))
 
     def test_constant_sum_tolerates_float_noise(self):
         """Rounding noise under the tolerance is accepted (boundary)."""
         question = self._question("constant_sum", constant_sum_total=100)
-        self.assertFalse(question._validate_constant_sum({"a": 33.333, "b": 66.67}))
+        self.assertFalse(question._check_answer_constant_sum({"a": 33.333, "b": 66.67}))
 
     def test_constant_sum_rejects_non_numeric_values(self):
         """Non-numeric values are reported rather than raising."""
         question = self._question("constant_sum", constant_sum_total=100)
         self.assertIn(
             "numbers",
-            str(question._validate_constant_sum({"a": "x", "b": 100})).lower(),
+            str(question._check_answer_constant_sum({"a": "x", "b": 100})).lower(),
         )
 
     # --- file upload ----------------------------------------------------
@@ -151,7 +151,7 @@ class TestQuestionValidators(common.TestSurveyCommon):
             file_upload_max_size=5,
         )
         self.assertFalse(
-            question._validate_file_upload(self._attachment("report.pdf").id)
+            question._check_answer_file_upload(self._attachment("report.pdf").id)
         )
 
     def test_file_upload_rejects_other_extension(self):
@@ -160,7 +160,7 @@ class TestQuestionValidators(common.TestSurveyCommon):
         self.assertIn(
             "file type",
             str(
-                question._validate_file_upload(self._attachment("payload.exe").id)
+                question._check_answer_file_upload(self._attachment("payload.exe").id)
             ).lower(),
         )
 
@@ -172,14 +172,14 @@ class TestQuestionValidators(common.TestSurveyCommon):
         big = self._attachment("big.png", size_mb=2)
         self.assertIn(
             "maximum size",
-            str(question._validate_file_upload(big.id)).lower(),
+            str(question._check_answer_file_upload(big.id)).lower(),
         )
 
     def test_file_upload_rejects_unknown_attachment(self):
         """An id pointing at nothing is reported, not silently accepted."""
         question = self._question("file_upload")
         self.assertIn(
-            "not found", str(question._validate_file_upload(99999999)).lower()
+            "not found", str(question._check_answer_file_upload(99999999)).lower()
         )
 
     def test_file_upload_default_types_are_enforced(self):
@@ -189,6 +189,6 @@ class TestQuestionValidators(common.TestSurveyCommon):
         self.assertIn(
             "file type",
             str(
-                question._validate_file_upload(self._attachment("payload.bin").id)
+                question._check_answer_file_upload(self._attachment("payload.bin").id)
             ).lower(),
         )

@@ -26,7 +26,7 @@ class SurveySurvey(models.Model):
     _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
 
     @api.model
-    def _get_default_access_token(self) -> str:
+    def _default_access_token(self) -> str:
         """Generate a random UUID4 access token."""
         return str(uuid.uuid4())
 
@@ -121,9 +121,7 @@ class SurveySurvey(models.Model):
     question_ids = fields.One2many(
         "survey.question", string="Questions", compute="_compute_page_and_question_ids"
     )
-    question_count = fields.Integer(
-        "# Questions", compute="_compute_page_and_question_ids"
-    )
+    question_count = fields.Count("question_ids", "# Questions")
     questions_layout = fields.Selection(
         [
             ("page_per_question", "One page per question"),
@@ -168,7 +166,7 @@ class SurveySurvey(models.Model):
     )
     access_token = fields.Char(
         "Access Token",
-        default=lambda self: self._get_default_access_token(),
+        default=lambda self: self._default_access_token(),
         copy=False,
     )
     users_login_required = fields.Boolean(
@@ -585,7 +583,6 @@ class SurveySurvey(models.Model):
                 lambda question: question.is_page
             )
             survey.question_ids = survey.question_and_page_ids - survey.page_ids
-            survey.question_count = len(survey.question_ids)
 
     @api.depends(
         "question_and_page_ids.triggering_answer_ids",
@@ -1771,7 +1768,7 @@ class SurveySurvey(models.Model):
 
     def action_survey_user_input_completed(self) -> dict[str, Any]:
         """Open completed responses list filtered by this survey."""
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "survey.action_survey_user_input"
         )
         ctx = dict(self.env.context)
@@ -1783,7 +1780,7 @@ class SurveySurvey(models.Model):
 
     def action_survey_user_input_certified(self) -> dict[str, Any]:
         """Open certified responses list filtered by this survey."""
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "survey.action_survey_user_input"
         )
         ctx = dict(self.env.context)
@@ -1798,7 +1795,7 @@ class SurveySurvey(models.Model):
 
     def action_survey_user_input(self) -> dict[str, Any]:
         """Open all responses list filtered by this survey."""
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "survey.action_survey_user_input"
         )
         ctx = dict(self.env.context)

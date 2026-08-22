@@ -501,7 +501,7 @@ class Base_ImportImport(models.TransientModel):
             except (ImportValidationError, ValueError):
                 raise
             except Exception as exc:
-                e = read_file_failed(exc, f"Unable to read file {self.file_name or '<unknown>'!r} as {file_extension!r} ({guess_message}).")
+                e = _prepare_read_file_error(exc, f"Unable to read file {self.file_name or '<unknown>'!r} as {file_extension!r} ({guess_message}).")
 
         if e is not None:
             raise e
@@ -1230,7 +1230,7 @@ class Base_ImportImport(models.TransientModel):
                 has_relational_match = any(len(match) > 1 for match in matches.values() if match)
                 advanced_mode = has_relational_header or has_relational_match
 
-            column_example = self._build_column_examples(headers, preview, options)
+            column_example = self._prepare_column_examples(headers, preview, options)
 
             # Data rows only, i.e. excluding the header that was popped above.
             num_rows = len(data_rows) - (1 if headers else 0)
@@ -1289,7 +1289,7 @@ class Base_ImportImport(models.TransientModel):
                 'preview': preview,
             }
 
-    def _build_column_examples(self, headers, preview, options):
+    def _prepare_column_examples(self, headers, preview, options):
         """ Up to 5 example values per column, for the mapping UI.
 
         The client shows the first one inline and the rest on hover.
@@ -2403,7 +2403,7 @@ _P_TO_RE = {
 }
 
 
-def read_file_failed(exc: Exception, message: str) -> UserError:
+def _prepare_read_file_error(exc: Exception, message: str) -> UserError:
     # exc_info=exc (not True): this function can be called after the original
     # except frame that produced `exc` is no longer the active exception, in
     # which case exc_info=True would silently log no traceback at all (t24068).

@@ -4,13 +4,13 @@ from odoo import models
 class IrBinary(models.AbstractModel):
     _inherit = "ir.binary"
 
-    def _find_record(
+    def _get_record(
         self,
         xmlid=None,
         res_model="ir.attachment",
         res_id=None,
         access_token=None,
-        field=None,
+        field_name=None,
     ):
         record = None
         if xmlid:
@@ -24,8 +24,8 @@ class IrBinary(models.AbstractModel):
                 record = Attachment.search(domain, limit=1)
 
         if not record:
-            record = super()._find_record(
-                xmlid, res_model, res_id, access_token, field=field
+            record = super()._get_record(
+                xmlid, res_model, res_id, access_token, field_name=field_name
             )
 
         return record

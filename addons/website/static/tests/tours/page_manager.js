@@ -129,8 +129,18 @@ const checkWebsiteFilters = [
 
 const deleteSelectedPage = [
     {
+        // Scoped to `.o_selection_container` on purpose.  `web.ListCogMenu`
+        // (no selection) and `web.ActionMenus` (selection) BOTH carry
+        // `o_cp_action_menus`, and `list_controller.xml` swaps one for the
+        // other when `hasSelectedRecords` flips.  A bare
+        // `.o_cp_action_menus button` therefore resolves, one frame after the
+        // row is ticked, to the cog that is on its way out: the click opens
+        // its dropdown, the swap destroys it, and the Delete step below waits
+        // out its timeout against a menu nothing reopened.  The scoped
+        // selector exists only once the selection has reached the control
+        // panel, so it names the right button and waits for the right state.
         content: "Click on Action",
-        trigger: ".o_cp_action_menus button",
+        trigger: ".o_selection_container .o_cp_action_menus button",
         run: "click",
     },
     {
@@ -162,8 +172,10 @@ const duplicateSinglePage = [
         run: "click",
     },
     {
+        // See the note on `deleteSelectedPage`: the selection's Actions menu,
+        // not the cog the class also matches before the selection lands.
         content: "Click on Action button",
-        trigger: ".o_cp_action_menus button",
+        trigger: ".o_selection_container .o_cp_action_menus button",
         run: "click",
     },
     {
@@ -201,8 +213,10 @@ const duplicateMultiplePage = [
         run: "click",
     },
     {
+        // See the note on `deleteSelectedPage`: the selection's Actions menu,
+        // not the cog the class also matches before the selection lands.
         content: "Click on Action button",
-        trigger: ".o_cp_action_menus button",
+        trigger: ".o_selection_container .o_cp_action_menus button",
         run: "click",
     },
     {
@@ -250,6 +264,22 @@ registerWebsitePreviewTour(
             content: "Select 'My Website' filter",
             trigger: ".o_filter_menu .o-dropdown-item:contains('My Website')",
             run: "click",
+        },
+        {
+            content: "Close the search menu dropdown",
+            trigger: ".o_searchview_dropdown_toggler",
+            run: "click",
+        },
+        {
+            // Toggling a filter reloads the list, and the tour has to see the
+            // reload land before it ticks a row.  Ticking a row of the previous
+            // result set looks like it works -- the checkbox is there, the
+            // selection reaches the control panel, the Actions menu opens --
+            // and is then discarded with the rows it belonged to, so the menu
+            // unmounts and the Delete step below waits out its timeout.
+            content: "Wait for the list to hold 'My Website' pages only",
+            trigger:
+                ".o_list_table:not(:has(.o_data_cell[name=website_id]:contains('Test Website')))",
         },
         {
             content: "Click on Home Page",

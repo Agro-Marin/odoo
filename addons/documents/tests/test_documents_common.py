@@ -69,9 +69,6 @@ class TransactionCaseDocuments(TransactionCase):
                 },
             ]
         )
-        # A second plain Documents user: "another user with the same rights"
-        # is the premise of most access tests, and re-creating it per class was
-        # both duplication and a login collision waiting to happen.
         cls.doc_user_2 = cls.env["res.users"].create(
             {
                 "login": "documents_user_2@example.com",

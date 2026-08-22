@@ -108,7 +108,6 @@ class TestDocumentRequest(MailCommon, HttpCase):
         self.assertEqual(access_doc_employee.role, "edit")
         self.assertFalse(access_doc_employee.expiration_date)
 
-        # Updating the activity deadline, update the access expiration
         with self.with_user(self.user_employee.login):
             document.request_activity_id.date_deadline = (
                 fields.Date.today() + relativedelta(days=5)
@@ -119,7 +118,6 @@ class TestDocumentRequest(MailCommon, HttpCase):
         self.assertEqual(access_doc_partner_1.expiration_date, new_expiration_date)
         self.assertFalse(access_doc_employee.expiration_date)
 
-        # Simulating upload document
         self.assertTrue(document.request_activity_id)
         with self.with_user(self.user_employee.login):
             document.write(
@@ -174,7 +172,6 @@ class TestDocumentRequest(MailCommon, HttpCase):
         self.assertEqual(access_doc_employee.role, "edit")
         self.assertFalse(access_doc_employee.expiration_date)
 
-        # As the requestee has no user, updating the activity deadline should not change any access expiration
         with self.with_user(self.user_employee.login):
             document.request_activity_id.date_deadline = (
                 fields.Date.today() + relativedelta(days=1)
@@ -182,7 +179,6 @@ class TestDocumentRequest(MailCommon, HttpCase):
         self.assertEqual(len(document.access_ids), 1)
         self.assertFalse(access_doc_employee.expiration_date)
 
-        # Simulating upload document
         self.assertTrue(document.request_activity_id)
         with self.with_user(self.user_employee.login):
             document.write(
@@ -221,7 +217,6 @@ class TestDocumentRequest(MailCommon, HttpCase):
         )
         form.body = "<p>Hello</p>"
         form.subject = "Example of document required"
-        # Simulate file upload on the composed message
         form.attachment_ids = self.env["ir.attachment"].create(
             {
                 "datas": base64.b64encode(b"My attachment"),

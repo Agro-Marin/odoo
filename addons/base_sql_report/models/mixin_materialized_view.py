@@ -58,7 +58,7 @@ class MixinMaterializedView(models.AbstractModel):
     def _query(self):
         """Return the defining ``SQL`` for the materialized view.
 
-        Resolves from ``_build_table_query`` (``mixin.sql.report``) when
+        Resolves from ``_prepare_table_query`` (``mixin.sql.report``) when
         present, else the ``_table_query`` attribute; stand-alone subclasses
         (no ``mixin.sql.report``) must override this method.
 
@@ -66,7 +66,7 @@ class MixinMaterializedView(models.AbstractModel):
         :rtype: SQL
         :raises NotImplementedError: if no source query is available
         """
-        build = getattr(self, "_build_table_query", None)
+        build = getattr(self, "_prepare_table_query", None)
         if callable(build):
             sql_obj = build()
             if isinstance(sql_obj, SQL) and sql_obj:

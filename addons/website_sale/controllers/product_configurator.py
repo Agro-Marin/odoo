@@ -51,7 +51,7 @@ class WebsiteSaleProductConfiguratorController(SaleProductConfiguratorController
             if combo_item and request.env['product.template'].sudo().search_count([
                 ('combo_ids', 'in', combo_item.mapped('combo_id.id')),
                 ('website_published', '=', True),
-            ]):
+            ], limit=1):
                 return request.env['product.template'].sudo().browse(product_template_id)
         return super()._get_product_template(product_template_id)
 

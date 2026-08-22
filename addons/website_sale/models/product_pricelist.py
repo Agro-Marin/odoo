@@ -11,7 +11,7 @@ class ProductPricelist(models.Model):
 
     #=== DEFAULT METHODS ===#
 
-    def _default_website(self):
+    def _default_website_id(self):
         """ Find the first company's website, if there is one. """
         company_id = self.env.company.id
 
@@ -27,7 +27,7 @@ class ProductPricelist(models.Model):
         string="Website",
         comodel_name='website',
         ondelete='restrict',
-        default=_default_website,
+        default=_default_website_id,
         domain="[('company_id', '=?', company_id)]",
         tracking=20,
         help="If you want a pricelist to be available on a website,"

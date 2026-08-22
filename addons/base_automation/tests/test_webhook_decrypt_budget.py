@@ -72,7 +72,7 @@ class TestWebhookAuthDoesNotExhaustTheDecryptionCap(TransactionCase):
     def test_a_low_cap_does_not_stop_the_webhook(self):
         # Three per hour: any per-request decryption would deny the fourth call.
         self.credential.sudo().write(
-            {"enable_rate_limiting": True, "rate_limit_max_attempts": 3}
+            {"decrypt_rate_limit_enabled": True, "decrypt_rate_limit_max": 3}
         )
         self.env.flush_all()
 
@@ -126,7 +126,7 @@ class TestWebhookAuthDoesNotExhaustTheDecryptionCap(TransactionCase):
             }
         )
         self.credential.sudo().write(
-            {"enable_rate_limiting": True, "rate_limit_max_attempts": 3}
+            {"decrypt_rate_limit_enabled": True, "decrypt_rate_limit_max": 3}
         )
         self.env.flush_all()
 

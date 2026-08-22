@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { KeepLast } from "@web/core/utils/concurrency";
-import { SelectMenu } from "@web/components/select_menu/select_menu";
+import { SelectMenu } from "@web/components/select_menu";
 import { useService } from "@web/core/utils/hooks";
 import { DropdownItem } from "@web/components/dropdown";
 
@@ -43,7 +43,7 @@ export class WebsiteLinksTagsWrapper extends Component {
     }
 
     async onCreateOption(string, closeFn) {
-        const record = await this.orm.call("mixin.utm", "find_or_create_record", [
+        const record = await this.orm.call("mixin.utm", "get_or_create_record", [
             this.props.model,
             string,
         ]);

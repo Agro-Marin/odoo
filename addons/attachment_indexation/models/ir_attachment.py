@@ -321,12 +321,12 @@ class IrAttachment(models.Model):
     })
 
     @api.model
-    def _index_read_size(self, mimetype):
+    def _get_index_read_size(self, mimetype):
         # Read whole documents this backend parses; defer text/others to base
         # (bounded text prefix / skip), so unindexable media still streams flat.
         if mimetype in self._INDEXED_DOC_MIMETYPES:
             return None
-        return super()._index_read_size(mimetype)
+        return super()._get_index_read_size(mimetype)
 
     def copy(self, default=None):
         for attachment in self:

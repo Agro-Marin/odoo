@@ -50,7 +50,7 @@ export class BackgroundVideo extends Interaction {
         );
         if (promise) {
             this.videoSrc += "&enablejsapi=1";
-            this.waitFor(promise).then(this.protectSyncAfterAsync(this.appendBgVideo));
+            this.waitFor(promise).then(this.bindDeferred(this.appendBgVideo));
         }
         this.__adjustIframe = this.throttled(this.adjustIframe);
         const resizeObserver = new ResizeObserver(this.__adjustIframe.bind(this));

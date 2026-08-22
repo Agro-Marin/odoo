@@ -4,7 +4,6 @@ from odoo.tools.misc import consteq
 
 
 class DocumentsAccess(models.Model):
-    """Link a `documents.document` to a partner granting a view or edit role."""
 
     _name = "documents.access"
     _description = "Document / Partner"
@@ -40,17 +39,6 @@ class DocumentsAccess(models.Model):
 
     @api.constrains("partner_id", "role")
     def _check_partner_id(self) -> None:
-        """Forbid granting a membership role to the public user.
-
-        Anonymous sharing goes through ``access_via_link``; a role-bearing
-        ``documents.access`` for the public partner is bad data. Role-less rows
-        (access-date logging) and the (inactive) root user - the default actor
-        for many internal flows - are intentionally left untouched.
-
-        The former check read ``partner_id.user_ids`` with the default
-        ``active_test=True``; the public/root users are inactive, so ``user_ids``
-        was empty and the constraint never fired.
-        """
         public_partner = self.env.ref("base.public_user").partner_id
         for access in self:
             if access.role and access.partner_id == public_partner:
@@ -65,7 +53,6 @@ class DocumentsAccess(models.Model):
         return vals_list
 
     def write(self, vals: dict) -> bool:
-        """Write the given values, forbidding changes to partner and document."""
         if "partner_id" in vals or "document_id" in vals:
             raise AccessError(_("Access documents and partners cannot be changed."))
 
@@ -74,20 +61,6 @@ class DocumentsAccess(models.Model):
 
     @api.autovacuum
     def _gc_expired(self) -> tuple[int, bool]:
-        """Retire expired memberships without discarding access history.
-
-        A row carries two independent things: the membership (``role`` +
-        ``expiration_date``) and the access log (``last_access_date``, which
-        backs the "Recent" virtual folder and the last-accessed grouping).
-        Unlinking the whole row on expiry threw the second away, so a document
-        someone had actually opened silently dropped out of their "Recent" the
-        moment their *share* expired. Expire the membership instead, and only
-        delete rows that hold nothing else (the ``_role_or_last_access_date``
-        constraint means a row must keep at least one of the two).
-
-        Reports ``(done, maybe more)`` so a backlog larger than one batch is
-        drained across the vacuum's re-queue instead of over as many days.
-        """
         limit = 1000
         expired = self.search(
             [("expiration_date", "<=", fields.Datetime.now())], limit=limit
@@ -99,9 +72,6 @@ class DocumentsAccess(models.Model):
         (expired - visited).unlink()
         return len(expired), len(expired) == limit
 
-    ######################
-    # Partner invitation #
-    ######################
 
     def _is_signup_available(self) -> bool:
         return (
@@ -114,12 +84,6 @@ class DocumentsAccess(models.Model):
         )
 
     def _get_member_signup_token(self) -> str:
-        """Token used to invite a member to create a user.
-
-        The token is built using the ID of the access, so we can remove
-        the member to invalidate the invitation, or use the expiration
-        date.
-        """
         self.ensure_one()
         if not self._is_signup_available():
             raise UserError(_("Cannot invite this member."))
@@ -149,19 +113,9 @@ class DocumentsAccess(models.Model):
         access_token: str,
         redirect_url: str,
     ) -> str:
-        """Build the signup URL for the current public user.
-
-        :param member_id: ID of the `documents.access`
-        :param member_signup_token: Token of the `documents.access`
-        :param access_token: Token of the document (used to redirect
-            the user after he signed-up)
-        :param redirect_url: The URL where to redirect after the sign-up
-        """
         if not member_id or not member_signup_token or not access_token:
             return ""
 
-        # need to get the document from the member, because `_from_access_token`
-        # won't return the document if it's in `access_via_link == 'none'`
         member_sudo = self._get_member_from_token(member_id, member_signup_token)
         if not member_sudo:
             return ""

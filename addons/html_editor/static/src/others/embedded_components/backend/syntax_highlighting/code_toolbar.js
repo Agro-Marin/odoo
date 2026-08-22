@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { CopyButton } from "@web/components/copy_button/copy_button";
+import { CopyButton } from "@web/components/copy_button";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 
 export const LANGUAGES = {

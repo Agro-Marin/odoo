@@ -15,7 +15,7 @@ import { user } from "@web/core/user";
 import { debounce } from "@web/core/utils/timing";
 import { Deferred } from "@web/core/utils/concurrency";
 import { session } from "@web/session";
-import { formatFloat } from "@web/core/formatters";
+import { formatFieldFloat } from "@web/core/formatters";
 
 import { DateTime } from "luxon";
 
@@ -45,14 +45,18 @@ export class DocumentService {
         const urlSearch = parseSearchQuery(browser.location.search);
         const { documents_init } = session;
         const openPreview =
-            Boolean(urlSearch.documents_init_open_preview) || documents_init?.open_preview;
+            Boolean(urlSearch.documents_init_open_preview) ||
+            documents_init?.open_preview;
         const documentId =
             Number(urlSearch.documents_init_document_id) || documents_init?.document_id;
         this.documentIdToRestoreOnce = documentId;
         const userFolderId = urlSearch.documents_init_user_folder_id;
         this._initData = { documentId, userFolderId, openPreview };
         if (userFolderId) {
-            browser.localStorage.setItem("searchpanel_documents_document", userFolderId);
+            browser.localStorage.setItem(
+                "searchpanel_documents_document",
+                userFolderId,
+            );
         }
         this.getSelectionActions = null;
     }
@@ -69,7 +73,9 @@ export class DocumentService {
      */
     _readChatterVisible() {
         try {
-            return Boolean(JSON.parse(browser.localStorage.getItem("documentsChatterVisible")));
+            return Boolean(
+                JSON.parse(browser.localStorage.getItem("documentsChatterVisible")),
+            );
         } catch {
             return false;
         }
@@ -111,7 +117,7 @@ export class DocumentService {
             try {
                 const destinations = await this.orm.call(
                     "documents.operation",
-                    "get_any_editor_destination"
+                    "get_any_editor_destination",
                 );
                 this.hasFolderEditorAccess = destinations.length > 0;
             } catch {
@@ -127,9 +133,9 @@ export class DocumentService {
             () => {
                 browser.localStorage.setItem(
                     "documentsChatterVisible",
-                    this.rightPanelReactive.visible
+                    this.rightPanelReactive.visible,
                 );
-            }
+            },
         );
     }
 
@@ -186,9 +192,11 @@ export class DocumentService {
             const records = await this.orm.read(
                 "documents.document",
                 [...batch.ids],
-                ["raw"]
+                ["raw"],
             );
-            batch.deferred.resolve(Object.fromEntries(records.map((r) => [r.id, r.raw])));
+            batch.deferred.resolve(
+                Object.fromEntries(records.map((r) => [r.id, r.raw])),
+            );
         } catch (error) {
             batch.deferred.reject(error);
         }
@@ -200,9 +208,9 @@ export class DocumentService {
         }
         const userPermission = folder.target_user_permission || folder.user_permission;
         return (
-            ((typeof folder.id === "number" && userPermission === "edit") ||
-                (this.userIsInternal && ["MY", "RECENT", false].includes(folder.id)) ||
-                (this.userIsDocumentManager && folder.id === "COMPANY"))
+            (typeof folder.id === "number" && userPermission === "edit") ||
+            (this.userIsInternal && ["MY", "RECENT", false].includes(folder.id)) ||
+            (this.userIsDocumentManager && folder.id === "COMPANY")
         );
     }
 
@@ -281,7 +289,7 @@ export class DocumentService {
                     onClose: async () => {
                         resolve();
                     },
-                }
+                },
             );
         });
     }
@@ -291,7 +299,9 @@ export class DocumentService {
     }
 
     async openSharingDialog(documentIds) {
-        const action = await this.orm.call("documents.sharing", "action_open", [documentIds]);
+        const action = await this.orm.call("documents.sharing", "action_open", [
+            documentIds,
+        ]);
         await this.action.doAction(action, { onClose: () => this.reload() });
     }
 
@@ -316,7 +326,10 @@ export class DocumentService {
             name =
                 documents.length === 1
                     ? _t("Create shortcut to: %(documentName)s", single_values)
-                    : _t("Create shortcuts for: %(numberOfDocuments)s items", multiple_values);
+                    : _t(
+                          "Create shortcuts for: %(numberOfDocuments)s items",
+                          multiple_values,
+                      );
         } else if (operation === "copy") {
             name =
                 documents.length === 1
@@ -343,7 +356,7 @@ export class DocumentService {
                     ...context,
                 },
                 onClose,
-            }
+            },
         );
     }
 
@@ -371,21 +384,21 @@ export class DocumentService {
      */
     getDeletionDelay() {
         return this._fetchOnce("deletionDelay", () =>
-            this.orm.call("documents.document", "get_deletion_delay", [[]])
+            this.orm.call("documents.document", "get_deletion_delay", [[]]),
         );
     }
 
     /** @returns {Promise<number>} bytes */
     getMaxUploadSize() {
         return this._fetchOnce("maxUploadSize", () =>
-            this.orm.call("documents.document", "get_document_max_upload_limit")
+            this.orm.call("documents.document", "get_document_max_upload_limit"),
         );
     }
 
     /** @returns {Promise<String[]>} models the details panel offers for linking */
     getDetailsPanelResModels() {
         return this._fetchOnce("detailsPanelResModels", () =>
-            this.orm.call("documents.document", "get_details_panel_res_models")
+            this.orm.call("documents.document", "get_details_panel_res_models"),
         );
     }
 
@@ -396,7 +409,7 @@ export class DocumentService {
                 title: _t("Move to trash"),
                 body: _t(
                     "Items moved to the trash will be deleted forever after %(deletion_delay)s days.",
-                    { deletion_delay: deletionDelay }
+                    { deletion_delay: deletionDelay },
                 ),
                 confirmLabel: _t("Move to trash"),
                 cancelLabel: _t("Discard"),
@@ -413,14 +426,17 @@ export class DocumentService {
     }
 
     async goToServerActionsView() {
-        const userHasAccessRight = await user.checkAccessRight("ir.actions.server", "create");
+        const userHasAccessRight = await user.checkAccessRight(
+            "ir.actions.server",
+            "create",
+        );
         if (!userHasAccessRight) {
             return this.notification.add(
                 _t("Contact your Administrator to get access if needed."),
                 {
                     title: _t("Access to Server Actions"),
                     type: "info",
-                }
+                },
             );
         }
 
@@ -431,7 +447,12 @@ export class DocumentService {
         });
     }
 
-    async moveOrCreateShortcut(records, targetFolder, forceShortcut, expectedAccessRightsChanges) {
+    async moveOrCreateShortcut(
+        records,
+        targetFolder,
+        forceShortcut,
+        expectedAccessRightsChanges,
+    ) {
         let message = "";
         const userFolderId = targetFolder.id.toString();
         if (forceShortcut) {
@@ -448,7 +469,10 @@ export class DocumentService {
                 message =
                     records.movableRecordIds.length === 1
                         ? _t("The document has been moved.")
-                        : _t("%s documents have been moved.", records.movableRecordIds.length);
+                        : _t(
+                              "%s documents have been moved.",
+                              records.movableRecordIds.length,
+                          );
                 if (expectedAccessRightsChanges) {
                     const confirmed = await new Promise((resolve) => {
                         this.dialog.add(AccessRightsUpdateConfirmationDialog, {
@@ -467,8 +491,10 @@ export class DocumentService {
             }
             if (records.nonMovableRecordIds.length) {
                 this.notification.add(
-                    _t("At least one document could not be moved due to access rights."),
-                    { type: "warning" }
+                    _t(
+                        "At least one document could not be moved due to access rights.",
+                    ),
+                    { type: "warning" },
                 );
             }
         }
@@ -481,7 +507,7 @@ export class DocumentService {
         if (!records.movableRecordIds.length) {
             return this.notification.add(
                 _t("You can't move this/those folder(s) to the Company root."),
-                { type: "warning" }
+                { type: "warning" },
             );
         }
         await this.orm.write("documents.document", records.movableRecordIds, {
@@ -492,7 +518,7 @@ export class DocumentService {
                 ? _t("The document/folder has been moved to the Company root.")
                 : _t(
                       "%s documents/folders have been moved to the Company root.",
-                      records.movableRecordIds.length
+                      records.movableRecordIds.length,
                   );
         if (records.nonMovableRecordIds.length) {
             message = markup`${message}<br/>${_t("At least one document hasn't been moved.")}`;
@@ -567,7 +593,8 @@ export class DocumentService {
      * (the current folder) to the router state.
      */
     updateDocumentURLRefresh() {
-        const tokenToShow = this.focusedRecord?.data.access_token || this.currentFolderAccessToken;
+        const tokenToShow =
+            this.focusedRecord?.data.access_token || this.currentFolderAccessToken;
         if (tokenToShow) {
             router.pushState({ access_token: tokenToShow });
         }
@@ -607,7 +634,9 @@ export class DocumentService {
         if (!this.userIsInternal) {
             return [];
         }
-        return await this.orm.call("documents.document", "get_documents_actions", [folderId]);
+        return await this.orm.call("documents.document", "get_documents_actions", [
+            folderId,
+        ]);
     }
 
     /**
@@ -673,7 +702,8 @@ export class DocumentService {
                         view === "kanban"
                             ? ".o_kanban_record.o_record_selected"
                             : ".o_data_row.o_data_row_selected";
-                    const selectedRecords = document.querySelectorAll(selectedRecordClass);
+                    const selectedRecords =
+                        document.querySelectorAll(selectedRecordClass);
                     if (selectedRecords?.length > 0) {
                         selectedRecords[0].scrollIntoView({
                             behavior: "instant",
@@ -728,13 +758,16 @@ export class DocumentService {
                             "default_res_model",
                         ]) {
                             if (context[key]) {
-                                formData.append(key.replace("default_", ""), context[key]);
+                                formData.append(
+                                    key.replace("default_", ""),
+                                    context[key],
+                                );
                             }
                         }
                         if (context.allowed_company_ids) {
                             formData.append(
                                 "allowed_company_ids",
-                                JSON.stringify(context.allowed_company_ids)
+                                JSON.stringify(context.allowed_company_ids),
                             );
                         }
                         // No `document_id`: the route has no such parameter --
@@ -760,7 +793,7 @@ export class DocumentService {
         }
         const message = _t(
             "Some files could not be uploaded (max size: %s).",
-            formatFloat(maxUploadSize, { humanReadable: true })
+            formatFieldFloat(maxUploadSize, { humanReadable: true }),
         );
         this.notification.add(message, { type: "danger" });
     }

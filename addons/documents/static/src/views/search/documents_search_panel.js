@@ -33,18 +33,31 @@ export class DocumentsSearchPanelItemSettingsPopover extends Component {
 
 export class DocumentsSearchPanel extends SearchPanel {
     static modelExtension = "DocumentsSearchPanel";
-    static template = !uiUtils.isSmall() ? "documents.SearchPanel" : "documents.SearchPanel.Small";
-    static subTemplates = !uiUtils.isSmall()
-        ? {
-              section: "web.SearchPanel.Section",
-              category: "documents.SearchPanel.Category",
-              filtersGroup: "documents.SearchPanel.FiltersGroup",
-          }
-        : {
-              section: "web.SearchPanel.Section",
-              category: "documents.SearchPanel.Category.Small",
-              filtersGroup: "documents.SearchPanel.FiltersGroup.Small",
-          };
+    // Getters, not fields. Owl reads `C.template` when it builds each component
+    // node, and a template read `constructor.subTemplates` on every render, so a
+    // getter is asked the question again every time it is asked. As assignments
+    // these ran once, when the bundle was evaluated: the panel was fixed to
+    // whatever the viewport happened to be at import time and stayed there for
+    // the session, so a window narrowed after load kept the desktop panel and a
+    // bundle evaluated before layout settled could pick the wrong one outright.
+    static get template() {
+        return !uiUtils.isSmall()
+            ? "documents.SearchPanel"
+            : "documents.SearchPanel.Small";
+    }
+    static get subTemplates() {
+        return !uiUtils.isSmall()
+            ? {
+                  section: "web.SearchPanel.Section",
+                  category: "documents.SearchPanel.Category",
+                  filtersGroup: "documents.SearchPanel.FiltersGroup",
+              }
+            : {
+                  section: "web.SearchPanel.Section",
+                  category: "documents.SearchPanel.Category.Small",
+                  filtersGroup: "documents.SearchPanel.FiltersGroup.Small",
+              };
+    }
     static rootIcons = {
         false: "fa-regular fa-folder",
         COMPANY: "fa-solid fa-building",
@@ -66,7 +79,7 @@ export class DocumentsSearchPanel extends SearchPanel {
         this.action = useService("action");
         this.popover = usePopover(DocumentsSearchPanelItemSettingsPopover, {
             onClose: () => this.onPopoverClose?.(),
-            popoverClass: "o_search_panel_item_settings_popover",
+            class: "o_search_panel_item_settings_popover",
         });
         this.dialog = useService("dialog");
 
@@ -77,13 +90,14 @@ export class DocumentsSearchPanel extends SearchPanel {
             if (this.env.model.config.context.active_model) {
                 // Ensure folders in search panel are folded when users come from another app
                 const categories = await this.env.searchModel.getSections(
-                    (s) => s.type === "category"
+                    (s) => s.type === "category",
                 );
                 for (const category of categories) {
                     this.state.expanded[category.id] = {};
                 }
             } else {
-                const selectedFolderId = await this.env.searchModel.getSelectedFolderId();
+                const selectedFolderId =
+                    await this.env.searchModel.getSelectedFolderId();
                 if (selectedFolderId) {
                     this.state.expanded[this.sections[0].id]["COMPANY"] = true;
                     this._expandFolder({ folderId: selectedFolderId });
@@ -131,7 +145,8 @@ export class DocumentsSearchPanel extends SearchPanel {
             },
             onDrop: async ({ element, parent, next }) => {
                 const draggingFolderId = parseInt(element.dataset.valueId);
-                const draggingFolder = this.env.searchModel.getFolderById(draggingFolderId);
+                const draggingFolder =
+                    this.env.searchModel.getFolderById(draggingFolderId);
                 const draggingFolderRootId = draggingFolder.rootId;
                 let parentFolderId = parent ? parent.dataset.valueId : false;
                 const beforeFolderId = next ? parseInt(next.dataset.valueId) : false;
@@ -146,7 +161,7 @@ export class DocumentsSearchPanel extends SearchPanel {
                 // Real folders are keyed by numeric id, the special destinations
                 // ("MY", "COMPANY", ...) by string.
                 const parentFolderRootId = this.env.searchModel.getFolderById(
-                    toFolderValueId(parentFolderId)
+                    toFolderValueId(parentFolderId),
                 ).rootId;
                 if (
                     !this.documentService.userIsDocumentManager &&
@@ -159,7 +174,7 @@ export class DocumentsSearchPanel extends SearchPanel {
                         "documents.document",
                         "action_create_shortcut",
                         [draggingFolderId],
-                        { location_user_folder_id: parentFolderId.toString() }
+                        { location_user_folder_id: parentFolderId.toString() },
                     );
                     return this.env.searchModel._reloadSearchModel(true);
                 }
@@ -170,7 +185,8 @@ export class DocumentsSearchPanel extends SearchPanel {
                 if (
                     !DND_ALLOWED_SPECIAL_DESTINATIONS.includes(parentFolderId) &&
                     (draggingFolder.access_internal !== parentFolder.access_internal ||
-                        draggingFolder.access_via_link !== parentFolder.access_via_link ||
+                        draggingFolder.access_via_link !==
+                            parentFolder.access_via_link ||
                         (parentFolder.access_via_link !== "none" &&
                             draggingFolder.is_access_via_link_hidden !==
                                 parentFolder.is_access_via_link_hidden))
@@ -178,11 +194,15 @@ export class DocumentsSearchPanel extends SearchPanel {
                     this.dialog.add(AccessRightsUpdateConfirmationDialog, {
                         destinationFolder: parentFolder,
                         confirm: async () => {
-                            await this.orm.call("documents.document", "action_move_folder", [
-                                [draggingFolderId],
-                                parentFolderId.toString() || false,
-                                beforeFolderId,
-                            ]);
+                            await this.orm.call(
+                                "documents.document",
+                                "action_move_folder",
+                                [
+                                    [draggingFolderId],
+                                    parentFolderId.toString() || false,
+                                    beforeFolderId,
+                                ],
+                            );
                             await this.env.searchModel._reloadSearchModel(true);
                         },
                         cancel: () => {},
@@ -212,7 +232,7 @@ export class DocumentsSearchPanel extends SearchPanel {
      */
     isUploadingInFolder(folderId) {
         return Object.values(this.documentUploads).some(
-            (upload) => upload.targetFolderId === folderId
+            (upload) => upload.targetFolderId === folderId,
         );
     }
 
@@ -228,7 +248,10 @@ export class DocumentsSearchPanel extends SearchPanel {
         if (category.activeValueId !== value.id) {
             const folder = this.env.searchModel.getFolderById(value.id);
             const isShortcut = !!folder.shortcut_document_id?.length;
-            if (isShortcut && !this.env.searchModel.getFolderById(folder.shortcut_document_id[0])) {
+            if (
+                isShortcut &&
+                !this.env.searchModel.getFolderById(folder.shortcut_document_id[0])
+            ) {
                 // Unknown folders are in the Trash.
                 return this.env.searchModel.toggleCategoryValue(category.id, "TRASH");
             }
@@ -297,7 +320,7 @@ export class DocumentsSearchPanel extends SearchPanel {
         let needRefresh = false;
         const sectionId = this.sections[0].id;
         const folders = this.env.searchModel.getFolderAndParents(
-            this.env.searchModel.getFolderById(folderId)
+            this.env.searchModel.getFolderById(folderId),
         );
         if (!folders.length) {
             // The panel does not hold this folder, so there is no chain to
@@ -308,7 +331,10 @@ export class DocumentsSearchPanel extends SearchPanel {
             // to a folder the user cannot see gets here.
             return;
         }
-        if (folders[0].id === "COMPANY" || this.state.expanded[sectionId][folders[0].rootId]) {
+        if (
+            folders[0].id === "COMPANY" ||
+            this.state.expanded[sectionId][folders[0].rootId]
+        ) {
             for (const folder of folders) {
                 if (!this.state.expanded[sectionId][folder.id]) {
                     this.state.expanded[sectionId][folder.id] = true;
@@ -324,11 +350,13 @@ export class DocumentsSearchPanel extends SearchPanel {
     _notifyWrongDropDestination(folderId) {
         if (isNaN(folderId) && !DND_ALLOWED_SPECIAL_DESTINATIONS.includes(folderId)) {
             this.notification.add(
-                _t("You can't create shortcuts in or move documents to this special folder."),
+                _t(
+                    "You can't create shortcuts in or move documents to this special folder.",
+                ),
                 {
                     title: _t("Invalid operation"),
                     type: "warning",
-                }
+                },
             );
             return true;
         }

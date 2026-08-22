@@ -824,7 +824,7 @@ class SurveyQuestion(models.Model):
     # VALIDATION
     # ------------------------------------------------------------
 
-    def validate_question(
+    def _check_answer(
         self, answer: Any, comment: str | None = None
     ) -> dict[int, str]:
         """Validate question, depending on question type and parameters
@@ -858,30 +858,30 @@ class SurveyQuestion(models.Model):
                     or _("This question requires an answer.")
                 }
         elif self.question_type == "char_box":
-            return self._validate_char_box(answer)
+            return self._check_answer_char_box(answer)
         elif self.question_type == "numerical_box":
-            return self._validate_numerical_box(answer)
+            return self._check_answer_numerical_box(answer)
         elif self.question_type in ["date", "datetime"]:
-            return self._validate_date(answer)
+            return self._check_answer_date(answer)
         elif self.question_type in ["simple_choice", "dropdown", "multiple_choice"]:
-            return self._validate_choice(answer, comment)
+            return self._check_answer_choice(answer, comment)
         elif self.question_type in ("matrix", "likert"):
-            return self._validate_matrix(answer)
+            return self._check_answer_matrix(answer)
         elif self.question_type in ("scale", "nps"):
-            return self._validate_scale(answer)
+            return self._check_answer_scale(answer)
         elif self.question_type == "slider":
-            return self._validate_slider(answer)
+            return self._check_answer_slider(answer)
         elif self.question_type == "rating":
-            return self._validate_rating(answer)
+            return self._check_answer_rating(answer)
         elif self.question_type == "ranking":
-            return self._validate_ranking(answer)
+            return self._check_answer_ranking(answer)
         elif self.question_type == "constant_sum":
-            return self._validate_constant_sum(answer)
+            return self._check_answer_constant_sum(answer)
         elif self.question_type == "file_upload":
-            return self._validate_file_upload(answer)
+            return self._check_answer_file_upload(answer)
         return {}
 
-    def _validate_char_box(self, answer: str) -> dict[int, str]:
+    def _check_answer_char_box(self, answer: str) -> dict[int, str]:
         """Validate char_box answer against email format and length constraints."""
         # Email format validation
         # all the strings of the form "<something>@<anything>.<extension>" will be accepted
@@ -901,7 +901,7 @@ class SurveyQuestion(models.Model):
                 }
         return {}
 
-    def _validate_numerical_box(self, answer: Any) -> dict[int, str]:
+    def _check_answer_numerical_box(self, answer: Any) -> dict[int, str]:
         """Validate numerical_box answer is a number within configured range."""
         try:
             floatanswer = float(answer)
@@ -922,7 +922,7 @@ class SurveyQuestion(models.Model):
                     }
         return {}
 
-    def _validate_date(self, answer: str) -> dict[int, str]:
+    def _check_answer_date(self, answer: str) -> dict[int, str]:
         """Validate that the answer is a valid date/datetime and within configured bounds."""
         is_datetime = self.question_type == "datetime"
         field_class = fields.Datetime if is_datetime else fields.Date
@@ -949,7 +949,7 @@ class SurveyQuestion(models.Model):
                 }
         return {}
 
-    def _validate_choice(self, answer: Any, comment: str | None) -> dict[int, str]:
+    def _check_answer_choice(self, answer: Any, comment: str | None) -> dict[int, str]:
         """Validates choice-based questions.
         - Checks that mandatory questions have at least one answer.
         - For 'simple_choice', ensures that exactly one answer is provided.
@@ -977,7 +977,7 @@ class SurveyQuestion(models.Model):
 
         return {}
 
-    def _validate_matrix(self, answers: dict[str, list[int]]) -> dict[int, str]:
+    def _check_answer_matrix(self, answers: dict[str, list[int]]) -> dict[int, str]:
         """Validate that all matrix rows have been answered when mandatory."""
         # Validate that each line has been answered
         if (
@@ -990,7 +990,7 @@ class SurveyQuestion(models.Model):
             }
         return {}
 
-    def _validate_scale(self, answer: Any) -> dict[int, str]:
+    def _check_answer_scale(self, answer: Any) -> dict[int, str]:
         """Validate scale/NPS answer is provided when mandatory."""
         if (
             not self.survey_id.users_can_go_back
@@ -1002,7 +1002,7 @@ class SurveyQuestion(models.Model):
             }
         return {}
 
-    def _validate_slider(self, answer: Any) -> dict[int, str]:
+    def _check_answer_slider(self, answer: Any) -> dict[int, str]:
         """Validate slider answer is within configured bounds."""
         if not answer and answer != 0:
             if self.constr_mandatory and not self.survey_id.users_can_go_back:
@@ -1025,7 +1025,7 @@ class SurveyQuestion(models.Model):
             }
         return {}
 
-    def _validate_rating(self, answer: Any) -> dict[int, str]:
+    def _check_answer_rating(self, answer: Any) -> dict[int, str]:
         """Validate rating is an integer between 1 and rating_max."""
         if not answer:
             if self.constr_mandatory and not self.survey_id.users_can_go_back:
@@ -1042,7 +1042,7 @@ class SurveyQuestion(models.Model):
             return {self.id: _("Rating must be between 1 and %s.", self.rating_max)}
         return {}
 
-    def _validate_ranking(self, answer: Any) -> dict[int, str]:
+    def _check_answer_ranking(self, answer: Any) -> dict[int, str]:
         """Validate ranking: answer is a dict {answer_id: rank_position}."""
         if not answer:
             if self.constr_mandatory and not self.survey_id.users_can_go_back:
@@ -1057,7 +1057,7 @@ class SurveyQuestion(models.Model):
             return {self.id: _("Please rank all items.")}
         return {}
 
-    def _validate_constant_sum(self, answer: Any) -> dict[int, str]:
+    def _check_answer_constant_sum(self, answer: Any) -> dict[int, str]:
         """Validate that all values sum to the configured total."""
         if not answer:
             if self.constr_mandatory and not self.survey_id.users_can_go_back:
@@ -1082,7 +1082,7 @@ class SurveyQuestion(models.Model):
             }
         return {}
 
-    def _validate_file_upload(self, answer: Any) -> dict[int, str]:
+    def _check_answer_file_upload(self, answer: Any) -> dict[int, str]:
         """Validate file upload: mandatory constraint, file extension, and size.
 
         The *answer* value at validation time is either falsy (no file) or an

@@ -38,8 +38,8 @@ class EventEvent(models.Model):
         for new_event in self:
             new_event.booth_menu_ids.menu_id.parent_id = new_event.menu_id
 
-    def _get_menu_update_fields(self):
-        return super()._get_menu_update_fields() + ['booth_menu']
+    def _get_fields_menu_update(self):
+        return super()._get_fields_menu_update() + ['booth_menu']
 
     def _update_website_menus(self, menus_update_by_field=None):
         super()._update_website_menus(menus_update_by_field=menus_update_by_field)

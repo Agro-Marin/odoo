@@ -447,9 +447,7 @@ class TestInboundAccessLog(TransactionCase):
         endpoint = self._endpoint("gate_no_cred_flood")
 
         for n in range(30):
-            endpoint._check_inbound_request(
-                {}, remote_addr=f"198.51.100.{n + 60}"
-            )
+            endpoint._check_inbound_request({}, remote_addr=f"198.51.100.{n + 60}")
 
         rows = self._rows(endpoint)
         self.assertEqual(len(rows), 1, "30 requests, one broken gate")
@@ -598,23 +596,23 @@ class TestInboundRateLimitScope(TransactionCase):
     def test_switching_company_does_not_buy_a_fresh_allowance(self):
         endpoint = self._endpoint("gate_scope_bypass", allowed=2)
 
-        self.assertTrue(endpoint.with_company(self.company_a)._consume_rate_limit())
-        self.assertTrue(endpoint.with_company(self.company_a)._consume_rate_limit())
+        self.assertTrue(endpoint.with_company(self.company_a).check_rate_limit())
+        self.assertTrue(endpoint.with_company(self.company_a).check_rate_limit())
         self.assertFalse(
-            endpoint.with_company(self.company_a)._consume_rate_limit(),
+            endpoint.with_company(self.company_a).check_rate_limit(),
             "the endpoint's own allowance is spent",
         )
 
         self.assertFalse(
-            endpoint.with_company(self.company_b)._consume_rate_limit(),
+            endpoint.with_company(self.company_b).check_rate_limit(),
             "a different active company must NOT reset the endpoint's quota",
         )
 
     def test_one_endpoint_keeps_one_bucket_across_companies(self):
         endpoint = self._endpoint("gate_scope_single", allowed=5)
 
-        endpoint.with_company(self.company_a)._consume_rate_limit()
-        endpoint.with_company(self.company_b)._consume_rate_limit()
+        endpoint.with_company(self.company_a).check_rate_limit()
+        endpoint.with_company(self.company_b).check_rate_limit()
 
         self.assertEqual(
             self._keys(endpoint),

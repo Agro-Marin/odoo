@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { CheckBox } from "@web/components/checkbox/checkbox";
+import { CheckBox } from "@web/components/checkbox";
 import { _t } from "@web/core/translation";
 import { DocumentationLink } from "@web/views/widgets";
 

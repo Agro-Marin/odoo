@@ -2,7 +2,7 @@
 import { normalizeColor } from "@html_builder/utils/utils_css";
 import { getHtmlStyle } from "@html_editor/utils/formatting";
 import { Component, onWillStart, useState } from "@odoo/owl";
-import { ColorPicker } from "@web/components/color_picker/color_picker";
+import { ColorPicker } from "@web/components/color_picker";
 import { _t } from "@web/core/translation";
 
 import { HighlightPicker } from "./highlight_picker.js";

@@ -2,7 +2,7 @@
 import { Model } from "@odoo/o-spreadsheet";
 import { Component, useState } from "@odoo/owl";
 import { freezeOdooData, waitForDataLoaded } from "@spreadsheet/helpers/model";
-import { CopyButton } from "@web/components/copy_button/copy_button";
+import { CopyButton } from "@web/components/copy_button";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/translation";

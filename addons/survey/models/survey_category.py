@@ -1,8 +1,4 @@
-from random import randint
-
 from odoo import fields, models
-
-from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 
 class SurveyCategory(models.Model):
@@ -10,19 +6,16 @@ class SurveyCategory(models.Model):
 
     _name = "survey.category"
     _description = "Survey Category"
+    # `name` (translated, unique on the source term), `active`, `color` and
+    # `code` come from the mixin, which already carried the uniqueness rule this
+    # model was importing on its own. Flat: categories do not nest. `_order` is
+    # restated because this catalog is sequenced and the mixin's is not.
+    _inherit = ["mixin.tag"]
     _order = "sequence, name"
 
-    def _get_default_color(self) -> int:
-        return randint(1, 11)
-
-    name = fields.Char("Category Name", required=True, translate=True)
+    name = fields.Char("Category Name")
     sequence = fields.Integer("Sequence", default=10)
-    color = fields.Integer("Color", default=_get_default_color)
     survey_count = fields.Integer("Surveys", compute="_compute_survey_count")
-
-    _name_src_uniq = name_uniq_index(
-        message="Category name already exists!",
-    )
 
     def _compute_survey_count(self) -> None:
         """Count the number of surveys per category."""

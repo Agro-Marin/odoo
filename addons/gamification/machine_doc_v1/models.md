@@ -310,7 +310,7 @@ action_cancel() resets state back to inprogress.
 | `check_granting()` | Raise UserError if user cannot grant |
 | `_get_owners_info()` | SQL aggregation for owner stats |
 | `_get_badge_user_stats()` | SQL FILTER aggregation for per-user/monthly stats |
-| `_remaining_sending_calc()` | Compute remaining grants |
+| `_compute_remaining_sending()` | Compute remaining grants |
 
 ---
 

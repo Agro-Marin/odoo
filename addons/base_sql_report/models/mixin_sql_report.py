@@ -15,7 +15,7 @@ class MixinSqlReport(models.AbstractModel):
     When a model also inherits ``mixin.materialized.view``, its ``_materialized``
     class attribute is True.  ``_table_query`` then returns ``None`` so the ORM
     reads from the physical materialized view at ``self._table`` instead of
-    inlining the query as a subquery.  ``_build_table_query()`` is still used to
+    inlining the query as a subquery.  ``_prepare_table_query()`` is still used to
     populate the MV via ``_create_materialized_view()``.
 
     Trust contract for registry values
@@ -28,11 +28,11 @@ class MixinSqlReport(models.AbstractModel):
 
     Registry hooks (override these)
     -------------------------------
-    - ``_get_select_fields() -> dict``  : ``{field_name: sql_expression}``
+    - ``_get_fields_select() -> dict``  : ``{field_name: sql_expression}``
     - ``_get_from_tables()  -> list``   : ``[(table, alias, join_type, on)]``
     - ``_get_where_conditions() -> list``  : ``[str | SQL]``
-    - ``_get_group_by_fields()  -> list``  : ``[str]``
-    - ``_get_order_by_fields()  -> list``  : ``[str]``
+    - ``_get_fields_group_by()  -> list``  : ``[str]``
+    - ``_get_fields_order_by()  -> list``  : ``[str]``
     - ``_with_cte() -> SQL`` (optional, default ``SQL.EMPTY``)
 
     Example
@@ -47,7 +47,7 @@ class MixinSqlReport(models.AbstractModel):
             product_id = fields.Many2one("product.product", readonly=True)
             total_qty = fields.Float(readonly=True)
 
-            def _get_select_fields(self):
+            def _get_fields_select(self):
                 return {
                     "id": "MIN(l.id)",
                     "product_id": "l.product_id",
@@ -63,7 +63,7 @@ class MixinSqlReport(models.AbstractModel):
             def _get_where_conditions(self):
                 return ["l.display_type IS NULL"]
 
-            def _get_group_by_fields(self):
+            def _get_fields_group_by(self):
                 return ["l.product_id"]
     """
 
@@ -75,11 +75,11 @@ class MixinSqlReport(models.AbstractModel):
     # PUBLIC QUERY ACCESSORS
     # ------------------------------------------------------------------
 
-    def _build_table_query(self) -> SQL:
+    def _prepare_table_query(self) -> SQL:
         """Assemble the analytical query from all registries.
 
         Always returns a non-empty ``SQL`` object.  Raises
-        ``NotImplementedError`` if ``_get_select_fields`` or ``_get_from_tables``
+        ``NotImplementedError`` if ``_get_fields_select`` or ``_get_from_tables``
         are empty — those two registries are mandatory.
 
         Do not override this method.  Override the registry hooks instead.
@@ -112,7 +112,7 @@ class MixinSqlReport(models.AbstractModel):
         """
         if getattr(self, "_materialized", False):
             return None
-        return self._build_table_query()
+        return self._prepare_table_query()
 
     def _query(self):
         """Return the assembled SQL for materialized-view creation.
@@ -121,7 +121,7 @@ class MixinSqlReport(models.AbstractModel):
         Always returns the assembled query (independent of ``_materialized``
         — this is the SQL that DEFINES the MV, not what the ORM reads from it).
         """
-        return self._build_table_query()
+        return self._prepare_table_query()
 
     # ------------------------------------------------------------------
     # BUILDER METHODS (do not override)
@@ -136,10 +136,10 @@ class MixinSqlReport(models.AbstractModel):
 
     def _select(self) -> SQL:
         """Build the ``SELECT`` clause from the field registry."""
-        fields = self._get_select_fields()
+        fields = self._get_fields_select()
         if not fields:
             raise NotImplementedError(
-                f"{self._name}: override _get_select_fields() to return a "
+                f"{self._name}: override _get_fields_select() to return a "
                 "non-empty {field_name: sql_expression} mapping."
             )
         field_parts = []
@@ -161,11 +161,11 @@ class MixinSqlReport(models.AbstractModel):
         from_parts = []
         for table_name, alias, join_type, on_condition in tables:
             from_parts.append(
-                self._build_from_entry(table_name, alias, join_type, on_condition)
+                self._prepare_from_entry(table_name, alias, join_type, on_condition)
             )
         return SQL("FROM\n    %s", SQL("\n    ").join(from_parts))
 
-    def _build_from_entry(self, table_name, alias, join_type, on_condition) -> SQL:
+    def _prepare_from_entry(self, table_name, alias, join_type, on_condition) -> SQL:
         """Render a single ``(table, alias, join_type, on)`` entry.
 
         Base table (``join_type is None``) → ``<table> [<alias>]``.
@@ -222,7 +222,7 @@ class MixinSqlReport(models.AbstractModel):
 
     def _group_by(self) -> SQL:
         """Build the ``GROUP BY`` clause from the field registry."""
-        fields = self._get_group_by_fields()
+        fields = self._get_fields_group_by()
         if not fields:
             return SQL.EMPTY
         field_parts = []
@@ -238,7 +238,7 @@ class MixinSqlReport(models.AbstractModel):
         controls Python-side record ordering.  Use this hook only when the
         defining query needs an explicit ``ORDER BY`` at creation time.
         """
-        fields = self._get_order_by_fields()
+        fields = self._get_fields_order_by()
         if not fields:
             return SQL.EMPTY
         field_parts = []
@@ -251,7 +251,7 @@ class MixinSqlReport(models.AbstractModel):
     # REGISTRY HOOKS (override in subclass)
     # ------------------------------------------------------------------
 
-    def _get_select_fields(self) -> dict:
+    def _get_fields_select(self) -> dict:
         """Return ``{field_name: sql_expression}`` for the SELECT clause.
 
         Mandatory override.  Dictionary insertion order is preserved in the
@@ -278,11 +278,11 @@ class MixinSqlReport(models.AbstractModel):
         """
         return []
 
-    def _get_group_by_fields(self) -> list:
+    def _get_fields_group_by(self) -> list:
         """Return non-aggregated field expressions for the GROUP BY clause."""
         return []
 
-    def _get_order_by_fields(self) -> list:
+    def _get_fields_order_by(self) -> list:
         """Return sort expressions for the ORDER BY clause (optional)."""
         return []
 

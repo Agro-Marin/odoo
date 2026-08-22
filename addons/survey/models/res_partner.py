@@ -39,7 +39,7 @@ class ResPartner(models.Model):
 
     def action_view_certifications(self) -> dict[str, Any]:
         """Open the list of successful certification attempts for this partner (and children)."""
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "survey.res_partner_action_certifications"
         )
         action["view_mode"] = "list"

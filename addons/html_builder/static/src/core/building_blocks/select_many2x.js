@@ -2,7 +2,7 @@
 import { useCachedModel } from "@html_builder/core/cached_model_utils";
 import { Component, onWillDestroy,onWillUpdateProps, useState } from "@odoo/owl";
 import { useDropdownCloser } from "@web/components/dropdown";
-import { SelectMenu } from "@web/components/select_menu/select_menu";
+import { SelectMenu } from "@web/components/select_menu";
 import { _t } from "@web/core/translation";
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import { useChildRef, useService } from "@web/core/utils/hooks";

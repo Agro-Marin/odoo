@@ -1,6 +1,9 @@
 import { describe, expect, test } from "@odoo/hoot";
 
 import { DocumentsSearchPanel } from "@documents/views/search/documents_search_panel";
+import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
+import { _resetMediaQueryLists } from "@web/ui/viewport";
 
 describe.current.tags("desktop");
 
@@ -71,4 +74,34 @@ describe("_expandFolder", () => {
         expect(panel.state.expanded[1]).toEqual({ COMPANY: true });
         expect(panel.renderCount).toBe(0);
     });
+});
+
+test("template and subTemplates follow the viewport instead of freezing at import", () => {
+    /** @param {number} width */
+    const atWidth = (width) =>
+        patchWithCleanup(browser, {
+            matchMedia: (/** @type {string} */ query) => {
+                const min = Number(/min-width:\s*(\d+)/.exec(query)?.[1] ?? 0);
+                return /** @type {any} */ ({
+                    matches: width >= min,
+                    addEventListener() {},
+                    removeEventListener() {},
+                });
+            },
+        });
+
+    atWidth(1400);
+    _resetMediaQueryLists();
+    expect(DocumentsSearchPanel.template).toBe("documents.SearchPanel");
+    expect(DocumentsSearchPanel.subTemplates.category).toBe(
+        "documents.SearchPanel.Category",
+    );
+
+    // the same class, asked again after the viewport moved
+    atWidth(400);
+    _resetMediaQueryLists();
+    expect(DocumentsSearchPanel.template).toBe("documents.SearchPanel.Small");
+    expect(DocumentsSearchPanel.subTemplates.category).toBe(
+        "documents.SearchPanel.Category.Small",
+    );
 });

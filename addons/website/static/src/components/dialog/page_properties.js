@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
-import { CheckBox } from "@web/components/checkbox/checkbox";
+import { CheckBox } from "@web/components/checkbox";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { sprintf } from "@web/core/utils/format/strings";
@@ -37,7 +37,7 @@ export class PageDependencies extends Component {
         this.sprintf = sprintf;
         this.dependenciesPopover = usePopover(PageDependenciesPopover, {
             position: "right",
-            popoverClass: "o_page_dependencies",
+            class: "o_page_dependencies",
         });
 
         useEffect(

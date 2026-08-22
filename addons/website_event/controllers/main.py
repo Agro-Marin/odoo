@@ -341,7 +341,7 @@ class WebsiteEventController(http.Controller):
         :param form_details: posted data from frontend registration form, like
             {'1-name': 'r', '1-email': 'r@r.com', '1-phone': '', '1-event_slot_id': '1', '1-event_ticket_id': '1'}
         """
-        allowed_fields = request.env['event.registration']._get_website_registration_allowed_fields()
+        allowed_fields = request.env['event.registration']._get_fields_website_registration_allowed()
         registration_fields = {key: v for key, v in request.env['event.registration']._fields.items() if key in allowed_fields}
         for ticket_id in list(filter(lambda x: x is not None, [form_details[field] if 'event_ticket_id' in field else None for field in form_details])):
             if int(ticket_id) not in event.event_ticket_ids.ids and len(event.event_ticket_ids.ids) > 0:
@@ -440,7 +440,7 @@ class WebsiteEventController(http.Controller):
             If we don't, the user is instead redirected to page to register with a
             formatted error message. """
         try:
-            request.env['ir.http']._verify_request_recaptcha_token('website_event_registration')
+            request.env['ir.http']._check_request_recaptcha_token('website_event_registration')
         except UserError:
             return request.redirect('/event/%s/register?registration_error_code=recaptcha_failed' % event.id)
         registrations_data = self._process_attendees_form(event, post)

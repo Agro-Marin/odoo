@@ -3,20 +3,15 @@ from odoo.exceptions import UserError
 
 
 class IrActionsServer(models.Model):
-    """Server action supporting the documents-embedded usage."""
 
     _inherit = "ir.actions.server"
 
-    # The documents actions add a check that the current document is in a folder
-    # on which the current action is pinned (to avoid executing server action
-    # means to be used in a different folder).
     usage = fields.Selection(
         selection_add=[("documents_embedded", "Documents")],
         ondelete={"documents_embedded": "set ir_actions_server"},
     )
 
     def action_open_documents_server_action_view(self) -> dict:
-        """Return the window action listing documents server actions."""
         self.check_access("read")
         form_view = self.env.ref(
             "documents.ir_actions_server_view_form_documents", raise_if_not_found=False
@@ -51,9 +46,8 @@ class IrActionsServer(models.Model):
             "search_view_id": [search_view.id if search_view else False, "search"],
         }
 
-    def _can_execute_action_on_records(self, records: models.Model) -> bool:
+    def _check_access_to_run(self, records: models.Model) -> None:
         if self.usage == "documents_embedded":
-            # Check that the action is in the pinned on the record's folder
             for record in records:
                 record_actions = record.available_embedded_actions_ids.action_id
                 record_server_actions_sudo = record_actions.sudo().filtered(
@@ -65,7 +59,6 @@ class IrActionsServer(models.Model):
                     .sudo()
                 )
 
-                # Add the child actions
                 actions = available_server_actions_sudo
                 while actions.child_ids:
                     next_actions = actions.child_ids - available_server_actions_sudo
@@ -79,4 +72,4 @@ class IrActionsServer(models.Model):
                         )
                     )
 
-        return super()._can_execute_action_on_records(records)
+        return super()._check_access_to_run(records)

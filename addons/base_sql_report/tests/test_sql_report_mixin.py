@@ -39,7 +39,7 @@ class _Harness:
 
 
 def _build_with_registries(env, **registries):
-    """Call _build_table_query on mixin.sql.report with patched registry hooks.
+    """Call _prepare_table_query on mixin.sql.report with patched registry hooks.
 
     Pass registry return values directly (dicts, lists, SQL objects).  The
     helper wraps them into bound methods on the class for the duration of the
@@ -51,7 +51,7 @@ def _build_with_registries(env, **registries):
     try:
         for name, value in registries.items():
             setattr(cls, name, lambda self, _v=value: _v)
-        return mixin._build_table_query()
+        return mixin._prepare_table_query()
     finally:
         for name, method in original.items():
             setattr(cls, name, method)
@@ -63,7 +63,7 @@ class TestRegistryComposition(TransactionCase):
     def test_select_and_from_assemble(self):
         sql = _build_with_registries(
             self.env,
-            _get_select_fields={"id": "u.id", "login": "u.login"},
+            _get_fields_select={"id": "u.id", "login": "u.login"},
             _get_from_tables=[("res_users", "u", None, None)],
         )
         self.assertIn("SELECT", sql.code)
@@ -75,7 +75,7 @@ class TestRegistryComposition(TransactionCase):
     def test_with_cte_preserved(self):
         sql = _build_with_registries(
             self.env,
-            _get_select_fields={"id": "c.id"},
+            _get_fields_select={"id": "c.id"},
             _get_from_tables=[("my_cte", "c", None, None)],
             _with_cte=SQL("my_cte AS (SELECT 1 AS id)"),
         )
@@ -85,7 +85,7 @@ class TestRegistryComposition(TransactionCase):
     def test_where_joins_with_AND(self):
         sql = _build_with_registries(
             self.env,
-            _get_select_fields={"id": "u.id"},
+            _get_fields_select={"id": "u.id"},
             _get_from_tables=[("res_users", "u", None, None)],
             _get_where_conditions=["u.active = TRUE", "u.id > 0"],
         )
@@ -95,7 +95,7 @@ class TestRegistryComposition(TransactionCase):
     def test_where_accepts_SQL_objects_for_params(self):
         sql = _build_with_registries(
             self.env,
-            _get_select_fields={"id": "u.id"},
+            _get_fields_select={"id": "u.id"},
             _get_from_tables=[("res_users", "u", None, None)],
             _get_where_conditions=[SQL("u.login = %s", "admin")],
         )
@@ -105,16 +105,16 @@ class TestRegistryComposition(TransactionCase):
         with self.assertRaises(NotImplementedError) as cm:
             _build_with_registries(
                 self.env,
-                _get_select_fields={},
+                _get_fields_select={},
                 _get_from_tables=[("res_users", "u", None, None)],
             )
-        self.assertIn("_get_select_fields", str(cm.exception))
+        self.assertIn("_get_fields_select", str(cm.exception))
 
     def test_empty_from_raises(self):
         with self.assertRaises(NotImplementedError) as cm:
             _build_with_registries(
                 self.env,
-                _get_select_fields={"id": "1"},
+                _get_fields_select={"id": "1"},
                 _get_from_tables=[],
             )
         self.assertIn("_get_from_tables", str(cm.exception))
@@ -127,7 +127,7 @@ class TestPercentEscaping(TransactionCase):
         with self.assertRaises(ValueError) as cm:
             _build_with_registries(
                 self.env,
-                _get_select_fields={
+                _get_fields_select={
                     "id": "u.id",
                     "adm": "CASE WHEN u.login LIKE 'adm%' THEN 1 ELSE 0 END",
                 },
@@ -143,7 +143,7 @@ class TestPercentEscaping(TransactionCase):
         # escaping requirement.
         sql = _build_with_registries(
             self.env,
-            _get_select_fields={
+            _get_fields_select={
                 "id": "u.id",
                 "adm": "CASE WHEN u.login LIKE 'adm%%' THEN 1 ELSE 0 END",
             },
@@ -156,7 +156,7 @@ class TestPercentEscaping(TransactionCase):
         with self.assertRaises(ValueError):
             _build_with_registries(
                 self.env,
-                _get_select_fields={"id": "u.id"},
+                _get_fields_select={"id": "u.id"},
                 _get_from_tables=[("res_users", "u", None, None)],
                 _get_where_conditions=["u.login LIKE 'x%'"],
             )
@@ -174,9 +174,9 @@ class TestMaterializedMarkerInteraction(TransactionCase):
         """Return the _table_query value for a harness with given marker."""
         mixin = self.env["mixin.sql.report"]
         cls = type(mixin)
-        orig_select = cls._get_select_fields
+        orig_select = cls._get_fields_select
         orig_from = cls._get_from_tables
-        cls._get_select_fields = lambda self: {"id": "u.id"}
+        cls._get_fields_select = lambda self: {"id": "u.id"}
         cls._get_from_tables = lambda self: [("res_users", "u", None, None)]
         marker_patch = patch.object(cls, "_materialized", materialized, create=True)
         try:
@@ -184,7 +184,7 @@ class TestMaterializedMarkerInteraction(TransactionCase):
             return mixin._table_query
         finally:
             marker_patch.stop()
-            cls._get_select_fields = orig_select
+            cls._get_fields_select = orig_select
             cls._get_from_tables = orig_from
 
     def test_non_materialized_returns_sql(self):

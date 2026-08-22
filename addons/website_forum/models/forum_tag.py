@@ -20,17 +20,12 @@ class ForumTag(models.Model):
     post_ids = fields.Many2many(
         'forum.post', 'forum_tag_rel', 'forum_tag_id', 'forum_post_id',
         string='Posts', domain=[('state', '=', 'active')])
-    posts_count = fields.Integer('Number of Posts', compute='_compute_posts_count', store=True)
+    posts_count = fields.Count("post_ids", 'Number of Posts', store=True)
     website_url = fields.Char("Link to questions with the tag", compute='_compute_website_url')
     _name_uniq = models.Constraint(
         'unique (name, forum_id)',
         'Tag name already exists!',
     )
-
-    @api.depends("post_ids", "post_ids.tag_ids", "post_ids.state", "post_ids.active")
-    def _compute_posts_count(self):
-        for tag in self:
-            tag.posts_count = len(tag.post_ids)  # state filter is in field domain
 
     @api.depends("forum_id", "forum_id.name", "name")
     def _compute_website_url(self):

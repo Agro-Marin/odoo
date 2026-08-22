@@ -2,7 +2,6 @@ from odoo import fields, models
 
 
 class ResConfigSettings(models.TransientModel):
-    """Config settings extended with the documents deletion delay."""
 
     _inherit = "res.config.settings"
 

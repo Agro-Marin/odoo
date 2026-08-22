@@ -2,7 +2,6 @@ from odoo import fields, models
 
 
 class ResPartner(models.Model):
-    """Partner model extended with related documents and actions."""
 
     _inherit = "res.partner"
 
@@ -24,9 +23,8 @@ class ResPartner(models.Model):
             record.document_count = document_count_dict.get(record, 0)
 
     def action_see_documents(self) -> dict:
-        """Return the action listing the documents linked to this partner."""
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "documents.document_action_preference"
         )
         return action | {
@@ -38,7 +36,6 @@ class ResPartner(models.Model):
         }
 
     def action_create_members_to_invite(self) -> dict:
-        """Return the action to create a new partner to invite as a member."""
         return {
             "res_model": "res.partner",
             "target": "new",

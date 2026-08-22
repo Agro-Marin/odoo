@@ -100,6 +100,20 @@ export class DocumentsDocument extends models.Model {
     });
     alias_id = fields.Many2one({ relation: "mail.alias" });
     alias_domain_id = fields.Many2one({ relation: "mail.alias.domain" });
+    // `mixin.mail.alias.optional` defines this as related="alias_id.alias_full_name".
+    // The details panel and the action helper both read it, and
+    // `DETAIL_PANEL_REQUIRED_FIELDS` injects it into every documents view's
+    // activeFields, so a model that omits it makes `getFieldsSpec` dereference
+    // `undefined` rather than report a missing field.
+    //
+    // Computed rather than seeded per fixture: `alias_name` and
+    // `alias_domain_id` are themselves related to the same alias record
+    // server-side, so deriving the address here is what keeps a fixture that
+    // sets one of them from disagreeing with the address the panel renders.
+    alias_email = fields.Char({
+        string: "Email Alias",
+        compute: "_compute_alias_email",
+    });
     alias_name = fields.Char();
     alias_tag_ids = fields.Many2many({ relation: "documents.tag" });
     mail_alias_domain_count = fields.Integer();
@@ -117,6 +131,32 @@ export class DocumentsDocument extends models.Model {
         default: "3_day",
     });
     activity_user_id = fields.Many2one({ relation: "res.users" });
+
+    /**
+     * Applies `mail.alias._compute_alias_full_name`'s rule -- including its
+     * bare-`alias_name` fallback -- to this record's OWN `alias_name` and
+     * `alias_domain_id` rather than to `alias_id`'s.
+     *
+     * Server-side those two are `related` to the very alias `alias_email`
+     * resolves through, so the two readings cannot disagree there. Here they
+     * are independent columns, so a fixture that sets `alias_id` alone and
+     * leaves `alias_name` empty gets `false` where the server would get the
+     * alias's address. Deriving from what the fixtures actually set is the
+     * point: every documents fixture sets `alias_name`/`alias_domain_id`, and
+     * none of them populates `mail.alias.alias_domain_id` at all.
+     */
+    _compute_alias_email() {
+        for (const record of this) {
+            const [domain] = record.alias_domain_id
+                ? this.env["mail.alias.domain"].browse(record.alias_domain_id)
+                : [];
+            if (domain && record.alias_name) {
+                record.alias_email = `${record.alias_name}@${domain.name}`;
+            } else {
+                record.alias_email = record.alias_name || false;
+            }
+        }
+    }
 
     get_deletion_delay() {
         return 30;
@@ -177,26 +217,39 @@ export class DocumentsDocument extends models.Model {
         for (const record of this.search_read(
             [["type", "=", "folder"]],
             [
+                // Mirrors `documents.document._get_fields_search_panel`, in its
+                // order, so a field added there is visibly absent here. The
+                // panel builds folder records straight out of these values, so
+                // one this list omits reads as unset in the details panel
+                // rather than as a missing field -- which is how `alias_email`
+                // came to render "Not set" for a folder that has one.
                 "access_internal",
+                "access_token",
                 "access_via_link",
                 "active",
-                "alias_domain_id",
-                "alias_name",
-                "alias_tag_ids",
                 "company_id",
-                "create_activity_type_id",
                 "description",
                 "display_name",
                 "user_folder_id",
-                "id",
                 "is_access_via_link_hidden",
-                "is_folder",
+                "is_favorited",
                 "mail_alias_domain_count",
                 "owner_id",
-                "partner_id",
-                "type",
+                "shortcut_document_id",
                 "user_permission",
-                "access_token",
+                "alias_domain_id",
+                "alias_email",
+                "alias_name",
+                "alias_tag_ids",
+                "create_activity_type_id",
+                "create_activity_user_id",
+                "partner_id",
+                // Not in the server list: `id` is implicit in a real
+                // `search_read` response, `is_folder`/`type` are what the mock's
+                // own callers below branch on.
+                "id",
+                "is_folder",
+                "type",
             ]
         )) {
             if (!isNaN(record.user_folder_id)) {

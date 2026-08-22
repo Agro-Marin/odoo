@@ -16,10 +16,12 @@ class WebsiteVisitor(models.Model):
         compute="_compute_event_track_wishlisted_ids", compute_sudo=True,
         search="_search_event_track_wishlisted_ids",
         groups="event.group_event_user")
-    event_track_wishlisted_count = fields.Integer(
+    event_track_wishlisted_count = fields.Count(
+        "event_track_wishlisted_ids",
         string="# Wishlisted",
-        compute="_compute_event_track_wishlisted_ids", compute_sudo=True,
-        groups='event.group_event_user')
+        compute_sudo=True,
+        groups='event.group_event_user',
+    )
 
     @api.depends('event_track_visitor_ids.track_id', 'event_track_visitor_ids.is_wishlisted')
     def _compute_event_track_wishlisted_ids(self):
@@ -31,7 +33,6 @@ class WebsiteVisitor(models.Model):
         track_ids_map = {visitor.id: track_ids for visitor, track_ids in results}
         for visitor in self:
             visitor.event_track_wishlisted_ids = track_ids_map.get(visitor.id, [])
-            visitor.event_track_wishlisted_count = len(visitor.event_track_wishlisted_ids)
 
     def _search_event_track_wishlisted_ids(self, operator, operand):
         """ Search visitors with terms on wishlisted tracks. E.g. [('event_track_wishlisted_ids',

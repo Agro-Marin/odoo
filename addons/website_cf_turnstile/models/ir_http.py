@@ -25,12 +25,12 @@ class IrHttp(models.AbstractModel):
         return session
 
     @api.model
-    def _verify_request_recaptcha_token(self, action):
+    def _check_request_recaptcha_token(self, action):
         """ Verify the recaptcha token for the current request.
             If no recaptcha private key is set the recaptcha verification
             is considered inactive and this method will return True.
         """
-        super()._verify_request_recaptcha_token(action)
+        super()._check_request_recaptcha_token(action)
         ip_addr = request.httprequest.remote_addr
         token = request.params.pop('turnstile_captcha', False)
         turnstile_result = request.env['ir.http']._verify_turnstile_token(ip_addr, token, action)

@@ -44,11 +44,11 @@ class SurveyQuota(models.Model):
     )
     current_count = fields.Integer(
         "Current Count",
-        compute="_compute_current_count",
+        compute="_compute_quota_usage",
     )
     is_full = fields.Boolean(
         "Quota Full",
-        compute="_compute_current_count",
+        compute="_compute_quota_usage",
     )
     active = fields.Boolean(default=True)
 
@@ -58,7 +58,7 @@ class SurveyQuota(models.Model):
     )
 
     @api.depends("survey_id", "answer_id", "limit")
-    def _compute_current_count(self) -> None:
+    def _compute_quota_usage(self) -> None:
         """Count completed responses that selected this answer."""
         for quota in self:
             count = self.env["survey.user_input.line"].search_count(

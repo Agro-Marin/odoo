@@ -38,7 +38,6 @@ class TestMultipage(TransactionCase):
         self.assertFalse(document.is_multipage)
 
     def test_multipage_under_bin_size(self):
-        """The page count must not depend on the ambient `bin_size` context."""
         document = self.env["documents.document"].create(
             {
                 "name": "multipage.pdf",
@@ -57,7 +56,6 @@ class TestMultipage(TransactionCase):
         )
 
     def test_multipage_parameterised_pdf_mimetype(self):
-        """A mimetype carrying parameters is still a PDF."""
         document = self.env["documents.document"].create(
             {
                 "name": "multipage.pdf",
@@ -69,7 +67,6 @@ class TestMultipage(TransactionCase):
         self.assertTrue(document.is_multipage)
 
     def test_multipage_without_attachment(self):
-        """A document with no attachment (e.g. a shortcut) is not a PDF."""
         target = self.env["documents.document"].create(
             {
                 "name": "multipage.pdf",

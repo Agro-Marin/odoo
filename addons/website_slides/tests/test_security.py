@@ -335,7 +335,7 @@ class TestAccessHttp(common.SlidesCase, HttpCase):
     def test_access_slide_attachment(self):
         """Check the document of slides, pdf or images, stored in a binary field, so as `ir.attachment`,
         are accessible to a user according to his access to the slide itself"""
-        image_placeholder = self.env["ir.binary"]._placeholder()
+        image_placeholder = self.env["ir.binary"]._get_placeholder_bytes()
 
         slides = self.env["slide.slide"].create(
             [

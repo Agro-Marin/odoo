@@ -477,7 +477,7 @@ class DateRangeGenerator(models.TransientModel):
                         "end": self.date_end or "Not set",
                     }
                 ) from error
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "date_range.date_range_action"
         )
         action["domain"] = [("type_id", "=", self.type_id.id)]

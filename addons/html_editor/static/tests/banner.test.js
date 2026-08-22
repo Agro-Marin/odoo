@@ -6,7 +6,7 @@ import {
     waitFor,
 } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { loader } from "@web/components/emoji_picker/emoji_picker";
+import { loader } from "@web/components/emoji_picker";
 
 import { setupEditor } from "./_helpers/editor.js";
 import { unformat } from "./_helpers/format.js";

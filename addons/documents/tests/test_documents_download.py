@@ -1,8 +1,3 @@
-"""Taking bytes out: download policy, zips, and the audit trail.
-
-Named for what it protects, not for the review that produced it.
-"""
-
 import zipfile
 from io import BytesIO
 
@@ -16,7 +11,6 @@ from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 
 
 class TestDocumentsDownloadBlocked(TransactionCase):
-    """ "Can look, cannot take a copy" -- the level between Viewer and None."""
 
     @classmethod
     def setUpClass(cls):
@@ -60,8 +54,6 @@ class TestDocumentsDownloadBlocked(TransactionCase):
             self.document.with_user(self.viewer)._is_download_allowed(),
             "a viewer must not be able to take a copy",
         )
-        # An editor can replace the content outright, so withholding a copy of
-        # it from them would express nothing.
         self.assertEqual(self.document.with_user(self.editor).user_permission, "edit")
         self.assertTrue(self.document.with_user(self.editor)._is_download_allowed())
 
@@ -75,7 +67,6 @@ class TestDocumentsDownloadBlocked(TransactionCase):
         self.assertTrue(open_document.with_user(self.viewer)._is_download_allowed())
 
     def test_a_shortcut_follows_its_target(self):
-        """The flag belongs to the content, not to the pointer at it."""
         shortcut = self.document.with_user(self.editor).action_create_shortcut(
             location_user_folder_id="MY"
         )
@@ -85,11 +76,6 @@ class TestDocumentsDownloadBlocked(TransactionCase):
         )
 
     def test_the_setting_propagates_into_a_folder(self):
-        """Blocking a folder is a statement about what it holds.
-
-        Left on the folder alone it would only stop the folder's own zip while
-        every file inside it stayed one click away.
-        """
         folder = self.env["documents.document"].create(
             {"name": "Restricted folder", "type": "folder"}
         )
@@ -111,12 +97,6 @@ class TestDocumentsDownloadBlocked(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestDocumentsDownloadBlockedRoutes(HttpCase):
     def test_blocked_content_is_viewable_but_not_downloadable(self):
-        """The preview keeps working: that is the whole point of the setting.
-
-        It is a deterrent rather than a control -- the bytes still reach the
-        browser to be displayed -- and what it stops is the one-click download,
-        which is what the setting is asked for.
-        """
         document = self.env["documents.document"].create(
             {
                 "name": "watch-only.txt",
@@ -137,7 +117,6 @@ class TestDocumentsDownloadBlockedRoutes(HttpCase):
         self.assertEqual(download.status_code, 403)
 
     def test_blocked_children_are_left_out_of_a_folder_archive(self):
-        """Enforced in the archive walk, so nesting is not a way around it."""
         folder = self.env["documents.document"].create(
             {"name": "Mixed", "type": "folder", "access_via_link": "view"}
         )
@@ -182,7 +161,6 @@ class TestDocumentsDownloadBlockedRoutes(HttpCase):
 
 
 class TestDocumentsAccessLog(TransactionCase):
-    """The history `documents.access.last_access_date` cannot keep."""
 
     @classmethod
     def setUpClass(cls):
@@ -200,7 +178,6 @@ class TestDocumentsAccessLog(TransactionCase):
         return self.Log.search(domain)
 
     def test_repeated_history_is_kept_where_last_access_date_overwrites(self):
-        """Two visits an hour apart are two rows, not one overwritten field."""
         self.env["ir.config_parameter"].sudo().set_param(
             "documents.access_log_window", "0"
         )
@@ -212,7 +189,6 @@ class TestDocumentsAccessLog(TransactionCase):
         self.assertEqual(len(self._entries("download")), 2)
 
     def test_repeat_visits_are_coalesced_within_the_window(self):
-        """The log sits on read paths; it must not become a write amplifier."""
         self.env["ir.config_parameter"].sudo().set_param(
             "documents.access_log_window", "3600"
         )
@@ -223,7 +199,6 @@ class TestDocumentsAccessLog(TransactionCase):
             len(self._entries("view")), 1, "repeats inside the window collapse"
         )
 
-        # A different action is a different fact, and is recorded separately.
         self.Log._log(self.document, self.partner, "download")
         self.assertEqual(len(self._entries("download")), 1)
 
@@ -244,11 +219,6 @@ class TestDocumentsAccessLog(TransactionCase):
         )
 
     def test_the_log_is_reachable_from_a_document(self):
-        """Captured data nobody can look at is not an audit trail.
-
-        The log is browsable in its own right (Configuration > Access Log) for
-        querying across documents; this is the other direction.
-        """
         self.env["ir.config_parameter"].sudo().set_param(
             "documents.access_log_window", "0"
         )
@@ -264,7 +234,6 @@ class TestDocumentsAccessLog(TransactionCase):
         )
 
     def test_a_manager_only_sees_the_log_of_documents_they_can_reach(self):
-        """Otherwise the log leaks the existence of documents you cannot see."""
         manager = self.env["res.users"].create(
             {
                 "name": "Log Manager",
@@ -325,12 +294,6 @@ class TestDocumentsAccessLog(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestDocumentsAccessLogRoutes(HttpCase):
     def test_download_is_recorded_and_preview_is_not(self):
-        """Downloads are the audit-relevant event; previews are noise.
-
-        Serving a download writes, so the route drops its read-only cursor for
-        exactly that case -- rather than writing on the read-only path, which
-        the dispatcher answers by re-running the whole handler.
-        """
         self.env["ir.config_parameter"].sudo().set_param(
             "documents.access_log_window", "0"
         )
@@ -373,7 +336,6 @@ class TestDocumentsZipShortcuts(HttpCaseWithUserDemo):
     def setUpClass(cls):
         super().setUpClass()
         Document = cls.env["documents.document"]
-        # A shared folder holding a shortcut to another folder that has content.
         cls.shared_folder = Document.create(
             {
                 "name": "Shared",
@@ -428,14 +390,6 @@ class TestDocumentsZipShortcuts(HttpCaseWithUserDemo):
         return set(zipfile.ZipFile(BytesIO(response.content)).namelist())
 
     def test_folder_shortcut_carries_the_target_contents(self):
-        """A shortcut to a folder must zip what the folder holds.
-
-        `_plan_zip_entries` recursed with `_get_folder_children(<the shortcut>)`,
-        and children hang off the target, never off the shortcut -- so the
-        archive carried an entry for the folder and nothing inside it. A
-        shortcut to a *file* has always been resolved (see
-        `test_doc_ctrl_content_folder`); this is the same promise for folders.
-        """
         entries = self._entries(self.shared_folder)
 
         self.assertIn("Target/", entries, "the shortcut itself is listed")
@@ -448,7 +402,6 @@ class TestDocumentsZipShortcuts(HttpCaseWithUserDemo):
         self.assertIn("Target/Nested/inside_nested.txt", entries)
 
     def test_folder_shortcut_hides_an_unreachable_target(self):
-        """Resolving the shortcut must not widen what the link grants."""
         self.target_child.access_via_link = "none"
         self.nested_folder.access_via_link = "none"
 
@@ -459,7 +412,6 @@ class TestDocumentsZipShortcuts(HttpCaseWithUserDemo):
         self.assertNotIn("Target/Nested/", entries)
 
     def test_folder_shortcut_cycle_terminates(self):
-        """A shortcut pointing back up the tree must not loop forever."""
         self.env["documents.document"].create(
             {
                 "name": "loop",
@@ -479,7 +431,6 @@ class TestDocumentsZipShortcuts(HttpCaseWithUserDemo):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsDownloadAudit(HttpCase, TransactionCaseDocuments):
-    """Every route that ships bytes records who took them."""
 
     @classmethod
     def setUpClass(cls):
@@ -520,11 +471,6 @@ class TestDocumentsDownloadAudit(HttpCase, TransactionCaseDocuments):
         )
 
     def test_zip_route_records_every_document_it_ships(self):
-        """`/documents/zip` is what the web client uses for 2+ documents.
-
-        It used to write nothing at all, so the access log answered "who took
-        this file" for single downloads and stayed silent for every bulk one.
-        """
         self.authenticate("documents@example.com", "doc_user_pwd")
         both = self.audit_a | self.audit_b
         self.assertFalse(self._downloaded(both))
@@ -537,7 +483,6 @@ class TestDocumentsDownloadAudit(HttpCase, TransactionCaseDocuments):
         self.assertEqual(self._downloaded(both), both)
 
     def test_folder_download_records_its_contents_too(self):
-        """Zipping a folder takes the files inside it, so it logs them."""
         self.authenticate("documents@example.com", "doc_user_pwd")
         response = self.url_open(
             f"/documents/content/{self.audit_folder.access_token}?download=true"
@@ -547,11 +492,6 @@ class TestDocumentsDownloadAudit(HttpCase, TransactionCaseDocuments):
         self.assertEqual(self._downloaded(whole_tree), whole_tree)
 
     def test_folder_token_is_never_served_read_only(self):
-        """A folder ignores `download`, so it always zips and always logs.
-
-        Declaring that request read-only was a `ReadOnlySqlTransaction` and a
-        full re-run of the handler on any deployment with a replica.
-        """
         from odoo.addons.documents.controllers.documents import ShareRoute
 
         self.authenticate("documents@example.com", "doc_user_pwd")
@@ -576,14 +516,12 @@ class TestDocumentsDownloadAudit(HttpCase, TransactionCaseDocuments):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsLastAccessUpsert(TransactionCaseDocuments):
-    # -- _upsert_last_access_date is now atomic & idempotent ----------------
     @mute_logger("odoo.sql_db")
     def test_upsert_last_access_date_idempotent(self):
         from odoo.addons.documents.controllers.documents import ShareRoute
 
         doc = self.document_gif
         env = self.env(user=self.internal_user)
-        # ensure no pre-existing row
         self.env["documents.access"].sudo().search(
             [
                 ("document_id", "=", doc.id),

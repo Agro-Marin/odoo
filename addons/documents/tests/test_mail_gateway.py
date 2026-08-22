@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import ast
 
 from dateutil.relativedelta import relativedelta
@@ -21,10 +19,6 @@ from odoo.addons.test_mail.data.test_mail_data import (
 
 
 class TestMailGateway(MailCommon):
-    """Test document creation/update on incoming mail.
-
-    Mainly that the partner_id is correctly set on the created document.
-    """
 
     @classmethod
     def setUpClass(cls):
@@ -49,14 +43,13 @@ class TestMailGateway(MailCommon):
             }
         )
 
-        # edit the alias tags after the alias has been created
         cls.folder.alias_tag_ids = cls.tag.ids
 
         cls.email_with_no_partner = tools.email_normalize("non-existing@test.com")
-        cls.pre_existing_partner = cls.env["res.partner"].find_or_create(
+        cls.pre_existing_partner = cls.env["res.partner"].get_or_create(
             "existing@test.com"
         )
-        cls.email_filenames = ["attachment", "original_msg.eml"]
+        cls.email_filenames = ["original_msg.eml"]
         cls.document = (
             cls.env["documents.document"]
             .with_context(mail_create_nolog=True)
@@ -148,7 +141,6 @@ class TestMailGateway(MailCommon):
             )
 
     def test_reply_with_attachment(self):
-        """Test reply with an attachment to a message posted on a document."""
         message_ask_files = self.document.with_user(self.user_employee).message_post(
             subject="Could you send the missing files ?",
             subtype_xmlid="mail.mt_comment",
@@ -175,7 +167,8 @@ class TestMailGateway(MailCommon):
                     ("res_model", "=", self.document._name),
                 ]
             ),
-            3,
+            2,
+            "the document's own file, plus the single one the reply carried",
         )
         doc_messages = self.env["mail.message"].search(
             [("res_id", "=", self.document.id), ("model", "=", self.document._name)]
@@ -210,8 +203,9 @@ class TestMailGateway(MailCommon):
             self.env["documents.document"]
             .with_context(active_test=False)
             .search_count([]),
-            documents_count + 3,
-            "2 attachments in the email, so 2 documents are created, and 1 archived with the default values",
+            documents_count + 2,
+            "1 attachment in the email, so 1 document is created, "
+            "and 1 archived with the default values",
         )
 
     @mute_logger(
@@ -238,8 +232,9 @@ class TestMailGateway(MailCommon):
             self.env["documents.document"]
             .with_context(active_test=False)
             .search_count([]),
-            documents_count + 3,
-            "2 attachments in the email, so 2 documents are created, and 1 archived with the default values",
+            documents_count + 2,
+            "1 attachment in the email, so 1 document is created, "
+            "and 1 archived with the default values",
         )
 
     @mute_logger(
@@ -247,7 +242,6 @@ class TestMailGateway(MailCommon):
         "odoo.addons.mail.models.mixin_mail_gateway",
     )
     def test_no_attachment(self):
-        """Test the behavior when we send an email without attachment on the mail alias."""
         documents_count = (
             self.env["documents.document"]
             .with_context(active_test=False)
@@ -278,7 +272,6 @@ class TestMailGateway(MailCommon):
         "odoo.addons.mail.models.mixin_mail_gateway",
     )
     def test_create_activity(self):
-        """Test that an activity is created on the document if enabled on the folder."""
         self.folder.write(
             {
                 "create_activity_option": True,
@@ -311,7 +304,6 @@ class TestMailGateway(MailCommon):
         "odoo.addons.mail.models.mixin_mail_gateway",
     )
     def test_create_activity_with_alias_defaults(self):
-        """Test that alias_defaults activity creation settings has precedence over the folder's ones."""
         defaults = ast.literal_eval(self.folder.alias_id.alias_defaults)
         defaults.update(
             {
@@ -358,7 +350,6 @@ class TestMailGateway(MailCommon):
         "odoo.addons.mail.models.mixin_mail_gateway",
     )
     def test_create_activity_disabled(self):
-        """Test that no activity is created on the document if not enabled on the folder."""
         for document in self.send_test_mail_with_attachment(
             self.pre_existing_partner.email
         ):
@@ -376,7 +367,6 @@ class TestMailGateway(MailCommon):
         "odoo.addons.mail.models.mixin_mail_gateway",
     )
     def test_custom_tags_list(self):
-        """Test that the custom tags have the priority over `alias_tag_ids`."""
         defaults = ast.literal_eval(self.folder.alias_id.alias_defaults)
         defaults["tag_ids"] = [self.other_tag.id, self.non_existing_tag_id]
         self.folder.alias_defaults = repr(defaults)
@@ -435,7 +425,6 @@ class TestMailGateway(MailCommon):
             self.assertFalse(document.tag_ids)
 
     def test_alias_access(self):
-        """Test that only the documents manager can set an alias."""
         Doc = self.env["documents.document"].with_context(
             default_access_internal="edit"
         )
@@ -455,7 +444,6 @@ class TestMailGateway(MailCommon):
                 {"name": "Test", "alias_name": "doc_test_1", "type": "folder"}
             )
 
-        # in SUDO, the user can set the alias
         document = (
             Doc.with_user(user)
             .sudo()
@@ -463,7 +451,6 @@ class TestMailGateway(MailCommon):
         )
         self.assertEqual(document.alias_name, "doc_test_2")
 
-        # the manager can set the alias
         document = Doc.with_user(manager).create(
             {"name": "Test", "alias_name": "doc_test_3", "type": "folder"}
         )

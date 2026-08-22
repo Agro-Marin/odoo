@@ -2,7 +2,7 @@
 import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { rpc } from "@web/core/network";
-import { SelectMenu } from "@web/components/select_menu/select_menu";
+import { SelectMenu } from "@web/components/select_menu";
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 

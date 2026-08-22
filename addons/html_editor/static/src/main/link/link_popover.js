@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, useEffect, useExternalListener, useRef, useState } from "@odoo/owl";
-import { CheckBox } from "@web/components/checkbox/checkbox";
-import { useColorPicker } from "@web/components/color_picker/color_picker";
+import { CheckBox } from "@web/components/checkbox";
+import { useColorPicker } from "@web/components/color_picker";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";

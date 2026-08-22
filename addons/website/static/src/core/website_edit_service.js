@@ -168,8 +168,8 @@ export const websiteEditService = {
                             super.destroyInteraction();
                         });
                     },
-                    protectSyncAfterAsync(interaction, name, fn) {
-                        fn = super.protectSyncAfterAsync(interaction, name, fn);
+                    bindDeferred(interaction, fn) {
+                        fn = super.bindDeferred(interaction, fn);
                         return (...args) =>
                             historyCallbacks.ignoreDOMMutations(() => fn(...args));
                     },

@@ -43,7 +43,7 @@ class WebsiteAssets(models.AbstractModel):
         :param str bundle: the name of the bundle in which the customizations
             to delete were made
         """
-        custom_url = self._make_custom_asset_url(url, bundle)
+        custom_url = self._prepare_custom_asset_url(url, bundle)
 
         # Delete both the attachment holding the modified scss/js file and the
         # ir.asset record which links it.
@@ -62,7 +62,7 @@ class WebsiteAssets(models.AbstractModel):
         :param str file_type: either 'scss' or 'js' according to the file being
             customized
         """
-        custom_url = self._make_custom_asset_url(url, bundle)
+        custom_url = self._prepare_custom_asset_url(url, bundle)
         datas = base64.b64encode((content or "\n").encode("utf-8"))
 
         # Check if the file to save had already been modified
@@ -103,7 +103,7 @@ class WebsiteAssets(models.AbstractModel):
                     bundle,
                     custom_url.split("/")[-1],
                 )
-                new_asset["bundle"] = IrAsset._get_related_bundle(url, bundle)
+                new_asset["bundle"] = IrAsset._get_bundle_containing_path(url, bundle)
             IrAsset.create(new_asset)
 
     @api.model
@@ -167,7 +167,7 @@ class WebsiteAssets(models.AbstractModel):
         }
 
     @api.model
-    def _make_custom_asset_url(self, url, bundle_xmlid):
+    def _prepare_custom_asset_url(self, url, bundle_xmlid):
         """Return the URL a given asset would have if it were customized.
 
         :param str url: the original asset's url
@@ -247,7 +247,7 @@ class WebsiteAssets(models.AbstractModel):
                 str(google_local_fonts).replace("{", "(").replace("}", ")")
             )
 
-        custom_url = self._make_custom_asset_url(url, "web.assets_frontend")
+        custom_url = self._prepare_custom_asset_url(url, "web.assets_frontend")
         updatedFileContent = self._get_content_from_url(
             custom_url
         ) or self._get_content_from_url(url)

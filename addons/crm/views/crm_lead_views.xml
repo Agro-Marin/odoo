@@ -1299,7 +1299,7 @@
         </record>
 
         <!-- create a lead from 'Teams' kanban -->
-        <record id="crm_lead_action_open_lead_form" model="ir.actions.act_window">
+        <record id="crm_lead_action_view_lead_form" model="ir.actions.act_window">
             <field name="name">New Lead</field>
             <field name="res_model">crm.lead</field>
             <field name="view_mode">form</field>

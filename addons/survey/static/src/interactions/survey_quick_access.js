@@ -63,7 +63,7 @@ export class SurveyQuickAccess extends Interaction {
         const response = await this.waitFor(
             rpc(`/survey/check_session_code/${sessionCodeInputVal}`),
         );
-        this.protectSyncAfterAsync(() => {
+        this.bindDeferred(() => {
             if (response.survey_url) {
                 window.location = response.survey_url;
             } else {

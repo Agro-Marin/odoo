@@ -15,8 +15,8 @@ Registry-driven SQL construction for ``_auto = False`` models.  Subclasses
 define SELECT / FROM / WHERE / GROUP BY clauses as dicts and lists rather than
 monolithic strings; inheritance is just dict / list mutation::
 
-    def _get_select_fields(self):
-        fields = super()._get_select_fields()
+    def _get_fields_select(self):
+        fields = super()._get_fields_select()
         fields["margin"] = "SUM(l.margin)"
         return fields
 
@@ -55,7 +55,7 @@ every search.
         _inherit = ["mixin.sql.report", "mixin.materialized.view"]
         _auto = False
 
-        def _get_select_fields(self): ...
+        def _get_fields_select(self): ...
         def _get_from_tables(self): ...
 
         def init(self):

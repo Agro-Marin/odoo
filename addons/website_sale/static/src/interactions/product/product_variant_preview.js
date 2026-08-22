@@ -101,7 +101,7 @@ export class ProductVariantPreview extends Interaction {
      */
     updateVariantPreview() {
         const attributePreviewers = this.el.querySelectorAll(".o_wsale_attribute_previewer");
-        const updateAllVariantPreview = this.protectSyncAfterAsync(() => {
+        const updateAllVariantPreview = this.bindDeferred(() => {
             const attributePreviewerValues = new Map();
 
             // Initiate the values needed for each attribute previewer.

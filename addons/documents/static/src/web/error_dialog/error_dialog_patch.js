@@ -3,7 +3,7 @@ import { browser } from "@web/core/browser/browser";
 import { ErrorDialog } from "@web/components/errors";
 import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { CopyButton } from "@web/components/copy_button/copy_button";
+import { CopyButton } from "@web/components/copy_button";
 
 import { patch } from "@web/core/utils/patch";
 import * as luxon from "luxon";

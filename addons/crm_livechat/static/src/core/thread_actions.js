@@ -27,7 +27,7 @@ registerThreadAction("create-lead", {
         if (!owner.env.inChatWindow) {
             this.popover = usePopover(LivechatCommandDialog, {
                 onClose: () => this.close(),
-                popoverClass: this.panelOuterClass,
+                class: this.panelOuterClass,
             });
         }
     },

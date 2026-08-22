@@ -1,7 +1,7 @@
 /** @odoo-module native */
 
 import { onWillStart } from "@odoo/owl";
-import { DomainSelector } from "@web/components/domain_selector/domain_selector";
+import { DomainSelector } from "@web/components/domain_selector";
 import { patch } from "@web/core/utils/patch";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/translation";

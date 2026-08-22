@@ -49,7 +49,7 @@ class ResPartner(models.Model):
         return data_list
 
     def action_view_opportunity(self):
-        action = self.env['ir.actions.act_window']._for_xml_id('crm.crm_lead_opportunities')
+        action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('crm.crm_lead_opportunities')
         action['context'] = {
             'search_default_filter_won': 1,
             'search_default_filter_ongoing': 1,

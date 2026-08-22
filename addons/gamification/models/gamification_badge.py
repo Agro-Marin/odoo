@@ -122,7 +122,7 @@ class GamificationBadge(models.Model):
 
     remaining_sending = fields.Integer(
         "Remaining Sending Allowed",
-        compute="_remaining_sending_calc",
+        compute="_compute_remaining_sending",
         help="If a maximum is set",
     )
 
@@ -230,7 +230,7 @@ class GamificationBadge(models.Model):
         "rule_max_number",
         "stat_my_monthly_sending",
     )
-    def _remaining_sending_calc(self) -> None:
+    def _compute_remaining_sending(self) -> None:
         """Computes the number of badges remaining the user can send
 
         0 if not allowed or no remaining

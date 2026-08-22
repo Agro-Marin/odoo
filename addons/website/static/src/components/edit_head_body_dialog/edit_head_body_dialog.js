@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
-import { CodeEditor } from "@web/components/code_editor/code_editor";
+import { CodeEditor } from "@web/components/code_editor";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
 

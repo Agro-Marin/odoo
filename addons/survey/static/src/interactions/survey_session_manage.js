@@ -200,7 +200,7 @@ export class SurveySessionManage extends Interaction {
         await this.waitFor(
             browser.navigator.clipboard.writeText(ev.currentTarget.innerText.trim()),
         );
-        this.protectSyncAfterAsync(() => {
+        this.bindDeferred(() => {
             this.copyBtnPopover.show();
             this.waitForTimeout(
                 () => this.copyBtnPopover.hide(),
@@ -430,7 +430,7 @@ export class SurveySessionManage extends Interaction {
         }
         // await both the fadeout and the rpc
         await this.waitFor(Promise.all([fadeOutPromise, preloadBgPromise]));
-        this.protectSyncAfterAsync(() => this.onNextQuestionDone(goBack))();
+        this.bindDeferred(() => this.onNextQuestionDone(goBack))();
     }
 
     /**
@@ -492,7 +492,7 @@ export class SurveySessionManage extends Interaction {
                 [this.surveyId],
             ]),
         );
-        this.protectSyncAfterAsync(() => {
+        this.bindDeferred(() => {
             if (showResults) {
                 window.location.href = `/survey/results/${encodeURIComponent(this.surveyId)}`;
             } else {
@@ -643,7 +643,7 @@ export class SurveySessionManage extends Interaction {
      */
     refreshResults() {
         this.waitFor(rpc(`/survey/session/results/${this.surveyAccessToken}`)).then(
-            this.protectSyncAfterAsync((questionResults) => {
+            this.bindDeferred((questionResults) => {
                 if (questionResults) {
                     this.attendeesCount = questionResults.attendees_count;
 
@@ -714,7 +714,7 @@ export class SurveySessionManage extends Interaction {
                     }
                 }
             }),
-            this.protectSyncAfterAsync(() => {
+            this.bindDeferred(() => {
                 // onRejected, stop refreshing
                 clearInterval(this.resultsRefreshInterval);
                 delete this.resultsRefreshInterval;
@@ -733,14 +733,14 @@ export class SurveySessionManage extends Interaction {
                 ["session_answer_count"],
             ),
         ).then(
-            this.protectSyncAfterAsync((result) => {
+            this.bindDeferred((result) => {
                 if (result && result.length === 1) {
                     this.sessionAttendeesCountText = String(
                         result[0].session_answer_count,
                     );
                 }
             }),
-            this.protectSyncAfterAsync((err) => {
+            this.bindDeferred((err) => {
                 // on failure, stop refreshing
                 clearInterval(this.attendeesRefreshInterval);
                 console.error(err);

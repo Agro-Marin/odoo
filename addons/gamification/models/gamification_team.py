@@ -31,7 +31,7 @@ class GamificationTeam(models.Model):
         string="Captain",
         help="Team leader who receives challenge reports.",
     )
-    member_count = fields.Integer("# Members", compute="_compute_member_count")
+    member_count = fields.Count("member_ids", "# Members")
 
     # Computed team stats
     team_karma = fields.Integer(
@@ -52,12 +52,6 @@ class GamificationTeam(models.Model):
         "gamification_challenge_team_rel",
         string="Active Challenges",
     )
-
-    @api.depends("member_ids")
-    def _compute_member_count(self) -> None:
-        """Count members per team."""
-        for team in self:
-            team.member_count = len(team.member_ids)
 
     @api.depends("member_ids.karma", "member_ids.badge_ids")
     def _compute_team_stats(self) -> None:
