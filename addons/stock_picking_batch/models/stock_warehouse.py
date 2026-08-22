@@ -6,8 +6,8 @@ from odoo import models
 class StockWarehouse(models.Model):
     _inherit = "stock.warehouse"
 
-    def _get_picking_type_create_values(self):
-        data = super()._get_picking_type_create_values()
+    def _prepare_picking_type_create_vals(self):
+        data = super()._prepare_picking_type_create_vals()
         updatable_types = {
             k: v for (k, v) in data.items() if v.get("code") in ("incoming", "outgoing")
         }

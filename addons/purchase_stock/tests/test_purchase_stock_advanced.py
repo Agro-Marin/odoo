@@ -180,7 +180,7 @@ class TestPurchaseStockAdvanced(TestStockCommon):
         )
 
         # Run scheduler - should not create PO but should handle gracefully
-        self.env["stock.rule"].with_context(from_orderpoint=True).run_scheduler()
+        self.env["stock.scheduler"].with_context(from_orderpoint=True).run()
 
         # Check that no PO was created for the product without vendor
         self.env["purchase.order.line"].search(
@@ -232,7 +232,7 @@ class TestPurchaseStockAdvanced(TestStockCommon):
         )
 
         # Run scheduler
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
 
         # Check if PO was created - should still work, just uses the min_qty
         self.env["purchase.order.line"].search(

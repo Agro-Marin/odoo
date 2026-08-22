@@ -197,6 +197,11 @@ class TestPurchaseOrderWritePerf(AccountTestInvoicingCommon):
     @warmup
     def test_po_line_qty_update(self):
         line = self.purchase_order.line_ids[0]
+        # Changing product_qty re-selects the seller (price breaks), which
+        # recomputes the line name; _get_line_description_from_product reads the
+        # stored product_no_variant_attribute_value_ids m2m (one query) to append
+        # no-variant attribute spec to the RFQ description (upstream 19.0 fix
+        # ported in "port upstream 19.0 fixes since fork"). Baseline was 22.
         with self.assertQueryCount(admin=23):
             line.write({"product_qty": 20})
 

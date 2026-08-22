@@ -102,6 +102,7 @@ class TestStockMoveInvoice(TestSaleCommon):
     def test_02_delivery_stock_move(self):
         # Test if SN product shipment line has the correct amount
         self.product_cable_management_box.write({
+            'is_storable': True,
             'tracking': 'serial'
         })
 
@@ -109,6 +110,18 @@ class TestStockMoveInvoice(TestSaleCommon):
             'name': str(x),
             'product_id': self.product_cable_management_box.id,
         } for x in range(5)])
+
+        # The product is storable now, so the delivery reserves rather than
+        # inventing its lines: with nothing on hand there is nothing to write a
+        # serial onto. Two units, one per serial, for the two the order asks for.
+        warehouse = self.env['stock.warehouse'].search(
+            [('company_id', '=', self.env.company.id)], limit=1)
+        self.env['stock.quant'].with_context(inventory_mode=True).create([{
+            'product_id': self.product_cable_management_box.id,
+            'location_id': warehouse.lot_stock_id.id,
+            'lot_id': lot.id,
+            'inventory_quantity': 1,
+        } for lot in serial_numbers[:2]])._apply_inventory()
 
         self.sale_prepaid = self.SaleOrder.create({
             'partner_id': self.partner_18.id,

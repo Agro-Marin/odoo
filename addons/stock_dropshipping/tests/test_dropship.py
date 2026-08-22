@@ -29,6 +29,7 @@ class TestDropship(common.TransactionCase):
 
         cls.lot_dropship_product = cls.env['product.product'].create({
             'name': "Serial product",
+            'is_storable': True,
             'tracking': 'lot',
             'seller_ids': [(0, 0, {
                 'partner_id': cls.supplier.id,

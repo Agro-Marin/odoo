@@ -76,6 +76,7 @@ class ResourceResource(models.Model):
         string="Working Time",
         default=lambda self: self.env.company.resource_calendar_id,
         domain="[('company_id', 'in', [company_id, False])]",
+        index="btree_not_null",
         help="Define the working schedule of the resource. If not set, the resource will have fully flexible working hours.",
     )
     tz = fields.Selection(

@@ -764,7 +764,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         #     # link all move lines to record 0 (the one we will keep).
         #     moves.mapped('move_line_ids').write({'move_id': moves[0].id})
         #     # merge move data
-        #     moves[0].write(moves._merge_moves_fields())
+        #     moves[0].write(moves._prepare_merge_moves_vals())
         #     # update merged moves dicts
         #     moves_to_unlink |= moves[1:]
         # ```
@@ -2864,8 +2864,11 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         Creates a sale order with a tracked product, validates it and its delivery, then creates a
         return validates it and finally creates a second return.
         """
-        self.product_a.tracking = "serial"
+        # `is_storable` first: lot/serial tracking requires it, and two separate
+        # assignments each go through `write` and its constraints, so the
+        # intermediate state has to be legal too.
         self.product_a.is_storable = True
+        self.product_a.tracking = "serial"
         sn1 = self.env["stock.lot"].create(
             {
                 "name": "SN0001",

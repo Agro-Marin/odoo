@@ -66,8 +66,8 @@ class StockWarehouse(models.Model):
                 purchase_route.warehouse_ids = [Command.link(warehouse.id)]
         return super()._create_or_update_route()
 
-    def _generate_global_route_rules_values(self):
-        rules = super()._generate_global_route_rules_values()
+    def _prepare_global_route_rule_vals(self):
+        rules = super()._prepare_global_route_rule_vals()
         location_id = self.lot_stock_id
         rules.update(
             {
@@ -94,6 +94,12 @@ class StockWarehouse(models.Model):
         )
         return rules
 
+    def _get_route_trigger_fields(self):
+        return super()._get_route_trigger_fields() | {"buy_to_resupply"}
+
+    def _get_global_rule_fields(self):
+        return super()._get_global_rule_fields() | {"buy_pull_id"}
+
     def _get_all_routes(self):
         routes = super()._get_all_routes()
         routes |= (
@@ -109,15 +115,15 @@ class StockWarehouse(models.Model):
         )
         return routes
 
-    def get_rules_dict(self):
-        result = super().get_rules_dict()
+    def _get_rules_dict(self):
+        result = super()._get_rules_dict()
         for warehouse in self:
             result[warehouse.id].update(warehouse._get_receive_rules_dict())
         return result
 
-    def _get_routes_values(self):
-        routes = super()._get_routes_values()
-        routes.update(self._get_receive_routes_values("buy_to_resupply"))
+    def _prepare_route_vals(self):
+        routes = super()._prepare_route_vals()
+        routes.update(self._prepare_receive_route_vals("buy_to_resupply"))
         return routes
 
     # No `_update_name_and_code` override: the buy rule's name is built by

@@ -641,7 +641,8 @@ class ProductProduct(models.Model):
             return False
         # Same location/warehouse scope as qty_available, but without the owner filter.
         domain = (
-            Domain([("product_id", "=", self.id)]) & self._get_domain_locations()[0]
+            Domain([("product_id", "=", self.id)])
+            & self.env["stock.location"]._quantity_domains_from_context()[0]
         )
         physical_qty = sum(
             self.env["stock.quant"].sudo().search(domain).mapped("quantity")

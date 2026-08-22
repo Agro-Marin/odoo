@@ -40,8 +40,8 @@ class StockMove(models.Model):
             move.weight = move.product_qty * move.product_id.weight
         (self - moves_with_weight).weight = 0
 
-    def _get_new_picking_values(self):
-        vals = super()._get_new_picking_values()
+    def _prepare_new_picking_vals(self):
+        vals = super()._prepare_new_picking_vals()
         if not any(rule.propagate_carrier for rule in self.rule_id):
             return vals
         carrier_id = (

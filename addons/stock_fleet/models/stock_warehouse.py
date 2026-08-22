@@ -4,8 +4,8 @@ from odoo import Command, models
 class StockWarehouse(models.Model):
     _inherit = 'stock.warehouse'
 
-    def _get_picking_type_update_values(self):
-        values = super()._get_picking_type_update_values()
+    def _prepare_picking_type_update_vals(self):
+        values = super()._prepare_picking_type_update_vals()
         if self.delivery_steps == 'pick_pack_ship':
             if values.get('pack_type_id'):
                 values['pack_type_id']['dispatch_management'] = True

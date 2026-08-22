@@ -332,37 +332,39 @@ class ProductProduct(models.Model):
             qty_by_product_wh[(product.id, location.warehouse_id.id)] += product_qty
         return qty_by_product_location, qty_by_product_wh
 
-    def _get_total_routes(self):
-        routes = super()._get_total_routes()
-        if self.seller_ids:
-            buy_routes = (
-                self.env["stock.rule"].search([("action", "=", "buy")]).route_id
-            )
-            routes |= buy_routes
-        return routes
+    def _get_total_routes_by_product(self):
+        result = super()._get_total_routes_by_product()
+        buy_routes = self.env["stock.rule"].search([("action", "=", "buy")]).route_id
+        if buy_routes:
+            for product in self:
+                if product.seller_ids:
+                    result[product.id] |= buy_routes
+        return result
 
-    def _prepare_quantities_vals(
-        self,
-        lot_id,
-        owner_id,
-        package_id,
-        from_date=False,
-        to_date=False,
-        location_domains=None,
-    ):
+    def _prepare_quantities_vals(self, filters, location_domains=None):
         if (
             self.env.context.get("suggest_based_on")
             and "suggest_days" in self.env.context
         ):
-            # Override to compute actual demand suggestion and update forecast on Kanban card
-            to_date = fields.Datetime.now() + relativedelta(
-                days=self.env.context.get("suggest_days"),
+            # The demand suggestion on the Kanban card forecasts to the end of the
+            # suggestion window. `from_date` is deliberately left alone, so the
+            # read still covers every past delivery -- which is what the six
+            # re-listed parameters this replaced were mostly there to say.
+            filters = filters._replace(
+                to_date=fields.Datetime.now()
+                + relativedelta(days=self.env.context.get("suggest_days")),
             )
         return super()._prepare_quantities_vals(
-            lot_id=lot_id,
-            owner_id=owner_id,
-            package_id=package_id,
-            from_date=from_date,  # Keeping default which fetches all past deliveries
-            to_date=to_date,
-            location_domains=location_domains,
+            filters, location_domains=location_domains
         )
+
+    def _get_order_lead_days(self, delays):
+        """The days between placing the order and the planned date.
+
+        `purchase_delay` is written here and by `mrp_subcontracting_purchase`,
+        and nowhere else. Stock's `_get_dates_info` used to subscript the key
+        itself -- on a `defaultdict`, so it invented the entry as a side effect
+        and a database without this module silently got zero from a line that
+        looked like it was reading something.
+        """
+        return delays.get("purchase_delay", 0.0)

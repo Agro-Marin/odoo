@@ -8,27 +8,8 @@ class StockWarehouse(models.Model):
         "stock.picking.type", string="Point of Sale Operation Type", copy=False
     )
 
-    def _get_sequence_values(self, name=False, code=False):
-        sequence_values = super()._get_sequence_values(name=name, code=code)
-        name = name or self.name
-        code = code or self.code
-        sequence_values.update(
-            {
-                "pos_type_id": {
-                    "name": _("%(name)s Picking POS", name=name),
-                    "prefix": code
-                    + "/"
-                    + (self.pos_type_id.sequence_code or "POS")
-                    + "/",
-                    "padding": 5,
-                    "company_id": self.company_id.id,
-                }
-            }
-        )
-        return sequence_values
-
-    def _get_picking_type_update_values(self):
-        picking_type_update_values = super()._get_picking_type_update_values()
+    def _prepare_picking_type_update_vals(self):
+        picking_type_update_values = super()._prepare_picking_type_update_vals()
         picking_type_update_values.update(
             {"pos_type_id": {"default_location_src_id": self.lot_stock_id.id}}
         )
@@ -39,8 +20,8 @@ class StockWarehouse(models.Model):
         codes["pos_type_id"] = "POS"
         return codes
 
-    def _get_picking_type_create_values(self):
-        picking_type_create_values = super()._get_picking_type_create_values()
+    def _prepare_picking_type_create_vals(self):
+        picking_type_create_values = super()._prepare_picking_type_create_vals()
         picking_type_create_values.update(
             {
                 "pos_type_id": {
@@ -60,5 +41,5 @@ class StockWarehouse(models.Model):
     def _create_missing_pos_picking_types(self):
         warehouses = self.env["stock.warehouse"].search([("pos_type_id", "=", False)])
         for warehouse in warehouses:
-            new_vals = warehouse._create_or_update_sequences_and_picking_types()
+            new_vals = warehouse._create_or_update_picking_types()
             warehouse.write(new_vals)

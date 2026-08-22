@@ -1693,6 +1693,7 @@ class TestAngloSaxonValuation(TestStockValuationCommon, TestSaleStockCommon):
         self.product_avco_auto.write(
             {
                 "lot_valuated": True,
+                "is_storable": True,
                 "tracking": "lot",
             }
         )

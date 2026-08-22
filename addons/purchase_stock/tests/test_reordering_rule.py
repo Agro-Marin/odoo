@@ -115,7 +115,7 @@ class TestReorderingRule(TransactionCase):
         customer_picking = picking_form.save()
         customer_picking.action_confirm()
         # Run scheduler
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
 
         # Check purchase order created or not
         purchase_order = self.env["purchase.order"].search(
@@ -229,7 +229,7 @@ class TestReorderingRule(TransactionCase):
         )
 
         # Run scheduler
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
 
         # Check purchase order created or not
         purchase_order = self.env["purchase.order"].search(
@@ -1015,7 +1015,7 @@ class TestReorderingRule(TransactionCase):
         # run the scheduler to test the use case where the user is always the SUPERUSER
         # we invalidate the cache to force a recompute of the qty_to_order_computed in batch
         (orderpoint | dummy).invalidate_recordset()
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
         self.assertRecordValues(
             po_line, [{"name": "[A] produit en français", "product_qty": 20.0}]
         )
@@ -1497,7 +1497,7 @@ class TestReorderingRule(TransactionCase):
             }
         )
         # run the scheduler
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
         # check that the PO line is created
         po_line = self.env["purchase.order.line"].search(
             [("product_id", "=", product.id)]
@@ -1667,7 +1667,7 @@ class TestReorderingRule(TransactionCase):
             }
         )
         # run the scheduler
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
         # check that the PO line is created
         po_line = self.env["purchase.order.line"].search(
             [("product_id", "=", product.id)]

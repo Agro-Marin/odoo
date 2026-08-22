@@ -65,15 +65,15 @@ class StockMove(models.Model):
             'qty_transferred': self.quantity,
         }
 
-    def _get_new_picking_values(self):
+    def _prepare_new_picking_vals(self):
         return {
-            **super()._get_new_picking_values(),
+            **super()._prepare_new_picking_vals(),
             'project_id': self.sale_line_id.order_id.project_id.id,
         }
 
-    def _prepare_picking_values(self, picking):
+    def _prepare_picking_vals(self, picking):
         return {
-            **super()._prepare_picking_values(picking),
+            **super()._prepare_picking_vals(picking),
             'project_id': self[:1].sale_line_id.order_id.project_id.id,
         }
 

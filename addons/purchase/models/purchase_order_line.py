@@ -466,7 +466,22 @@ class PurchaseOrderLine(models.Model):
         else:
             return datetime.today() + relativedelta(days=seller.delay if seller else 0)
 
-    def _get_line_description(self, product_lang):
+    def _get_line_description_from_product(self, product_lang):
+        """Render a line description from a product record already carrying the
+        language and seller context to describe it under.
+
+        Distinct from the mixin's `_get_line_description`, which this used to
+        shadow: that one answers "describe *this line*" and takes no argument, and
+        an override that demands one breaks it for every caller holding only a
+        line. Purchase asks the other question -- "describe *this product*, as seen
+        through this vendor and this language" -- three times while deciding whether
+        a hand-edited name may be overwritten, which is why it needs the product
+        rather than the line.
+
+        :param product_lang: product record with proper language context
+        :return: the description for the purchase order line
+        :rtype: string
+        """
         self.ensure_one()
         name = product_lang.display_name
         if product_lang.description_purchase:
@@ -482,6 +497,23 @@ class PurchaseOrderLine(models.Model):
                 + no_variant_attribute_value.name
             )
         return name
+
+    def _get_default_line_description(self):
+        """The mixin's hook: describe this line from its product.
+
+        `_compute_name` does not go through it -- purchase needs the seller context
+        and its own comparison against the previous defaults, so it overrides the
+        compute outright and calls `_set_product_description`. This answers the same
+        question for a caller that holds only the line, and until now inherited the
+        mixin's `NotImplementedError`.
+        """
+        self.ensure_one()
+        return self._get_line_description_from_product(
+            self.product_id.with_context(
+                seller_id=self.selected_seller_id.id or None,
+                lang=get_lang(self.env, self.partner_id.lang).code,
+            ),
+        )
 
     def _get_price_precision(self):
         self.ensure_one()
@@ -771,7 +803,7 @@ class PurchaseOrderLine(models.Model):
 
         seller_id = self.selected_seller_id.id if self.selected_seller_id else None
         product_ctx = {"seller_id": seller_id, "lang": lang}
-        new_default = self._get_line_description(
+        new_default = self._get_line_description_from_product(
             self.product_id.with_context(product_ctx),
         )
 
@@ -788,7 +820,7 @@ class PurchaseOrderLine(models.Model):
 
         for seller in self.product_id.seller_ids:
             seller_ctx = {"seller_id": seller.id, "lang": lang}
-            seller_default = self._get_line_description(
+            seller_default = self._get_line_description_from_product(
                 self.product_id.with_context(seller_ctx),
             )
             if self.name == seller_default:
@@ -796,7 +828,7 @@ class PurchaseOrderLine(models.Model):
                 return
 
         no_seller_ctx = {"seller_id": None, "lang": lang}
-        generic_default = self._get_line_description(
+        generic_default = self._get_line_description_from_product(
             self.product_id.with_context(no_seller_ctx),
         )
         if self.name == generic_default:

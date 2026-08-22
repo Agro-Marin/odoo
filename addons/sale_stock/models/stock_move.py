@@ -222,13 +222,11 @@ class StockMove(models.Model):
         vals["sale_line_id"] = self.sale_line_id.id
         return vals
 
-    @api.model
     def _prepare_merge_moves_distinct_fields(self):
         distinct_fields = super()._prepare_merge_moves_distinct_fields()
         distinct_fields += ["sale_line_id", "created_sale_line_ids"]
         return distinct_fields
 
-    @api.model
     def _prepare_merge_negative_moves_excluded_distinct_fields(self):
         return super()._prepare_merge_negative_moves_excluded_distinct_fields() + [
             "created_sale_line_ids",

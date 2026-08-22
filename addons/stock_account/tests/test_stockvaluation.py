@@ -2843,6 +2843,7 @@ class TestStockValuation(TestStockValuationCommon):
         product = self.product_avco_auto
         product.write(
             {
+                "is_storable": True,
                 "tracking": "lot",
                 "lot_valuated": True,
             }
@@ -2982,6 +2983,7 @@ class TestStockValuation(TestStockValuationCommon):
         product = self.product_fifo_auto
         product.write(
             {
+                "is_storable": True,
                 "tracking": "lot",
                 "lot_valuated": True,
             }

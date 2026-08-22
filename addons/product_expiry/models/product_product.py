@@ -1,15 +1,36 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import datetime
 
-from odoo import fields, models
+from odoo import api, fields, models
+from odoo.fields import Domain
 
 
 class ProductProduct(models.Model):
     _inherit = "product.product"
 
-    def _prepare_quantities_vals(self, lot_id, owner_id, package_id, from_date=False, to_date=False, location_domains=None):
-        return super(ProductProduct, self.with_context(with_expiration=datetime.date.today()))._prepare_quantities_vals(
-            lot_id, owner_id, package_id, from_date, to_date, location_domains=location_domains)
+    def _prepare_quantities_vals(self, filters, location_domains=None):
+        return super(
+            ProductProduct,
+            self.with_context(with_expiration=datetime.date.today()),
+        )._prepare_quantities_vals(filters, location_domains=location_domains)
+
+    # `get_depends` unions `@api.depends` over the whole MRO, so this adds the one
+    # column stock cannot name: `removal_date` is defined here, and stock's list
+    # would raise at registry load in a database without this module.
+    @api.depends_context('with_expiration', 'fresh_qty_forecast')
+    @api.depends('stock_quant_ids.removal_date')
+    def _compute_quantities(self):
+        return super()._compute_quantities()
+
+    def _expired_quant_domain(self, domain_quant, to_date):
+        if not self.env.context.get('with_expiration'):
+            return None
+        max_date = (
+            to_date
+            if to_date and self.env.context.get('fresh_qty_forecast')
+            else self.env.context['with_expiration']
+        )
+        return domain_quant & Domain([('removal_date', '<=', max_date)])
 
     qty_free = fields.Float(help="Available quantity (computed as Quantity On Hand "
              "- reserved quantity - quantity to remove)\n"
@@ -34,6 +55,11 @@ class ProductProduct(models.Model):
 
 class ProductTemplate(models.Model):
     _inherit = 'product.template'
+
+    # The template sums its variants, so it caches per the same two keys.
+    @api.depends_context('with_expiration', 'fresh_qty_forecast')
+    def _compute_quantities(self):
+        return super()._compute_quantities()
 
     use_expiration_date = fields.Boolean(string='Use Expiration Date',
         help='When this box is ticked, you have the possibility to specify dates to manage'

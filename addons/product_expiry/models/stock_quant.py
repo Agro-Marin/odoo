@@ -3,6 +3,7 @@
 from datetime import datetime
 
 from odoo import api, fields, models
+from odoo.fields import Domain
 
 
 class StockQuant(models.Model):
@@ -12,6 +13,19 @@ class StockQuant(models.Model):
     removal_date = fields.Datetime(related='lot_id.removal_date', store=True)
     use_expiration_date = fields.Boolean(related='product_id.use_expiration_date')
     available_quantity = fields.Float(help="On hand quantity which hasn't been reserved on a transfer and is still fresh, in the default unit of measure of the product")
+
+    def _get_expiration_domain(self):
+        cutoff = self.env.context.get('with_expiration')
+        if not cutoff:
+            return super()._get_expiration_domain()
+        return Domain('removal_date', '>=', cutoff) | Domain('removal_date', '=', False)
+
+    def _filtered_not_expired(self):
+        cutoff = self.env.context.get('with_expiration')
+        if not cutoff:
+            return super()._filtered_not_expired()
+        cutoff = fields.Datetime.to_datetime(cutoff)
+        return self.filtered(lambda quant: not quant.removal_date or quant.removal_date >= cutoff)
 
     def _get_gs1_barcode(self, gs1_quantity_rules_ai_by_uom=False):
         barcode = super()._get_gs1_barcode(gs1_quantity_rules_ai_by_uom)

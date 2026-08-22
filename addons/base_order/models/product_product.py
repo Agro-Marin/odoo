@@ -1,9 +1,7 @@
 from datetime import timedelta
 
 from odoo import fields, models
-from odoo.exceptions import UserError
 from odoo.fields import Domain
-from odoo.tools.translate import _
 
 # How far back the "Sold" / "Purchased" statistics on a product look.
 ORDERED_QTY_WINDOW_DAYS = 365
@@ -144,43 +142,10 @@ class ProductProduct(models.Model):
         )
 
     def _update_uom_on_order_lines(self, line_model, to_uom_id):
-        """Rewrite ``product_uom_id`` on every ``line_model`` line of ``self``.
+        """Restamp order lines, then flush them.
 
-        Refuses the change when a line already uses a unit *other* than the
-        product's own: those lines carry a quantity expressed in that unit, and
-        rewriting the unit alone would silently reinterpret the quantity.
-
-        The lines are flushed before returning so that the ``product.template``
-        write that follows this call sees them, rather than racing the pending
-        ORM flush.
-
-        :param str line_model: order line model to rewrite
-        :param int to_uom_id: id of the ``uom.uom`` to move the lines to
-        :raise UserError: if a line uses a unit other than the product's own
+        The flush is why this is not just a `_restamp_uom` call site: the
+        `product.template` write that follows has to see the lines rather than
+        race the pending ORM flush.
         """
-        # `.sudo()`, as `_has_order_lines_for` above it: rewriting the unit on
-        # dependent order lines is a consequence of a product change the caller
-        # is entitled to make, not a read they are asking for. A product manager
-        # with no sales rights could otherwise not change a unit at all -- the
-        # `_read_group` raised AccessError on sale.order.line before the loop
-        # ever ran. The write it leads to stays narrow by construction: the
-        # branch below REFUSES any line whose unit is not the product's own, so
-        # nothing is rewritten except lines that already agree with it.
-        for uom, product, lines in self.env[line_model].sudo()._read_group(
-            [("product_id", "in", self.ids)],
-            ["product_uom_id", "product_id"],
-            ["id:recordset"],
-        ):
-            if uom != product.product_tmpl_id.uom_id:
-                raise UserError(
-                    _(
-                        "Other units of measure (e.g., %(problem_uom)s) have already "
-                        "been used for this product. The unit of measure cannot be "
-                        "changed from %(uom)s. If you want to change it, please "
-                        "archive the product and create a new one.",
-                        problem_uom=uom.display_name,
-                        uom=product.product_tmpl_id.uom_id.display_name,
-                    ),
-                )
-            lines.product_uom_id = to_uom_id
-            lines.flush_recordset()
+        self._restamp_uom(line_model, to_uom_id).flush_recordset()

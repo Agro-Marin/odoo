@@ -75,7 +75,7 @@ class StockPicking(models.Model):
         if res is not True:
             return res
         for picking in self:
-            # `_get_new_picking_values` is used to propagate the carrier before a picking is created (i.e. carrier is set on an SO).
+            # `_prepare_new_picking_vals` is used to propagate the carrier before a picking is created (i.e. carrier is set on an SO).
             # Whereas this case handles the propagation of carrier after the picking validation as the carrier maybe set
             # at later stages as well, specifically at the picking level rather than on the Sales Order.
             # This ensures the behavior is consistent across all scenarios (push + pull, all pull, and all push rules).

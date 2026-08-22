@@ -1,7 +1,6 @@
 from dateutil import relativedelta
 
 from odoo import api, fields, models
-from odoo.fields import Domain
 from odoo.tools.translate import _
 
 
@@ -61,12 +60,22 @@ class StockWarehouseOrderpoint(models.Model):
                 orderpoint.days_to_order = orderpoint.company_id.days_to_purchase
         return res
 
+    @api.depends("product_id.seller_ids")
+    def _compute_rules(self):
+        """Extend the dependencies: `_get_total_routes_by_product` reaches the Buy
+        route through `seller_ids`, so a product gaining its first vendor changes
+        which rules its orderpoints resolve to.
+        """
+        super()._compute_rules()
+
+    @api.depends("vendor_ids")
     def _compute_show_supply_warning(self):
+        # `not orderpoint.show_supply_warning` used to guard this branch. The field
+        # is protected during its own compute, so that read always returned the
+        # Boolean default and the guard was always true: it said nothing and hid
+        # what the branch actually keys on, which is the rule's action.
         for orderpoint in self:
-            if (
-                "buy" in orderpoint.rule_ids.mapped("action")
-                and not orderpoint.show_supply_warning
-            ):
+            if "buy" in orderpoint.rule_ids.mapped("action"):
                 orderpoint.show_supply_warning = not orderpoint.vendor_ids
                 continue
             super(StockWarehouseOrderpoint, orderpoint)._compute_show_supply_warning()
@@ -235,52 +244,59 @@ class StockWarehouseOrderpoint(models.Model):
 
     def _get_replenishment_order_notification(self):
         self.ensure_one()
-        domain = Domain("orderpoint_id", "in", self.ids)
-        if self.env.context.get("written_after"):
-            domain &= Domain("write_date", ">=", self.env.context.get("written_after"))
-        order = self.env["purchase.order.line"].search(domain, limit=1).order_id
+        order = (
+            self.env["purchase.order.line"]
+            .search(self._get_replenishment_source_domain(), limit=1)
+            .order_id
+        )
         if order:
-            return {
-                "type": "ir.actions.client",
-                "tag": "display_notification",
-                "params": {
-                    "title": _("The following replenishment order has been generated"),
-                    "message": "%s",
-                    "links": [
-                        {
-                            "label": order.display_name,
-                            "url": f"/odoo/action-purchase.action_purchase_order_3/{order.id}",
-                        },
-                    ],
-                    "sticky": False,
-                    "next": {"type": "ir.actions.act_window_close"},
-                },
-            }
+            return self._build_replenishment_notification(
+                _("The following replenishment order has been generated"),
+                order.display_name,
+                f"/odoo/action-purchase.action_purchase_order_3/{order.id}",
+            )
         return super()._get_replenishment_order_notification()
 
-    def _get_replenishment_multiple_alternative(self, qty_to_order):
-        self.ensure_one()
-        routes = self.effective_route_id or self.product_id.route_ids
-        if not (self.product_id and any(r.action == "buy" for r in routes.rule_ids)):
-            return super()._get_replenishment_multiple_alternative(qty_to_order)
-        planned_date = self._get_orderpoint_procurement_date()
-        global_horizon_days = self.get_horizon_days()
-        if global_horizon_days:
-            planned_date -= relativedelta.relativedelta(days=global_horizon_days)
-        date_deadline = planned_date or fields.Date.today()
-        dates_info = self.product_id._get_dates_info(
-            date_deadline,
-            self.location_id,
-            route_ids=self.route_id,
+    def _get_replenishment_multiple_alternative_map(self, qty_by_orderpoint):
+        bought = self.filtered(
+            lambda orderpoint: (
+                orderpoint.product_id
+                and any(
+                    rule.action == "buy"
+                    for rule in (
+                        orderpoint.effective_route_id or orderpoint.product_id.route_ids
+                    ).rule_ids
+                )
+            ),
         )
-        supplier = self.supplier_id or self.product_id.with_company(
-            self.company_id,
-        )._select_seller(
-            quantity=qty_to_order,
-            date=max(dates_info["date_order"].date(), fields.Date.today()),
-            uom_id=self.product_uom_id,
-        )
-        return supplier.product_uom_id
+        result = super(
+            StockWarehouseOrderpoint,
+            self - bought,
+        )._get_replenishment_multiple_alternative_map(qty_by_orderpoint)
+        today = fields.Date.today()
+        for orderpoint in bought:
+            planned_date = orderpoint._get_orderpoint_procurement_date()
+            horizon_days = orderpoint._get_horizon_days()
+            if horizon_days:
+                planned_date -= relativedelta.relativedelta(days=horizon_days)
+            # `rule_ids` is `_get_rules_from_location` for this product, location and
+            # route -- the very chain `_get_dates_info` would resolve again. Handing
+            # it over turns a grouped `stock.rule` query per rendered row into none.
+            dates_info = orderpoint.product_id._get_dates_info(
+                planned_date or today,
+                orderpoint.location_id,
+                route_ids=orderpoint.route_id,
+                rules=orderpoint.rule_ids,
+            )
+            supplier = orderpoint.supplier_id or orderpoint.product_id.with_company(
+                orderpoint.company_id,
+            )._select_seller(
+                quantity=qty_by_orderpoint.get(orderpoint.id),
+                date=max(dates_info["date_order"].date(), today),
+                uom_id=orderpoint.product_uom_id,
+            )
+            result[orderpoint.id] = supplier.product_uom_id
+        return result
 
     def _prepare_procurement_vals(self, date=False):
         values = super()._prepare_procurement_vals(date=date)

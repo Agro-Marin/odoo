@@ -105,12 +105,12 @@
                     </a>
                 </div>
             </xpath>
-            <xpath expr="//button[@name='get_action_picking_tree_ready']" position="before">
+            <xpath expr="//button[@name='action_view_pickings_ready']" position="before">
                 <button t-if="record.count_picking_batch.raw_value > 0" class="btn btn-primary me-2" name="action_batch" type="object">
                     <field name="count_picking_batch"/> Batches
                 </button>
             </xpath>
-            <xpath expr="//button[@name='get_action_picking_tree_ready']" position="attributes">
+            <xpath expr="//button[@name='action_view_pickings_ready']" position="attributes">
                 <attribute
                     name="t-attf-class"
                     remove="btn-primary"

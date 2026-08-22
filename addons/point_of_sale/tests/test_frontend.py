@@ -2047,6 +2047,7 @@ class TestUi(TestPointOfSaleHttpCommon):
                 "taxes_id": False,
                 "available_in_pos": True,
                 "pos_categ_ids": [(4, limited_category.id)],
+                "is_storable": True,
                 "tracking": "lot",
                 "attribute_line_ids": [
                     (

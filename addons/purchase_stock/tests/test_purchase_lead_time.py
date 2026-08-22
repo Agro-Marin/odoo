@@ -458,7 +458,7 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
                 )
             ]
         )
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
         self.assertEqual(
             len(purchase_order.line_ids),
             1,
@@ -616,7 +616,7 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
             )
         delivery_moves._action_confirm()
 
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
         po_line = self.env["purchase.order.line"].search(
             [("product_id", "=", product.id)]
         )
@@ -630,7 +630,7 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
 
         self.mock_date.today.return_value = fields.Date.today() + timedelta(days=2)
         self.env.invalidate_all()
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
         po_line02 = self.env["purchase.order.line"].search(
             [("product_id", "=", product.id)]
         )
@@ -670,7 +670,7 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
             }
         )
 
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
         purchase_order = self.env["purchase.order"].search(
             [("partner_id", "=", self.partner.id)]
         )

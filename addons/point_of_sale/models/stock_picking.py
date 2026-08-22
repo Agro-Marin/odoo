@@ -191,8 +191,8 @@ class StockPickingType(models.Model):
 class StockMove(models.Model):
     _inherit = "stock.move"
 
-    def _get_new_picking_values(self):
-        vals = super()._get_new_picking_values()
+    def _prepare_new_picking_vals(self):
+        vals = super()._prepare_new_picking_vals()
         orders = self.reference_ids.pos_order_ids
         if orders:
             order = (

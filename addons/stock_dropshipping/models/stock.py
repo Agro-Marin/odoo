@@ -20,17 +20,23 @@ class StockRule(models.Model):
             return False
         return super()._get_partner_id(values, rule)
 
-    def _compute_picking_type_code_domain(self):
-        super()._compute_picking_type_code_domain()
-        for rule in self:
-            if rule.action == 'buy':
-                rule.picking_type_code_domain += ['dropship']
+    def _get_picking_type_code_domain(self):
+        codes = super()._get_picking_type_code_domain()
+        if self.action == 'buy':
+            codes = [*codes, 'dropship']
+        return codes
 
     @api.model
-    def _get_rule_domain(self, location, values):
-        domain = super()._get_rule_domain(location, values)
+    def _get_rule_scope_domain(self, values):
+        # On `_get_rule_scope_domain`, not `_get_rule_domain`: this narrowing
+        # reads `sale_line_id`, and `_get_rules_batch` keys its groups on the
+        # scope domain. Applied one level up it was invisible to that key, so a
+        # sale-line procurement batched next to one without lost the
+        # restriction -- or imposed it on the other -- depending on which of the
+        # two sorted first.
+        domain = super()._get_rule_scope_domain(values)
         if 'sale_line_id' in values and values.get('company_id'):
-            domain = Domain.AND([domain, [('company_id', '=', values['company_id'].id)]])
+            domain &= Domain('company_id', '=', values['company_id'].id)
         return domain
 
 
@@ -76,12 +82,9 @@ class StockPickingType(models.Model):
             if picking_type.code == 'dropship':
                 picking_type.warehouse_id = False
 
-    @api.depends('code')
-    def _compute_show_picking_type(self):
-        super()._compute_show_picking_type()
-        for record in self:
-            if record.code == "dropship":
-                record.show_picking_type = True
+    @api.model
+    def _transfer_codes(self):
+        return super()._transfer_codes() | {'dropship'}
 
 
 class StockLot(models.Model):
@@ -90,14 +93,21 @@ class StockLot(models.Model):
     def _get_partners_from_deliveries(self, pickings):
         # For a dropship the goods never transit through our company, so the
         # relevant partner is the sale's shipping address, not the picking's.
-        return [
-            p.sale_id.partner_shipping_id.id if p.is_dropship else p.partner_id.id
-            for p in pickings
-        ]
+        # A recordset, not a list of ids: a picking with no partner contributed a
+        # False, and assigning [id, False] to a Many2many raises MissingError
+        # rather than ignoring it -- which a transfer reached through
+        # `produce_line_ids`, or a dropship with no sale order, produces.
+        partners = self.env['res.partner']
+        for picking in pickings:
+            partners |= (
+                picking.sale_id.partner_shipping_id
+                if picking.is_dropship
+                else picking.partner_id
+            )
+        return partners
 
     def _get_outgoing_domain(self):
-        res = super()._get_outgoing_domain()
-        return Domain.OR([res, [
+        return super()._get_outgoing_domain() | Domain([
             ('location_dest_id.usage', '=', 'customer'),
             ('location_id.usage', '=', 'supplier'),
-        ]])
+        ])

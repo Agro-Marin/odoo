@@ -131,7 +131,7 @@ class TestPointOfSale(TransactionCase):
                 "module_pos_restaurant": False,
             }
         )
-        self.assertEqual(pos_config.warehouse_id.code, "Sho")
+        self.assertEqual(pos_config.warehouse_id.code, "SHO")
 
     def test_session_filter_local_data(self):
         product1 = self.env["product.template"].create({"name": "product1"})

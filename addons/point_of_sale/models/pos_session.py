@@ -2664,18 +2664,13 @@ class PosSession(models.Model):
         return self.order_ids.filtered(lambda o: o.state not in ["draft", "cancel"])
 
 
-class StockRule(models.Model):
-    _inherit = "stock.rule"
+class StockScheduler(models.AbstractModel):
+    _inherit = "stock.scheduler"
 
     @api.model
-    def _run_scheduler_tasks(self, use_new_cursor=False, company_id=False):
-        super()._run_scheduler_tasks(
-            use_new_cursor=use_new_cursor, company_id=company_id
-        )
+    def _get_tasks(self):
+        return [*super()._get_tasks(), "_alert_old_pos_sessions"]
+
+    @api.model
+    def _alert_old_pos_sessions(self, use_new_cursor=False, company_id=False):
         self.env["pos.session"]._alert_old_session()
-        if use_new_cursor:
-            self.env["ir.cron"]._commit_progress(1)
-
-    @api.model
-    def _get_scheduler_tasks_to_do(self):
-        return super()._get_scheduler_tasks_to_do() + 1

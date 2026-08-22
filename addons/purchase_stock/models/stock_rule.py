@@ -29,14 +29,11 @@ class StockRule(models.Model):
     # COMPUTE METHODS
     # ------------------------------------------------------------
 
-    @api.depends("action")
-    def _compute_picking_type_code_domain(self):
-        super()._compute_picking_type_code_domain()
-        for rule in self:
-            if rule.action == "buy":
-                rule.picking_type_code_domain = rule.picking_type_code_domain or [] + [
-                    "incoming",
-                ]
+    def _get_picking_type_code_domain(self):
+        codes = super()._get_picking_type_code_domain()
+        if self.action == "buy":
+            codes = [*codes, "incoming"]
+        return codes
 
     # ------------------------------------------------------------
     # ONCHANGE METHODS
@@ -51,12 +48,12 @@ class StockRule(models.Model):
     # HELPER METHODS
     # ------------------------------------------------------------
 
-    def _filter_warehouse_routes(self, product, warehouses, route):
+    def _is_route_usable_for(self, product, route):
         if any(rule.action == "buy" for rule in route.rule_ids):
-            if product.seller_ids:
-                return super()._filter_warehouse_routes(product, warehouses, route)
-            return False
-        return super()._filter_warehouse_routes(product, warehouses, route)
+            return bool(product.seller_ids) and super()._is_route_usable_for(
+                product, route
+            )
+        return super()._is_route_usable_for(product, route)
 
     def _get_lead_days(self, product, **values):
         """Add the supplier delay to the cumulative delay and cumulative description."""
@@ -363,6 +360,10 @@ class StockRule(models.Model):
                 move_to_copy._get_purchase_line_and_partner_from_chain()
             )
         return res
+
+    @api.model
+    def _get_action_runners(self):
+        return {**super()._get_action_runners(), "buy": "_run_buy"}
 
     @api.model
     def _run_buy(self, procurements):
