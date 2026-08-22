@@ -301,7 +301,7 @@ Operators set these via the UI (Settings → Technical → System Parameters)
 or programmatically:
 
 ```python
-env['ir.config_parameter'].sudo().set_param('web.esbuild.timeout_s', '60')
+env["ir.config_parameter"].sudo().set_param("web.esbuild.timeout_s", "60")
 ```
 
 ## Failure modes

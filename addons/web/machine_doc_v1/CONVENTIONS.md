@@ -49,16 +49,22 @@ how relational fields are recursively resolved:
 ```python
 # Example specification for a form view
 specification = {
-    "name": {},                           # scalar field
-    "partner_id": {"fields": {            # many2one: fetch sub-fields
-        "display_name": {},
-        "email": {},
-    }},
-    "line_ids": {"fields": {              # one2many: fetch sub-fields
-        "product_id": {"fields": {"display_name": {}}},
-        "quantity": {},
-        "price_unit": {},
-    }, "limit": 40, "order": "sequence"},
+    "name": {},  # scalar field
+    "partner_id": {
+        "fields": {  # many2one: fetch sub-fields
+            "display_name": {},
+            "email": {},
+        }
+    },
+    "line_ids": {
+        "fields": {  # one2many: fetch sub-fields
+            "product_id": {"fields": {"display_name": {}}},
+            "quantity": {},
+            "price_unit": {},
+        },
+        "limit": 40,
+        "order": "sequence",
+    },
 }
 ```
 
@@ -283,10 +289,11 @@ Every test class uses `@tagged()` with:
 3. **Install phase**: `at_install` (default) or `post_install` + `-at_install`
 
 ```python
-@tagged('web_http', 'web_health')           # at_install (default)
+@tagged("web_http", "web_health")  # at_install (default)
 class TestHealth(HttpCase): ...
 
-@tagged('post_install', '-at_install', 'web_tour', 'web_login')
+
+@tagged("post_install", "-at_install", "web_tour", "web_login")
 class TestLoginTour(HttpCase): ...
 ```
 
@@ -317,7 +324,7 @@ become available on every Odoo model:
 
 ```python
 class Base(models.AbstractModel):
-    _inherit = 'base'
+    _inherit = "base"
 
     def web_read(self, specification):
         """Available on every model because base is inherited."""
