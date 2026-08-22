@@ -220,8 +220,8 @@ class StockMove(models.Model):
                 and self.location_dest_id.id == subcontracting_location.id
         )
 
-    def _can_create_lot(self):
-        return super()._can_create_lot() or self.env.context.get('force_lot_m2o')
+    def _can_create_lot(self, picking_type=None):
+        return super()._can_create_lot(picking_type) or self.env.context.get('force_lot_m2o')
 
     def _sync_subcontracting_productions(self):
         """

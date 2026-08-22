@@ -555,8 +555,10 @@ class TestRepair(TestRepairCommon):
         """
         Test That a repair order can be validated when the repaired product is tracked and in a package
         """
-        self.product_product_3.tracking = 'serial'
+        # `is_storable` first: tracking requires it, and each assignment is its
+        # own write, so the state between them has to be legal too.
         self.product_product_3.is_storable = True
+        self.product_product_3.tracking = 'serial'
         # Create two serial numbers
         sn_1 = self.env['stock.lot'].create({'name': 'sn_1', 'product_id': self.product_product_3.id})
         sn_2 = self.env['stock.lot'].create({'name': 'sn_2', 'product_id': self.product_product_3.id})
@@ -621,13 +623,13 @@ class TestRepair(TestRepairCommon):
         picking_type_1 = self.env['stock.picking.type'].create({
             'name': 'new_picking_type_1',
             'code': 'repair_operation',
-            'sequence_code': 'PT1/',
+            'sequence_code': 'PT1',
             'default_location_src_id': stock_location_1.id,
         })
         picking_type_2 = self.env['stock.picking.type'].create({
             'name': 'new_picking_type_2',
             'code': 'repair_operation',
-            'sequence_code': 'PT2/',
+            'sequence_code': 'PT2',
             'default_location_src_id': stock_location_2.id,
         })
         repair_order = self.env['repair.order'].create({
@@ -647,21 +649,21 @@ class TestRepair(TestRepairCommon):
         self.env['stock.quant']._update_available_quantity(part, stock_location_2, 1)
         repair_order._action_repair_confirm()
         move = repair_order.move_ids[0]
-        self.assertEqual(repair_order.name, "PT1/00001")
-        self.assertEqual(move.reference, "PT1/00001")
+        self.assertEqual(repair_order.name, "WH/PT1/00001")
+        self.assertEqual(move.reference, "WH/PT1/00001")
         self.assertEqual(move.location_id, stock_location_1)
         self.assertEqual(move.quantity, 0.0)
         repair_order.picking_type_id = picking_type_2
-        self.assertEqual(repair_order.name, "PT2/00001")
-        self.assertEqual(move.reference, "PT2/00001")
+        self.assertEqual(repair_order.name, "WH/PT2/00001")
+        self.assertEqual(move.reference, "WH/PT2/00001")
         self.assertEqual(move.location_id, stock_location_2)
         self.assertEqual(move.quantity, 1.0)
         repair_order.picking_type_id = picking_type_1
-        self.assertEqual(repair_order.name, "PT1/00002")
-        self.assertEqual(move.reference, "PT1/00002")
+        self.assertEqual(repair_order.name, "WH/PT1/00002")
+        self.assertEqual(move.reference, "WH/PT1/00002")
         repair_order.picking_type_id = picking_type_1
-        self.assertEqual(repair_order.name, "PT1/00002")
-        self.assertEqual(move.reference, "PT1/00002")
+        self.assertEqual(repair_order.name, "WH/PT1/00002")
+        self.assertEqual(move.reference, "WH/PT1/00002")
 
     def test_repair_components_lots_show_in_invoice(self):
         """

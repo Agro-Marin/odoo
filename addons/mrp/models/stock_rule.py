@@ -6,7 +6,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import SUPERUSER_ID, _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.fields import Command, Domain
+from odoo.fields import Command
 from odoo.tools import OrderedSet
 
 _logger = logging.getLogger(__name__)
@@ -39,13 +39,11 @@ class StockRule(models.Model):
         message_dict["manufacture"] = manufacture_message
         return message_dict
 
-    def _compute_picking_type_code_domain(self):
-        super()._compute_picking_type_code_domain()
-        for rule in self:
-            if rule.action == "manufacture":
-                rule.picking_type_code_domain = (
-                    rule.picking_type_code_domain or []
-                ) + ["mrp_operation"]
+    def _get_picking_type_code_domain(self):
+        codes = super()._get_picking_type_code_domain()
+        if self.action == "manufacture":
+            codes = [*codes, "mrp_operation"]
+        return codes
 
     def _should_auto_confirm_procurement_mo(self, p):
         if not p.move_raw_ids:
@@ -110,12 +108,16 @@ class StockRule(models.Model):
                 procurements_without_kit.append(procurement)
         return super().run(procurements_without_kit, raise_user_error=raise_user_error)
 
-    def _filter_warehouse_routes(self, product, warehouses, route):
+    def _is_route_usable_for(self, product, route):
         if any(rule.action == "manufacture" for rule in route.rule_ids):
-            if any(bom.type == "normal" for bom in product.bom_ids):
-                return super()._filter_warehouse_routes(product, warehouses, route)
-            return False
-        return super()._filter_warehouse_routes(product, warehouses, route)
+            return any(
+                bom.type == "normal" for bom in product.bom_ids
+            ) and super()._is_route_usable_for(product, route)
+        return super()._is_route_usable_for(product, route)
+
+    @api.model
+    def _get_action_runners(self):
+        return {**super()._get_action_runners(), "manufacture": "_run_manufacture"}
 
     @api.model
     def _run_manufacture(self, procurements):
@@ -155,7 +157,7 @@ class StockRule(models.Model):
                     if is_batch_size
                     else procurement_qty
                 )
-                vals = rule._prepare_mo_vals(*procurement, bom)
+                vals = rule._prepare_mo_vals(procurement, bom)
                 while procurement.product_uom_id.compare(procurement_qty, 0) > 0:
                     new_productions_values_by_company[procurement.company_id.id][
                         "values"
@@ -217,33 +219,10 @@ class StockRule(models.Model):
             )
         return True
 
-    def _get_stock_move_values(
-        self,
-        product_id,
-        product_qty,
-        product_uom_id,
-        location_id,
-        name,
-        origin,
-        company_id,
-        values,
-    ):
-        res = super()._get_stock_move_values(
-            product_id,
-            product_qty,
-            product_uom_id,
-            location_id,
-            name,
-            origin,
-            company_id,
-            values,
-        )
-        res["production_group_id"] = values.get("production_group_id")
+    def _get_stock_move_values(self, procurement):
+        res = super()._get_stock_move_values(procurement)
+        res["production_group_id"] = procurement.values.get("production_group_id")
         return res
-
-    def _get_moves_to_assign_domain(self, company_id):
-        domain = super()._get_moves_to_assign_domain(company_id)
-        return Domain(domain) & Domain("production_id", "=", False)
 
     def _get_fields_custom_move(self):
         fields = super()._get_fields_custom_move()
@@ -303,18 +282,11 @@ class StockRule(models.Model):
             )
         return domain
 
-    def _prepare_mo_vals(
-        self,
-        product_id,
-        product_qty,
-        product_uom_id,
-        location_dest_id,
-        name,
-        origin,
-        company_id,
-        values,
-        bom,
-    ):
+    def _prepare_mo_vals(self, procurement, bom):
+        product_id = procurement.product_id
+        product_uom_id = procurement.product_uom_id
+        location_dest_id = procurement.location_id
+        values = procurement.values
         date_planned = self._get_date_planned(bom, values)
         date_deadline = values.get("date_deadline") or date_planned + relativedelta(
             days=bom.produce_delay
@@ -333,17 +305,17 @@ class StockRule(models.Model):
                     )
                 )
         mo_values = {
-            "origin": origin,
+            "origin": procurement.origin,
             "product_id": product_id.id,
             "product_description_variants": values.get("product_description_variants"),
             "never_product_template_attribute_value_ids": values.get(
                 "never_product_template_attribute_value_ids"
             ),
             "product_qty": product_uom_id._compute_quantity(
-                product_qty, bom.product_uom_id
+                procurement.product_qty, bom.product_uom_id
             )
             if bom
-            else product_qty,
+            else procurement.product_qty,
             "product_uom_id": bom.product_uom_id.id if bom else product_uom_id.id,
             "location_src_id": picking_type.default_location_src_id.id,
             "location_dest_id": picking_type.default_location_dest_id.id
@@ -361,7 +333,7 @@ class StockRule(models.Model):
             "orderpoint_id": values.get("orderpoint_id", False)
             and values.get("orderpoint_id").id,
             "picking_type_id": picking_type.id,
-            "company_id": company_id.id,
+            "company_id": procurement.company_id.id,
             "move_dest_ids": (
                 values.get("move_dest_ids")
                 and [(4, x.id) for x in values["move_dest_ids"]]
@@ -387,14 +359,14 @@ class StockRule(models.Model):
         if not manufacture_rule:
             return delays, delay_description
         manufacture_rule.ensure_one()
-        bom = (
-            values.get("bom")
-            or self.env["mrp.bom"]._bom_find(
+        if "bom" in values:
+            bom = values["bom"]
+        else:
+            bom = self.env["mrp.bom"]._bom_find(
                 product,
                 picking_type=manufacture_rule.picking_type_id,
                 company_id=manufacture_rule.company_id.id,
             )[product]
-        )
         if not bom:
             delays["total_delay"] += 365
             delays["no_bom_found_delay"] += 365

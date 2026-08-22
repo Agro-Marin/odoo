@@ -416,17 +416,8 @@ class RepairOrder(models.Model):
 
     def action_generate_serial(self):
         self.ensure_one()
-        name = self.product_id.lot_sequence_id.next_by_id()
-        exist_lot = not name or self.env['stock.lot'].search([
-            ('product_id', '=', self.product_id.id),
-            '|', ('company_id', '=', False), ('company_id', '=', self.company_id.id),
-            ('name', '=', name),
-        ], limit=1)
-        if exist_lot:
-            name = self.env['stock.lot']._get_next_serial(self.company_id, self.product_id)
-        if not name:
-            raise UserError(_("Please set the first Serial Number or a default sequence"))
-        self.lot_id = self.env['stock.lot'].create({'product_id': self.product_id.id, 'name': name})
+        Lot = self.env['stock.lot']
+        self.lot_id = Lot.create(Lot._prepare_next_lot_vals(self.company_id, self.product_id))
 
     def action_assign(self):
         return self.move_ids._action_assign()

@@ -152,7 +152,7 @@ class StockPickingType(models.Model):
             record.count_mo_waiting = waiting.get(record, 0)
             record.count_mo_late = late.get(record, 0)
 
-    def get_mrp_stock_picking_action_picking_type(self):
+    def action_view_productions(self):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mrp.mrp_production_action_picking_deshboard"
         )
@@ -172,6 +172,7 @@ class StockPickingType(models.Model):
         counts_by_type = production_picking_types._get_date_category_counts(
             "mrp.production",
             "date_start",
+            "picking_type_id",
             [("state", "=", "confirmed")],
         )
         label = self.env._("Confirmed")

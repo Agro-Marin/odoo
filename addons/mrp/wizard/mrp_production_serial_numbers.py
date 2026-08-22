@@ -49,9 +49,7 @@ class MrpProductionSerials(models.TransientModel):
             if self.serial_numbers
             else []
         )
-        self.serial_numbers = "\n".join(
-            list(dict.fromkeys(lot_names))
-        )
+        self.serial_numbers = "\n".join(list(dict.fromkeys(lot_names)))
 
     def action_generate_serial_numbers(self):
         self.ensure_one()
@@ -59,7 +57,7 @@ class MrpProductionSerials(models.TransientModel):
             lots = self.env["stock.lot"].generate_lot_names(
                 self.lot_name, self.lot_quantity
             )
-            self.serial_numbers = "\n".join([lot["lot_name"] for lot in lots])
+            self.serial_numbers = "\n".join(lots)
             self._onchange_serial_numbers()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mrp.action_assign_serial_numbers"

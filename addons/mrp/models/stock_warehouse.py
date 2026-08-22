@@ -1,5 +1,4 @@
-from odoo import Command, _, api, fields, models
-from odoo.exceptions import UserError
+from odoo import Command, _, fields, models
 
 
 class StockWarehouse(models.Model):
@@ -65,10 +64,16 @@ class StockWarehouse(models.Model):
     )
 
     pbm_loc_id = fields.Many2one(
-        "stock.location", "Picking before Manufacturing Location", check_company=True
+        "stock.location",
+        "Picking before Manufacturing Location",
+        copy=False,
+        check_company=True,
     )
     sam_loc_id = fields.Many2one(
-        "stock.location", "Stock after Manufacturing Location", check_company=True
+        "stock.location",
+        "Stock after Manufacturing Location",
+        copy=False,
+        check_company=True,
     )
 
     def _compute_manufacture_to_resupply(self):
@@ -108,8 +113,8 @@ class StockWarehouse(models.Model):
                 manufacture_route.warehouse_ids = [Command.link(warehouse.id)]
         return super()._create_or_update_route()
 
-    def get_rules_dict(self):
-        result = super().get_rules_dict()
+    def _get_rules_dict(self):
+        result = super()._get_rules_dict()
         production_location_id = self._get_production_location()
         for warehouse in self:
             result[warehouse.id].update(
@@ -154,18 +159,8 @@ class StockWarehouse(models.Model):
             result[warehouse.id].update(warehouse._get_receive_rules_dict())
         return result
 
-    @api.model
-    def _get_production_location(self):
-        location = self.env["stock.location"].search(
-            [("usage", "=", "production"), ("company_id", "=", self.company_id.id)],
-            limit=1,
-        )
-        if not location:
-            raise UserError(_("Can't find any production location."))
-        return location
-
-    def _get_routes_values(self):
-        routes = super()._get_routes_values()
+    def _prepare_route_vals(self):
+        routes = super()._prepare_route_vals()
         routes.update(
             {
                 "pbm_route_id": {
@@ -190,8 +185,21 @@ class StockWarehouse(models.Model):
                 }
             }
         )
-        routes.update(self._get_receive_routes_values("manufacture_to_resupply"))
+        routes.update(self._prepare_receive_route_vals("manufacture_to_resupply"))
         return routes
+
+    def _get_fields_route_trigger(self):
+        return super()._get_fields_route_trigger() | {
+            "manufacture_steps",
+            "manufacture_to_resupply",
+        }
+
+    def _get_global_rule_fields(self):
+        return super()._get_global_rule_fields() | {
+            "manufacture_pull_id",
+            "manufacture_mto_pull_id",
+            "pbm_mto_pull_id",
+        }
 
     def _get_route_name(self, route_type):
         names = {
@@ -206,8 +214,8 @@ class StockWarehouse(models.Model):
         else:
             return super()._get_route_name(route_type)
 
-    def _generate_global_route_rules_values(self):
-        rules = super()._generate_global_route_rules_values()
+    def _prepare_global_route_rule_vals(self):
+        rules = super()._prepare_global_route_rule_vals()
         production_location = self._get_production_location()
         rules.update(
             {
@@ -281,65 +289,24 @@ class StockWarehouse(models.Model):
     def _get_fields_location_step(self):
         return super()._get_fields_location_step() + ["manufacture_steps"]
 
-    def _get_locations_values(self, vals, code=False):
-        values = super()._get_locations_values(vals, code=code)
-        def_values = self._get_location_step_values(vals)
+    def _prepare_sub_location_vals(self, vals, code=False):
+        values = super()._prepare_sub_location_vals(vals, code=code)
+        def_values = self._get_location_step_values(vals, code)
         manufacture_steps = def_values["manufacture_steps"]
-        code = vals.get("code") or code or ""
-        code = code.replace(" ", "").upper()
-        company_id = vals.get("company_id", def_values["company_id"])
+        code = def_values["code"]
         values.update(
             {
                 "pbm_loc_id": {
                     "name": _("Pre-Production"),
                     "active": manufacture_steps in ("pbm", "pbm_sam"),
                     "usage": "internal",
-                    "barcode": self._valid_barcode(code + "PREPRODUCTION", company_id),
+                    "barcode": code + "PREPRODUCTION",
                 },
                 "sam_loc_id": {
                     "name": _("Post-Production"),
                     "active": manufacture_steps == "pbm_sam",
                     "usage": "internal",
-                    "barcode": self._valid_barcode(code + "POSTPRODUCTION", company_id),
-                },
-            }
-        )
-        return values
-
-    def _get_sequence_values(self, name=False, code=False):
-        values = super()._get_sequence_values(name=name, code=code)
-        name = name or self.name
-        code = code or self.code
-        values.update(
-            {
-                "pbm_type_id": {
-                    "name": _(
-                        "%(name)s Sequence picking before manufacturing", name=name
-                    ),
-                    "prefix": code
-                    + "/"
-                    + (self.pbm_type_id.sequence_code or "PC")
-                    + "/",
-                    "padding": 5,
-                    "company_id": self.company_id.id,
-                },
-                "sam_type_id": {
-                    "name": _("%(name)s Sequence stock after manufacturing", name=name),
-                    "prefix": code
-                    + "/"
-                    + (self.sam_type_id.sequence_code or "SFP")
-                    + "/",
-                    "padding": 5,
-                    "company_id": self.company_id.id,
-                },
-                "manu_type_id": {
-                    "name": _("%(name)s Sequence production", name=name),
-                    "prefix": code
-                    + "/"
-                    + (self.manu_type_id.sequence_code or "MO")
-                    + "/",
-                    "padding": 5,
-                    "company_id": self.company_id.id,
+                    "barcode": code + "POSTPRODUCTION",
                 },
             }
         )
@@ -350,8 +317,13 @@ class StockWarehouse(models.Model):
         codes.update({"pbm_type_id": "PC", "manu_type_id": "MO", "sam_type_id": "SFP"})
         return codes
 
-    def _get_picking_type_create_values(self):
-        data = super()._get_picking_type_create_values()
+    def _get_picking_type_barcode_suffixes(self, codes=None):
+        suffixes = super()._get_picking_type_barcode_suffixes(codes)
+        suffixes["manu_type_id"] = "MANUF"
+        return suffixes
+
+    def _prepare_picking_type_create_vals(self):
+        data = super()._prepare_picking_type_create_vals()
         data.update(
             {
                 "pbm_type_id": {
@@ -383,25 +355,22 @@ class StockWarehouse(models.Model):
         )
         return data
 
-    def _get_picking_type_update_values(self):
-        data = super()._get_picking_type_update_values()
+    def _prepare_picking_type_update_vals(self):
+        data = super()._prepare_picking_type_update_vals()
         data.update(
             {
                 "pbm_type_id": {
                     "active": self.manufacture_to_resupply
                     and self.manufacture_steps in ("pbm", "pbm_sam")
                     and self.active,
-                    "barcode": self.code.replace(" ", "").upper() + "PC",
                 },
                 "sam_type_id": {
                     "active": self.manufacture_to_resupply
                     and self.manufacture_steps == "pbm_sam"
                     and self.active,
-                    "barcode": self.code.replace(" ", "").upper() + "SFP",
                 },
                 "manu_type_id": {
                     "active": self.manufacture_to_resupply and self.active,
-                    "barcode": self.code.replace(" ", "").upper() + "MANUF",
                     "default_location_src_id": (
                         self.manufacture_steps in ("pbm", "pbm_sam")
                         and self.pbm_loc_id.id

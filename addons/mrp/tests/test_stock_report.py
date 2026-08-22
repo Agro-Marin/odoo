@@ -161,9 +161,7 @@ class TestMrpStockReports(TestReportsCommon):
         mo_1 = mo_form.save()
         mo_1.action_confirm()
         pick = mo_1.move_raw_ids.move_orig_ids.picking_id
-        pick.picking_type_id.show_operations = (
-            True
-        )
+        pick.picking_type_id.show_operations = True
         pick_form = Form(pick)
         with Form(pick.move_ids, view="stock.view_stock_move_form_operations") as form:
             with form.move_line_ids.edit(0) as move_line:

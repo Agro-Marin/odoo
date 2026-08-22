@@ -19,7 +19,7 @@ class MrpBom(models.Model):
     _order = "sequence, id"
     _check_company_auto = True
 
-    def _default_product_uom_id(self):
+    def _get_default_product_uom_id(self):
         return self.env["uom.uom"].search([], limit=1, order="id").id
 
     code = fields.Char("Reference")
@@ -60,7 +60,7 @@ class MrpBom(models.Model):
     product_uom_id = fields.Many2one(
         "uom.uom",
         "Unit",
-        default=_default_product_uom_id,
+        default=_get_default_product_uom_id,
         required=True,
         help="Unit of Measure (Unit of Measure) is the unit of measurement for the inventory control",
     )
@@ -68,7 +68,9 @@ class MrpBom(models.Model):
     operation_ids = fields.One2many(
         "mrp.routing.workcenter", "bom_id", "Operations", copy=True
     )
-    operation_count = fields.Count("operation_ids", "Operations Count")
+    operation_count = fields.Integer(
+        "Operations Count", compute="_compute_operation_count"
+    )
     show_copy_operations_button = fields.Boolean(
         compute="_compute_show_copy_operations_button",
         help="Technical field used to control the visibility of the 'Copy Existing Operations' button.",
@@ -354,9 +356,7 @@ class MrpBom(models.Model):
             if self.id.origin:
                 domain.append(("id", "!=", self.id.origin))
             number_of_bom_of_this_product = self.env["mrp.bom"].search_count(domain)
-            if (
-                number_of_bom_of_this_product
-            ):
+            if number_of_bom_of_this_product:
                 self.code = _(
                     "%(product_name)s (new) %(number_of_boms)s",
                     product_name=self.product_tmpl_id.name,
@@ -375,17 +375,13 @@ class MrpBom(models.Model):
                     .browse(values["product_tmpl_id"])
                     .uom_id.id
                 )
-        res = super(MrpBom, self.with_context(skip_bom_component_chatter=True)).create(
-            vals_list
-        )
+        res = super().create(vals_list)
         parent_production_id = self.env.context.get("parent_production_id")
-        if (
-            parent_production_id
-        ):
+        if parent_production_id:
             env = self.env(context=clean_context(self.env.context))
             production = env["mrp.production"].browse(parent_production_id)
             production._link_bom(res[0])
-        return res.with_env(self.env)
+        return res
 
     def write(self, vals):
         res = super().write(vals)
@@ -403,9 +399,7 @@ class MrpBom(models.Model):
         return res
 
     def copy(self, default=None):
-        new_boms = super(
-            MrpBom, self.with_context(skip_bom_component_chatter=True)
-        ).copy(default)
+        new_boms = super().copy(default)
         for old_bom, new_bom in zip(self, new_boms, strict=True):
             if old_bom.operation_ids:
                 operations_mapping = dict(
@@ -433,7 +427,7 @@ class MrpBom(models.Model):
                             for dependency in operation.blocked_by_operation_ids
                         ]
                         copied_operation.blocked_by_operation_ids = dependencies
-        return new_boms.with_env(self.env)
+        return new_boms
 
     @api.model
     def name_create(self, name):
@@ -463,6 +457,11 @@ class MrpBom(models.Model):
             ):
                 display_name += f" ({bom.product_qty} {bom.product_uom_id.name})"
             bom.display_name = display_name
+
+    @api.depends("operation_ids")
+    def _compute_operation_count(self):
+        for bom in self:
+            bom.operation_count = len(bom.operation_ids)
 
     def _compute_show_copy_operations_button(self):
         exist_operation = bool(
@@ -770,7 +769,6 @@ class MrpBom(models.Model):
                     Domain.OR(list_of_domain_by_bom_to_unmark)
                 ).write({"is_outdated_bom": False})
 
-
     def _get_action_add_from_catalog_extra_context(self):
         return {
             **super()._get_action_add_from_catalog_extra_context(),
@@ -828,7 +826,6 @@ class MrpBom(models.Model):
             self.write({child_field: [command]})
 
         return self.env["product.product"].browse(product_id).standard_price
-
 
     def _get_mail_thread_data_attachments(self):
         res = super()._get_mail_thread_data_attachments()
@@ -892,7 +889,6 @@ class MrpBom(models.Model):
                 return not other_attribute_valid
 
         return True
-
 
     def _compute_show_set_bom_button(self):
         self.show_set_bom_button = True
@@ -962,7 +958,7 @@ class MrpBomLine(models.Model):
     _description = "Bill of Material Line"
     _check_company_auto = True
 
-    def _default_product_uom_id(self):
+    def _get_default_product_uom_id(self):
         return self.env["uom.uom"].search([], limit=1, order="id").id
 
     product_id = fields.Many2one(
@@ -982,7 +978,7 @@ class MrpBomLine(models.Model):
         "Quantity", default=1.0, digits="Product Unit", required=True
     )
     product_uom_id = fields.Many2one(
-        "uom.uom", "Unit", default=_default_product_uom_id, required=True
+        "uom.uom", "Unit", default=_get_default_product_uom_id, required=True
     )
     sequence = fields.Integer(
         "Sequence", default=1, help="Gives the sequence order when displaying."
@@ -1112,9 +1108,7 @@ class MrpBomLine(models.Model):
                 values["product_uom_id"] = (
                     self.env["product.product"].browse(values["product_id"]).uom_id.id
                 )
-        lines = super().create(vals_list)
-        lines._post_components_note(self.env._("Components added:"))
-        return lines
+        return super().create(vals_list)
 
     CHATTER_TRACKED_FIELDS = (
         "product_id",
@@ -1166,16 +1160,13 @@ class MrpBomLine(models.Model):
         return result
 
     def unlink(self):
-        self._post_components_note(self.env._("Components removed:"))
-        return super().unlink()
-
-    def _post_components_note(self, heading):
         if self._chatter_is_muted():
-            return
+            return super().unlink()
+
         for bom, lines in self.grouped("bom_id").items():
             bom.message_post(
                 body=Markup("{}<ul>{}</ul>").format(
-                    heading,
+                    self.env._("Components removed:"),
                     Markup("").join(
                         Markup("<li><b>{}</b> — {}: {} {}</li>").format(
                             line.product_id.display_name,
@@ -1188,12 +1179,12 @@ class MrpBomLine(models.Model):
                 ),
                 subtype_xmlid="mail.mt_note",
             )
+        return super().unlink()
 
     def _chatter_is_muted(self):
         return bool(
             self.env.context.get("tracking_disable")
             or self.env.context.get("mail_notrack")
-            or self.env.context.get("skip_bom_component_chatter")
         )
 
     def _get_chatter_label(self, field_name):
@@ -1275,7 +1266,6 @@ class MrpBomLine(models.Model):
             "context": context,
             "search_view_id": self.env.ref("product.view_product_document_search").ids,
         }
-
 
     def action_add_from_catalog(self):
         bom = self.env["mrp.bom"].browse(self.env.context.get("order_id"))
@@ -1409,7 +1399,6 @@ class MrpBomByproduct(models.Model):
             self.bom_product_template_attribute_value_ids,
             never_attribute_values,
         )
-
 
     def action_add_from_catalog(self):
         bom = self.env["mrp.bom"].browse(self.env.context.get("order_id"))

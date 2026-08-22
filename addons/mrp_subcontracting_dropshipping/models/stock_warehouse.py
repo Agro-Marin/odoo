@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 
 
 class StockWarehouse(models.Model):
@@ -63,8 +62,11 @@ class StockWarehouse(models.Model):
 
         route_id.active = bool(all_rules.filtered(lambda r: r.action == 'pull'))
 
-    def _generate_global_route_rules_values(self):
-        rules = super()._generate_global_route_rules_values()
+    def _get_global_rule_fields(self):
+        return super()._get_global_rule_fields() | {'subcontracting_dropshipping_pull_id'}
+
+    def _prepare_global_route_rule_vals(self):
+        rules = super()._prepare_global_route_rule_vals()
         subcontract_location_id = self._get_subcontracting_location()
         production_location_id = self._get_production_location()
         rules.update({

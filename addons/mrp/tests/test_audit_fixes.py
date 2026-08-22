@@ -6,6 +6,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.tests import Form, tagged
 
 from .common import TestMrpCommon
+from odoo.addons.mail.tests.common import mail_new_test_user
 
 
 @tagged("post_install", "-at_install")
@@ -1100,3 +1101,152 @@ class TestMrpAuditFixes(TestMrpCommon):
             form.max_batch_size = production.product_qty / max_splits
             self.assertEqual(form.num_splits, max_splits)
         self.assertEqual(len(wizard.production_detailed_vals_ids), max_splits)
+
+    def test_delay_alert_search_answers_what_the_field_shows(self):
+        component = self.env["product.product"].create(
+            {"name": "Delay alert component", "is_storable": True},
+        )
+        finished = self.env["product.product"].create(
+            {"name": "Delay alert finished", "is_storable": True},
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1,
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1}),
+                ],
+            },
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "product_qty": 1, "bom_id": bom.id},
+        )
+        production.action_confirm()
+        warehouse = self.env["stock.warehouse"].search(
+            [("company_id", "=", self.env.company.id)],
+            limit=1,
+        )
+        upstream = self.env["stock.picking"].create(
+            {
+                "picking_type_id": warehouse.int_type_id.id,
+                "move_ids": [
+                    Command.create(
+                        {"product_id": component.id, "product_uom_qty": 1},
+                    ),
+                ],
+            },
+        )
+        upstream.action_confirm()
+        production.move_raw_ids.move_orig_ids = [Command.set(upstream.move_ids.ids)]
+        upstream.move_ids.date = datetime(2031, 12, 1)
+        production.move_raw_ids.date = datetime(2030, 1, 1)
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        self.assertEqual(production.date_delay_alert, datetime(2031, 12, 1))
+        Production = self.env["mrp.production"]
+        for operator, value, expected in (
+            ("!=", False, True),
+            (">", datetime(2031, 6, 1), True),
+            ("<", datetime(2031, 6, 1), False),
+            ("=", datetime(2031, 12, 1), True),
+            ("=", datetime(2031, 1, 1), False),
+        ):
+            with self.subTest(operator=operator, value=value):
+                self.assertEqual(
+                    bool(
+                        Production.search(
+                            [
+                                ("id", "=", production.id),
+                                ("date_delay_alert", operator, value),
+                            ],
+                        )
+                    ),
+                    expected,
+                    "the search must classify by the same rule the field shows",
+                )
+
+        self.assertTrue(
+            Production.search(
+                [
+                    ("id", "=", production.id),
+                    "|",
+                    ("date_delay_alert", "!=", False),
+                    ("is_delayed", "=", True),
+                ],
+            ),
+            "the Late filter the search view ships must find a delayed order",
+        )
+
+    def _kit_with_one_component(self, on_hand):
+        component = self.env["product.product"].create(
+            {"name": "Audit Kit Component", "is_storable": True}
+        )
+        kit = self.env["product.product"].create(
+            {"name": "Audit Kit", "is_storable": True}
+        )
+        self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": kit.product_tmpl_id.id,
+                "product_qty": 1,
+                "type": "phantom",
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1})
+                ],
+            }
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            component, self.stock_location, on_hand
+        )
+        return kit, component
+
+    def test_kit_quantities_are_readable_without_manufacturing_rights(self):
+        kit, __ = self._kit_with_one_component(7.0)
+        reader = mail_new_test_user(
+            self.env,
+            login="audit_kit_reader",
+            name="Audit Kit Reader",
+            groups="stock.group_stock_user",
+        )
+        self.assertFalse(
+            reader.has_group("mrp.group_mrp_user"),
+            "the reader must not carry manufacturing rights for this to measure "
+            "anything",
+        )
+
+        self.assertEqual(
+            kit.with_user(reader).qty_available,
+            7.0,
+            "a reader without manufacturing rights must get the kit's quantity, "
+            "not an AccessError on mrp.bom",
+        )
+
+    def test_kit_component_quantities_still_obey_the_reader_record_rules(self):
+        kit, component = self._kit_with_one_component(7.0)
+        reader = mail_new_test_user(
+            self.env,
+            login="audit_kit_ruled_reader",
+            name="Audit Kit Ruled Reader",
+            groups="stock.group_stock_user",
+        )
+        self.env["ir.rule"].create(
+            {
+                "name": "Audit: no quant is visible",
+                "model_id": self.env["ir.model"]._get_id("stock.quant"),
+                "domain_force": "[(0, '=', 1)]",
+                "groups": [Command.link(self.quick_ref("stock.group_stock_user").id)],
+            }
+        )
+
+        self.assertEqual(
+            component.with_user(reader).qty_available,
+            0.0,
+            "the rule must hide the component's own quantity, or this test "
+            "cannot tell the two environments apart",
+        )
+        self.assertEqual(
+            kit.with_user(reader).qty_available,
+            0.0,
+            "the kit's quantity is its components': elevating the BoM lookup "
+            "must not elevate the components' quant reads",
+        )

@@ -19,6 +19,7 @@ class TestRepairTraceability(TestMrpCommon):
         """
         product_to_repair = self.env['product.product'].create({
             'name': 'product first serial to act repair',
+            'is_storable': True,
             'tracking': 'serial',
         })
         ptrepair_lot = self.env['stock.lot'].create({
@@ -27,12 +28,26 @@ class TestRepairTraceability(TestMrpCommon):
         })
         product_to_remove = self.env['product.product'].create({
             'name': 'other first serial to remove with repair',
+            'is_storable': True,
             'tracking': 'serial',
         })
         ptremove_lot = self.env['stock.lot'].create({
             'name': 'B2',
             'product_id': product_to_remove.id,
         })
+        # Both products track inventory now, so the MO reserves its component
+        # instead of inventing a line for it: without the serial on hand there is
+        # nothing to attach `ptremove_lot` to and `button_mark_done` reports a
+        # missing lot.
+        warehouse = self.env['stock.warehouse'].search(
+            [('company_id', '=', self.env.company.id)], limit=1)
+        self.env['stock.quant'].with_context(inventory_mode=True).create({
+            'product_id': product_to_remove.id,
+            'location_id': warehouse.lot_stock_id.id,
+            'lot_id': ptremove_lot.id,
+            'inventory_quantity': 1,
+        })._apply_inventory()
+
         # Create a manufacturing order with product (with SN A1)
         mo_form = Form(self.env['mrp.production'])
         mo_form.product_id = product_to_repair
@@ -60,6 +75,16 @@ class TestRepairTraceability(TestMrpCommon):
         ro.action_repair_start()
         ro.move_ids.picked = True
         ro.action_repair_end()
+
+        # The repair consumed B2 out of the product, so it is at zero everywhere.
+        # Reusing the serial -- which is the point of this test -- means having it
+        # back on hand first; a storable component is reserved, not conjured.
+        self.env['stock.quant'].with_context(inventory_mode=True).create({
+            'product_id': product_to_remove.id,
+            'location_id': warehouse.lot_stock_id.id,
+            'lot_id': ptremove_lot.id,
+            'inventory_quantity': 1,
+        })._apply_inventory()
 
         # Create a manufacturing order with product (with SN A2)
         mo2_form = Form(self.env['mrp.production'])

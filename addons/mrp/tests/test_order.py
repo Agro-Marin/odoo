@@ -1603,7 +1603,7 @@ class TestMrpOrder(TestMrpCommon):
             {"name": "finished product"}
         )
         byproduct = self.env["product.product"].create(
-            {"name": "byproduct", "tracking": "serial"}
+            {"name": "byproduct", "is_storable": True, "tracking": "serial"}
         )
         component = self.env["product.product"].create({"name": "component"})
         bom = self.env["mrp.bom"].create(
@@ -5636,8 +5636,7 @@ class TestMrpOrder(TestMrpCommon):
         tracked_product = self.env["product.product"].create(
             {
                 "name": "Super Product",
-                "tracking": "lot",
-                "is_storable": True,
+                "is_storable": True, "tracking": "lot",
                 "bom_ids": [
                     Command.create(
                         {

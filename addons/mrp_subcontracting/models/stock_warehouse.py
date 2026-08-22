@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.fields import Command
 
 
@@ -29,7 +28,7 @@ class StockWarehouse(models.Model):
     def create(self, vals_list):
         res = super().create(vals_list)
         # if new warehouse has resupply enabled, enable global route
-        if any([vals.get('subcontracting_to_resupply', False) for vals in vals_list]):
+        if any(vals.get('subcontracting_to_resupply', False) for vals in vals_list):
             res._update_global_route_resupply_subcontractor()
         return res
 
@@ -43,8 +42,8 @@ class StockWarehouse(models.Model):
             self._update_global_route_resupply_subcontractor()
         return res
 
-    def get_rules_dict(self):
-        result = super().get_rules_dict()
+    def _get_rules_dict(self):
+        result = super()._get_rules_dict()
         subcontract_location_id = self._get_subcontracting_location()
         for warehouse in self:
             result[warehouse.id].update({
@@ -63,8 +62,8 @@ class StockWarehouse(models.Model):
             route_id.active = True
             self.route_ids = [Command.link(route_id.id)]
 
-    def _get_routes_values(self):
-        routes = super(StockWarehouse, self)._get_routes_values()
+    def _prepare_route_vals(self):
+        routes = super()._prepare_route_vals()
         routes.update({
             'subcontracting_route_id': {
                 'routing_key': 'subcontract',
@@ -87,8 +86,8 @@ class StockWarehouse(models.Model):
         })
         return routes
 
-    def _generate_global_route_rules_values(self):
-        rules = super()._generate_global_route_rules_values()
+    def _prepare_global_route_rule_vals(self):
+        rules = super()._prepare_global_route_rule_vals()
         subcontract_location_id = self._get_subcontracting_location()
         production_location_id = self._get_production_location()
         rules.update({
@@ -129,16 +128,17 @@ class StockWarehouse(models.Model):
         })
         return rules
 
-    def _get_picking_type_codes(self):
-        codes = super()._get_picking_type_codes()
-        codes.update({
-            'subcontracting_type_id': 'SBC',
-            'subcontracting_resupply_type_id': 'RES',
-        })
-        return codes
+    def _get_route_trigger_fields(self):
+        return super()._get_route_trigger_fields() | {'subcontracting_to_resupply'}
 
-    def _get_picking_type_create_values(self):
-        data = super()._get_picking_type_create_values()
+    def _get_global_rule_fields(self):
+        return super()._get_global_rule_fields() | {
+            'subcontracting_pull_id',
+            'subcontracting_mto_pull_id',
+        }
+
+    def _prepare_picking_type_create_vals(self):
+        data = super()._prepare_picking_type_create_vals()
         data.update({
             'subcontracting_type_id': {
                 'name': _('Subcontracting'),
@@ -158,32 +158,23 @@ class StockWarehouse(models.Model):
         })
         return data
 
-    def _get_sequence_values(self, name=False, code=False):
-        values = super(StockWarehouse, self)._get_sequence_values(name=name, code=code)
-        # Honor the name/code params (as the base does) so a warehouse rename or
-        # recode propagates here too; `_update_name_and_code` calls this before
-        # super().write(), so self.name/self.code are still stale.
-        name = name or self.name
-        code = code or self.code
+    def _get_picking_type_codes(self):
+        codes = super()._get_picking_type_codes()
+        code = self._normalized_code()
         count = self.env['ir.sequence'].search_count([('prefix', '=like', code + '/SBC%/%')])
-        values.update({
-            'subcontracting_type_id': {
-                'name': _('%(name)s Sequence subcontracting', name=name),
-                'prefix': code + '/' + (self.subcontracting_type_id.sequence_code or (('SBC' + str(count)) if count else 'SBC')) + '/',
-                'padding': 5,
-                'company_id': self.company_id.id
-            },
-            'subcontracting_resupply_type_id': {
-                'name': _('%(name)s Sequence Resupply Subcontractor', name=name),
-                'prefix': code + '/' + (self.subcontracting_resupply_type_id.sequence_code or (('RES' + str(count)) if count else 'RES')) + '/',
-                'padding': 5,
-                'company_id': self.company_id.id
-            },
+        codes.update({
+            'subcontracting_type_id': ('SBC' + str(count)) if count else 'SBC',
+            'subcontracting_resupply_type_id': ('RES' + str(count)) if count else 'RES',
         })
-        return values
+        return codes
 
-    def _get_picking_type_update_values(self):
-        data = super(StockWarehouse, self)._get_picking_type_update_values()
+    def _get_picking_type_barcode_suffixes(self, codes=None):
+        suffixes = super()._get_picking_type_barcode_suffixes(codes)
+        suffixes['subcontracting_resupply_type_id'] = 'RESUP'
+        return suffixes
+
+    def _prepare_picking_type_update_vals(self):
+        data = super()._prepare_picking_type_update_vals()
         subcontract_location_id = self._get_subcontracting_location()
         production_location_id = self._get_production_location()
         data.update({
@@ -195,7 +186,6 @@ class StockWarehouse(models.Model):
             'subcontracting_resupply_type_id': {
                 'default_location_src_id': self.lot_stock_id.id,
                 'default_location_dest_id': subcontract_location_id.id,
-                'barcode': self.code.replace(" ", "").upper() + "RESUP",
                 'active': self.subcontracting_to_resupply and self.active
             },
         })

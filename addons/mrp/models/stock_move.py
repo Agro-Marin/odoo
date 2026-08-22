@@ -272,8 +272,8 @@ class StockMove(models.Model):
                 moves_with_reference |= move
         super(StockMove, self - moves_with_reference)._compute_reference()
 
-    def _set_references(self):
-        super()._set_references()
+    def _update_references(self):
+        super()._update_references()
         for move in self:
             if move.reference_ids:
                 continue
@@ -797,7 +797,6 @@ class StockMove(models.Model):
         keys = super()._key_assign_picking()
         return keys + (self.created_production_id,)
 
-    @api.model
     def _prepare_merge_moves_distinct_fields(self):
         res = super()._prepare_merge_moves_distinct_fields()
         res += ["created_production_id", "cost_share", "production_group_id"]
@@ -805,7 +804,6 @@ class StockMove(models.Model):
             res.append("bom_line_id")
         return res
 
-    @api.model
     def _prepare_merge_negative_moves_excluded_distinct_fields(self):
         return super()._prepare_merge_negative_moves_excluded_distinct_fields() + [
             "created_production_id"

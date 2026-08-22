@@ -131,6 +131,7 @@ class TestMrpMulticompany(common.TransactionCase):
         product = self.env["product.product"].create(
             {
                 "name": "p1",
+                "is_storable": True,
                 "tracking": "lot",
             }
         )
@@ -172,6 +173,7 @@ class TestMrpMulticompany(common.TransactionCase):
         component = self.env["product.product"].create(
             {
                 "name": "p2",
+                "is_storable": True,
                 "tracking": "lot",
             }
         )

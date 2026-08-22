@@ -30,7 +30,7 @@
                                 <a name="%(action_mrp_production_form)d" context="{'default_picking_type_id': id}" type="action">Manufacturing Order</a>
                             </div>
                             <div role="menuitem">
-                                <a name="get_action_picking_type_moves_analysis" type="object">Reporting</a>
+                                <a name="action_view_moves_analysis" type="object">Reporting</a>
                             </div>
                         </div>
                     </div>
@@ -51,7 +51,7 @@
             </xpath>
             <xpath expr='//div[@name="stock_picking"]' position="after">
                 <div t-if="record.code.raw_value == 'mrp_operation'" class="px-2">
-                    <a t-if="!selection_mode" type="object" name="get_mrp_stock_picking_action_picking_type">
+                    <a t-if="!selection_mode" type="object" name="action_view_productions">
                         <field name="name" class="fw-bold fs-4"/>
                     </a>
                     <field t-if="selection_mode" name="name" class="fw-bold fs-4"/>

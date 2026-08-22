@@ -1020,7 +1020,7 @@ class TestProcurement(TestMrpCommon):
             ]
         )
 
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
 
         mos = self.env["mrp.production"].search(
             [("product_id", "=", finished.id)], order="origin"

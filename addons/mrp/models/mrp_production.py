@@ -2,7 +2,6 @@ import datetime
 import json
 import math
 import re
-from ast import literal_eval
 from collections import defaultdict
 
 from dateutil.relativedelta import relativedelta
@@ -20,6 +19,7 @@ from odoo.tools.misc import (
     groupby as tools_groupby,
 )
 
+from odoo.addons.base.models.ir_actions import eval_action_context
 from odoo.addons.stock.models.stock_move import PROCUREMENT_PRIORITIES
 from odoo.addons.web.controllers.utils import clean_action
 
@@ -437,7 +437,7 @@ class MrpProduction(models.Model):
     date_delay_alert = fields.Datetime(
         "Delay Alert Date",
         compute="_compute_date_delay_alert",
-        search="_search_date_delay_alert",
+        store=True,
     )
     json_popover = fields.Char(
         "JSON data for the popover widget", compute="_compute_json_popover"
@@ -854,19 +854,35 @@ class MrpProduction(models.Model):
 
     @api.depends("move_raw_ids.date_delay_alert")
     def _compute_date_delay_alert(self):
-        date_delay_alert_data = self.env["stock.move"]._read_group(
-            [("id", "in", self.move_raw_ids.ids), ("date_delay_alert", "!=", False)],
-            ["raw_material_production_id"],
-            ["date_delay_alert:max"],
-        )
-        date_delay_alert_data = {
-            raw_material_production.id: date_delay_alert_max
-            for raw_material_production, date_delay_alert_max in date_delay_alert_data
-        }
+        saved = self.filtered("id")
+        date_delay_alert_data = {}
+        if saved:
+            date_delay_alert_data = {
+                production.id: date_delay_alert_max
+                for production, date_delay_alert_max in self.env[
+                    "stock.move"
+                ]._read_group(
+                    [
+                        ("raw_material_production_id", "in", saved.ids),
+                        ("date_delay_alert", "!=", False),
+                    ],
+                    ["raw_material_production_id"],
+                    ["date_delay_alert:max"],
+                )
+            }
         for production in self:
-            production.date_delay_alert = date_delay_alert_data.get(
-                production.id, False
-            )
+            if production.id:
+                production.date_delay_alert = date_delay_alert_data.get(
+                    production.id,
+                    False,
+                )
+            else:
+                production.date_delay_alert = max(
+                    production.move_raw_ids.filtered("date_delay_alert").mapped(
+                        "date_delay_alert"
+                    ),
+                    default=False,
+                )
 
     def _compute_json_popover(self):
         production_no_alert = self.filtered(
@@ -1311,19 +1327,6 @@ class MrpProduction(models.Model):
                     qty_available_virtual += order.product_uom_qty
                 if qty_available_virtual < 0:
                     order.forecasted_issue = True
-
-    @api.model
-    def _search_date_delay_alert(self, operator, value):
-        if operator in Domain.NEGATIVE_OPERATORS:
-            return NotImplemented
-        late_stock_moves = self.env["stock.move"].search(
-            [("date_delay_alert", operator, value)]
-        )
-        return [
-            "|",
-            ("move_raw_ids", "in", late_stock_moves.ids),
-            ("move_finished_ids", "in", late_stock_moves.ids),
-        ]
 
     @api.depends(
         "bom_id.produce_delay",
@@ -2280,7 +2283,7 @@ class MrpProduction(models.Model):
                         )
                 if not move.product_uom_id.is_zero(qty_waiting):
                     new_qty = min(new_qty, move.product_uom_qty - qty_waiting)
-            move._set_quantity_done(new_qty)
+            move._update_quantity_done(new_qty)
             if (
                 (not move.manual_consumption or pick_manual_consumption_moves)
                 and move.quantity
@@ -2440,32 +2443,9 @@ class MrpProduction(models.Model):
 
     def _prepare_stock_lot_values(self):
         self.ensure_one()
-        if self.product_id.lot_sequence_id:
-            name = self.product_id.lot_sequence_id.next_by_id()
-        else:
-            name = self.env["ir.sequence"].next_by_code("stock.lot.serial")
-        exist_lot = not name or self.env["stock.lot"].search(
-            [
-                ("product_id", "=", self.product_id.id),
-                "|",
-                ("company_id", "=", False),
-                ("company_id", "=", self.company_id.id),
-                ("name", "=", name),
-            ],
-            limit=1,
+        return self.env["stock.lot"]._prepare_next_lot_vals(
+            self.company_id, self.product_id
         )
-        if exist_lot:
-            name = self.env["stock.lot"]._get_next_serial(
-                self.company_id, self.product_id
-            )
-        if not name:
-            raise UserError(
-                _("Please set the first Serial Number or a default sequence")
-            )
-        return {
-            "product_id": self.product_id.id,
-            "name": name,
-        }
 
     def action_generate_serial(self, workorder=False):
         self.ensure_one()
@@ -3582,7 +3562,7 @@ class MrpProduction(models.Model):
         self.ensure_one()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.mrp_unbuild")
         action["domain"] = [("mo_id", "=", self.id)]
-        context = literal_eval(action["context"])
+        context = eval_action_context(action["context"], self.env)
         context.update(self.env.context)
         context["default_mo_id"] = self.id
         action["context"] = context

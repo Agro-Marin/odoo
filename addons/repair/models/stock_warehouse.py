@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import fields, models, api, _
+from odoo import _, fields, models
 from odoo.exceptions import UserError
 
 
@@ -12,30 +11,13 @@ class StockWarehouse(models.Model):
     repair_mto_pull_id = fields.Many2one(
         'stock.rule', 'Repair MTO Rule', copy=False)
 
-    def _get_sequence_values(self, name=False, code=False):
-        values = super(StockWarehouse, self)._get_sequence_values(name=name, code=code)
-        # Honor the name/code params (as the base does) so a warehouse rename or
-        # recode propagates here too; `_update_name_and_code` calls this before
-        # super().write(), so self.name/self.code are still stale.
-        name = name or self.name
-        code = code or self.code
-        values.update({
-            'repair_type_id': {
-                'name': _('%(name)s Sequence repair', name=name),
-                'prefix': code + '/' + (self.repair_type_id.sequence_code or 'RO') + '/',
-                'padding': 5,
-                'company_id': self.company_id.id
-                },
-        })
-        return values
-
     def _get_picking_type_codes(self):
         codes = super()._get_picking_type_codes()
         codes['repair_type_id'] = 'RO'
         return codes
 
-    def _get_picking_type_create_values(self):
-        data = super()._get_picking_type_create_values()
+    def _prepare_picking_type_create_vals(self):
+        data = super()._prepare_picking_type_create_vals()
         prod_location = self._get_production_location()
         scrap_location = self.env['stock.location'].search([
             ('usage', '=', 'inventory'),
@@ -59,22 +41,14 @@ class StockWarehouse(models.Model):
         })
         return data
 
-    def _get_picking_type_update_values(self):
-        data = super(StockWarehouse, self)._get_picking_type_update_values()
+    def _prepare_picking_type_update_vals(self):
+        data = super()._prepare_picking_type_update_vals()
         data.update({
             'repair_type_id': {
                 'active': self.active,
-                'barcode': self.code.replace(" ", "").upper() + "RO",
             },
         })
         return data
-
-    @api.model
-    def _get_production_location(self):
-        location = self.env['stock.location'].search([('usage', '=', 'production'), ('company_id', '=', self.company_id.id)], limit=1)
-        if not location:
-            raise UserError(_("Can't find any production location."))
-        return location
 
     def _create_missing_locations(self, vals):
         super()._create_missing_locations(vals)
@@ -83,8 +57,14 @@ class StockWarehouse(models.Model):
             if not location:
                 company_id._create_production_location()
 
-    def _generate_global_route_rules_values(self):
-        rules = super()._generate_global_route_rules_values()
+    def _get_route_trigger_fields(self):
+        return super()._get_route_trigger_fields() | {'repair_type_id'}
+
+    def _get_global_rule_fields(self):
+        return super()._get_global_rule_fields() | {'repair_mto_pull_id'}
+
+    def _prepare_global_route_rule_vals(self):
+        rules = super()._prepare_global_route_rule_vals()
         production_location = self._get_production_location()
         rules.update({
             'repair_mto_pull_id': {

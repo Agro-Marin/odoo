@@ -251,6 +251,7 @@ class TestWarehouseMrp(common.TestMrpCommon):
     def test_manufacturing_scrap(self):
         (self.product_4 | self.product_2).write(
             {
+                "is_storable": True,
                 "tracking": "lot",
             }
         )

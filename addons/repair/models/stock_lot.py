@@ -71,10 +71,10 @@ class StockLot(models.Model):
             })
         return action
 
-    def _check_create(self):
+    def _check_lots_allowed(self, product_ids):
         active_repair_id = self.env.context.get('active_repair_id')
         if active_repair_id:
             active_repair = self.env['repair.order'].browse(active_repair_id)
             if active_repair and not active_repair.picking_type_id.use_create_lots:
                 raise UserError(_('You are not allowed to create a lot or serial number with this operation type. To change this, go on the operation type and tick the box "Create New Lots/Serial Numbers".'))
-        return super()._check_create()
+        return super()._check_lots_allowed(product_ids)

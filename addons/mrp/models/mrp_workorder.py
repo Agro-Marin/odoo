@@ -431,8 +431,7 @@ class MrpWorkorder(models.Model):
         for workorder in self:
             workorder.reservation_id = workorder.reservation_ids[:1]
 
-
-    def _get_fields_reservation_date(self):
+    def _get_reservation_date_fields(self):
         return ("date_start", "date_end")
 
     def _get_reservation_vals_list(self):
@@ -533,9 +532,7 @@ class MrpWorkorder(models.Model):
     def _compute_duration(self):
         for order in self:
             order.duration = order.get_duration()
-            order.duration_unit = round(
-                order.duration / max(order.qty_produced, 1), 2
-            )
+            order.duration_unit = round(order.duration / max(order.qty_produced, 1), 2)
             if order.duration_expected:
                 order.duration_percent = max(
                     -2147483648,
@@ -555,6 +552,7 @@ class MrpWorkorder(models.Model):
             workorder.duration_live = workorder.get_duration()
 
     def _inverse_duration(self):
+
         def _float_duration_to_second(duration):
             minutes = duration // 1
             seconds = (duration % 1) * 60
@@ -1058,7 +1056,7 @@ class MrpWorkorder(models.Model):
             else:
                 qty_available = production_id.qty_producing
             new_qty = move.product_uom_id.round(qty_available * move.unit_factor)
-            move._set_quantity_done(new_qty)
+            move._update_quantity_done(new_qty)
 
         moves_to_pick.picked = True
         workorders_to_end.end_all()
@@ -1138,13 +1136,13 @@ class MrpWorkorder(models.Model):
 
     def action_view_move_scrap(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("stock.action_stock_scrap")
+        action = self.env["ir.actions.actions"]._for_xml_id("stock.action_stock_scrap")
         action["domain"] = [("workorder_id", "=", self.id)]
         return action
 
     def action_open_wizard(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+        action = self.env["ir.actions.actions"]._for_xml_id(
             "mrp.mrp_workorder_mrp_production_form"
         )
         action["res_id"] = self.id

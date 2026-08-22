@@ -476,7 +476,7 @@ class TestMultistepManufacturingWarehouse(TestMrpCommon):
             }
         )
 
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
         mo = self.env["mrp.production"].search(
             [("product_id", "=", finished_product.id)]
         )
@@ -548,7 +548,7 @@ class TestMultistepManufacturingWarehouse(TestMrpCommon):
         rr_form.location_id = self.warehouse.lot_stock_id
         rr_raw = rr_form.save()
 
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
 
         pickings_component = self.env["stock.picking"].search(
             [("product_id", "=", self.wood_product.id)]
@@ -599,7 +599,7 @@ class TestMultistepManufacturingWarehouse(TestMrpCommon):
         rr_form.product_max_qty = 40
         rr_form.save()
 
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
 
         mo = self.env["mrp.production"].search(
             [("product_id", "=", self.finished_product.id)]
@@ -714,7 +714,7 @@ class TestMultistepManufacturingWarehouse(TestMrpCommon):
                 "bom_id": bom_2.id,
             }
         )
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
         mo = self.env["mrp.production"].search(
             [("product_id", "=", self.finished_product.id)]
         )
@@ -798,7 +798,7 @@ class TestMultistepManufacturingWarehouse(TestMrpCommon):
             }
         )
 
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
         mo = self.env["mrp.production"].search([("product_id", "=", demo.id)])
         mo.action_confirm()
 

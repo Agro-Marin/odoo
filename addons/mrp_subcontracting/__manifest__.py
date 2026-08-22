@@ -45,6 +45,10 @@
             'web/static/lib/bootstrap/scss/_variables-dark.scss',
             'web/static/lib/bootstrap/scss/_maps.scss',
 
+            ('include', 'web._assets_bootstrap'),
+
+            'web/static/src/scss/tokens.scss',
+
             'web/static/src/libs/fontawesome7/css/fontawesome.css',
             'web/static/src/libs/fontawesome7/css/solid.css',
             'web/static/src/libs/fontawesome7/css/regular.css',
@@ -60,13 +64,6 @@
             'web/static/src/session.js',
 
             'web/static/src/libs/bootstrap.js',
-
-            ('include', 'web._assets_bootstrap'),
-
-            # The web globs below read the `--o-*` palette, and an unresolvable
-            # var() voids the whole declaration rather than falling back to a
-            # colour. Same slot as in web.assets_backend.
-            'web/static/src/scss/tokens.scss',
 
             'base/static/src/css/modules.css',
 

@@ -618,7 +618,7 @@
         </record>
 
         <!-- Run Scheduler -->
-        <function model="stock.rule" name="run_scheduler"/>
+        <function model="stock.scheduler" name="run"/>
 
 
         <!-- OEE -->

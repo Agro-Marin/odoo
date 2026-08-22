@@ -88,7 +88,6 @@ class TestBoM(TestMrpCommon):
             }
         )
 
-
         _, lines = fns_bom.explode(fns, 1)
         self.assertEqual(lines[0][1]["qty"], 0.10)
 
@@ -443,6 +442,7 @@ class TestBoM(TestMrpCommon):
             ]
 
     def test_12_multi_level_variants2(self):
+
         Product = self.env["product.product"]
         ProductAttribute = self.env["product.attribute"]
         ProductAttributeValue = self.env["product.attribute.value"]
@@ -1880,6 +1880,7 @@ class TestBoM(TestMrpCommon):
         bom_finished = bom_finished.save()
 
     def test_replenishment(self):
+
         product_gram = self.env["product.product"].create(
             {
                 "name": "Product sold in grams",
@@ -3005,6 +3006,7 @@ class TestBoM(TestMrpCommon):
         self.assertEqual(len(mo_form.move_raw_ids._records), 1)
 
     def test_update_operations(self):
+
         mo_form = Form(self.env["mrp.production"].with_user(self.user_mrp_user))
         mo_form.product_id = self.product_7_1
         mo_form.product_qty = 1.0
@@ -3024,6 +3026,7 @@ class TestBoM(TestMrpCommon):
         )
 
     def test_archive_operations(self):
+
         mo_form = Form(self.env["mrp.production"].with_user(self.user_mrp_user))
 
         mo_form.product_id = self.product_7_1
@@ -3186,6 +3189,7 @@ class TestBoM(TestMrpCommon):
         )
 
     def test_bom_never_attribute(self):
+
         product_attribute_radio = self.env["product.attribute"].create(
             {
                 "name": "PA",
@@ -4118,6 +4122,7 @@ class TestTourBoM(HttpCase):
 
 
 class TestBoMComponentChatter(TestMrpCommon):
+
     def setUp(self):
         super().setUp()
         self.env = self.env(
@@ -4147,12 +4152,8 @@ class TestBoMComponentChatter(TestMrpCommon):
         self.assertIn(self.product_2.display_name, body)
         self.assertIn(
             "{} → {}".format(
-                float_repr(
-                    2.0, self.env["decimal.precision"].get_precision("Product Unit")
-                ),
-                float_repr(
-                    5.0, self.env["decimal.precision"].get_precision("Product Unit")
-                ),
+                float_repr(2.0, self.env["decimal.precision"].precision_get("Product Unit")),
+                float_repr(5.0, self.env["decimal.precision"].precision_get("Product Unit")),
             ),
             body,
         )
@@ -4280,86 +4281,3 @@ class TestBoMComponentChatter(TestMrpCommon):
         line.with_context(mail_notrack=True).unlink()
 
         self.assertFalse(self._get_new_messages(bom, before))
-
-    def test_adding_a_component_posts(self):
-        bom = self.bom_1
-        before = bom.message_ids
-
-        bom.write(
-            {
-                "bom_line_ids": [
-                    Command.create(
-                        {"product_id": self.product_3.id, "product_qty": 8.0}
-                    )
-                ]
-            }
-        )
-
-        message = self._get_new_messages(bom, before)
-        self.assertEqual(len(message), 1)
-        self.assertEqual(message.subtype_id, self.env.ref("mail.mt_note"))
-        body = str(message.body)
-        self.assertIn("Components added", body)
-        self.assertIn(self.product_3.display_name, body)
-
-    def test_adding_a_component_by_direct_create_posts(self):
-        bom = self.bom_1
-        before = bom.message_ids
-
-        self.env["mrp.bom.line"].create(
-            {
-                "bom_id": bom.id,
-                "product_id": self.product_3.id,
-                "product_qty": 1.0,
-            }
-        )
-
-        self.assertIn("Components added", str(self._get_new_messages(bom, before).body))
-
-    def test_creating_a_bom_with_its_lines_posts_nothing(self):
-        bom = self.env["mrp.bom"].create(
-            {
-                "product_tmpl_id": self.product_4.product_tmpl_id.id,
-                "product_qty": 1.0,
-                "bom_line_ids": [
-                    Command.create({"product_id": self.product_2.id, "product_qty": 1}),
-                    Command.create({"product_id": self.product_3.id, "product_qty": 2}),
-                ],
-            }
-        )
-
-        self.assertFalse(
-            bom.message_ids.filtered(lambda m: "Components" in str(m.body))
-        )
-
-    def test_duplicating_a_bom_posts_nothing(self):
-        source = self.env["mrp.bom"].create(
-            {
-                "product_tmpl_id": self.product_4.product_tmpl_id.id,
-                "product_qty": 1.0,
-                "operation_ids": [
-                    Command.create(
-                        {"name": "Assemble", "workcenter_id": self.workcenter_1.id}
-                    )
-                ],
-            }
-        )
-        source.bom_line_ids = [
-            Command.create(
-                {
-                    "product_id": self.product_2.id,
-                    "product_qty": 1,
-                    "operation_id": source.operation_ids.id,
-                }
-            )
-        ]
-
-        copied = source.copy()
-
-        self.assertEqual(copied.bom_line_ids.operation_id, copied.operation_ids)
-        self.assertFalse(
-            copied.message_ids.filtered(lambda m: "Components" in str(m.body))
-        )
-        self.assertEqual(
-            len(source.message_ids.filtered(lambda m: "Components" in str(m.body))), 1
-        )

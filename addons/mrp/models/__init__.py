@@ -13,10 +13,12 @@ from . import res_company
 from . import stock_move
 from . import stock_move_line
 from . import stock_orderpoint
+from . import stock_replenishment_report
 from . import stock_picking
 from . import stock_lot
 from . import stock_reference
 from . import stock_rule
+from . import stock_scheduler
 from . import stock_scrap
 from . import stock_warehouse
 from . import stock_quant

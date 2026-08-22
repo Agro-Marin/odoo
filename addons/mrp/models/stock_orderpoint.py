@@ -1,6 +1,5 @@
 from collections import defaultdict
 from datetime import datetime, time
-from itertools import batched
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
@@ -36,27 +35,16 @@ class StockWarehouseOrderpoint(models.Model):
 
     def _get_replenishment_order_notification(self):
         self.ensure_one()
-        domain = Domain("orderpoint_id", "in", self.ids)
-        if self.env.context.get("written_after"):
-            domain &= Domain("write_date", ">=", self.env.context.get("written_after"))
-        production = self.env["mrp.production"].search(domain, limit=1)
+        production = self.env["mrp.production"].search(
+            self._get_replenishment_source_domain(),
+            limit=1,
+        )
         if production:
-            return {
-                "type": "ir.actions.client",
-                "tag": "display_notification",
-                "params": {
-                    "title": _("The following replenishment order has been generated"),
-                    "message": "%s",
-                    "links": [
-                        {
-                            "label": production.name,
-                            "url": f"/odoo/action-mrp.action_mrp_production_form/{production.id}",
-                        }
-                    ],
-                    "sticky": False,
-                    "next": {"type": "ir.actions.act_window_close"},
-                },
-            }
+            return self._build_replenishment_notification(
+                _("The following replenishment order has been generated"),
+                production.name,
+                f"/odoo/action-mrp.action_mrp_production_form/{production.id}",
+            )
         return super()._get_replenishment_order_notification()
 
     @api.depends("bom_id", "product_id.bom_ids.produce_delay")
@@ -68,6 +56,33 @@ class StockWarehouseOrderpoint(models.Model):
         if self.bom_id:
             values["bom"] = self.bom_id
         return values
+
+    def _get_lead_days_values_map(self):
+        result = super()._get_lead_days_values_map()
+        orderpoints_by_lookup = defaultdict(
+            lambda: self.env["stock.warehouse.orderpoint"],
+        )
+        for orderpoint in self:
+            if orderpoint.bom_id:
+                continue
+            manufacture_rule = orderpoint.rule_ids.filtered(
+                lambda rule: rule.action == "manufacture",
+            )[:1]
+            if not manufacture_rule:
+                continue
+            orderpoints_by_lookup[
+                manufacture_rule.picking_type_id,
+                manufacture_rule.company_id,
+            ] |= orderpoint
+        for (picking_type, company), orderpoints in orderpoints_by_lookup.items():
+            boms = self.env["mrp.bom"]._bom_find(
+                orderpoints.product_id,
+                picking_type=picking_type,
+                company_id=company.id,
+            )
+            for orderpoint in orderpoints:
+                result[orderpoint.id]["bom"] = boms[orderpoint.product_id]
+        return result
 
     @api.depends(
         "bom_id",
@@ -86,12 +101,14 @@ class StockWarehouseOrderpoint(models.Model):
                     orderpoint.product_id.bom_ids.product_uom_id
                 )
 
+    @api.depends("product_id.bom_ids")
+    def _compute_rules(self):
+        super()._compute_rules()
+
+    @api.depends("product_id.bom_ids")
     def _compute_show_supply_warning(self):
         for orderpoint in self:
-            if (
-                "manufacture" in orderpoint.rule_ids.mapped("action")
-                and not orderpoint.show_supply_warning
-            ):
+            if "manufacture" in orderpoint.rule_ids.mapped("action"):
                 orderpoint.show_supply_warning = not orderpoint.product_id.bom_ids
                 continue
             super(StockWarehouseOrderpoint, orderpoint)._compute_show_supply_warning()
@@ -225,21 +242,38 @@ class StockWarehouseOrderpoint(models.Model):
                 result[orderpoint] = boms[orderpoint.product_id]
         return result
 
-    def _get_replenishment_multiple_alternative(self, qty_to_order):
-        self.ensure_one()
-        routes = self.effective_route_id or self.product_id.route_ids
-        if not any(r.action == "manufacture" for r in routes.rule_ids):
-            return super()._get_replenishment_multiple_alternative(qty_to_order)
-        bom = (
-            self.bom_id
-            or self.env["mrp.bom"]._bom_find(
-                self.product_id,
-                picking_type=False,
-                bom_type="normal",
-                company_id=self.company_id.id,
-            )[self.product_id]
+    def _get_replenishment_multiple_alternative_map(self, qty_by_orderpoint):
+        manufactured = self.filtered(
+            lambda orderpoint: any(
+                rule.action == "manufacture"
+                for rule in (
+                    orderpoint.effective_route_id or orderpoint.product_id.route_ids
+                ).rule_ids
+            ),
         )
-        return bom.product_uom_id
+        result = super(
+            StockWarehouseOrderpoint,
+            self - manufactured,
+        )._get_replenishment_multiple_alternative_map(qty_by_orderpoint)
+        if not manufactured:
+            return result
+        boms_by_product = defaultdict(lambda: self.env["mrp.bom"])
+        for company in manufactured.company_id:
+            in_company = manufactured.filtered(
+                lambda orderpoint, company=company: orderpoint.company_id == company,
+            )
+            boms_by_product.update(
+                self.env["mrp.bom"]._bom_find(
+                    in_company.product_id,
+                    picking_type=False,
+                    bom_type="normal",
+                    company_id=company.id,
+                ),
+            )
+        for orderpoint in manufactured:
+            bom = orderpoint.bom_id or boms_by_product[orderpoint.product_id]
+            result[orderpoint.id] = bom.product_uom_id
+        return result
 
     def _quantity_in_progress(self):
         bom_kits = self.env["mrp.bom"]._bom_find(self.product_id, bom_type="phantom")
@@ -355,17 +389,3 @@ class StockWarehouseOrderpoint(models.Model):
                     "A product with a kit-type bill of materials can not have a reordering rule."
                 )
             )
-
-    def _get_orderpoint_products(self):
-        non_kit_ids = []
-        for batch_ids in batched(
-            super()._get_orderpoint_products().ids, 2000, strict=False
-        ):
-            products = self.env["product.product"].browse(batch_ids)
-            kit_ids = {
-                k.id
-                for k in self.env["mrp.bom"]._bom_find(products, bom_type="phantom")
-            }
-            non_kit_ids.extend(id_ for id_ in products.ids if id_ not in kit_ids)
-            products.invalidate_recordset()
-        return self.env["product.product"].browse(non_kit_ids)

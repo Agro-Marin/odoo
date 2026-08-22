@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 from . import mrp_bom
 from . import product
@@ -10,6 +9,7 @@ from . import stock_move_line
 from . import stock_picking
 from . import stock_quant
 from . import stock_rule
+from . import stock_scheduler
 from . import stock_warehouse
 from . import mrp_production
 from . import mrp_unbuild

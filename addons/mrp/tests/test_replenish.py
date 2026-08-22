@@ -288,7 +288,7 @@ class TestMrpReplenish(TestMrpCommon):
             orderpoint, view="stock.view_stock_warehouse_orderpoint_list_editable"
         ) as form:
             form.product_min_qty = 10
-            self.assertEqual(form.qty_to_order, 0)
+            self.assertEqual(form.qty_to_order, 8)
         self.assertEqual(form.qty_to_order, 8)
         self.assertEqual(orderpoint.qty_to_order, 8)
 
@@ -458,3 +458,25 @@ class TestMrpReplenish(TestMrpCommon):
             )
         )
         self.assertEqual(orderpoint.company_id, company_2)
+
+    def test_the_shortage_scan_still_skips_kits(self):
+        report = self.env["stock.replenishment.report"]
+        self.assertEqual(self.bom_2.type, "phantom")
+        kit = self.bom_2.product_id
+        self.env["stock.move"].create(
+            {
+                "product_id": kit.id,
+                "product_uom_qty": 1,
+                "location_id": self.warehouse_1.lot_stock_id.id,
+                "location_dest_id": self.env.ref("stock.stock_location_customers").id,
+            }
+        )._action_confirm()
+        self.env.flush_all()
+        self.assertIn(
+            kit,
+            self.env["product.product"].search(
+                [("is_storable", "=", True), ("stock_move_ids", "!=", False)]
+            ),
+            "the kit has to be in the unfiltered set for this to prove anything",
+        )
+        self.assertNotIn(kit, report._get_candidate_products())

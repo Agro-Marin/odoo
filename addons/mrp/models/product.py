@@ -2,7 +2,6 @@ import collections
 from datetime import timedelta
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
 
 from odoo.addons.stock.const import PY_OPERATORS
 
@@ -110,7 +109,7 @@ class ProductTemplate(models.Model):
 
     def action_used_in_bom(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.mrp_bom_form_action")
+        action = self.env["ir.actions.actions"]._for_xml_id("mrp.mrp_bom_form_action")
         action["domain"] = [("bom_line_ids.product_tmpl_id", "=", self.id)]
         return action
 
@@ -121,7 +120,7 @@ class ProductTemplate(models.Model):
             )
 
     def action_view_mos(self):
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.mrp_production_action")
+        action = self.env["ir.actions.actions"]._for_xml_id("mrp.mrp_production_action")
         action["domain"] = [
             ("state", "=", "done"),
             (
@@ -195,12 +194,12 @@ class ProductProduct(models.Model):
 
     product_catalog_product_is_in_bom = fields.Boolean(
         compute="_compute_product_is_in_bom_and_mo",
-        search="_search_product_catalog_product_is_in_bom",
+        search="_search_product_is_in_bom",
     )
 
     product_catalog_product_is_in_mo = fields.Boolean(
         compute="_compute_product_is_in_bom_and_mo",
-        search="_search_product_catalog_product_is_in_mo",
+        search="_search_product_is_in_mo",
     )
 
     def _compute_bom_count(self):
@@ -319,7 +318,7 @@ class ProductProduct(models.Model):
         self.product_catalog_product_is_in_bom = False
         self.product_catalog_product_is_in_mo = False
 
-    def _search_product_catalog_product_is_in_bom(self, operator, value):
+    def _search_product_is_in_bom(self, operator, value):
         if operator != "in":
             return NotImplemented
         product_ids = (
@@ -333,7 +332,7 @@ class ProductProduct(models.Model):
         )
         return [("id", operator, product_ids)]
 
-    def _search_product_catalog_product_is_in_mo(self, operator, value):
+    def _search_product_is_in_mo(self, operator, value):
         if operator != "in":
             return NotImplemented
         product_ids = (
@@ -354,14 +353,16 @@ class ProductProduct(models.Model):
             ).variant_bom_ids.write({"active": vals["active"]})
         return super().write(vals)
 
-    def _get_total_routes(self):
-        routes = super()._get_total_routes()
-        if self.bom_ids:
-            manufacture_routes = (
-                self.env["stock.rule"].search([("action", "=", "manufacture")]).route_id
-            )
-            routes |= manufacture_routes
-        return routes
+    def _get_total_routes_by_product(self):
+        result = super()._get_total_routes_by_product()
+        manufacture_routes = (
+            self.env["stock.rule"].search([("action", "=", "manufacture")]).route_id
+        )
+        if manufacture_routes:
+            for product in self:
+                if product.bom_ids:
+                    result[product.id] |= manufacture_routes
+        return result
 
     def _get_components(self):
         self.ensure_one()
@@ -379,7 +380,7 @@ class ProductProduct(models.Model):
 
     def action_used_in_bom(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.mrp_bom_form_action")
+        action = self.env["ir.actions.actions"]._for_xml_id("mrp.mrp_bom_form_action")
         action["domain"] = [("bom_line_ids.product_id", "=", self.id)]
         return action
 
@@ -410,26 +411,13 @@ class ProductProduct(models.Model):
                 mapped_data.get(product.id, 0)
             )
 
-    def _prepare_quantities_vals(
-        self,
-        lot_id,
-        owner_id,
-        package_id,
-        from_date=False,
-        to_date=False,
-        location_domains=None,
-    ):
-        bom_kits = self.env["mrp.bom"]._bom_find(self, bom_type="phantom")
+    def _prepare_quantities_vals(self, filters, location_domains=None):
+        bom_kits = self.env["mrp.bom"].sudo()._bom_find(self, bom_type="phantom")
         kits = self.filtered(bom_kits.get)
         regular_products = self - kits
         res = (
             super(ProductProduct, regular_products)._prepare_quantities_vals(
-                lot_id,
-                owner_id,
-                package_id,
-                from_date=from_date,
-                to_date=to_date,
-                location_domains=location_domains,
+                filters, location_domains=location_domains
             )
             if regular_products
             else {}
@@ -456,9 +444,11 @@ class ProductProduct(models.Model):
             ratios_free_qty = []
 
             for component, component_bom_lines in bom_sub_lines_grouped.items():
-                component = component.with_context(
-                    mrp_compute_quantities=qties
-                ).with_prefetch(prefetch_component_ids)
+                component = (
+                    component.with_env(self.env)
+                    .with_context(mrp_compute_quantities=qties)
+                    .with_prefetch(prefetch_component_ids)
+                )
                 qty_per_kit = 0
                 for bom_line, bom_line_data in component_bom_lines:
                     if not component.is_storable or bom_line.product_uom_id.is_zero(
@@ -519,9 +509,7 @@ class ProductProduct(models.Model):
                         component_res["qty_free"] / qty_per_kit, rounding_method="DOWN"
                     )
                 )
-            if (
-                bom_sub_lines and ratios_virtual_available
-            ):
+            if bom_sub_lines and ratios_virtual_available:
                 res[product.id] = {
                     "qty_available_virtual": product.uom_id.round(
                         min(ratios_virtual_available) * bom_kits[product].product_qty,
@@ -561,7 +549,7 @@ class ProductProduct(models.Model):
         return res
 
     def action_view_bom(self):
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.product_open_bom")
+        action = self.env["ir.actions.actions"]._for_xml_id("mrp.product_open_bom")
         template_ids = self.mapped("product_tmpl_id").ids
         action["context"] = {
             "default_product_tmpl_id": template_ids[0],
@@ -617,16 +605,6 @@ class ProductProduct(models.Model):
             & product_template_attribute_value_ids
         ) == len(product_template_attribute_value_ids.attribute_id)
 
-    def _count_returned_sn_products_domain(self, sn_lot, or_domains):
-        or_domains.append(
-            [
-                ("production_id", "=", False),
-                ("location_id.usage", "=", "production"),
-                ("move_id.unbuild_id", "!=", False),
-            ]
-        )
-        return super()._count_returned_sn_products_domain(sn_lot, or_domains)
-
     def _get_phantom_bom_products(self):
         kit_boms = self.env["mrp.bom"].search(
             [
@@ -647,14 +625,12 @@ class ProductProduct(models.Model):
             | self._get_phantom_bom_products()
         )
 
-    def _search_qty_available_new(
-        self, operator, value, lot_id=False, owner_id=False, package_id=False
-    ):
+    def _search_qty_available_from_quants(self, operator, value, filters=None):
         op = PY_OPERATORS.get(operator)
         if not op:
             return NotImplemented
-        product_ids = super()._search_qty_available_new(
-            operator, value, lot_id, owner_id, package_id
+        product_ids = super()._search_qty_available_from_quants(
+            operator, value, filters
         )
         kits = self._get_phantom_bom_products()
         if not kits:
@@ -696,35 +672,26 @@ class ProductProduct(models.Model):
         ]
 
     def _update_uom(self, to_uom_id):
-        for model, product_field, domain in (
+        for model, product_field, domain, context in (
             (
                 "mrp.bom",
                 "product_tmpl_id",
                 [("product_tmpl_id", "in", self.product_tmpl_id.ids)],
+                None,
             ),
-            ("mrp.bom.line", "product_id", [("product_id", "in", self.ids)]),
-            ("mrp.production", "product_id", [("product_id", "in", self.ids)]),
+            (
+                "mrp.bom.line",
+                "product_id",
+                [("product_id", "in", self.ids)],
+                {"mail_notrack": True},
+            ),
+            ("mrp.production", "product_id", [("product_id", "in", self.ids)], None),
         ):
-            for uom, product, records in self.env[model]._read_group(
-                domain, ["product_uom_id", product_field], ["id:recordset"]
-            ):
-                template = (
-                    product
-                    if product._name == "product.template"
-                    else product.product_tmpl_id
-                )
-                if template.uom_id != uom:
-                    raise UserError(
-                        _(
-                            "As other units of measure (ex : %(problem_uom)s) "
-                            "than %(uom)s have already been used for this product, the change of unit of measure can not be done."
-                            "If you want to change it, please archive the product and create a new one.",
-                            problem_uom=uom.name,
-                            uom=template.uom_id.name,
-                        )
-                    )
-                if model == "mrp.bom.line":
-                    records = records.with_context(mail_notrack=True)
-                records.product_uom_id = to_uom_id
-
+            self._restamp_uom(
+                model,
+                to_uom_id,
+                domain=domain,
+                product_field=product_field,
+                context=context,
+            )
         return super()._update_uom(to_uom_id)

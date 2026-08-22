@@ -592,9 +592,7 @@ class MrpWorkcenter(models.Model):
                         conflict := interval & occupied
                         or interval & extra_leaves_slots_intervals
                     ):
-                        (_start, start, _records) = conflict._items[
-                            0
-                        ]
+                        (_start, start, _records) = conflict._items[0]
                         interval_minutes = (stop - start).total_seconds() / 60
                         start_interval, remaining = (
                             start if interval_minutes else None,
@@ -641,9 +639,7 @@ class MrpWorkcenter(models.Model):
                         conflict := interval & occupied
                         or interval & extra_leaves_slots_intervals
                     ):
-                        (stop, _stop, _records) = conflict._items[
-                            0
-                        ]
+                        (stop, _stop, _records) = conflict._items[0]
                         interval_minutes = (stop - start).total_seconds() / 60
                         stop_interval, remaining = (
                             stop if interval_minutes else None,

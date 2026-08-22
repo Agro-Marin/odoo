@@ -12,14 +12,12 @@ class StockMoveLine(models.Model):
         "mrp.production", "Production Order", check_company=True
     )
 
-    @api.depends("production_id")
+    @api.depends("production_id.picking_type_id")
     def _compute_picking_type_id(self):
-        line_to_remove = self.env["stock.move.line"]
-        for line in self:
-            if production_id := line.production_id or line.move_id.production_id:
-                line.picking_type_id = production_id.picking_type_id
-                line_to_remove |= line
-        return super(StockMoveLine, self - line_to_remove)._compute_picking_type_id()
+        own_production = self.filtered("production_id")
+        for line in own_production:
+            line.picking_type_id = line.production_id.picking_type_id
+        return super(StockMoveLine, self - own_production)._compute_picking_type_id()
 
     def _search_picking_type_id(self, operator, value):
         if operator in Domain.NEGATIVE_OPERATORS:
@@ -145,8 +143,8 @@ class StockMoveLine(models.Model):
         else:
             return super()._get_linkable_moves()
 
-    def _exclude_requiring_lot(self):
+    def _has_lot_context(self):
         return (
             self.move_id.unbuild_id
             and not self.move_id.origin_returned_move_id.move_line_ids.lot_id
-        ) or super()._exclude_requiring_lot()
+        ) or super()._has_lot_context()

@@ -143,7 +143,7 @@ class StockPickingType(models.Model):
                 stock_location = picking_type.warehouse_id.lot_stock_id
                 picking_type.default_recycle_location_dest_id = stock_location.id
 
-    def get_repair_stock_picking_action_picking_type(self):
+    def action_view_repair_orders(self):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id('repair.action_picking_repair')
         if self:
             action['display_name'] = self.display_name
@@ -157,6 +157,7 @@ class StockPickingType(models.Model):
         counts_by_type = repair_picking_types._get_date_category_counts(
             'repair.order',
             'schedule_date',
+            'picking_type_id',
             [('state', '=', 'confirmed')],
         )
         label = self.env._('Confirmed')
