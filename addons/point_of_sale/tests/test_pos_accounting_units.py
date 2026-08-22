@@ -10,25 +10,13 @@ _logger = logging.getLogger(__name__)
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPosAccountingUnits(TestPoSCommon):
-    """Direct unit coverage for the highest-risk, previously integration-only
-    money paths (invoice-payment moves, session balancing account). This is the
-    safety net that must exist before these methods are decomposed: today they
-    are exercised only transitively through a full session-close or a browser
-    tour, so an off-setting or mis-categorised ledger error can pass unnoticed.
-    """
 
     def setUp(self):
         super().setUp()
         self.config = self.basic_config
         self.product = self.create_product("AcctProd", self.categ_basic, 100, 50)
 
-    # ---- _create_payment_moves idempotency: the double-booking guard --------
     def test_create_payment_moves_idempotent_on_reinvoke(self):
-        """pos.payment._create_payment_moves must never re-book a payment that
-        already carries an account_move_id. Re-invoking it (the re-invoice path)
-        must create zero new moves — otherwise the general ledger double-counts
-        the payment. The guard is a one-liner (``if payment.account_move_id:
-        continue``); nothing tested it before."""
         self._start_pos_session(self.cash_pm1 | self.bank_pm1, 0)
         orders = self._create_orders(
             [
@@ -42,8 +30,6 @@ class TestPosAccountingUnits(TestPoSCommon):
         )
         order = orders["acct-idem-1"]
 
-        # Invoice the paid order -> _generate_pos_order_invoice books the
-        # payment moves and stamps account_move_id on each bank payment.
         order.action_pos_order_invoice()
         self.assertTrue(order.account_move, "order should be invoiced")
 
@@ -53,18 +39,14 @@ class TestPosAccountingUnits(TestPoSCommon):
         moves_before = booked.account_move_id
         _logger.info("idempotency: %s move(s) before re-invoke", len(moves_before))
 
-        # Re-invoke on the same payments: the idempotency guard must no-op.
         result = payments._create_payment_moves()
         self.assertFalse(
             result,
             "re-invoking _create_payment_moves double-booked the payment",
         )
-        # The payment still points at exactly the same move it had before.
         self.assertEqual(booked.account_move_id, moves_before)
 
     def test_create_payment_moves_skips_pay_later_and_zero(self):
-        """pay_later payments and zero-amount payments must never book a move
-        (they are settled elsewhere / are no-ops). Guards at lines ~151-154."""
         self._start_pos_session(self.cash_pm1 | self.pay_later_pm, 0)
         orders = self._create_orders(
             [
@@ -82,14 +64,7 @@ class TestPosAccountingUnits(TestPoSCommon):
             result, "pay_later payment must not book an invoice payment move"
         )
 
-    # ---- _prepare_aml_values_list_per_nature: per-nature ledger builder -----
     def test_prepare_aml_values_per_nature_combine_payment(self):
-        """The most complex money method in the module. For a plain taxed order
-        paid by a non-split (combine) bank payment it must emit a `product`
-        (sales) nature and a `payment_terms` (receivable) nature, the receivable
-        total must equal the amount paid, and a combine payment's receivable line
-        must carry NO partner. Only integration-covered until now, so off-setting
-        errors between natures could pass."""
         self._start_pos_session(self.cash_pm1 | self.bank_pm1, 0)
         taxed = self.create_product(
             "AcctTaxed", self.categ_basic, 100, 50, tax_ids=self.taxes["tax7"].ids
@@ -112,17 +87,12 @@ class TestPosAccountingUnits(TestPoSCommon):
         self.assertTrue(aml["tax"], "a tax line must be emitted for a taxed order")
         self.assertTrue(aml["payment_terms"], "a receivable line must be emitted")
 
-        # Receivable total equals what the customer paid.
         pt_total = sum(line["amount_currency"] for line in aml["payment_terms"])
         self.assertAlmostEqual(pt_total, order.amount_paid, places=2)
 
-        # Combine (non-split) payment -> receivable line carries no partner.
         self.assertTrue(all(not line["partner_id"] for line in aml["payment_terms"]))
 
     def test_prepare_aml_values_per_nature_split_payment_has_partner(self):
-        """A split-transaction payment must book its receivable against the
-        customer's own receivable account WITH the partner set (so it can be
-        reconciled per-customer) — the opposite of the combine case."""
         self._start_pos_session(self.cash_pm1 | self.bank_split_pm1, 0)
         orders = self._create_orders(
             [
@@ -146,10 +116,6 @@ class TestPosAccountingUnits(TestPoSCommon):
         )
 
     def test_prepare_aml_values_per_nature_cash_rounding_add_invoice_line(self):
-        """When cash_rounding is on with the add_invoice_line strategy, the aml
-        builder must emit a dedicated `cash_rounding` nature booked to the
-        rounding profit/loss account. This branch had no direct coverage (the
-        upstream biggest_tax tour is skipped), yet it books real money."""
         cash_rounding = self.env["account.cash.rounding"].create(
             {
                 "name": "acct-cr-add-line",
@@ -196,16 +162,8 @@ class TestPosAccountingUnits(TestPoSCommon):
             "cash_rounding line must post to the rounding profit/loss account",
         )
 
-    # Note: the biggest_tax cash-rounding strategy is intentionally NOT tested
-    # here — pos.config._check_rounding_method_strategy forbids it, so the
-    # biggest_tax branch of _prepare_aml_values_list_per_nature is unreachable
-    # for POS orders (which is why the upstream biggest_tax tour is skipped).
 
-    # ---- _get_balancing_account: 3-tier fallback ----------------------------
     def test_get_balancing_account_uses_company_pos_receivable(self):
-        """The imbalance safety-net account resolves to the company's default
-        POS receivable first. This is the account a still-imbalanced session is
-        booked against so it can close at all — untested until now."""
         session = self._start_pos_session(self.cash_pm1, 0)
         expected = self.env.company.account_default_pos_receivable_account_id
         self.assertTrue(
@@ -214,28 +172,20 @@ class TestPosAccountingUnits(TestPoSCommon):
         self.assertEqual(session._get_balancing_account(), expected)
 
     def test_prepare_balancing_line_vals_same_currency(self):
-        """The balancing line absorbs a residual imbalance so a session can
-        still post. For a single-currency session the credit/debit split must
-        follow the sign of the imbalance and book against the balancing account,
-        with no partner and no amount_currency override. This is the arithmetic
-        `_create_balancing_line` relies on — untested until now."""
         session = self._start_pos_session(self.cash_pm1, 0)
         balancing_account = session._get_balancing_account()
         move = self.env["account.move"].create(
             {"journal_id": session.config_id.journal_id.id, "ref": "test-balancing"}
         )
 
-        # Positive imbalance -> credit side.
         vals = session._prepare_balancing_line_vals(50.0, move, balancing_account)
         self.assertEqual(vals["account_id"], balancing_account.id)
         self.assertEqual(vals["move_id"], move.id)
         self.assertFalse(vals["partner_id"])
         self.assertAlmostEqual(vals["credit"], 50.0)
         self.assertAlmostEqual(vals["debit"], 0.0)
-        # Single currency -> no currency override on the line.
         self.assertNotIn("amount_currency", vals)
 
-        # Negative imbalance -> debit side.
         vals_neg = session._prepare_balancing_line_vals(-30.0, move, balancing_account)
         self.assertAlmostEqual(vals_neg["debit"], 30.0)
         self.assertAlmostEqual(vals_neg["credit"], 0.0)
@@ -243,12 +193,6 @@ class TestPosAccountingUnits(TestPoSCommon):
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPosSessionAmountBuilders(TestPoSCommon):
-    """Pure-function unit coverage for the session-closing arithmetic builders
-    (`_update_amounts`, `_round_amounts`, `_credit_amounts`, `_debit_amounts`).
-    These are the primitives every `_accumulate_amounts` bucket is threaded
-    through, yet they had no direct test — this is the safety net for decomposing
-    that 283-line method. `basic_config` runs in company currency, so the
-    conversion path is deterministic (amount_converted == amount)."""
 
     def setUp(self):
         super().setUp()
@@ -264,9 +208,7 @@ class TestPosSessionAmountBuilders(TestPoSCommon):
         old = {"amount": 10.0, "amount_converted": 10.0}
         new = session._update_amounts(old, {"amount": 5.0}, date)
         self.assertEqual(new["amount"], 15.0)
-        # Same currency -> converted tracks amount 1:1.
         self.assertEqual(new["amount_converted"], 15.0)
-        # The input dict must not be mutated (bucketing relies on this).
         self.assertEqual(old, {"amount": 10.0, "amount_converted": 10.0})
 
     def test_update_amounts_tracks_base_amount(self):
@@ -286,8 +228,6 @@ class TestPosSessionAmountBuilders(TestPoSCommon):
     def test_round_amounts_uses_company_currency_for_converted(self):
         session = self._start_pos_session(self.cash_pm1, 0)
         rounded = session._round_amounts({"amount": 10.126, "amount_converted": 10.124})
-        # `amount` rounds on the session currency, `amount_converted` on the
-        # company currency; both default to 0.01 here.
         self.assertAlmostEqual(rounded["amount"], 10.13)
         self.assertAlmostEqual(rounded["amount_converted"], 10.12)
 
@@ -301,7 +241,6 @@ class TestPosSessionAmountBuilders(TestPoSCommon):
         self.assertAlmostEqual(credit["credit"], 50.0)
         self.assertAlmostEqual(credit["debit"], 0.0)
 
-        # A negative converted amount flips a credit into a debit.
         credit_neg = session._credit_amounts(dict(partial), -30.0, -30.0)
         self.assertAlmostEqual(credit_neg["debit"], 30.0)
         self.assertAlmostEqual(credit_neg["credit"], 0.0)
@@ -311,10 +250,6 @@ class TestPosSessionAmountBuilders(TestPoSCommon):
         self.assertAlmostEqual(debit["credit"], 0.0)
 
     def test_increase_customer_ranks_batches_per_partner(self):
-        """Each non-invoiced order bumps its partner's customer_rank by one; the
-        extracted `_increase_customer_ranks` batches equal increments into a
-        single write. This CRM side-effect had no coverage before it was pulled
-        out of `_accumulate_amounts`."""
         session = self._start_pos_session(self.cash_pm1, 0)
         product = self.create_product("RankProd", self.categ_basic, 50, 20)
         orders = self._create_orders(

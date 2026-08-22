@@ -31,7 +31,6 @@ class TestPosInvoiceConsolidation(TestPoSCommon, CommonPosTest):
                     }
                 ]
             )
-            # This flattens the dict into the recordset
             orders_user1 = sum(orders_user1.values(), self.env["pos.order"])
 
         with self.with_user(self.user2.login):
@@ -49,7 +48,6 @@ class TestPosInvoiceConsolidation(TestPoSCommon, CommonPosTest):
                     },
                 ]
             )
-            # This flattens the dict into the recordset
             orders_user2 = sum(orders_user2.values(), self.env["pos.order"])
 
         self.env["pos.make.invoice"].create(
@@ -93,7 +91,6 @@ class TestPosInvoiceConsolidation(TestPoSCommon, CommonPosTest):
                     }
                 ]
             )
-            # This flattens the dict into the recordset
             orders_user1 = sum(orders_user1.values(), self.env["pos.order"])
 
         with self.with_user(self.user2.login):
@@ -111,12 +108,10 @@ class TestPosInvoiceConsolidation(TestPoSCommon, CommonPosTest):
                     },
                 ]
             )
-            # This flattens the dict into the recordset
             orders_user2 = sum(orders_user2.values(), self.env["pos.order"])
 
         all_orders = orders_user1 + orders_user2
 
-        # create consolidated invoice
         self.env["pos.make.invoice"].create(
             {"consolidated_billing": True}
         ).with_context(active_ids=all_orders.ids).action_create_invoices()

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import logging
 
 from odoo.cli.populate import Populate
@@ -13,14 +11,6 @@ _logger = logging.getLogger(__name__)
 
 @tagged("-standard", "pos_performance", "-at_install", "post_install")
 class TestPosPerformance(TestPointOfSaleHttpCommon):
-    """
-    These tests are designed for local performance testing only and will be skipped
-    unless the 'pos_performance' tag is explicitly included in the test tags.
-
-    To execute these tests locally, use the 'pos_performance' tag before the test name.
-    Example:
-        --test-tags pos_performance.test_pos_session_open_product_performance
-    """
 
     def __populate_model(self, model_name, total_count):
         before_count = self.env[model_name].search_count([])

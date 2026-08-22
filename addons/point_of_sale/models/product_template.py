@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from collections import defaultdict
 from datetime import date
 from itertools import groupby
@@ -56,15 +55,12 @@ class ProductTemplate(models.Model):
     )
 
     def write(self, vals):
-        # Clear empty public description content to avoid side-effects on product page
-        # when there is no content to display anyway.
         if vals.get("public_description") and is_html_empty(vals["public_description"]):
             vals["public_description"] = ""
         return super().write(vals)
 
     @api.depends("pos_categ_ids")
     def _compute_color(self):
-        """Automatically set the color field based on the selected category."""
         for product in self:
             if product.pos_categ_ids:
                 product.color = product.pos_categ_ids[0].color
@@ -72,17 +68,6 @@ class ProductTemplate(models.Model):
                 product.color = product.color or 0
 
     def set_pos_favorite(self, is_favorite):
-        """Flip `is_favorite` from the point of sale's product-info popup.
-
-        `access_product_template_pos_user` is read-only, and the popup offers
-        this control to every cashier (`res.users._load_pos_data_read` only
-        ever assigns the roles "manager" and "cashier"), so the toggle raised
-        AccessError for exactly the group it was drawn for.
-
-        Elevated, but deliberately narrow: one boolean, on one product the
-        point of sale is allowed to sell, for a POS user only. Everything else
-        about the product stays out of reach.
-        """
         self.ensure_one()
         if not self.env.user.has_group("point_of_sale.group_pos_user"):
             raise AccessError(
@@ -100,7 +85,6 @@ class ProductTemplate(models.Model):
         return self.is_favorite
 
     def create_product_variant_from_pos(self, attribute_value_ids, config_id):
-        """Create a product variant from the POS interface."""
         self.ensure_one()
         pos_config = self.env["pos.config"].browse(config_id)
         product_template_attribute_value_ids = self.env[
@@ -136,11 +120,6 @@ class ProductTemplate(models.Model):
             domain, load_archived, offset, limit
         )
 
-        # product.combo and product.combo.item loading. One level deep on
-        # purpose: `product.combo.item._check_product_id_no_combo` forbids a
-        # combo inside a combo, so there is no tree to walk. Written as a set
-        # union rather than `+=` inside a `for` over the same name -- that read
-        # as a recursive walk it never was, and left duplicate templates behind.
         combos = product_tmpls.filtered(lambda tmpl: tmpl.type == "combo")
         product_tmpls |= combos.combo_ids.combo_item_ids.product_id.product_tmpl_id
 
@@ -157,14 +136,12 @@ class ProductTemplate(models.Model):
 
         products = product_tmpls.product_variant_ids
 
-        # product.pricelist_item & product.pricelist loading
         pricelists = (
             config.current_session_id.get_pos_ui_product_pricelist_item_by_product(
                 product_tmpls.ids, products.ids, config.id
             )
         )
 
-        # product.template.attribute.value & product.template.attribute.line loading
         product_tmpl_attr_line = product_tmpls.attribute_line_ids
         product_tmpl_attr_line_read = product_tmpl_attr_line._load_pos_data_read(
             product_tmpl_attr_line, config
@@ -176,7 +153,6 @@ class ProductTemplate(models.Model):
             product_tmpl_attr_value, config
         )
 
-        # product.template.attribute.exclusion loading
         product_tmpl_excl = self.env["product.template.attribute.exclusion"]
         product_tmpl_exclusion = (
             product_tmpl_attr_value.exclude_for
@@ -190,15 +166,12 @@ class ProductTemplate(models.Model):
             product_tmpl_exclusion, config
         )
 
-        # product.product loading
         product_read = products._load_pos_data_read(
             products.with_context(display_default_code=False), config
         )
 
-        # product.template loading
         product_tmpl_read = self._load_pos_data_read(product_tmpls, config)
 
-        # product.uom loading
         packaging_domain = Domain("product_id", "in", products.ids)
         barcode_in_domain = any(
             "barcode" in condition.field_expr for condition in domain.iter_conditions()
@@ -220,7 +193,6 @@ class ProductTemplate(models.Model):
             product_uom_id._load_pos_data_read(packaging, config) if condition else []
         )
 
-        # account.tax loading
         account_tax = self.env["account.tax"]
         tax_domain = Domain(account_tax._check_company_domain(config.company_id.id))
         tax_domain &= Domain("id", "in", product_tmpls.taxes_id.ids)
@@ -330,11 +302,9 @@ class ProductTemplate(models.Model):
             if not tip_company_id or tip_company_id == self.env.company:
                 products += config.tip_product_id.product_tmpl_id
 
-        # Ensure optional products are loaded when configured.
         if products.filtered(lambda p: p.pos_optional_product_ids):
             products |= products.mapped("pos_optional_product_ids")
 
-        # Ensure products from loaded orders are loaded
         if data.get("pos.order.line"):
             products += (
                 self.env["product.product"]
@@ -368,11 +338,6 @@ class ProductTemplate(models.Model):
     def _process_pos_ui_product_product(self, products, config_id):
 
         def filter_taxes_on_company(product_taxes, taxes_by_company):
-            """
-            Filter the list of tax ids on a single company starting from the current one.
-            If there is no tax in the result, it's filtered on the parent company and so
-            on until a non empty result is found.
-            """
             taxes, comp = None, self.env.company
             while not taxes and comp:
                 taxes = list(set(product_taxes) & set(taxes_by_company[comp.id]))
@@ -382,9 +347,6 @@ class ProductTemplate(models.Model):
         taxes = self.env["account.tax"].search(
             self.env["account.tax"]._check_company_domain(self.env.company)
         )
-        # group all taxes by company in a dict where:
-        # - key: ID of the company
-        # - values: list of tax ids
         taxes_by_company = defaultdict(set)
         if self.env.company.parent_id:
             for tax in taxes:
@@ -416,7 +378,6 @@ class ProductTemplate(models.Model):
                 )
 
     def _add_archived_combinations(self, products):
-        """Add archived combinations to the product template data."""
         product_data = {product["id"]: product for product in products}
         for product_tmpl in self.browse(product_data.keys()):
             product = product_data[product_tmpl.id]
@@ -434,9 +395,10 @@ class ProductTemplate(models.Model):
     def _unlink_except_open_session(self):
         product_ctx = dict(self.env.context or {}, active_test=False)
         if self.with_context(product_ctx).search_count(
-            [("id", "in", self.ids), ("available_in_pos", "=", True)]
+            [("id", "in", self.ids), ("available_in_pos", "=", True)],
+            limit=1,
         ):
-            if self.env["pos.session"].sudo().search_count([("state", "!=", "closed")]):
+            if self.env["pos.session"].sudo().search_count([("state", "!=", "closed")], limit=1):
                 raise UserError(
                     _(
                         "To delete a product, make sure all point of sale sessions are closed.\n\n"
@@ -451,7 +413,7 @@ class ProductTemplate(models.Model):
     def _ensure_unused_in_pos(self):
         if any(self.mapped("available_in_pos")) and self.env[
             "pos.session"
-        ].sudo().search_count([("state", "!=", "closed")]):
+        ].sudo().search_count([("state", "!=", "closed")], limit=1):
             raise UserError(
                 _(
                     "Hold up! Archiving products while POS sessions are active is like pulling a plate mid-meal.\n"
@@ -518,7 +480,6 @@ class ProductTemplate(models.Model):
         )
         template_or_variant = product_variant or self.product_variant_id
 
-        # Tax related
         tax_to_use = self.env["account.tax"]
         company = config.company_id
         while not tax_to_use and company:
@@ -527,11 +488,6 @@ class ProductTemplate(models.Model):
             )
             if not tax_to_use:
                 company = company.sudo().parent_id
-        # sudo: this is a read-only price/tax info popup. Computing the taxes
-        # touches company accounting config (company_price_include ->
-        # account_price_include) that a plain pos_user cannot read, especially on
-        # a parent/branch company. The cashier is already authorized to see the
-        # product price, so elevate only this pure computation (values unchanged).
         taxes = tax_to_use.sudo().compute_all(
             price, config.currency_id, quantity, self.sudo()
         )
@@ -553,7 +509,6 @@ class ProductTemplate(models.Model):
             "tax_details": list(grouped_taxes.values()),
         }
 
-        # Pricelists
         if config.use_pricelist:
             pricelists = config.available_pricelist_ids
         else:
@@ -568,10 +523,6 @@ class ProductTemplate(models.Model):
             for pl in pricelists
         ]
 
-        # Warehouses. Read all three quantity fields off a single
-        # warehouse-scoped record so they are computed together once, instead of
-        # via three separate with_context() records (which recomputed the stock
-        # quantities three times per warehouse).
         warehouse_list = []
         for w in self.env["stock.warehouse"].search(
             [("company_id", "=", config.company_id.id)]
@@ -589,13 +540,11 @@ class ProductTemplate(models.Model):
             )
 
         if config.picking_type_id.warehouse_id:
-            # Sort the warehouse_list, prioritizing config.picking_type_id.warehouse_id
             warehouse_list = sorted(
                 warehouse_list,
                 key=lambda w: w["id"] != config.picking_type_id.warehouse_id.id,
             )
 
-        # Suppliers
         key = itemgetter("partner_id")
         supplier_list = []
         for _key, group in groupby(sorted(self.seller_ids, key=key), key=key):
@@ -615,7 +564,6 @@ class ProductTemplate(models.Model):
                     )
                     break
 
-        # Variants
         variant_list = [
             {
                 "name": attribute_line.attribute_id.name,

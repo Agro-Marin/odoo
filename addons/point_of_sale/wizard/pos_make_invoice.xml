@@ -6,8 +6,8 @@
         <field name="arch" type="xml">
             <form>
                 <group>
-                    <field name="count"/>
-                    <field name="consolidated_billing" invisible="count == 1"/>
+                    <field name="order_count"/>
+                    <field name="consolidated_billing" invisible="order_count == 1"/>
                 </group>
                 <footer>
                     <button name="action_create_invoices" type="object"

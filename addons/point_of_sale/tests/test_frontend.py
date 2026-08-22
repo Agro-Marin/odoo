@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import base64
 import inspect
 import io
@@ -95,16 +93,13 @@ class TestPointOfSaleHttpCommon(AccountTestInvoicingHttpCommon):
             cls.account_receivable.id,
             company_id=main_company.id,
         )
-        # Pricelists are set below, do not take demo data into account
         env["res.partner"].sudo().invalidate_model(
             ["property_product_pricelist", "specific_property_product_pricelist"]
         )
-        # remove the all specific values for all companies only for test
         env.cr.execute(
             "UPDATE res_partner SET specific_property_product_pricelist = NULL"
         )
 
-        # Create user.
         cls.pos_user = cls.env["res.users"].create(
             {
                 "name": "A simple PoS man!",
@@ -194,7 +189,6 @@ class TestPointOfSaleHttpCommon(AccountTestInvoicingHttpCommon):
             }
         )
 
-        # test an extra price on an attribute
         cls.whiteboard_pen = env["product.template"].create(
             {
                 "name": "Whiteboard Pen",
@@ -238,7 +232,7 @@ class TestPointOfSaleHttpCommon(AccountTestInvoicingHttpCommon):
                 "available_in_pos": True,
                 "list_price": 3.19,
                 "taxes_id": False,
-                "barcode": "0123456789",  # No pattern in barcode nomenclature
+                "barcode": "0123456789",
             }
         )
         cls.desk_pad = env["product.template"].create(
@@ -472,7 +466,7 @@ class TestPointOfSaleHttpCommon(AccountTestInvoicingHttpCommon):
                         0,
                         {
                             "compute_price": "fixed",
-                            "fixed_price": 13.95,  # test for issues like in 7f260ab517ebde634fc274e928eb062463f0d88f
+                            "fixed_price": 13.95,
                             "applied_on": "0_product_variant",
                             "product_id": cls.small_shelf.product_variant_id.id,
                         },
@@ -538,7 +532,6 @@ class TestPointOfSaleHttpCommon(AccountTestInvoicingHttpCommon):
                         0,
                         0,
                         {
-                            # .99 prices
                             "compute_price": "formula",
                             "price_surcharge": -0.01,
                             "price_round": 1,
@@ -660,7 +653,6 @@ class TestPointOfSaleHttpCommon(AccountTestInvoicingHttpCommon):
 
         env["product.pricelist"].create(
             {
-                # no category has precedence over category
                 "name": "Category vs no category",
                 "item_ids": [
                     (
@@ -931,8 +923,6 @@ class TestPointOfSaleHttpCommon(AccountTestInvoicingHttpCommon):
             }
         )
 
-        # Set customers
-        # Unlink some data partners that makes the test crash
         for xmlid in [
             "l10n_us_hr_payroll.res_partner_taxation_va",
             "l10n_us_hr_payroll.res_partner_revenue_dc",
@@ -971,9 +961,6 @@ class TestPointOfSaleHttpCommon(AccountTestInvoicingHttpCommon):
         cls.partner_test_3 = partners[2]
         cls.partner_full = partners[3]
 
-        # Change the default sale pricelist of customers,
-        # so the js tests can expect deterministically this pricelist when selecting a customer.
-        # bad hack only for test
         env["ir.default"].set(
             "res.partner",
             "specific_property_product_pricelist",
@@ -1023,7 +1010,6 @@ class TestUi(TestPointOfSaleHttpCommon):
                 + str(order.amount_total),
             )
 
-        # check if email from ReceiptScreenTour is properly sent
         email_count = self.env["mail.mail"].search_count(
             [("email_to", "=", "test@receiptscreen.com")]
         )
@@ -1050,12 +1036,10 @@ class TestUi(TestPointOfSaleHttpCommon):
         last_order = self.env["pos.order"].search([], limit=1, order="id desc")
         self.assertEqual(last_order.lines[0].price_subtotal, 30.0)
         self.assertEqual(last_order.lines[0].price_subtotal_incl, 30.0)
-        # Check if session name contains config name as prefix
         self.assertEqual(self.main_pos_config.name in last_order.session_id.name, True)
 
     def test_03_pos_with_lots(self):
 
-        # open a session, the /pos/ui controller will redirect to it
         self.main_pos_config.with_user(self.pos_user).open_ui()
 
         self.monitor_stand.tracking = "lot"
@@ -1066,7 +1050,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_04_product_configurator(self):
-        # Making one attribute inactive to verify that it doesn't show
         configurable_product = self.env["product.product"].search(
             [("name", "=", "Configurable Chair"), ("available_in_pos", "=", "True")],
             limit=1,
@@ -1084,7 +1067,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.start_pos_tour("ProductConfiguratorTour")
 
     def test_optional_product(self):
-        # optional product in pos
         image = _create_image(color="orange")
 
         self.small_shelf.write({"image_1920": image})
@@ -1099,12 +1081,10 @@ class TestUi(TestPointOfSaleHttpCommon):
                 "barcode": "lettertray",
             }
         )
-        # Case 1: Images ON → images must be visible in optional product dialog
         self.main_pos_config.show_product_images = True
         self.main_pos_config.with_user(self.pos_user).open_ui()
         self.start_pos_tour("test_optional_product")
 
-        # Case 2: Images OFF → product images should not be shown
         self.main_pos_config.show_product_images = False
         self.start_pos_tour("test_optional_product_image_not_display")
 
@@ -1123,7 +1103,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_product_information_screen_admin(self):
-        """Consider this test method to contain a test tour with miscellaneous tests/checks that require admin access."""
         self.product_a.available_in_pos = True
         self.pos_admin.write(
             {
@@ -1146,11 +1125,7 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_fixed_tax_negative_qty(self):
-        """Assert the negative amount of a negative-quantity orderline
-        with zero-amount product with fixed tax.
-        """
 
-        # setup the zero-amount product
         tax_received_account = self.env["account.account"].create(
             {
                 "name": "TAX_BASE",
@@ -1187,8 +1162,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             }
         )
 
-        # Make an order with the zero-amount product from the frontend.
-        # We need to do this because of the fix in the "compute_all" port.
         self.main_pos_config.write({"iface_tax_included": "total"})
         self.main_pos_config.with_user(self.pos_user).open_ui()
         self.start_tour(
@@ -1198,12 +1171,10 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
         pos_session = self.main_pos_config.current_session_id
 
-        # Close the session and check the session journal entry.
         pos_session.action_pos_session_validate()
 
         lines = pos_session.move_id.line_ids.sorted("balance")
 
-        # order in the tour is paid using the bank payment method.
         bank_pm = self.main_pos_config.payment_method_ids.filtered(
             lambda pm: pm.name == "Bank"
         )
@@ -1220,7 +1191,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.assertAlmostEqual(lines[2].balance, 1)
 
     def test_change_without_cash_method(self):
-        # create bank payment method
         bank_pm = self.env["pos.payment.method"].create(
             {
                 "name": "Bank",
@@ -1315,7 +1285,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_pos_closing_cash_details(self):
-        """Test cash difference *loss* at closing."""
         self.main_pos_config.open_ui()
         current_session = self.main_pos_config.current_session_id
         current_session.post_closing_cash_details(0)
@@ -1346,8 +1315,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.assertEqual(self.main_pos_config.last_session_closing_cash, 25.0)
 
     def test_pos_session_statistics_display(self):
-        """Test that POS session statistics are properly displayed in the UI."""
-        # For testing `opening_cash` and `paid_orders` in dashboard
         self.main_pos_config.with_user(self.pos_user).open_ui()
         self.start_tour(
             "/pos/ui/%d" % self.main_pos_config.id,
@@ -1355,7 +1322,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             login="pos_user",
         )
 
-        # For testing `draft_orders`
         self.env["pos.order"].create(
             {
                 "config_id": self.main_pos_config.id,
@@ -1408,7 +1374,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.start_pos_tour("test_tax_control_button_visiblity")
 
     def test_fiscal_position_no_tax(self):
-        # create a tax of 15% with price included
         tax = self.env["account.tax"].create(
             {
                 "name": "Tax 15%",
@@ -1419,7 +1384,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             }
         )
 
-        # create a product with the tax
         self.product = self.env["product.product"].create(
             {
                 "name": "Test Product",
@@ -1429,7 +1393,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             }
         )
 
-        # create a fiscal position that map the tax to no tax
         fiscal_position = self.env["account.fiscal.position"].create(
             {
                 "name": "No Tax",
@@ -1458,8 +1421,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_fiscal_position_inclusive_and_exclusive_tax(self):
-        """Test the mapping of fiscal position for both Tax Inclusive ans Tax Exclusive"""
-        # create a fiscal position that map the tax
         fiscal_position_1 = self.env["account.fiscal.position"].create(
             {
                 "name": "Incl. to Incl.",
@@ -1481,7 +1442,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             }
         )
 
-        # create a tax with price included
         tax_inclusive_1 = self.env["account.tax"].create(
             {
                 "name": "Tax incl.20%",
@@ -1548,7 +1508,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             }
         )
 
-        # add the fiscal position to the PoS
         self.main_pos_config.write(
             {
                 "tax_regime_selection": True,
@@ -1579,7 +1538,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_06_pos_discount_display_with_multiple_pricelist(self):
-        """Test the discount display on the POS screen when multiple pricelists are used."""
         test_product = self.env["product.template"].create(
             {
                 "name": "Test Product",
@@ -1751,7 +1709,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             4,
             "There should be 4 order lines - 1 combo parent and 3 combo lines",
         )
-        # check that the combo lines are correctly linked to each other
         parent_line_id = self.env["pos.order.line"].search(
             [("product_id.name", "=", "Office Combo"), ("order_id", "=", order.id)]
         )
@@ -1766,12 +1723,8 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.assertEqual(order.lines[1].price_unit, 10.33)
         self.assertEqual(order.lines[2].price_unit, 18.67)
         self.assertEqual(order.lines[3].price_unit, 30.00)
-        # In the future we might want to test also if:
-        #   - the combo lines are correctly stored in and restored from local storage
-        #   - the combo lines are correctly shared between the pos configs ( in cross ordering )
 
     def test_07_product_combo_max_free_qty(self):
-        """Test the max free quantity of a product combo."""
         setup_product_combo_items(self)
         self.office_combo.combo_ids[0].write(
             {
@@ -1805,8 +1758,6 @@ class TestUi(TestPointOfSaleHttpCommon):
     def test_07_pos_barcodes_scan(self):
         barcode_rule = self.env.ref("point_of_sale.barcode_rule_client")
         barcode_rule.pattern += "|234"
-        # should in theory be changed in the JS code to `|^234`
-        # If not, it will fail as it will mistakenly match with the product barcode "0123456789"
 
         self.main_pos_config.with_user(self.pos_user).open_ui()
         self.start_tour(
@@ -1816,7 +1767,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_08_show_tax_excluded(self):
-        # define a tax included tax record
         tax = self.env["account.tax"].create(
             {
                 "name": "Tax 10% Included",
@@ -1826,7 +1776,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             }
         )
 
-        # define a product record with the tax
         self.env["product.product"].create(
             {
                 "name": "Test Product",
@@ -1836,7 +1785,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             }
         )
 
-        # set Tax-Excluded Price
         self.main_pos_config.write({"iface_tax_included": "subtotal"})
 
         self.main_pos_config.with_user(self.pos_user).open_ui()
@@ -1927,7 +1875,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             }
         )
 
-        # 3760171283370 can be parsed with GS1 rules but it's not GS1
         self.env["product.product"].create(
             {
                 "name": "Product 3",
@@ -1946,13 +1893,11 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_refund_order_with_fp_tax_included(self):
-        # create a fiscal position
         self.fiscal_position = self.env["account.fiscal.position"].create(
             {
                 "name": "No Tax",
             }
         )
-        # create a tax of 15% tax included
         self.tax1 = self.env["account.tax"].create(
             {
                 "name": "Tax 1",
@@ -1962,7 +1907,6 @@ class TestUi(TestPointOfSaleHttpCommon):
                 "price_include_override": "tax_included",
             }
         )
-        # create a tax of 0%
         self.tax2 = self.env["account.tax"].create(
             {
                 "name": "Tax 2",
@@ -1985,7 +1929,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             }
         )
 
-        # add the fiscal position to the PoS
         self.main_pos_config.write(
             {
                 "fiscal_position_ids": [(4, self.fiscal_position.id)],
@@ -2118,7 +2061,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             }
         )
 
-        # Check that two product variant are created
         self.assertEqual(product_2_template.product_variant_count, 2)
         product_2_template.product_variant_ids[0].write({"barcode": "0100201"})
         product_2_template.product_variant_ids[1].write({"barcode": "0100202"})
@@ -2181,11 +2123,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_restricted_categories_combo_product(self):
-        """
-        Ensure combo choices product are always loaded if parent is in allowed categories, even when restricted categories are configured:
-        - These combo choices should be visible when configuring the parent combo product but not be visible as product that we can directly sell inside POS
-        - These combo choices should appear on the preparation ticket changes
-        """
         pos_restricted_categ = self.env["pos.category"].create(
             {
                 "name": "Restricted product",
@@ -2371,7 +2308,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_properly_display_price(self):
-        """Make sure that when the decimal separator is a comma, the shown orderline price is correct."""
         lang = self.env["res.lang"].search([("code", "=", self.pos_user.lang)])
         lang.write({"thousands_sep": ".", "decimal_point": ","})
 
@@ -2392,7 +2328,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_res_partner_scan_barcode(self):
-        # default Customer Barcodes pattern is '042'
         self.env["res.partner"].create(
             {
                 "name": "John Doe",
@@ -2407,10 +2342,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_allow_order_modification_after_validation_error(self):
-        """
-        User error as a result of validation should block the order.
-        Taking action by order modification should be allowed.
-        """
 
         self.env["product.product"].create(
             {
@@ -2427,7 +2358,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         with patch.object(
             self.env.registry.models["pos.order"], "sync_from_ui", sync_from_ui_patch
         ):
-            # If there is problem in the tour, remove the log catcher to debug.
             with self.assertLogs(level="WARNING") as log_catcher:
                 self.main_pos_config.with_user(self.pos_user).open_ui()
                 self.start_tour(
@@ -2436,14 +2366,6 @@ class TestUi(TestPointOfSaleHttpCommon):
                     login="pos_user",
                 )
 
-            # The order sync is rejected by the server (UserError). The contract
-            # under test is that the failing sync is attempted exactly ONCE and
-            # surfaced — it must not be retried in a loop. Assert on that specific
-            # error rather than the total warning count: POS/tour boot legitimately
-            # emits unrelated asset-bundle warnings (esm_bridges read-write cursor
-            # fallback, module-rebound observability reports), so a global count is
-            # a brittle proxy that couples this behaviour test to the whole stack's
-            # logging state.
             sync_errors = [
                 o for o in log_catcher.output if "WARNING" in o and "Test Error" in o
             ]
@@ -2455,8 +2377,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             )
 
     def test_customer_display(self):
-        # The customer-display route requires an active session as well as
-        # the config access_token (a611387f577); open one first.
         self.main_pos_config.with_user(self.pos_user).open_ui()
         self.start_tour(
             f"/pos_customer_display/{self.main_pos_config.id}/display-test-device"
@@ -2466,8 +2386,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_customer_display_scroll(self):
-        # The customer-display route requires an active session as well as
-        # the config access_token (a611387f577); open one first.
         self.main_pos_config.with_user(self.pos_user).open_ui()
         self.start_tour(
             f"/pos_customer_display/{self.main_pos_config.id}/display-test-device"
@@ -2477,8 +2395,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_customer_display_with_qr(self):
-        # The customer-display route requires an active session as well as
-        # the config access_token (a611387f577); open one first.
         self.main_pos_config.with_user(self.pos_user).open_ui()
         self.start_tour(
             f"/pos_customer_display/{self.main_pos_config.id}/display-test-device"
@@ -2503,7 +2419,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.start_pos_tour("test_order_refund_flow")
 
     def test_refund_few_quantities(self):
-        """Test to check that refund works with quantities of less than 0.5"""
         self.env["product.product"].create(
             {
                 "name": "Sugar",
@@ -2552,10 +2467,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         current_session.post_closing_cash_details(total_cash_payment)
         current_session.close_session_from_ui()
         self.assertEqual(current_session.state, "closed")
-        # Identify the two rows, rather than unpacking the search and trusting
-        # its order: `report.pos.order` is a view with its own `_order`, so
-        # which of the two came first depended on the ids the run happened to
-        # allocate.
         reports = (
             self.env["report.pos.order"]
             .sudo()
@@ -2570,7 +2481,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.assertEqual(report_refund_order.price_total, -20.0)
 
     def test_product_combo_price(self):
-        """Check that the combo has the expected price"""
         self.desk_organizer.product_variant_id.write({"lst_price": 7})
         self.desk_pad.product_variant_id.write({"lst_price": 2.5})
         self.whiteboard_pen.product_variant_id.write({"lst_price": 1.5})
@@ -2627,16 +2537,12 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.assertTrue("Shop.png" in response.headers["Content-Disposition"])
 
     def test_customer_all_fields_displayed(self):
-        """
-        Verify that all the field of a partner can be displayed in the partner list.
-        Also verify that all these fields can be searched.
-        """
         self.env["res.partner"].create(
             {
                 "name": "John Doe",
                 "street": "1 street of astreet",
                 "city": "Acity",
-                "state_id": self.env.ref("base.state_us_30").id,  # Ohio
+                "state_id": self.env.ref("base.state_us_30").id,
                 "country_id": self.env.ref("base.us").id,
                 "zip": "26432685463",
                 "phone": "9898989899",
@@ -2648,10 +2554,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.start_pos_tour("PosCustomerAllFieldsDisplayed")
 
     def test_product_combo_change_fp(self):
-        """
-        Verify than when the fiscal position is changed,
-        the price of the combo doesn't change and taxes are well taken into account
-        """
         fiscal_position = self.env["account.fiscal.position"].create(
             {
                 "name": "test fp",
@@ -2684,7 +2586,7 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.office_combo.write({"list_price": 50, "taxes_id": [(6, 0, [tax_1.id])]})
         for combo in (
             self.office_combo.combo_ids
-        ):  # Set the tax to all the products of the combo
+        ):
             for item in combo.combo_item_ids:
                 item.product_id.taxes_id = [(6, 0, [tax_1.id])]
 
@@ -2702,9 +2604,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_product_combo_change_pricelist(self):
-        """
-        Verify than when we change the pricelist, the combo price is updated
-        """
         setup_product_combo_items(self)
 
         sale_10_pl = self.env["product.pricelist"].create(
@@ -2734,9 +2633,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_product_combo_discount(self):
-        """
-        Verify that the combo product applies the correct discount and updates prices accordingly
-        """
         setup_product_combo_items(self)
         self.office_combo.write({"list_price": 100})
         self.office_combo.combo_ids.combo_item_ids.product_id.taxes_id = False
@@ -2748,9 +2644,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_combo_item_image_display(self):
-        """when `show_product_images` is enabled, verify combo item product images should appear in the POS UI. When disabled, the UI should not display
-        the product image for combo items.
-        """
 
         setup_product_combo_items(self)
         image = _create_image(color="orange")
@@ -2759,7 +2652,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             for item in combo.combo_item_ids:
                 item.product_id.image_1920 = image
 
-        # Case 1: Images ON → images must be visible in combo items
         self.main_pos_config.show_product_images = True
         self.main_pos_config.with_user(self.pos_user).open_ui()
         self.start_tour(
@@ -2768,7 +2660,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             login="pos_user",
         )
 
-        # Case 2: Images OFF → product images should not be shown
         self.main_pos_config.show_product_images = False
         self.start_tour(
             f"/pos/ui?config_id={self.main_pos_config.id}",
@@ -2777,7 +2668,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_product_categories_order(self):
-        """Verify that the order of categories doesnt change in the frontend"""
         self.env["pos.category"].search([]).write({"sequence": 100})
         aaa_catg = self.env["pos.category"].create(
             {
@@ -2812,8 +2702,6 @@ class TestUi(TestPointOfSaleHttpCommon):
                 "parent_id": parentB.id,
             }
         )
-        # Add a product that belongs to both parent and child categories.
-        # It's presence is checked during the tour to make sure app doesn't crash.
         self.env["product.product"].create(
             {
                 "name": "Product in AAB and AAX",
@@ -2890,7 +2778,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_autofill_cash_count(self):
-        """Make sure that when the decimal separator is a comma, the shown orderline price is correct."""
         lang = self.env["res.lang"].search([("code", "=", self.pos_user.lang)])
         lang.write({"thousands_sep": ".", "decimal_point": ","})
         self.env["product.product"].create(
@@ -3068,7 +2955,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.start_pos_tour("test_order_with_existing_serial")
 
     def test_product_search(self):
-        """Verify that the product search works correctly"""
         product_with_variant = self.env["product.template"].create(
             {
                 "name": "Product with Variant",
@@ -3191,7 +3077,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_customer_popup(self):
-        """Verify that the customer popup search & inifnite scroll work properly"""
         self.env["res.partner"].create(
             [{"name": "Z partner to search"}, {"name": "Z partner to scroll"}]
         )
@@ -3203,9 +3088,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_pricelist_multi_items_different_qty_thresholds(self):
-        """Having multiple pricelist items for the same product tmpl with ascending `min_quantity`
-        values, prefer the "latest available"- that is, the one with greater `min_quantity`.
-        """
         product = self.env["product.product"].create(
             {
                 "name": "tpmcapi product",
@@ -3253,7 +3135,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             login="pos_user",
         )
 
-        # Change should be given in cash
         cash_payment_method = self.main_pos_config.payment_method_ids.filtered(
             lambda p: p.is_cash_count
         )
@@ -3274,7 +3155,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             ],
         )
 
-        # References should not have gaps
         references = (
             self.env["pos.order"]
             .search([], order="pos_reference")
@@ -3338,7 +3218,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_reuse_empty_floating_order(self):
-        """Verify that after a payment, POS should reuse an existing empty floating order if available, instead of always creating new ones"""
         self.main_pos_config.with_user(self.pos_user).open_ui()
         self.start_tour(
             f"/pos/ui?config_id={self.main_pos_config.id}",
@@ -3481,7 +3360,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_product_create_update_from_frontend(self):
-        """This test verifies product creation and updates product details from the POS frontend."""
         self.pos_admin.write(
             {
                 "group_ids": [Command.link(self.env.ref("base.group_system").id)],
@@ -3498,12 +3376,7 @@ class TestUi(TestPointOfSaleHttpCommon):
             login="pos_admin",
         )
 
-        # In the frontend, a product was created during the tour with the following details:
-        # - Product name: Test Frontend Product
-        # - Barcode: 710535977349
-        # - List price: 20.0
 
-        #  Ensure that the original product created in the frontend ('Test Frontend Product') has been edited to ('Test Frontend Product Edited').
         frontend_created_product = self.env["product.product"].search_count(
             [("name", "=", "Test Frontend Product")]
         )
@@ -3661,7 +3534,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.assertEqual(n_draft_order, 0, "There should be no draft orders created")
 
     def test_product_long_press(self):
-        """Test the long press on product to open the product info"""
         archive_products(self.env)
         self.main_pos_config.company_id.country_id.vat_label = (
             "Should stay VAT even after editing vat_label"
@@ -3746,7 +3618,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             }
         )
 
-        # Product template to force UI reset (acts as a delay)
         self.env["product.template"].create(
             {
                 "name": "Product without Attributes",
@@ -3936,7 +3807,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         pos_session = self.main_pos_config.current_session_id
         self.assertEqual(pos_session.order_ids[0].payment_ids[0].amount, 7771.01)
 
-        # Close the session and check the session journal entry.
         pos_session.action_pos_session_validate()
 
         lines = pos_session.move_id.line_ids.sorted("balance")
@@ -3958,7 +3828,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_click_all_orders_keep_customer(self):
-        """Verify that clicking on 'All Orders' keeps the customer selected."""
         self.main_pos_config.with_user(self.pos_user).open_ui()
         self.start_tour(
             "/pos/ui?config_id=%d" % self.main_pos_config.id,
@@ -4105,9 +3974,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_preset_timing_retail(self):
-        """
-        Test to set order preset hour inside a tour
-        """
         self.preset_dine_in = self.env["pos.preset"].create(
             {
                 "name": "Dine in",
@@ -4322,7 +4188,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         load_product_from_pos_stats = {"count": 0, "items": {}}
         product_template = self.env.registry.models["product.template"]
 
-        # Test product exclusion
         cherry = generate_product_template_with_attributes("cherry", 2.00)
         color_attribute = self.env["product.attribute"].create(
             {
@@ -4408,12 +4273,8 @@ class TestUi(TestPointOfSaleHttpCommon):
         ):
             self.start_pos_tour("test_pricelists_in_pos")
 
-        # Should load 6 different products, since 6 products were created
         self.assertEqual(load_product_from_pos_stats["count"], 7)
 
-        # Length of loaded pricelist items should correspond to the number of items linked
-        # to the product template or product variant
-        # Global rules are loaded at starting of the PoS
         self.assertEqual(
             load_product_from_pos_stats["items"]["banana"],
             3,
@@ -4505,7 +4366,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_available_product_uom_ids(self):
-        # Making sure that all of the non-special products that are included in the `load_data` are the ones created in this method.
         self.env["product.template"].search([]).write({"is_favorite": False})
 
         self.env["ir.config_parameter"].sudo().set_param(
@@ -4678,11 +4538,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_consistent_refund_process_between_frontend_and_backend(self):
-        """
-        Ensure that the partial refund process is consistent between the frontend and backend.
-        This includes validating the refund order creation, amount, state, and payment processing.
-        """
-        # Open POS UI with the POS user
         pricelists = self.env["product.pricelist"].create(
             [
                 {"name": "Test Pricelist"},
@@ -4697,12 +4552,10 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
         self.main_pos_config.with_user(self.pos_user).open_ui()
 
-        # Run the POS tour simulating a partial refund
         self.start_pos_tour(
             "test_consistent_refund_process_between_frontend_and_backend"
         )
 
-        # Fetch orders created in the current POS session
         orders = self.env["pos.order"].search(
             [("session_id", "=", self.main_pos_config.current_session_id.id)]
         )
@@ -4714,11 +4567,9 @@ class TestUi(TestPointOfSaleHttpCommon):
             "Refund order pricelist should be the original order's pricelist.",
         )
 
-        # Perform refund on order and retrieve the resulting draft refund order
         refund_action = orders[1].refund()
         refund_order = self.env["pos.order"].browse(refund_action["res_id"])
 
-        # Validate the refund order is in draft and has correct negative total
         self.assertEqual(
             refund_order.state, "draft", "Refund order should be in draft state."
         )
@@ -4726,7 +4577,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             refund_order.amount_total, -4, "Refund order total should be -4."
         )
 
-        # Create a payment for the refund using the configured bank method
         payment_context = {"active_ids": refund_order.ids, "active_id": refund_order.id}
         refund_payment = (
             self.env["pos.make.payment"]
@@ -4739,14 +4589,12 @@ class TestUi(TestPointOfSaleHttpCommon):
             )
         )
 
-        # Validate and finalize the refund payment
         refund_payment.with_context(**payment_context).check()
         self.assertEqual(
             refund_order.state, "paid", "Refund order should be marked as paid."
         )
 
     def test_paid_order_with_archived_product_loads(self):
-        """Test that a paid order with archived products can be loaded in the POS."""
 
         archived_product = self.env["product.product"].create(
             {
@@ -4754,7 +4602,7 @@ class TestUi(TestPointOfSaleHttpCommon):
                 "available_in_pos": True,
                 "list_price": 10.0,
                 "taxes_id": False,
-                "active": False,  # Archived product
+                "active": False,
             }
         )
 
@@ -4800,7 +4648,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_delete_line(self):
-        """Test that deleting a line in the POS through the popup works correctly."""
         self.main_pos_config.with_user(self.pos_user).open_ui()
         self.start_pos_tour("test_delete_line")
 
@@ -4827,22 +4674,18 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.start_pos_tour("test_automatic_receipt_printing", login="pos_user")
 
     def test_load_pos_demo_data(self):
-        """Test that the demo data can be loaded by admin but not by user."""
 
         if loaded_demo_data(self.env):
             self.skipTest("Cannot test with demo data.")
 
-        # archive existing product records
         archive_products(self.env)
 
-        # cannot load by pos user
         self.start_pos_tour("test_load_pos_demo_data_by_pos_user", login="pos_user")
         products = self.env["product.template"].search_count(
             [("available_in_pos", "=", True)]
         )
         self.assertFalse(products, "Demo data should not be loaded by user.")
 
-        # Member role with POS Administrator access
         self.pos_user.write(
             {
                 "group_ids": [
@@ -4951,8 +4794,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_cross_exclusion_attribute_values(self):
-        """If you create a product with two attributes and 2 values for each attribute, and you exclude one value of the first attribute with one value of the second attribute
-        and vice versa, you should still be able to select the other values of the attributes."""
         self.attribute_1 = self.env["product.attribute"].create(
             {
                 "name": "attribute_1",
@@ -5036,7 +4877,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             }
         )
 
-        # Test the exclusion of attribute values
         ptav_1_1 = self.test_product_1.attribute_line_ids.filtered(
             lambda l: l.attribute_id.id == self.attribute_1.id
         ).product_template_value_ids.filtered(
@@ -5076,11 +4916,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.start_pos_tour("test_cross_exclusion_attribute_values")
 
     def test_custom_attribute_alone_displayed(self):
-        """
-        Tests that if product configurator will be shown if any of the
-        attributes have a free text field, even if there is only one
-        possible selection for every attributes.
-        """
         attribute_custom = self.env["product.attribute"].create(
             {
                 "name": "Custom",
@@ -5140,8 +4975,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.start_pos_tour("test_preset_customer_selection")
 
     def test_pos_large_amount_confirmation_dialog(self):
-        """Test that the Large amount confirmation dialog appears
-        and closes properly after clicking 'OK'."""
         self.env["product.product"].create(
             {
                 "name": "Overpay Test Product",
@@ -5153,7 +4986,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.start_pos_tour("test_pos_large_amount_confirmation_dialog")
 
     def test_product_info_product_inventory(self):
-        """Test that the product variant inventory info is correctly displayed in the POS."""
         size_attribute = self.env["product.attribute"].create(
             {
                 "name": "Size",
@@ -5197,10 +5029,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.start_pos_tour("test_product_info_product_inventory")
 
     def test_add_money_button_with_different_decimal_separator(self):
-        """
-        Tests that the buttons such as +10 or +50 work even in languages such as
-        french that have ',' as a decimal separator.
-        """
         lang = self.env["res.lang"].search([("code", "=", self.pos_user.lang)])
         lang.write({"thousands_sep": ".", "decimal_point": ","})
         self.start_tour(
@@ -5210,10 +5038,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_sync_from_ui_one_by_one(self):
-        """
-        Sync from UI is now syncing orders one by one.
-        sync_from_ui should be called 6 times in this tour (6 orders created).
-        """
 
         pos_order = self.env.registry.models["pos.order"]
         sync_counter = {"count": 0}
@@ -5271,7 +5095,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             lambda v: v.product_attribute_value_id.id == self.chair_color_red.id
         )
 
-        # Test the exclusion of attribute values
         self.env["product.template.attribute.exclusion"].create(
             {
                 "product_tmpl_id": self.configurable_chair.id,
@@ -5280,7 +5103,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             }
         )
 
-        # # Test the exclusion of attribute values in the opposite direction
         self.env["product.template.attribute.exclusion"].create(
             {
                 "product_tmpl_id": self.configurable_chair.id,
@@ -5319,10 +5141,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_refund_line_keep_attributes(self):
-        """
-        Tests that when refunding an order that has lines that are variants, the new line keeps
-        this variant and displays it.
-        """
         product_test = self.env["product.product"].create(
             {
                 "name": "Donut",
@@ -5359,7 +5177,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.start_pos_tour("test_refund_line_keep_attributes")
 
     def test_orderline_merge_with_higher_price_precision(self):
-        """Test that orderline merging works correctly when product price has a higher precision than the currency."""
         self.env["decimal.precision"].search(
             [("name", "=", "Product Price")]
         ).digits = 3
@@ -5380,7 +5197,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_product_configurator_price(self):
-        """Test that the product configurator displays the correct price when selecting attributes that impact the price."""
         self.env["product.template"].search(
             [("available_in_pos", "=", True)]
         ).active = False
@@ -5513,7 +5329,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_combo_no_free_item(self):
-        """Test a product combo with no free item allowed."""
         setup_product_combo_items(self)
         for combo_item in self.office_combo.combo_ids:
             combo_item.write(
@@ -5526,7 +5341,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         self.start_pos_tour("test_combo_no_free_item")
 
 
-# This class just runs the same tests as above but with mobile emulation
 class MobileTestUi(TestUi):
     browser_size = "375x667"
     touch_enabled = True
@@ -5537,7 +5351,7 @@ class TestTaxCommonPOS(TestPointOfSaleHttpCommon, TestTaxCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.partner_a.name = "AAAAAA"  # The POS only load the first 100 partners
+        cls.partner_a.name = "AAAAAA"
 
     def create_base_line_product(self, base_line, **kwargs):
         return self.env["product.product"].create(

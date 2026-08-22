@@ -9,7 +9,7 @@ class AccountFiscalPosition(models.Model):
 
     def write(self, vals):
         if "tax_ids" in vals:
-            if self.env["pos.order"].sudo().search_count([("fiscal_position_id", "in", self.ids)]):
+            if self.env["pos.order"].sudo().search_count([("fiscal_position_id", "in", self.ids)], limit=1):
                 raise UserError(
                     _(
                         "You cannot modify a fiscal position used in a POS order. "

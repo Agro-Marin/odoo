@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import _, api, fields, models
 
 
@@ -23,19 +21,17 @@ class AccountMove(models.Model):
     )
     pos_session_ids = fields.One2many("pos.session", "move_id", "POS Sessions")
     pos_order_count = fields.Integer(
-        compute="_compute_origin_pos_count", string="POS Order Count"
+        compute="_compute_pos_order_count", string="POS Order Count"
     )
 
     @api.depends("pos_order_ids")
-    def _compute_origin_pos_count(self):
+    def _compute_pos_order_count(self):
         for move in self:
             move.pos_order_count = len(move.sudo().pos_order_ids)
 
     @api.depends("tax_cash_basis_created_move_ids", "pos_session_ids")
     def _compute_always_tax_exigible(self):
         super()._compute_always_tax_exigible()
-        # The pos closing move does not create caba entries (anymore); we set the tax values directly on the closing move.
-        # (But there may still be old closing moves that used caba entries from previous versions.)
         for move in self:
             if move.always_tax_exigible or move.tax_cash_basis_created_move_ids:
                 continue
@@ -72,8 +68,6 @@ class AccountMove(models.Model):
         if self.state == "draft":
             return lot_values
 
-        # user may not have access to POS orders, but it's ok if they have
-        # access to the invoice
         for order in self.sudo().pos_order_ids:
             for line in order.lines:
                 lots = line.pack_lot_ids or False
@@ -93,9 +87,8 @@ class AccountMove(models.Model):
 
         return lot_values
 
-    def _compute_payments_widget_reconciled_info(self):
-        """Add pos_payment_name field in the reconciled vals to be able to show the payment method in the invoice."""
-        super()._compute_payments_widget_reconciled_info()
+    def _compute_invoice_payments_widget(self):
+        super()._compute_invoice_payments_widget()
         for move in self:
             if move.invoice_payments_widget:
                 if move.state == "posted" and move.is_invoice(include_receipts=True):
@@ -118,7 +111,6 @@ class AccountMove(models.Model):
                 move.amount_total_signed *= -1
 
     def _compute_is_storno(self):
-        # EXTENDS 'account'
         super()._compute_is_storno()
         for move in self:
             move.is_storno = move.is_storno or (
@@ -127,7 +119,7 @@ class AccountMove(models.Model):
 
     def action_view_source_pos_orders(self):
         self.ensure_one()
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "point_of_sale.action_pos_pos_form"
         )
 
@@ -175,13 +167,6 @@ class AccountMoveLine(models.Model):
         price_unit = super()._get_cogs_value()
         sudo_order = self.move_id.sudo().pos_order_ids
         if sudo_order:
-            # The POS valuation only sees moves the delivery already valued, so
-            # it yields 0 whenever none match -- typically a `shipping_date`
-            # order invoiced before its picking is done. Taking that 0 would
-            # discard a sound super() value, leaving the expense account
-            # undebited and the stock interim account uncleared, so fall back
-            # rather than override. `_compute_total_cost` guards the margin
-            # path against the same case.
             pos_price_unit = sudo_order._get_pos_anglo_saxon_price_unit(
                 self.product_id, self.move_id.partner_id.id, self.quantity
             )

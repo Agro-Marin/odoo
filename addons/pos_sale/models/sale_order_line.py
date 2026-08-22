@@ -124,7 +124,7 @@ class SaleOrderLine(models.Model):
             )
         return invoiced_qties
 
-    def _get_sale_order_fields(self):
+    def _get_fields_sale_order(self):
         return [
             "product_id",
             "display_name",
@@ -140,7 +140,7 @@ class SaleOrderLine(models.Model):
         ]
 
     def read_converted(self):
-        field_names = self._get_sale_order_fields()
+        field_names = self._get_fields_sale_order()
         results = []
         for sale_line in self:
             if sale_line.product_type or (

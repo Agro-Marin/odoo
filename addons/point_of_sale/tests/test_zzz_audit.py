@@ -1,7 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-# Regression tests for the point_of_sale full-module audit. Each test pins a fixed
-# defect (correctness, sequence leak, slot validation, and two N+1 computes) and
-# was authored red-green: it failed against the pre-fix code and passes after the fix.
 import logging
 from unittest.mock import patch
 
@@ -20,7 +16,6 @@ class TestAuditVerification(TestPoSCommon):
         self.config = self.basic_config
         self.product = self.create_product("AuditProd", self.categ_basic, 100, 50)
 
-    # ---- C1 [HIGH] _process_saved_order raises for a NON-invoiced order when no invoice journal ----
     def test_C1_invoice_journal_blocks_normal_cash_order(self):
         self.config.invoice_journal_id = False
         self._start_pos_session(self.cash_pm1, 0)
@@ -45,7 +40,6 @@ class TestAuditVerification(TestPoSCommon):
             "the config has no invoice journal: %s" % raised,
         )
 
-    # control: with an invoice journal set, the same order must work (rules out setup noise)
     def test_C1b_invoice_journal_present_normal_order_ok(self):
         self._start_pos_session(self.cash_pm1, 0)
         orders = self._create_orders(
@@ -60,7 +54,6 @@ class TestAuditVerification(TestPoSCommon):
         )
         self.assertEqual(len(orders), 1)
 
-    # ---- C21 [LOW] unlink leaks order_seq_id / order_backend_seq_id ----
     def test_C21_unlink_sequence_leak(self):
         cfg = self.env["pos.config"].create({"name": "AuditSeqCfg"})
         seq_ids = (
@@ -82,7 +75,6 @@ class TestAuditVerification(TestPoSCommon):
             % (len(survivors), survivors.mapped("name")),
         )
 
-    # ---- C22 [LOW] _check_slots rejects a valid attendance ending at 24:00 ----
     def test_C22_preset_midnight_slot(self):
         calendar = self.env["resource.calendar"].create({"name": "AuditCal"})
         raised = None
@@ -147,7 +139,6 @@ class TestAuditVerification(TestPoSCommon):
         sessions.invalidate_recordset()
         return sessions
 
-    # ---- P18a [MED] _compute_cash_balance issues one _read_group per session (N+1) ----
     def test_P18a_cash_balance_n_plus_1(self):
         sessions = self._make_configs_with_sessions(4)
         calls = {"n": 0}
@@ -158,7 +149,6 @@ class TestAuditVerification(TestPoSCommon):
             return real(self2, *a, **k)
 
         with patch.object(type(self.env["pos.payment"]), "_read_group", counting):
-            # touch a non-stored cash compute field on the whole recordset at once
             sessions.mapped("cash_register_balance_end")
         _logger.info(
             "P18a _read_group calls for %d sessions: %d", len(sessions), calls["n"]
@@ -170,7 +160,6 @@ class TestAuditVerification(TestPoSCommon):
             "(expected batched into <=1)" % (calls["n"], len(sessions)),
         )
 
-    # ---- P18b [MED] _compute_picking_count issues 2 queries per session (N+1) ----
     def test_P18b_picking_count_n_plus_1(self):
         sessions = self._make_configs_with_sessions(4)
         calls = {"search": 0, "search_count": 0}

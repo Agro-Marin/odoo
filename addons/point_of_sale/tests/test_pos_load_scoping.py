@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import odoo
 
 from odoo.addons.point_of_sale.tests.common import TestPoSCommon
@@ -7,12 +5,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPosLoadScoping(TestPoSCommon):
-    """The session payload must only carry the countries and states it can reach.
-
-    Loading `res.country` and `res.country.state` unfiltered ships ~2200 rows on
-    every cold load and every IndexedDB reset, a fixed cost that dwarfs the rest of
-    the payload on a small shop.
-    """
 
     def setUp(self):
         super().setUp()
@@ -76,8 +68,6 @@ class TestPosLoadScoping(TestPoSCommon):
             record["id"] for record in data["res.country.state"]
         )
 
-        # The partner's own state comes along, and nothing from a country the
-        # session never loaded.
         self.assertIn(state.id, loaded_states.ids)
         self.assertFalse(
             loaded_states.filtered(lambda s: s.country_id.id not in loaded_countries)
@@ -87,18 +77,12 @@ class TestPosLoadScoping(TestPoSCommon):
         )
 
     def test_company_country_always_loaded(self):
-        """The receipt prints the company address and its country `vat_label`.
-
-        `test_partial_load_without_partners` covers the same guarantee with no
-        partner loaded at all, which is what isolates the company-country term.
-        """
         data = self._load()
         self.assertIn(
             self.company.country_id.id, {record["id"] for record in data["res.country"]}
         )
 
     def test_company_state_always_loaded(self):
-        """The receipt prints `company.state_id.code`."""
         state = self.env["res.country.state"].create(
             {
                 "name": "PoS State",
@@ -112,7 +96,6 @@ class TestPosLoadScoping(TestPoSCommon):
         self.assertIn(state.id, {record["id"] for record in data["res.country.state"]})
 
     def test_partner_state_without_country_loaded(self):
-        """A state is reachable through a partner even if its country is not."""
         state = self.env["res.country.state"].search(
             [("country_id", "=", self.env.ref("base.mx").id)], limit=1
         )
@@ -126,7 +109,6 @@ class TestPosLoadScoping(TestPoSCommon):
         self.assertIn(state.id, {record["id"] for record in data["res.country.state"]})
 
     def test_partial_load_without_partners(self):
-        """A partial model list must degrade, not raise: `res.partner` is absent."""
         data = self._load(["res.country", "res.country.state"])
 
         self.assertEqual(

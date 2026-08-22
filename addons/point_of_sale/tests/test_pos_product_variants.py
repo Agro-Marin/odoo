@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import Command
 from odoo.tests import tagged
 
@@ -10,7 +8,6 @@ from odoo.addons.product.tests.common import ProductVariantsCommon
 @tagged("post_install", "-at_install")
 class TestPoSProductVariants(ProductVariantsCommon, TestPointOfSaleHttpCommon):
     def test_integration_dynamic_variant_price(self):
-        """Tests the price of products with dynamic variant when added to cart"""
         self.env["product.attribute.value"].create(
             {
                 "name": "dyn3",
@@ -37,7 +34,6 @@ class TestPoSProductVariants(ProductVariantsCommon, TestPointOfSaleHttpCommon):
             }
         )
 
-        # Create a variant (because of dynamic attribute)
         ptav_dyn2 = self.env["product.template.attribute.value"].search(
             [
                 ("attribute_line_id", "=", product_template.attribute_line_ids.id),
@@ -61,7 +57,6 @@ class TestPoSProductVariants(ProductVariantsCommon, TestPointOfSaleHttpCommon):
         )
 
     def test_integration_always_variant_price(self):
-        """Tests the price of products with always variant when added to cart"""
         self.size_attribute_m.default_extra_price = 5
 
         product_template = self.env["product.template"].create(
@@ -92,7 +87,6 @@ class TestPoSProductVariants(ProductVariantsCommon, TestPointOfSaleHttpCommon):
         )
 
     def test_integration_never_variant_price(self):
-        """Tests the price of products with no variant(never) variant when added to cart"""
         self.no_variant_attribute_second.default_extra_price = 5
 
         product_template = self.env["product.template"].create(
@@ -128,7 +122,6 @@ class TestPoSProductVariants(ProductVariantsCommon, TestPointOfSaleHttpCommon):
         )
 
     def test_integration_dynamic_always_variant_price(self):
-        """Tests the price of products with dynamic and always variants when added to cart"""
         self.env["product.attribute.value"].create(
             {
                 "name": "dyn3",
@@ -167,7 +160,6 @@ class TestPoSProductVariants(ProductVariantsCommon, TestPointOfSaleHttpCommon):
             ]
         )
 
-        # Create a variant (because of dynamic attribute)
         ptav_dyn2 = self.env["product.template.attribute.value"].search(
             [
                 ("attribute_line_id", "=", product_template.attribute_line_ids[0].id),
@@ -199,7 +191,6 @@ class TestPoSProductVariants(ProductVariantsCommon, TestPointOfSaleHttpCommon):
         )
 
     def test_integration_dynamic_never_variant_price(self):
-        """Tests the price of products with dynamic and never variants when added to cart"""
         self.env["product.attribute.value"].create(
             {
                 "name": "dyn3",
@@ -241,7 +232,6 @@ class TestPoSProductVariants(ProductVariantsCommon, TestPointOfSaleHttpCommon):
             ]
         )
 
-        # Create a variant (because of dynamic attribute)
         ptav_dyn2 = self.env["product.template.attribute.value"].search(
             [
                 ("attribute_line_id", "=", product_template.attribute_line_ids[0].id),
@@ -273,7 +263,6 @@ class TestPoSProductVariants(ProductVariantsCommon, TestPointOfSaleHttpCommon):
         )
 
     def test_integration_always_never_variant_price(self):
-        """Tests the price of products with always and never variants when added to cart"""
         self.no_variant_attribute_second.default_extra_price = 5
         self.size_attribute_m.default_extra_price = 10
 
@@ -321,7 +310,6 @@ class TestPoSProductVariants(ProductVariantsCommon, TestPointOfSaleHttpCommon):
         )
 
     def test_integration_dynamic_always_never_variant_price(self):
-        """Tests the price of products with all types of variants when added to cart"""
         (dyn1, dyn2) = self.dynamic_attribute.value_ids
         dyn2.default_extra_price = 10
         self.size_attribute_m.default_extra_price = 5
@@ -366,7 +354,6 @@ class TestPoSProductVariants(ProductVariantsCommon, TestPointOfSaleHttpCommon):
             ]
         )
 
-        # Create a variant (because of dynamic attribute)
         ptav_dyn2 = self.env["product.template.attribute.value"].search(
             [
                 ("attribute_line_id", "=", product_template.attribute_line_ids[0].id),
@@ -404,10 +391,6 @@ class TestPoSProductVariants(ProductVariantsCommon, TestPointOfSaleHttpCommon):
         )
 
     def test_image_variants_displayed(self):
-        """
-        Tests that the user can correctly chose variants in the product_configurator_popup
-        if the variant was set as Image
-        """
         image_attribute = self.env["product.attribute"].create(
             {
                 "name": "Images",

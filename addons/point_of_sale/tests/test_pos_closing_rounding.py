@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import logging
 from datetime import date
 
@@ -12,20 +10,12 @@ _logger = logging.getLogger(__name__)
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPosClosingRounding(TestPoSCommon):
-    """Rounding/date regressions in the session closing entry.
-
-    Both defects are silent: they do not raise, they produce a wrong ledger.
-    The FX one forces the cashier through Force Close and fabricates a
-    "Difference at closing PoS session" plug line for money that was never
-    lost; the date one back-dates the cash-difference statement line.
-    """
 
     def setUp(self):
         super().setUp()
         self.config = self.other_currency_config
 
     def _set_session_rate(self, rate):
-        """Rate of `other_currency` against the company currency."""
         self.other_currency.rate_ids.unlink()
         self.env["res.currency.rate"].create(
             {
@@ -36,17 +26,6 @@ class TestPosClosingRounding(TestPoSCommon):
         )
 
     def _make_products(self, prices):
-        """Four products on four distinct income accounts, at fixed prices.
-
-        Distinct income accounts mean distinct sale keys, hence four separate
-        debit-side accumulators each rounding independently, while the payment
-        side aggregates into a single receivable accumulator. That asymmetry is
-        what makes the per-contribution rounding error fail to cancel.
-
-        The prices are pinned on the session pricelist rather than derived from
-        the company-currency sales price: a derived price converts back exactly
-        and would hide the defect.
-        """
         products = []
         items = self.env["product.pricelist.item"]
         for i, price in enumerate(prices):
@@ -77,8 +56,6 @@ class TestPosClosingRounding(TestPoSCommon):
         return products
 
     def _close_and_get_move(self, session, bank_pm, products, order_count, prefix):
-        # Prices come from the session pricelist, i.e. already in session
-        # currency; the payment must match or the order is not "fully paid".
         total = sum(
             self.pricelist._get_product_price(product, 1) for product in products
         )
@@ -106,11 +83,6 @@ class TestPosClosingRounding(TestPoSCommon):
         )
 
     def test_closing_entry_balances_at_non_exact_rate(self):
-        """The regression: session currency at a rate that is not an exact
-        divisor. Pre-fix `_update_amounts` discards the tax engine's already
-        correct `balance` and re-derives it with a per-contribution FX
-        conversion, so debit and credit drift apart and the move cannot post.
-        """
         self._set_session_rate(0.63)
         products = self._make_products([1.0, 1.0, 1.0, 1.0])
         session = self._start_pos_session(self.cash_pm2 | self.bank_pm2, 0)
@@ -125,7 +97,6 @@ class TestPosClosingRounding(TestPoSCommon):
         )
 
     def test_closing_entry_balances_at_exact_rate(self):
-        """Control: a rate that divides exactly never exposed the defect."""
         self._set_session_rate(0.5)
         products = self._make_products([1.0, 1.0, 1.0, 1.0])
         session = self._start_pos_session(self.cash_pm2 | self.bank_pm2, 0)
@@ -133,7 +104,6 @@ class TestPosClosingRounding(TestPoSCommon):
         self.assertEqual(self._imbalance(move), 0.0)
 
     def test_closing_entry_balances_in_company_currency(self):
-        """Control: same-currency session, no conversion involved at all."""
         self.config = self.basic_config
         products = self._make_products([1.0, 1.0, 1.0, 1.0])
         session = self._start_pos_session(self.cash_pm1 | self.bank_pm1, 0)
@@ -141,11 +111,6 @@ class TestPosClosingRounding(TestPoSCommon):
         self.assertEqual(self._imbalance(move), 0.0)
 
     def test_statement_difference_uses_last_cash_movement(self):
-        """The cash-difference line must be dated from the *last* cash movement.
-
-        `account.bank.statement.line._order` is `internal_index desc`, so the
-        old `sorted()[-1:]` picked the oldest line instead of the newest.
-        """
         self.config = self.basic_config
         session = self._start_pos_session(self.cash_pm1, 0)
         dates = [date(2026, 7, 11), date(2026, 7, 16), date(2026, 7, 20)]

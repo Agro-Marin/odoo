@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import odoo
 
 from odoo.addons.point_of_sale.tests.common import TestPoSCommon
@@ -7,10 +5,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPosSimpleOrders(TestPoSCommon):
-    """
-    Each test case only make a single order.
-    Name of each test corresponds to a sheet in: https://docs.google.com/spreadsheets/d/1mt2jRSDU7OONPBFjwyTcnhRjITQI8rGMLLQA5K3fAjo/edit?usp=sharing
-    """
 
     def setUp(self):
         super().setUp()

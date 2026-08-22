@@ -9,7 +9,7 @@ class TestPosCashRounding(TestPointOfSaleHttpCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.partner_a.name = "AAAAAA"  # The POS only load the first 100 partners
+        cls.partner_a.name = "AAAAAA"
         cls.cash_rounding_add_invoice_line = cls.env["account.cash.rounding"].create(
             {
                 "name": "cash_rounding_add_invoice_line",
@@ -274,10 +274,6 @@ class TestPosCashRounding(TestPointOfSaleHttpCommon):
             )
 
     def test_archived_product_removed_and_order_is_refunded(self):
-        """
-        Tests that once product is archived after order is created
-        product is not shown but the order can still be refunded.
-        """
         self.pos_admin.write(
             {
                 "group_ids": [

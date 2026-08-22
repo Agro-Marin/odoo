@@ -251,7 +251,6 @@ def setup_product_combo_items(self):
         }
     )
 
-    # Create Office Combo
     self.office_combo = self.env["product.product"].create(
         {
             "available_in_pos": True,

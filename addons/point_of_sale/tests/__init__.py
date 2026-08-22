@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from . import common_setup_methods
 from . import test_common_harness
 from . import test_point_of_sale_flow
@@ -35,6 +34,7 @@ from . import test_pos_closing_rounding
 from . import test_pos_invoice_guards
 from . import test_pos_session_concurrency
 from . import test_pos_order_costing
+from . import test_pos_order_unit_cost
 from . import test_pos_sale_details
 from . import test_zzz_audit
 from . import test_zzz_audit2

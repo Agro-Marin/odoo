@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from unittest import skip
 
 import odoo
@@ -10,7 +8,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPoSOtherCurrencyConfig(TestPoSCommon):
-    """Test PoS with basic configuration"""
 
     def setUp(self):
         super().setUp()
@@ -37,7 +34,6 @@ class TestPoSOtherCurrencyConfig(TestPoSCommon):
             ],
             [100, 50, 50, 100, 100, 100, 100],
         )
-        # change the price of product2 to 12.99 fixed. No need to convert.
         pricelist_item = self.env["product.pricelist.item"].create(
             {
                 "product_tmpl_id": self.product2.product_tmpl_id.id,
@@ -55,9 +51,6 @@ class TestPoSOtherCurrencyConfig(TestPoSCommon):
         self.expense_account = self.categ_anglo.property_account_expense_categ_id
 
     def test_01_check_product_cost(self):
-        # Product price should be half of the original price because currency rate is 0.5.
-        # (see `self._create_other_currency_config` method)
-        # Except for product2 where the price is specified in the pricelist.
 
         self.assertAlmostEqual(
             self.config.pricelist_id._get_product_price(self.product1, 1), 5.00
@@ -82,39 +75,8 @@ class TestPoSOtherCurrencyConfig(TestPoSCommon):
         )
 
     def test_02_orders_without_invoice(self):
-        """orders without invoice
-
-        Orders
-        ======
-        +---------+----------+-----------+----------+-----+-------+
-        | order   | payments | invoiced? | product  | qty | total |
-        +---------+----------+-----------+----------+-----+-------+
-        | order 1 | cash     | no        | product1 |  10 |    50 |
-        |         |          |           | product2 |  10 | 129.9 |
-        |         |          |           | product3 |  10 |   150 |
-        +---------+----------+-----------+----------+-----+-------+
-        | order 2 | cash     | no        | product1 |   5 |    25 |
-        |         |          |           | product2 |   5 | 64.95 |
-        +---------+----------+-----------+----------+-----+-------+
-        | order 3 | bank     | no        | product2 |   5 | 64.95 |
-        |         |          |           | product3 |   5 |    75 |
-        +---------+----------+-----------+----------+-----+-------+
-
-        Expected Result
-        ===============
-        +---------------------+---------+-----------------+
-        | account             | balance | amount_currency |
-        +---------------------+---------+-----------------+
-        | sale_account        | -1119.6 |         -559.80 |
-        | pos receivable bank |   279.9 |          139.95 |
-        | pos receivable cash |   839.7 |          419.85 |
-        +---------------------+---------+-----------------+
-        | Total balance       |     0.0 |            0.00 |
-        +---------------------+---------+-----------------+
-        """
 
         def _before_closing_cb():
-            # check values before closing the session
             self.assertEqual(3, self.pos_session.order_count)
             orders_total = sum(
                 order.amount_total for order in self.pos_session.order_ids
@@ -239,41 +201,8 @@ class TestPoSOtherCurrencyConfig(TestPoSCommon):
         )
 
     def test_03_orders_with_invoice(self):
-        """orders with invoice
-
-        Orders
-        ======
-        +---------+----------+---------------+----------+-----+-------+
-        | order   | payments | invoiced?     | product  | qty | total |
-        +---------+----------+---------------+----------+-----+-------+
-        | order 1 | cash     | no            | product1 |  10 |    50 |
-        |         |          |               | product2 |  10 | 129.9 |
-        |         |          |               | product3 |  10 |   150 |
-        +---------+----------+---------------+----------+-----+-------+
-        | order 2 | cash     | yes, customer | product1 |   5 |    25 |
-        |         |          |               | product2 |   5 | 64.95 |
-        +---------+----------+---------------+----------+-----+-------+
-        | order 3 | bank     | yes, customer | product2 |   5 | 64.95 |
-        |         |          |               | product3 |   5 |    75 |
-        +---------+----------+---------------+----------+-----+-------+
-
-        Expected Result
-        ===============
-        +---------------------+---------+-----------------+
-        | account             | balance | amount_currency |
-        +---------------------+---------+-----------------+
-        | sale_account        |  -659.8 |         -329.90 |
-        | pos receivable bank |   279.9 |          139.95 |
-        | pos receivable cash |   839.7 |          419.85 |
-        | invoice receivable  |  -179.9 |          -89.95 |
-        | invoice receivable  |  -279.9 |         -139.95 |
-        +---------------------+---------+-----------------+
-        | Total balance       |     0.0 |            0.00 |
-        +---------------------+---------+-----------------+
-        """
 
         def _before_closing_cb():
-            # check values before closing the session
             self.assertEqual(3, self.pos_session.order_count)
             orders_total = sum(
                 order.amount_total for order in self.pos_session.order_ids
@@ -474,41 +403,6 @@ class TestPoSOtherCurrencyConfig(TestPoSCommon):
 
     @skip("Temporary to fast merge new valuation")
     def test_04_anglo_saxon_products(self):
-        """
-        ======
-        Orders
-        ======
-        +---------+----------+-----------+----------+-----+----------+------------+
-        | order   | payments | invoiced? | product  | qty |    total | total cost |
-        |         |          |           |          |     |          |            |
-        +---------+----------+-----------+----------+-----+----------+------------+
-        | order 1 | cash     | no        | product4 |   7 |      700 |        350 |
-        |         |          |           | product5 |   7 |     1400 |        490 |
-        +---------+----------+-----------+----------+-----+----------+------------+
-        | order 2 | cash     | no        | product5 |   6 |     1200 |        420 |
-        |         |          |           | product4 |   6 |      600 |        300 |
-        |         |          |           | product6 |  49 |   2219.7 |     525.77 |
-        +---------+----------+-----------+----------+-----+----------+------------+
-        | order 3 | cash     | no        | product5 |   2 |      400 |        140 |
-        |         |          |           | product6 |  13 |    588.9 |     139.49 |
-        +---------+----------+-----------+----------+-----+----------+------------+
-        | order 4 | cash     | no        | product6 |   1 |     45.3 |      10.73 |
-        +---------+----------+-----------+----------+-----+----------+------------+
-
-        ===============
-        Expected Result
-        ===============
-        +---------------------+------------+-----------------+
-        | account             |    balance | amount_currency |
-        +---------------------+------------+-----------------+
-        | sale_account        |   -7153.90 |        -3576.95 |
-        | pos_receivable-cash |    7153.90 |         3576.95 |
-        | expense_account     |    2375.99 |         2375.99 |
-        | output_account      |   -2375.99 |        -2375.99 |
-        +---------------------+------------+-----------------+
-        | Total balance       |       0.00 |            0.00 |
-        +---------------------+------------+-----------------+
-        """
 
         self._run_test(
             {
@@ -683,9 +577,7 @@ class TestPoSOtherCurrencyConfig(TestPoSCommon):
         )
 
     def test_bank_journal_balance(self):
-        """Verify that debit and credit are balanced when adding a difference to the bank."""
 
-        # Make a sale paid by bank
         self.other_currency_config.open_ui()
         session_id = self.other_currency_config.current_session_id
         order = self.env["pos.order"].create(
@@ -718,7 +610,6 @@ class TestPoSOtherCurrencyConfig(TestPoSCommon):
             }
         )
 
-        # Make payment
         payment_context = {"active_ids": order.ids, "active_id": order.id}
         order_payment = (
             self.env["pos.make.payment"]
@@ -729,12 +620,10 @@ class TestPoSOtherCurrencyConfig(TestPoSCommon):
         )
         order_payment.with_context(**payment_context).check()
 
-        # Close session with counted +10 for bank compared with expected
         session_id.action_pos_session_closing_control(
             bank_payment_method_diffs={self.bank_pm2.id: 10.00}
-        )  # Real 20, expected 10, diff 10
+        )
 
-        # Check debit/credit session's balance
         for move in session_id._get_related_account_moves():
             debit = credit = 0.0
             for line in move.line_ids:
@@ -747,7 +636,7 @@ class TestPoSOtherCurrencyConfig(TestPoSCommon):
                     precision_rounding=self.other_currency_config.currency_id.rounding,
                 ),
                 0,
-            )  # debit and credit should be equal
+            )
 
     def test_with_session_check_product_cost(self):
         def find_by(list_of_dicts, key, value):
@@ -791,4 +680,4 @@ class TestPoSOtherCurrencyConfig(TestPoSCommon):
         )
         self.assertEqual(
             product1_data["standard_price"], 2.5
-        )  # standard price should be converted
+        )

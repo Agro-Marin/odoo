@@ -8,21 +8,10 @@ _logger = logging.getLogger(__name__)
 
 
 class ResConfigSettings(models.TransientModel):
-    """POS settings proxy over the active ``pos.config``.
-
-    'pos_'-prefixed fields are stripped from the vals before ``create`` and
-    written to ``pos_config_id`` after it, so they all land on the config at once.
-
-    Related fields are written to the source record one at a time, so multi-field
-    constraints there may not hold. Only *modified* related fields are written,
-    but that set is only known after the super call — so vals is large before it
-    and reduced after.
-    """
 
     _inherit = "res.config.settings"
 
-    def _default_pos_config(self):
-        # Default to the last modified pos.config.
+    def _default_pos_config_id(self):
         active_model = self.env.context.get("active_model", "")
         if active_model == "pos.config":
             return self.env.context.get("active_id")
@@ -33,7 +22,7 @@ class ResConfigSettings(models.TransientModel):
     pos_config_id = fields.Many2one(
         "pos.config",
         string="Point of Sale",
-        default=lambda self: self._default_pos_config(),
+        default=lambda self: self._default_pos_config_id(),
     )
     sale_tax_id = fields.Many2one(
         "account.tax",
@@ -94,7 +83,6 @@ class ResConfigSettings(models.TransientModel):
         related="pos_config_id.customer_display_bg_img_name", readonly=False
     )
 
-    # pos.config fields
     pos_use_presets = fields.Boolean(
         related="pos_config_id.use_presets", readonly=False
     )
@@ -120,7 +108,7 @@ class ResConfigSettings(models.TransientModel):
         related="pos_config_id.module_pos_avatax", readonly=False
     )
     pos_is_order_printer = fields.Boolean(
-        compute="_compute_pos_printer", store=True, readonly=False
+        compute="_compute_pos_is_order_printer", store=True, readonly=False
     )
     pos_printer_ids = fields.Many2many(
         related="pos_config_id.printer_ids", readonly=False
@@ -135,7 +123,7 @@ class ResConfigSettings(models.TransientModel):
     pos_available_pricelist_ids = fields.Many2many(
         "product.pricelist",
         string="Available Pricelists",
-        compute="_compute_pos_pricelist_id",
+        compute="_compute_pos_pricelists",
         readonly=False,
         store=True,
     )
@@ -253,7 +241,7 @@ class ResConfigSettings(models.TransientModel):
     pos_pricelist_id = fields.Many2one(
         "product.pricelist",
         string="Default Pricelist",
-        compute="_compute_pos_pricelist_id",
+        compute="_compute_pos_pricelists",
         readonly=False,
         store=True,
     )
@@ -389,8 +377,6 @@ class ResConfigSettings(models.TransientModel):
 
     @api.model_create_multi
     def create(self, vals_list):
-        # STEP: Remove the 'pos' fields from each vals.
-        #   They will be written atomically to `pos_config_id` after the super call.
         pos_config_id_to_fields_vals_map = {}
 
         for vals in vals_list:
@@ -411,7 +397,8 @@ class ResConfigSettings(models.TransientModel):
                                 [
                                     ("use_presets", "=", True),
                                     ("id", "!=", pos_config_id),
-                                ]
+                                ],
+                                limit=1,
                             )
                         )
                         or vals["pos_use_presets"]
@@ -423,9 +410,6 @@ class ResConfigSettings(models.TransientModel):
 
                     val = vals.get(field.name)
 
-                    # Add only to pos_fields_vals if
-                    #   1. _field is in vals -- meaning, the _field is in view.
-                    #   2. _field starts with 'pos_' -- meaning, the _field is a pos field.
                     if field.name.startswith("pos_") and val is not None:
                         pos_config_field_name = field.name[4:]
                         if pos_config_field_name not in self.env["pos.config"]._fields:
@@ -441,11 +425,8 @@ class ResConfigSettings(models.TransientModel):
 
                 pos_config_id_to_fields_vals_map[pos_config_id] = pos_fields_vals
 
-        # STEP: Call super on the modified vals_list.
-        # NOTE: When creating `res.config.settings` records, it doesn't write on *unmodified* related fields.
         result = super().create(vals_list)
 
-        # STEP: Finally, we write the value of 'pos' fields to 'pos_config_id'.
         for pos_config_id, pos_fields_vals in pos_config_id_to_fields_vals_map.items():
             pos_config = self.env["pos.config"].browse(pos_config_id)
             pos_config.with_context(from_settings_view=True).write(pos_fields_vals)
@@ -500,7 +481,7 @@ class ResConfigSettings(models.TransientModel):
         )
 
     @api.depends("pos_module_pos_restaurant", "pos_config_id")
-    def _compute_pos_printer(self):
+    def _compute_pos_is_order_printer(self):
         for res_config in self:
             res_config.update(
                 {
@@ -578,7 +559,7 @@ class ResConfigSettings(models.TransientModel):
                 res_config.pos_tip_product_id = False
 
     @api.depends("pos_use_pricelist", "pos_config_id", "pos_journal_id")
-    def _compute_pos_pricelist_id(self):
+    def _compute_pos_pricelists(self):
         for res_config in self:
             currency_id = (
                 res_config.pos_journal_id.currency_id.id

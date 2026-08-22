@@ -1,6 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
-
 import odoo
 
 from odoo.addons.point_of_sale.tests.common import TestPoSCommon
@@ -8,7 +5,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPoSStock(TestPoSCommon):
-    """Tests for anglo saxon accounting scenario."""
 
     def setUp(self):
         super().setUp()
@@ -20,21 +16,16 @@ class TestPoSStock(TestPoSCommon):
         self.product4 = self.create_product("Product 4", self.categ_anglo, 10.0, 5.0)
         self.product4.type = "consu"
         self.product4.is_storable = False
-        # start inventory with 10 items for each product
         self.adjust_inventory(
             [self.product1, self.product2, self.product3], [10, 10, 10]
         )
 
-        # change cost(standard_price) of anglo products
-        # then set inventory from 10 -> 15
         self.product1.write({"standard_price": 6.0})
         self.product2.write({"standard_price": 6.0})
         self.adjust_inventory(
             [self.product1, self.product2, self.product3], [15, 15, 15]
         )
 
-        # change cost(standard_price) of anglo products
-        # then set inventory from 15 -> 25
         self.product1.write({"standard_price": 13.0})
         self.product2.write({"standard_price": 13.0})
         self.adjust_inventory(
@@ -46,42 +37,8 @@ class TestPoSStock(TestPoSCommon):
         self.valuation_account = self.categ_anglo.property_stock_valuation_account_id
 
     def test_01_orders_no_invoiced(self):
-        """
-
-        Orders
-        ======
-        +---------+----------+-----+-------------+------------+
-        | order   | product  | qty | total price | total cost |
-        +---------+----------+-----+-------------+------------+
-        | order 1 | product1 |  10 |       100.0 |       50.0 |  -> 10 items at cost of 5.0 is consumed, remains 5 items at 6.0 and 10 items at 13.0
-        |         | product2 |  10 |       200.0 |      100.0 |  -> 10 items at cost of 10.0 is consumed, remains 5 items at 6.0 and 10 items at 13.0
-        +---------+----------+-----+-------------+------------+
-        | order 2 | product2 |   7 |       140.0 |       56.0 |  -> 5 items at cost of 6.0 and 2 items at cost of 13.0, remains 8 items at cost of 13.0
-        |         | product3 |   7 |       210.0 |        0.0 |
-        +---------+----------+-----+-------------+------------+
-        | order 3 | product1 |   6 |        60.0 |       43.0 |  -> 5 items at cost of 6.0 and 1 item at cost of 13.0, remains 9 items at cost of 13.0
-        |         | product2 |   6 |       120.0 |       78.0 |  -> 6 items at cost of 13.0, remains 2 items at cost of 13.0
-        |         | product3 |   6 |       180.0 |        0.0 |
-        +---------+----------+-----+-------------+------------+
-        | order 4 | product4 |   6 |        60.0 |        0.0 |  -> consumable product cost = 0
-        +---------+----------+-----+-------------+------------+
-
-        Expected Result
-        ===============
-        +---------------------+---------+
-        | account             | balance |
-        +---------------------+---------+
-        | sale_account        | -1070.0 |
-        | pos_receivable-cash |  1070.0 |
-        | expense_account     |   327.0 |
-        | output_account      |  -327.0 |
-        +---------------------+---------+
-        | Total balance       |    0.00 |
-        +---------------------+---------+
-        """
 
         def _before_closing_cb():
-            # check values before closing the session
             self.assertEqual(4, self.pos_session.order_count)
             orders_total = sum(
                 order.amount_total for order in self.pos_session.order_ids
@@ -97,12 +54,10 @@ class TestPoSStock(TestPoSCommon):
                 msg="The orders's total amount should equal the computed.",
             )
 
-            # check product qty_available after syncing the order
             self.assertEqual(self.product1.qty_available, 9)
             self.assertEqual(self.product2.qty_available, 2)
             self.assertEqual(self.product3.qty_available, 12)
 
-            # picking and stock moves should be in done state
             for order in self.pos_session.order_ids:
                 self.assertEqual(
                     order.picking_ids[0].state,
@@ -179,11 +134,6 @@ class TestPoSStock(TestPoSCommon):
                                 "partner_id": False,
                                 "debit": 0,
                                 "credit": 327,
-                                # Not reconciled any more: the new valuation engine
-                                # has no "stock output" clearing account, so this
-                                # COGS credit to stock valuation has no delivery-side
-                                # counterpart to reconcile against. Stock valuation is
-                                # still relieved exactly once, here at session closing.
                                 "reconciled": False,
                             },
                         ],
@@ -217,29 +167,8 @@ class TestPoSStock(TestPoSCommon):
         )
 
     def test_02_orders_with_invoice(self):
-        """
-
-        Orders
-        ======
-        Same with test_01 but order 3 is invoiced.
-
-        Expected Result
-        ===============
-        +---------------------+---------+
-        | account             | balance |
-        +---------------------+---------+
-        | sale_account        |  -650.0 |
-        | pos_receivable-cash |  1010.0 |
-        | receivable          |  -360.0 |
-        | expense_account     |   206.0 |
-        | output_account      |  -206.0 |
-        +---------------------+---------+
-        | Total balance       |    0.00 |
-        +---------------------+---------+
-        """
 
         def _before_closing_cb():
-            # check values before closing the session
             self.assertEqual(3, self.pos_session.order_count)
             orders_total = sum(
                 order.amount_total for order in self.pos_session.order_ids
@@ -255,12 +184,10 @@ class TestPoSStock(TestPoSCommon):
                 msg="The orders's total amount should equal the computed.",
             )
 
-            # check product qty_available after syncing the order
             self.assertEqual(self.product1.qty_available, 9)
             self.assertEqual(self.product2.qty_available, 2)
             self.assertEqual(self.product3.qty_available, 12)
 
-            # picking and stock moves should be in done state
             for order in self.pos_session.order_ids:
                 self.assertEqual(
                     order.picking_ids[0].state,
@@ -368,11 +295,6 @@ class TestPoSStock(TestPoSCommon):
                                 "partner_id": False,
                                 "debit": 0,
                                 "credit": 206,
-                                # Not reconciled any more: the new valuation engine
-                                # has no "stock output" clearing account, so this
-                                # COGS credit to stock valuation has no delivery-side
-                                # counterpart to reconcile against. Stock valuation is
-                                # still relieved exactly once, here at session closing.
                                 "reconciled": False,
                             },
                         ],
@@ -406,9 +328,6 @@ class TestPoSStock(TestPoSCommon):
         )
 
     def test_03_order_product_w_owner(self):
-        """
-        Test order via POS a product having stock owner.
-        """
 
         group_owner = self.env.ref("stock.group_tracking_owner")
         self.env.user.write({"group_ids": [(4, group_owner.id)]})
@@ -424,20 +343,15 @@ class TestPoSStock(TestPoSCommon):
 
         self.open_new_session()
 
-        # create orders
         orders = []
         orders.append(self.create_ui_order_data([(self.product4, 1)]))
 
-        # sync orders
         order = self.env["pos.order"].sync_from_ui(orders)
 
-        # check values before closing the session
         self.assertEqual(1, self.pos_session.order_count)
 
-        # check product qty_available after syncing the order
         self.assertEqual(self.product4.qty_available, 9)
 
-        # picking and stock moves should be in done state
         for order in self.pos_session.order_ids:
             self.assertEqual(
                 order.picking_ids[0].state, "done", "Picking should be in done state."
@@ -455,7 +369,6 @@ class TestPoSStock(TestPoSCommon):
                 "Move Lines Owner should be taken into account.",
             )
 
-        # close the session
         self.pos_session.action_pos_session_validate()
 
     def test_04_order_refund(self):

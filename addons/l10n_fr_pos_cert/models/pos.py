@@ -50,11 +50,11 @@ class PosOrder(models.Model):
     l10n_fr_hash = fields.Char(string="Inalteralbility Hash", readonly=True, copy=False)
     l10n_fr_secure_sequence_number = fields.Integer(string="Inalteralbility No Gap Sequence #", readonly=True, copy=False)
     l10n_fr_string_to_hash = fields.Char(compute='_compute_string_to_hash', readonly=True, store=False)
-    previous_order_id = fields.Many2one('pos.order', string='Previous Order', readonly=True, compute='_compute_previous_order', store=True, copy=False)
+    previous_order_id = fields.Many2one('pos.order', string='Previous Order', readonly=True, compute='_compute_previous_order_id', store=True, copy=False)
     pos_version = fields.Char(help="Version of Odoo that created the order", readonly=True, copy=False)
 
     @api.depends('l10n_fr_secure_sequence_number')
-    def _compute_previous_order(self):
+    def _compute_previous_order_id(self):
         orders_by_company = defaultdict(list)
         for order in self.filtered(lambda o: o.l10n_fr_secure_sequence_number):
             orders_by_company[order.company_id.id].append(order)

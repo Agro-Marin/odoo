@@ -20,7 +20,7 @@ export function setOfflineMode() {
         // ESM singleton split that used to give the test bundle its own copy of
         // `@web/core/browser/browser` is fixed — secondary bundles alias shared
         // core specifiers to `odoo.loader.modules` shims (see esm_bridges /
-        // ir_qweb_assets `_secondary_parent_stubs`). Note `window.fetch` still
+        // ir_qweb_assets `_get_secondary_parent_stubs`). Note `window.fetch` still
         // has no effect on rpc: browser.js captures `window.fetch.bind(window)`
         // at import, so reassigning `window.fetch` doesn't reach that capture —
         // which is exactly why we patch `browser.fetch`, not `window.fetch`.

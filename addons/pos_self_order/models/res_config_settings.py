@@ -221,8 +221,8 @@ class ResConfigSettings(models.TransientModel):
         self.pos_config_id._update_access_token()
 
     @api.depends('pos_self_ordering_mode')
-    def _compute_pos_pricelist_id(self):
-        super()._compute_pos_pricelist_id()
+    def _compute_pos_pricelists(self):
+        super()._compute_pos_pricelists()
         for res_config in self:
             if res_config.pos_self_ordering_mode == 'kiosk':
                 currency_id = res_config.pos_journal_id.currency_id.id if res_config.pos_journal_id.currency_id else res_config.pos_config_id.company_id.currency_id.id

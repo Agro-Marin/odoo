@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import json
 import logging
 from datetime import date, timedelta
@@ -31,7 +29,6 @@ class PosController(PortalAccount):
         with file_open("point_of_sale/static/src/app/service_worker.js") as f:
             return f.read()
 
-    # Support old routes for backward compatibility
     @http.route(["/pos/web", "/pos/ui"], type="http", auth="user")
     def old_pos_web(self, config_id=False, from_backend=False, **k):
         return self.pos_web(config_id, from_backend, **k)
@@ -42,26 +39,12 @@ class PosController(PortalAccount):
         type="http",
     )
     def pos_web(self, config_id=False, from_backend=False, subpath=None, **k):
-        """Open (or create, if none is open) a pos session for the given config.
-
-        Both /pos/ui and /pos/web reach the POS; on SaaS the former uses HTTPS,
-        the latter HTTP.
-
-        :param str config_id: id of the config to load.
-        :returns: object -- The rendered pos session.
-        """
         is_internal_user = request.env.user._is_internal()
         pos_config = False
         if not is_internal_user:
             return request.not_found()
-        # Only POS users (managers imply group_pos_user) may open/create a
-        # session. Others are sent back to the backend action instead of
-        # silently opening the POS.
         if not request.env.user.has_group("point_of_sale.group_pos_user"):
             return request.redirect("/odoo/action-point_of_sale.action_client_pos_menu")
-        # `<config_id>` is a free path segment, so it is a string of the user's
-        # choosing. Parse it once, here: three unguarded `int()` calls used to
-        # turn /pos/ui/anything into a 500.
         if config_id:
             try:
                 config_id = int(config_id)
@@ -77,9 +60,6 @@ class PosController(PortalAccount):
             pos_config = request.env["pos.config"].sudo().browse(config_id)
         pos_session = request.env["pos.session"].sudo().search(domain, limit=1)
 
-        # The same POS session can be opened by a different user => search without restricting to
-        # current user. Note: the config must be explicitly given to avoid fallbacking on a random
-        # session.
         if not pos_session and config_id:
             domain = [
                 ("state", "in", ["opening_control", "opened"]),
@@ -96,32 +76,22 @@ class PosController(PortalAccount):
             return request.redirect("/odoo/action-point_of_sale.action_client_pos_menu")
 
         if not pos_config.has_active_session:
-            # Acquire an row-level lock on the pos_config record to prevent race conditions
-            # This prevents multiple concurrent processes from creating duplicate POS sessions
             try:
                 request.env.cr.execute(
                     "SELECT id FROM pos_config WHERE id = %s FOR UPDATE NOWAIT",
                     (pos_config.id,),
                 )
             except LockNotAvailable:
-                # Another request is opening this very session right now. That
-                # is a race we lost, not a server fault: send the user back to
-                # the menu instead of a traceback.
                 return request.redirect(
                     "/odoo/action-point_of_sale.action_client_pos_menu"
                 )
             pos_config.open_ui()
             pos_session = request.env["pos.session"].sudo().search(domain, limit=1)
 
-        # The POS only works in one company, so we enforce the one of the session in the context
         company = pos_session.company_id
         session_info = request.env["ir.http"].session_info()
         allowed_companies = session_info["user_companies"]["allowed_companies"]
         if company.id not in allowed_companies:
-            # This user is not allowed in the company the session trades for.
-            # Indexing straight into `allowed_companies` raised KeyError here,
-            # i.e. a 500 on a route the user simply has no business on -- send
-            # them back to the menu, like every other refusal above.
             return request.redirect("/odoo/action-point_of_sale.action_client_pos_menu")
         session_info["user_context"]["allowed_company_ids"] = company.ids
         session_info["user_companies"] = {
@@ -160,9 +130,6 @@ class PosController(PortalAccount):
 
     @http.route("/pos/sale_details_report", type="http", auth="user")
     def print_sale_details(self, date_start=False, date_stop=False, **kw):
-        # This route returns company-wide sales aggregates, so restrict it to POS
-        # managers. The cashier's own single-session report goes through the JS
-        # get_sale_details call, not this HTTP PDF route.
         if not request.env.user.has_group("point_of_sale.group_pos_manager"):
             return request.not_found()
         pdf, _ = request.env["ir.actions.report"]._render_qweb_pdf(
@@ -177,12 +144,6 @@ class PosController(PortalAccount):
 
     @staticmethod
     def _parse_ticket_date(value):
-        """The ticket form's date, or None if it is not one.
-
-        The field is a plain ``<input type="date">``, so the browser sends
-        ``YYYY-MM-DD`` -- but nothing stops a hand-made request from sending
-        anything at all.
-        """
         try:
             return date.fromisoformat(value)
         except (TypeError, ValueError):
@@ -201,11 +162,6 @@ class PosController(PortalAccount):
                 else:
                     form_values[field] = kwargs.get(field)
 
-            # This route is `auth="public"`, so every value here is a string a
-            # stranger chose. The date used to go straight into
-            # `datetime(*[int(i) for i in value.split("-")])`, where anything
-            # but three integers raised out of the handler as a 500 -- while
-            # every other field on the same form already had an error path.
             date_order = None
             if not errors:
                 date_order = fields.Datetime.to_datetime(
@@ -279,10 +235,6 @@ class PosController(PortalAccount):
     )
     def show_ticket_validation_screen(self, access_token="", **kwargs):
         def _parse_additional_values(fields, prefix, kwargs):
-            """Parse the values in the kwargs by extracting the ones matching the given fields name.
-            :return a dict with the parsed value and the field name as key, and another on with the prefix to
-            re-render the form with previous values if needed.
-            """
             res, res_prefixed = {}, {}
             for field in fields:
                 key = prefix + field.name
@@ -292,12 +244,8 @@ class PosController(PortalAccount):
                     res_prefixed[key] = val
             return res, res_prefixed
 
-        # If the route is called directly, return a 404
         if not access_token:
             return request.not_found()
-        # Get the order using the access token. We can't use the id in the route because we may not have it yet when the QR code is generated.
-        # `limit=1`: `access_token` carries no unique constraint, and every line
-        # below this point treats `pos_order` as a singleton.
         pos_order = (
             request.env["pos.order"]
             .sudo()
@@ -306,21 +254,13 @@ class PosController(PortalAccount):
         if not pos_order:
             return request.not_found()
 
-        # An access token is enough to reach this public route, so the order state
-        # has to be checked here too: a draft or cancelled order must never be
-        # invoicable from it. `_generate_pos_order_invoice` enforces the same rule,
-        # but raising there would surface a traceback on a public page instead of a
-        # 404.
         if pos_order.state not in ("paid", "done"):
             return request.not_found()
 
-        # Set the proper context in case of unauthenticated user accessing
-        # from the main company website
         pos_order = pos_order.with_company(pos_order.company_id).with_context(
             allowed_company_ids=pos_order.company_id.ids
         )
 
-        # If the order was already invoiced, return the invoice directly by forcing the access token so that the non-connected user can see it.
         if pos_order.account_move and pos_order.account_move.is_sale_document():
             return request.redirect(
                 "/my/invoices/%s?access_token=%s"
@@ -335,7 +275,6 @@ class PosController(PortalAccount):
         ):
             return None
 
-        # Get the optional extra fields that could be required for a localisation.
         pos_order_country = pos_order.company_id.account_fiscal_country_id
         additional_partner_fields = request.env[
             "res.partner"
@@ -346,24 +285,20 @@ class PosController(PortalAccount):
 
         user_is_connected = not request.env.user._is_public()
 
-        # Validate the form by ensuring required fields are filled and the VAT is correct.
         form_values = {"extra_field_values": {}}
         partner = (
             user_is_connected and request.env.user.partner_id
         ) or pos_order.partner_id
         if kwargs and request.httprequest.method == "POST":
             form_values.update(kwargs)
-            # Extract the additional fields values from the kwargs now as they can't be there when validating the 'regular' partner form.
             partner_values, prefixed_partner_values = _parse_additional_values(
                 additional_partner_fields, "partner_", kwargs
             )
             form_values["extra_field_values"].update(prefixed_partner_values)
-            # Do the same for invoice values, separately as they are only needed for the invoice creation.
             invoice_values, prefixed_invoice_values = _parse_additional_values(
                 additional_invoice_fields, "invoice_", kwargs
             )
             form_values["extra_field_values"].update(prefixed_invoice_values)
-            # Check the basic form fields if the user is not connected as we will need these information to create the new user.
             partner, feedback_dict = self._create_or_update_address(
                 partner, **(kwargs | partner_values)
             )
@@ -393,11 +328,9 @@ class PosController(PortalAccount):
                 partner, {}, pos_order, additional_invoice_fields, kwargs
             )
 
-        # Most of the time, the country of the customer will be the same as the order. We can prefill it by default with the country of the company.
         if "country" not in form_values:
             form_values["country"] = pos_order_country
 
-        # Prefill the customer extra values if there is any and an user is connected
         if partner:
             if additional_partner_fields:
                 form_values["extra_field_values"] = {
@@ -410,8 +343,6 @@ class PosController(PortalAccount):
                     if field.name not in form_values["extra_field_values"]
                 }
 
-            # This is just to ensure that the user went and filled its information at least once.
-            # Another more thorough check is done upon posting the form.
             if not partner.country_id or not partner.street:
                 form_values["partner_address"] = False
             else:
@@ -438,7 +369,6 @@ class PosController(PortalAccount):
     def _validate_extra_form_details(
         self, addtional_form_values, additional_required_fields
     ):
-        """Ensure that all additional required fields have a value in the data."""
         missing_fields = set()
         error_messages = []
         for field in additional_required_fields:
@@ -457,13 +387,11 @@ class PosController(PortalAccount):
     ):
 
         pos_order.partner_id = partner
-        # Get the required fields for the invoice and add them to the context as default values.
         with_context = {}
         for field in additional_invoice_fields:
             with_context.update(
                 {f"default_{field.name}": invoice_values.get(field.name)}
             )
-        # Allowing default values for moves is important for some localizations that would need specific fields to be set on the invoice, such as Mexico.
         pos_order.with_context(with_context).action_pos_order_invoice()
         return request.redirect(
             "/my/invoices/%s?access_token=%s"

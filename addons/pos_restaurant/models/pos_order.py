@@ -23,5 +23,7 @@ class PosOrder(models.Model):
 
     def read_pos_data(self, data, config):
         result = super().read_pos_data(data, config)
-        result['restaurant.order.course'] = self.env['restaurant.order.course']._load_pos_data_read(self.course_ids, config)
+        result['restaurant.order.course'] = self.env['restaurant.order.course']._load_pos_data_read(
+            self.course_ids, config
+        ) if config else []
         return result

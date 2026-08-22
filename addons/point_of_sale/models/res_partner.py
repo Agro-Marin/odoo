@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
@@ -8,7 +7,7 @@ class ResPartner(models.Model):
     _inherit = ["res.partner", "mixin.pos.load"]
 
     pos_order_count = fields.Integer(
-        compute="_compute_pos_order",
+        compute="_compute_pos_order_count",
         help="The number of point of sales orders related to this customer",
         groups="point_of_sale.group_pos_user",
     )
@@ -54,7 +53,6 @@ class ResPartner(models.Model):
             domain += [("id", "in", list(limited_partner_ids))]
             new_partners = self.search(domain)
         else:
-            # If search domain is not empty, we need to search inside all partners
             new_partners = self.search(domain, offset=offset, limit=100)
         fiscal_positions = new_partners.fiscal_position_id
         return {
@@ -66,17 +64,15 @@ class ResPartner(models.Model):
 
     @api.model
     def _load_pos_data_domain(self, data, config):
-        # Collect partner IDs from loaded orders
         loaded_order_partner_ids = {order["partner_id"] for order in data["pos.order"]}
 
-        # Extract partner IDs from the tuples returned by get_limited_partners_loading
         limited_partner_ids = {
             partner[0] for partner in config.get_limited_partners_loading()
         }
 
         limited_partner_ids.add(
             self.env.user.partner_id.id
-        )  # Ensure current user is included
+        )
         partner_ids = limited_partner_ids.union(loaded_order_partner_ids)
         return [("id", "in", list(partner_ids))]
 
@@ -114,8 +110,7 @@ class ResPartner(models.Model):
             "property_account_receivable_id",
         ]
 
-    def _compute_pos_order(self):
-        # retrieve all children partners and prefetch 'parent_id' on them
+    def _compute_pos_order_count(self):
         all_partners = self.with_context(active_test=False).search_fetch(
             [("id", "child_of", self.ids)],
             ["parent_id"],
@@ -148,10 +143,7 @@ class ResPartner(models.Model):
             record.invoice_emails = ", ".join(emails) if emails else ""
 
     def action_view_pos_order(self):
-        """
-        This function returns an action that displays the pos orders from partner.
-        """
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "point_of_sale.action_pos_pos_form"
         )
         if self.is_company:

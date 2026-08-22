@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import odoo
 
 from odoo.addons.point_of_sale.tests.common import TestPoSCommon
@@ -7,17 +5,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPoSMultipleReceivableAccounts(TestPoSCommon):
-    """Test for invoiced orders with customers having receivable account different from default
-
-    Thus, for this test, there are two receivable accounts involved and are set in the
-    customers.
-        self.customer -> self.receivable_account
-        self.other_customer -> self.other_receivable_account
-
-    ADDITIONALLY, this tests different sales account on the products.
-
-    NOTE That both receivable accounts above are different from the pos receivable account.
-    """
 
     def setUp(self):
         super().setUp()
@@ -49,43 +36,8 @@ class TestPoSMultipleReceivableAccounts(TestPoSCommon):
         )
 
     def test_01_invoiced_order_from_other_customer(self):
-        """
-        Orders
-        ======
-        +---------+----------+-----------+----------+-----+---------+--------------------------+--------+
-        | order   | payments | invoiced? | product  | qty | untaxed | tax                      | total  |
-        +---------+----------+-----------+----------+-----+---------+--------------------------+--------+
-        | order 1 | cash     | no        | product1 | 10  | 109.9   | 7.69 [7%]                | 117.59 |
-        |         |          |           | product2 | 10  | 181.73  | 18.17 [10%]              | 199.9  |
-        |         |          |           | product3 | 10  | 281.73  | 19.72 [7%] + 28.17 [10%] | 329.62 |
-        +---------+----------+-----------+----------+-----+---------+--------------------------+--------+
-        | order 2 | bank     | no        | product1 | 5   | 54.95   | 3.85 [7%]                | 58.80  |
-        |         |          |           | product2 | 5   | 90.86   | 9.09 [10%]               | 99.95  |
-        +---------+----------+-----------+----------+-----+---------+--------------------------+--------+
-        | order 3 | bank     | yes       | product2 | 5   | 90.86   | 9.09 [10%]               | 99.95  |
-        |         |          |           | product3 | 5   | 140.86  | 9.86 [7%] + 14.09 [10%]  | 164.81 |
-        +---------+----------+-----------+----------+-----+---------+--------------------------+--------+
-
-        Expected Result
-        ===============
-        +---------------------+---------+
-        | account             | balance |
-        +---------------------+---------+
-        | sale_account        | -164.85 |
-        | sale_account        | -281.73 |
-        | other_sale_account  | -272.59 |
-        | tax 7%              |  -31.26 |
-        | tax 10%             |  -55.43 |
-        | pos receivable cash |  647.11 |
-        | pos receivable bank |  423.51 |
-        | other receivable    | -264.76 |
-        +---------------------+---------+
-        | Total balance       |    0.00 |
-        +---------------------+---------+
-        """
 
         def _before_closing_cb():
-            # check values before closing the session
             self.assertEqual(3, self.pos_session.order_count)
             orders_total = sum(
                 order.amount_total for order in self.pos_session.order_ids
@@ -96,7 +48,6 @@ class TestPoSMultipleReceivableAccounts(TestPoSCommon):
                 msg="Total order amount should be equal to the total payment amount.",
             )
 
-            # check if there is one invoiced order
             self.assertEqual(
                 len(
                     self.pos_session.order_ids.filtered(
@@ -309,40 +260,8 @@ class TestPoSMultipleReceivableAccounts(TestPoSCommon):
         )
 
     def test_02_all_orders_invoiced_mixed_customers(self):
-        """
-        Orders
-        ======
-        +---------+----------+---------------------+----------+-----+---------+--------------------------+--------+
-        | order   | payments | invoiced?           | product  | qty | untaxed | tax                      |  total |
-        +---------+----------+---------------------+----------+-----+---------+--------------------------+--------+
-        | order 1 | cash     | yes, other_customer | product1 |  10 |  109.90 | 7.69 [7%]                | 117.59 |
-        |         |          |                     | product2 |  10 |  181.73 | 18.17 [10%]              | 199.90 |
-        |         |          |                     | product3 |  10 |  281.73 | 19.72 [7%] + 28.17 [10%] | 329.62 |
-        +---------+----------+---------------------+----------+-----+---------+--------------------------+--------+
-        | order 2 | bank     | yes, customer       | product1 |   5 |   54.95 | 3.85 [7%]                |  58.80 |
-        |         |          |                     | product2 |   5 |   90.86 | 9.09 [10%]               |  99.95 |
-        +---------+----------+---------------------+----------+-----+---------+--------------------------+--------+
-        | order 3 | bank     | yes, other customer | product2 |   5 |   90.86 | 9.09 [10%]               |  99.95 |
-        |         |          |                     | product3 |   5 |  140.86 | 9.86 [7%] + 14.09 [10%]  | 164.81 |
-        +---------+----------+---------------------+----------+-----+---------+--------------------------+--------+
-
-        Expected Result
-        ===============
-        +----------------------+---------+
-        | account              | balance |
-        +----------------------+---------+
-        | pos receivable cash  |  647.11 |
-        | pos receivable bank  |  423.51 |
-        | received bank        | -423.51 |
-        | received cash        | -647.11 |
-        +----------------------+---------+
-        | Total balance        |    0.00 |
-        +----------------------+---------+
-
-        """
 
         def _before_closing_cb():
-            # check values before closing the session
             self.assertEqual(3, self.pos_session.order_count)
             orders_total = sum(
                 order.amount_total for order in self.pos_session.order_ids
@@ -353,7 +272,6 @@ class TestPoSMultipleReceivableAccounts(TestPoSCommon):
                 msg="Total order amount should be equal to the total payment amount.",
             )
 
-            # check if there is one invoiced order
             self.assertEqual(
                 len(
                     self.pos_session.order_ids.filtered(

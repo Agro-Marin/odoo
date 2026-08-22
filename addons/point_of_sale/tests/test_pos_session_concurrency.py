@@ -1,12 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-# `_check_pos_config` only sees rows its own transaction can see, so two cashiers
-# opening the same point of sale concurrently both pass it and both commit. These
-# tests pin the partial unique index that arbitrates that race, and the states it
-# must deliberately leave alone.
-#
-# Rows are inserted with raw SQL rather than through the ORM: the point is what the
-# database accepts from a competing transaction, and going through `create()` would
-# only re-test the Python constraint (and entangle the assertions with flush order).
 import psycopg
 
 import odoo
@@ -22,11 +13,6 @@ class TestPosSessionConcurrency(TestPoSCommon):
         self.config = self.basic_config
 
     def _insert_session(self, config, state, rescue=False):
-        """Insert a session row the way a competing transaction would.
-
-        `company_id` and `currency_id` are related non-stored fields on this model,
-        so the table only requires config, user and state.
-        """
         self.env.cr.execute(
             """
             INSERT INTO pos_session (config_id, user_id, state, rescue,
@@ -65,18 +51,14 @@ class TestPosSessionConcurrency(TestPoSCommon):
         self._assert_rejected(self.config, "opened")
 
     def test_closing_control_still_holds_the_slot(self):
-        """`closing_control` is not `closed`: a session being closed has not
-        released the point of sale yet, matching `_check_pos_config`."""
         self._insert_session(self.config, "closing_control")
         self._assert_rejected(self.config, "opened")
 
     def test_rescue_sessions_are_exempt(self):
-        """Rescue sessions are created alongside a stuck one on purpose."""
         self._insert_session(self.config, "opened")
         self._assert_accepted(self.config, "opened", rescue=True)
 
     def test_closed_sessions_do_not_hold_the_slot(self):
-        """The whole point of the partial index: history must not block reopening."""
         self._insert_session(self.config, "closed")
         self._assert_accepted(self.config, "opened")
 

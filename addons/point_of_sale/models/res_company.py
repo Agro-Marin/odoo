@@ -70,10 +70,6 @@ class ResCompany(models.Model):
         "fiscalyear_lock_date", "tax_lock_date", "sale_lock_date", "hard_lock_date"
     )
     def validate_lock_dates(self):
-        """This constrains makes it impossible to change the relevant lock dates if
-        some open POS session would violate them. Without that, these POS sessions
-        could not be closed (since the closing entries violate the lock dates).
-        """
         pos_session_model = self.env["pos.session"].sudo()
         for record in self:
             record = record.with_context(ignore_exceptions=True)
@@ -87,7 +83,6 @@ class ResCompany(models.Model):
                     (
                         Domain("start_at", "<=", fiscal_lock_date),
                         Domain("start_at", "<=", record.user_tax_lock_date),
-                        # The `config_id.journal_id.type` is either 'sale' or 'misc'
                         Domain("config_id.journal_id.type", "=", "sale")
                         & Domain("start_at", "<=", record.user_sale_lock_date),
                     )

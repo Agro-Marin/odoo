@@ -1,14 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-"""`search_paid_order_ids` -- the ticket screen's paginated order lookup.
-
-The client renders exactly the ids this returns in ``ordersInfo``
-(``syncedPageOrderIds``) and prints ``totalCount`` next to them, so the two
-have to describe the same set of orders. They did not: the pairs were built by
-walking `pos.order.line`, which drops any order that has no line.
-
-Authored red-green: every test below failed against the pre-fix code.
-"""
-
 import logging
 
 from odoo import fields
@@ -58,7 +47,6 @@ class TestPosOrderLookup(CommonPosTest):
             self.pos_config_usd.id, domain or [], limit, offset
         )
 
-    # ------------------------------------------------------------------
     def test_order_without_lines_is_listed(self):
         order = self._create_order(with_line=False)
         result = self._lookup()
@@ -76,9 +64,7 @@ class TestPosOrderLookup(CommonPosTest):
         for _order_id, last_write in self._lookup()["ordersInfo"]:
             self.assertTrue(last_write)
 
-    # ------------------------------------------------------------------
     def test_a_full_page_is_full(self):
-        """`limit` is applied by the query; nothing may drop rows afterwards."""
         for _i in range(5):
             self._create_order()
         result = self._lookup(limit=3)
@@ -94,8 +80,6 @@ class TestPosOrderLookup(CommonPosTest):
         self.assertEqual(set(paged), created)
 
     def test_page_is_in_query_order(self):
-        """The client renders the ids as they arrive, so the page has to come
-        back in the order the query defines (`create_date desc`)."""
         for _i in range(3):
             self._create_order()
         result = self._lookup()
@@ -106,9 +90,7 @@ class TestPosOrderLookup(CommonPosTest):
         ).ids
         self.assertEqual(listed, expected)
 
-    # ------------------------------------------------------------------
     def test_draft_and_cancelled_orders_are_excluded(self):
-        """Control: the domain must keep its shape."""
         draft = self._create_order(state="draft")
         result = self._lookup()
         self.assertNotIn(draft.id, [oid for oid, _d in result["ordersInfo"]])
@@ -129,8 +111,6 @@ class TestPosOrderLookup(CommonPosTest):
         )
 
     def test_refunded_order_is_stamped_by_its_refund(self):
-        """A refund writes the refunded line, and the client uses the stamp to
-        decide what to refetch -- so the refunded order must move too."""
         order = self._create_order()
         refund = self._create_order(with_line=False)
         self.env["pos.order.line"].create(
@@ -150,7 +130,6 @@ class TestPosOrderLookup(CommonPosTest):
         self.assertGreaterEqual(stamps[order.id], order.write_date)
 
     def test_domain_is_honoured(self):
-        """Control: the caller's domain still narrows the page."""
         wanted = self._create_order()
         wanted.write({"tracking_number": "LOOKUP-ME"})
         self._create_order()
@@ -164,7 +143,6 @@ class TestPosOrderLookup(CommonPosTest):
         self.assertEqual(result["totalCount"], 0)
 
     def test_stamps_are_datetimes(self):
-        """The client parses these with `parseDateTime(..., {tz: 'UTC'})`."""
         order = self._create_order()
         stamp = dict(self._lookup()["ordersInfo"])[order.id]
         self.assertEqual(stamp, fields.Datetime.to_datetime(stamp))

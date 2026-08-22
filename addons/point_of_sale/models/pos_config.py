@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from collections import defaultdict
 from datetime import datetime
 from uuid import uuid4
@@ -43,10 +41,10 @@ class PosConfig(models.Model):
             .pos_type_id.id
         )
 
-    def _default_sale_journal(self):
+    def _default_journal_id(self):
         return self.env["account.journal"]._ensure_company_account_journal()
 
-    def _default_invoice_journal(self):
+    def _default_invoice_journal_id(self):
         return self.env["account.journal"].search(
             [
                 *self.env["account.journal"]._check_company_domain(self.env.company),
@@ -55,15 +53,7 @@ class PosConfig(models.Model):
             limit=1,
         )
 
-    def _default_payment_methods(self):
-        """Default to existing payment methods compatible with this config's
-        company and currency.
-
-        As a field default it also runs on form load / ``new()`` / ``default_get``,
-        so it must have NO side effects (creating journals/methods here orphaned
-        accounting records when a new-config form was abandoned). ``create()``
-        provisions the journal and methods when none is compatible.
-        """
+    def _default_payment_method_ids(self):
         domain = [
             *self.env["pos.payment.method"]._check_company_domain(self.env.company),
             ("split_transactions", "=", False),
@@ -79,13 +69,13 @@ class PosConfig(models.Model):
         )
         return non_cash_pm | available_cash_pm
 
-    def _get_group_pos_manager(self):
+    def _default_group_pos_manager_id(self):
         return self.env.ref("point_of_sale.group_pos_manager")
 
-    def _get_group_pos_user(self):
+    def _default_group_pos_user_id(self):
         return self.env.ref("point_of_sale.group_pos_user")
 
-    def _get_default_tip_product(self):
+    def _default_tip_product_id(self):
         tip_product_id = self.env.ref(
             "point_of_sale.product_product_tip", raise_if_not_found=False
         )
@@ -132,7 +122,7 @@ class PosConfig(models.Model):
         domain=[("type", "in", ("general", "sale"))],
         check_company=True,
         help="Accounting journal used to post POS session journal entries and POS invoice payments.",
-        default=_default_sale_journal,
+        default=_default_journal_id,
         ondelete="restrict",
     )
     invoice_journal_id = fields.Many2one(
@@ -141,11 +131,11 @@ class PosConfig(models.Model):
         check_company=True,
         domain=[("type", "=", "sale")],
         help="Accounting journal used to create invoices.",
-        default=_default_invoice_journal,
+        default=_default_invoice_journal_id,
     )
     currency_id = fields.Many2one(
         "res.currency",
-        compute="_compute_currency",
+        compute="_compute_currency_id",
         store=True,
         compute_sudo=True,
         string="Currency",
@@ -281,20 +271,20 @@ class PosConfig(models.Model):
     group_pos_manager_id = fields.Many2one(
         "res.groups",
         string="Point of Sale Manager Group",
-        default=_get_group_pos_manager,
+        default=_default_group_pos_manager_id,
         help="This field is there to pass the id of the pos manager group to the point of sale client.",
     )
     group_pos_user_id = fields.Many2one(
         "res.groups",
         string="Point of Sale User Group",
-        default=_get_group_pos_user,
+        default=_default_group_pos_user_id,
         help="This field is there to pass the id of the pos user group to the point of sale client.",
     )
     iface_tipproduct = fields.Boolean(string="Product tips")
     tip_product_id = fields.Many2one(
         "product.product",
         string="Tip Product",
-        default=_get_default_tip_product,
+        default=_default_tip_product_id,
         help="This product is used as reference on customer receipts.",
     )
     fiscal_position_ids = fields.Many2many(
@@ -330,7 +320,7 @@ class PosConfig(models.Model):
     payment_method_ids = fields.Many2many(
         "pos.payment.method",
         string="Payment Methods",
-        default=lambda self: self._default_payment_methods(),
+        default=lambda self: self._default_payment_method_ids(),
         copy=False,
     )
     company_has_template = fields.Boolean(
@@ -406,7 +396,7 @@ class PosConfig(models.Model):
     last_data_change = fields.Datetime(
         string="Last Write Date",
         readonly=True,
-        compute="_compute_local_data_integrity",
+        compute="_compute_last_data_change",
         store=True,
     )
     fallback_nomenclature_id = fields.Many2one(
@@ -433,7 +423,7 @@ class PosConfig(models.Model):
         readonly=False,
     )
     statistics_for_current_session = fields.Json(
-        string="Session Statistics", compute="_compute_statistics_for_session"
+        string="Session Statistics", compute="_compute_statistics_for_current_session"
     )
 
     def _get_next_order_refs(self, device_identifier="0"):
@@ -471,10 +461,6 @@ class PosConfig(models.Model):
                 {
                     "static_records": static_records,
                     "session_id": config.current_session_id.id,
-                    # `devices_synchronisation.js` reads `device_identifier`;
-                    # this used to send `login_number`, the name of a concept
-                    # that was renamed, so the key was simply never read. 0 is
-                    # "not this device", which is what a trusted config is.
                     "device_identifier": 0,
                     "records": records,
                 },
@@ -489,13 +475,10 @@ class PosConfig(models.Model):
         for model, dom in domain.items():
             ids = record_ids.get(model, [])
             browsed = self.env[model].browse(ids)
-            # `exists()` once for the whole set: `filtered(lambda r: not
-            # r.exists())` ran one query per record the client knows about.
             existing = browsed.exists()
 
             dynamic_records[model] = self.env[model].search(dom)
             delete_record_ids[model] = (browsed - existing).ids
-            # Cancelled orders must be forced deleted from the user interface.
             if model == "pos.order":
                 delete_record_ids[model] += existing.filtered(
                     lambda r: r.state == "cancel"
@@ -533,7 +516,6 @@ class PosConfig(models.Model):
         record = read_records[0]
         record["_server_version"] = exp_version()
         record["_base_url"] = config.get_base_url()
-        # Needed to build the authenticated customer-display URL.
         record["access_token"] = config.access_token
         record["_data_server_date"] = (
             self.env.context.get("pos_last_server_date") or self.env.cr.now()
@@ -548,8 +530,6 @@ class PosConfig(models.Model):
             self.env["pos.config"]._get_special_products().ids
         )
 
-        # Add custom fields for 'formula' taxes.
-        # We can ignore data for _load_pos_data_domain since isn't needed in the domain computation of account.tax
         taxes = self.env["account.tax"].search(
             self.env["account.tax"]._load_pos_data_domain({}, config)
         )
@@ -560,10 +540,6 @@ class PosConfig(models.Model):
 
         if not record["use_pricelist"]:
             record["pricelist_id"] = False
-        # The config's own company, not `env.company`: every other value in
-        # this payload is derived from `config`, and the POS trades in exactly
-        # one company. They agree today only because the controller pins
-        # `allowed_company_ids` to the session's company.
         record["_IS_VAT"] = (
             config.company_id.country_id.id
             in self.env.ref("base.europe").country_ids.ids
@@ -611,7 +587,7 @@ class PosConfig(models.Model):
         "company_id",
         "company_id.currency_id",
     )
-    def _compute_currency(self):
+    def _compute_currency_id(self):
         for pos_config in self:
             if pos_config.journal_id:
                 pos_config.currency_id = (
@@ -623,7 +599,6 @@ class PosConfig(models.Model):
 
     @api.depends("session_ids", "session_ids.state")
     def _compute_current_session(self):
-        """If there is an open session, store it to current_session_id / current_session_State."""
         self.session_ids.fetch(["state"])
         for pos_config in self:
             opened_sessions = pos_config.session_ids.filtered(
@@ -633,13 +608,12 @@ class PosConfig(models.Model):
             session = pos_config.session_ids.filtered(
                 lambda s: s.state != "closed" and not s.rescue
             )
-            # sessions ordered by id desc
             pos_config.has_active_session = (opened_sessions and True) or False
             pos_config.current_session_id = (session and session[0].id) or False
             pos_config.current_session_state = (session and session[0].state) or False
             pos_config.number_of_rescue_session = len(rescue_sessions)
 
-    def _compute_statistics_for_session(self):
+    def _compute_statistics_for_current_session(self):
         for config in self:
             session = config.session_ids.filtered(
                 lambda s: s.state != "closed" and not s.rescue
@@ -680,13 +654,11 @@ class PosConfig(models.Model):
         draft_orders = session.order_ids.filtered(lambda o: o.state == "draft")
         non_refund_orders = all_paid_orders - refund_orders
 
-        # calculate total refunded amount per original order for refund count check
         refund_totals = defaultdict(float)
         for refund in refund_orders:
             if refund.refunded_order_id:
                 refund_totals[refund.refunded_order_id.id] += abs(refund.amount_total)
 
-        # count paid orders that are not completely refunded
         paid_order_count = sum(
             1
             for order in non_refund_orders
@@ -761,15 +733,6 @@ class PosConfig(models.Model):
     @api.constrains("rounding_method", "cash_rounding")
     def _check_rounding_method_strategy(self):
         for config in self:
-            # `rounding_method` is checked for truthiness first: `cash_rounding`
-            # is in @api.constrains (so flipping the flag on a config that
-            # already carries a non-`add_invoice_line` method cannot bypass the
-            # check), but that also fires the constraint on the intermediate
-            # state where the flag is set before the method is chosen. An empty
-            # method is not a strategy violation — it simply means no rounding
-            # is applied, which pos_order._add_cash_rounding_aml_vals already
-            # guards for — and the settings view makes the field required once
-            # the flag is on. Only a *chosen* method can violate the invariant.
             if (
                 config.cash_rounding
                 and config.rounding_method
@@ -810,7 +773,8 @@ class PosConfig(models.Model):
                 [
                     ("id", "in", config.payment_method_ids.ids),
                     ("company_id", "!=", config.company_id.id),
-                ]
+                ],
+                limit=1,
             ):
                 raise ValidationError(
                     _(
@@ -841,7 +805,6 @@ class PosConfig(models.Model):
                     )
                 )
 
-            # Check if the config's payment methods are compatible with its currency
             for pm in config.payment_method_ids:
                 if (
                     pm.journal_id
@@ -983,7 +946,7 @@ class PosConfig(models.Model):
                 {
                     "code": (vals_list[0].get("name") or "POS")[
                         :3
-                    ],  # first 3 characters of pos.config name
+                    ],
                     "company_id": self.env.company.id,
                 }
             )
@@ -991,11 +954,6 @@ class PosConfig(models.Model):
             self._check_header_footer(vals)
 
         pos_configs = super().create(vals_list)
-        # Provision the journal + payment methods here rather than in the field
-        # default (which fires on mere form load). A config ends up with no
-        # payment method only when `_default_payment_methods` found none existing,
-        # so this reproduces the old default's "create iff none exists" behaviour,
-        # without leaking accounting records from abandoned new-config forms.
         for config in pos_configs:
             if not config.payment_method_ids:
                 _dummy, payment_methods = config._create_journal_and_payment_methods()
@@ -1006,17 +964,9 @@ class PosConfig(models.Model):
         pos_configs.sudo()._check_modules_to_install()
         pos_configs.sudo()._check_groups_implied()
         pos_configs._update_preparation_printers_menuitem_visibility()
-        # If you plan to add something after this, use a new environment. The one above is no longer valid after the modules install.
         return pos_configs
 
     def _create_sequences(self):
-        """Give each point of sale its own four counters.
-
-        Their codes are distinct. All four used to be created as "pos.order",
-        which made them indistinguishable to `next_by_code`: it resolves a code
-        to one sequence per company, so four rows shared one lookup and any
-        caller of `next_by_code("pos.order")` drew from whichever came back.
-        """
         IrSequence = self.env["ir.sequence"].sudo()
         for pos_config in self:
             specs = (
@@ -1057,16 +1007,6 @@ class PosConfig(models.Model):
                 )
 
     def _get_next_session_name(self):
-        """Draw the next `pos.session` name for this point of sale.
-
-        The default sequence's prefix is the bare "/", which reads as nothing
-        on its own, so the shop's name stands in front of it; a localisation
-        that sets a real prefix speaks for itself and is left alone.
-
-        Elevated for the same reason as `register_new_device_identifier`:
-        drawing a number writes `ir.sequence`, which a cashier opening their
-        own session holds no rights on.
-        """
         self.ensure_one()
         sequence = (
             self.env["ir.sequence"]
@@ -1087,12 +1027,6 @@ class PosConfig(models.Model):
         return f"{prefix}{sequence.next_by_code('pos.session')}"
 
     def register_new_device_identifier(self):
-        """Hand the calling device its identifier from this config's counter.
-
-        Elevated like the bus token: drawing a number mutates `ir.sequence`,
-        which a cashier holds no rights on, and the config itself is read-only
-        for them (`access_pos_config_user`). Nothing here takes client input.
-        """
         self.ensure_one()
         identifier = self.sudo().device_seq_id._next()
         return {
@@ -1141,14 +1075,10 @@ class PosConfig(models.Model):
         "default_preset_id",
         "module_pos_appointment",
     )
-    def _compute_local_data_integrity(self):
+    def _compute_last_data_change(self):
         self.last_data_change = self.env.cr.now()
 
     def write(self, vals):
-        # Never mutate the caller's dict: the three preprocessing steps below
-        # and the `printer_ids` clear all rewrite `vals` in place, so a caller
-        # reusing one dict for two configs had the first config's injected
-        # commands silently applied to the second. Same fix as PosOrder.write.
         vals = dict(vals)
         self._check_header_footer(vals)
         self._reset_default_on_vals(vals)
@@ -1166,14 +1096,13 @@ class PosConfig(models.Model):
         )
         if opened_session:
             forbidden_fields = []
-            for key in self._get_forbidden_change_fields():
+            for key in self._get_fields_forbidden_change():
                 if key in vals:
                     if (
                         bypass_payment_method_ids_forbidden_change
                         and key == "payment_method_ids"
                     ):
                         continue
-                    # Allow activating a pos config even if it has an open session, but don't allow deactivating it.
                     if key == "active" and vals["active"]:
                         continue
                     field_name = self._fields[key].get_description(self.env)["string"]
@@ -1206,24 +1135,12 @@ class PosConfig(models.Model):
         return result
 
     def _preprocess_x2many_vals_from_settings_view(self, vals):
-        """From the res.config.settings view, changes in the x2many fields always result to an array of link commands or a single set command.
-        - As a result, the items that should be unlinked are not properly unlinked.
-        - So before doing the write, we inspect the commands to determine which records should be unlinked.
-        - We only care about the link command.
-        - We can consider set command as absolute as it will replace all.
-        """
         from_settings_view = self.env.context.get("from_settings_view")
         if not from_settings_view:
-            # If vals is not from the settings view, we don't need to preprocess.
             return
 
-        # Only ensure one when write is from settings view.
         self.ensure_one()
 
-        # Iterate what `vals` actually carries, and read the field's type from
-        # `_fields`. This used to call `fields_get([])`, which builds a full
-        # translated description of every field on the model to answer a
-        # question about the handful being written.
         for x2many_field in list(vals):
             field = self._fields.get(x2many_field)
             if field and field.type in ("many2many", "one2many"):
@@ -1234,15 +1151,11 @@ class PosConfig(models.Model):
                         _id = command[1]
                         linked_ids.discard(_id)
 
-                # Remaining items in linked_ids should be unlinked.
                 unlink_commands = [Command.unlink(_id) for _id in linked_ids]
 
                 vals[x2many_field] = unlink_commands + vals[x2many_field]
 
     def _keep_new_vals(self, vals):
-        """Keep values in vals that are different than
-        self's values.
-        """
         from_settings_view = self.env.context.get("from_settings_view")
         if not from_settings_view:
             return vals
@@ -1256,11 +1169,10 @@ class PosConfig(models.Model):
                     new_vals[field] = val
         return new_vals
 
-    def _get_forbidden_change_fields(self):
+    def _get_fields_forbidden_change(self):
         return ["module_pos_restaurant", "payment_method_ids", "active"]
 
     def unlink(self):
-        # Delete the pos.config records first then delete the sequences linked to them
         sequences_to_delete = (
             self.order_seq_id
             | self.order_backend_seq_id
@@ -1271,7 +1183,6 @@ class PosConfig(models.Model):
         sequences_to_delete.unlink()
         return res
 
-    # TODO-JCB: Maybe we can move this logic in `_reset_default_on_vals`
     def _set_fiscal_position(self):
         for config in self:
             if (
@@ -1287,9 +1198,8 @@ class PosConfig(models.Model):
                 config.fiscal_position_ids = [(5, 0, 0)]
 
     def _check_modules_to_install(self):
-        # determine modules to install
         expected = [
-            fname[7:]  # 'module_account' -> 'account'
+            fname[7:]
             for fname in self._fields
             if fname.startswith("module_")
             if any(pos_config[fname] for pos_config in self)
@@ -1302,7 +1212,6 @@ class PosConfig(models.Model):
             modules = modules.filtered(lambda module: module.state not in STATES)
             if modules:
                 modules.button_immediate_install()
-                # just in case we want to do something if we install a module. (like a refresh ...)
                 return True
         return False
 
@@ -1329,7 +1238,6 @@ class PosConfig(models.Model):
             "tag": "reload",
         }
 
-    # Methods to open the POS
     def _action_to_open_ui(self):
         if not self.current_session_id:
             self.env["pos.session"].create(
@@ -1366,12 +1274,7 @@ class PosConfig(models.Model):
         self._check_payment_method_ids()
 
     def open_ui(self):
-        """Open the pos interface with config_id as an extra argument.
-
-        :returns: dict
-        """
         self.ensure_one()
-        # In case of test environment, don't create the pdf
         if self.env.uid == SUPERUSER_ID and not tools.config["test_enable"]:
             raise UserError(
                 _(
@@ -1392,15 +1295,11 @@ class PosConfig(models.Model):
         return self.open_ui()
 
     def open_existing_session_cb(self):
-        """close session button
-
-        access session form to validate entries
-        """
         self.ensure_one()
         return self._open_session(self.current_session_id.id)
 
     def _open_session(self, session_id):
-        self._check_pricelists()  # The pricelist company might have changed after the first opening of the session
+        self._check_pricelists()
         return {
             "name": _("Session"),
             "view_mode": "form,list",
@@ -1619,12 +1518,10 @@ class PosConfig(models.Model):
     def _create_journal_and_payment_methods(
         self, cash_ref=None, cash_journal_vals=None
     ):
-        """This should only be called at creation of a new pos.config."""
 
         journal = self.env["account.journal"]._ensure_company_account_journal()
         payment_methods = self.env["pos.payment.method"]
 
-        # create cash payment method per config
         cash_pm_from_ref = cash_ref and self.env.ref(cash_ref, raise_if_not_found=False)
         if cash_pm_from_ref:
             try:
@@ -1648,7 +1545,6 @@ class PosConfig(models.Model):
 
         payment_methods |= cash_pm
 
-        # only create bank and customer account payment methods per company
         bank_pm = self.env["pos.payment.method"].search(
             [
                 ("journal_id.type", "=", "bank"),
@@ -1713,7 +1609,6 @@ class PosConfig(models.Model):
         return journal, payment_methods.ids
 
     def get_record_by_ref(self, recordRefs):
-        # filters out unavailable external id
         return [
             self.env.ref(record).id
             for record in recordRefs
@@ -2015,7 +1910,6 @@ class PosConfig(models.Model):
         return {"config_id": config.id}
 
     def _get_suffixed_ref_name(self, ref_name):
-        """Suffix the given ref_name with the id of the current company if it's not the main company."""
         main_company = self.env.ref("base.main_company", raise_if_not_found=False)
         if main_company and self.env.company.id == main_company.id:
             return ref_name
@@ -2026,7 +1920,8 @@ class PosConfig(models.Model):
     def get_pos_kanban_view_state(self):
         has_pos_config = bool(
             self.env["pos.config"].search_count(
-                self._check_company_domain(self.env.company)
+                self._check_company_domain(self.env.company),
+                limit=1,
             )
         )
         has_chart_template = bool(self.env.company.chart_template)
@@ -2036,7 +1931,8 @@ class PosConfig(models.Model):
             "has_chart_template": has_chart_template,
             "is_restaurant_installed": bool(
                 self.env["ir.module.module"].search_count(
-                    [("name", "=", "pos_restaurant"), ("state", "=", "installed")]
+                    [("name", "=", "pos_restaurant"), ("state", "=", "installed")],
+                    limit=1,
                 )
             ),
             "is_main_company": (main_company and self.env.company.id == main_company.id)

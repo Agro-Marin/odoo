@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 import odoo
 from odoo.exceptions import UserError
 
@@ -25,8 +24,6 @@ class TestReportSession(TestPoSCommon):
         )
 
         self.config.open_ui()
-        # Grant archive rights so the guard below is reached as a permission-
-        # independent check (not blocked earlier by ACL).
         self.res_users_stock_user.group_ids |= self.env.ref(
             "product.group_product_manager"
         )
@@ -62,7 +59,6 @@ class TestReportSession(TestPoSCommon):
                 "to_invoice": False,
             }
         )
-        # check that an used product can not be archived
         with self.assertRaisesRegex(
             UserError,
             "Hold up! Archiving products while POS sessions are active is like pulling a plate mid-meal.\nMake sure to close all sessions first to avoid any issues.",
@@ -76,7 +72,6 @@ class TestReportSession(TestPoSCommon):
             bank_payment_method_diffs={self.bank_split_pm1.id: 50, self.bank_pm1.id: 40}
         )
 
-        # PoS Orders have negative IDs to avoid conflict, so reports[0] will correspond to the newest order
         report = self.env["report.point_of_sale.report_saledetails"].get_sale_details(
             session_ids=[session_id]
         )
@@ -87,7 +82,6 @@ class TestReportSession(TestPoSCommon):
         bank_payment = [  # noqa: F841 -- kept for the pending assertion below
             p for p in report["payments"] if p.get("id", 0) == self.bank_pm1.id
         ]
-        # self.assertEqual(bank_payment[0]['cash_moves'][0]['amount'], 40)  TODO WAN
         self.assertEqual(
             report["products_info"]["total"],
             100,
@@ -331,10 +325,6 @@ class TestReportSession(TestPoSCommon):
         )
 
     def test_report_bank_expected_different_than_counted(self):
-        """
-        Test that in the pos session report, the difference between the expected and counted bank payment is correct.
-        Test both with a default outstanding account on the payment and without.
-        """
         self.tax1 = self.env["account.tax"].create(
             {
                 "name": "Tax 1",

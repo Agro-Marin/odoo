@@ -14,8 +14,8 @@ class PosConfig(models.Model):
     set_tip_after_payment = fields.Boolean('Set Tip After Payment', help="Adjust the amount authorized by payment terminals to add a tip after the customers left or at the end of the day.")
     default_screen = fields.Selection([('tables', 'Tables'), ('register', 'Register')], string='Default Screen', default='tables')
 
-    def _get_forbidden_change_fields(self):
-        forbidden_keys = super(PosConfig, self)._get_forbidden_change_fields()
+    def _get_fields_forbidden_change(self):
+        forbidden_keys = super(PosConfig, self)._get_fields_forbidden_change()
         forbidden_keys.append('floor_ids')
         return forbidden_keys
 
@@ -149,8 +149,8 @@ class PosConfig(models.Model):
         return {'config_id': config.id}
 
     @api.depends('set_tip_after_payment')
-    def _compute_local_data_integrity(self):
-       super()._compute_local_data_integrity()
+    def _compute_last_data_change(self):
+       super()._compute_last_data_change()
 
     def _load_restaurant_demo_data(self, with_demo_data=True):
         self.ensure_one()

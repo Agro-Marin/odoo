@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from datetime import UTC, timedelta
 
 from odoo import _, api, fields, models
@@ -15,7 +14,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         if date_start:
             date_start = fields.Datetime.from_string(date_start)
         else:
-            # start by default today 00:00:00
             user_tz = self.env.tz
             today = fields.Datetime.from_string(
                 fields.Date.context_today(self)
@@ -24,11 +22,9 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
 
         if date_stop:
             date_stop = fields.Datetime.from_string(date_stop)
-            # avoid a date_stop smaller than date_start
             if date_stop < date_start:
                 date_stop = date_start + timedelta(days=1, seconds=-1)
         else:
-            # stop by default today 23:59:59
             date_stop = date_start + timedelta(days=1, seconds=-1)
 
         return date_start, date_stop
@@ -54,13 +50,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         return domain
 
     def _get_report_currency(self, config_ids, session_ids):
-        """The currency the report is expressed in.
-
-        Only a selection where every point of sale agrees on one currency can
-        be stated in it; otherwise the amounts are comparable only in the
-        company's own. (`mapped` already de-duplicates, so "they all agree" is
-        just "there is one".)
-        """
         if config_ids:
             currencies = (
                 self.env["pos.config"]
@@ -76,10 +65,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         return currencies if len(currencies) == 1 else self.env.company.currency_id
 
     def _accumulate_products_and_taxes(self, orders, user_currency):
-        """Fold the orders into the report's running totals.
-
-        :returns: (total, products_sold, taxes, refund_done, refund_taxes)
-        """
         total = 0.0
         products_sold = {}
         taxes = {"base_amount": 0.0, "taxes": {}}
@@ -109,12 +94,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         return total, products_sold, taxes, refund_done, refund_taxes
 
     def _serialize_products_by_category(self, products_by_category):
-        """One of the report's `{category: {key: totals}}` maps, as the sorted
-        list of category dictionaries the template renders.
-
-        Called for the sold map and for the refunded one; the two used to carry
-        the same thirty lines twice.
-        """
         categories = [
             {
                 "name": category_name,
@@ -147,11 +126,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         return sorted(categories, key=lambda category: str(category["name"]))
 
     def _get_report_scope(self, config_ids, session_ids, date_start, date_stop):
-        """The points of sale and the sessions the payment breakdown covers.
-
-        :returns: (configs, sessions). `configs` is a list, as the caller and
-            the template have always treated it.
-        """
         if not config_ids:
             sessions = self.env["pos.session"].search([("id", "in", session_ids)])
             return [session.config_id for session in sessions], sessions
@@ -161,10 +135,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             return configs, self.env["pos.session"].search(
                 [("id", "in", session_ids)]
             )
-        # Overlap, not containment: orders are selected by `date_order` falling
-        # in the window, so a session merely straddling it (opened before
-        # `date_start`, or still open and hence `stop_at` NULL) also contributes
-        # orders and must appear in the payment breakdown.
         return configs, self.env["pos.session"].search(
             [
                 ("config_id", "in", configs.ids),
@@ -176,13 +146,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         )
 
     def _prepare_uncounted_cash_row(self, session, statement_lines_by_session):
-        """The cash row for a session that took no cash *payment*.
-
-        Its register still exists: the previous session's counted close is this
-        one's opening float, and cash in/out happened against it. Without this
-        row the report would show a session whose drawer moved and say nothing
-        about it.
-        """
         previous_session = self.env["pos.session"].search(
             [
                 ("id", "<", session.id),
@@ -195,19 +158,10 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             previous_session.cash_register_balance_end_real
             + session.cash_real_transaction
         )
-        # `date` is day-granular, so same-day lines tie; `sorted` is stable
-        # and would then preserve the recordset order, which is
-        # `internal_index desc` (newest first). Break the tie on `id` to
-        # actually get chronological order.
         cash_moves = statement_lines_by_session.get(
             session.id, self.env["account.bank.statement.line"]
         ).sorted(lambda line: (line.date, line.id))
 
-        # The closing cash difference is posted as an ordinary statement line
-        # (`_post_statement_difference`), and it must not be listed among the
-        # genuine cash movements. Identify it by its counterpart being the cash
-        # journal's loss/profit account -- not by position, which dropped
-        # whichever line happened to sort last.
         diff_accounts = (
             session.cash_journal_id.loss_account_id
             | session.cash_journal_id.profit_account_id
@@ -244,11 +198,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         }
 
     def _count_cash_payment(self, payment, session, statement_lines_by_session):
-        """Fill in the cash payment row's counted figures, in place.
-
-        The drawer is counted against what should be in it: the takings, plus
-        the opening float, plus every cash in/out booked during the session.
-        """
         payment["final_count"] = (
             payment["total"]
             + session.cash_register_balance_start
@@ -267,9 +216,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                     "amount": session.cash_register_balance_start,
                 }
             )
-        # The in/out counters advance over every movement of the session, not
-        # only the ones this journal keeps, so the fallback names stay stable
-        # whichever journal is being reported on.
         cash_in_count = cash_out_count = 0
         cash_moves = statement_lines_by_session.get(
             session.id, self.env["account.bank.statement.line"]
@@ -292,20 +238,10 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         payment["count"] = True
 
     def _count_non_cash_payment(self, payment, diff_move, account_payments):
-        """Fill in one non-cash payment row's counted figures, in place.
-
-        Two ways a difference can have been recorded, and the row is only
-        marked counted if one of them applies: a closing-difference
-        `account.move` posted for this method, or an `account.payment` the
-        method's own journal settled it with.
-        """
         if diff_move:
             journal = (
                 self.env["pos.payment.method"].browse(payment["id"]).journal_id
             )
-            # Kept as `any(... == ...)` rather than a recordset membership test:
-            # an unset loss/profit account is an empty recordset, and `in`
-            # against one does not mean "never matches".
             is_loss = any(
                 line.account_id == journal.loss_account_id
                 for line in diff_move.line_ids
@@ -349,11 +285,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         payment["count"] = True
 
     def _prepare_counting_difference_moves(self, difference, is_loss):
-        """The single-entry `cash_moves` list describing a counting difference.
-
-        Four copies of this used to sit inside the session loop, differing only
-        in how they had already decided profit from loss.
-        """
         if not is_loss and difference == 0:
             return []
         move_name = (
@@ -372,13 +303,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         session_ids=False,
         **kwargs,
     ):
-        """Serialise the orders of the requested time period, configs and sessions.
-        :param str date_start: start dateTime, default today 00:00:00.
-        :param str date_stop: stop dateTime, default date_start + 23:59:59.
-        :param list config_ids: pos.config ids to include.
-        :param list session_ids: pos.session ids to include.
-        :returns: dict -- Serialised sales.
-        """
         if not session_ids:
             date_start, date_stop = self._get_date_start_and_date_stop(
                 date_start, date_stop
@@ -431,23 +355,12 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         for payment in payments:
             payment["count"] = False
 
-        # Batch-fetch account.payment for all sessions once and index by session
-        # id, instead of re-querying inside the per-payment loop below (N+1).
         account_payments_by_session = (
             self.env["account.payment"]
             .search([("pos_session_id", "in", sessions.ids)])
             .grouped(lambda p: p.pos_session_id.id)
         )
 
-        # Pre-fetch every (session, non-cash method) closing-difference move in a
-        # single query, instead of one `account.move` search per pair inside the
-        # nested loop below (N sessions x M methods). Iterating the not-yet-mutated
-        # `payments` here is safe: the synthetic cash rows added later via
-        # `payments.insert(0, ...)` are cash lines and never need a diff move.
-        # `pos.session._get_diff_account_move_ref` is the single source of truth
-        # for this ref and it is translated, so the ref must be rebuilt through it
-        # rather than re-spelled here: a literal English form matches nothing in a
-        # non-English database and the difference silently vanishes from the report.
         diff_ref_by_key = {
             (session.id, payment["id"]): session._get_diff_account_move_ref(
                 self.env["pos.payment.method"].browse(payment["id"])
@@ -461,11 +374,8 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             for move in self.env["account.move"].search(
                 [("ref", "in", list(set(diff_ref_by_key.values())))]
             ):
-                # Keep the first match per ref (mirrors the old per-ref limit=1).
                 diff_move_by_ref.setdefault(move.ref, move)
 
-        # One query for all sessions' cash statement lines, grouped by session,
-        # instead of a fresh search per session (used in both branches below).
         statement_lines_by_session = (
             self.env["account.bank.statement.line"]
             .search([("pos_session_id", "in", sessions.ids)])
@@ -607,7 +517,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             if len(line.product_id.product_tmpl_id.pos_categ_ids)
             else _("Not Categorized")
         )
-        precision = self.env["decimal.precision"].precision_get("Product Unit")
+        precision = self.env["decimal.precision"].get_precision("Product Unit")
         products.setdefault(key1, {})
         products[key1].setdefault(key2, [0.0, 0.0, 0.0, ""])
         products[key1][key2][0] = round(
@@ -616,7 +526,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         products[key1][key2][1] += self._get_product_total_amount(line)
         products[key1][key2][2] += line.price_subtotal
 
-        # Name of each combo products along with the combo
         if line.combo_line_ids:
             combo_products_label = (
                 " (" + ", ".join(line.combo_line_ids.product_id.mapped("name")) + ")"
@@ -655,8 +564,8 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
     def _get_total_and_qty_per_category(self, categories):
         all_qty = 0
         all_total = 0
-        qty_precision = self.env["decimal.precision"].precision_get("Product Unit")
-        price_precision = self.env["decimal.precision"].precision_get("Product Price")
+        qty_precision = self.env["decimal.precision"].get_precision("Product Unit")
+        price_precision = self.env["decimal.precision"].get_precision("Product Price")
         for category_dict in categories:
             qty_cat = 0
             total_cat = 0
@@ -665,10 +574,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                 total_cat += product["base_amount"]
             category_dict["total"] = round(total_cat, price_precision)
             category_dict["qty"] = round(qty_cat, qty_precision)
-        # Grand total is the sum over every product row. It must NOT deduplicate
-        # by value: two distinct rows that happen to share the same
-        # (product, price, discount, qty, totals) are legitimate separate sales,
-        # and collapsing them understated the report's grand total.
         all_products = [
             product for category in categories for product in category["products"]
         ]
@@ -690,10 +595,8 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
     @api.model
     def _get_report_values(self, docids, data=None):
         data = dict(data or {})
-        # initialize data keys with their value if provided, else None
         data.update(
             {
-                # If no data is provided it means that the report is called from the PoS, and docids represent the session_id
                 "session_ids": data.get("session_ids")
                 or (
                     docids

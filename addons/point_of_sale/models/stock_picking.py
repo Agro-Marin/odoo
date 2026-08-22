@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import logging
 from collections import defaultdict
 from itertools import groupby
@@ -33,7 +31,6 @@ class StockPicking(models.Model):
     def _create_picking_from_pos_order_lines(
         self, location_dest_id, lines, picking_type, partner=False
     ):
-        """We'll create some picking based on order_lines"""
 
         pickings = self.env["stock.picking"]
         stockable_lines = lines.filtered(
@@ -60,9 +57,6 @@ class StockPicking(models.Model):
                 with self.env.cr.savepoint():
                     positive_picking._action_done()
             except (UserError, ValidationError) as e:
-                # The POS order must still finalize; the picking stays
-                # recoverable, but a silent swallow hides why a delivery is
-                # left not-done and diverges stock from sales.
                 _logger.warning(
                     "POS could not auto-validate delivery picking %s for order %s: %s",
                     positive_picking.name,
@@ -90,8 +84,6 @@ class StockPicking(models.Model):
                 with self.env.cr.savepoint():
                     negative_picking._action_done()
             except (UserError, ValidationError) as e:
-                # See positive-picking branch: keep the order finalizing but
-                # surface why the return picking was not auto-validated.
                 _logger.warning(
                     "POS could not auto-validate return picking %s for order %s: %s",
                     negative_picking.name,
@@ -136,7 +128,6 @@ class StockPicking(models.Model):
         self._link_owner_on_return_picking(lines)
 
     def _link_owner_on_return_picking(self, lines):
-        """This method tries to retrieve the owner of the returned product"""
         if lines and lines[0].order_id.refunded_order_id.picking_ids:
             returned_lines_picking = lines[0].order_id.refunded_order_id.picking_ids
             returnable_qty_by_product = {}
@@ -152,7 +143,6 @@ class StockPicking(models.Model):
                         break
 
     def _send_confirmation_email(self):
-        # Avoid sending Mail/SMS for POS deliveries
         pickings = self.filtered(
             lambda p: p.picking_type_id != p.picking_type_id.warehouse_id.pos_type_id
         )
@@ -230,16 +220,8 @@ class StockMove(models.Model):
         return lines_data
 
     def _create_production_lots_for_pos_order(self, lines):
-        """Search for existing lots and create missing ones.
-
-        :param lines: pos order lines with pack lot ids.
-        :type lines: pos.order.line recordset.
-
-        :return stock.lot recordset.
-        """
         valid_lots = self.env["stock.lot"]
         moves = self.filtered(lambda m: m.picking_type_id.use_existing_lots)
-        # Already called in self._action_confirm() but just to be safe when coming from _launch_stock_rule_from_pos_order_lines.
         self._check_company()
         if moves:
             moves_product_ids = set(moves.mapped("product_id").ids)
@@ -256,7 +238,6 @@ class StockMove(models.Model):
                     ("name", "in", lots.mapped("lot_name")),
                 ]
             )
-            # The previous search may return (product_id.id, lot_name) combinations that have no matching in lines.pack_lot_ids.
             for lot in existing_lots:
                 if (lot.product_id.id, lot.name) in lots_data:
                     valid_lots |= lot
@@ -270,8 +251,6 @@ class StockMove(models.Model):
                 ):
                     missing_lot_values.append(
                         {
-                            # Use the same company the existing-lot search above
-                            # scoped on, so a created lot is findable next time.
                             "company_id": moves[0].picking_type_id.company_id.id,
                             "product_id": lot_product_id,
                             "name": lot_name,
@@ -282,7 +261,6 @@ class StockMove(models.Model):
 
     def _add_mls_related_to_order(self, related_order_lines, are_qties_done=True):
         lines_data = self._prepare_lines_data_dict(related_order_lines)
-        # Moves with product_id not in related_order_lines. This can happend e.g. when product_id has a phantom-type bom.
         moves_to_assign = self.filtered(
             lambda m: (
                 m.product_id.id not in lines_data
@@ -294,7 +272,6 @@ class StockMove(models.Model):
             )
         )
 
-        # Check for any conversion issues in the moves before setting quantities
         uoms_with_issues = set()
         for move in moves_to_assign.filtered(
             lambda m: m.product_uom_qty and m.product_uom_id != m.product_id.uom_id

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.tests.common import TransactionCase
@@ -9,7 +7,6 @@ class TestPointOfSale(TransactionCase):
     def setUp(self):
         super().setUp()
 
-        # ignore pre-existing pricelists for the purpose of this test
         self.env["product.pricelist"].search([]).write({"active": False})
 
         self.currency = self.env.ref("base.USD")
@@ -24,7 +21,7 @@ class TestPointOfSale(TransactionCase):
                 "name": "company 2 pricelist",
                 "currency_id": self.currency.id,
                 "company_id": self.company2.id,
-                "sequence": 1,  # force this pricelist to be first
+                "sequence": 1,
             }
         )
         self.bank_journal = self.env["account.journal"].create(
@@ -40,7 +37,6 @@ class TestPointOfSale(TransactionCase):
         self.env.user.company_id = self.company1
 
     def test_no_default_pricelist(self):
-        """Verify that the default pricelist isn't automatically set in the config"""
         company1_pricelist = self.env["product.pricelist"].create(
             {
                 "name": "company 1 pricelist",
@@ -50,7 +46,6 @@ class TestPointOfSale(TransactionCase):
             }
         )
 
-        # make sure this doesn't pick a pricelist as default
         new_config = self.env["pos.config"].create(
             {
                 "name": "usd config",
@@ -66,7 +61,6 @@ class TestPointOfSale(TransactionCase):
         )
 
     def test_product_combo_variants(self):
-        # Create product and combo
         product = self.env["product.product"].create(
             {
                 "name": "Test Product 1",
@@ -89,7 +83,6 @@ class TestPointOfSale(TransactionCase):
                 ],
             }
         )
-        # Add attribute and values, simulating variant creation
         size_attribute = self.env["product.attribute"].create({"name": "Size"})
         attribute_value_1 = self.env["product.attribute.value"].create(
             {"name": "Large", "attribute_id": size_attribute.id}
@@ -114,7 +107,6 @@ class TestPointOfSale(TransactionCase):
                 ],
             }
         )
-        # Check that original product should not be in combo anymore (replace by variants)
         self.assertTrue(
             original_product_id
             not in product_combo.combo_item_ids.mapped("product_id").ids,
@@ -150,7 +142,6 @@ class TestPointOfSale(TransactionCase):
             {"name": "Test Session", "config_id": config.id}
         )
 
-        # Delete one product and archive another one
         products_to_display = [product1.id, product2.id, product3.id]
         product1.write({"active": False})
         product2.unlink()
@@ -161,7 +152,6 @@ class TestPointOfSale(TransactionCase):
         )
         self.assertEqual(products_to_display, [product3.id])
 
-        # No change
         product4 = self.env["product.template"].create({"name": "product4"})
         products_to_display = [product3.id, product4.id]
         models_to_filter = {"product.template": products_to_display}
@@ -173,7 +163,6 @@ class TestPointOfSale(TransactionCase):
             sorted(products_to_display), sorted([product3.id, product4.id])
         )
 
-        # Delete all products
         products_to_display = [product3.id, product4.id]
         product3.unlink()
         product4.unlink()
@@ -184,6 +173,5 @@ class TestPointOfSale(TransactionCase):
         )
         self.assertEqual(products_to_display, [])
 
-        # Cannot archive config while session is active
         with self.assertRaises(UserError):
             config.write({"active": False})

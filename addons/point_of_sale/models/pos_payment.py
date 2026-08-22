@@ -6,12 +6,6 @@ from odoo.tools import float_is_zero, formatLang
 
 
 class PosPayment(models.Model):
-    """Used to register payments made in a pos.order.
-
-    See `payment_ids` field of pos.order model.
-    The main characteristics of pos.payment can be read from
-    `payment_method_id`.
-    """
 
     _name = "pos.payment"
     _description = "Point of Sale Payments"
@@ -142,8 +136,6 @@ class PosPayment(models.Model):
             payments = self - change_payment
 
         for payment in payments:
-            # Idempotency: a payment that already booked a move must not be
-            # booked again (prevents double-booking on re-invoice).
             if payment.account_move_id:
                 continue
             order = payment.pos_order_id
@@ -191,7 +183,7 @@ class PosPayment(models.Model):
                 {
                     "account_id": accounting_partner.with_company(
                         order.company_id
-                    ).property_account_receivable_id.id,  # The field being company dependant, we need to make sure the right value is received.
+                    ).property_account_receivable_id.id,
                     "partner_id": accounting_partner.id,
                     "move_id": payment_move.id,
                     "no_followup": False,
@@ -230,14 +222,6 @@ class PosPayment(models.Model):
         return result
 
     def _get_receivable_lines_for_invoice_reconciliation(self, receivable_account):
-        """Return the payment's receivable lines to reconcile against the invoice.
-
-        The sign heuristic matters when the POS receivable account equals the
-        customer's receivable account:
-
-        - positive payment -> negative balance lines
-        - negative payment -> positive balance lines
-        """
 
         result = self.env["account.move.line"]
         for payment in self:

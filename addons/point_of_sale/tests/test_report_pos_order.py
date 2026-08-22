@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 import odoo
 
 from odoo.addons.point_of_sale.tests.common import TestPoSCommon
@@ -11,7 +10,6 @@ class TestReportPoSOrder(TestPoSCommon):
         self.config = self.basic_config
 
     def test_report_pos_order_0(self):
-        """Test the margin and price_total of a PoS Order with no taxes."""
         product1 = self.create_product("Product 1", self.categ_basic, 150)
         self.categ_all = self.env["pos.category"].search([])
         product1.write({"pos_categ_ids": [odoo.Command.set(self.categ_all.ids)]})
@@ -42,7 +40,6 @@ class TestReportPoSOrder(TestPoSCommon):
                 "amount_return": 0.0,
             }
         )
-        # PoS Orders have negative IDs to avoid conflict, so reports[0] will correspond to the newest order
         reports = (
             self.env["report.pos.order"]
             .sudo()
@@ -54,7 +51,6 @@ class TestReportPoSOrder(TestPoSCommon):
         self.assertEqual(reports[0].price_total, 150)
 
     def test_report_pos_order_1(self):
-        """Test the margin and price_total of a PoS Order with taxes."""
 
         product1 = self.create_product(
             "Product 1", self.categ_basic, 150, self.taxes["tax10"].id
@@ -88,7 +84,6 @@ class TestReportPoSOrder(TestPoSCommon):
             }
         )
 
-        # PoS Orders have negative IDs to avoid conflict, so reports[0] will correspond to the newest order
         reports = (
             self.env["report.pos.order"]
             .sudo()
@@ -99,7 +94,6 @@ class TestReportPoSOrder(TestPoSCommon):
         self.assertEqual(reports[0].price_total, 165)
 
     def test_report_pos_order_2(self):
-        """Test the margin and price_total of a PoS Order with discount and no taxes"""
 
         product1 = self.create_product("Product 1", self.categ_basic, 150)
 
@@ -131,7 +125,6 @@ class TestReportPoSOrder(TestPoSCommon):
             }
         )
 
-        # PoS Orders have negative IDs to avoid conflict, so reports[0] will correspond to the newest order
         reports = (
             self.env["report.pos.order"]
             .sudo()

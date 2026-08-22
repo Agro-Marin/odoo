@@ -1,14 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-# Regression tests for three defects found in the round-7 point_of_sale audit.
-# Each was reproduced against the pre-fix code and fails without the corresponding
-# fix:
-#   * the receivable aggregation branch swapped `amount_currency` and `balance`,
-#     unbalancing the reversal move on any config whose currency is not the
-#     company's;
-#   * `_generate_pos_order_invoice` had no state guard, so a cancelled or unpaid
-#     draft order could be promoted to a posted customer invoice;
-#   * `pos.printer` had no multi-company record rule, exposing another company's
-#     IoT/printer network addresses to any POS user.
 import odoo
 from odoo.exceptions import UserError
 
@@ -23,7 +12,6 @@ class TestPosInvoiceGuards(TestPoSCommon):
         self.product = self.create_product("Guarded", self.categ_basic, 100.0, 50.0)
 
     def _make_order(self, state):
-        """Create a minimal order and force it into `state`."""
         order = self.env["pos.order"].create(
             {
                 "session_id": self.pos_session.id,
@@ -75,7 +63,6 @@ class TestPosInvoiceGuards(TestPoSCommon):
         )
 
     def test_paid_order_is_still_invoicable(self):
-        """Control: the guard must not block the legitimate path."""
         self._start_pos_session(self.cash_pm1, 0)
         order = self._make_order("paid")
         order.action_pos_order_invoice()
@@ -83,13 +70,6 @@ class TestPosInvoiceGuards(TestPoSCommon):
         self.assertEqual(order.state, "done")
 
     def test_reversal_move_balances_in_foreign_currency(self):
-        """Two non-split payments on one receivable account must aggregate without
-        swapping the company- and order-currency figures.
-
-        A cash payment plus its change line is the common real-world trigger, and
-        the imbalance is invisible whenever the config currency equals the
-        company's -- hence the explicit foreign-currency config here.
-        """
         config = self.other_currency_config
         self.config = config
         self._start_pos_session(self.cash_pm2, 0)

@@ -186,10 +186,6 @@ registry.category("web_tour.tours").add("OrderPaidInCash", {
                 run: "click",
                 expectUnloadPage: true,
             },
-            {
-                trigger: "body",
-                expectUnloadPage: true,
-            },
         ].flat(),
 });
 

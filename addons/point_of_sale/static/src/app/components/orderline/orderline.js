@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, useRef } from "@odoo/owl";
 import { useTimedPress } from "@point_of_sale/app/utils/use_timed_press";
-import { TagsList } from "@web/components/tags_list/tags_list";
+import { TagsList } from "@web/components/tags_list";
 import { formatCurrency } from "@web/core/currency";
 export class Orderline extends Component {
     static components = { TagsList };

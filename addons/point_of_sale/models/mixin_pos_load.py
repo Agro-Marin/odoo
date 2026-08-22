@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from odoo import api, models
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
@@ -10,7 +9,6 @@ class MixinPosLoad(models.AbstractModel):
 
     @api.model
     def _load_pos_data_search_read(self, data, config):
-        """Search and return records to be loaded in the pos"""
         if not config:
             raise ValueError("config must be provided to search for PoS data.")
 
@@ -23,27 +21,14 @@ class MixinPosLoad(models.AbstractModel):
 
     @api.model
     def _load_pos_data_domain(self, data, config):
-        """Return the domain used to filter records"""
         return []
 
     @api.model
     def _load_pos_data_referenced_ids(self, data, model, field):
-        """Return the ids referenced by `field` on the already loaded `model`.
-
-        Domains that scope a model to what the session actually reaches depend on
-        another model having been loaded first. `data` only holds the models loaded
-        so far, and `load_data` accepts a partial model list, so that dependency can
-        legitimately be absent: treat it as "nothing is referenced" instead of
-        raising, since `load_data` only shields itself from `AccessError`.
-
-        Records in `data` come from `read(load=False)`, so a many2one field is a
-        plain id (or `False`), never an `(id, name)` pair.
-        """
         return {record[field] for record in data.get(model, []) if record.get(field)}
 
     @api.model
     def _server_date_to_domain(self, domain):
-        """Optionally restrict the domain to records modified after the last server sync"""
         if domain is False:
             return domain
 
@@ -58,7 +43,6 @@ class MixinPosLoad(models.AbstractModel):
 
     @api.model
     def _load_pos_data_read(self, records, config):
-        """Read specific fields from the given records"""
         if not config:
             raise ValueError("config must be provided to read PoS data.")
 
@@ -67,26 +51,13 @@ class MixinPosLoad(models.AbstractModel):
         return records or []
 
     def _unrelevant_records(self, config):
-        """Ids the client should drop from its local copy.
-
-        Reached from `pos.session.filter_local_data`, a public RPC whose model
-        list is whatever the caller passes. Two things follow:
-
-        - A model with no `active` field has nothing to be inactive: reading
-          `record.active` there raised AttributeError, which the `except
-          AccessError` below never caught. Ask the model first.
-        - Whole-recordset, not one record at a time: `filtered` reads the
-          column once for all of them.
-        """
         if "active" not in self._fields:
             return []
         try:
             return (self - self.filtered("active")).ids
         except AccessError:
-            # No read access at all: none of it is relevant to this client.
             return self.ids
 
     @api.model
     def _load_pos_data_fields(self, config):
-        """Return the list of fields to be loaded"""
         return []

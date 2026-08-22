@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-# Copyright (C) 2004-2008 PC Solutions (<http://pcsol.be>). All Rights Reserved
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
@@ -50,7 +48,7 @@ class AccountJournal(models.Model):
     def _unlink_journal_cascade_pos_payment_methods(self):
         if self.env.context.get(
             MODULE_UNINSTALL_FLAG
-        ):  # only cascade when switching CoA
+        ):
             self.pos_payment_method_ids.unlink()
             self.env["pos.config"].search([("journal_id", "in", self.ids)]).unlink()
 

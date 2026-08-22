@@ -39,7 +39,6 @@ class PosPreset(models.Model):
     count_linked_orders = fields.Integer(compute="_compute_count_linked_orders")
     count_linked_config = fields.Integer(compute="_compute_count_linked_config")
 
-    # Timing options
     use_timing = fields.Boolean(string="Manage orders by time", default=False)
     resource_calendar_id = fields.Many2one("resource.calendar", "Resource")
     attendance_ids = fields.One2many(
@@ -83,29 +82,36 @@ class PosPreset(models.Model):
         ]
 
     def _compute_count_linked_orders(self):
-        for record in self:
-            record.count_linked_orders = self.env["pos.order"].search_count(
-                [("preset_id", "in", record.ids)]
+        counts = dict(
+            self.env["pos.order"]._read_group(
+                [("preset_id", "in", self.ids)], ["preset_id"], ["__count"]
             )
+        )
+        for record in self:
+            record.count_linked_orders = counts.get(record, 0)
 
     def _compute_count_linked_config(self):
+        configs = self.env["pos.config"].search(
+            [
+                "|",
+                ("default_preset_id", "in", self.ids),
+                ("available_preset_ids", "in", self.ids),
+            ]
+        )
+        by_preset = defaultdict(set)
+        for config in configs:
+            if config.default_preset_id:
+                by_preset[config.default_preset_id.id].add(config.id)
+            for preset_id in config.available_preset_ids.ids:
+                by_preset[preset_id].add(config.id)
         for record in self:
-            record.count_linked_config = self.env["pos.config"].search_count(
-                [
-                    "|",
-                    ("default_preset_id", "in", record.ids),
-                    ("available_preset_ids", "in", record.ids),
-                ]
-            )
+            record.count_linked_config = len(by_preset.get(record.id, ()))
 
     @api.depends("image_512")
     def _compute_has_image(self):
         for record in self:
             record.has_image = bool(record.image_512)
 
-    # Slots are created directly here in the form of dates, to avoid polluting
-    # the database with a “slots” model. All we need is the slot time, and with the preset
-    # information we can deduce the maximum occupancy per slot.
     def get_available_slots(self):
         self.ensure_one()
         usage = self._compute_slots_usage()

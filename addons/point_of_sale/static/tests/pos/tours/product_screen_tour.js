@@ -394,10 +394,6 @@ registry.category("web_tour.tours").add("CashClosingDetails", {
                 run: "click",
                 expectUnloadPage: true,
             },
-            {
-                trigger: "body",
-                expectUnloadPage: true,
-            },
         ].flat(),
 });
 

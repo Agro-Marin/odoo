@@ -21,7 +21,7 @@ class PosConfig(models.Model):
     def write(self, vals):
         if 'advanced_employee_ids' not in vals:
             vals['advanced_employee_ids'] = []
-        vals['advanced_employee_ids'] += [Command.link(emp_id) for emp_id in self._get_group_pos_manager().user_ids.employee_id.ids]
+        vals['advanced_employee_ids'] += [Command.link(emp_id) for emp_id in self._default_group_pos_manager_id().user_ids.employee_id.ids]
 
         # write employees in sudo, because we have no access to these corecords
         sudo_vals = {

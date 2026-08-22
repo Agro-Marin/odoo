@@ -47,7 +47,7 @@ class LoyaltyReward(models.Model):
             reward['reward_product_domain'] = self._replace_ilike_with_in(reward['reward_product_domain'])
         return read_records
 
-    def _get_reward_product_domain_fields(self, config):
+    def _get_fields_reward_product_domain(self, config):
         fields = set()
         search_domain = [('program_id', 'in', config._get_program_ids().ids)]
         domains = self.search_read(search_domain, fields=['reward_product_domain'], load=False)

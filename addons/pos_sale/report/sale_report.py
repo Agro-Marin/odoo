@@ -65,7 +65,7 @@ class SaleReport(models.Model):
 
     def _select_pos(self) -> SQL:
         """Build SELECT clause for POS orders from field registry."""
-        fields = self._get_pos_select_fields()
+        fields = self._get_fields_pos_select()
 
         field_parts = []
         for field_name, expression in fields.items():
@@ -114,14 +114,14 @@ class SaleReport(models.Model):
 
     def _group_by_pos(self) -> SQL:
         """Build GROUP BY clause for POS orders from field registry."""
-        fields = self._get_pos_group_by_fields()
+        fields = self._get_fields_pos_group_by()
         return SQL(",\n    ").join([SQL(field) for field in fields])
 
     # ------------------------------------------------------------
     # POS REGISTRIES (similar to mixin pattern)
     # ------------------------------------------------------------
 
-    def _get_pos_select_fields(self) -> dict:
+    def _get_fields_pos_select(self) -> dict:
         """Registry of fields for POS SELECT clause.
 
         :return: mapping of {field_name: sql_expression}
@@ -206,7 +206,7 @@ class SaleReport(models.Model):
 
         # Add additional fields from hooks (with POS-specific mappings)
         additional_fields = (
-            self._get_select_fields()
+            self._get_fields_select()
         )  # Get sale.report additional fields
         additional_fields_info = self._fill_pos_fields(additional_fields)
         fields.update(additional_fields_info)
@@ -261,7 +261,7 @@ class SaleReport(models.Model):
             "l.sale_order_line_id IS NULL",  # Exclude lines linked to sale orders
         ]
 
-    def _get_pos_group_by_fields(self) -> list:
+    def _get_fields_pos_group_by(self) -> list:
         """Registry of fields for POS GROUP BY clause.
 
         :return: field expressions for GROUP BY clause

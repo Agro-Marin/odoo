@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import api, fields, models
 
 
@@ -16,7 +14,6 @@ class AccountPayment(models.Model):
 
     @api.depends("force_outstanding_account_id")
     def _compute_outstanding_account_id(self):
-        """When force_outstanding_account_id is set, we use it as the outstanding_account_id."""
         super()._compute_outstanding_account_id()
         for payment in self:
             if payment.force_outstanding_account_id:
@@ -25,9 +22,6 @@ class AccountPayment(models.Model):
     def _get_payment_method_codes_to_exclude(self):
         res = super()._get_payment_method_codes_to_exclude()
 
-        # SEPA Credit Transfer requires a partner and bank account, but POS refunds
-        # may have no customer. Exclude sepa_ct so account.payment are never created
-        # with it, which would otherwise block session closing.
         if self.env["ir.module.module"]._get("account_iso20022").state == "installed":
             sepa_ct = self.env.ref(
                 "account_iso20022.account_payment_method_sepa_ct",

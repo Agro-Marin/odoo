@@ -44,7 +44,6 @@ class TestPointOfSaleFlow(CommonPosTest):
     def test_order_refund(self):
         self.pos_config_usd.open_ui()
 
-        # The amount_total will be 30 with 3.52 taxes included
         order, refund = self.create_backend_pos_order(
             {
                 "line_data": [
@@ -78,13 +77,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.assertEqual(current_session.state, "closed")
 
     def test_refund_multiple_payment_rounding(self):
-        """
-        This test makes sure that the refund amount always correspond to what
-        has been paid in the original order. In this example we have a
-        rounding, so we pay 5 in bank that is not rounded, then we pay the
-        rest in cash that is rounded. This sum up to 10 paid, so the refund
-        should be 10.
-        """
         self.account_cash_rounding_down.rounding = 5.0
         self.pos_config_usd.write(
             {
@@ -94,7 +86,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         )
 
         self.pos_config_usd.open_ui()
-        # order total will be 11.5 with 1.5 taxes excluded, with rounding 10 should be paid
         order, refund = self.create_backend_pos_order(
             {
                 "line_data": [
@@ -116,8 +107,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.assertEqual(refund.state, "paid")
 
     def test_order_partial_refund_rounding(self):
-        """This test ensures that the refund amound of a partial order corresponds to
-        the price of the item, without rounding."""
         self.account_cash_rounding_down.rounding = 5.0
         self.pos_config_usd.write(
             {
@@ -129,7 +118,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.pos_config_usd.open_ui()
         current_session = self.pos_config_usd.current_session_id
 
-        # order total will be 34.5 with 4.5 taxes excluded, with rounding 10 should be paid
         order, _ = self.create_backend_pos_order(
             {
                 "line_data": [
@@ -173,13 +161,9 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.assertEqual(current_session.state, "closed")
 
     def test_order_partial_refund(self):
-        """The purpose of this test is to make a partial refund of a pos order.
-        The amount to refund should depend on the article returned and once the
-        payment made, the refund order should be marked as paid."""
         self.pos_config_usd.open_ui()
         current_session = self.pos_config_usd.current_session_id
 
-        # order total will be 30 with 3.52 taxes included
         order, _ = self.create_backend_pos_order(
             {
                 "line_data": [
@@ -246,15 +230,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.assertEqual(current_session.state, "closed")
 
     def test_order_to_picking(self):
-        """
-        In order to test the Point of Sale in module, I will do three orders
-        from the sale to the payment, invoicing + picking, but will only
-        check the picking consistency in the end.
-
-        TODO: Check the negative picking after changing the picking relation
-        to One2many (also for a mixed use case), check the quantity, the
-        locations and return picking logic
-        """
         order_1, _ = self.create_backend_pos_order(
             {
                 "order_data": {
@@ -337,13 +312,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.pos_config_usd.current_session_id.action_pos_session_closing_control()
 
     def test_order_to_picking02(self):
-        """
-        This test is similar to test_order_to_picking except that this time,
-        there are two products:
-            - One tracked by lot (ten_dollars_with_10_incl)
-            - One untracked (twenty_dollars_with_15_incl)
-            - Both are in a sublocation of the main warehouse
-        """
         wh_location = self.company_data["default_warehouse"].lot_stock_id
         shelf1_location = self.env["stock.location"].create(
             {
@@ -420,20 +388,11 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.pos_config_usd.current_session_id.action_pos_session_closing_control()
 
     def test_order_to_payment_currency(self):
-        """
-        In order to test the Point of Sale in module, I will do a full flow
-        from the sale to the payment and invoicing. I will use two products,
-        one with price including a 10% tax, the other one with 5% tax
-        excluded from the price.
-
-        The order will be in a different currency than the company currency.
-        """
         self.env.cr.execute(
             "UPDATE res_company SET currency_id = %s WHERE id = %s",
             [self.env.ref("base.USD").id, self.env.company.id],
         )
 
-        # Demo data are crappy, clean-up the rates
         self.env["res.currency.rate"].search([]).unlink()
         self.env["res.currency.rate"].create(
             {
@@ -503,12 +462,10 @@ class TestPointOfSaleFlow(CommonPosTest):
         res = order.action_pos_order_invoice()
         self.assertIn("res_id", res, "No invoice created")
 
-        # I test that the total of the attached invoice is correct
         invoice = self.env["account.move"].browse(res["res_id"])
         if invoice.state != "posted":
             invoice.action_post()
 
-        # Making the invoice draft should send a warning notification to the user
         with patch.object(self.env.registry["bus.bus"], "_sendone") as mock_send:
             invoice.action_draft()
             mock_send.assert_called_with(
@@ -531,10 +488,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.pos_config_usd.current_session_id.action_pos_session_closing_control()
 
     def test_order_to_invoice_uses_correct_shipping_address(self):
-        """
-        Test that invoice created from POS uses the correct shipping address
-        same as selected in the POS order.
-        """
         _, delivery2 = self.env["res.partner"].create(
             [
                 {
@@ -579,10 +532,6 @@ class TestPointOfSaleFlow(CommonPosTest):
             }
         )
 
-        # Pay the order through the real flow before invoicing it. Only a paid
-        # order may be invoiced (_generate_pos_order_invoice), so invoicing a
-        # draft one never reflected a reachable state: this test is about which
-        # shipping address the invoice carries, not about bypassing that gate.
         payment_context = {"active_ids": pos_order.ids, "active_id": pos_order.id}
         self.env["pos.make.payment"].with_context(**payment_context).create(
             {
@@ -613,12 +562,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         untax, atax = self.compute_tax(
             self.ten_dollars_with_10_excl.product_variant_id, 10.0
         )
-        # Archive rather than unlink: a tax carried by an order of a still-open
-        # session is `is_used` (account_tax._hook_compute_is_used in this
-        # module), so `unlink()` is refused by `unlink_except_tax_used`.
-        # Upstream settled this in a2e47c4b0f1 by switching this test to
-        # `active = False`; the fork's port of upstream fixes missed the change,
-        # which is why the test ran against `unlink()` and errored.
         self.ten_dollars_with_10_excl.taxes_id.active = False
         current_session = self.pos_config_usd.current_session_id
         payment = self.env["pos.make.payment"].create(
@@ -638,11 +581,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         )
         current_session.post_closing_cash_details(total_cash_payment)
 
-        # close session (should not fail here)
-        # We don't call `action_pos_session_closing_control` to force the failed
-        # closing which will return the action because the internal rollback call messes
-        # with the rollback of the test runner. So instead, we directly call the method
-        # that returns the action by specifying the imbalance amount.
         action = current_session._close_session_action(1.0)
         wizard = self.env["pos.close.session.wizard"].browse(action["res_id"])
         wizard.with_context(action["context"]).close_session()
@@ -653,11 +591,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.assertAlmostEqual(diff_line.credit, 1.0, msg="Missing amount of 1.0")
 
     def test_order_multi_step_route(self):
-        """
-        Test that orders in sessions with "Ship Later" enabled and
-        "Specific Route" set to a multi-step (2/3) route can be validated.
-        This config implies multiple picking types and multiple move_lines.
-        """
         self.ten_dollars_with_10_incl.product_variant_id.write(
             {
                 "tracking": "lot",
@@ -742,7 +675,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.assertEqual(len(order.picking_ids.picking_type_id), 1)
 
     def test_pos_order_invoice_payment_term(self):
-        """Test that when invoicing a POS order paid with customer account, the partner's payment term is then applied to the invoice."""
         self.customer_account_payment_method = self.env["pos.payment.method"].create(
             {
                 "name": "Customer Account",
@@ -811,14 +743,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         )
 
     def test_order_with_different_payments_and_refund(self):
-        """
-        Test that all the payments are correctly taken into account when the order
-        contains multiple payments and money refund.
-        In this example, we create an order with two payments for a product of 750$:
-            - one payment of $300 with customer account
-            - one payment of $460 with cash
-        Then, we refund the order with $10, and check that the amount still due is 300$.
-        """
         self.twenty_dollars_no_tax.product_variant_id.write(
             {
                 "is_storable": True,
@@ -843,16 +767,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.assertEqual(order.account_move.amount_residual, 20)
 
     def test_sale_order_postponed_invoicing(self):
-        """
-        Test the flow of creating an invoice later, after the POS session
-        has been closed and everything has been processed. Process should:
-            - Create a new misc entry, that will revert part of the POS
-                closing entry.
-            - Create the move and associating payment(s) entry, as it would
-                do when closing with invoice.
-            - Reconcile the receivable lines from the created misc entry
-                with the ones from the created payment(s)
-        """
         tags = self.setup_tags()
         with freeze_time("2020-01-01"):
             order, _ = self.create_backend_pos_order(
@@ -872,7 +786,6 @@ class TestPointOfSaleFlow(CommonPosTest):
             )
             self.pos_config_usd.current_session_id.action_pos_session_closing_control()
 
-            # Check the closing entry.
             closing_entry = order.session_move_id
             self.assertRecordValues(
                 closing_entry.line_ids.sorted(),
@@ -907,7 +820,6 @@ class TestPointOfSaleFlow(CommonPosTest):
             order.partner_id = self.partner_adgu.id
             order.action_pos_order_invoice()
 
-        # Check the reverse moves, one for the closing entry, one for the statement lines.
         reverse_closing_entries = self.env["account.move"].search(
             [
                 ("id", "!=", closing_entry.id),
@@ -964,18 +876,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         )
 
     def test_sale_order_postponed_invoicing_storno(self):
-        """
-        Test the flow of creating an invoice later, after the POS session
-        has been closed and everything has been processed. Process should:
-            - Create a new misc entry, that will revert part of the POS
-                closing entry.
-            - Create the move and associating payment(s) entry, as it would
-                do when closing with invoice.
-            - Reconcile the receivable lines from the created misc entry
-                with the ones from the created payment(s)
-        This test is the same as test_sale_order_postponed_invoicing but
-        with the storno feature enabled.
-        """
         self.env.company.account_storno = True
 
         tags = self.setup_tags()
@@ -997,7 +897,6 @@ class TestPointOfSaleFlow(CommonPosTest):
             )
             self.pos_config_usd.current_session_id.action_pos_session_closing_control()
 
-            # Check the closing entry.
             closing_entry = order.session_move_id
             self.assertRecordValues(
                 closing_entry.line_ids.sorted(),
@@ -1038,7 +937,6 @@ class TestPointOfSaleFlow(CommonPosTest):
             order.partner_id = self.partner_adgu.id
             order.action_pos_order_invoice()
 
-        # Check the reverse moves, one for the closing entry, one for the statement lines.
         reverse_closing_entries = self.env["account.move"].search(
             [
                 ("id", "!=", closing_entry.id),
@@ -1090,9 +988,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         )
 
     def test_sale_order_postponed_invoicing_anglosaxon(self):
-        """Test the flow of creating an invoice later, after the POS session has been closed and everything has been processed
-        in the case of anglo-saxon accounting.
-        """
         self.env.company.anglo_saxon_accounting = True
         self.env.company.point_of_sale_update_stock_quantities = "closing"
         order, _ = self.create_backend_pos_order(
@@ -1116,11 +1011,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.assertEqual(sum(picking_ids.move_line_ids.mapped("quantity")), 1)
 
     def test_order_pos_tax_same_as_company(self):
-        """
-        Test that when the default_pos_receivable_account and the partner
-        account_receivable are the same, payment are correctly reconciled
-        and the invoice is correctly marked as paid.
-        """
         self.pos_config_usd.open_ui()
         current_session = self.pos_config_usd.current_session_id
         account = self.partner_jcb.property_account_receivable_id
@@ -1148,7 +1038,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.assertEqual(order.account_move.amount_residual, 0)
 
     def test_journal_entries_category_without_account(self):
-        # Set company's default accounts to false
         self.env.company.income_account_id = False
         self.env.company.expense_account_id = False
         self.twenty_dollars_with_10_incl.write(
@@ -1203,7 +1092,6 @@ class TestPointOfSaleFlow(CommonPosTest):
             owner_id=self.partner_adgu,
         )
 
-        # create pos order with the two SN created before
         self.create_backend_pos_order(
             {
                 "order_data": {
@@ -1228,8 +1116,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         )
 
     def test_order_refund_with_invoice(self):
-        """This test make sure that credit notes of pos orders are correctly
-        linked to the original invoice."""
         self.pos_config_usd.open_ui()
         current_session = self.pos_config_usd.current_session_id
         self.create_backend_pos_order(
@@ -1327,7 +1213,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.assertEqual(len(order.picking_ids.move_ids), 2)
 
     def test_no_default_pricelist(self):
-        """Should not have default_pricelist if use_pricelist is false."""
 
         pricelist = self.env["product.pricelist"].create(
             {
@@ -1453,7 +1338,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.pos_config_usd.current_session_id.action_pos_session_closing_control()
         self.assertEqual(order.state, "done")
 
-        # Quantity decreased because from the same location
         self.assertEqual(stock_quant_1.quantity, 4)
         self.assertEqual(stock_quant_2.quantity, 3)
 
@@ -1632,9 +1516,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.assertEqual(current_session.state, "closed")
 
     def test_refund_qty_refund_cancel(self):
-        """
-        Test the refunded qty of an order, when the refund order has been cancelled
-        """
 
         product1 = self.env["product.product"].create(
             {
@@ -1699,7 +1580,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.assertEqual(order.lines[0].refunded_qty, 0)
 
     def test_pos_order_refund_ship_delay_totalcost(self):
-        # test that the total cost is computed for refund with a shipping delay and an avco/fifo product
         self.pos_config_usd.open_ui()
         current_session = self.pos_config_usd.current_session_id
         self.pos_config_usd.write({"ship_later": True})
@@ -1855,7 +1735,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.assertEqual(refunded_order_line.total_cost, -20)
 
     def test_cancel_order_with_past_preset(self):
-        # Test that cancelling an order with a past preset does not raise an error and does cancel the order.
         preset_takeaway = self.env["pos.preset"].create(
             {
                 "name": "Takeaway",
@@ -1933,7 +1812,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.assertEqual(order.state, "cancel")
 
     def test_sum_only_pos_locations(self):
-        """Test that quantities are summed only from POS source locations"""
 
         self.product = self.env["product.product"].create(
             {
@@ -1989,7 +1867,6 @@ class TestPointOfSaleFlow(CommonPosTest):
             }
         )
 
-        # Create quants in different locations for the same lot
         self.env["stock.quant"].create(
             [
                 {
@@ -2026,17 +1903,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         )
 
     def test_order_invoiced_after_session_closed(self):
-        """Test that an order can be invoiced after its session is closed.
-        Scenario:
-            1. Create a POS session and two orders:
-            - Order A: Not to be invoiced immediately.
-            - Order B: To be invoiced immediately.
-            2. Close the POS session.
-            3. Ensure:
-            - Both orders have `reversed_move_ids` unset.
-            4. Assign a partner to Order A and invoice it AFTER the session is closed.
-            - Confirm that `reversed_move_ids` is set accordingly.
-        """
         order_data = {
             "line_data": [
                 {"product_id": self.ten_dollars_with_10_incl.product_variant_id.id},
@@ -2065,10 +1931,8 @@ class TestPointOfSaleFlow(CommonPosTest):
         current_session.post_closing_cash_details(total_cash_payment)
         current_session.close_session_from_ui()
 
-        # Ensure the session is closed
         self.assertEqual(current_session.state, "closed")
 
-        # Initial state: no reversal moves for both orders
         self.assertFalse(
             order_no_invoice.reversed_move_ids,
             "Order with 'to_invoice' = False should have no reversal moves after session is closed.",
@@ -2078,11 +1942,9 @@ class TestPointOfSaleFlow(CommonPosTest):
             "Immediate invoiced order should have no reversal moves after session is closed.",
         )
 
-        # Now, set a partner and invoice the order after the session is closed
         order_no_invoice.partner_id = self.partner
         order_no_invoice.action_pos_order_invoice()
 
-        # Confirm that reversal move(s) are now set
         reversal_moves = self.env["account.move"].search(
             [("reversed_pos_order_id", "=", order_no_invoice.id)]
         )
@@ -2093,14 +1955,12 @@ class TestPointOfSaleFlow(CommonPosTest):
         )
 
     def test_payment_difference_accounting_items(self):
-        """Verify that the amount of the accounting items are correct when closing a session with a payment difference."""
         self.product1 = self.env["product.product"].create(
             {
                 "name": "Test Product",
                 "lst_price": 100,
             }
         )
-        # Make a sale paid by bank
         self.pos_config_usd.open_ui()
         session_id = self.pos_config_usd.current_session_id
         order = self.env["pos.order"].create(
@@ -2131,7 +1991,6 @@ class TestPointOfSaleFlow(CommonPosTest):
             }
         )
 
-        # Make payment
         payment_context = {"active_ids": order.ids, "active_id": order.id}
         order_payment = (
             self.env["pos.make.payment"]
@@ -2170,7 +2029,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         )
 
     def test_pos_order_partner_bank_id(self):
-        # Setup a running session, with a paid pos order that is not invoiced
         self.pos_config_usd.open_ui()
         self.cash_payment_method.journal_id.bank_account_id = self.env[
             "res.partner.bank"
@@ -2356,7 +2214,6 @@ class TestPointOfSaleFlow(CommonPosTest):
 
         self.pos_config_usd.open_ui()
         current_session = self.pos_config_usd.current_session_id
-        # I create a new PoS order with 2 lines
         order = self.env["pos.order"].create(
             {
                 "company_id": self.env.company.id,
@@ -2404,7 +2261,6 @@ class TestPointOfSaleFlow(CommonPosTest):
             order.amount_total, order.amount_paid, msg="Order should be fully paid."
         )
 
-        # I create a refund
         refund_action = order.refund()
         refund = self.env["pos.order"].browse(refund_action["res_id"])
 
@@ -2420,13 +2276,11 @@ class TestPointOfSaleFlow(CommonPosTest):
             )
         )
 
-        # I click on the validate button to register the payment.
         refund_payment.with_context(**payment_context).check()
         current_session.close_session_from_ui()
         self.assertEqual(current_session.picking_ids.mapped("state"), ["done", "done"])
 
     def test_search_paid_order_ids(self):
-        """Test if the orders from other configs are excluded in search_paid_order_ids"""
         other_pos_config = self.env["pos.config"].create(
             {
                 "name": "Other POS",
@@ -2514,7 +2368,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         )
 
     def test_open_ui_missing_country(self):
-        """Test that a POS can not be opened if it has no country"""
         self.pos_config_usd.company_id.account_fiscal_country_id = False
         with self.assertRaises(
             ValidationError, msg="The company must have a fiscal country set."
@@ -2611,7 +2464,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         order_line.with_user(user).with_company(branch)._compute_total_cost(None)
 
     def test_delete_res_partner_linked_to_pos_order(self):
-        """Test that a partner linked to a pos order cannot be deleted."""
         partner = self.env["res.partner"].create(
             {
                 "name": "Partner test",
@@ -2725,7 +2577,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         self.assertEqual(order_balance + payment_balance, 0)
 
     def test_draft_orders_products_loading(self):
-        """Test that products are correctly loaded when limited product loading is enabled and there are draft orders."""
         self.env["ir.config_parameter"].sudo().set_param(
             "point_of_sale.limited_product_count", 1
         )
@@ -2838,9 +2689,6 @@ class TestPointOfSaleFlow(CommonPosTest):
         )
 
     def test_order_invoiced_customer_account_after_session_closed(self):
-        """Test that an order paid via customer account can be invoiced after its session is closed.
-        Then make sure that the reversal move is reconciled with the PoS session account move line so that only the invoice remains open.
-        """
         order_data = {
             "line_data": [
                 {"product_id": self.twenty_dollars_with_10_incl.product_variant_id.id},

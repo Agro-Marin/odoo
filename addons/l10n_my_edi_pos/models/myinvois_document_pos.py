@@ -41,9 +41,7 @@ class MyInvoisDocumentPoS(models.Model):
         comodel_name="pos.config",
         readonly=True,
     )
-    linked_order_count = fields.Integer(
-        compute='_compute_linked_order_count',
-    )
+    linked_order_count = fields.Count("pos_order_ids")
     pos_order_date_range = fields.Char(
         string="Date Range",
         compute='_compute_pos_order_date_range',
@@ -53,10 +51,6 @@ class MyInvoisDocumentPoS(models.Model):
     # --------------------------------
     # Compute, inverse, search methods
     # --------------------------------
-
-    def _compute_linked_order_count(self):
-        for consolidated_invoice in self:
-            consolidated_invoice.linked_order_count = len(consolidated_invoice.pos_order_ids)
 
     @api.depends('pos_order_ids')
     def _compute_pos_order_date_range(self):
@@ -167,11 +161,11 @@ class MyInvoisDocumentPoS(models.Model):
     # Business methods
     # ----------------
 
-    def _validate_taxes(self):
+    def _check_taxes(self):
         """ Makes use of account.edi.xml.ubl_myinvois_my to validate the taxes for the records in self."""
-        super()._validate_taxes()
+        super()._check_taxes()
         if self.pos_order_ids:
-            self.env["account.edi.xml.ubl_myinvois_my"]._validate_taxes(self.pos_order_ids.lines.tax_ids)
+            self.env["account.edi.xml.ubl_myinvois_my"]._check_taxes(self.pos_order_ids.lines.tax_ids)
 
     def _is_consolidated_invoice(self):
         """

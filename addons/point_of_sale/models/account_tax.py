@@ -18,9 +18,6 @@ class AccountTax(models.Model):
             "is_base_affected",
         }
         if forbidden_fields & set(vals.keys()) and self.ids:
-            # Restrict to the taxes' own companies (multi-company safe) and check
-            # for existence via the m2m relation table instead of reading the
-            # tax_ids of every open-session order line across all companies.
             self.env["pos.order.line"].flush_model(["tax_ids"])
             self.env.cr.execute(
                 """
@@ -46,20 +43,10 @@ class AccountTax(models.Model):
         return super().write(vals)
 
     def _hook_compute_is_used(self, tax_to_compute):
-        # OVERRIDE: count a tax referenced by any pos.order.line as used, so it
-        # cannot be deleted while a POS order still carries it. Mirrors the
-        # write() guard above (which blocks *modifying* such a tax): without
-        # this, a tax used only by an open-session order stayed deletable, and
-        # deleting it left the session-closing entry computed without a tax that
-        # was already collected from the customer — a fiscal under-declaration.
-        # Archiving is the supported way to retire a tax that is in use.
         used_taxes = super()._hook_compute_is_used(tax_to_compute)
         tax_to_compute -= used_taxes
         if tax_to_compute:
             self.env["pos.order.line"].flush_model(["tax_ids"])
-            # `= ANY(%s)` + a list, not `IN %s` + tuple: the latter is psycopg2-only
-            # and raises a syntax error under this fork's psycopg3. Scanning the m2m
-            # relation directly is equivalent to and cheaper than a correlated EXISTS.
             self.env.cr.execute(
                 """
                 SELECT DISTINCT account_tax_id

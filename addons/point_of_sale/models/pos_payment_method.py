@@ -90,7 +90,6 @@ class PosPaymentMethod(models.Model):
         string="Use a Payment Terminal",
         help="Record payments with a terminal on this journal.",
     )
-    # used to hide use_payment_terminal when no payment interfaces are installed
     hide_use_payment_terminal = fields.Boolean(
         compute="_compute_hide_use_payment_terminal"
     )
@@ -110,7 +109,7 @@ class PosPaymentMethod(models.Model):
         default="none",
         required=True,
     )
-    default_qr = fields.Char(compute="_compute_qr")
+    default_qr = fields.Char(compute="_compute_default_qr")
     qr_code_method = fields.Selection(
         string="QR Code Format",
         copy=False,
@@ -171,7 +170,6 @@ class PosPaymentMethod(models.Model):
 
     @api.onchange("payment_method_type")
     def _onchange_payment_method_type(self):
-        # We don't display the field if there is only one option and cannot set a default on it
         if self.payment_method_type == "none":
             self.use_payment_terminal = False
 
@@ -183,13 +181,10 @@ class PosPaymentMethod(models.Model):
 
     @api.onchange("use_payment_terminal")
     def _onchange_use_payment_terminal(self):
-        """Used by inheriting model to unset the value of the field related to the unselected payment terminal."""
         pass
 
     @api.depends("config_ids")
     def _compute_open_session_ids(self):
-        # Batch a single search over every config of self, then map open
-        # sessions back to each payment method (avoids an N+1 search per method).
         all_configs = self.config_ids
         open_sessions = self.env["pos.session"].search(
             [
@@ -347,7 +342,8 @@ class PosPaymentMethod(models.Model):
                 [
                     ("id", "in", payment.config_ids.ids),
                     ("company_id", "!=", payment.company_id.id),
-                ]
+                ],
+                limit=1,
             ):
                 raise ValidationError(
                     _(
@@ -357,15 +353,12 @@ class PosPaymentMethod(models.Model):
                 )
 
     @api.depends("payment_method_type", "journal_id")
-    def _compute_qr(self):
+    def _compute_default_qr(self):
         for pm in self:
             if pm.payment_method_type != "qr_code":
                 pm.default_qr = False
                 continue
             try:
-                # Generate QR without amount that can then be used when the POS is offline.
-                # Trusted internal call: skip the open-session access guard so the
-                # default QR is still available outside an open session (backend form).
                 pm.default_qr = pm._get_qr_code(
                     False, "", "", pm.company_id.currency_id.id, False
                 )
@@ -380,11 +373,7 @@ class PosPaymentMethod(models.Model):
         currency,
         debtor_partner,
     ):
-        """Generates and returns a QR-code (public / RPC entry point)."""
         self.ensure_one()
-        # Security: only allow generating a QR-code for a payment method that
-        # belongs to one of the current user's open sessions' configs, so a
-        # caller cannot probe arbitrary payment methods / bank accounts.
         if self not in self.open_session_ids.config_id.payment_method_ids:
             raise UserError(
                 _(
@@ -407,7 +396,6 @@ class PosPaymentMethod(models.Model):
         currency,
         debtor_partner,
     ):
-        """Generates and returns a QR-code (unguarded internal implementation)."""
         self.ensure_one()
         if self.payment_method_type != "qr_code" or not self.qr_code_method:
             raise UserError(

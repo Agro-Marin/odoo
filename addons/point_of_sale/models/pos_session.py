@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 import logging
 from collections import defaultdict
 from datetime import timedelta
@@ -24,17 +23,12 @@ class PosSession(models.Model):
     _inherit = ["mixin.mail.thread", "mixin.mail.activity", "mixin.pos.bus", "mixin.pos.load"]
 
     POS_SESSION_STATE = [
-        ("opening_control", "Opening Control"),  # method action_pos_session_open
-        ("opened", "In Progress"),  # method action_pos_session_closing_control
-        ("closing_control", "Closing Control"),  # method action_pos_session_close
+        ("opening_control", "Opening Control"),
+        ("opened", "In Progress"),
+        ("closing_control", "Closing Control"),
         ("closed", "Closed & Posted"),
     ]
 
-    # States in which the cash drawer is still the session's to move: the
-    # opening float is counted in `opening_control`, everyday movements happen
-    # in `opened`. From `closing_control` on, the counted balance and the
-    # closing entry are being settled, so a new statement line would land
-    # behind them.
     CASH_MOVE_STATES = ("opening_control", "opened")
     CASH_MOVE_TYPES = ("in", "out")
 
@@ -81,7 +75,7 @@ class PosSession(models.Model):
     )
     cash_journal_id = fields.Many2one(
         "account.journal",
-        compute="_compute_cash_journal",
+        compute="_compute_cash_journal_id",
         string="Cash Journal",
         store=True,
     )
@@ -105,7 +99,6 @@ class PosSession(models.Model):
         readonly=True,
     )
 
-    # Total Cash In/Out
     cash_real_transaction = fields.Monetary(string="Transaction", readonly=True)
 
     order_ids = fields.One2many("pos.order", "session_id", string="Orders")
@@ -116,8 +109,8 @@ class PosSession(models.Model):
         string="Cash Lines",
         readonly=True,
     )
-    failed_pickings = fields.Boolean(compute="_compute_picking_count")
-    picking_count = fields.Integer(compute="_compute_picking_count")
+    failed_pickings = fields.Boolean(compute="_compute_pickings")
+    picking_count = fields.Integer(compute="_compute_pickings")
     picking_ids = fields.One2many("stock.picking", "pos_session_id")
     rescue = fields.Boolean(
         string="Recovery Session",
@@ -381,9 +374,6 @@ class PosSession(models.Model):
 
     @api.depends("payment_method_ids", "order_ids", "cash_register_balance_start")
     def _compute_cash_balance(self):
-        # Single grouped read over all captured cash payments for the whole
-        # recordset (avoids one `_read_group` per session), keyed by
-        # (session_id, payment_method_id).
         captured_cash_payments_domain = Domain.AND(
             [
                 self._get_captured_payments_domain(),
@@ -444,7 +434,7 @@ class PosSession(models.Model):
             session.order_count = sessions_data.get(session.id, 0)
 
     @api.depends("picking_ids", "picking_ids.state")
-    def _compute_picking_count(self):
+    def _compute_pickings(self):
         picking_data = self.env["stock.picking"]._read_group(
             [("pos_session_id", "in", self.ids)],
             ["pos_session_id"],
@@ -463,7 +453,7 @@ class PosSession(models.Model):
 
     def action_stock_picking(self):
         self.ensure_one()
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "stock.action_picking_tree_ready"
         )
         action["display_name"] = _("Pickings")
@@ -473,7 +463,6 @@ class PosSession(models.Model):
 
     @api.depends("cash_journal_id")
     def _compute_cash_control(self):
-        # Only one cash register is supported by point_of_sale.
         for session in self:
             if session.cash_journal_id:
                 session.cash_control = session.config_id.cash_control
@@ -481,8 +470,7 @@ class PosSession(models.Model):
                 session.cash_control = False
 
     @api.depends("config_id", "payment_method_ids")
-    def _compute_cash_journal(self):
-        # Only one cash register is supported by point_of_sale.
+    def _compute_cash_journal_id(self):
         for session in self:
             cash_journal = session.payment_method_ids.filtered("is_cash_count")[
                 :1
@@ -490,18 +478,6 @@ class PosSession(models.Model):
             session.cash_journal_id = cash_journal
 
     def init(self):
-        """Back the one-open-session-per-config rule with a partial unique index.
-
-        `_check_pos_config` below can only see rows its own transaction can see, so
-        two cashiers opening the same point of sale concurrently both pass it and
-        both commit -- and the second session then inherits the same opening float
-        as the first. Only the database can arbitrate that race.
-
-        A database that already carries duplicates (they were reachable until this
-        index existed) cannot build it. Report them and carry on rather than making
-        the module impossible to upgrade; the Python constraint still applies to
-        every new session in the meantime.
-        """
         super().init()
         self.env.cr.execute(
             """
@@ -599,10 +575,6 @@ class PosSession(models.Model):
             if not config_id:
                 raise UserError(_("You should assign a Point of Sale to your session."))
 
-            # journal_id is not required on the pos_config because it does not
-            # exists at the installation. If nothing is configured at the
-            # installation we do the minimal configuration. Impossible to do in
-            # the .xml files as the CoA is not yet installed.
             pos_config = self.env["pos.config"].browse(config_id)
 
             update_stock_at_closing = (
@@ -615,11 +587,6 @@ class PosSession(models.Model):
                     "update_stock_at_closing": update_stock_at_closing,
                 }
             )
-            # Name it here, not when the cashier confirms opening control: a
-            # session opened from the backend never runs that step, and could
-            # be closed still carrying the "/" placeholder -- which is
-            # interpolated into cash-movement labels and into the ref of the
-            # posted closing-difference move.
             if vals.get("name", "/") == "/":
                 vals["name"] = pos_config._get_next_session_name()
 
@@ -636,7 +603,6 @@ class PosSession(models.Model):
         return super().unlink()
 
     def action_pos_session_open(self):
-        # we only open sessions that haven't already been opened
         for session in self.filtered(
             lambda session: session.state == "opening_control"
         ):
@@ -650,7 +616,7 @@ class PosSession(models.Model):
                 )
                 session.cash_register_balance_start = (
                     last_session.cash_register_balance_end_real
-                )  # defaults to 0 if lastsession is empty
+                )
         return True
 
     def get_session_orders(self):
@@ -669,9 +635,6 @@ class PosSession(models.Model):
         amount_to_balance=0,
         bank_payment_method_diffs=None,
     ):
-        # Single-session only: closing rolls the whole transaction back on an
-        # imbalance (see `_validate_session`), so iterating a recordset would
-        # discard siblings already closed in the same transaction.
         self.ensure_one()
         bank_payment_method_diffs = bank_payment_method_diffs or {}
         if any(order.state == "draft" for order in self.get_session_orders()):
@@ -688,12 +651,7 @@ class PosSession(models.Model):
             return self.action_pos_session_close(
                 balancing_account, amount_to_balance, bank_payment_method_diffs
             )
-        # If the session is in rescue, we only compute the payments in the cash register
-        # It is not yet possible to close a rescue session through the front end, see `close_session_from_ui`
         if self.rescue and self.config_id.cash_control:
-            # `is_cash_count` is the canonical "this is the cash method" predicate
-            # (stored compute of `type == 'cash'`); use it consistently and guard
-            # the empty case instead of an unchecked `[0]` (raw IndexError).
             default_cash_payment_method_id = self.payment_method_ids.filtered(
                 "is_cash_count"
             )[:1]
@@ -736,9 +694,6 @@ class PosSession(models.Model):
         bank_payment_method_diffs=None,
     ):
         bank_payment_method_diffs = bank_payment_method_diffs or {}
-        # Session without cash payment method will not have a cash register.
-        # However, there could be other payment methods, thus, session still
-        # needs to be validated.
         return self._validate_session(
             balancing_account, amount_to_balance, bank_payment_method_diffs
         )
@@ -751,9 +706,6 @@ class PosSession(models.Model):
     ):
         bank_payment_method_diffs = bank_payment_method_diffs or {}
         record = self.ensure_one()
-        # Take a row-level lock on the session to prevent two concurrent
-        # transactions from closing it at the same time (double-close race).
-        # NOWAIT surfaces immediately instead of blocking.
         try:
             self.env.cr.execute(
                 "SELECT id FROM pos_session WHERE id = %s FOR UPDATE NOWAIT",
@@ -781,7 +733,6 @@ class PosSession(models.Model):
                 self._get_closed_orders().filtered(
                     lambda o: not o.is_total_cost_computed
                 )._update_total_cost_at_session_closing(self.picking_ids.move_ids)
-            # when the user is POS, update the record in sudo
             data = (
                 record.with_company(record.company_id)
                 .with_context(check_move_validity=False, skip_invoice_sync=True)
@@ -795,16 +746,12 @@ class PosSession(models.Model):
                 with self.move_id._check_balanced({"records": self.move_id.sudo()}):
                     pass
             except UserError:
-                # Roll back the earlier closing changes (e.g. picking records) so
-                # they aren't committed when the account move creation fails, before
-                # showing the close session wizard.
                 self.env.cr.rollback()
                 return self._close_session_action(balance)
 
             self.sudo()._post_statement_difference(cash_difference_before_statements)
             if record.move_id.line_ids:
                 record.move_id.with_company(self.company_id)._post()
-                # Set the uninvoiced orders' state to 'done'
                 self.env["pos.order"].search(
                     [("session_id", "=", self.id), ("state", "=", "paid")]
                 ).write({"state": "done"})
@@ -829,24 +776,17 @@ class PosSession(models.Model):
                 )
                 self.message_post(body=body)
 
-        # Make sure to trigger reordering rules
         self.picking_ids.move_ids.sudo()._trigger_scheduler()
 
         self.write({"state": "closed"})
-        self.env.flush_all()  # ensure sale.report is up to date
+        self.env.flush_all()
         return True
 
     def _post_statement_difference(self, amount):
-        # The whole body creates a cash statement line, so it only makes sense
-        # under cash control. Guarding on `cash_control` also avoids using the
-        # otherwise-unbound `st_line_vals` when there is no cash register.
         if amount and self.config_id.cash_control:
             st_line_vals = {
                 "journal_id": self.cash_journal_id.id,
                 "amount": amount,
-                # Date the difference on the last cash movement of the session.
-                # Take the max explicitly rather than relying on `_order`
-                # (`internal_index desc`, i.e. newest first).
                 "date": max(
                     self.statement_line_ids.mapped("date"),
                     default=fields.Date.context_today(self),
@@ -870,7 +810,6 @@ class PosSession(models.Model):
                     self.cash_journal_id.loss_account_id.id
                 )
             else:
-                # self.cash_register_difference  > 0.0
                 if not self.cash_journal_id.profit_account_id:
                     raise UserError(
                         _(
@@ -898,7 +837,6 @@ class PosSession(models.Model):
                 )
 
     def _close_session_action(self, amount_to_balance):
-        # NOTE This can't handle `bank_payment_method_diffs` because there is no field in the wizard that can carry it.
         default_account = self._get_balancing_account()
         wizard = self.env["pos.close.session.wizard"].create(
             {
@@ -927,21 +865,8 @@ class PosSession(models.Model):
         }
 
     def close_session_from_ui(self, bank_payment_method_diff_pairs=None):
-        """Calling this method will try to close the session.
-
-        param bank_payment_method_diff_pairs: list[(int, float)]
-            Pairs of payment_method_id and diff_amount which will be used to post
-            loss/profit when closing the session.
-
-        Returns ``{'successful': True}`` on success, else
-        ``{'successful': False, 'message': str, 'redirect': bool}`` where
-        ``redirect`` tells whether to send the user to the backend. A raised
-        error (UserError, AccessError) also redirects the user to the backend.
-        """
         bank_payment_method_diffs = dict(bank_payment_method_diff_pairs or [])
         self.ensure_one()
-        # Even if this is called in `post_closing_cash_details`, we need to call this here too for case
-        # where cash_control = False
         open_order_ids = (
             self.get_session_orders().filtered(lambda o: o.state == "draft").ids
         )
@@ -963,10 +888,7 @@ class PosSession(models.Model):
             bank_payment_method_diffs=bank_payment_method_diffs
         )
 
-        # If an error is raised, the user will still be redirected to the back end to manually close the session.
-        # If the return result is a dict, this means that normally we have a redirection or a wizard => we redirect the user
         if isinstance(validate_result, dict):
-            # imbalance accounting entry
             return {
                 "open_order_ids": open_order_ids,
                 "successful": False,
@@ -982,10 +904,8 @@ class PosSession(models.Model):
         self.message_post(body=_("Closed Register"))
 
     def update_closing_control_state_session(self, notes):
-        # Prevent closing the session again if it was already closed
         if self.state == "closed":
             raise UserError(_("This session is already closed."))
-        # Prevent the session to be opened again.
         self.write(
             {
                 "state": "closing_control",
@@ -1001,15 +921,6 @@ class PosSession(models.Model):
         )
 
     def post_closing_cash_details(self, counted_cash):
-        """Store the cash details during session closing.
-
-        :param counted_cash: float, the total cash the user counted from its cash register
-
-        Returns ``{'successful': True}`` on success, else
-        ``{'successful': False, 'message': str, 'redirect': bool}`` where
-        ``redirect`` tells whether to send the user to the backend. A raised
-        error (UserError, AccessError) also redirects the user to the backend.
-        """
         self.ensure_one()
         check_closing_session = self._cannot_close_session()
         if check_closing_session:
@@ -1020,7 +931,6 @@ class PosSession(models.Model):
             return check_closing_session
 
         if not self.cash_journal_id:
-            # The user is blocked anyway, this user error is mostly for developers that try to call this function
             raise UserError(_("There is no cash register in this session."))
 
         self.cash_register_balance_end_real = counted_cash
@@ -1084,11 +994,6 @@ class PosSession(models.Model):
         return [source_vals, dest_vals]
 
     def _cannot_close_session(self, bank_payment_method_diffs=None):
-        """
-        Add check in this method if you want to return or raise an error when trying to either post cash details
-        or close the session. Raising an error will always redirect the user to the back end.
-        It should return {'successful': False, 'message': str, 'redirect': bool} if we can't close the session
-        """
         bank_payment_method_diffs = bank_payment_method_diffs or {}
         if any(order.state == "draft" for order in self.get_session_orders()):
             return {
@@ -1289,9 +1194,6 @@ class PosSession(models.Model):
             "move_id": move.id,
             "partner_id": False,
         }
-        # `imbalance_amount` is already in terms of company currency so it is the amount_converted
-        # param when calling `_credit_amounts`. amount param will be the converted value of
-        # `imbalance_amount` from company currency to the session currency.
         imbalance_amount_session = 0
         if not self.is_in_company_currency:
             imbalance_amount_session = self.company_id.currency_id._convert(
@@ -1319,12 +1221,6 @@ class PosSession(models.Model):
         amount_to_balance=0,
         bank_payment_method_diffs=None,
     ):
-        """Create account.move and account.move.line records for this session.
-
-        Side-effects include:
-            - setting self.move_id to the created account.move record
-            - reconciling cash receivable lines, invoice receivable lines and stock output lines
-        """
         account_move = self.env["account.move"].create(
             {
                 "journal_id": self.config_id.journal_id.id,
@@ -1350,9 +1246,6 @@ class PosSession(models.Model):
         return data
 
     def _accumulate_amounts(self, data):
-        # Accumulate amounts per accounting-line group. Each dict maps a group key
-        # to its amounts, e.g. `combine_receivables_bank` groups the session's
-        # pos.payment records by `payment_method_id`.
         AccountTax = self.env["account.tax"]
 
         def amounts():
@@ -1380,9 +1273,6 @@ class PosSession(models.Model):
         stock_return = defaultdict(amounts)
         stock_valuation = defaultdict(amounts)
         rounding_difference = {"amount": 0.0, "amount_converted": 0.0}
-        # Track the receivable lines of the order's invoice payment moves for reconciliation
-        # These receivable lines are reconciled to the corresponding invoice receivable lines
-        # of this session's move_id.
         combine_inv_payment_receivable_lines = defaultdict(
             lambda: self.env["account.move.line"]
         )
@@ -1422,7 +1312,6 @@ class PosSession(models.Model):
                 )
                 total_amount_currency = 0.0
                 for base_line, to_update in tax_results["base_lines_to_update"]:
-                    # Combine sales/refund lines
                     sale_vals_dict = self._get_sale_key(base_line)
                     sale_key = frozendict(sale_vals_dict)
                     total_amount_currency += to_update["amount_currency"]
@@ -1438,7 +1327,6 @@ class PosSession(models.Model):
                         sales[sale_key].setdefault("quantity", 0)
                         sales[sale_key]["quantity"] += base_line["quantity"]
 
-                # Combine tax lines
                 for tax_line in tax_results["tax_lines_to_add"]:
                     tax_key = (
                         tax_line["account_id"],
@@ -1462,8 +1350,6 @@ class PosSession(models.Model):
                         rounding_difference, {"amount": diff}, order.date_order
                     )
 
-        # Customer-rank bumps are a DB write side-effect, not part of the pure
-        # amount accumulation — apply them in a dedicated step.
         self._increase_customer_ranks(closed_orders)
 
         self._accumulate_stock_amounts(stock_expense, stock_return, stock_valuation)
@@ -1510,14 +1396,6 @@ class PosSession(models.Model):
         split_inv_payment_receivable_lines,
         combine_inv_payment_receivable_lines,
     ):
-        """Sort one order's payments into the receivable buckets, in place.
-
-        Three questions decide the bucket, and the accounting differs on
-        each: is the payment split per customer or combined per method, is
-        it cash, bank or pay-later, and was the order invoiced (in which
-        case the closing entry has to balance what the invoice payment
-        already booked).
-        """
         currency_rounding = self.currency_id.rounding
         order_is_invoiced = order.is_invoiced
         for payment in order.payment_ids:
@@ -1529,10 +1407,6 @@ class PosSession(models.Model):
             is_split_payment = payment.payment_method_id.split_transactions
             payment_type = payment_method.type
 
-            # If not pay_later, we create the receivable vals for both invoiced and uninvoiced orders.
-            #   Separate the split and aggregated payments.
-            # Moreover, if the order is invoiced, we create the pos receivable vals that will balance the
-            # pos receivable lines from the invoice payments.
             if payment_type != "pay_later":
                 if is_split_payment and payment_type == "cash":
                     split_receivables_cash[payment] = self._update_amounts(
@@ -1555,7 +1429,6 @@ class PosSession(models.Model):
                         date,
                     )
 
-                # Create the vals to create the pos receivables that will balance the pos receivables from invoice payment moves.
                 if order_is_invoiced:
                     if is_split_payment:
                         split_inv_payment_receivable_lines[payment] |= (
@@ -1586,10 +1459,6 @@ class PosSession(models.Model):
                             )
                         )
 
-            # If pay_later, we create the receivable lines.
-            #   if split, with partner
-            #   Otherwise, it's aggregated (combined)
-            # But only do if order is *not* invoiced because no account move is created for pay later invoice payments.
             if payment_type == "pay_later" and not order_is_invoiced:
                 if is_split_payment:
                     split_receivables_pay_later[payment] = self._update_amounts(
@@ -1607,14 +1476,6 @@ class PosSession(models.Model):
                     )
 
     def _accumulate_stock_amounts(self, stock_expense, stock_return, stock_valuation):
-        """Fold this session's real-time-valued stock moves into the three
-        stock buckets, in place.
-
-        Only the deliveries the closing entry is answerable for: an order that
-        was invoiced, or that ships later, books its own valuation elsewhere.
-        Incoming moves (a return) are signed the other way and land in
-        `stock_return` rather than `stock_valuation`.
-        """
         all_picking_ids = (
             self.order_ids.filtered(
                 lambda p: not p.is_invoiced and not p.shipping_date
@@ -1665,12 +1526,6 @@ class PosSession(models.Model):
                 )
 
     def _increase_customer_ranks(self, closed_orders):
-        """Bump ``customer_rank`` once per non-invoiced order for its partner
-        (and the partner's commercial parent), batched so partners sharing the
-        same increment count are written in a single ``_increase_rank`` call
-        (was a per-order call — a write storm for first-time customers whose
-        rank is still 0). Extracted from ``_accumulate_amounts`` because it is a
-        DB write side-effect, not part of the amount accumulation."""
         partner_rank_increments = defaultdict(int)
         for order in closed_orders:
             if order.is_invoiced:
@@ -1687,12 +1542,6 @@ class PosSession(models.Model):
             )
 
     def _create_non_reconciliable_move_lines(self, data):
-        # Create account.move.line records for
-        #   - sales
-        #   - taxes
-        #   - stock expense
-        #   - non-cash split receivables (not for automatic reconciliation)
-        #   - non-cash combine receivables (not for automatic reconciliation)
         taxes = data.get("taxes")
         sales = data.get("sales")
         stock_expense = data.get("stock_expense")
@@ -1708,7 +1557,6 @@ class PosSession(models.Model):
             )
             for key, amounts in taxes.items()
         ]
-        # Check if all taxes lines have account_id assigned. If not, there are repartition lines of the tax that have no account_id.
         tax_names_no_account = [
             line["name"] for line in tax_vals if not line["account_id"]
         ]
@@ -1818,13 +1666,11 @@ class PosSession(models.Model):
                 )
             )
         for val in vals:
-            # Entries related to a `pay_later` payment method should not be excluded from follow-ups.
             val["no_followup"] = False
         data["pay_later_move_lines"] = MoveLine.create(vals)
         return data
 
     def _ensure_payment_outstanding_account(self, payment, payment_amount):
-        # In community the outstanding account is computed on the creation of account.payment records
         if (
             not payment.outstanding_account_id
             and self.env["account.move"]._get_invoice_in_payment_state() == "in_payment"
@@ -1962,13 +1808,10 @@ class PosSession(models.Model):
         )
 
     def _create_cash_statement_lines_and_cash_move_lines(self, data):
-        # Create the split and combine cash statement lines and their receivable
-        # move lines. Each returned dict maps a journal to its lines.
         MoveLine = data.get("MoveLine")
         split_receivables_cash = data.get("split_receivables_cash")
         combine_receivables_cash = data.get("combine_receivables_cash")
 
-        # handle split cash payments
         split_cash_statement_line_vals = []
         split_cash_receivable_vals = []
         for payment, amounts in split_receivables_cash.items():
@@ -1983,7 +1826,6 @@ class PosSession(models.Model):
                     payment, amounts["amount"], amounts["amount_converted"]
                 )
             )
-        # handle combine cash payments
         combine_cash_statement_line_vals = []
         combine_cash_receivable_vals = []
         for payment_method, amounts in combine_receivables_cash.items():
@@ -2001,7 +1843,6 @@ class PosSession(models.Model):
                     )
                 )
 
-        # create the statement lines and account move lines
         BankStatementLine = self.env["account.bank.statement.line"].with_context(
             no_retrieve_partner=True
         )
@@ -2033,9 +1874,6 @@ class PosSession(models.Model):
         return data
 
     def _create_invoice_receivable_lines(self, data):
-        # Create invoice receivable lines for this session's move_id.
-        # Keep reference of the invoice receivable lines because
-        # they are reconciled with the lines in combine_inv_payment_receivable_lines
         MoveLine = data.get("MoveLine")
         combine_invoice_receivables = data.get("combine_invoice_receivables")
         split_invoice_receivables = data.get("split_invoice_receivables")
@@ -2091,7 +1929,6 @@ class PosSession(models.Model):
         return data
 
     def _reconcile_account_move_lines(self, data):
-        # reconcile cash receivable lines
         split_cash_statement_lines = data.get("split_cash_statement_lines")
         combine_cash_statement_lines = data.get("combine_cash_statement_lines")
         split_cash_receivable_lines = data.get("split_cash_receivable_lines")
@@ -2143,9 +1980,6 @@ class PosSession(models.Model):
                     no_cash_basis=True
                 ).reconcile()
 
-        # Reconcile invoice payments' receivable lines. But we only do when the account is reconcilable.
-        # Though `account_default_pos_receivable_account_id` should be of type receivable, there is currently
-        # no constraint for it. Therefore, it is possible to put set a non-reconcilable account to it.
         if self.company_id.account_default_pos_receivable_account_id.reconcile:
             for payment_method in combine_inv_payment_receivable_lines:
                 lines = combine_inv_payment_receivable_lines[
@@ -2178,7 +2012,7 @@ class PosSession(models.Model):
             if (
                 float_compare(0.0, amount, precision_rounding=self.currency_id.rounding)
                 > 0
-            ):  # loss
+            ):
                 partial_args["account_id"] = (
                     self.config_id.rounding_method.loss_account_id.id
                 )
@@ -2187,7 +2021,7 @@ class PosSession(models.Model):
             if (
                 float_compare(0.0, amount, precision_rounding=self.currency_id.rounding)
                 < 0
-            ):  # profit
+            ):
                 partial_args["account_id"] = (
                     self.config_id.rounding_method.profit_account_id.id
                 )
@@ -2235,11 +2069,8 @@ class PosSession(models.Model):
 
     def _get_sale_key(self, base_line):
         return {
-            # account
             "account_id": base_line["account_id"].id,
-            # sign
             "sign": -1 if base_line["is_refund"] else 1,
-            # for taxes
             "tax_ids": tuple(
                 base_line["record"]
                 .tax_ids_after_fiscal_position.flatten_taxes_hierarchy()
@@ -2362,30 +2193,6 @@ class PosSession(models.Model):
         round=True,
         force_company_currency=False,
     ):
-        """Add `amounts_to_add` to `old_amounts`, handling currency conversion.
-
-        `amount` (and `base_amount`) are in the session currency. `amount_converted`
-        (company currency) is taken from `amounts_to_add` when the caller supplies
-        it, and derived by FX conversion otherwise.
-
-        Callers that already hold an authoritative company-currency figure — the
-        tax engine's `balance` for sales and tax lines — must pass it as
-        `amount_converted`: re-deriving it here converts and rounds once per
-        contribution, and since the debit and credit sides of the closing entry
-        accumulate a different number of contributions, those rounding errors do
-        not cancel and leave the entry unbalanced at non-exact rates.
-
-        :param dict old_amounts: amounts to update
-        :param dict amounts_to_add: amounts to add; may carry an already-converted
-            `amount_converted` (company currency), which then wins over conversion
-        :param date date: date used for conversion
-        :param bool round: as in `res.currency._convert`; set False to round globally
-        :param bool force_company_currency: if True, `amounts_to_add` values are
-            already in company currency (used only for anglo-saxon lines)
-        :returns: new amounts combining `old_amounts` and `amounts_to_add`
-        :rtype: dict
-        """
-        # make a copy of the old amounts
         new_amounts = {**old_amounts}
 
         amount = amounts_to_add.get("amount")
@@ -2396,34 +2203,22 @@ class PosSession(models.Model):
             else:
                 amount_converted = self._amount_converter(amount, date, round)
 
-        # update amount and amount converted
         new_amounts["amount"] += amount
         new_amounts["amount_converted"] += amount_converted
 
-        # consider base_amount if present
 
         if amounts_to_add.get("base_amount"):
             base_amount = amounts_to_add.get("base_amount")
 
-            # No conversion here: unlike `amount`, `base_amount` already arrives in
-            # company currency (`account.tax` rounds `tax_base_amount` with the
-            # company currency), so both keys take it as-is despite the naming.
             new_amounts["base_amount"] += base_amount
             new_amounts["base_amount_converted"] += base_amount
 
         return new_amounts
 
     def _round_amounts(self, amounts):
-        """Round an accumulated amounts dict, each key in its own currency.
-
-        Counterpart of `_update_amounts(..., round=False)`: it rounds once at the
-        end instead of once per contribution. No caller in this module passes
-        `round=False` today, so this is only reachable from overrides.
-        """
         new_amounts = {}
         for key, amount in amounts.items():
             if key == "amount_converted":
-                # round the amount_converted using the company currency.
                 new_amounts[key] = self.company_id.currency_id.round(amount)
             else:
                 new_amounts[key] = self.currency_id.round(amount)
@@ -2436,21 +2231,6 @@ class PosSession(models.Model):
         amount_converted,
         force_company_currency=False,
     ):
-        """Complete `partial_move_line_vals` by crediting the given amounts.
-
-        Note: POS amounts are in the session journal's currency, i.e. they map to
-        the account module's `amount_currency`, not `amount`.
-
-        :param dict partial_move_line_vals:
-            initial values in creating account.move.line
-        :param float amount:
-            amount derived from pos.payment, pos.order, or pos.order.line records
-        :param float amount_converted:
-            converted value of `amount` from the given `session_currency` to company currency
-
-        :return: complete values for creating 'amount.move.line' record
-        :rtype: dict
-        """
         if self.is_in_company_currency or force_company_currency:
             additional_field = {}
         else:
@@ -2472,10 +2252,6 @@ class PosSession(models.Model):
         amount_converted,
         force_company_currency=False,
     ):
-        """`partial_move_line_vals` is completed by `debit`ing the given amounts.
-
-        See _credit_amounts docs for more details.
-        """
         if self.is_in_company_currency or force_company_currency:
             additional_field = {}
         else:
@@ -2491,7 +2267,6 @@ class PosSession(models.Model):
         }
 
     def _amount_converter(self, amount, date, round):
-        # self should be single record as this method is only called in the subfunctions of self._validate_session
         return self.currency_id._convert(
             amount, self.company_id.currency_id, self.company_id, date, round=round
         )
@@ -2524,13 +2299,7 @@ class PosSession(models.Model):
         }
 
     def _get_other_related_moves(self):
-        # TODO This is not an ideal way to get the diff account.move's for
-        # the session. It would be better if there is a relation field where
-        # these moves are saved.
 
-        # Unfortunately, the 'ref' of account.move is not indexed, so
-        # we are querying over the account.move.line because its 'ref' is indexed.
-        # And yes, we are only concern for split bank payment methods.
         diff_lines_ref = [
             self._get_diff_account_move_ref(pm)
             for pm in self.payment_method_ids
@@ -2564,7 +2333,6 @@ class PosSession(models.Model):
         )
 
     def _get_receivable_account(self, payment_method):
-        """Returns the default pos receivable account if no receivable_account_id is set on the payment method."""
         return (
             payment_method.receivable_account_id
             or self.company_id.account_default_pos_receivable_account_id
@@ -2587,22 +2355,11 @@ class PosSession(models.Model):
         ]
 
     def open_frontend_cb(self):
-        """Open the pos interface with config_id as an extra argument.
-
-        In vanilla PoS each user can only have one active session, therefore it was not needed to pass the config_id
-        on opening a session. It is also possible to login to sessions created by other users.
-
-        :returns: dict
-        """
         if not self.ids:
             return {}
         return self.config_id.open_ui()
 
     def _set_opening_control_data(self, cashbox_value: int, notes: str):
-        """
-        Internal logic for opening the session.
-        Inherit this method to add custom logic before the sequence is assigned.
-        """
         self.state = "opened"
         self.start_at = fields.Datetime.now()
         cash_payment_method_ids = self.config_id.payment_method_ids.filtered(
@@ -2622,15 +2379,6 @@ class PosSession(models.Model):
             self.message_post(body=plaintext2html(message))
 
     def set_opening_control(self, cashbox_value: int, notes: str):
-        """
-        Public method to open the session: records the counted opening float.
-
-        The session was already named at creation (`pos.config
-        ._get_next_session_name`) -- naming it here left every backend-opened
-        session carrying the "/" placeholder for its whole life.
-
-        DO NOT INHERIT THIS METHOD. Inherit _set_opening_control_data instead.
-        """
         if self.state != "opening_control":
             return
 
@@ -2677,8 +2425,6 @@ class PosSession(models.Model):
 
     @api.model
     def _alert_old_session(self):
-        # If the session is open for more then one week,
-        # log a next activity to close the session.
         sessions = self.sudo().search(
             [
                 ("start_at", "<=", (fields.Datetime.now() - timedelta(days=7))),
@@ -2688,7 +2434,8 @@ class PosSession(models.Model):
         for session in sessions:
             if (
                 self.env["mail.activity"].search_count(
-                    [("res_id", "=", session.id), ("res_model", "=", "pos.session")]
+                    [("res_id", "=", session.id), ("res_model", "=", "pos.session")],
+                    limit=1,
                 )
                 == 0
             ):
@@ -2716,12 +2463,6 @@ class PosSession(models.Model):
         return True
 
     def _get_cash_move_label(self, _type):
-        """Name the direction server-side.
-
-        `extras` is client-supplied and used to be spliced straight into the
-        statement line's `payment_ref`, letting the caller choose what the
-        accounting record says about itself.
-        """
         return _("Cash In") if _type == "in" else _("Cash Out")
 
     def _prepare_account_bank_statement_line_vals(
@@ -2745,17 +2486,9 @@ class PosSession(models.Model):
         }
 
     def try_cash_in_out(self, _type, amount, reason, partner_id, extras):
-        """Record a cash movement on this session's register.
-
-        Every value the client sends is re-derived or bounded here. `_type`
-        alone decides the sign -- passing a negative `amount` used to turn a
-        "Cash In" into a cash-out still labelled as a cash-in -- and the label
-        comes from `CASH_MOVE_LABELS`, not from `extras`.
-        """
         if _type not in self.CASH_MOVE_TYPES:
             raise UserError(_("Unknown cash movement type %(type)s.", type=_type))
         sign = 1 if _type == "in" else -1
-        # The client sends a magnitude; the direction is `_type`'s alone.
         amount = abs(amount or 0.0)
 
         sessions = self.filtered("cash_journal_id")
@@ -2802,7 +2535,6 @@ class PosSession(models.Model):
         self.log_partner_message(partner_id, action, "CASH_IN_OUT_UNLINK")
 
     def _get_attributes_by_ptal_id(self):
-        # performance trick: prefetch fields with search_fetch() and fetch()
         product_attributes = self.env["product.attribute"].search_fetch(
             [("create_variant", "=", "no_variant")],
             ["name", "display_type"],
@@ -2839,7 +2571,6 @@ class PosSession(models.Model):
                         ["name", "is_custom", "html_color", "image"]
                     )[0],
                     "price_extra": ptav.price_extra,
-                    # id of a value should be from the "product.template.attribute.value" record
                     "id": ptav.id,
                 }
                 for ptav in list(group)
@@ -2858,7 +2589,6 @@ class PosSession(models.Model):
         return []
 
     def find_product_by_barcode(self, barcode, config_id):
-        # Kept for backward compatibility.
         return self.env["product.template"].load_product_from_pos(
             config_id,
             [

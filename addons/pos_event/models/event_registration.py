@@ -67,7 +67,7 @@ class EventRegistration(models.Model):
             session_ids.config_id._update_events_seats(self.event_id)
 
     def action_view_pos_order(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("point_of_sale.action_pos_pos_form")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("point_of_sale.action_pos_pos_form")
         action['views'] = [(False, 'form')]
         action['res_id'] = self.pos_order_id.id
         return action

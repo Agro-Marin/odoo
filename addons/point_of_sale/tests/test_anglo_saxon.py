@@ -1,6 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
-
 from odoo import Command
 from odoo.tests import tagged
 
@@ -117,28 +114,16 @@ class TestAngloSaxonCommon(AccountTestInvoicingCommon):
 @tagged("post_install", "-at_install")
 class TestAngloSaxonFlow(TestAngloSaxonCommon):
     def _enable_delivery_time_cogs(self):
-        """Recognise COGS when the goods leave stock, rather than at invoicing.
-
-        Under the new valuation engine the delivery-side counterpart account
-        (formerly the category's "stock output" account) lives on the destination
-        location: `stock.move._should_create_account_move` requires it, and
-        `_get_account_move_line_vals` uses it as the debit side. It must stay unset
-        for invoiced anglo-saxon flows, where the invoice books COGS itself --
-        setting both would relieve stock valuation twice for a single delivery.
-        """
         self.env.ref(
             "stock.stock_location_customers"
         ).valuation_account_id = self.category.property_account_expense_categ_id
 
     def test_create_account_move_line(self):
-        # This test will check that the correct journal entries are created when a product in real time valuation
-        # is sold in a company using anglo-saxon
         self.pos_config.open_ui()
         current_session = self.pos_config.current_session_id
         self.cash_journal.loss_account_id = self.account
         current_session.set_opening_control(0, None)
 
-        # I create a PoS order with 1 unit of New product at 450 EUR
         self.pos_order_pos0 = self.PosOrder.create(
             {
                 "company_id": self.company.id,
@@ -168,7 +153,6 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             }
         )
 
-        # I make a payment to fully pay the order
         context_make_payment = {
             "active_ids": [self.pos_order_pos0.id],
             "active_id": self.pos_order_pos0.id,
@@ -182,11 +166,9 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             }
         )
 
-        # I click on the validate button to register the payment.
         context_payment = {"active_id": self.pos_order_pos0.id}
         self.pos_make_payment_0.with_context(context_payment).check()
 
-        # I check that the order is marked as paid
         self.assertEqual(
             self.pos_order_pos0.state, "paid", "Order should be in paid state."
         )
@@ -196,7 +178,6 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             "Amount paid for the order should be updated.",
         )
 
-        # I close the current session to generate the journal entries
         current_session_id = self.pos_config.current_session_id
         current_session_id.post_closing_cash_details(450.0)
         current_session_id.close_session_from_ui()
@@ -204,13 +185,10 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             current_session_id.state, "closed", "Check that session is closed"
         )
 
-        # Check if there is account_move in the order.
-        # There shouldn't be because the order is not invoiced.
         self.assertFalse(
             self.pos_order_pos0.account_move, "There should be no invoice in the order."
         )
 
-        # I test that the generated journal entries are correct.
         expense_account = self.category.property_account_expense_categ_id
         valuation_account = self.category.property_stock_valuation_account_id
         aml = current_session.move_id.line_ids
@@ -228,10 +206,6 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         )
 
     def _prepare_pos_order(self):
-        """Set the cost method of `self.product` as FIFO. Receive 5@5 and 5@1 and
-        create a `pos.order` record selling 7 units @ 450.
-        """
-        # check fifo Costing Method of product.category
         self.product.categ_id.property_cost_method = "fifo"
         self.product.standard_price = 5.0
         self.env["stock.quant"].with_context(inventory_mode=True).create(
@@ -288,8 +262,6 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         return self.PosOrder.create(pos_order_values)
 
     def test_fifo_valuation_no_invoice(self):
-        """Register a payment and validate a session after selling a fifo
-        product without making an invoice for the customer"""
         pos_order_pos0 = self._prepare_pos_order()
         context_make_payment = {
             "active_ids": [pos_order_pos0.id],
@@ -304,18 +276,13 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             }
         )
 
-        # register the payment
         context_payment = {"active_id": pos_order_pos0.id}
         self.pos_make_payment_0.with_context(context_payment).check()
 
-        # validate the session
         current_session_id = self.pos_config.current_session_id
         current_session_id.post_closing_cash_details(7 * 450.0)
         current_session_id.close_session_from_ui()
 
-        # check the anglo saxon move lines
-        # with uninvoiced orders, the account_move field of pos.order is empty.
-        # the accounting lines are in move_id of pos.session.
         session_move = pos_order_pos0.session_id.move_id
         line = session_move.line_ids.filtered(
             lambda l: (
@@ -331,8 +298,6 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         )
 
     def test_fifo_valuation_with_invoice(self):
-        """Register a payment and validate a session after selling a fifo
-        product and make an invoice for the customer"""
         pos_order_pos0 = self._prepare_pos_order()
         context_make_payment = {
             "active_ids": [pos_order_pos0.id],
@@ -347,14 +312,11 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             }
         )
 
-        # register the payment
         context_payment = {"active_id": pos_order_pos0.id}
         self.pos_make_payment_0.with_context(context_payment).check()
 
-        # Create the customer invoice
         pos_order_pos0.action_pos_order_invoice()
 
-        # check the anglo saxon move lines
         line = pos_order_pos0.account_move.line_ids.filtered(
             lambda l: (
                 l.debit
@@ -371,18 +333,14 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         )
 
     def test_cogs_with_ship_later_no_invoicing(self):
-        # This test will check that the correct journal entries are created when a product in real time valuation
-        # is sold using the ship later option and no invoice is created in a company using anglo-saxon
         self._enable_delivery_time_cogs()
         self.pos_config.open_ui()
         current_session = self.pos_config.current_session_id
         self.cash_journal.loss_account_id = self.account
         current_session.set_opening_control(0, None)
 
-        # 2 step delivery method
         self.warehouse.delivery_steps = "pick_ship"
 
-        # I create a PoS order with 1 unit of New product at 450 EUR
         self.pos_order_pos0 = self.PosOrder.create(
             {
                 "company_id": self.company.id,
@@ -414,7 +372,6 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             }
         )
 
-        # I make a payment to fully pay the order
         context_make_payment = {
             "active_ids": [self.pos_order_pos0.id],
             "active_id": self.pos_order_pos0.id,
@@ -428,11 +385,9 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             }
         )
 
-        # I click on the validate button to register the payment.
         context_payment = {"active_id": self.pos_order_pos0.id}
         self.pos_make_payment_0.with_context(context_payment).check()
 
-        # I close the current session to generate the journal entries
         current_session_id = self.pos_config.current_session_id
         current_session_id.post_closing_cash_details(450.0)
         current_session_id.close_session_from_ui()
@@ -450,28 +405,12 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         )
         current_session.picking_ids.button_validate()
 
-        # I test that the generated journal entries are correct.
-        #
-        # Under the new valuation engine there is no "stock output" clearing
-        # account any more, so the COGS accrual the PoS session used to post at
-        # closing (debit expense / credit stock output, later reconciled against
-        # the delivery entry) is gone. COGS is now recognised once, by the stock
-        # move itself when the goods actually leave: debit the destination
-        # location's valuation account (the expense account, set in setUpClass)
-        # and credit the product's stock valuation account. The net accounting is
-        # the same as before; only the intermediate account and the timing differ.
         valuation_account = self.category.property_stock_valuation_account_id
         expense_account = self.category.property_account_expense_categ_id
         aml = current_session._get_related_account_moves().line_ids
         aml_valuation = aml.filtered(lambda l: l.account_id.id == valuation_account.id)
         aml_expense = aml.filtered(lambda l: l.account_id.id == expense_account.id)
 
-        # A single COGS entry, posted at delivery in the journal the product's
-        # category names. This class's own setUpClass sets
-        # `category.property_stock_journal`, and `stock.move._get_stock_journal`
-        # honours it -- it used to read the company's journal directly and drop
-        # the category setting, which is what this assertion was written
-        # against.
         self.assertEqual(len(aml_valuation), 1)
         self.assertEqual(len(aml_expense), 1)
         self.assertEqual(
@@ -480,7 +419,6 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             "The COGS entry is posted in the product category's stock journal",
         )
         self.assertEqual(aml_valuation.move_id, aml_expense.move_id)
-        # The PoS closing entry no longer carries any COGS accrual.
         self.assertFalse(
             (aml_valuation | aml_expense).move_id & current_session.move_id,
         )
@@ -505,7 +443,6 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
     def test_action_pos_order_invoice(self):
         self.company.point_of_sale_update_stock_quantities = "closing"
 
-        # Setup a running session, with a paid pos order that is not invoiced
         self.pos_config.open_ui()
         current_session = self.pos_config.current_session_id
         self.pos_order_pos0 = self.PosOrder.create(
@@ -547,14 +484,8 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         context_payment = {"active_id": self.pos_order_pos0.id}
         self.pos_make_payment_0.with_context(context_payment).check()
 
-        # Invoice the pos order afterward (session still running)
         self.pos_order_pos0.action_pos_order_invoice()
 
-        # There is no "stock output" clearing account any more, so there is no
-        # longer a pair of journal items to reconcile. Invoicing an anglo-saxon
-        # order books COGS exactly once, crediting stock valuation directly; the
-        # delivery itself posts nothing (the customer location has no valuation
-        # account), so stock valuation is relieved once for the one unit sold.
         valuation_account = self.category.property_stock_valuation_account_id
         expense_account = self.category.property_account_expense_categ_id
         related_amls = current_session._get_related_account_moves().line_ids
@@ -574,9 +505,7 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         self.assertEqual(expense_amls.credit, 0.0)
 
     def test_action_pos_order_invoice_with_discount(self):
-        """This test make sure that the line containing 'Discoun from' is correctly added to the invoice"""
 
-        # Setup a running session, with a paid pos order that is not invoiced
         self.pos_config.open_ui()
         pricelist = self.env["product.pricelist"].create(
             {
@@ -630,18 +559,12 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             context_make_payment
         ).create(
             {
-                # Must settle the order exactly: `_is_pos_order_paid` compares the
-                # tendered amount against the rounded total, so any other figure
-                # leaves the order in `draft` and it is not invoiceable.
                 "amount": 103.79,
                 "payment_method_id": self.cash_payment_method.id,
             }
         )
         context_payment = {"active_id": self.pos_order_pos0.id}
         self.pos_make_payment_0.with_context(context_payment).check()
-        # `to_invoice` makes the wizard invoice on the spot, so the order lands on
-        # `done` rather than `paid`; either way it must be settled before the
-        # explicit invoice call below.
         self.assertIn(self.pos_order_pos0.state, ("paid", "done"))
 
         res = self.pos_order_pos0.action_pos_order_invoice()
@@ -655,25 +578,22 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         product_line = invoice.invoice_line_ids.filtered(
             lambda l: l.display_type == "product"
         )
-        self.assertEqual(product_line.price_unit, 95)  # Only pricelist applies
-        self.assertEqual(product_line.discount, 5)  # Disount is reflected
+        self.assertEqual(product_line.price_unit, 95)
+        self.assertEqual(product_line.discount, 5)
         self.assertEqual(
             product_line.price_subtotal, 90.25
-        )  # Discount applies on price_unit
+        )
         self.assertEqual(
             product_line.price_total, 103.79
-        )  # Taxes applied with price_total
+        )
 
     def test_cogs_with_ship_later_with_backorder(self):
-        # This test will check that the correct journal entries are created when 2 products are sold
-        # using the ship later option and one of them is processed in a backorder
         self._enable_delivery_time_cogs()
         self.pos_config.open_ui()
         current_session = self.pos_config.current_session_id
         self.cash_journal.loss_account_id = self.account
         current_session.set_opening_control(0, None)
 
-        # Create 2 product one with no cost and one with a cost of 20 EUR
         self.product_2 = self.env["product.product"].create(
             {
                 "name": "New product 2",
@@ -694,7 +614,6 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             }
         )
 
-        # I create a PoS order with 1 unit of New product at 450 EUR
         self.pos_order_pos0 = self.PosOrder.create(
             {
                 "company_id": self.company.id,
@@ -739,7 +658,6 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             }
         )
 
-        # I make a payment to fully pay the order
         context_make_payment = {
             "active_ids": [self.pos_order_pos0.id],
             "active_id": self.pos_order_pos0.id,
@@ -753,11 +671,9 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             }
         )
 
-        # I click on the validate button to register the payment.
         context_payment = {"active_id": self.pos_order_pos0.id}
         self.pos_make_payment_0.with_context(context_payment).check()
 
-        # I close the current session to generate the journal entries
         current_session_id = self.pos_config.current_session_id
         current_session_id.post_closing_cash_details(300.0)
         current_session_id.close_session_from_ui()
@@ -773,12 +689,6 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             res_dict["context"]
         ).process()
 
-        # I test that the generated journal entries are correct.
-        #
-        # As in test_cogs_with_ship_later_no_invoicing, COGS is no longer accrued
-        # in the PoS closing entry: it is posted by the stock move at delivery,
-        # in the journal the product's category names (see
-        # `stock.move._get_stock_journal`).
         out = self.product_1.categ_id.property_stock_valuation_account_id
         exp = self.product_1._get_product_accounts()["expense"]
         cogs_journal = (
@@ -793,8 +703,6 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             lambda l: l.account_id.id == exp.id and l.journal_id == cogs_journal
         )
 
-        # Only the shipped product_2 (cost 20) is expensed; product_1 is still
-        # in the backorder.
         self.assertEqual(sum(aml_expense.mapped("debit")), 20)
         self.assertEqual(sum(aml_expense.mapped("credit")), 0)
         self.assertEqual(sum(aml_output.mapped("debit")), 0)
@@ -806,7 +714,6 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         backorder_picking.move_ids.write({"quantity": 1, "picked": True})
         backorder_picking.button_validate()
 
-        # As the second item has no cost, the account move line should be the same as before
         aml = current_session._get_related_account_moves().line_ids
         aml_output = aml.filtered(
             lambda l: l.account_id.id == out.id and l.journal_id == cogs_journal
@@ -815,20 +722,12 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             lambda l: l.account_id.id == exp.id and l.journal_id == cogs_journal
         )
 
-        # Shipping the backorder posts a second, zero-value COGS entry for the
-        # cost-less product_1, so the recognised cost is still exactly 20. The
-        # totals are asserted rather than the line count: the new valuation engine
-        # posts one entry per delivered move, including zero-value ones.
         self.assertEqual(sum(aml_expense.mapped("debit")), 20)
         self.assertEqual(sum(aml_expense.mapped("credit")), 0)
         self.assertEqual(sum(aml_output.mapped("debit")), 0)
         self.assertEqual(sum(aml_output.mapped("credit")), 20)
 
     def test_cogs_multi_products_perpetual(self):
-        """
-        Check that an order with mutliple products that is invoiced
-        in anglo saxon perpetual posts its stock valuation entries
-        """
         self.category.property_valuation = "real_time"
         self.product.write(
             {"categ_id": self.category, "standard_price": 20, "list_price": 100}
@@ -848,7 +747,6 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         pos_session = self.pos_config.current_session_id
         pos_session.set_opening_control(0, None)
 
-        # create order
         pos_order_values = {
             "company_id": self.company.id,
             "partner_id": self.partner.id,
@@ -884,7 +782,6 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         }
         pos_order = self.PosOrder.create(pos_order_values)
 
-        # register payment
         context_make_payment = {"active_ids": [pos_order.id], "active_id": pos_order.id}
         pos_payment = self.PosMakePayment.with_context(context_make_payment).create(
             {

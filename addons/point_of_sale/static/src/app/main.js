@@ -4,11 +4,11 @@ import { Loader } from "@point_of_sale/app/components/loader/loader";
 import { Chrome } from "@point_of_sale/app/pos_app";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { localization } from "@web/core/l10n/localization";
+import { publishOdooInfo } from "@web/core/odoo_info";
 import { getTemplate } from "@web/core/templates";
 import { _t, appTranslateFn } from "@web/core/translation";
-import { user } from "@web/core/user";
+import { SUPERUSER_ID, user } from "@web/core/user";
 import { mountComponent } from "@web/env";
-import { session } from "@web/session";
 
 const loader = reactive({ isShown: true, error: false });
 whenReady(() => {
@@ -21,12 +21,7 @@ whenReady(() => {
 });
 
 (async function startPosApp() {
-    odoo.info = {
-        db: session.db,
-        server_version: session.server_version,
-        server_version_info: session.server_version_info,
-        isEnterprise: session.server_version_info.slice(-1)[0] === "e",
-    };
+    publishOdooInfo();
     await whenReady();
     try {
         const app = await mountComponent(Chrome, document.body, {
@@ -53,11 +48,8 @@ whenReady(() => {
         if (localization.direction === "rtl") {
             classList.add("o_rtl");
         }
-        if (user.userId === 1) {
+        if (user.userId === SUPERUSER_ID) {
             classList.add("o_is_superuser");
-        }
-        if (app.env.debug) {
-            classList.add("o_debug");
         }
         if (hasTouch()) {
             classList.add("o_touch_device");

@@ -1,14 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-"""Access-right regressions for the point of sale.
-
-Nothing in this module created a plain ``group_pos_user`` before, which is why
-the two defects pinned here survived: a cashier could rewrite any point of
-sale's configuration, and the one control the product-info popup offers them
-was forbidden by the ACL it runs under.
-
-Authored red-green: every test below failed against the pre-fix code.
-"""
-
 import logging
 from unittest.mock import patch
 
@@ -39,12 +28,6 @@ class TestPosAccessRights(CommonPosTest):
             company_id=cls.company.id,
         )
 
-    # ------------------------------------------------------------------
-    # A cashier may read the configuration they trade on, never write it.
-    # `_get_forbidden_change_fields` only bites while a session is open and
-    # `_check_header_footer` covers three fields, so before the ACL was
-    # tightened everything else was writable on every shop in the company.
-    # ------------------------------------------------------------------
     def test_cashier_cannot_repoint_the_pos_journal(self):
         sink = self.env["account.journal"].create(
             {
@@ -77,20 +60,11 @@ class TestPosAccessRights(CommonPosTest):
         self.assertNotIn(pricelist, self.pos_config_usd.available_pricelist_ids)
 
     def test_manager_can_still_configure(self):
-        """Control: the tightened ACL must not disarm the manager.
-
-        (Not a receipt header/footer -- `_check_header_footer` reserves those
-        three fields for administrators, manager or not.)
-        """
         self.pos_config_usd.with_user(self.manager).write(
             {"iface_big_scrollbars": True}
         )
         self.assertTrue(self.pos_config_usd.iface_big_scrollbars)
 
-    # ------------------------------------------------------------------
-    # The runtime writes the config as a system operation. Each of these
-    # used to ride on the cashier's own write permission.
-    # ------------------------------------------------------------------
     def test_cashier_can_still_mint_the_bus_token(self):
         config = self.pos_config_usd
         config.sudo().access_token = False
@@ -111,17 +85,10 @@ class TestPosAccessRights(CommonPosTest):
         self.assertTrue(result["device_identifier"])
 
     def test_cashier_can_still_open_a_session(self):
-        """`open_ui` is the cashier's entry point and writes nothing on the
-        config itself; it must survive the read-only ACL."""
         config = self.pos_config_usd.with_user(self.cashier)
         config.open_ui()
         self.assertTrue(config.current_session_id)
 
-    # ------------------------------------------------------------------
-    # The product-info popup offers a favourite toggle to every cashier
-    # (`_role` is only ever "manager" or "cashier" in this module), but
-    # `product.template` is read-only for `group_pos_user`.
-    # ------------------------------------------------------------------
     def test_cashier_can_toggle_a_pos_favourite(self):
         template = self.env["product.template"].create(
             {"name": "Favourite probe", "available_in_pos": True}
@@ -132,8 +99,6 @@ class TestPosAccessRights(CommonPosTest):
         self.assertFalse(template.is_favorite)
 
     def test_favourite_toggle_writes_nothing_else(self):
-        """The elevated write must be a keyhole, not a door: only
-        `is_favorite`, and only on a product the point of sale can sell."""
         template = self.env["product.template"].create(
             {"name": "Favourite probe 2", "available_in_pos": True, "list_price": 7}
         )
@@ -147,11 +112,6 @@ class TestPosAccessRights(CommonPosTest):
         with self.assertRaises(AccessError):
             template.with_user(self.cashier).set_pos_favorite(True)
 
-    # ------------------------------------------------------------------
-    # Invoicing is a cashier operation, and the records it settles against
-    # are system plumbing the cashier can neither see nor touch: payment
-    # moves carry no `pos_order_ids`, so `rule_invoice_pos_user` hides them.
-    # ------------------------------------------------------------------
     def _paid_order_payload(self, uuid):
         product = self.env["product.product"].search(
             [("available_in_pos", "=", True)], limit=1
@@ -194,18 +154,6 @@ class TestPosAccessRights(CommonPosTest):
         }
 
     def test_cashier_can_invoice_an_order(self):
-        """`_generate_pos_order_invoice` collected the payment moves into
-        `self.env["account.move"]` -- the *user's* environment -- so the
-        `sudo()` under which `_create_payment_moves` built them was dropped by
-        the union, and `_reconcile_invoice_payments` then read `pos_payment_ids`
-        off them as the cashier. Payment moves carry no `pos_order_ids`, so
-        `rule_invoice_pos_user` hides them and the read raises.
-
-        The cache is invalidated at the moment of the reconcile because that is
-        what decides whether the defect shows: with the moves still in cache
-        from their own creation the read needs no query and no rule is
-        consulted, which is why this only ever failed over HTTP.
-        """
         self.pos_config_usd.open_ui()
         PosOrder = type(self.env["pos.order"])
         original = PosOrder._reconcile_invoice_payments
@@ -223,7 +171,6 @@ class TestPosAccessRights(CommonPosTest):
         self.assertEqual(order.state, "done")
 
     def test_cashier_invoice_still_reconciles(self):
-        """Control: elevating the read must not skip the work it guards."""
         self.pos_config_usd.open_ui()
         self.env["pos.order"].with_user(self.cashier).sync_from_ui(
             [self._paid_order_payload("cashier-invoice-0002")]

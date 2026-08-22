@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
@@ -38,12 +37,13 @@ class ProductProduct(models.Model):
     @api.ondelete(at_uninstall=False)
     def _unlink_except_active_pos_session(self):
         product_ctx = dict(self.env.context or {}, active_test=False)
-        if self.env["pos.session"].sudo().search_count([("state", "!=", "closed")]):
+        if self.env["pos.session"].sudo().search_count([("state", "!=", "closed")], limit=1):
             if self.with_context(product_ctx).search_count(
                 [
                     ("id", "in", self.ids),
                     ("product_tmpl_id.available_in_pos", "=", True),
-                ]
+                ],
+                limit=1,
             ):
                 raise UserError(
                     _(

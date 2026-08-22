@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import random
 
 from odoo import _, api, fields, models
@@ -17,7 +15,7 @@ class PosCategory(models.Model):
         if self._has_cycle():
             raise ValidationError(_("Error! You cannot create recursive categories."))
 
-    def get_default_color(self):
+    def _default_color(self):
         return random.randint(0, 10)
 
     name = fields.Char(string="Category Name", required=True, translate=True)
@@ -32,7 +30,7 @@ class PosCategory(models.Model):
     image_128 = fields.Image(
         "Image 128", related="image_512", max_width=128, max_height=128, store=True
     )
-    color = fields.Integer("Color", required=False, default=get_default_color)
+    color = fields.Integer("Color", required=False, default=_default_color)
     hour_until = fields.Float(
         string="Availability Until",
         default=24.0,
@@ -44,8 +42,6 @@ class PosCategory(models.Model):
         help="The product will be available after this hour for online order and self order.",
     )
 
-    # During loading of data, the image is not loaded so we expose a lighter
-    # field to determine whether a pos.category has an image or not.
     has_image = fields.Boolean(compute="_compute_has_image")
 
     @api.model
@@ -84,7 +80,6 @@ class PosCategory(models.Model):
         ]
 
     def _get_hierarchy(self) -> list[str]:
-        """Returns a list representing the hierarchy of the categories."""
         self.ensure_one()
         return (self.parent_id._get_hierarchy() if self.parent_id else []) + [
             (self.name or "")
@@ -97,11 +92,6 @@ class PosCategory(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_session_open(self):
-        # Only a session that could actually be showing one of these categories may
-        # block the deletion. `sudo` is required to see sessions across companies,
-        # so the domain has to do the scoping that the ACL no longer does --
-        # otherwise any session open anywhere in the database, in an unrelated
-        # company, permanently blocks every category deletion.
         blocking_session = (
             self.env["pos.session"]
             .sudo()
@@ -111,7 +101,6 @@ class PosCategory(models.Model):
                     ("company_id", "in", self.env.companies.ids),
                     "|",
                     "|",
-                    # A config that does not restrict its categories loads them all.
                     ("config_id.limit_categories", "=", False),
                     ("config_id.iface_available_categ_ids", "in", self.ids),
                     ("config_id.printer_ids.product_categories_ids", "in", self.ids),
@@ -144,10 +133,6 @@ class PosCategory(models.Model):
     @api.constrains("hour_until", "hour_after")
     def _check_hour(self):
         for category in self:
-            # Both fields are non-nullable floats, and 0.0 is a legal clock value
-            # (midnight) as well as the default of `hour_after`. Guarding these
-            # checks on truthiness disabled them for exactly the window that can
-            # never open, e.g. "after 10:00" with the until-field cleared to 0.0.
             if not 0.0 <= category.hour_until <= 24.0:
                 raise ValidationError(
                     _("The Availability Until must be set between 00:00 and 24:00")

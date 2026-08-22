@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import unittest.mock
 from datetime import datetime, timedelta
 
@@ -15,11 +13,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPoSBasicConfig(TestPoSCommon):
-    """Test PoS with basic configuration
-
-    The tests contain base scenarios in using pos.
-    More specialized cases are tested in other tests.
-    """
 
     def setUp(self):
         super().setUp()
@@ -43,40 +36,6 @@ class TestPoSBasicConfig(TestPoSCommon):
         self.company_data_2 = self.setup_other_company()
 
     def test_orders_no_invoiced(self):
-        """Test for orders without invoice
-
-        3 orders
-        - first 2 orders with cash payment
-        - last order with bank payment
-
-        Orders
-        ======
-        +---------+----------+-----------+----------+-----+-------+
-        | order   | payments | invoiced? | product  | qty | total |
-        +---------+----------+-----------+----------+-----+-------+
-        | order 1 | cash     | no        | product1 |  10 |   100 |
-        |         |          |           | product2 |   5 |   100 |
-        +---------+----------+-----------+----------+-----+-------+
-        | order 2 | cash     | no        | product2 |   7 |   140 |
-        |         |          |           | product3 |   1 |    30 |
-        +---------+----------+-----------+----------+-----+-------+
-        | order 3 | bank     | no        | product1 |   1 |    10 |
-        |         |          |           | product2 |   3 |    60 |
-        |         |          |           | product3 |   5 |   150 |
-        +---------+----------+-----------+----------+-----+-------+
-
-        Expected Result
-        ===============
-        +---------------------+---------+
-        | account             | balance |
-        +---------------------+---------+
-        | sale                |    -590 |
-        | pos receivable cash |     370 |
-        | pos receivable bank |     220 |
-        +---------------------+---------+
-        | Total balance       |     0.0 |
-        +---------------------+---------+
-        """
         start_qty_available = {
             self.product1: self.product1.qty_available,
             self.product2: self.product2.qty_available,
@@ -84,7 +43,6 @@ class TestPoSBasicConfig(TestPoSCommon):
         }
 
         def _before_closing_cb():
-            # check values before closing the session
             self.assertEqual(3, self.pos_session.order_count)
             orders_total = sum(
                 order.amount_total for order in self.pos_session.order_ids
@@ -95,7 +53,6 @@ class TestPoSBasicConfig(TestPoSCommon):
                 msg="Total order amount should be equal to the total payment amount.",
             )
 
-            # check product qty_available after syncing the order
             self.assertEqual(
                 self.product1.qty_available + 11,
                 start_qty_available[self.product1],
@@ -109,7 +66,6 @@ class TestPoSBasicConfig(TestPoSCommon):
                 start_qty_available[self.product3],
             )
 
-            # picking and stock moves should be in done state
             for order in self.pos_session.order_ids:
                 self.assertEqual(
                     order.picking_ids[0].state,
@@ -230,42 +186,6 @@ class TestPoSBasicConfig(TestPoSCommon):
         )
 
     def test_orders_with_invoiced(self):
-        """Test for orders: one with invoice
-
-        3 orders
-        - order 1, paid by cash
-        - order 2, paid by bank
-        - order 3, paid by bank, invoiced
-
-        Orders
-        ======
-        +---------+----------+---------------+----------+-----+-------+
-        | order   | payments | invoiced?     | product  | qty | total |
-        +---------+----------+---------------+----------+-----+-------+
-        | order 1 | cash     | no            | product1 |   6 |    60 |
-        |         |          |               | product2 |   3 |    60 |
-        |         |          |               | product3 |   1 |    30 |
-        +---------+----------+---------------+----------+-----+-------+
-        | order 2 | bank     | no            | product1 |   1 |    10 |
-        |         |          |               | product2 |  20 |   400 |
-        +---------+----------+---------------+----------+-----+-------+
-        | order 3 | bank     | yes, customer | product1 |  10 |   100 |
-        |         |          |               | product3 |   1 |    30 |
-        +---------+----------+---------------+----------+-----+-------+
-
-        Expected Result
-        ===============
-        +---------------------+---------+
-        | account             | balance |
-        +---------------------+---------+
-        | sale                |    -560 |
-        | pos receivable cash |     150 |
-        | pos receivable bank |     540 |
-        | receivable          |    -130 |
-        +---------------------+---------+
-        | Total balance       |     0.0 |
-        +---------------------+---------+
-        """
         start_qty_available = {
             self.product1: self.product1.qty_available,
             self.product2: self.product2.qty_available,
@@ -273,7 +193,6 @@ class TestPoSBasicConfig(TestPoSCommon):
         }
 
         def _before_closing_cb():
-            # check values before closing the session
             self.assertEqual(3, self.pos_session.order_count)
             orders_total = sum(
                 order.amount_total for order in self.pos_session.order_ids
@@ -284,7 +203,6 @@ class TestPoSBasicConfig(TestPoSCommon):
                 msg="Total order amount should be equal to the total payment amount.",
             )
 
-            # check product qty_available after syncing the order
             self.assertEqual(
                 self.product1.qty_available + 17,
                 start_qty_available[self.product1],
@@ -298,8 +216,6 @@ class TestPoSBasicConfig(TestPoSCommon):
                 start_qty_available[self.product3],
             )
 
-            # picking and stock moves should be in done state
-            # no exception for invoiced orders
             for order in self.pos_session.order_ids:
                 self.assertEqual(
                     order.picking_ids[0].state,
@@ -313,7 +229,6 @@ class TestPoSBasicConfig(TestPoSCommon):
                     "Move Lines should be in done state.",
                 )
 
-            # check account move in the invoiced order
             invoiced_order = self.pos_session.order_ids.filtered(
                 lambda order: order.account_move
             )
@@ -321,7 +236,6 @@ class TestPoSBasicConfig(TestPoSCommon):
                 1, len(invoiced_order), "Only one order is invoiced in this test."
             )
 
-            # check account_move of orders before validating the session.
             self.assertTrue(
                 invoiced_order.account_move,
                 msg="Invoiced orders must have account_move.",
@@ -333,7 +247,6 @@ class TestPoSBasicConfig(TestPoSCommon):
             )
 
         def _after_closing_cb():
-            # check state of orders after validating the session.
             uninvoiced_orders = self.pos_session.order_ids.filtered(
                 lambda order: not order.is_invoiced
             )
@@ -512,7 +425,6 @@ class TestPoSBasicConfig(TestPoSCommon):
         )
 
     def test_orders_with_zero_valued_invoiced(self):
-        """One invoiced order but with zero receivable line balance."""
         self._run_test(
             {
                 "payment_methods": self.cash_pm1 | self.bank_pm1,
@@ -565,13 +477,11 @@ class TestPoSBasicConfig(TestPoSCommon):
                 lambda order: "666-666-666" in order.uuid
             )
 
-            # refund
             order.refund()
             refund_order = self.pos_session.order_ids.filtered(
                 lambda order: order.state == "draft"
             )
 
-            # pay the refund
             context_make_payment = {
                 "active_ids": [refund_order.id],
                 "active_id": refund_order.id,
@@ -588,7 +498,6 @@ class TestPoSBasicConfig(TestPoSCommon):
             )
             make_payment.check()
 
-            # invoice refund
             refund_order.action_pos_order_invoice()
 
         self._run_test(
@@ -668,40 +577,6 @@ class TestPoSBasicConfig(TestPoSCommon):
         )
 
     def test_return_order(self):
-        """Test return order
-
-        2 orders
-        - 2nd order is returned
-
-        Orders
-        ======
-        +------------------+----------+-----------+----------+-----+-------+
-        | order            | payments | invoiced? | product  | qty | total |
-        +------------------+----------+-----------+----------+-----+-------+
-        | order 1          | bank     | no        | product1 |   1 |    10 |
-        |                  |          |           | product2 |   5 |   100 |
-        +------------------+----------+-----------+----------+-----+-------+
-        | order 2          | cash     | no        | product1 |   3 |    30 |
-        |                  |          |           | product2 |   2 |    40 |
-        |                  |          |           | product3 |   1 |    30 |
-        +------------------+----------+-----------+----------+-----+-------+
-        | order 3 (return) | cash     | no        | product1 |  -3 |   -30 |
-        |                  |          |           | product2 |  -2 |   -40 |
-        |                  |          |           | product3 |  -1 |   -30 |
-        +------------------+----------+-----------+----------+-----+-------+
-
-        Expected Result
-        ===============
-        +---------------------+---------+
-        | account             | balance |
-        +---------------------+---------+
-        | sale (sales)        |    -210 |
-        | sale (refund)       |     100 |
-        | pos receivable bank |     110 |
-        +---------------------+---------+
-        | Total balance       |     0.0 |
-        +---------------------+---------+
-        """
         start_qty_available = {
             self.product1: self.product1.qty_available,
             self.product2: self.product2.qty_available,
@@ -709,7 +584,6 @@ class TestPoSBasicConfig(TestPoSCommon):
         }
 
         def _before_closing_cb():
-            # check values before closing the session
             self.assertEqual(2, self.pos_session.order_count)
             orders_total = sum(
                 order.amount_total for order in self.pos_session.order_ids
@@ -720,7 +594,6 @@ class TestPoSBasicConfig(TestPoSCommon):
                 msg="Total order amount should be equal to the total payment amount.",
             )
 
-            # return order
             order_to_return = self.pos_session.order_ids.filtered(
                 lambda order: "12345-123-1234" in order.uuid
             )
@@ -729,12 +602,10 @@ class TestPoSBasicConfig(TestPoSCommon):
                 lambda order: order.state == "draft"
             )
 
-            # check if amount to pay
             self.assertAlmostEqual(
                 refund_order.amount_total - refund_order.amount_paid, -100
             )
 
-            # pay the refund
             context_make_payment = {
                 "active_ids": [refund_order.id],
                 "active_id": refund_order.id,
@@ -761,7 +632,6 @@ class TestPoSBasicConfig(TestPoSCommon):
                 msg="Amount paid for return order should be negative.",
             )
 
-            # check product qty_available after syncing the order
             self.assertEqual(
                 self.product1.qty_available + 1,
                 start_qty_available[self.product1],
@@ -775,8 +645,6 @@ class TestPoSBasicConfig(TestPoSCommon):
                 start_qty_available[self.product3],
             )
 
-            # picking and stock moves should be in done state
-            # no exception of return orders
             for order in self.pos_session.order_ids:
                 self.assertEqual(
                     order.picking_ids[0].state,
@@ -1039,10 +907,6 @@ class TestPoSBasicConfig(TestPoSCommon):
         )
 
     def test_rounding_method(self):
-        # Set the cash rounding method atomically: `_check_rounding_method_strategy`
-        # fires on the `cash_rounding` write, so enabling it before assigning a
-        # valid (add_invoice_line) rounding method trips the constraint on the
-        # intermediate state (the old/empty method). Write both in one call.
         rounding_method = self.env["account.cash.rounding"].create(
             {
                 "name": "add_invoice_line",
@@ -1099,10 +963,8 @@ class TestPoSBasicConfig(TestPoSCommon):
         +---------------------+---------+
         """
 
-        # create orders
         orders = []
 
-        # create orders
         orders = []
         orders.append(
             self.create_ui_order_data(
@@ -1118,7 +980,6 @@ class TestPoSBasicConfig(TestPoSCommon):
             )
         )
 
-        # sync orders
         self.env["pos.order"].sync_from_ui(orders)
 
         self.assertEqual(
@@ -1128,10 +989,8 @@ class TestPoSBasicConfig(TestPoSCommon):
             orders[1]["amount_return"], 0, msg="The amount return should be 0"
         )
 
-        # close the session
         self.pos_session.action_pos_session_validate()
 
-        # check values after the session is closed
         session_account_move = self.pos_session.move_id
 
         rounding_line = session_account_move.line_ids.filtered(
@@ -1747,7 +1606,6 @@ class TestPoSBasicConfig(TestPoSCommon):
         )
 
     def test_cash_register_if_no_order(self):
-        # Process one order with product3
         self.open_new_session(0)
         session = self.pos_session
         order_data = self.create_ui_order_data([(self.product3, 1)])
@@ -1762,7 +1620,6 @@ class TestPoSBasicConfig(TestPoSCommon):
             ),
         ):
             res = self.env["pos.order"].sync_from_ui([order_data])
-            # Basic check for logs on order synchronization
             order_log_str = self.env["pos.order"]._get_order_log_representation(
                 order_data
             )
@@ -1792,7 +1649,6 @@ class TestPoSBasicConfig(TestPoSCommon):
         self.assertEqual(session.cash_register_balance_start, 0)
         self.assertEqual(session.cash_register_balance_end_real, amount_paid)
 
-        # Open/Close session without any order in cash control
         self.open_new_session(amount_paid)
         session = self.pos_session
         session.post_closing_cash_details(amount_paid)
@@ -1802,7 +1658,6 @@ class TestPoSBasicConfig(TestPoSCommon):
         self.assertEqual(self.config.last_session_closing_cash, amount_paid)
 
     def test_start_balance_with_two_pos(self):
-        """When having several POS with cash control, this tests ensures that each POS has its correct opening amount"""
 
         def open_and_check(pos_data):
             self.config = pos_data["config"]
@@ -1846,7 +1701,6 @@ class TestPoSBasicConfig(TestPoSCommon):
         open_and_check(pos02_data)
 
     def test_pos_session_name_sequencing(self):
-        """This test check if the session name is correctly set according to the sequence"""
 
         sequence = self.env["ir.sequence"].search([("code", "=", "pos.session")])
         sequence.prefix = "/"
@@ -1864,14 +1718,7 @@ class TestPoSBasicConfig(TestPoSCommon):
         self.assertEqual(self.pos_session.name, "TEST/01001")
 
     def test_load_data_should_not_fail(self):
-        """load_data shouldn't fail
 
-        (Include test conditions here if possible)
-
-        - When there are partners that belong to different company
-        """
-
-        # create a partner that belongs to different company
         company2 = self.company_data_2["company"]
         self.env["res.partner"].create(
             {
@@ -1882,36 +1729,11 @@ class TestPoSBasicConfig(TestPoSCommon):
 
         self.open_new_session()
 
-        # calling load_data should not raise an error
         self.pos_session.load_data([])
 
     def test_invoice_past_refund(self):
-        """Test invoicing a past refund
-
-        Orders
-        ======
-        +------------------+----------+-----------+----------+-----+-------+
-        | order            | payments | invoiced? | product  | qty | total |
-        +------------------+----------+-----------+----------+-----+-------+
-        | order 1          | cash     | no        | product3 |   1 |    30 |
-        +------------------+----------+-----------+----------+-----+-------+
-        | order 2 (return) | cash     | no        | product3 |  -1 |   -30 |
-        +------------------+----------+-----------+----------+-----+-------+
-
-        Expected Result
-        ===============
-        +---------------------+---------+
-        | account             | balance |
-        +---------------------+---------+
-        | sale (sales)        |     -30 |
-        | sale (refund)       |      30 |
-        +---------------------+---------+
-        | Total balance       |     0.0 |
-        +---------------------+---------+
-        """
 
         def _before_closing_cb():
-            # Return the order
             order_to_return = self.pos_session.order_ids.filtered(
                 lambda order: "12345-123-1234" in order.uuid
             )
@@ -1920,12 +1742,10 @@ class TestPoSBasicConfig(TestPoSCommon):
                 lambda order: order.state == "draft"
             )
 
-            # Check if there's an amount to pay
             self.assertAlmostEqual(
                 refund_order.amount_total - refund_order.amount_paid, -30
             )
 
-            # Pay the refund
             context_make_payment = {
                 "active_ids": [refund_order.id],
                 "active_id": refund_order.id,
@@ -1987,12 +1807,9 @@ class TestPoSBasicConfig(TestPoSCommon):
         new_session_date = return_to_invoice.date_order + relativedelta(days=2)
 
         with freeze_time(new_session_date):
-            # Create a new session after 2 days
             self.open_new_session(0)
-            # Invoice the uninvoiced refund
             return_to_invoice.write({"partner_id": test_customer.id})
             return_to_invoice.action_pos_order_invoice()
-            # Check the credit note
             self.assertTrue(
                 return_to_invoice.account_move, "Invoice should be created."
             )
@@ -2025,7 +1842,6 @@ class TestPoSBasicConfig(TestPoSCommon):
             )
 
     def test_invoice_past_order(self):
-        # create 1 uninvoiced order then close the session
         self._run_test(
             {
                 "payment_methods": self.cash_pm1 | self.bank_pm1,
@@ -2086,7 +1902,6 @@ class TestPoSBasicConfig(TestPoSCommon):
             }
         )
 
-        # keep reference of the closed session
         closed_session = self.pos_session
         self.assertTrue(closed_session.state == "closed", "Session should be closed.")
 
@@ -2094,12 +1909,9 @@ class TestPoSBasicConfig(TestPoSCommon):
         test_customer = self.env["res.partner"].create({"name": "Test Customer"})
 
         with freeze_time(fields.Datetime.now() + relativedelta(days=2)):
-            # create new session after 2 days
             self.open_new_session(0)
-            # invoice the uninvoiced order
             order_to_invoice.write({"partner_id": test_customer.id})
             order_to_invoice.action_pos_order_invoice()
-            # check invoice
             invoice = order_to_invoice.account_move
             self.assertTrue(invoice, "Invoice should be created.")
             self.assertNotEqual(
@@ -2108,16 +1920,12 @@ class TestPoSBasicConfig(TestPoSCommon):
                 "Invoice date should not be the same as order date since the session was closed.",
             )
 
-            # check that the payment date is set to the order date which
-            # is the real payment date and not to the invoice_date
             payment = (
                 invoice.line_ids.full_reconcile_id.reconciled_line_ids.move_id - invoice
             )
             self.assertEqual(payment.date, order_to_invoice.date_order.date())
 
     def test_invoice_past_order_affecting_taxes(self):
-        """Test whether two taxes affecting each other don't trigger a recomputation on invoice generation"""
-        # Create 1 uninvoiced order then close the session
         self._run_test(
             {
                 "payment_methods": self.cash_pm1 | self.bank_pm1,
@@ -2198,12 +2006,9 @@ class TestPoSBasicConfig(TestPoSCommon):
         order_to_invoice = closed_session.order_ids[0]
         test_customer = self.env["res.partner"].create({"name": "Test Customer"})
 
-        # Create a new session
         self.open_new_session(0)
-        # Invoice the uninvoiced order
         order_to_invoice.write({"partner_id": test_customer.id})
         order_to_invoice.action_pos_order_invoice()
-        # Check the invoice for the lines
         self.assertTrue(order_to_invoice.account_move, "Invoice should be created.")
         self.assertRecordValues(
             order_to_invoice.account_move.line_ids,
@@ -2236,8 +2041,6 @@ class TestPoSBasicConfig(TestPoSCommon):
             "point_of_sale.limited_product_count", 3
         )
 
-        # Make the service products that are available in the pos inactive.
-        # We don't need them to test the loading of 'consu' products.
         self.env["product.template"].search(
             [("available_in_pos", "=", True), ("type", "=", "service")]
         ).write({"available_in_pos": False})
@@ -2279,47 +2082,12 @@ class TestPoSBasicConfig(TestPoSCommon):
         )
 
     def test_closing_entry_by_product(self):
-        # set the Group by Product at Closing Entry
         self.config.is_closing_entry_by_product = True
         self.open_new_session()
 
-        # 4 orders
 
-        # Orders
-        # ======
-        # +---------+----------+---------------+----------+-----+-------+
-        # | order   | payments | invoiced?     | product  | qty | total |
-        # +---------+----------+---------------+----------+-----+-------+
-        # | order 1 | bank     | no            | product1 |   2 |    60 |
-        # |         |          |               | product4 |   3 | 39.84 |
-        # +---------+----------+---------------+----------+-----+-------+
-        # | order 2 | bank     | yes           | product4 |   1 | 29.88 |
-        # |         |          |               | product2 |   5 |   400 |
-        # +---------+----------+---------------+----------+-----+-------+
-        # | order 3 | bank     | yes           | product1 |   3 | 29.88 |
-        # |         |          |               | product2 |  10 |   400 |
-        # +---------+----------+---------------+----------+-----+-------+
-        # | order 4 | bank     | yes           | product1 |   5 | 29.88 |
-        # |         |          |               | product0 |  10|   400 |
-        # +---------+----------+---------------+----------+-----+-------+
-
-        # Expected Output
-        # +---------------+-----------+
-        # | invoice_line  | Quantity  |
-        # +---------------+-----------+
-        # | Product 0     |      10   |
-        # +---------------+-----------+
-        # | Product 1     |      10   |
-        # +---------------+-----------+
-        # | Product 2     |      15   |
-        # +---------------+-----------+
-        # | Product 4     |       4   |
-        # +---------------+-----------+
-
-        # create orders
         orders = []
 
-        # create orders
         orders = []
         orders.append(
             self.create_ui_order_data(
@@ -2346,22 +2114,17 @@ class TestPoSBasicConfig(TestPoSCommon):
             )
         )
 
-        # sync orders
         self.env["pos.order"].sync_from_ui(orders)
-        # close the session
         self.pos_session.action_pos_session_validate()
 
-        # check values after the session is closed
         session_account_move = self.pos_session.move_id
 
-        # Define expected quantities for each product
         expected_product_quantity = {
             self.product0: 10,
             self.product1: 10,
             self.product2: 15,
             self.product4: 4,
         }
-        # Iterate through invoice lines and assert the expected quantities
         for i in session_account_move.line_ids:
             if i.product_id and expected_product_quantity.get(i.product_id):
                 self.assertEqual(
@@ -2371,12 +2134,6 @@ class TestPoSBasicConfig(TestPoSCommon):
                 )
 
     def test_pos_payment_method_copy(self):
-        """
-        Test POS payment method copy:
-            - Create two payment methods in which one of the payment method's journal type be cash
-            - Copy multiple payment methods
-            - Check the duplicated cash payment method journal should be empty
-        """
         pm_1 = self.cash_pm1
         pm_2 = self.bank_pm1
         pm_3, pm_4 = (pm_1 + pm_2).copy()
@@ -2387,9 +2144,7 @@ class TestPoSBasicConfig(TestPoSCommon):
         self.assertEqual(pm_4.journal_id.type, "bank")
 
     def test_single_config_global_invoice(self):
-        """For a single POS config, create multiple orders and consolidate them into a single invoice"""
         self.open_new_session()
-        # create orders
         orders = []
         orders.append(
             self.create_ui_order_data(
@@ -2404,20 +2159,15 @@ class TestPoSBasicConfig(TestPoSCommon):
             )
         )
 
-        # sync orders
         self.env["pos.order"].sync_from_ui(orders)
-        # close the session
         self.pos_session.action_pos_session_validate()
 
         pos_orders = self.env["pos.order"].search([])
-        # set customer for the orders
         pos_orders.write({"partner_id": self.customer.id})
 
-        # create consolidated invoice
         self.env["pos.make.invoice"].create(
             {"consolidated_billing": True}
         ).with_context({"active_ids": pos_orders.ids}).action_create_invoices()
-        # check if have single invoice
         self.assertEqual(len(pos_orders), 2)
         self.assertEqual(len(pos_orders.account_move), 1)
         self.assertEqual(pos_orders.account_move.partner_id, self.customer)
@@ -2445,7 +2195,6 @@ class TestPoSBasicConfig(TestPoSCommon):
         self.env["pos.order"].sync_from_ui(orders)
         self.pos_session.action_pos_session_validate()
 
-        # open new session & create orders
         self.open_new_session()
         orders2 = []
         orders2.append(
@@ -2464,14 +2213,11 @@ class TestPoSBasicConfig(TestPoSCommon):
         self.pos_session.action_pos_session_validate()
 
         pos_orders = self.env["pos.order"].search([])
-        # set customer for the orders
         pos_orders.write({"partner_id": self.customer.id})
 
-        # create consolidated invoice
         self.env["pos.make.invoice"].create(
             {"consolidated_billing": True}
         ).with_context({"active_ids": pos_orders.ids}).action_create_invoices()
-        # check if have single invoice
         self.assertEqual(len(pos_orders), 4)
         self.assertEqual(len(pos_orders.account_move), 1)
         self.assertEqual(pos_orders.account_move.partner_id, self.customer)
@@ -2483,10 +2229,8 @@ class TestPoSBasicConfig(TestPoSCommon):
         self.assertEqual(pos_orders.account_move.state, "posted")
 
     def test_double_syncing_same_order(self):
-        """Test that double syncing the same order doesn't create duplicates records"""
         self.open_new_session()
 
-        # Create an order
         order_data = self.create_ui_order_data(
             [(self.product1, 1)],
             payments=[(self.cash_pm1, 10)],
@@ -2497,7 +2241,6 @@ class TestPoSBasicConfig(TestPoSCommon):
         res = self.env["pos.order"].sync_from_ui([order_data])
         order_id = res["pos.order"][0]["id"]
 
-        # Sync the same order again
         res = self.env["pos.order"].sync_from_ui([order_data])
         self.assertEqual(
             res["pos.order"][0]["id"],
@@ -2659,11 +2402,6 @@ class TestPoSBasicConfig(TestPoSCommon):
         )
 
     def test_refunded_order_id(self):
-        """
-        An order containing refunded lines from two different orders is no longer allowed,
-        but some legacy records of this kind may still exist.
-        This test ensures that the refunded_order_id is correctly computed in such cases.
-        """
         current_session = self.open_new_session()
         orders = list(
             self._create_orders(
@@ -2716,7 +2454,6 @@ class TestPoSBasicConfig(TestPoSCommon):
         self.assertEqual(refund_order.refunded_order_id, orders[0])
 
     def test_cannot_archive_journal_linked_to_pos_payment_method(self):
-        """Test that archiving a journal linked to a POS payment method is blocked, and allowed when not linked."""
 
         test_journal = self.env["account.journal"].create(
             {
@@ -2737,7 +2474,6 @@ class TestPoSBasicConfig(TestPoSCommon):
         with self.assertRaises(ValidationError):
             test_journal.action_archive()
 
-        # Unlink the payment method and try again (should succeed)
         test_payment_method.journal_id = False
         test_journal.action_archive()
         self.assertFalse(

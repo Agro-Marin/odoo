@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import odoo
 from odoo import Command
 
@@ -8,17 +6,10 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestConfigureShops(TestPoSCommon):
-    """Shops are now configured from the general settings.
-    This test suite ensures that changes made in the general settings
-    should reflect to the pos.config record pointed by the
-    pos_config_id field.
-    """
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # If not enabled (like in demo data), landing on res.config will try
-        # to disable module_sale_quotation_builder and raise an issue
         group_order_template = cls.env.ref(
             "sale_management.group_sale_order_template", raise_if_not_found=False
         )
@@ -28,9 +19,6 @@ class TestConfigureShops(TestPoSCommon):
             )
 
     def _remove_on_payment_taxes(self):
-        """Call this when testing the res.config.settings with Form.
-        The `on_payment` taxes need to be removed, otherwise, a warning will show in the log.
-        """
         self.env["account.tax"].search(
             [
                 ("company_id", "=", self.env.company.id),
@@ -39,7 +27,6 @@ class TestConfigureShops(TestPoSCommon):
         ).unlink()
 
     def test_properly_set_pos_config_x2many_fields(self):
-        """Simulate what is done from the res.config.settings view when editing x2 many fields."""
 
         self._remove_on_payment_taxes()
         pos_config = self.env["pos.config"].create(
@@ -77,8 +64,6 @@ class TestConfigureShops(TestPoSCommon):
             }
         )
 
-        # Manually simulate the unlinking of the second record and then save the settings.
-        # It will be a set of link commands except the one we want to delete.
         linked_ids = pos_config.payment_method_ids.ids
         second_id = linked_ids[1]
         commands = [Command.link(_id) for _id in linked_ids if _id != second_id]

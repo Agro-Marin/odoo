@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 import base64
 import json
 import logging
@@ -26,9 +25,6 @@ class PosOrder(models.Model):
     _order = "date_order desc, name desc, id desc"
     _mailing_enabled = True
 
-    # This function deals with orders that belong to a closed session. It attempts to find
-    # any open session that can be used to capture the order. If no open session is found,
-    # an error is raised, asking the user to open a session.
     def _get_valid_session(self, order):
         PosSession = self.env["pos.session"]
         closed_session = PosSession.browse(order["session_id"])
@@ -69,14 +65,6 @@ class PosOrder(models.Model):
 
     @api.model
     def _process_order(self, order, existing_order):
-        """Create or update an pos.order from a given dictionary.
-
-        :param dict order: dictionary representing the order.
-        :param existing_order: order to be updated or False.
-        :type existing_order: pos.order.
-        :returns: id of created/updated pos.order
-        :rtype: int
-        """
         draft = order.get("state") == "draft"
         pos_session = self.env["pos.session"].browse(order["session_id"])
         if pos_session.state in {"closing_control", "closed"}:
@@ -96,16 +84,12 @@ class PosOrder(models.Model):
                     }
                 )
 
-        # The company always derives from the server-validated session, never
-        # from the client payload: a tampered company_id must not be able to
-        # redirect an order's journal entries into another company.
         order["company_id"] = pos_session.config_id.company_id.id
 
         if (
             self.env.context.get("current_order_uuid")
             and order["uuid"] == self.env.context["current_order_uuid"]
         ):
-            # Prioritize the server date for the order that is currently being processed
             order["date_order"] = fields.Datetime.now()
 
         pos_order = False
@@ -117,16 +101,6 @@ class PosOrder(models.Model):
                     **{
                         key: value
                         for key, value in order.items()
-                        # `access_token` is the SOLE credential for the public
-                        # /pos/ticket/validate route (auth="public"), which
-                        # redirects to the customer's portal invoice. It must be
-                        # minted server-side by _get_access_token (uuid4 over
-                        # os.urandom), never accepted from the client: the UI
-                        # generates it with Math.random (utils.js uuidv4), and
-                        # _get_access_token keeps any value already set, so a
-                        # client-supplied token was persisted verbatim and
-                        # silently downgraded the token's entropy. The update
-                        # path below already pops it; the create path did not.
                         if key not in ("name", "access_token")
                     },
                 }
@@ -135,15 +109,12 @@ class PosOrder(models.Model):
         else:
             pos_order = existing_order
 
-            # If the order is belonging to another session, it must be moved to the current session first
             if (
                 order.get("session_id")
                 and order["session_id"] != pos_order.session_id.id
             ):
                 pos_order.write({"session_id": order["session_id"]})
 
-            # Save lines and payments before to avoid exception if a line is deleted
-            # when vals change the state to 'paid'
             for field in ["lines", "payment_ids"]:
                 if order.get(field):
                     existing_ids = set(pos_order[field].ids)
@@ -158,9 +129,6 @@ class PosOrder(models.Model):
                             line[0] == Command.CREATE
                             and line_vals.get("uuid") in existing_line_ids
                         ):
-                            # If we try to create (line[0] == Command.CREATE) a line with a uuid that already
-                            # exists on another line of the same order, we transform the creation
-                            # into an update (line[0] = Command.UPDATE) of the existing line.
                             line[0] = Command.UPDATE
                             line[1] = existing_line_ids[line_vals.get("uuid")]
                     pos_order.write({field: order[field]})
@@ -177,7 +145,6 @@ class PosOrder(models.Model):
             del order["uuid"]
             order.pop("access_token", None)
             if order.get("state") == "paid":
-                # The "paid" state will be assigned later by `_process_saved_order`
                 order["state"] = pos_order.state
             pos_order.write(order)
 
@@ -234,20 +201,8 @@ class PosOrder(models.Model):
         return sum(self.payment_ids.mapped("amount"))
 
     def _process_payment_lines(self, order_vals, order, pos_session, draft):
-        """Settle an order's payments against the payload the client sent.
-
-        The two first parameters used to be named the other way round --
-        `pos_order` for the dict and `order` for the recordset -- which is the
-        opposite of every other method here and of the call site's own names.
-
-        :param dict order_vals: the client's representation of the order.
-        :param pos.order order: the order the payment lines belong to.
-        :param pos.session pos_session: session the order was created in.
-        :param bool draft: whether the order is not validated yet.
-        """
         prec_acc = order.currency_id.decimal_places
 
-        # Recompute amount paid because we don't trust the client
         order.write({"amount_paid": order._get_amount_paid()})
 
         if not draft and not float_is_zero(order_vals["amount_return"], prec_acc):
@@ -272,10 +227,6 @@ class PosOrder(models.Model):
             order._recompute_prices()
 
     def _prepare_tax_base_line_values(self):
-        """Convert pos order lines into dictionaries that would be used to compute taxes later.
-
-        :return: A list of python dictionaries (see '_prepare_base_line_for_taxes_computation' in account.tax).
-        """
         result = []
         for order in self:
             result.extend(order.lines._prepare_tax_base_line_values() or [])
@@ -283,7 +234,6 @@ class PosOrder(models.Model):
 
     @api.model
     def _get_invoice_lines_values(self, line_values, pos_line, move_type):
-        # correct quantity sign based on move type and if line is refund.
         is_refund_order = pos_line.order_id._is_refund_order()
         qty_sign = (
             -1
@@ -321,11 +271,6 @@ class PosOrder(models.Model):
         }
 
     def _prepare_aml_vals(self, move_type):
-        """Prepare a list of orm commands containing the dictionaries to fill the
-        'invoice_line_ids' field when creating an invoice.
-
-        :return: A list of Command.create to fill 'invoice_line_ids' when calling account.move.create.
-        """
         invoice_lines = []
         for order in self:
             line_values_list = order.with_context(
@@ -397,10 +342,6 @@ class PosOrder(models.Model):
         return invoice_lines
 
     def _get_pos_anglo_saxon_price_unit(self, product, partner_id, quantity):
-        # `partner_id` and `quantity` are unused here but belong to the override
-        # contract: pos_mrp explodes a phantom BoM and calls super() once per
-        # component with that component's own quantity.
-        # Returns 0 when nothing matches; callers must treat that as "unknown".
         moves = self.mapped("picking_ids.move_ids").filtered(
             lambda m: (
                 m.is_valued
@@ -430,12 +371,13 @@ class PosOrder(models.Model):
     amount_total = fields.Monetary(string="Total", readonly=True, required=True)
     amount_paid = fields.Monetary(string="Paid", required=True)
     amount_return = fields.Monetary(string="Returned", required=True, readonly=True)
-    margin = fields.Monetary(string="Margin", compute="_compute_margin")
+    margin = fields.Monetary(string="Margin", compute="_compute_margins", store=True)
     margin_percent = fields.Float(
-        string="Margin (%)", compute="_compute_margin", digits=(12, 4)
+        string="Margin (%)", compute="_compute_margins", digits=(12, 4), store=True
     )
     is_total_cost_computed = fields.Boolean(
         compute="_compute_is_total_cost_computed",
+        store=True,
         help="Allows to know if all the total cost of the order lines have already been computed",
     )
     lines = fields.One2many(
@@ -459,7 +401,7 @@ class PosOrder(models.Model):
     )
     config_id = fields.Many2one(
         "pos.config",
-        compute="_compute_order_config_id",
+        compute="_compute_config_id",
         string="Point of Sale",
         readonly=False,
         store=True,
@@ -500,8 +442,8 @@ class PosOrder(models.Model):
         index="btree_not_null",
     )
     picking_ids = fields.One2many("stock.picking", "pos_order_id")
-    picking_count = fields.Integer(compute="_compute_picking_count")
-    failed_pickings = fields.Boolean(compute="_compute_picking_count")
+    picking_count = fields.Count("picking_ids")
+    failed_pickings = fields.Boolean(compute="_compute_pickings")
     picking_type_id = fields.Many2one(
         "stock.picking.type",
         related="session_id.config_id.picking_type_id",
@@ -619,14 +561,6 @@ class PosOrder(models.Model):
         }
 
     def _keep_newest_preparation_change(self, vals):
-        """Let the newer of the stored and incoming preparation changes win.
-
-        Mutates `vals` in place, which is why this is single-record: it used to
-        loop over `self` while `return`-ing out of two branches, so on a
-        multi-record set every record after the first was skipped -- and even
-        without the early returns, one shared `vals` cannot carry a per-record
-        answer.
-        """
         self.ensure_one()
         if not self.last_order_preparation_change:
             return
@@ -663,7 +597,7 @@ class PosOrder(models.Model):
             )
 
     @api.depends("session_id")
-    def _compute_order_config_id(self):
+    def _compute_config_id(self):
         for order in self:
             if order.session_id:
                 order.config_id = order.session_id.config_id
@@ -675,9 +609,6 @@ class PosOrder(models.Model):
     )
     def _compute_refund_related_fields(self):
         for order in self:
-            # Cancelled refunds are voided: _compute_refund_qty already ignores
-            # them, so counting them here would offer a smart button opening a
-            # list of orders that never refunded anything.
             order.refund_orders_count = len(order._get_refund_orders())
             order.refunded_order_id = next(
                 iter(order.lines.refunded_orderline_id.order_id), False
@@ -685,7 +616,7 @@ class PosOrder(models.Model):
 
     @api.depends("lines.refunded_qty", "lines.qty")
     def _compute_has_refundable_lines(self):
-        digits = self.env["decimal.precision"].precision_get("Product Unit")
+        digits = self.env["decimal.precision"].get_precision("Product Unit")
         for order in self:
             order.has_refundable_lines = any(
                 float_compare(line.qty, line.refunded_qty, digits) > 0
@@ -698,9 +629,8 @@ class PosOrder(models.Model):
             order.is_invoiced = bool(order.account_move)
 
     @api.depends("picking_ids", "picking_ids.state")
-    def _compute_picking_count(self):
+    def _compute_pickings(self):
         for order in self:
-            order.picking_count = len(order.picking_ids)
             order.failed_pickings = bool(
                 order.picking_ids.filtered(lambda p: p.state != "done")
             )
@@ -731,10 +661,6 @@ class PosOrder(models.Model):
             )
 
     def _update_total_cost_in_real_time(self):
-        """Compute the order's total cost when processed by the server. Lines
-        whose margin can't yet be computed (session_id.update_stock_at_closing)
-        are skipped; their margin is computed when the session closes.
-        """
         for order in self:
             lines = order.lines
             if not order._should_create_picking_real_time():
@@ -746,10 +672,6 @@ class PosOrder(models.Model):
             lines._compute_total_cost(stock_moves)
 
     def _update_total_cost_at_session_closing(self, stock_moves):
-        """
-        Compute the margin at the end of the session. This method should be called to compute the remaining lines margin
-        containing a storable product with a fifo/avco cost method and then compute the order margin
-        """
         for order in self:
             storable_fifo_avco_lines = order.lines.filtered(
                 lambda l: l._is_product_storable_fifo_avco()
@@ -757,7 +679,7 @@ class PosOrder(models.Model):
             storable_fifo_avco_lines._compute_total_cost(stock_moves)
 
     @api.depends("lines.margin", "is_total_cost_computed")
-    def _compute_margin(self):
+    def _compute_margins(self):
         for order in self:
             sign = -1 if order.is_refund else 1
             if order.is_total_cost_computed:
@@ -842,20 +764,13 @@ class PosOrder(models.Model):
                 )
             if pos_order.state == "draft":
                 order_to_cancel |= pos_order
-        # Cancel orders before deletion to trigger notifications and keep the UI in sync
         if order_to_cancel:
             order_to_cancel.action_pos_order_cancel()
 
     @api.model_create_multi
     def create(self, vals_list):
-        # Never mutate the caller's dicts: `_complete_values_from_session`
-        # fills in the reference, the sequence number and the pricelist.
         vals_list = [dict(vals) for vals in vals_list]
         for vals in vals_list:
-            # An order belongs to a session; without one there is no config, no
-            # company and no currency to derive anything from. Say that,
-            # instead of raising KeyError out of a subscript. (The backend
-            # views are `create="0"`, so this is the RPC/import path.)
             if not vals.get("session_id"):
                 raise UserError(
                     _("A point of sale order must belong to a session.")
@@ -865,7 +780,6 @@ class PosOrder(models.Model):
         return super().create(vals_list)
 
     def _update_sequence_number(self, session, values):
-        # Some localization needs orders to have a sequence number
         values["sequence_number"] = (
             session.config_id.order_seq_id._next()
             .removeprefix(session.config_id.order_seq_id.prefix or "")
@@ -893,11 +807,7 @@ class PosOrder(models.Model):
         return values
 
     def write(self, vals):
-        vals = dict(vals)  # never mutate the caller's dict (name/mobile below)
-        # `name`, `mobile`, the has_deleted_line guard and the payment-change log
-        # are per-order, so a multi-record write through the shared `vals` would
-        # give every record the last order's value. Route those per record; plain
-        # bulk writes stay a single query.
+        vals = dict(vals)
         if len(self) > 1 and (
             vals.get("mobile")
             or vals.get("payment_ids")
@@ -909,10 +819,6 @@ class PosOrder(models.Model):
         ):
             return all(order.write(dict(vals)) for order in self)
         for order in self:
-            # A printed receipt is a document the customer already holds, so
-            # its payments are settled. Refuse BEFORE writing: the guard used
-            # to run after `super().write()` and rely on the transaction
-            # rollback to undo what it had just decided was not allowed.
             if order.nb_print > 0 and any(
                 command[0] in (Command.CREATE, Command.UPDATE)
                 and command[2].get("payment_status")
@@ -1097,7 +1003,7 @@ class PosOrder(models.Model):
 
     def action_stock_picking(self):
         self.ensure_one()
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "stock.action_picking_tree_ready"
         )
         action["display_name"] = _("Pickings")
@@ -1137,7 +1043,6 @@ class PosOrder(models.Model):
             "context": {"dialog_size": "medium"},
         }
 
-    # the refunded order is the order from which the items were refunded in this order
     def action_view_refunded_order(self):
         return {
             "name": _("Refunded Order"),
@@ -1148,7 +1053,6 @@ class PosOrder(models.Model):
             "res_id": self.refunded_order_id.id,
         }
 
-    # the refund orders are the orders where the items from this order were refunded
     def action_view_refund_orders(self):
         return {
             "name": _("Refund Orders"),
@@ -1159,15 +1063,12 @@ class PosOrder(models.Model):
         }
 
     def _get_refund_orders(self):
-        """Refund orders of `self`, excluding cancelled ones."""
         return self.mapped("lines.refund_orderline_ids.order_id").filtered(
             lambda o: o.state != "cancel"
         )
 
     def _is_pos_order_paid(self):
         amount_total = self.amount_total
-        # If we are checking if a refund was paid and if it was a total refund, we take into account the amount paid on
-        # the original order. For a pertial refund, we take into account the value of the items returned.
         if float_is_zero(
             self.refunded_order_id.amount_total + amount_total,
             precision_rounding=self.currency_id.rounding,
@@ -1179,16 +1080,10 @@ class PosOrder(models.Model):
         )
 
     def _is_refund_order(self):
-        """Whether the order counts as a refund for sign/qty purposes: created
-        through the refund flow (``is_refund``) or with a negative net total.
-
-        Single source of truth for that rule — do not re-spell it inline.
-        """
         self.ensure_one()
         return self.is_refund or self.amount_total < 0.0
 
     def _get_rounded_amount(self, amount, force_round=False):
-        # TODO: add support for mix of cash and non-cash payments when both cash_rounding and only_round_cash_method are True
         if self.config_id.cash_rounding and (
             force_round
             or (
@@ -1211,11 +1106,9 @@ class PosOrder(models.Model):
         def _first_allowed(bank_ids):
             return bank_ids.filtered(lambda b: b.allow_out_payment)[:1]
 
-        # Case 1: refund / negative amount → customer bank
         if amount_total <= 0 and self.partner_id.bank_ids:
             partner_bank_id = _first_allowed(self.partner_id.bank_ids)
 
-        # Case 2: positive amount → payment journal bank
         elif amount_total >= 0 and self.payment_ids:
             journal_bank = self.payment_ids[
                 0
@@ -1223,7 +1116,6 @@ class PosOrder(models.Model):
             if journal_bank and journal_bank.allow_out_payment:
                 partner_bank_id = journal_bank
 
-        # Case 3: fallback → company bank
         if (
             not partner_bank_id
             and amount_total >= 0
@@ -1318,7 +1210,6 @@ class PosOrder(models.Model):
     def action_pos_order_paid(self):
         self.ensure_one()
 
-        # TODO: add support for mix of cash and non-cash payments when both cash_rounding and only_round_cash_method are True
         if not self.config_id.cash_rounding or (
             self.config_id.only_round_cash_method
             and not any(p.payment_method_id.is_cash_count for p in self.payment_ids)
@@ -1353,9 +1244,6 @@ class PosOrder(models.Model):
         return True
 
     def _prepare_invoice_vals(self):
-        """We have orders filtered by company > config > partners > fiscal_positions so it won't make any issue
-        when we access user, partner, bank or similar directly.
-        """
         timezone = self.env.tz
         invoice_date = fields.Datetime.now()
         is_single_order = len(self) == 1
@@ -1450,9 +1338,6 @@ class PosOrder(models.Model):
 
     def _prepare_aml_values_list_per_nature(self):
         AccountTax = self.env["account.tax"]
-        # Single source of truth for refund detection (see `_is_refund_order`):
-        # an `is_refund` order whose net total is >= 0 must still be signed as a
-        # refund, matching the `move_type`/quantity signing used everywhere else.
         sign = 1 if self._is_refund_order() else -1
         commercial_partner = self.partner_id.commercial_partner_id
         company_currency = self.company_id.currency_id
@@ -1460,7 +1345,6 @@ class PosOrder(models.Model):
             self.currency_id, company_currency, self.company_id, self.date_order
         )
 
-        # Concert each order line to a dictionary containing business values. Also, prepare for taxes computation.
         base_lines = self._prepare_tax_base_line_values()
         AccountTax._add_tax_details_in_base_lines(base_lines, self.company_id)
         AccountTax._round_base_lines_tax_details(base_lines, self.company_id)
@@ -1471,8 +1355,6 @@ class PosOrder(models.Model):
 
         aml_vals_list_per_nature = defaultdict(list)
 
-        # Tax and product (sales) lines, accumulating the order's running
-        # currency total which the cash-rounding step then rounds.
         total_amount_currency = self._add_tax_aml_vals(
             aml_vals_list_per_nature, tax_results
         )
@@ -1488,18 +1370,12 @@ class PosOrder(models.Model):
             company_currency,
         )
 
-        # Stock valuation and receivable/payment-term lines are self-contained
-        # natures (no coupling to the running totals above); build them in
-        # dedicated helpers to keep this orchestrator readable.
         self._add_stock_aml_vals(aml_vals_list_per_nature, commercial_partner)
         self._add_payment_term_aml_vals(aml_vals_list_per_nature, commercial_partner)
 
         return aml_vals_list_per_nature
 
     def _add_tax_aml_vals(self, aml_vals_list_per_nature, tax_results):
-        """Append the tax lines, returning their contribution to the order's
-        running amount_currency total. Extracted from
-        ``_prepare_aml_values_list_per_nature``."""
         total_amount_currency = 0.0
         for tax_line in tax_results["tax_lines_to_add"]:
             aml_vals_list_per_nature["tax"].append(
@@ -1512,9 +1388,6 @@ class PosOrder(models.Model):
         return total_amount_currency
 
     def _add_product_aml_vals(self, aml_vals_list_per_nature, tax_results, rate, sign):
-        """Append the product (sales) lines, returning their contribution to the
-        order's running amount_currency total. Extracted from
-        ``_prepare_aml_values_list_per_nature``."""
         total_amount_currency = 0.0
         for base_line_vals, update_base_line_vals in tax_results[
             "base_lines_to_update"
@@ -1535,11 +1408,6 @@ class PosOrder(models.Model):
         commercial_partner,
         company_currency,
     ):
-        """Apply the configured cash-rounding difference. For ``add_invoice_line``
-        a dedicated rounding line is appended; for ``biggest_tax`` the difference
-        is folded into the largest existing tax line in place (POS forbids
-        biggest_tax via pos.config._check_rounding_method_strategy, so that branch
-        is currently unreachable for POS orders)."""
         cash_rounding = self.config_id.rounding_method
         if (
             self.config_id.cash_rounding
@@ -1552,8 +1420,6 @@ class PosOrder(models.Model):
             if self.config_id.only_round_cash_method and any(
                 not p.payment_method_id.is_cash_count for p in self.payment_ids
             ):
-                # If only_round_cash_method is True, and there are non-cash payments, cash rounding must be computed
-                # based on the total amount of the order, and total payment amount.
                 total_payment_amount = self.currency_id.round(
                     sum(p.amount for p in self.payment_ids)
                 )
@@ -1601,10 +1467,6 @@ class PosOrder(models.Model):
                     )
 
     def _add_stock_aml_vals(self, aml_vals_list_per_nature, commercial_partner):
-        """Append real-time stock-valuation lines (expense + counterpart) for
-        each valued stock move of this order's pickings. Mutates the passed
-        per-nature dict. Extracted verbatim from
-        ``_prepare_aml_values_list_per_nature``."""
         if self.picking_ids.ids:
             stock_moves = (
                 self.env["stock.move"]
@@ -1643,11 +1505,6 @@ class PosOrder(models.Model):
                 )
 
     def _add_payment_term_aml_vals(self, aml_vals_list_per_nature, commercial_partner):
-        """Append (or aggregate into) the receivable/payment-term lines, one per
-        payment. Combine (non-split) payments to the same receivable account are
-        merged into a single partner-less line; split payments book against the
-        customer's own receivable with the partner set. Mutates the passed
-        per-nature dict."""
         for payment_id in self.payment_ids:
             is_split_transaction = payment_id.payment_method_id.split_transactions
             if is_split_transaction:
@@ -1667,11 +1524,6 @@ class PosOrder(models.Model):
                 and not aml_entry["partner_id"]
             ]
 
-            # `amount_currency` is in the order currency, `balance` in the company
-            # currency. Bind both once so the aggregate and append branches below
-            # cannot assign them to opposite keys (they used to, which produced an
-            # unbalanced move on any config whose currency differs from the
-            # company's -- invisible when the two currencies match).
             amount_currency = payment_id.amount
             balance = self.session_id._amount_converter(
                 payment_id.amount, self.date_order, False
@@ -1696,10 +1548,6 @@ class PosOrder(models.Model):
                 )
 
     def _create_misc_reversal_move(self, payment_moves):
-        """Create a misc move to reverse POS orders and "remove" it from the POS closing entry.
-        This is done by taking data from the orders and using it to somewhat replicate the resulting entry in orders to
-        reverse partially the movements done in the POS closing entry.
-        """
         self.ensure_one()
         aml_values_list_per_nature = self._prepare_aml_values_list_per_nature()
         move_lines = []
@@ -1709,7 +1557,6 @@ class PosOrder(models.Model):
                 aml_values["amount_currency"] = -aml_values["amount_currency"]
                 move_lines.append(aml_values)
 
-        # Make a move with all the lines.
         reversal_entry = (
             self.env["account.move"]
             .with_context(
@@ -1792,14 +1639,6 @@ class PosOrder(models.Model):
         return self.payment_ids.sudo().with_company(self.company_id)
 
     def _generate_pos_order_invoice(self):
-        # Only a paid (or already posted) order may be invoiced. Without this the
-        # `state = "done"` below happily promotes a cancelled or unpaid draft order
-        # into a posted customer invoice: revenue and output VAT are recognised for
-        # an order that was voided or never paid, and nothing ever reverses it
-        # (cancelled orders are excluded from the session closing entry). The form
-        # view hides the button for those states and `pos.make.invoice` filters them
-        # out, but the RPC entry point (`action_pos_order_invoice`) and the public
-        # `/pos/ticket/validate` route both reach this method directly.
         if invalid_orders := self.filtered(lambda o: o.state not in ("paid", "done")):
             raise UserError(
                 _(
@@ -1821,17 +1660,7 @@ class PosOrder(models.Model):
             **self._get_invoice_post_context()
         )._post()
 
-        # invoice payments
         payment_moves_from_closed_sessions = {}
-        # Elevated, and it has to start that way: `_create_payment_moves` builds
-        # these under the `sudo()` of `_get_payments`, but `|=` keeps the LEFT
-        # operand's environment, so seeding the accumulator from `self.env`
-        # quietly demoted every move back to the cashier's rights. They then
-        # reached `_reconcile_invoice_payments`, which reads `pos_payment_ids`
-        # off them -- and a payment move carries no `pos_order_ids`, so
-        # `rule_invoice_pos_user` hides it and a cashier could not invoice at
-        # all. It only surfaced with a cold cache (over HTTP): freshly created
-        # moves answer the read from cache, and no cache read consults a rule.
         all_payment_moves = self.env["account.move"].sudo()
         for session, orders in self.grouped("session_id").items():
             is_session_closed = session.state == "closed"
@@ -1844,7 +1673,6 @@ class PosOrder(models.Model):
 
         self._reconcile_invoice_payments(invoice, all_payment_moves)
 
-        # reverse payment moves from closed sessions
         for order, payment_moves in payment_moves_from_closed_sessions.items():
             order._create_misc_reversal_move(payment_moves)
 
@@ -1854,15 +1682,6 @@ class PosOrder(models.Model):
         return invoice
 
     def _reconcile_invoice_payments(self, invoice, payment_moves):
-        """Settle the order's payment moves against its invoice.
-
-        Elevated throughout, not just at the `reconcile()` call: the whole body
-        walks accounting records the cashier has no rights on -- the payment
-        moves and their `pos.payment` lines are system plumbing, and the
-        reconciliation is a consequence of validating the order, not an edit
-        the user is making. Sudoing only the last step meant the reads leading
-        to it raised first.
-        """
         receivable_account = (
             self.env["res.partner"]
             ._find_accounting_partner(invoice.partner_id)
@@ -1917,18 +1736,9 @@ class PosOrder(models.Model):
 
     @api.model
     def sync_from_ui(self, orders):
-        """Create and update orders from the frontend PoS application.
-
-        Creates new orders and updates draft ones; an existing non-draft order is
-        discarded. Orders saved as 'draft' can be overwritten by a later call.
-
-        :param dict orders: the orders to create.
-        :returns: list of db-ids for the created and updated orders.
-        :rtype: list
-        """
         sync_token = randrange(
             100_000_000
-        )  # Use to differentiate 2 parallels calls to this function in the logs
+        )
         _logger.info(
             "PoS synchronisation #%d started for PoS orders references: %s",
             sync_token,
@@ -1972,8 +1782,6 @@ class PosOrder(models.Model):
                     order_ids[-1],
                 )
             else:
-                # In theory, this situation is unintended
-                # In practice it can happen when "Tip later" option is used
                 existing_order._keep_newest_preparation_change(order)
                 order_ids.append(existing_order.id)
                 _logger.info(
@@ -1984,7 +1792,6 @@ class PosOrder(models.Model):
                     existing_order.state,
                 )
 
-        # Sometime pos_orders_ids can be empty.
         pos_order_ids = self.env["pos.order"].browse(order_ids)
         config = pos_order_ids.config_id[0] if pos_order_ids else False
 
@@ -2009,8 +1816,6 @@ class PosOrder(models.Model):
     def read_pos_data_uuid(self, uuid):
         return self.read_pos_orders([("uuid", "=", uuid)])
 
-    # The models `read_pos_data` returns, in the client's load order. Every one
-    # of them is scoped to `self`, so an empty payload is the same shape.
     _READ_POS_DATA_MODELS = (
         "pos.order",
         "pos.session",
@@ -2022,12 +1827,7 @@ class PosOrder(models.Model):
     )
 
     def read_pos_data(self, data, config):
-        # If the previous session is closed, the order will get a new session_id due to _get_valid_session in _process_order
-        # Without a config there is nothing to read against: return the shape
-        # once instead of repeating `if config else []` for every model.
         if not config:
-            # A fresh list per key: `dict.fromkeys(..., [])` would hand every
-            # model the same one for the caller to append to.
             return {model: [] for model in self._READ_POS_DATA_MODELS}
         sudo_self = self.sudo()
         account_moves = (
@@ -2092,14 +1892,6 @@ class PosOrder(models.Model):
             else:
                 destination_id = picking_type.default_location_dest_id.id
 
-            # sudo, like the shipping-date branch above: delivering an order is
-            # a validated business flow, not an ad-hoc user write. `group_pos_user`
-            # does not imply `stock.group_stock_user` (only `group_pos_manager`
-            # does), and this fork tightened `stock.move.line` for
-            # `base.group_user` to read-only, so without this a plain cashier
-            # hits AccessError on every order that creates a real-time picking —
-            # i.e. whenever the company updates stock in real time, or for any
-            # invoiced order under anglo-saxon accounting.
             pickings = (
                 self.env["stock.picking"]
                 .sudo()
@@ -2107,8 +1899,6 @@ class PosOrder(models.Model):
                     destination_id, self.lines, picking_type, self.partner_id
                 )
             )
-            # Backorders carry the rest of an under-delivered order; leaving them
-            # unlinked orphaned them from the session and order they belong to.
             (pickings | pickings.backorder_ids).write(
                 {
                     "pos_session_id": self.session_id.id,
@@ -2118,7 +1908,6 @@ class PosOrder(models.Model):
             )
 
     def add_payment(self, data):
-        """Create a new payment for the order"""
         self.ensure_one()
         self.env["pos.payment"].create(data)
         self.amount_paid = self._get_amount_paid()
@@ -2166,14 +1955,8 @@ class PosOrder(models.Model):
         }
 
     def _refund(self):
-        """Create a copy of order to refund them.
-
-        return The newly created refund orders.
-        """
         refund_orders = self.env["pos.order"]
         for order in self:
-            # When a refund is performed, we are creating it in a session having the same config as the original
-            # order. It can be the same session, or if it has been closed the new one that has been opened.
             current_session = order.session_id.config_id.current_session_id
             if not current_session:
                 raise UserError(
@@ -2292,44 +2075,14 @@ class PosOrder(models.Model):
 
     @api.model
     def remove_from_ui(self, server_ids):
-        """Remove orders from the frontend PoS application
-
-        Remove orders from the server by id.
-        :param server_ids: list of the id's of orders to remove from the server.
-        :type server_ids: list.
-        :returns: list -- list of db-ids for the removed orders.
-        """
         orders = self.search([("id", "in", server_ids), ("state", "=", "draft")])
         orders.write({"state": "cancel"})
-        # TODO Looks like delete cascade is a better solution.
         orders.mapped("payment_ids").sudo().unlink()
         orders.sudo().unlink()
         return orders.ids
 
     @api.model
     def search_paid_order_ids(self, config_id, domain, limit, offset):
-        """One page of settled orders for the ticket screen.
-
-        Returns ``ordersInfo``, an (id, last-modified) pair per order **in page
-        order**, and ``totalCount`` for the pager. The client renders exactly
-        the ids in ``ordersInfo`` (``syncedPageOrderIds``) and shows
-        ``totalCount`` beside them, so the two have to describe the same set:
-
-        - The pairs are built from the orders themselves, not from their lines.
-          Building them from `pos.order.line` dropped every order that has no
-          line -- counted by the pager, absent from the list it labels.
-        - No post-filtering after `search()`. `limit`/`offset` are applied by
-          the query, so removing rows afterwards silently shortens a page while
-          matching rows remain. (The currency filter that used to sit here was
-          also unreachable: `pos.config._check_trusted_config_ids_currency`
-          already forbids a trusted config with another currency.)
-        - The order is the query's, `create_date desc`, rather than whatever
-          order the lines happened to come back in.
-
-        The stamp is the latest write among the order, its own lines, and any
-        line that refunded one of them: a refund edits the refunded line, and
-        the client uses this to decide what to refetch.
-        """
         pos_config = self.env["pos.config"].browse(config_id)
         real_domain = Domain(domain) & (
             Domain("state", "not in", ("draft", "cancel"))
@@ -2347,8 +2100,6 @@ class PosOrder(models.Model):
             ]
         )
         for orderline in orderlines:
-            # A line can be on this page through either end of a refund, and
-            # both ends may be on it: stamp whichever of them is.
             for order_id in (
                 orderline.order_id.id,
                 orderline.refunded_orderline_id.order_id.id,
@@ -2364,7 +2115,6 @@ class PosOrder(models.Model):
         }
 
     def _send_order(self):
-        # This function is made to be overriden by pos_self_order_preparation_display
         pass
 
     def _prepare_pos_log(self, body):
@@ -2415,12 +2165,18 @@ class PosOrderLine(models.Model):
         string="Price Type",
         default="original",
     )
-    margin = fields.Monetary(string="Margin", compute="_compute_margin")
+    margin = fields.Monetary(string="Margin", compute="_compute_margins", store=True)
     margin_percent = fields.Float(
-        string="Margin (%)", compute="_compute_margin", digits=(12, 4)
+        string="Margin (%)", compute="_compute_margins", digits=(12, 4), store=True
     )
     total_cost = fields.Float(
         string="Total cost", min_display_digits="Product Price", readonly=True
+    )
+    price_cost = fields.Float(
+        string="Cost",
+        readonly=True,
+        help="Unit cost behind `total_cost`, which stores `qty * cost` converted "
+        "to the line currency. Reporting needs the two separately.",
     )
     is_total_cost_computed = fields.Boolean(
         help="Allows to know if the total cost has already been computed or not"
@@ -2432,7 +2188,7 @@ class PosOrderLine(models.Model):
     tax_ids = fields.Many2many("account.tax", string="Taxes", readonly=True)
     tax_ids_after_fiscal_position = fields.Many2many(
         "account.tax",
-        compute="_get_tax_ids_after_fiscal_position",
+        compute="_compute_tax_ids_after_fiscal_position",
         string="Taxes to Apply",
     )
     pack_lot_ids = fields.One2many(
@@ -2458,7 +2214,7 @@ class PosOrderLine(models.Model):
     )
     refunded_qty = fields.Float(
         "Refunded Quantity",
-        compute="_compute_refund_qty",
+        compute="_compute_refunded_qty",
         help="Number of items refunded in this orderline.",
     )
     uuid = fields.Char(
@@ -2468,14 +2224,13 @@ class PosOrderLine(models.Model):
 
     combo_parent_id = fields.Many2one(
         "pos.order.line", string="Combo Parent", index="btree_not_null"
-    )  # FIXME rename to parent_line_id
+    )
     combo_line_ids = fields.One2many(
         "pos.order.line", "combo_parent_id", string="Combo Lines"
-    )  # FIXME rename to child_line_ids
+    )
 
     combo_item_id = fields.Many2one("product.combo.item", string="Combo Item")
     is_edited = fields.Boolean("Edited", default=False)
-    # Technical field holding custom data for the taxes computation engine.
     extra_tax_data = fields.Json()
 
     _unique_uuid = models.Constraint(
@@ -2531,7 +2286,7 @@ class PosOrderLine(models.Model):
         "refund_orderline_ids.qty",
         "refund_orderline_ids.order_id.state",
     )
-    def _compute_refund_qty(self):
+    def _compute_refunded_qty(self):
         for orderline in self:
             refund_order_line = orderline.refund_orderline_ids.filtered(
                 lambda l: l.order_id.state != "cancel"
@@ -2539,13 +2294,6 @@ class PosOrderLine(models.Model):
             orderline.refunded_qty = -sum(refund_order_line.mapped("qty"))
 
     def _prepare_refund_data(self, refund_order, PosPackOperationLot):
-        """Prepare the values for a refund order line. Override to inject more.
-
-        :param pos.order refund_order: the pre-created refund order
-        :param pos.pack.operation.lot PosPackOperationLot: the pre-created pack operation lot
-        :returns: values for creating a refund line from this line
-        :rtype: dict
-        """
         self.ensure_one()
         return {
             "name": _("%(name)s REFUND", name=self.name),
@@ -2565,11 +2313,6 @@ class PosOrderLine(models.Model):
             order = self.env["pos.order"].browse(vals.get("order_id")).exists()
             sequence = order.session_id.config_id.order_line_seq_id
             if not sequence:
-                # There is no second counter to fall back on. This used to try
-                # `next_by_code("pos.order.line")`, a code no sequence carried,
-                # so the fallback returned False for a required Char and the
-                # insert died on a NOT NULL violation with nothing naming the
-                # cause. Say what is actually missing.
                 raise UserError(
                     _(
                         "The point of sale %(config)s has no order-line"
@@ -2584,14 +2327,8 @@ class PosOrderLine(models.Model):
     def write(self, vals):
         new_qty = vals.get("qty")
         if new_qty is not None:
-            # Per record: the comparison and the log body both read the line's
-            # own qty and name, so evaluating them once against a multi-record
-            # `self` raises ValueError and would mislabel every line but one.
-            # Same fix already applied in PosOrder.write.
-            digits = self.env["decimal.precision"].precision_get("Product Unit")
+            digits = self.env["decimal.precision"].get_precision("Product Unit")
             edited = self.browse()
-            # One chatter message per order, not per line: a ten-line edit used
-            # to post ten separate messages (and ten mixin.mail.thread writes).
             bodies_per_order = defaultdict(list)
             for line in self:
                 if not line.order_id.config_id.order_edit_tracking:
@@ -2617,10 +2354,6 @@ class PosOrderLine(models.Model):
 
     @api.model
     def get_existing_lots(self, company_id, config_id, product_id):
-        """
-        Return the lots that are still available in the given company.
-        The lot is available if its quantity in the corresponding stock_quant and pos stock location is > 0.
-        """
         self.check_access("read")
         pos_config = self.env["pos.config"].browse(config_id)
         if not pos_config:
@@ -2724,7 +2457,7 @@ class PosOrderLine(models.Model):
                 self.price_subtotal_incl = taxes["total_included"]
 
     @api.depends("order_id", "order_id.fiscal_position_id", "tax_ids")
-    def _get_tax_ids_after_fiscal_position(self):
+    def _compute_tax_ids_after_fiscal_position(self):
         for line in self:
             line.tax_ids_after_fiscal_position = (
                 line.order_id.fiscal_position_id.map_tax(line.tax_ids)
@@ -2737,16 +2470,8 @@ class PosOrderLine(models.Model):
         }
 
     def _prepare_procurement_vals(self):
-        """Prepare specific key for moves or other components that will be created from a stock rule
-        coming from a sale order line. This method could be override in order to add other custom key that could
-        be used in move/po creation.
-        """
         self.ensure_one()
-        # Use the delivery date if there is else use date_order and lead time
         if self.order_id.shipping_date:
-            # get timezone from user
-            # and convert to UTC to avoid any timezone issue
-            # because shipping_date is date and date_planned is datetime
             from_zone = self.env.tz
             shipping_date = fields.Datetime.to_datetime(self.order_id.shipping_date)
             shipping_date = shipping_date.replace(tzinfo=from_zone)
@@ -2775,8 +2500,6 @@ class PosOrderLine(models.Model):
 
             reference_ids = line.order_id.stock_reference_ids
             if not reference_ids:
-                # References are system-managed plumbing: PoS users have no
-                # create rights on stock.reference.
                 reference_ids = (
                     self.env["stock.reference"]
                     .sudo()
@@ -2803,12 +2526,10 @@ class PosOrderLine(models.Model):
         if procurements:
             self.env["stock.rule"].run(procurements)
 
-        # This next block is currently needed only because the scheduler trigger is done by picking confirmation rather than stock.move confirmation
         orders = self.mapped("order_id")
         for order in orders:
             pickings_to_confirm = order.picking_ids
             if pickings_to_confirm:
-                # Trigger the Scheduler for Pickings
                 tracked_lines = order.lines.filtered(
                     lambda l: l.product_id.tracking != "none"
                 )
@@ -2839,10 +2560,6 @@ class PosOrderLine(models.Model):
         return moves._get_price_unit()
 
     def _compute_total_cost(self, stock_moves):
-        """
-        Compute the total cost of the order lines.
-        :param stock_moves: recordset of `stock.move`, used for fifo/avco lines
-        """
         for line in self.filtered(lambda l: not l.is_total_cost_computed):
             product = line.product_id
             cost_currency = product.sudo().cost_currency_id
@@ -2855,9 +2572,6 @@ class PosOrderLine(models.Model):
                 product_cost = line._get_product_cost_with_moves(moves)
                 if cost_currency.is_zero(product_cost) and line.order_id.shipping_date:
                     refunded = line.refunded_orderline_id
-                    # `qty` carries no non-zero constraint, and a zero-quantity
-                    # line is a legal (if odd) thing to refund. Fall back to the
-                    # product's own cost rather than dividing by it.
                     if refunded and refunded.qty:
                         product_cost = refunded.total_cost / refunded.qty
                     else:
@@ -2871,6 +2585,7 @@ class PosOrderLine(models.Model):
                 date=line.order_id.date_order or fields.Date.today(),
                 round=False,
             )
+            line.price_cost = product_cost
             line.is_total_cost_computed = True
 
     def _get_stock_moves_to_consider(self, stock_moves, product):
@@ -2878,7 +2593,7 @@ class PosOrderLine(models.Model):
         return stock_moves.filtered(lambda ml: ml.product_id.id == product.id)
 
     @api.depends("price_subtotal", "total_cost")
-    def _compute_margin(self):
+    def _compute_margins(self):
         for line in self:
             sign = -1 if line.order_id.is_refund else 1
             if line.product_id.type == "combo":
@@ -2947,16 +2662,9 @@ class PosOrderLine(models.Model):
         }
 
     def _prepare_tax_base_line_values(self):
-        """Convert pos order lines into dictionaries that would be used to compute taxes later.
-
-        :return: A list of python dictionaries (see '_prepare_base_line_for_taxes_computation' in account.tax).
-        """
         return [line._prepare_base_line_for_taxes_computation() for line in self]
 
     def unlink(self):
-        # One flag write and one chatter message per order, not per line:
-        # deleting a ten-line order used to post ten messages and write
-        # `has_deleted_line` ten times.
         bodies_per_order = defaultdict(list)
         for line in self:
             if line.order_id.config_id.order_edit_tracking:

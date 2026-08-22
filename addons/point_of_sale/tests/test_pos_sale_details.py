@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from datetime import timedelta
 
 import odoo
@@ -10,7 +9,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPosSaleDetails(TestPoSCommon):
-    """Regression tests for the Sales Details report and pos.category guards."""
 
     def setUp(self):
         super().setUp()
@@ -50,8 +48,6 @@ class TestPosSaleDetails(TestPoSCommon):
         )
 
     def test_closing_difference_found_in_translated_database(self):
-        """The closing-difference move is looked up through the same translated
-        helper that wrote it, so it is still found in a non-English database."""
         self.env["res.lang"]._activate_lang("fr_FR")
         product = self.create_product("Product A", self.categ_basic, 100)
 
@@ -60,7 +56,6 @@ class TestPosSaleDetails(TestPoSCommon):
         order = self._create_order(session, product, 100)
         self.make_payment(order, self.bank_split_pm1, 100)
 
-        # Close in French: this is what writes the move `ref`.
         session.with_context(lang="fr_FR").action_pos_session_closing_control(
             bank_payment_method_diffs={self.bank_split_pm1.id: -20}
         )
@@ -86,15 +81,12 @@ class TestPosSaleDetails(TestPoSCommon):
         self.assertEqual(row["money_difference"], -20)
 
     def test_cash_difference_line_excluded_not_oldest_move(self):
-        """The counting difference is dropped from the cash movement list, and
-        the genuine movements are all kept."""
         cash_journal = self.cash_pm1.journal_id
         cash_journal.loss_account_id = self.company_data["default_account_expense"]
         cash_journal.profit_account_id = self.company_data["default_account_revenue"]
         self.config.cash_control = True
         product = self.create_product("Product A", self.categ_basic, 100)
 
-        # First session: leave a 200 float behind for the next one.
         self.config.open_ui()
         session1 = self.config.current_session_id
         session1.set_opening_control(0, None)
@@ -102,9 +94,6 @@ class TestPosSaleDetails(TestPoSCommon):
         session1.post_closing_cash_details(200)
         session1.close_session_from_ui()
 
-        # Second session: bank-only sales, one genuine cash out and a -8 loss at
-        # counting time. No cash payment, so the report takes its synthetic-cash
-        # branch, which is the one that used to drop a move by position.
         self.config.open_ui()
         session2 = self.config.current_session_id
         session2.set_opening_control(200, None)
@@ -128,8 +117,6 @@ class TestPosSaleDetails(TestPoSCommon):
         )
 
     def test_open_session_included_in_date_window(self):
-        """A session that is still open contributes orders, so it must also
-        contribute its payment breakdown."""
         product = self.create_product("Product A", self.categ_basic, 100)
         self.config.open_ui()
         session = self.config.current_session_id
@@ -150,8 +137,6 @@ class TestPosSaleDetails(TestPoSCommon):
         )
 
     def test_straddling_session_included_in_date_window(self):
-        """A session opened before the window but closed inside it also
-        contributes orders and must not be filtered out."""
         product = self.create_product("Product A", self.categ_basic, 100)
         self.config.open_ui()
         session = self.config.current_session_id
@@ -162,7 +147,6 @@ class TestPosSaleDetails(TestPoSCommon):
 
         now = fields.Datetime.now()
         window_start = now - timedelta(hours=1)
-        # Backdate the opening so the session straddles the window start.
         session.sudo().start_at = window_start - timedelta(hours=10)
 
         report = self.report.get_sale_details(
@@ -184,7 +168,6 @@ class TestPosCategoryGuards(TestPoSCommon):
         self.config = self.basic_config
 
     def test_check_hour_rejects_window_that_never_opens(self):
-        """0.0 is midnight, a legal value, so it must not disable the check."""
         category = self.env["pos.category"].create({"name": "Snacks"})
 
         with self.assertRaises(ValidationError):
@@ -195,11 +178,9 @@ class TestPosCategoryGuards(TestPoSCommon):
                 {"name": "Drinks", "hour_after": 10.0, "hour_until": 0.0}
             )
 
-        # Out-of-range values are still refused, including 0-adjacent ones.
         with self.assertRaises(ValidationError):
             category.write({"hour_until": 25.0})
 
-        # A legal all-day window is still accepted.
         category.write({"hour_after": 0.0, "hour_until": 24.0})
         self.assertEqual(category.hour_until, 24.0)
 
@@ -236,6 +217,5 @@ class TestPosCategoryGuards(TestPoSCommon):
         self.config.open_ui()
         other_company = self.setup_other_company()["company"]
 
-        # Seen from a company that has no open session, the deletion is fine.
         category.with_context(allowed_company_ids=other_company.ids).unlink()
         self.assertFalse(category.exists())

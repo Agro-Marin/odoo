@@ -9,7 +9,7 @@ class SaleOrder(models.Model):
     _inherit = ['sale.order', 'mixin.pos.load']
 
     pos_order_line_ids = fields.One2many('pos.order.line', 'sale_order_origin_id', string="Order lines Transferred to Point of Sale", readonly=True, groups="point_of_sale.group_pos_user")
-    pos_order_count = fields.Integer(string='Pos Order Count', compute='_count_pos_order', readonly=True, groups="point_of_sale.group_pos_user")
+    pos_order_count = fields.Integer(string='Pos Order Count', compute='_compute_pos_order_count', readonly=True, groups="point_of_sale.group_pos_user")
     amount_unpaid = fields.Monetary(
         string="Amount To Pay In POS",
         help="Amount left to pay in POS to avoid double payment or double invoicing.",
@@ -48,7 +48,7 @@ class SaleOrder(models.Model):
             **product_tmpls,
         }
 
-    def _count_pos_order(self):
+    def _compute_pos_order_count(self):
         for order in self:
             linked_orders = order.pos_order_line_ids.mapped('order_id')
             order.pos_order_count = len(linked_orders)

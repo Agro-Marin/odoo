@@ -15,11 +15,8 @@ _logger = logging.getLogger(__name__)
 
 
 def archive_products(env):
-    # Archive all existing product to avoid noise during the tours
     all_pos_product = env["product.template"].search([("available_in_pos", "=", True)])
     tip = env.ref("point_of_sale.product_product_tip").product_tmpl_id
-    # NB: use write() (not the removed low-level _write) to archive. The POS archive
-    # guard lives in action_archive(), not write(), so this bypasses it as intended.
     (all_pos_product - tip).write({"active": False})
 
 
@@ -439,7 +436,6 @@ class CommonPosTest(ValuationReconciliationTestCommon):
             }
         )
 
-        # Re-trigger prices computation
         order.lines._onchange_amount_line_all()
         order._recompute_prices()
 
@@ -490,12 +486,6 @@ class CommonPosTest(ValuationReconciliationTestCommon):
 
 
 class TestPoSCommon(ValuationReconciliationTestCommon):
-    """Set common values for different special test cases.
-
-    The idea is to set up common values here for the tests
-    and implement different special scenarios by inheriting
-    this class.
-    """
 
     @classmethod
     def setUpClass(cls):
@@ -514,7 +504,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
             }
         )
 
-        # Set basic defaults
         cls.account_tax_return_journal = cls.company_data["default_tax_return_journal"]
         cls.sales_account = cls.company_data["default_account_revenue"]
         cls.invoice_journal = cls.company_data["default_journal_sale"]
@@ -558,10 +547,7 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
             }
         )
 
-        # company_currency can be different from `base.USD` depending on the localization installed
         cls.company_currency = cls.company.currency_id
-        # other_currency is a currency different from the company_currency
-        # sometimes company_currency is different from USD, so handle appropriately.
         cls.other_currency = cls.setup_other_currency("EUR", rounding=0.001)
 
         cls.currency_pricelist = cls.env["product.pricelist"].create(
@@ -570,25 +556,13 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
                 "currency_id": cls.company_currency.id,
             }
         )
-        # Set Point of Sale configurations
-        # basic_config
-        #   - derived from 'point_of_sale.pos_config_main' with added invoice_journal_id and credit payment method.
-        # other_currency_config
-        #   - pos.config set to have currency different from company currency.
         cls.basic_config = cls._create_basic_config()
         cls.other_currency_config = cls._create_other_currency_config()
 
-        # Set product categories
-        # categ_basic
-        #   - just the plain 'product.product_category_services'
-        # categ_anglo
-        #   - product category with fifo and real_time valuations
-        #   - used for checking anglo saxon accounting behavior
         cls.categ_basic = cls.env.ref("product.product_category_services")
         cls.env.company.anglo_saxon_accounting = True
         cls.categ_anglo = cls._create_categ_anglo()
 
-        # other basics
         cls.sale_account = cls.company.income_account_id
         cls.other_sale_account = cls.env["account.account"].search(
             [
@@ -599,7 +573,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
             limit=1,
         )
 
-        # Set customers
         cls.customer = cls.env["res.partner"].create(
             {
                 "name": "Customer 1",
@@ -613,9 +586,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
             }
         )
 
-        # Set taxes
-        # cls.taxes => dict
-        #   keys: 'tax7', 'tax10'(price_include=True), 'tax_group_7_10'
         cls.taxes = cls._create_taxes()
 
         cls.stock_location_components = cls.env["stock.location"].create(
@@ -625,9 +595,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
             }
         )
 
-    #####################
-    ## private methods ##
-    #####################
 
     @classmethod
     def _create_basic_config(cls):
@@ -802,12 +769,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
 
     @classmethod
     def _create_taxes(cls):
-        """Create taxes
-
-        tax7: 7%, excluded in product price
-        tax10: 10%, included in product price
-        tax21: 21%, included in product price
-        """
 
         def create_tag(name):
             return cls.env["account.account.tag"].create(
@@ -955,9 +916,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
             "tax_group_7_10": tax_group_7_10,
         }
 
-    ####################
-    ## public methods ##
-    ####################
 
     def create_random_uid(self):
         return "%05d-%03d-%04d" % (randint(1, 99999), randint(1, 999), randint(1, 9999))
@@ -971,24 +929,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
         payments=None,
         uuid=None,
     ):
-        """Mocks the order_data generated by the pos ui.
-
-        This is useful in making orders in an open pos session without making tours.
-        Its functionality is tested in test_pos_create_ui_order_data.py.
-
-        Before use, make sure that self is set with:
-            1. pricelist -> the pricelist of the current session
-            2. currency -> currency of the current session
-            3. pos_session -> the current session, equivalent to config.current_session_id
-            4. cash_pm -> first cash payment method in the current session
-            5. config -> the active pos.config
-
-        The above values should be set when `self.open_new_session` is called.
-
-        :param list(tuple) pos_order_lines_ui_args: pairs of `ordered product` and `quantity`
-        or triplet of `ordered product`, `quantity` and discount
-        :param list(tuple) payments: pair of `payment_method` and `amount`
-        """
         if pos_order_ui_args is None:
             pos_order_ui_args = {}
         default_fiscal_position = self.config.default_fiscal_position_id
@@ -1055,13 +995,11 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
 
         uuid = uuid or self.create_random_uid()
 
-        # 1. generate the order lines
         order_lines = [
             create_order_line(**normalize_order_line_param(param))
             for param in pos_order_lines_ui_args
         ]
 
-        # 2. generate the payments
         total_amount_incl = sum(line[2]["price_subtotal_incl"] for line in order_lines)
         if payments is None:
             default_cash_pm = self.config.payment_method_ids.filtered(
@@ -1075,7 +1013,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
         else:
             payments = list(starmap(create_payment, payments))
 
-        # 3. complete the fields of the order_data
         total_amount_base = sum(line[2]["price_subtotal"] for line in order_lines)
         return {
             "amount_paid": sum(payment[2]["amount"] for payment in payments),
@@ -1125,7 +1062,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
 
     @classmethod
     def adjust_inventory(cls, products, quantities):
-        """Adjust inventory of the given products"""
         for product, qty in zip(products, quantities, strict=False):
             cls.env["stock.quant"].with_context(inventory_mode=True).create(
                 {
@@ -1136,21 +1072,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
             ).action_apply_inventory()
 
     def open_new_session(self, opening_cash=0):
-        """Used to open new pos session in each configuration.
-
-        - The idea is to properly set values that are constant
-          and commonly used in an open pos session.
-        - Calling this method is also a prerequisite for using
-          `self.create_ui_order_data` function.
-
-        Fields:
-            * config : the pos.config currently being used.
-                Its value is set at `self.setUp` of the inheriting
-                test class.
-            * pos_session : the current_session_id of config
-            * currency : currency of the current pos.session
-            * pricelist : the default pricelist of the session
-        """
         self.config.open_ui()
         self.pos_session = self.config.current_session_id
         self.currency = self.pos_session.currency_id
@@ -1207,7 +1128,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
         return pos_session
 
     def _create_orders(self, order_data_params):
-        """Returns a dict mapping uuid to its created pos.order record."""
         result = {}
         order_data = [
             self.create_ui_order_data(**params) for params in order_data_params
@@ -1221,7 +1141,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
         return result
 
     def _check_invoice_journal_entries(self, pos_session, orders_map, expected_values):
-        """Checks the invoice, together with the payments, from each invoiced order."""
         currency_rounding = pos_session.currency_id.rounding
 
         for uid in orders_map:
@@ -1229,7 +1148,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
             if not order.is_invoiced:
                 continue
             invoice = order.account_move
-            # allow not checking the invoice since pos is not creating the invoices
             if expected_values[uid].get("invoice"):
                 self._assert_account_move(invoice, expected_values[uid]["invoice"])
                 _logger.info("DONE: Check of invoice for order %s.", uid)
@@ -1238,13 +1156,8 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
             consumed = set()
             for pos_payment in order.payment_ids:
                 if pos_payment.payment_method_id == self.pay_later_pm:
-                    # Skip the pay later payments since there are no journal entries
-                    # for them when invoicing.
                     continue
 
-                # This predicate is used to match the pos_payment's journal entry to the
-                # list of payments specified in the 'payments' field of the `_run_test`
-                # args.
                 def predicate(args, pos_payment=pos_payment):
                     payment_method, amount = args
                     first = payment_method == pos_payment.payment_method_id
@@ -1273,16 +1186,13 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
             )
 
     def _check_session_journal_entries(self, pos_session, expected_values):
-        """Checks the journal entries after closing the session excluding entries checked in `_check_invoice_journal_entries`."""
         currency_rounding = pos_session.currency_id.rounding
 
-        # check expected session journal entry
         self._assert_account_move(
             pos_session.move_id, expected_values["session_journal_entry"]
         )
         _logger.info("DONE: Check of the session's account move.")
 
-        # check expected cash journal entries
         expected_cash_statement = expected_values["cash_statement"]
         cash_consumed = set()
         for statement_line in pos_session.statement_line_ids:
@@ -1305,7 +1215,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
         )
         _logger.info("DONE: Check of cash statement lines.")
 
-        # check expected bank payments
         expected_bank_payments = expected_values["bank_payments"]
         bank_consumed = set()
         for bank_payment in pos_session.bank_payment_ids:
@@ -1330,15 +1239,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
     def _find_then_assert_values(
         self, account_move, source_of_expected_vals, predicate, consumed, description
     ):
-        """Assert `account_move` against the first *unconsumed* expected entry
-        matching `predicate`, and record its index in the `consumed` set.
-
-        Consuming matters twice over: the caller uses `consumed` to detect declared
-        expectations that no actual record ever matched (see
-        `_assert_expectations_consumed`), and skipping already-matched entries stops
-        two identical actual records from both being checked against the same
-        expectation while a second, equally valid one goes unverified.
-        """
         match = next(
             (
                 (index, move_vals)
@@ -1360,9 +1260,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
     def _assert_expectations_consumed(
         self, source_of_expected_vals, consumed, description
     ):
-        """Fail when an expected entry was declared but never matched by any actual
-        record -- otherwise a missing (or unread) recordset silently verifies nothing.
-        """
         unmatched = [
             args
             for index, (args, _) in enumerate(source_of_expected_vals)
@@ -1376,8 +1273,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
 
     def _assert_account_move(self, account_move, expected_account_move_vals):
         if expected_account_move_vals:
-            # We allow partial checks of the lines of the account move if `line_ids_predicate` is specified.
-            # This means that only those that satisfy the predicate are compared to the expected account move line_ids.
             line_ids_predicate = expected_account_move_vals.pop(
                 "line_ids_predicate", lambda _: True
             )
@@ -1397,11 +1292,9 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
             self.assertRecordValues(account_move_line_ids, line_ids)
             self.assertRecordValues(account_move, [expected_account_move_vals])
 
-            # Check reconciliation status
             for line, reconciliation_status in zip(
                 account_move_line_ids, reconciliation_statuses, strict=False
             ):
-                # See 'account_move_line._compute_amount_residual'  for more explanation
                 if reconciliation_status == "fully_reconciled":
                     if line.matching_number:
                         self.assertTrue(line.full_reconcile_id)
@@ -1416,11 +1309,9 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
                     self.assertFalse(line.full_reconcile_id)
                     self.assertFalse(line.reconciled)
         else:
-            # if the expected_account_move_vals is falsy, the account_move should be falsy.
             self.assertFalse(account_move)
 
     def make_payment(self, order, payment_method, amount):
-        """Make payment for the order using the given payment method."""
         payment_context = {"active_id": order.id, "active_ids": order.ids}
         return (
             self.env["pos.make.payment"]

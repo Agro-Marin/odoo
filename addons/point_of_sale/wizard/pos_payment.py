@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import _, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import float_is_zero
@@ -9,7 +7,7 @@ class PosMakePayment(models.TransientModel):
     _name = "pos.make.payment"
     _description = "Point of Sale Make Payment Wizard"
 
-    def _default_config(self):
+    def _default_config_id(self):
         active_id = self.env.context.get("active_id")
         if active_id:
             return self.env["pos.order"].browse(active_id).session_id.config_id
@@ -20,7 +18,6 @@ class PosMakePayment(models.TransientModel):
         if active_id:
             order = self.env["pos.order"].browse(active_id)
             amount_total = order.amount_total
-            # If we refund the entire order, we refund what was paid originally, else we refund the value of the items returned
             if float_is_zero(
                 order.refunded_order_id.amount_total + order.amount_total,
                 precision_rounding=order.currency_id.rounding,
@@ -29,7 +26,7 @@ class PosMakePayment(models.TransientModel):
             return amount_total - order.amount_paid
         return False
 
-    def _default_payment_method(self):
+    def _default_payment_method_id(self):
         active_id = self.env.context.get("active_id")
         if active_id:
             order_id = self.env["pos.order"].browse(active_id)
@@ -42,14 +39,14 @@ class PosMakePayment(models.TransientModel):
         "pos.config",
         string="Point of Sale Configuration",
         required=True,
-        default=_default_config,
+        default=_default_config_id,
     )
     amount = fields.Float(digits=0, required=True, default=_default_amount)
     payment_method_id = fields.Many2one(
         "pos.payment.method",
         string="Payment Method",
         required=True,
-        default=_default_payment_method,
+        default=_default_payment_method_id,
     )
     payment_name = fields.Char(string="Payment Reference")
     payment_date = fields.Datetime(
@@ -57,10 +54,6 @@ class PosMakePayment(models.TransientModel):
     )
 
     def check(self):
-        """Check the order:
-        if the order is not paid: continue payment,
-        if the order is paid print ticket.
-        """
         self.ensure_one()
 
         order = self.env["pos.order"].browse(self.env.context.get("active_id", False))

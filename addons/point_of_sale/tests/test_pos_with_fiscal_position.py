@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import odoo
 from odoo import Command
 
@@ -8,10 +6,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPoSWithFiscalPosition(TestPoSCommon):
-    """Tests to pos orders with fiscal position.
-
-    keywords/phrases: fiscal position
-    """
 
     @classmethod
     def setUpClass(cls):
@@ -107,47 +101,10 @@ class TestPoSWithFiscalPosition(TestPoSCommon):
         return fpos_no_tax_dest
 
     def test_01_no_invoice_fpos(self):
-        """orders without invoice
-
-        Orders
-        ======
-        +---------+----------+---------------+----------+-----+---------+-----------------+--------+
-        | order   | payments | invoiced?     | product  | qty | untaxed | tax             |  total |
-        +---------+----------+---------------+----------+-----+---------+-----------------+--------+
-        | order 1 | cash     | yes, customer | product1 |  10 |  109.90 | 18.68 [7%->17%] | 128.58 |
-        |         |          |               | product2 |  10 |  181.73 | 18.17 [10%]     | 199.90 |
-        |         |          |               | product3 |  10 |  309.90 | 52.68 [7%->17%] | 362.58 |
-        +---------+----------+---------------+----------+-----+---------+-----------------+--------+
-        | order 2 | cash     | yes, customer | product1 |   5 |   54.95 | 9.34 [7%->17%]  |  64.29 |
-        |         |          |               | product2 |   5 |   90.86 | 9.09 [10%]      |  99.95 |
-        +---------+----------+---------------+----------+-----+---------+-----------------+--------+
-        | order 3 | bank     | no            | product2 |   5 |   90.86 | 9.09 [10%]      |  99.95 |
-        |         |          |               | product3 |   5 |  154.95 | 10.85 [7%]      |  165.8 |
-        +---------+----------+---------------+----------+-----+---------+-----------------+--------+
-
-        Expected Result
-        ===============
-        +---------------------+---------+
-        | account             | balance |
-        +---------------------+---------+
-        | sale_account        | -154.95 |  (for the 7% base amount)
-        | sale_account        |  -90.86 |  (for the 10% base amount)
-        | other_sale_account  | -474.75 |  (for the 17% base amount)
-        | other_sale_account  | -272.59 |  (for the 10% base amount)
-        | tax 17%             |  -80.70 |
-        | tax 10%             |  -36.35 |
-        | tax 7%              |  -10.85 |
-        | pos receivable bank |  265.75 |
-        | pos receivable cash |  855.30 |
-        +---------------------+---------+
-        | Total balance       |     0.0 |
-        +---------------------+---------+
-        """
 
         self.customer.write({"property_account_position_id": self.fpos.id})
 
         def _before_closing_cb():
-            # check values before closing the session
             self.assertEqual(3, self.pos_session.order_count)
             orders_total = sum(
                 order.amount_total for order in self.pos_session.order_ids
@@ -309,46 +266,10 @@ class TestPoSWithFiscalPosition(TestPoSCommon):
         )
 
     def test_02_no_invoice_fpos_no_tax_dest(self):
-        """Customer with fiscal position that maps a tax to no tax.
-
-        Orders
-        ======
-        +---------+----------+---------------+----------+-----+---------+-------------+--------+
-        | order   | payments | invoiced?     | product  | qty | untaxed | tax         |  total |
-        +---------+----------+---------------+----------+-----+---------+-------------+--------+
-        | order 1 | bank     | yes, customer | product1 |  10 |  109.90 | 0           | 109.90 |
-        |         |          |               | product2 |  10 |  181.73 | 18.17 [10%] | 199.90 |
-        |         |          |               | product3 |  10 |  309.90 | 0           | 309.90 |
-        +---------+----------+---------------+----------+-----+---------+-------------+--------+
-        | order 2 | cash     | yes, customer | product1 |   5 |   54.95 | 0           |  54.95 |
-        |         |          |               | product2 |   5 |   90.86 | 9.09 [10%]  |  99.95 |
-        +---------+----------+---------------+----------+-----+---------+-------------+--------+
-        | order 3 | bank     | no            | product2 |   5 |   90.86 | 9.09 [10%]  |  99.95 |
-        |         |          |               | product3 |   5 |  154.95 | 10.85 [7%]  | 165.80 |
-        +---------+----------+---------------+----------+-----+---------+-------------+--------+
-
-        Expected Result
-        ===============
-        +---------------------+---------+
-        | account             | balance |
-        +---------------------+---------+
-        | sale_account        | -154.95 |  (for the 7% base amount)
-        | sale_account        |  -90.86 |  (for the 10% base amount)
-        | other_sale_account  | -272.59 |  (for the 10% base amount)
-        | other_sale_account  | -474.75 |  (no tax)
-        | tax 10%             |  -36.35 |
-        | tax 7%              |  -10.85 |
-        | pos receivable bank |  885.45 |
-        | pos receivable cash |   154.9 |
-        +---------------------+---------+
-        | Total balance       |     0.0 |
-        +---------------------+---------+
-        """
 
         self.customer.write({"property_account_position_id": self.fpos_no_tax_dest.id})
 
         def _before_closing_cb():
-            # check values before closing the session
             self.assertEqual(3, self.pos_session.order_count)
             orders_total = sum(
                 order.amount_total for order in self.pos_session.order_ids
@@ -504,46 +425,10 @@ class TestPoSWithFiscalPosition(TestPoSCommon):
         )
 
     def test_03_invoiced_fpos(self):
-        """Invoice 2 orders.
-
-        Orders
-        ======
-        +---------+----------+---------------------+----------+-----+---------+-----------------+--------+
-        | order   | payments | invoiced?           | product  | qty | untaxed | tax             |  total |
-        +---------+----------+---------------------+----------+-----+---------+-----------------+--------+
-        | order 1 | bank     | yes, customer       | product1 |  10 |  109.90 | 18.68 [7%->17%] | 128.58 |
-        |         |          |                     | product2 |  10 |  181.73 | 18.17 [10%]     | 199.90 |
-        |         |          |                     | product3 |  10 |  309.90 | 52.68 [7%->17%] | 362.58 |
-        +---------+----------+---------------------+----------+-----+---------+-----------------+--------+
-        | order 2 | cash     | no, customer        | product1 |   5 |   54.95 | 9.34 [7%->17%]  |  64.29 |
-        |         |          |                     | product2 |   5 |   90.86 | 9.09 [10%]      |  99.95 |
-        +---------+----------+---------------------+----------+-----+---------+-----------------+--------+
-        | order 3 | cash     | yes, other_customer | product2 |   5 |   90.86 | 9.09 [10%]      |  99.95 |
-        |         |          |                     | product3 |   5 |  154.95 | 10.85 [7%]      | 165.80 |
-        +---------+----------+---------------------+----------+-----+---------+-----------------+--------+
-
-        Expected Result
-        ===============
-        +---------------------+---------+
-        | account             | balance |
-        +---------------------+---------+
-        | other_sale_account  |  -54.95 |  (for the 17% base amount)
-        | other_sale_account  |  -90.86 |  (for the 10% base amount)
-        | tax 10%             |   -9.09 |
-        | tax 17%             |   -9.34 |
-        | pos receivable cash |  429.99 |
-        | pos receivable bank |  691.06 |
-        | receivable          | -691.06 |
-        | other receivable    | -265.75 |
-        +---------------------+---------+
-        | Total balance       |     0.0 |
-        +---------------------+---------+
-        """
 
         self.customer.write({"property_account_position_id": self.fpos.id})
 
         def _before_closing_cb():
-            # check values before closing the session
             self.assertEqual(3, self.pos_session.order_count)
             orders_total = sum(
                 order.amount_total for order in self.pos_session.order_ids

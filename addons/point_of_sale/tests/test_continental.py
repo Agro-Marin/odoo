@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.tests import tagged
 
 from odoo.addons.point_of_sale.tests.test_anglo_saxon import TestAngloSaxonCommon
@@ -29,13 +27,10 @@ class TestContinentalPerpetualFlow(TestContinentalCommon):
         )
 
     def test_inventory_valuation_session_closing_no_invoice(self):
-        """Tests that closing the session posts the stock valuation
-        move line entries, even if order was not invoiced."""
         self.pos_config.open_ui()
         pos_session = self.pos_config.current_session_id
         pos_session.set_opening_control(0, None)
 
-        # create order
         pos_order_values = {
             "company_id": self.company.id,
             "partner_id": self.partner.id,
@@ -64,7 +59,6 @@ class TestContinentalPerpetualFlow(TestContinentalCommon):
 
         pos_order = self.PosOrder.create(pos_order_values)
 
-        # register payment
         context_make_payment = {"active_ids": [pos_order.id], "active_id": pos_order.id}
         pos_payment = self.PosMakePayment.with_context(context_make_payment).create(
             {
@@ -75,7 +69,6 @@ class TestContinentalPerpetualFlow(TestContinentalCommon):
         context_payment = {"active_id": pos_order.id}
         pos_payment.with_context(context_payment).check()
 
-        # validate the session
         current_session_id = self.pos_config.current_session_id
         current_session_id.post_closing_cash_details(100.0)
         current_session_id.close_session_from_ui()

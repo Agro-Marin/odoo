@@ -1,14 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-"""Contracts the point of sale relies on but never stated.
-
-Each test here pins one defect that was latent rather than user-visible: a
-method that mutated its caller's dict, a fallback that could only ever raise, a
-divisor with no guard, a loop that returned out of itself. They cost nothing to
-keep and they are what makes the next refactor safe.
-
-Authored red-green: every test below failed against the pre-fix code.
-"""
-
 import json
 import logging
 
@@ -44,16 +33,12 @@ class TestPosRobustness(CommonPosTest):
             }
         )
 
-    # ------------------------------------------------------------------
-    # write()/create() must not rewrite the dict the caller handed them.
-    # ------------------------------------------------------------------
     def test_config_write_leaves_the_caller_dict_alone(self):
         vals = {"is_order_printer": False}
         self.pos_config_usd.write(vals)
         self.assertEqual(vals, {"is_order_printer": False})
 
     def test_config_write_does_not_leak_between_records(self):
-        """The concrete harm: one dict reused for two shops."""
         printer = self.env["pos.printer"].create(
             {"name": "Kitchen", "proxy_ip": "10.0.0.1"}
         )
@@ -78,16 +63,10 @@ class TestPosRobustness(CommonPosTest):
         self.env["pos.order"].create(vals)
         self.assertEqual(vals, expected)
 
-    # ------------------------------------------------------------------
-    # An order belongs to a session. Say so, do not raise KeyError.
-    # ------------------------------------------------------------------
     def test_order_without_a_session_is_refused_by_name(self):
         with self.assertRaises(UserError):
             self.env["pos.order"].create({"amount_tax": 0, "amount_total": 0})
 
-    # ------------------------------------------------------------------
-    # The four per-config counters must be distinguishable.
-    # ------------------------------------------------------------------
     def test_config_sequences_have_distinct_codes(self):
         config = self.pos_config_usd
         codes = [
@@ -99,9 +78,6 @@ class TestPosRobustness(CommonPosTest):
         self.assertEqual(len(set(codes)), 4, codes)
 
     def test_order_line_without_a_sequence_names_the_problem(self):
-        """The fallback used to reach for a sequence code nothing creates, so
-        `name` came back False for a required Char and the insert died on a
-        NOT NULL violation naming only the column."""
         order = self._order()
         self.pos_config_usd.sudo().order_line_seq_id = False
         with self.assertRaises(UserError):
@@ -116,9 +92,6 @@ class TestPosRobustness(CommonPosTest):
                 }
             )
 
-    # ------------------------------------------------------------------
-    # `filter_local_data` is a public RPC over a caller-chosen model list.
-    # ------------------------------------------------------------------
     def test_filter_local_data_on_a_model_without_active(self):
         order = self._order()
         self.assertNotIn("active", self.env["pos.order"]._fields)
@@ -133,7 +106,6 @@ class TestPosRobustness(CommonPosTest):
         self.assertEqual(result["pos.order"], [order_id])
 
     def test_filter_local_data_reports_archived_records(self):
-        """Control: the `active` path must keep working."""
         template = self.env["product.template"].create(
             {"name": "Archived probe", "available_in_pos": True}
         )
@@ -141,9 +113,6 @@ class TestPosRobustness(CommonPosTest):
         result = self.session.filter_local_data({"product.template": [template.id]})
         self.assertEqual(result["product.template"], [template.id])
 
-    # ------------------------------------------------------------------
-    # A zero-quantity line is legal, so it must not be a divisor.
-    # ------------------------------------------------------------------
     def test_total_cost_survives_a_zero_quantity_refunded_line(self):
         order = self._order(shipping_date=fields.Date.today())
         zero_line = self.env["pos.order.line"].create(
@@ -168,13 +137,9 @@ class TestPosRobustness(CommonPosTest):
                 "refunded_orderline_id": zero_line.id,
             }
         )
-        # Must not raise ZeroDivisionError whatever the moves look like.
         refund_line._compute_total_cost(self.env["stock.move"])
         self.assertTrue(refund_line.is_total_cost_computed)
 
-    # ------------------------------------------------------------------
-    # A printed order's payments are settled: refuse before writing.
-    # ------------------------------------------------------------------
     def test_printed_order_refuses_a_new_payment(self):
         cash_pm = self.session.payment_method_ids.filtered("is_cash_count")[:1]
         order = self._order(state="paid", nb_print=1)
@@ -194,9 +159,6 @@ class TestPosRobustness(CommonPosTest):
             )
         self.assertFalse(order.payment_ids)
 
-    # ------------------------------------------------------------------
-    # The preparation-change merge is single-record and says so.
-    # ------------------------------------------------------------------
     def test_preparation_change_is_single_record(self):
         first = self._order()
         second = self._order()
@@ -219,9 +181,6 @@ class TestPosRobustness(CommonPosTest):
             "2030-01-01 00:00:00",
         )
 
-    # ------------------------------------------------------------------
-    # Edit tracking writes one message per order, not one per line.
-    # ------------------------------------------------------------------
     def test_deleting_lines_posts_one_message(self):
         self.pos_config_usd.order_edit_tracking = True
         order = self._order()
@@ -241,9 +200,6 @@ class TestPosRobustness(CommonPosTest):
         self.assertEqual(len(order.message_ids) - before, 1)
         self.assertTrue(order.has_deleted_line)
 
-    # ------------------------------------------------------------------
-    # `read_pos_data` answers the same shape with or without a config.
-    # ------------------------------------------------------------------
     def test_read_pos_data_without_a_config(self):
         order = self._order()
         with_config = order.read_pos_data([], self.pos_config_usd)
@@ -251,9 +207,6 @@ class TestPosRobustness(CommonPosTest):
         self.assertEqual(set(with_config), set(without_config))
         self.assertTrue(all(value == [] for value in without_config.values()))
 
-    # ------------------------------------------------------------------
-    # `_IS_VAT` follows the config's company.
-    # ------------------------------------------------------------------
     def test_is_vat_follows_the_config_company(self):
         config = self.pos_config_usd
         config.company_id.country_id = self.env.ref("base.be")

@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, onMounted, useState } from "@odoo/owl";
 import { useAutoFocusToLast } from "@point_of_sale/app/hooks/hooks";
-import { AutoComplete } from "@web/components/autocomplete/autocomplete";
+import { AutoComplete } from "@web/components/autocomplete";
 import { _t } from "@web/core/translation";
 import { useChildRef, useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";

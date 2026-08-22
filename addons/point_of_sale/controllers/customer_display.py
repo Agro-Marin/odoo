@@ -11,10 +11,6 @@ class PosCustomerDisplay(http.Controller):
         website=True,
     )
     def pos_customer_display(self, id_, device_uuid, access_token=None, **kw):
-        # Public, enumerable-id route: the access_token check is mandatory. Without
-        # it, the payload (access_token + proxy_ip) leaked to any caller guessing an
-        # id while a session was open (R6-3 / t23962). A real display gets the token
-        # from the QR the authenticated operator generates.
         try:
             config_id = int(id_)
         except TypeError, ValueError:

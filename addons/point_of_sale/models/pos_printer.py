@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from base64 import b32encode
 from hashlib import sha256
 
@@ -8,15 +6,7 @@ from odoo.exceptions import ValidationError
 
 
 def format_epson_certified_domain(serial_number):
-    """Epson printers can be configured to use a wildcard certificate,
-    for a domain name derived from the printer serial number.
-
-    :param serial_number: The printer serial number or an IP address.
-    :return: The corresponding domain name, or the original IP address.
-    """
     if "." in serial_number:
-        # If the field is provided an epson serial number, convert it to a domain name
-        # Note: serial numbers should not contain dots, as IPs or URLs would.
         return serial_number
 
     epson_domain = "omnilinkcert.epson.biz"

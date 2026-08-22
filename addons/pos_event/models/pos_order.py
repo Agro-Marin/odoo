@@ -13,7 +13,7 @@ class PosOrder(models.Model):
             order.attendee_count = len(order.lines.mapped('event_registration_ids'))
 
     def action_view_attendee_list(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("event.event_registration_action_tree")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("event.event_registration_action_tree")
         action['domain'] = [('pos_order_id', 'in', self.ids)]
         return action
 
