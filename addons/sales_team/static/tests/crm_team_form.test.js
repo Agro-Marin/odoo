@@ -17,7 +17,7 @@ const ARCH = `<form js_class="crm_team_form">
     <div class="alert alert-info" invisible="is_membership_multi or not member_warning">
         <field name="member_warning"/>
         Working in multiple teams?
-        <button name="crm_team_activate_multi_membership" type="button">
+        <button name="crm_team_activate_multi_membership" type="crm_team_event">
             Activate "Multi-team"
         </button>
     </div>

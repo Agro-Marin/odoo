@@ -100,7 +100,7 @@
                              asking of someone allowed to answer it -->
                         <span groups="sales_team.group_sale_manager" class="d-flex flex-wrap gap-1">
                             Working in multiple teams?
-                            <button name="crm_team_activate_multi_membership" type="button" class="btn btn-link p-0 lh-1">
+                            <button name="crm_team_activate_multi_membership" type="crm_team_event" class="btn btn-link p-0 lh-1">
                                 Activate "Multi-team"
                             </button>
                         </span>

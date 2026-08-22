@@ -4,6 +4,12 @@ from typing import NamedTuple
 
 from odoo.tools.mail import append_content_to_html, html_sanitize
 
+# Relative, because `html_body` is the module next to this one. Spelling it
+# `odoo.addons.mail.tools.html_body` asked the *addons* machinery to resolve a sibling,
+# and that machinery is not running under Tier-1 pytest: the import raised
+# `ModuleNotFoundError: No module named 'odoo.addons.mail'` at collection and took the
+# whole DB-free suite down with it -- 3900 tests collected, none run. A sibling import
+# resolves through this package whatever loaded it.
 from .html_body import (
     iter_fragment_elements,
     parse_body_fragments,
