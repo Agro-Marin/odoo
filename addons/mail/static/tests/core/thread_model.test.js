@@ -139,10 +139,17 @@ test("failed markAllMessagesAsRead rolls back the optimistic counter updates", a
         throw makeServerError({ message: "mark all boom" });
     });
     const { message, store, thread } = await setupNeedactionThread(pyEnv);
+    const warnings = [];
+    patchWithCleanup(console, {
+        warn: (...args) => warnings.push(args.map(String).join(" ")),
+    });
     await thread.markAllMessagesAsRead();
     expect(message.needaction).toBe(true);
     expect(store.inbox.counter).toBe(1);
     expect(thread.message_needaction_counter).toBe(1);
+    expect(
+        warnings.some((line) => line.includes("Failed to mark all messages as read")),
+    ).toBe(true);
 });
 
 test("markAllMessagesAsRead rollback is skipped when a newer absolute snapshot landed", async () => {
@@ -151,12 +158,19 @@ test("markAllMessagesAsRead rollback is skipped when a newer absolute snapshot l
         throw makeServerError({ message: "mark all boom" });
     });
     const { store, thread } = await setupNeedactionThread(pyEnv);
+    const warnings = [];
+    patchWithCleanup(console, {
+        warn: (...args) => warnings.push(args.map(String).join(" ")),
+    });
     const promise = thread.markAllMessagesAsRead();
     applyCounterAbsolute(store.inbox, "counter", 5, 99);
     applyCounterAbsolute(thread, "message_needaction_counter", 0, 99);
     await promise;
     expect(store.inbox.counter).toBe(5);
     expect(thread.message_needaction_counter).toBe(0);
+    expect(
+        warnings.some((line) => line.includes("Failed to mark all messages as read")),
+    ).toBe(true);
 });
 
 test("plain document threads answer the channel-behavior hooks with neutral defaults", async () => {

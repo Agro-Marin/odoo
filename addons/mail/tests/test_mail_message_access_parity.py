@@ -2,6 +2,7 @@ import contextlib
 
 from odoo.exceptions import AccessError
 from odoo.tests.common import tagged, users
+from odoo.tools import mute_logger
 
 from odoo.addons.mail.tests.common import MailCommon
 from odoo.addons.mail.tools.discuss import Store
@@ -71,6 +72,7 @@ class TestMailMessageAccessParity(MailCommon):
     def _shapes(self, ids):
         return sorted(self.shape_by_id[i] for i in ids)
 
+    @mute_logger("odoo.addons.base.models.ir_model_access")
     def test_search_and_check_access_agree_per_user(self):
         for user in (
             self.user_admin,
@@ -103,6 +105,7 @@ class TestMailMessageAccessParity(MailCommon):
                     "search and per-record has_access must return the same messages",
                 )
 
+    @mute_logger("odoo.addons.base.models.ir_model_access")
     def test_internal_only_shapes_stay_hidden_from_portal(self):
         Message = self.env["mail.message"].with_user(self.user_portal)
         self.env.invalidate_all()

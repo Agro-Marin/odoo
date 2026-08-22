@@ -68,8 +68,10 @@ test("malformed fetched data does not block later fetches", async () => {
     const partnerId = pyEnv["res.partner"].create({ name: "John" });
     await start();
     const store = getService("mail.store");
+    const warnings = [];
     patchWithCleanup(console, {
         error: () => asyncStep("console.error"),
+        warn: (...args) => warnings.push(args.map(String).join(" ")),
     });
     onRpcBefore("/mail/data", (args) => {
         const isMalformedTarget = args.fetch_params.some(
@@ -95,6 +97,12 @@ test("malformed fetched data does not block later fetches", async () => {
     }
     expect(Boolean(error)).toBe(true);
     await waitForSteps(["console.error"]);
+    expect(warnings.some((line) => line.includes("Store data insert aborted"))).toBe(
+        true,
+    );
+    expect(
+        warnings.some((line) => line.includes("doesn't support single-id data")),
+    ).toBe(true);
     expect(
         Object.values(store.DataResponse.records).filter(
             (dataRequest) => dataRequest.id > lastDataRequestId,

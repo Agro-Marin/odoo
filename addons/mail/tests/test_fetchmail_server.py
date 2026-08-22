@@ -941,10 +941,24 @@ class TestFetchmailAccounting(FetchmailCommon):
     def test_an_undercounting_server_does_not_become_a_failing_server(self):
         connection = MockedConnection({n: _message(n) for n in range(1, 4)})
         connection.announces = 1
-        outcome = self._poll(connection)
+        with self.assertLogs(
+            "odoo.addons.mail.models.fetchmail_server", level="WARNING"
+        ) as logs:
+            outcome = self._poll(connection)
         self.assertIsNone(outcome.exception, "our arithmetic is not their fault")
         self.assertEqual(outcome.remaining, 0)
         self.assertEqual(len(connection.acknowledged), 3, "all three still delivered")
+        # The miscount is tolerated, not hidden: the warning is the operator's
+        # only signal that their mailbox under-announced. Capturing it here
+        # pins that signal and keeps it out of a clean run's log, which is why
+        # this reads the record rather than muting the logger outright.
+        self.assertTrue(
+            any(
+                "announced 1 unread message(s) and yielded 3" in line
+                for line in logs.output
+            ),
+            f"expected the undercount warning, got {logs.output}",
+        )
 
     def test_an_overcounting_server_leaves_no_phantom_backlog(self):
         connection = MockedConnection({1: _message(1)}, announces=9)

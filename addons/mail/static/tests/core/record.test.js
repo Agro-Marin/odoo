@@ -1444,6 +1444,7 @@ test("nullish values in relation writes are no-ops, not phantom records", async 
         thread = fields.One("Thread", { inverse: "messages" });
     }).register(localRegistry);
     const store = await start();
+    store.logErrors = false;
     const thread = store.Thread.insert("General");
     thread.messages.add(undefined);
     expect(thread.messages.length).toBe(0);

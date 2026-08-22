@@ -73,6 +73,7 @@ test("add() reports one record per argument, including already-present ones", as
 test("growing a record list through length is rejected", async () => {
     defineContactTask();
     const store = await start();
+    store.logErrors = false;
     const john = store.Contact.insert("John");
     john.tasks.add(store.Task.insert("t1"));
     expect(() => {
