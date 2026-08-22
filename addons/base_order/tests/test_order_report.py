@@ -1,15 +1,5 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import Command
 from odoo.tests import TransactionCase, tagged
-
-# Part 6 of base_order's by-parts coverage: mixin.order.report, the analytical
-# report layer shared by sale.report and purchase.report.
-#
-# These are SQL-view models, so a field that exists on the Python class is not
-# proof of anything — the SELECT registry has to name it too. The tests
-# therefore read the hoisted fields back out of the built view rather than just
-# asserting they are declared.
 
 HOISTED_FIELDS = [
     "company_id",
@@ -67,12 +57,7 @@ class TestOrderReportMixin(TransactionCase):
             [("order_reference", "=", f"{order._name},{order.id}")],
         )
 
-    # --- both reports are built on the shared mixin ---
-
     def test_reports_inherit_the_mixin(self):
-        # Walk the registry MRO rather than reading ``_inherit``: once another
-        # module extends sale.report or purchase.report, ``_inherit`` holds that
-        # extension's list, not the original mixin chain.
         for report in ("sale.report", "purchase.report"):
             with self.subTest(report=report):
                 bases = {
@@ -89,15 +74,12 @@ class TestOrderReportMixin(TransactionCase):
                 self.assertFalse(missing, f"{report} lost hoisted fields: {missing}")
 
     def test_shared_line_filter(self):
-        """_get_where_conditions is the mixin's, on both reports."""
         for report in ("sale.report", "purchase.report"):
             with self.subTest(report=report):
                 self.assertEqual(
                     self.env[report]._get_where_conditions(),
                     ["l.display_type IS NULL"],
                 )
-
-    # --- and the hoisted fields survive into the built SQL view ---
 
     def test_hoisted_fields_are_selected(self):
         for model, report in (
@@ -109,8 +91,6 @@ class TestOrderReportMixin(TransactionCase):
                 rows = self._report_rows(report, order).read(HOISTED_FIELDS)
                 self.assertTrue(rows, f"{report}: no row for the confirmed order")
                 row = rows[0]
-                # company_id is declared only on the mixin now, so this also
-                # pins that both reports still SELECT the column for it.
                 self.assertEqual(row["company_id"][0], order.company_id.id)
                 self.assertEqual(row["nbr_lines"], 1)
                 self.assertEqual(row["product_uom_qty"], 4.0)
@@ -132,7 +112,6 @@ class TestOrderReportMixin(TransactionCase):
                 self.assertEqual(action["res_id"], order.id)
 
     def test_weighted_average_aggregate(self):
-        """price_average:avg is quantity-weighted, not a plain AVG of rows."""
         for model, report in (
             ("sale.order", "sale.report"),
             ("purchase.order", "purchase.report"),
@@ -146,12 +125,7 @@ class TestOrderReportMixin(TransactionCase):
                 )
                 self.assertEqual(groups[0][0], 25.0)
 
-    # --- what must NOT be hoisted ---
-
     def test_state_selection_stays_per_module(self):
-        """``state`` is spelled identically in both reports but means different
-        things, so it must stay in the concrete models. Hoisting it would give
-        purchase sale's labels (or the reverse)."""
         sale_states = dict(self.env["sale.report"]._fields["state"].selection)
         purchase_states = dict(self.env["purchase.report"]._fields["state"].selection)
         self.assertEqual(sale_states["done"], "Sales Order")

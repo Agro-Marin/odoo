@@ -1,18 +1,8 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import io
 
 from odoo import Command
 from odoo.tests import TransactionCase, tagged
 from odoo.tools.pdf import OdooPdfFileReader, OdooPdfFileWriter
-
-# Part 4 of base_order's by-parts coverage: the shared ir.actions.report
-# extension that embeds an order's EDI XML into its rendered PDF. sale and
-# purchase used to carry a copy of this each; they now only declare which of
-# their reports participate, via _get_order_edi_report_map.
-#
-# The render itself needs wkhtmltopdf, which CI may not have, so the embedding
-# is exercised against a hand-built blank PDF rather than a real report run.
 
 
 @tagged("post_install", "-at_install")
@@ -50,10 +40,7 @@ class TestOrderEdiReport(TransactionCase):
         writer.write(stream)
         return stream
 
-    # --- the registry ---
-
     def test_map_contains_sale_reports(self):
-        """sale must keep contributing its report names to the shared map."""
         report_map = self.Report._get_order_edi_report_map()
         self.assertEqual(report_map.get("sale.report_saleorder"), "sale.order")
         self.assertEqual(
@@ -63,7 +50,6 @@ class TestOrderEdiReport(TransactionCase):
         self.assertEqual(report_map.get("sale.report_saleorder_raw"), "sale.order")
 
     def test_map_contains_purchase_reports(self):
-        """purchase must keep contributing its report names to the shared map."""
         report_map = self.Report._get_order_edi_report_map()
         self.assertEqual(
             report_map.get("purchase.report_purchaseorder"),
@@ -75,19 +61,15 @@ class TestOrderEdiReport(TransactionCase):
         )
 
     def test_map_merges_both_modules(self):
-        """Each module extends the map rather than replacing it."""
         report_map = self.Report._get_order_edi_report_map()
         models = set(report_map.values())
         self.assertIn("sale.order", models)
         self.assertIn("purchase.order", models)
 
     def test_unmapped_report_is_untouched(self):
-        """A report outside the map must not be rewritten."""
         self.assertIsNone(
             self.Report._get_order_edi_report_map().get("account.report_invoice"),
         )
-
-    # --- the embedding ---
 
     def _assert_embeds_xml(self, model):
         order = self._make_order(model)

@@ -2,32 +2,10 @@ from odoo import api, fields, models
 
 
 class MixinOrderAmount(models.AbstractModel):
-    """Order-level amount computation and tax totals.
-
-    Consolidates the tax computation pattern that is identical in sale.order
-    and purchase.order — both delegate to ``account.tax._get_tax_totals_summary()``
-    via a shared helper ``_prepare_tax_totals_data()``.
-
-    Hook: ``_get_additional_base_lines()`` — returns ``[]`` by default.
-    Sale overrides to add early payment discount lines.
-
-    Requires ``mixin.order`` fields: ``currency_id``, ``company_id``,
-    ``payment_term_id``, ``currency_rate``.  Requires ``line_ids`` from the
-    concrete model.
-    """
-
     _name = "mixin.order.amount"
     _description = "Order Amount Computation"
 
-    # ─── Currency (required for Monetary fields) ───────────────────
-    # Structural, not composition-defensive: this abstract mixin owns Monetary
-    # fields whose ``currency_field`` must resolve on the mixin itself at
-    # registry setup. Concrete models also inherit ``currency_id`` from
-    # ``mixin.order``, but the mixin must still declare its own. Do not remove.
-
     currency_id = fields.Many2one("res.currency")
-
-    # ─── Amount Fields ─────────────────────────────────────────────
 
     amount_untaxed = fields.Monetary(
         string="Untaxed Amount",
@@ -52,8 +30,6 @@ class MixinOrderAmount(models.AbstractModel):
         exportable=False,
     )
 
-    # ─── Invoice Amount Fields (order-level sums) ──────────────────
-
     amount_taxexc_invoiced = fields.Monetary(
         string="Already Invoiced (Tax Excl.)",
         compute="_compute_amounts_invoice",
@@ -71,24 +47,11 @@ class MixinOrderAmount(models.AbstractModel):
         compute="_compute_amounts_invoice",
     )
 
-    # ─── Credit Warning ────────────────────────────────────────────
-
     partner_credit_warning = fields.Text(
         compute="_compute_partner_credit_warning",
     )
 
-    # ─── Tax Computation ───────────────────────────────────────────
-
     def _prepare_tax_totals_data(self):
-        """Compute the tax totals summary for a single order.
-
-        Shared helper called by both ``_compute_amounts`` (stored monetary
-        fields) and ``_compute_tax_totals`` (non-stored display field).
-
-        :return: dict with ``base_amount_currency``, ``tax_amount_currency``,
-                 ``total_amount_currency``, and detailed tax breakdown
-        :rtype: dict
-        """
         self.ensure_one()
         AccountTax = self.env["account.tax"]
         order_lines = self.line_ids.filtered(lambda line: not line.display_type)
@@ -105,13 +68,6 @@ class MixinOrderAmount(models.AbstractModel):
         )
 
     def _get_additional_base_lines(self):
-        """Hook for additional base lines in tax computation.
-
-        Sale overrides to add early payment discount lines.
-
-        :return: list of base line dicts for tax computation
-        :rtype: list
-        """
         return []
 
     @api.depends_context("lang")
@@ -122,32 +78,16 @@ class MixinOrderAmount(models.AbstractModel):
         "line_ids.price_subtotal",
     )
     def _compute_tax_totals(self):
-        """Compute the ``tax_totals`` summary — the single source of truth.
-
-        This is the only place the ``account.tax`` engine is invoked for the
-        order; both the display field and the stored monetary totals
-        (``_compute_amounts``) derive from this one computation.
-        """
         for order in self:
             order.tax_totals = order._prepare_tax_totals_data()
 
     @api.depends("tax_totals")
     def _compute_amounts(self):
-        """Derive the stored monetary totals from the ``tax_totals`` summary.
-
-        ``tax_totals`` is the source of truth (see ``_compute_tax_totals``);
-        projecting the three scalars out of it runs the tax engine **once** per
-        order per recompute instead of twice (upstream recomputes it here too).
-        Within a request ``tax_totals`` is computed once and cached, so the
-        display widget reuses it for free.
-        """
         for order in self:
             tax_totals = order.tax_totals
             order.amount_untaxed = tax_totals["base_amount_currency"]
             order.amount_tax = tax_totals["tax_amount_currency"]
             order.amount_total = tax_totals["total_amount_currency"]
-
-    # ─── Invoice Amounts ───────────────────────────────────────────
 
     @api.depends(
         "line_ids.amount_taxexc_invoiced",
@@ -156,10 +96,6 @@ class MixinOrderAmount(models.AbstractModel):
         "line_ids.amount_taxinc_to_invoice",
     )
     def _compute_amounts_invoice(self):
-        """Compute order-level invoice amounts as the sum of line amounts.
-
-        Single-pass iteration — identical in sale.order and purchase.order.
-        """
         for order in self:
             taxexc_invoiced = 0.0
             taxexc_to_invoice = 0.0
@@ -177,11 +113,8 @@ class MixinOrderAmount(models.AbstractModel):
             order.amount_taxinc_invoiced = taxinc_invoiced
             order.amount_taxinc_to_invoice = taxinc_to_invoice
 
-    # ─── Credit Warning ────────────────────────────────────────────
-
     @api.depends("company_id", "partner_id", "amount_total")
     def _compute_partner_credit_warning(self):
-        """Warn about the partner credit limit on draft orders."""
         for order in self:
             order = order.with_company(order.company_id)
             order.partner_credit_warning = ""
@@ -192,6 +125,6 @@ class MixinOrderAmount(models.AbstractModel):
                 order.partner_credit_warning = self.env[
                     "account.move"
                 ]._prepare_credit_warning_message(
-                    order.sudo(),  # ensure access to `credit` & `credit_limit` fields
+                    order.sudo(),
                     current_amount=(order.amount_total / (order.currency_rate or 1.0)),
                 )

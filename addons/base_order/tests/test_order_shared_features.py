@@ -1,13 +1,4 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.tests import TransactionCase, tagged
-
-# base_order provides abstract mixins and two order-shaped extensions of
-# non-order models (res.partner, product.product). They are exercised through
-# their concrete consumers — sale.order and purchase.order both compose them —
-# so each test here asserts the *same* behaviour on both order types. That is
-# the point of the module: where the two used to hold separate copies of a
-# feature, they must now agree.
 
 
 @tagged("post_install", "-at_install")
@@ -15,8 +6,6 @@ class TestOrderSharedFeatures(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Without a layout, ``report_action`` wraps the report in the "choose
-        # your document layout" dialog instead of returning it.
         cls.env.company.external_report_layout_id = cls.env.ref(
             "web.external_layout_standard",
         )
@@ -32,7 +21,6 @@ class TestOrderSharedFeatures(TransactionCase):
         )
 
     def _orders(self):
-        """One draft order of each type, both carrying ``self.product``."""
         return {
             "sale.order": self.env["sale.order"].create(
                 {
@@ -47,10 +35,6 @@ class TestOrderSharedFeatures(TransactionCase):
                 },
             ),
         }
-
-    # ------------------------------------------------------------------
-    # product.product — catalog "already on this order" flag
-    # ------------------------------------------------------------------
 
     def test_is_in_order_is_true_for_the_order_in_context(self):
         for order in self._orders().values():
@@ -79,12 +63,6 @@ class TestOrderSharedFeatures(TransactionCase):
                 self.assertIn(self.product, found)
 
     def test_search_is_in_order_matches_nothing_without_an_order(self):
-        """No order in context must mean "no products", not "every product".
-
-        Sale built the domain from ``context.get("order_id", "")``, which
-        searches lines whose ``order_id`` equals the empty string — the
-        opposite of the intent, and a query issued for nothing.
-        """
         self._orders()
         for order_type in ("sale", "purchase"):
             with self.subTest(order_type=order_type):
@@ -94,10 +72,6 @@ class TestOrderSharedFeatures(TransactionCase):
                     ),
                 )
 
-    # ------------------------------------------------------------------
-    # mixin.order.line.amount — discounted unit price
-    # ------------------------------------------------------------------
-
     def test_price_discounted_matches_the_stored_field(self):
         for order in self._orders().values():
             with self.subTest(model=order._name):
@@ -105,10 +79,6 @@ class TestOrderSharedFeatures(TransactionCase):
                 line.write({"price_unit": 200.0, "discount": 25.0})
                 self.assertEqual(line._get_price_discounted(), 150.0)
                 self.assertEqual(line.price_unit_discounted_taxexc, 150.0)
-
-    # ------------------------------------------------------------------
-    # mixin.order — send / print tracking
-    # ------------------------------------------------------------------
 
     def test_mark_as_sent_sets_the_flag_and_counts_the_send(self):
         for order in self._orders().values():
@@ -146,10 +116,6 @@ class TestOrderSharedFeatures(TransactionCase):
                     self.env.ref(order._get_print_report_xmlid()).report_name,
                 )
 
-    # ------------------------------------------------------------------
-    # mixin.order — mail composer action
-    # ------------------------------------------------------------------
-
     def test_send_by_email_opens_the_composer_with_the_template(self):
         for order in self._orders().values():
             with self.subTest(model=order._name):
@@ -167,8 +133,6 @@ class TestOrderSharedFeatures(TransactionCase):
                 self.assertTrue(ctx[order._get_mark_sent_context_key()])
 
     def test_send_by_email_switches_to_mass_mail_for_several_orders(self):
-        """Several orders render one template each, so the single-order keys
-        (``force_email``, the template, the mark-as-sent flag) must not be set."""
         orders = self.env["sale.order"].create(
             [
                 {
@@ -185,13 +149,6 @@ class TestOrderSharedFeatures(TransactionCase):
         self.assertNotIn(orders._get_mark_sent_context_key(), ctx)
 
     def test_send_by_email_opens_in_the_template_language(self):
-        """The composer follows the template's own ``lang``.
-
-        Purchase resolved the language but read ``model_description`` off the
-        untranslated recordset beforehand, so the one string the switch existed
-        for was still built in the user's language; sale never resolved it at
-        all.
-        """
         self.env["res.lang"]._activate_lang("fr_FR")
         for order in self._orders().values():
             with self.subTest(model=order._name):
@@ -209,12 +166,6 @@ class TestOrderSharedFeatures(TransactionCase):
                 ]
                 self.assertEqual(ctx["lang"], "en_US")
 
-    # ------------------------------------------------------------------
-    # res.config.settings — order settings plumbing
-    # ------------------------------------------------------------------
-
-    # (settings field, its onchange) for each order type. The field names are
-    # the ones ``res.company`` stores; they differ per type only by history.
     VALIDITY_SETTINGS = (
         ("quotation_validity_days", "_onchange_quotation_validity_days"),
         ("po_quotation_validity_days", "_onchange_po_quotation_validity_days"),
@@ -246,7 +197,6 @@ class TestOrderSharedFeatures(TransactionCase):
                 self.assertEqual(settings[field], 7)
 
     def test_zero_validity_days_is_accepted(self):
-        """0 means "no automatic expiry" and must survive the clamp."""
         for field, onchange in self.VALIDITY_SETTINGS:
             with self.subTest(field=field):
                 settings = self.env["res.config.settings"].new({field: 0})
@@ -274,19 +224,12 @@ class TestOrderSharedFeatures(TransactionCase):
 
                 self.assertEqual(self.env.company[lock_field], "edit")
 
-    # ------------------------------------------------------------------
-    # account.move.line — links back to the order, product warnings
-    # ------------------------------------------------------------------
-
     def _invoice_lines_of(self, order):
-        """Confirm and invoice/bill ``order``; return its product invoice lines."""
         order.action_confirm()
         invoice = order._create_invoices()
         return invoice.invoice_line_ids.filtered("product_id")
 
     def test_both_order_types_register_their_invoice_line_link(self):
-        """The registry is what lets the two shared methods below exist at all;
-        with both modules installed it must carry both fields."""
         link_fields = self.env["account.move.line"]._get_fields_order_line_link()
 
         self.assertIn("sale_line_ids", link_fields)
@@ -303,8 +246,6 @@ class TestOrderSharedFeatures(TransactionCase):
                 self.assertEqual(invoice_lines[field], order.line_ids)
 
     def test_copying_an_invoice_line_keeps_the_order_line_link(self):
-        """Losing the link would silently stop the order's invoiced quantities
-        from adding up."""
         for order in self._orders().values():
             with self.subTest(model=order._name):
                 field = f"{order._get_order_type()}_line_ids"

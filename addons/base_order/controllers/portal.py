@@ -7,24 +7,7 @@ from odoo.addons.portal.controllers.portal import pager as portal_pager
 
 
 class OrderPortalMixin:
-    """Portal machinery shared by order documents (sale, purchase).
-
-    **Deliberately not an ``http.Controller`` subclass.**
-    ``odoo.http.routing.build_controllers`` collects every leaf subclass of a
-    top controller and fuses them into a single type, so sale's and purchase's
-    ``CustomerPortal`` share one MRO once both modules are installed. Any
-    identity-bearing method defined under the same name in both would therefore
-    collide, one silently shadowing the other — which is why those hooks carry a
-    ``_sale_`` / ``_purchase_`` prefix.
-
-    This class holds only logic that is *identical* for every order type, and
-    takes the caller's identity as arguments rather than reading it off ``self``.
-    It appears exactly once in the fused MRO, so there is nothing to collide.
-    Do not add routes or identity-dependent behaviour here.
-    """
-
     def _order_portal_default_sortings(self):
-        """Return the sort vocabulary offered on the order list pages."""
         return {
             "date": {"label": _("Newest"), "order": "create_date desc, id desc"},
             "name": {"label": _("Name"), "order": "name asc, id asc"},
@@ -35,14 +18,6 @@ class OrderPortalMixin:
         }
 
     def _order_portal_home_counters(self, values, counters, model_name, counter_specs):
-        """Fill the home-page counters an order module contributes.
-
-        :param dict values: The rendering values to complete, returned as-is.
-        :param list counters: Counter keys the portal home actually asked for.
-        :param str model_name: The order model to count on.
-        :param list counter_specs: ``(counter_key, domain)`` pairs.
-        :rtype: dict
-        """
         Order = request.env[model_name]
         can_read = Order.has_access("read")
         for counter_key, domain in counter_specs:
@@ -64,16 +39,6 @@ class OrderPortalMixin:
         filterby=None,
         **kwargs,
     ):
-        """Build the QWeb context dict shared by every order list page.
-
-        :param str model_name: The order model to search.
-        :param dict cfg: Page metadata (url, template, session_key, page_name,
-                         values_key, optional default_filter).
-        :param list base_domain: Page domain before date and filter narrowing.
-        :param dict searchbar_sortings: Sort vocabulary.
-        :param dict searchbar_filters: Filter vocabulary, empty to hide filters.
-        :rtype: dict
-        """
         Order = request.env[model_name]
         values = self._prepare_portal_layout_values()
 
@@ -84,8 +49,6 @@ class OrderPortalMixin:
                 ("create_date", "<=", date_end),
             ]
 
-        # Clamp to the declared vocabulary; an unknown `?sortby=` used to be a
-        # KeyError (HTTP 500). `filterby` below is already membership-tested.
         sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, "date")
         order = searchbar_sortings[sortby]["order"]
 
@@ -139,24 +102,15 @@ class OrderPortalMixin:
         return values
 
     def _order_portal_edi_response(self, order_sudo):
-        """Return the EDI XML download response for an order, or None.
-
-        None means the caller should redirect: no builder is installed for this
-        order type, so there is nothing to export.
-        """
         builders = order_sudo._get_edi_builders()
 
-        # This handles only one builder for now, more can be added in the future
-        # TODO: add builder choice on modal
         if len(builders) == 0:
             return None
         builder = builders[0]
 
         xml_content = builder._export_order(order_sudo)
 
-        download_name = builder._export_invoice_filename(
-            order_sudo
-        )  # works even if it's a SO or PO
+        download_name = builder._export_invoice_filename(order_sudo)
 
         http_headers = [
             ("Content-Type", "text/xml"),

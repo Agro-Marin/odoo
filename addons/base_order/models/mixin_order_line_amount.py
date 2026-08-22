@@ -5,27 +5,10 @@ from odoo.tools import float_compare
 
 
 class MixinOrderLineAmount(models.AbstractModel):
-    """Line-level amount computation and tax calculation."""
-
     _name = "mixin.order.line.amount"
     _description = "Order Line Amount Computation"
 
-    # Computes live here (``_compute_amounts``, ``_compute_product_qty``,
-    # ``_compute_price_and_discount``); concrete models override the pricing hooks
-    # (``_get_auto_price_and_discount``, ``_get_default_product_qty``), extend the
-    # ``@api.depends`` sets, and supply their own sale/purchase tax fields.
-    # Requires ``order_id``, ``company_id``, ``currency_id``, ``display_type`` and
-    # ``price_unit_auto`` from the concrete model or ``mixin.order.line.fields``.
-
-    # ─── Currency (required for Monetary fields) ───────────────────
-    # Structural, not composition-defensive: this abstract mixin owns Monetary
-    # fields whose ``currency_field`` must resolve on the mixin itself at
-    # registry setup. Concrete models also inherit ``currency_id`` from
-    # ``mixin.order``, but the mixin must still declare its own. Do not remove.
-
     currency_id = fields.Many2one("res.currency")
-
-    # ─── Pricing Fields ────────────────────────────────────────────
 
     product_qty = fields.Float(
         string="Quantity",
@@ -76,8 +59,6 @@ class MixinOrderLineAmount(models.AbstractModel):
         context={"active_test": False, "hide_original_tax_ids": True},
     )
 
-    # ─── Computed Amount Fields ────────────────────────────────────
-
     price_subtotal = fields.Monetary(
         string="Subtotal",
         compute="_compute_amounts",
@@ -97,15 +78,8 @@ class MixinOrderLineAmount(models.AbstractModel):
         precompute=True,
     )
 
-    # ─── Compute Methods ───────────────────────────────────────────
-
     @api.depends("tax_ids", "product_qty", "price_unit", "discount")
     def _compute_amounts(self):
-        """Compute line amounts with taxes, batched by company.
-
-        Display lines (sections/notes) get False amounts; product lines are
-        grouped by company for batch tax computation instead of per-line calls.
-        """
         AccountTax = self.env["account.tax"]
         lines = self.env[self._name]
         for line in self:
@@ -138,11 +112,6 @@ class MixinOrderLineAmount(models.AbstractModel):
 
     @api.depends("product_id", "display_type")
     def _compute_product_qty(self):
-        """Set the default quantity when a product is added or changed.
-
-        Subclasses extend the ``@api.depends`` set and override the hooks
-        (purchase resets on partner change and defaults to the seller min qty).
-        """
         for line in self:
             if line.display_type or not line.product_id:
                 line.product_qty = False
@@ -151,22 +120,18 @@ class MixinOrderLineAmount(models.AbstractModel):
                 line.product_qty = line._get_default_product_qty()
 
     def _product_qty_reset_triggered(self):
-        """Whether the default quantity should be re-applied on change."""
         return bool(
             self._origin.product_id and self._origin.product_id != self.product_id
         )
 
     def _get_default_product_qty(self):
-        """Default quantity for a new/changed line (purchase → seller min qty)."""
         return 1.0
 
     @api.depends("product_id", "product_id.uom_id", "product_uom_id", "product_qty")
     def _compute_product_uom_qty(self):
-        """Convert ``product_qty`` to the product's reference UoM."""
         for line in self:
             if line.display_type:
                 line.product_uom_qty = False
-            # e.g. 2 Cases where 1 Case = 12 Units → product_qty 2 → product_uom_qty 24
             elif (
                 line.product_uom_id
                 and line.product_id
@@ -177,14 +142,10 @@ class MixinOrderLineAmount(models.AbstractModel):
                     line.product_qty,
                     line.product_id.uom_id,
                 )
-            # A vendor/customer may transact in a UoM outside the product's category
-            # (e.g. buying a Units product from a vendor quoting in L): no meaningful
-            # reference-UoM qty, so fall back to raw rather than raise on incompatible units.
             else:
                 line.product_uom_qty = line.product_qty
 
     def _get_price_unit_gross(self):
-        """Return the tax-excluded unit price in the product's reference UoM."""
         self.ensure_one()
         price_unit = self.price_unit
         if self.discount:
@@ -204,7 +165,6 @@ class MixinOrderLineAmount(models.AbstractModel):
 
     @api.depends("product_id", "product_uom_id", "product_qty", "display_type")
     def _compute_price_and_discount(self):
-        """Refresh price/discount from the automatic price unless overridden."""
         force_recompute = self.env.context.get("force_price_recomputation")
         for line in self:
             if line.display_type:
@@ -214,10 +174,6 @@ class MixinOrderLineAmount(models.AbstractModel):
                 continue
             if not line.product_id:
                 continue
-            # Shadow-price loop: track the auto price in ``price_unit_auto`` and apply
-            # it to ``price_unit`` only when not manually overridden. The price source
-            # (pricelist vs seller/cost) is model-specific ``_get_auto_price_and_discount``;
-            # subclasses extend the ``@api.depends`` trigger set accordingly.
             auto_price, auto_discount = line._get_auto_price_and_discount()
             old_shadow = line.price_unit_auto
             line.price_unit_auto = auto_price
@@ -226,11 +182,6 @@ class MixinOrderLineAmount(models.AbstractModel):
                 line.discount = auto_discount
 
     def _get_auto_price_and_discount(self):
-        """Return ``(auto_price, auto_discount)`` for this line.
-
-        Sale sources it from the pricelist (with combo / fiscal-position
-        handling); purchase from the selected seller or the product cost.
-        """
         raise NotImplementedError(
             f"{self._name} must implement _get_auto_price_and_discount()"
         )
@@ -238,17 +189,6 @@ class MixinOrderLineAmount(models.AbstractModel):
     def _should_update_price(
         self, new_auto_price, old_auto_price, force_recompute=False
     ):
-        """Whether ``price_unit`` should be refreshed from the automatic price.
-
-        Update when there is no manual override; preserve otherwise.  Subclasses
-        gate additional cases via ``_price_update_blocked`` (sale: invoiced /
-        expense-cost lines; purchase: invoiced lines / currency changes).
-
-        :param float new_auto_price: newly computed automatic price
-        :param float old_auto_price: previous ``price_unit_auto`` (pre-compute)
-        :param bool force_recompute: bypass manual-price protection
-        :rtype: bool
-        """
         self.ensure_one()
         precision = self._get_price_precision()
 
@@ -258,12 +198,9 @@ class MixinOrderLineAmount(models.AbstractModel):
         if force_recompute:
             return True
 
-        # Product changed - always reset to the new product's price.
         if self._origin.product_id and self._origin.product_id != self.product_id:
             return True
 
-        # With a baseline, preserve a price that differs from the old auto price
-        # (manual override, including an intentional 0.0 for free products).
         has_baseline = self._origin.id or old_auto_price
         if has_baseline:
             is_manual = (
@@ -276,7 +213,6 @@ class MixinOrderLineAmount(models.AbstractModel):
             )
             return not is_manual
 
-        # New line without baseline: keep an explicit non-zero price, else auto.
         return not (
             self.price_unit
             and float_compare(
@@ -288,29 +224,13 @@ class MixinOrderLineAmount(models.AbstractModel):
         )
 
     def _price_update_blocked(self):
-        """Whether automatic price updates are blocked for this line.
-
-        Sale blocks invoiced and expense-cost lines; purchase blocks invoiced
-        lines and currency changes on confirmed orders.
-        """
         return False
 
     def _get_base_line_special_type(self):
-        """Return the tax-engine special type for this line, if any.
-
-        Sale overrides to return ``'global_discount'`` for discount lines.
-
-        :rtype: str | False
-        """
         self.ensure_one()
         return "down_payment" if self.is_downpayment else False
 
     def _prepare_base_line_for_taxes_computation(self, **kwargs):
-        """Prepare a base line dict for the ``account.tax`` computation engine.
-
-        :return: dict suitable for ``account.tax._add_tax_details_in_base_lines()``
-        :rtype: dict
-        """
         self.ensure_one()
         company = self.order_id.company_id or self.env.company
         base_values = {
@@ -330,8 +250,6 @@ class MixinOrderLineAmount(models.AbstractModel):
             **base_values,
         )
 
-    # ─── Discounted Price Fields ────────────────────────────────────
-
     price_unit_discounted_taxexc = fields.Float(
         string="Unit Price Discounted Tax Excluded",
         min_display_digits="Product Price",
@@ -344,17 +262,6 @@ class MixinOrderLineAmount(models.AbstractModel):
     )
 
     def _get_price_discounted(self):
-        """Unit price net of the line discount, tax excluded.
-
-        The formula had three copies: this mixin's own stored compute, sale's
-        ``_get_price_discounted``, and an inline expression in purchase's
-        catalog payload. They agreed, which is exactly why the next change to
-        one of them would not have.
-
-        Kept as a method next to the ``price_unit_discounted_taxexc`` field it
-        computes: callers that want the *current* value mid-onchange, before
-        the stored compute has run, need the plain arithmetic.
-        """
         self.ensure_one()
         return self.price_unit * (1 - (self.discount or 0.0) / 100.0)
 
@@ -376,33 +283,16 @@ class MixinOrderLineAmount(models.AbstractModel):
                 line.price_total / line.product_qty if line.product_qty else 0.0
             )
 
-    # ─── Tax Computation ────────────────────────────────────────────
-
     def _get_product_tax_field(self):
-        """Return the product field name holding taxes for this order type.
-
-        Sale: ``'taxes_id'`` (customer taxes).
-        Purchase: ``'supplier_taxes_id'`` (vendor taxes).
-        """
         if self._get_order_type() == "sale":
             return "taxes_id"
         return "supplier_taxes_id"
 
     def _get_custom_compute_tax_cache_key(self):
-        """Hook to extend the tax cache key with model-specific values."""
         return ()
 
     @api.depends("company_id", "product_id")
     def _compute_tax_ids(self):
-        """Compute taxes from the product, filtered by company and fiscal position.
-
-        Groups lines by company for batch ``with_company`` scoping.
-        Uses a cache keyed on ``(fiscal_position, company, tax_ids)``
-        to avoid redundant ``map_tax`` calls.
-
-        Purchase extends the dependencies with ``fiscal_position_id``
-        (auto-recompute); sale deliberately recomputes taxes only on demand.
-        """
         lines_by_company = defaultdict(lambda: self.env[self._name])
         cached_taxes = {}
         tax_field = self._get_product_tax_field()
@@ -431,17 +321,10 @@ class MixinOrderLineAmount(models.AbstractModel):
                 line.tax_ids = result
 
     def _tax_ids_include_product(self, line):
-        """Whether this product should have taxes computed.
-
-        Sale overrides to exclude combo products.
-        """
         return True
-
-    # ─── Analytic Distribution ──────────────────────────────────────
 
     @api.depends("company_id", "partner_id", "product_id")
     def _compute_analytic_distribution(self):
-        """Compute analytic distribution with cross-record caching."""
         cache = {}
         AnalyticModel = self.env["account.analytic.distribution.model"]
 
@@ -468,21 +351,10 @@ class MixinOrderLineAmount(models.AbstractModel):
             distribution = cache[cache_key]
             line.analytic_distribution = distribution or line.analytic_distribution
 
-    # ─── Manual Price Detection ─────────────────────────────────────
-
     def _get_price_precision(self):
-        """Return decimal precision for price comparisons.
-
-        Purchase overrides to include currency decimal places.
-        """
         return self.env["decimal.precision"].get_precision("Product Price")
 
     def is_manual_price(self):
-        """Check if the current price is a manual override (not auto-priced).
-
-        :return: True if ``price_unit`` differs from ``price_unit_auto``
-        :rtype: bool
-        """
         self.ensure_one()
         if not self.price_unit_auto:
             return False
@@ -496,19 +368,6 @@ class MixinOrderLineAmount(models.AbstractModel):
             != 0
         )
 
-    # ─── Merge Support ─────────────────────────────────────────────
-
     def _merge_order_line(self, source_line):
-        """Merge a source line into this line by combining quantities.
-
-        Only ever called on lines that already matched on
-        ``order.merge.mixin._merge_get_line_key()``, which includes
-        ``price_unit``/``tax_ids`` — so both lines are guaranteed to share
-        the same price/taxes here; the ``min()`` is a no-op safety net, not
-        a real "pick the lower price" policy (t24068: it used to silently
-        pick a price and drop taxes for lines that only matched on
-        product/UoM/discount but differed in price or tax).
-        Called by ``order.merge.mixin._merge_lines()``.
-        """
         self.product_qty += source_line.product_qty
         self.price_unit = min(self.price_unit, source_line.price_unit)
