@@ -105,9 +105,21 @@ bash addons/<module>/machine_doc_v1/factcheck.sh
 ```
 
 `.github/workflows/machine_doc.yml` runs every harness it discovers, blocking.
-It is not total coverage: `mail` is quarantined (literal expectations), and
-`odoo/tests`, `odoo/addons/base`, `gamification` and `base_automation` carry
-machine docs with no harness, so their figures are checked by nothing.
+**The workflow is the authority on what is quarantined — never this file.** Its
+`QUARANTINE` list has been empty since the lane was added (`876ba89f63b`,
+2026-08-22), so every discovered harness blocks, `mail` included; the comment
+beside the list narrates a window that predates the file and does not mean the
+list holds anything. This paragraph used to say `mail` was quarantined, and for
+the lane's whole existence that sentence was the reason nobody ran `mail`'s
+harness while it was red. The write-up lives in the knowledge vault, outside
+this repo, at agromarin-knowledge/research/2026-08-22-machine-doc-lane-red-since-birth.md
+— named in plain prose because CI checks this repository out alone.
+Membership is checked in both directions: a quarantined harness that starts
+passing fails the lane too.
+
+It is not total coverage: `odoo/tests`, `odoo/addons/base`, `gamification` and
+`base_automation` carry machine docs with no harness, so their figures are
+checked by nothing.
 
 ## Tests
 
