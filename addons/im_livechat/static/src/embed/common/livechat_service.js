@@ -5,6 +5,7 @@ import { reactive } from "@odoo/owl";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { livechatLog } from "@web/core/utils/asset_log";
 import { session } from "@web/session";
 
 export const RATING = Object.freeze({
@@ -40,6 +41,7 @@ export class LivechatService {
     }
 
     async initialize() {
+        livechatLog("service:initialize", `channel=${this.options.channel_id}`);
         this.store.fetchStoreData("init_livechat", this.options.channel_id, {
             readonly: false,
         });
@@ -87,6 +89,11 @@ export class LivechatService {
             return;
         }
         savedThread.fetchNewMessages();
+        // Whether this actually re-initialises depends on nobody having done it
+        // already: `Store.initialize()` memoises on `_initializePromise`. In the
+        // embed it is the first call and fetches; under a mounted WebClient it
+        // is a silent no-op. `model.store` logs which.
+        livechatLog("service:persist:store-initialize", `thread=${savedThread.id}`);
         this.env.services["mail.store"].initialize();
         savedThread.readyToSwapDeferred.then(async () => {
             if (!savedThread?.exists()) {

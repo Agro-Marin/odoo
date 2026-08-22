@@ -8,6 +8,7 @@ import {
 import { withGuest } from "@mail/../tests/mock_server/mail_mock_server";
 import { describe, test } from "@odoo/hoot";
 import { Command, patchWithCleanup, serverState } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 import { rpc } from "@web/core/network";
 
 import { defineLivechatModels } from "./livechat_test_helpers.js";
@@ -19,7 +20,10 @@ test("push notifications are Odoo toaster on Android", async () => {
     // Notifications without ServiceWorker in Chrome Android no longer work.
     // This simulates Android Notification behavior by throwing a
     // ServiceWorkerRegistration error as a fallback.
-    patchWithCleanup(window, {
+    // `out_of_focus_service` constructs `browser.Notification`, and `browser`
+    // snapshots `window.Notification` at import time -- patching the global no
+    // longer reaches it.  Consistent with `mail`'s own notification tests.
+    patchWithCleanup(browser, {
         Notification: class Notification {
             static get permission() {
                 return "granted";

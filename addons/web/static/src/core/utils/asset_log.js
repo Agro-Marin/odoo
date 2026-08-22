@@ -90,76 +90,108 @@ export const viewLog = _makeNamespacedLog("view", "view");
 
 export const fieldLog = _makeNamespacedLog("field", "field");
 
+export const mailLog = _makeNamespacedLog("mail", "mail");
+
+/**
+ * The livechat embed is the hardest runtime in the tree to observe: it removes
+ * the `error` service on purpose (`embed/cors/boot.js`), it runs on a page Odoo
+ * does not render, and under CORS it rewrites every request's origin. Give it a
+ * namespace of its own rather than borrowing `rpc`'s.
+ */
+export const livechatLog = _makeNamespacedLog("livechat", "livechat");
+
+/**
+ * Bind a namespace to one category, keeping the `enabled`/`active` predicates.
+ *
+ * Without this the `make*Log` wrappers returned a bare arrow, so a call site
+ * that took one could not ask whether anything was listening -- and the module
+ * requires exactly that of any call site that builds a payload before logging
+ * (see `active` on `_makeNamespacedLog`). `store_service`'s per-batch
+ * `fetchParams.map(...)` is one: it would allocate on every store fetch with
+ * the namespace off.
+ *
+ * @param {ReturnType<typeof _makeNamespacedLog>} namespaced
+ * @param {string} category
+ * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
+ */
+function _bindCategory(namespaced, category) {
+    /** @type {any} */
+    const log = (/** @type {any[]} */ ...parts) => namespaced(category, ...parts);
+    log.enabled = namespaced.enabled;
+    log.active = namespaced.active;
+    return log;
+}
+
 /**
  * @param {string} category
- * @returns {(...parts: any[]) => void}
+ * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
  */
 export function makeAssetLog(category) {
-    return (...parts) => assetLog(category, ...parts);
+    return _bindCategory(assetLog, category);
 }
 
 /**
  * @param {string} category
- * @returns {(...parts: any[]) => void}
+ * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
  */
 export function makeRpcLog(category) {
-    return (...parts) => rpcLog(category, ...parts);
+    return _bindCategory(rpcLog, category);
 }
 
 /**
  * @param {string} category
- * @returns {(...parts: any[]) => void}
+ * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
  */
 export function makeActionLog(category) {
-    return (...parts) => actionLog(category, ...parts);
+    return _bindCategory(actionLog, category);
 }
 
 /**
  * @param {string} category
- * @returns {(...parts: any[]) => void}
+ * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
  */
 export function makeModelLog(category) {
-    return (...parts) => modelLog(category, ...parts);
+    return _bindCategory(modelLog, category);
 }
 
 /**
  * @param {string} category
- * @returns {(...parts: any[]) => void}
+ * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
  */
 export function makeL10nLog(category) {
-    return (...parts) => l10nLog(category, ...parts);
+    return _bindCategory(l10nLog, category);
 }
 
 /**
  * @param {string} category
- * @returns {(...parts: any[]) => void}
+ * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
  */
 export function makeComponentLog(category) {
-    return (...parts) => componentLog(category, ...parts);
+    return _bindCategory(componentLog, category);
 }
 
 /**
  * @param {string} category
- * @returns {(...parts: any[]) => void}
+ * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
  */
 export function makeServiceLog(category) {
-    return (...parts) => serviceLog(category, ...parts);
+    return _bindCategory(serviceLog, category);
 }
 
 /**
  * @param {string} category
- * @returns {(...parts: any[]) => void}
+ * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
  */
 export function makeViewLog(category) {
-    return (...parts) => viewLog(category, ...parts);
+    return _bindCategory(viewLog, category);
 }
 
 /**
  * @param {string} category
- * @returns {(...parts: any[]) => void}
+ * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
  */
 export function makeFieldLog(category) {
-    return (...parts) => fieldLog(category, ...parts);
+    return _bindCategory(fieldLog, category);
 }
 
 /**

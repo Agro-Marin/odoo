@@ -1,10 +1,8 @@
 {
-  "expected": {
-    "im_livechat/TestImLivechatSupportPage.test_load_modules_cors": "ERROR"
-  },
-  "note": "The embed's test-mode tour bundle is fetched cross-origin (session.livechatData.serverUrl is localhost, the page is 127.0.0.1) and neither /web/bundle nor /web/assets/esm carries CORS headers, so the browser blocks it and odoo.isTourReady never resolves. Production never loads a bundle cross-origin from the embed -- boot.js only does it under session.test_mode -- so closing this means deciding whether Odoo's asset graph may be served to any origin, which is a policy call rather than a repair.",
-  "run_spec": "-u im_livechat --test-enable --test-tags '/im_livechat,-/im_livechat:ExternalTestSuite'",
-  "suite": "/im_livechat",
-  "tests_total": 103,
-  "verified_at": "ca4ee2ddd79"
+  "expected": {},
+  "note": "GREEN -- no expected failures. ExternalTestSuite.test_external_livechat now passes: 36 of 36 embed tests. Two layers had to come off. (1) 17179890aea fixed the 1800s Script timeout (the start_hoot/any('.test') guard in _prepare_esm_bridge_js), which merely made the page run. (2) Underneath it, 3 tests failed on verifySteps ORDER because the embed was being exercised inside a backend WEBCLIENT: mail_test_helpers.start() ends in mountWithCleanup(WebClient, ...) and im_livechat had no start() of its own, so webclient.js:18 called store.initialize(), which mail/core/web/store_service_patch.js expands into failures+systray_get_activities+init_messaging -- none of which the embed fetches. mail's start() now takes an optional root (default WebClient, so every other caller is unchanged) and livechat_test_helpers exports startLivechatEmbed(), mounting MainComponentsContainer as embed/external/boot.js does. That alone made assertion 9 of livechat_service and assertion 6 of unread_messages/'focus on unread livechat' pass with NO expectation edited, because persist()'s store.initialize() is finally the first call rather than a no-op against _initializePromise memoization. Only then were the three stale boot barriers corrected to the embed's real traffic (init_livechat at boot; init_messaging when persist/focus initialises the store); they had last been edited substantively in 817b250fb0f (2025-06-19), predating c7ad5c8b305 (2026-06-08) which moved store.initialize() into webclient.js. NOT the fix, and refuted en route: removing mail's web layer from embed_assets_unit_tests_setup kills the page ('Missing (primary) parent templates: mail.AvatarCardPopover, ...') because hr, hr_holidays, resource_mail, hr_work_entry and sms t-inherit across that boundary; and waitStoreFetch's ignoreOrder would have hidden that the page under test was not the application under test. Separately, embed/cors/boot.js had narrowed browser.fetch's string|URL|Request input to string while getBundle fetches a URL, killing test_load_modules_cors on 'n.match is not a function' -- fixed; the earlier cross-origin theory is refuted, a probe measured session.origin == page origin.",
+  "run_spec": "-i im_livechat --test-enable --test-tags '/im_livechat'",
+  "suite": "im_livechat",
+  "tests_total": 104,
+  "verified_at": "329145a4b82"
 }

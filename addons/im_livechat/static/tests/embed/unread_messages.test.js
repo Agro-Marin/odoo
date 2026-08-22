@@ -2,6 +2,7 @@ import { waitUntilSubscribe } from "@bus/../tests/bus_test_helpers";
 import {
     defineLivechatModels,
     loadDefaultEmbedConfig,
+    startLivechatEmbed as start,
 } from "@im_livechat/../tests/livechat_test_helpers";
 import { expirableStorage } from "@im_livechat/core/common/expirable_storage";
 import {
@@ -11,7 +12,6 @@ import {
     insertText,
     listenStoreFetch,
     setupChatHub,
-    start,
     startServer,
     triggerHotkey,
     waitStoreFetch,
@@ -61,10 +61,9 @@ test("new message from operator displays unread counter", async () => {
             _name: "mail.guest",
         },
     });
-    await waitStoreFetch(["init_messaging", "init_livechat", "discuss.channel"], {
+    await waitStoreFetch(["discuss.channel", "init_livechat"], {
         stepsAfter: ["/discuss/channel/message"],
     });
-    // send after init_messaging because bus subscription is done after init_messaging
     await withUser(userId, () =>
         rpc("/mail/message/post", {
             post_data: { body: "Are you there?", message_type: "comment" },
@@ -82,7 +81,7 @@ test("focus on unread livechat marks it as read", async () => {
     const userId = serverState.userId;
     listenStoreFetch(["init_messaging", "init_livechat"]);
     await start({ authenticateAs: false });
-    await waitStoreFetch(["init_messaging", "init_livechat"]);
+    await waitStoreFetch("init_livechat");
     await click(".o-livechat-LivechatButton");
     await insertText(".o-mail-Composer-input", "Hello World!");
     await triggerHotkey("Enter");

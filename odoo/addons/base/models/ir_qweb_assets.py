@@ -46,6 +46,7 @@ _attach_log = get_asset_logger("attach")
 _fallback_log = get_asset_logger("fallback")
 _loader_log = get_asset_logger("loader")
 _lock_log = get_asset_logger("lock")
+_pregen_log = get_asset_logger("pregen")
 
 
 class _EsmFallbackError(Exception):
@@ -2048,6 +2049,7 @@ class IrQweb(models.AbstractModel):
         _logger.runbot("Pregenerating assets bundles")
 
         js_bundles, css_bundles = self._get_bundles_to_pregenerate()
+        self._log_pregeneration_coverage(js_bundles)
 
         start = time.time()
         links = [
@@ -2062,6 +2064,61 @@ class IrQweb(models.AbstractModel):
         ]
         _logger.info("CSS Assets bundles generated in %s seconds", time.time() - start)
         return links
+
+    def _log_pregeneration_coverage(self, js_bundles: set[str]) -> None:
+        """Report which runtime-loaded bundles pregeneration cannot see.
+
+        `_get_bundles_to_pregenerate` discovers bundles by scanning qweb views
+        for `t-call-assets`. A bundle fetched at runtime through `loadBundle()`
+        is never `t-call-assets`-ed, so it is invisible to that scan -- and
+        those are exactly the bundles the manifests already declare, as
+        `esm.dynamic_children`.
+
+        This matters most where `_pregenerate_assets_bundles` is called from:
+        `service/lifecycle.py` runs it immediately before a `post_install`
+        suite that has HTTP cases, precisely so browser tests do not pay bundle
+        generation. A dynamic child skips that warm-up, so the first test to
+        request it generates it inside the request -- and because `/web/bundle`
+        is a readonly route, persisting the attachment forces the readonly->rw
+        promotion in `http/_serve.py` and the handler runs twice.
+
+        Logged rather than fixed: adding these to the pregenerated set changes
+        boot for every module's HTTP suite, and `_pregenerate_assets_bundles`
+        builds each bundle inline with no error guard, so one that cannot build
+        in a given database would take the boot down. That wants a decision
+        recorded in `doc/adr/`, not a drive-by.
+        """
+        if not _pregen_log.isEnabledFor(logging.DEBUG):
+            return
+        registry = esm_registry()
+        dynamic = {
+            child
+            for children in registry.dynamic_children.values()
+            for child in children
+        }
+        # `esm_registry()` is built from `Manifest.all_addon_manifests()` -- every
+        # addon on the addons_path, installed or not -- so the raw count answers
+        # "declared anywhere", not "reachable in this database". Split it, or the
+        # figure reads as a bigger gap than it is: a bundle whose module is not
+        # installed contributes nothing to load here.
+        installed = set(
+            self.env["ir.module.module"]
+            .sudo()
+            .search([("state", "=", "installed")])
+            .mapped("name")
+        )
+        uncovered = dynamic - js_bundles
+        uncovered_here = {b for b in uncovered if b.split(".", 1)[0] in installed}
+        log_event(
+            _pregen_log,
+            logging.DEBUG,
+            "coverage",
+            discovered=len(js_bundles),
+            dynamic_declared=len(dynamic),
+            uncovered_declared=len(uncovered),
+            uncovered_installed=len(uncovered_here),
+            bundles=",".join(sorted(uncovered_here)) or "none",
+        )
 
     def _get_bundles_to_pregenerate(self) -> tuple[set[str], set[str]]:
 

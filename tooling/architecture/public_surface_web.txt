@@ -82,6 +82,7 @@
 @web/core/translation  odoo enterprise agromarin
 @web/core/tree  odoo enterprise agromarin
 @web/core/user  odoo enterprise agromarin
+@web/core/utils/asset_log  odoo
 @web/core/utils/collections/arrays  odoo enterprise
 @web/core/utils/collections/cache  odoo enterprise
 @web/core/utils/collections/objects  odoo enterprise agromarin

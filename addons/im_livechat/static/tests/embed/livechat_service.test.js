@@ -1,6 +1,7 @@
 import {
     defineLivechatModels,
     loadDefaultEmbedConfig,
+    startLivechatEmbed as start,
 } from "@im_livechat/../tests/livechat_test_helpers";
 import { expirableStorage } from "@im_livechat/core/common/expirable_storage";
 import {
@@ -10,7 +11,6 @@ import {
     listenStoreFetch,
     onRpcBefore,
     setupChatHub,
-    start,
     startServer,
     STORE_FETCH_ROUTES,
     triggerHotkey,
@@ -99,12 +99,7 @@ test("Only necessary requests are made when creating a new chat", async () => {
     listenStoreFetch(undefined, { logParams: ["init_livechat"] });
     await start({ authenticateAs: false });
     await contains(".o-livechat-LivechatButton");
-    await waitStoreFetch([
-        "failures", // called because mail/core/web is loaded in test bundle
-        "systray_get_activities", // called because mail/core/web is loaded in test bundle
-        "init_messaging",
-        ["init_livechat", livechatChannelId],
-    ]);
+    await waitStoreFetch([["init_livechat", livechatChannelId]]);
     await click(".o-livechat-LivechatButton");
     await contains(".o-mail-Message", { text: "Hello, how may I help you?" });
     await waitForSteps([

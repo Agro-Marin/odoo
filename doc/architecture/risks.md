@@ -169,7 +169,7 @@ record to learn what `ir.attachment`'s dual storage costs.
 
 **What.** `web` publishes no API: everything under `static/src` is reachable as
 `@web/<path>`. The pin records which specifiers each consumer scope reaches, so
-the surface can only shrink. It stands at **225 specifiers**
+the surface can only shrink. It stands at **226 specifiers**
 (`tooling/architecture/public_surface_web.txt`). What remains is *recorded*, not
 resolved.
 

@@ -15,9 +15,12 @@ import { ConnectionLostError, rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
+import { makeModelLog } from "@web/core/utils/asset_log";
 import { Deferred, Mutex } from "@web/core/utils/concurrency";
 import { debounce } from "@web/core/utils/timing";
 import { session } from "@web/session";
+
+const log = makeModelLog("store");
 
 /**
  * @typedef {{isSpecial: true, channel_types: string[], label: string, displayName: string, description: string}} SpecialMention
@@ -268,8 +271,14 @@ export class Store extends BaseStore {
 
     async initialize() {
         if (this._initializePromise) {
+            // Not a no-op worth hiding: `im_livechat`'s
+            // `livechat_service.persist()` calls this expecting a
+            // re-initialisation, and inside a mounted WebClient it silently
+            // gets the memoised promise instead.
+            log("initialize:memoized");
             return this._initializePromise;
         }
+        log("initialize:first-call");
         this._initializePromise = (async () => {
             try {
                 await this.fetchStoreData("init_messaging");
@@ -339,6 +348,18 @@ export class Store extends BaseStore {
 
     _fetchStoreDataDebounced() {
         const fetchParams = this.fetchParams;
+        // The batch is the unit that reaches the server, and its ORDER is what
+        // the mail/livechat suites' `verifySteps` assert on -- so log the route
+        // and the ordered names together.  Reconstructing this by hand from
+        // failing step diffs is what an embed-ordering investigation costs
+        // without it.
+        if (log.active()) {
+            log(
+                "fetchStoreData:batch",
+                this.fetchReadonly ? "/mail/data" : "/mail/action",
+                fetchParams.map(([name]) => name),
+            );
+        }
         this._fetchStoreDataRpc(
             fetchParams.map(([name, params, dataRequest]) => {
                 if (dataRequest._autoResolve) {
