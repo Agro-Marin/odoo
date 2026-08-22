@@ -100,7 +100,7 @@ class ResUsers(models.Model):
 
     def _inverse_livechat_username(self):
         for user in self:
-            settings = self.env['res.users.settings']._find_or_create_for_user(user)
+            settings = self.env['res.users.settings']._get_or_create_for_user(user)
             settings.livechat_username = user.livechat_username
 
     @api.depends('res_users_settings_id.livechat_lang_ids')
@@ -111,7 +111,7 @@ class ResUsers(models.Model):
 
     def _inverse_livechat_lang_ids(self):
         for user in self:
-            settings = self.env['res.users.settings']._find_or_create_for_user(user)
+            settings = self.env['res.users.settings']._get_or_create_for_user(user)
             settings.livechat_lang_ids = user.livechat_lang_ids
 
     @api.depends("res_users_settings_id.livechat_expertise_ids")
@@ -122,7 +122,7 @@ class ResUsers(models.Model):
 
     def _inverse_livechat_expertise_ids(self):
         for user in self:
-            settings = self.env["res.users.settings"]._find_or_create_for_user(user)
+            settings = self.env["res.users.settings"]._get_or_create_for_user(user)
             settings.livechat_expertise_ids = user.livechat_expertise_ids
 
     @api.depends("group_ids")

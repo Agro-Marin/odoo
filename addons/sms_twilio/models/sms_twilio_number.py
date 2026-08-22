@@ -21,6 +21,6 @@ class SmsTwilioNumber(models.Model):
 
     def action_unlink(self):
         # First create the action while self exists as it's going to be unlink right after
-        action = self.company_id._action_open_sms_twilio_account_manage()
+        action = self.company_id._action_view_sms_twilio_account_manage()
         self.unlink()
         return action

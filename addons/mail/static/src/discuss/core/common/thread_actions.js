@@ -35,7 +35,7 @@ registerThreadAction("notification-settings", {
                 onClose: () => this.close(),
                 position: "bottom-end",
                 fixedPosition: true,
-                popoverClass: this.panelOuterClass,
+                class: this.panelOuterClass,
             });
         }
     },
@@ -124,7 +124,7 @@ registerThreadAction("invite-people", {
         if (!owner.props.chatWindow && !owner.env.inMeetingView) {
             this.popover = usePopover(ChannelInvitation, {
                 onClose: () => this.close(),
-                popoverClass: this.panelOuterClass,
+                class: this.panelOuterClass,
             });
         }
     },

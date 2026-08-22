@@ -37,7 +37,7 @@ class SmsTemplatePreview(models.TransientModel):
     @api.depends('model_id')
     def _compute_no_record(self):
         for preview in self:
-            preview.no_record = (self.env[preview.model_id.model].search_count([]) == 0) if preview.model_id else True
+            preview.no_record = (self.env[preview.model_id.model].search_count([], limit=1) == 0) if preview.model_id else True
 
     @api.depends('lang', 'resource_ref')
     def _compute_sms_template_fields(self):

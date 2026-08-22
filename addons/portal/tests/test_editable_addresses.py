@@ -1,14 +1,3 @@
-"""``/my/addresses`` must answer "which of these may I edit" once, not per card.
-
-``portal.address_list`` asked the singleton predicate inside its ``t-foreach``,
-so every address rendered cost a ``search_count`` plus the record-rule machinery
-around it — a page whose query count grew with the customer's address book.
-
-The batch primitive has to give exactly the same answer as the predicate it
-replaces, including for the addresses that must *not* be editable, so both
-halves are asserted here: the permission semantics, and the cost.
-"""
-
 from odoo.tests import TransactionCase, tagged
 
 
@@ -42,9 +31,6 @@ class TestEditableAddresses(TransactionCase):
                 for index in range(10)
             ]
         )
-        # A sibling contact of the same company: a person, not an address. The
-        # rule deliberately excludes type "contact" so a customer cannot edit a
-        # colleague's record.
         cls.colleague = Partner.create(
             {
                 "name": "Colleague",
@@ -52,7 +38,6 @@ class TestEditableAddresses(TransactionCase):
                 "type": "contact",
             }
         )
-        # Someone else's address entirely.
         cls.foreign_address = Partner.create({"name": "Foreign", "type": "delivery"})
 
     def _as_user(self, records):
@@ -91,25 +76,12 @@ class TestEditableAddresses(TransactionCase):
         self.assertNotIn(self.foreign_address, editable, "another tree entirely")
 
     def _query_count(self, call):
-        """Queries issued by ``call``, after a warm-up run.
-
-        The warm-up removes the one-off costs that are not what this measures:
-        record-rule compilation, field metadata, the current-partner lookup. What
-        is left is the work the method does *every* time it runs.
-        """
         call()
         before = self.env.cr.sql_log_count
         call()
         return self.env.cr.sql_log_count - before
 
     def test_batch_cost_does_not_grow_with_the_address_book(self):
-        """The property that matters is the shape of the curve, not a constant.
-
-        A page cost is only a bug when it scales: the singleton predicate asked
-        one ``search_count`` per address, so `/my/addresses` grew a query for
-        every address a customer added. The batch primitive must answer a set of
-        any size for the same price.
-        """
         two = self._as_user(self.own_addresses[:2])
         ten = self._as_user(self.own_addresses[:10])
 

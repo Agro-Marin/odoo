@@ -7,7 +7,7 @@ import { extractFieldsFromArchInfo } from "@web/model/relational_model";
 import { CogMenu } from "@web/search/cog_menu/cog_menu";
 import { Layout } from "@web/search/layout";
 import { usePager } from "@web/search/pager_hook";
-import { SearchBar } from "@web/search/search_bar";
+import { SearchBar } from "@web/search/search_bar/search_bar";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { SelectCreateDialog } from "@web/views/view_dialogs";
 export class ActivityController extends Component {

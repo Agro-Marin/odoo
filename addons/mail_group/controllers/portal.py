@@ -75,7 +75,7 @@ class PortalMailGroup(http.Controller):
             email_normalized = tools.email_normalize(email)
             partner_id = None
 
-        members_data = mail_groups._find_members(email_normalized, partner_id)
+        members_data = mail_groups._get_members(email_normalized, partner_id)
 
         return request.render('mail_group.mail_groups', {
             'mail_groups': [{

@@ -1,7 +1,7 @@
 # Mail Module Test Tags
 
 Reference for running targeted subsets of the `mail` module's tests — Python
-(`tests/`, 55 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 143 `*.test.js`).
+(`tests/`, 60 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 144 `*.test.js`).
 
 > **See also**: `CONVENTIONS.md` (the mock-gateway / bus test helpers), `ROUTE_MAP.md`
 > (the controller-contract tests), `STATE_MANAGEMENT.md` (what the JS store tests exercise).
@@ -10,7 +10,7 @@ Reference for running targeted subsets of the `mail` module's tests — Python
 
 Almost every mail test class is decorated `@tagged("post_install", "-at_install", …)` — the
 suites need a fully-installed database (mail wires into `res.partner`, `res.users`, the bus,
-etc.). Of **72** tagged classes, **56** carry `post_install`/`-at_install`. Note both
+etc.). Of **88** tagged classes, **69** carry `post_install`/`-at_install`. Note both
 decorator spellings are in use (`@tagged(...)` and `@odoo.tests.tagged(...)`, the latter in
 e.g. `test_js.py` and `discuss/test_discuss_attachment_controller.py`) — grep for both or you
 will undercount. Topic tags on top of that are
@@ -44,8 +44,10 @@ Class counts measured 2026-08-17 at `dd172d10485`; `factcheck.sh` pins them.
 | `discuss_action` | 1 | `discuss/test_discuss_action.py` | Discuss client-action loading |
 | `RTC` | 1 | `discuss/test_rtc.py` | WebRTC call session model |
 | `is_tour` | 1 | `discuss/test_discuss_channel_as_guest.py` | Guest browser tours |
+| `mail_notification` | 1 | `test_mail_notification.py` | `format_failure_reason`, in the recipient's language |
+| `web_manifest` | 1 | `test_webmanifest.py` | Service worker + web manifest served to the browser |
 
-**30 of the 55 test files carry no topic tag at all** and are reachable only by the module
+**33 of the 60 test files carry no topic tag at all** and are reachable only by the module
 filter — among them `test_fetchmail.py`, `test_mail_mail.py`, `test_mail_blacklist.py`,
 `test_mail_message_access_parity.py`, `test_mail_message_search.py`, `test_uninstall.py`,
 `test_update_notification.py`, and 14 of the 23 files in `discuss/`. That is **more than
@@ -314,11 +316,11 @@ interactively at `/web/tests` (mail is included in `web.assets_unit_tests`).
 
 ### File groups (by subdirectory)
 
-Rows below sum to 142.
+Rows below sum to 144.
 
 | Directory | Files | Scope |
 |-----------|------:|-------|
-| `discuss/` | 44 | Discuss app: channels, members, calls, sidebar, sub-channels |
+| `discuss/` | 45 | Discuss app: channels, members, calls, sidebar, sub-channels |
 | `core/` | 22 | Store/Record framework, personas, notifications, settings, presence |
 | `web/` | 9 | Backend-web integration (systray, form chatter wiring) |
 | `chatter/` | 9 | Form-view chatter |
@@ -352,7 +354,7 @@ Rows below sum to 142.
 
 Other helper files: `mail_test_helpers_contains.js` (DOM `contains`-style assertions),
 `mail_shared_tests.js` (reusable test bodies),
-`mock_server/mail_mock_server.js` (40 mocked RPC routes, all via `registerRoute("<path>", …)`),
+`mock_server/mail_mock_server.js` (41 mocked RPC routes, all via `registerRoute("<path>", …)`),
 `mock_server/mock_models/` (35 mock model files: `mail_thread.js`, `mail_message.js`,
 `discuss_channel.js`, `discuss_channel_member.js`, `discuss_channel_rtc_session.js`,
 `mail_activity.js`, `res_partner.js`, `mail_guest.js`, `mail_notification.js`,

@@ -536,7 +536,7 @@ class ResUsers(models.Model):
             odoobot=Store.One(odoobot),
         )
         if is_identified:
-            settings = self.env["res.users.settings"]._find_or_create_for_user(user)
+            settings = self.env["res.users.settings"]._get_or_create_for_user(user)
             store.add_global_values(
                 self_partner=Store.One(
                     user.partner_id,
@@ -591,7 +591,7 @@ class ResUsers(models.Model):
         return [
             "share",
             Store.One(
-                "partner_id", self.partner_id._get_store_avatar_card_fields(target)
+                "partner_id", self.partner_id._get_fields_store_avatar_card(target)
             ),
         ]
 

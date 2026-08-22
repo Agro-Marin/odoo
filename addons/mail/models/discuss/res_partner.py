@@ -68,7 +68,7 @@ class ResPartner(models.Model):
             )
             if channel._allow_invite_by_email() and not self.env[
                 "discuss.channel.member"
-            ].search_count(member_domain):
+            ].search_count(member_domain, limit=1):
                 selectable_email = email
                 email_already_sent = (
                     self.env["mail.mail"]
@@ -78,7 +78,8 @@ class ResPartner(models.Model):
                             ("email_to", "=", email),
                             ("model", "=", "discuss.channel"),
                             ("res_id", "=", channel.id),
-                        ]
+                        ],
+                        limit=1,
                     )
                     > 0
                 )
@@ -171,7 +172,7 @@ class ResPartner(models.Model):
         store = (
             Store()
             .add(members, member_fields)
-            .add(partners, extra_fields=partners._get_store_mention_fields())
+            .add(partners, extra_fields=partners._get_fields_store_mention())
         )
         store.add(channel, "group_public_id")
         if allowed_group:

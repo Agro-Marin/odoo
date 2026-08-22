@@ -75,7 +75,7 @@ class IrModel(models.Model):
         self.env.cr.execute(query, [models])
 
         for (fname,) in fnames:
-            self.env["ir.attachment"]._storage_delete(fname)
+            self.env["ir.attachment"]._remove_stored_file(fname)
 
         return super().unlink()
 
@@ -117,8 +117,8 @@ class IrModel(models.Model):
             res = super().write(vals)
         return res
 
-    def _reflect_model_params(self, model: models.BaseModel) -> dict[str, Any]:
-        vals = super()._reflect_model_params(model)
+    def _prepare_model_vals(self, model: models.BaseModel) -> dict[str, Any]:
+        vals = super()._prepare_model_vals(model)
         vals["is_mail_thread"] = isinstance(model, self.pool["mixin.mail.thread"])
         vals["is_mail_activity"] = isinstance(model, self.pool["mixin.mail.activity"])
         vals["is_mail_blacklist"] = isinstance(
@@ -127,8 +127,8 @@ class IrModel(models.Model):
         return vals
 
     @api.model
-    def _instantiate_attrs(self, model_data: dict) -> dict:
-        attrs = super()._instantiate_attrs(model_data)
+    def _prepare_class_attrs(self, model_data: dict) -> dict:
+        attrs = super()._prepare_class_attrs(model_data)
         if (
             model_data.get("is_mail_blacklist")
             and attrs["_name"] != "mixin.mail.thread.blacklist"

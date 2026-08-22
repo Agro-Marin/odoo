@@ -65,7 +65,7 @@ class MixinGoogleCalendarSync(models.AbstractModel):
 
     def write(self, vals):
         google_service = GoogleCalendarService(self.env['google.service'])
-        synced_fields = self._get_google_synced_fields()
+        synced_fields = self._get_fields_google_synced()
         if 'need_sync' not in vals and vals.keys() & synced_fields and not self.env.user.google_synchronization_stopped:
             vals['need_sync'] = True
 
@@ -375,7 +375,7 @@ class MixinGoogleCalendarSync(models.AbstractModel):
         """
         raise NotImplementedError
 
-    def _get_google_synced_fields(self):
+    def _get_fields_google_synced(self):
         """Return a set of field names. Changing one of these fields
         marks the record to be re-synchronized.
         """

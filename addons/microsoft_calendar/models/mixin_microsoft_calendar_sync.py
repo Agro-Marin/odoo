@@ -67,7 +67,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
     active = fields.Boolean(default=True)
 
     def write(self, vals):
-        fields_to_sync = [x for x in vals if x in self._get_microsoft_synced_fields()]
+        fields_to_sync = [x for x in vals if x in self._get_fields_microsoft_synced()]
         if fields_to_sync and 'need_sync_m' not in vals and self.env.user._get_microsoft_sync_status() == "sync_active":
             vals['need_sync_m'] = True
 
@@ -101,7 +101,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
 
             for record in records:
                 if record.need_sync_m and record.active:
-                    record._microsoft_insert(record._microsoft_values(self._get_microsoft_synced_fields()), timeout=timeout)
+                    record._microsoft_insert(record._microsoft_values(self._get_fields_microsoft_synced()), timeout=timeout)
         return records
 
     @api.model
@@ -144,7 +144,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
         for record in cancelled_records._get_synced_events():
             record._microsoft_delete(record._get_organizer(), record.microsoft_id)
         for record in new_records:
-            values = record._microsoft_values(self._get_microsoft_synced_fields())
+            values = record._microsoft_values(self._get_fields_microsoft_synced())
             sender_user = record._get_event_user_m()
             if record._is_microsoft_insertion_blocked(sender_user):
                 continue
@@ -154,7 +154,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
                 for value in values:
                     record._microsoft_insert(value)
         for record in updated_records.filtered('need_sync_m'):
-            values = record._microsoft_values(self._get_microsoft_synced_fields())
+            values = record._microsoft_values(self._get_fields_microsoft_synced())
             if not values:
                 continue
             record._microsoft_patch(record._get_organizer(), record.microsoft_id, values)
@@ -489,7 +489,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
         """
         raise NotImplementedError()
 
-    def _get_microsoft_synced_fields(self):
+    def _get_fields_microsoft_synced(self):
         """
         Return a set of field names. Changing one of these fields
         marks the record to be re-synchronized.

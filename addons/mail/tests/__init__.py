@@ -30,6 +30,7 @@ from . import test_res_users
 from . import test_service_worker
 from . import test_uninstall
 from . import test_update_notification
+from . import test_webmanifest
 from . import test_websocket_controller
 
 from .discuss import *

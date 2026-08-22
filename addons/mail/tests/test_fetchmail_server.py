@@ -1093,7 +1093,7 @@ class TestFetchmailProgress(FetchmailCommon):
         )
         self.assertEqual(
             self.registry["ir.cron"]
-            ._classify_outcome(
+            ._resolve_completion_status(
                 success=True, done=progress.done, remaining=progress.remaining
             )
             .value,
@@ -1139,7 +1139,7 @@ class TestFetchmailProgress(FetchmailCommon):
         )
         self.assertEqual(
             self.registry["ir.cron"]
-            ._classify_outcome(
+            ._resolve_completion_status(
                 success=True, done=progress.done, remaining=progress.remaining
             )
             .value,

@@ -1,18 +1,3 @@
-"""Regression tests: client-controlled values must never reach a raising coercion.
-
-Complements :mod:`test_controller_robustness` (which covers non-numeric *ids*)
-and :mod:`test_token_validation` (which covers *missing* token fields). The
-cases here are about the *type* and *vocabulary* of client-supplied values:
-
-* ``use_delivery_as_billing`` is a free-form query/form string fed to
-  ``str2bool``, which raises ``ValueError`` outside its accepted vocabulary;
-* ``hash`` / ``pid`` arrive over JSON-RPC, so a client picks their JSON *type*,
-  and ``consteq`` / ``int()`` raise ``TypeError`` on the wrong one.
-
-Both surface as HTTP 500 with a traceback on routes reachable by portal (and,
-for the chatter, anonymous) callers.
-"""
-
 from odoo.http import Request
 from odoo.tests.common import HttpCase, TransactionCase, tagged
 from odoo.tools import mute_logger
@@ -26,13 +11,6 @@ from odoo.addons.portal.utils import (
 
 
 class _FakeTokenThread:
-    """Minimal stand-in for a ``mixin.portal`` thread carrying a live token.
-
-    Portal itself declares no concrete ``mixin.portal`` model, so the guards
-    below cannot be reached through a real recordset without depending on
-    ``sale`` / ``project`` / ``account``. The stub exposes exactly the surface
-    the validators touch.
-    """
 
     _mail_post_token_field = "access_token"
     _fields = {"access_token": object()}
@@ -51,10 +29,8 @@ class _FakeTokenThread:
 
 
 class TestCredentialTypeCoercion(TransactionCase):
-    """``hash`` / ``pid`` / ``token`` types are chosen by the JSON-RPC client."""
 
     def test_hash_pid_non_str_hash(self):
-        """A JSON number as ``hash`` must not reach ``consteq`` (TypeError)."""
         for bad_hash in (5, 5.5, True, ["deadbeef"], {"a": 1}):
             with self.subTest(hash=bad_hash):
                 self.assertFalse(
@@ -62,7 +38,6 @@ class TestCredentialTypeCoercion(TransactionCase):
                 )
 
     def test_hash_pid_non_numeric_pid(self):
-        """A JSON list/dict as ``pid`` must not reach ``int()`` (TypeError)."""
         for bad_pid in (["1"], {"id": 1}, 1.5, object()):
             with self.subTest(pid=bad_pid):
                 self.assertFalse(
@@ -72,16 +47,13 @@ class TestCredentialTypeCoercion(TransactionCase):
                 )
 
     def test_hash_pid_happy_path_still_validates(self):
-        """The guards must not break the credential they exist to check."""
         thread = _FakeTokenThread()
         self.assertTrue(validate_thread_with_hash_pid(thread, thread._sign_token(7), 7))
-        # A numeric string is the normal URL shape and must keep working.
         self.assertTrue(
             validate_thread_with_hash_pid(thread, thread._sign_token(7), "7")
         )
 
     def test_token_non_str(self):
-        """A JSON number/list as ``token`` must not reach ``consteq``."""
         for bad_token in (5, ["a-real-token"], {"t": 1}, True):
             with self.subTest(token=bad_token):
                 self.assertFalse(
@@ -93,15 +65,8 @@ class TestCredentialTypeCoercion(TransactionCase):
 
 
 class TestRecordPagerUrl(TransactionCase):
-    """``_pager_url`` feeds ``t-att-href`` — it must yield a URL or nothing."""
 
     def test_empty_url_field_yields_no_link(self):
-        """A record whose ``website_url`` is empty must not render as a link.
-
-        Returning the recordset made QWeb stringify it into the href, emitting
-        ``<a href="res.partner(3,)">`` — a link to a nonexistent path, and a
-        leak of the model name and id into the page.
-        """
         partner = self.env.ref("base.partner_root")
 
         class _NoUrlRecord:
@@ -111,7 +76,7 @@ class TestRecordPagerUrl(TransactionCase):
                 self._record = record
 
             def __getitem__(self, key):
-                return ""  # never filled in by the concrete model
+                return ""
 
             def __bool__(self):
                 return True
@@ -124,7 +89,6 @@ class TestRecordPagerUrl(TransactionCase):
 
 @tagged("-at_install", "post_install")
 class TestAddressBooleanParam(HttpCase):
-    """``use_delivery_as_billing`` is a free-form string from the URL/form."""
 
     @classmethod
     def setUpClass(cls):
@@ -141,12 +105,6 @@ class TestAddressBooleanParam(HttpCase):
 
     @mute_logger("odoo.http")
     def test_address_form_junk_use_delivery_as_billing(self):
-        """``/my/address?use_delivery_as_billing=<junk>`` must render, not 500.
-
-        ``str2bool`` raises ``ValueError`` on anything outside its vocabulary,
-        so a hand-edited (or stale, or double-encoded) link crashed the page.
-        Anything that is not recognisably true means "not enabled".
-        """
         self._login()
         for value in ("xyz", "2", " true", "True%20", "[]"):
             with self.subTest(value=value):
@@ -168,27 +126,17 @@ class TestAddressBooleanParam(HttpCase):
         self.assertEqual(response.status_code, 200)
 
     def test_address_form_recognised_values_still_work(self):
-        """The guard must not flatten a genuine ``true`` into ``false``."""
         self._login()
         for value in ("True", "true", "1", "on"):
             with self.subTest(value=value):
                 response = self.url_open(f"/my/address?use_delivery_as_billing={value}")
                 self.assertEqual(response.status_code, 200)
-                # `use_delivery_as_billing` reaches the form as a hidden input.
                 self.assertIn(
                     'name="use_delivery_as_billing" value="True"', response.text
                 )
 
 
 class TestShareRecipientSplit(TransactionCase):
-    """The signup-link path must stay reachable.
-
-    ``action_send_mail`` used to gate the split on the record's
-    ``access_token``. Rendering the wizard mints that token (``share_link``'s
-    compute calls ``_portal_ensure_token``), so the gate was always open by the
-    time the user pressed Send: every recipient got the public link and
-    ``_send_signup_link`` never ran.
-    """
 
     @classmethod
     def setUpClass(cls):
@@ -209,8 +157,6 @@ class TestShareRecipientSplit(TransactionCase):
         )
 
     def _wizard(self):
-        # res_model/res_id are irrelevant to the split; portal declares no
-        # concrete mixin.portal model, so any model keeps this test in-module.
         return self.env["portal.share"].create(
             {
                 "res_model": "res.partner",
@@ -232,7 +178,6 @@ class TestShareRecipientSplit(TransactionCase):
         self.assertEqual(wizard.partner_ids - public, self.without_user)
 
     def test_signup_closed_gives_everyone_the_public_link(self):
-        """A signup link would dead-end, so the plain link is all we can send."""
         self._set_invitation_scope("b2b")
         wizard = self._wizard()
         self.assertEqual(
@@ -240,31 +185,17 @@ class TestShareRecipientSplit(TransactionCase):
         )
 
     def test_split_is_independent_of_an_already_minted_token(self):
-        """Sharing the same record twice must treat recipients identically."""
         self._set_invitation_scope("b2c")
         wizard = self._wizard()
         first = wizard._get_public_link_partners()
-        # Second share of the same record, after a token now certainly exists.
         second = self._wizard()._get_public_link_partners()
         self.assertEqual(first, second)
         self.assertNotIn(self.without_user, second)
 
 
 class TestPortalMessageFormatScaling(TransactionCase):
-    """The chatter formatter must not issue one query per message.
-
-    ``_read_format`` resolves a cache miss one record at a time, and on
-    ``mail.message`` that lands in its ``fetch()`` override, which queries
-    ``WHERE id IN (<single id>)``. Without an explicit prefetch the portal
-    chatter paid a SELECT per displayed message on every request.
-
-    The assertion is on *scaling* rather than an absolute count: the fixed
-    overhead varies with installed modules, but it must not grow with the
-    number of messages.
-    """
 
     def _make_messages(self, count):
-        # res.partner is a mixin.mail.thread, which is all the formatter needs.
         thread = self.env["res.partner"].create({"name": "Chatter Scaling"})
         return self.env["mail.message"].concat(
             *[
@@ -300,11 +231,8 @@ class TestPortalMessageFormatScaling(TransactionCase):
 
 
 class TestPagerBounds(TransactionCase):
-    """``pager`` takes caller-supplied sizes; degenerate ones must not crash."""
 
     def test_non_positive_step(self):
-        """``step`` is a page size: 0 raised ZeroDivisionError, negatives made
-        ``page_count`` negative and emitted ``/page/-3`` links."""
         for step in (0, -5):
             with self.subTest(step=step):
                 values = pager("/my/orders", total=100, step=step)
@@ -315,30 +243,17 @@ class TestPagerBounds(TransactionCase):
                         self.assertNotIn("/page/-", page["url"])
 
     def test_negative_total(self):
-        """A nonsensical total collapses to the empty-result-set shape.
-
-        ``page_count`` is 1, not 0: an empty list is still one (empty) page.
-        See :class:`~odoo.addons.portal.tests.test_hardening.TestPagerEmptyResultSet`
-        for why page 0 must never appear in the returned dict.
-        """
         values = pager("/my/orders", total=-10)
         self.assertEqual(values["page_count"], 1)
         self.assertEqual(values["offset"], 0)
 
     def test_normal_paging_unchanged(self):
-        """The guards must not perturb ordinary inputs."""
         values = pager("/my/orders", total=100, step=20)
         self.assertEqual(values["page_count"], 5)
         self.assertEqual(values["offset"], 0)
         self.assertEqual([p["num"] for p in values["pages"]], [1, 2, 3, 4, 5])
 
     def test_page_digit_lookalikes_fall_back_instead_of_raising(self):
-        """``page`` is guarded by a numeric test, which must match ``int()``.
-
-        ``str.isdigit()`` is a wider test than ``int()`` accepts: superscripts
-        and enclosed numerals pass it and then raise ``ValueError``, i.e. the
-        exact input the guard exists to absorb crashed the pager instead.
-        """
         for page in ("²", "①", "⁵"):
             with self.subTest(page=page):
                 self.assertTrue(page.isdigit(), "fixture must be an isdigit trap")
@@ -346,12 +261,10 @@ class TestPagerBounds(TransactionCase):
                 self.assertEqual(values["page"]["num"], 1)
 
     def test_page_non_ascii_decimal_digits_still_parse(self):
-        """Genuine decimal digits keep working, whatever the script."""
-        values = pager("/my/orders", total=100, step=20, page="٣")  # Arabic-Indic 3
+        values = pager("/my/orders", total=100, step=20, page="٣")
         self.assertEqual(values["page"]["num"], 3)
 
     def test_page_junk_falls_back_to_first_page(self):
-        """Ordinary junk keeps degrading to page 1."""
         for page in ("abc", "", "-3", "2.5", None):
             with self.subTest(page=page):
                 values = pager("/my/orders", total=100, step=20, page=page)
@@ -360,7 +273,6 @@ class TestPagerBounds(TransactionCase):
 
 @tagged("-at_install", "post_install")
 class TestPortalApiKeysVisibility(HttpCase):
-    """The ``portal.allow_api_keys`` setting must actually govern the UI."""
 
     @classmethod
     def setUpClass(cls):
@@ -378,7 +290,5 @@ class TestPortalApiKeysVisibility(HttpCase):
         self.assertNotIn("o_portal_new_api_key", self._security_page())
 
     def test_section_shown_when_setting_on_without_debug(self):
-        """Previously this also required ``?debug=1``, so the setting did
-        nothing for an ordinary portal customer."""
         self.env["ir.config_parameter"].sudo().set_param("portal.allow_api_keys", "1")
         self.assertIn("o_portal_new_api_key", self._security_page())

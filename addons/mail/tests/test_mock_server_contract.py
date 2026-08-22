@@ -17,7 +17,7 @@ CONTRACT_HEADER = """\
  *
  * Field-name sets per (scenario, Store model), shared by:
  * - python: mail/tests/test_mock_server_contract.py (real controllers)
- * - js: mail/static/tests/mock_server/contract.test.js (hoot mock server)
+ * - js: mail/static/tests/mock_server_contract.test.js (hoot mock server)
  *
  * Regenerate (after an intentional Store protocol change) with:
  *   MAIL_STORE_CONTRACT_REGEN=1 odoo-bin -d <bare mail db> \\

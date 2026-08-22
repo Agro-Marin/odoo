@@ -16,7 +16,7 @@ class DiscussSettingsController(Controller):
     @route("/discuss/settings/mute", methods=["POST"], type="jsonrpc", auth="user")
     def discuss_mute(self, minutes: int, channel_id: int) -> None:
         channel = get_channel_or_404(channel_id)
-        member = channel._find_or_create_member_for_self()
+        member = channel._get_or_create_member_for_self()
         if not member:
             raise NotFound
         if minutes == -1:
@@ -57,12 +57,12 @@ class DiscussSettingsController(Controller):
             raise NotFound
         if channel_id:
             channel = get_channel_or_404(channel_id)
-            member = channel._find_or_create_member_for_self()
+            member = channel._get_or_create_member_for_self()
             if not member:
                 raise NotFound
             member.custom_notifications = custom_notifications
         else:
-            user_settings = request.env["res.users.settings"]._find_or_create_for_user(
+            user_settings = request.env["res.users.settings"]._get_or_create_for_user(
                 request.env.user
             )
             if not user_settings:

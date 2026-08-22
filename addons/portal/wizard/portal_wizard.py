@@ -5,7 +5,6 @@ from odoo.tools.translate import _
 
 
 class PortalWizard(models.TransientModel):
-    """Wizard for granting or revoking portal access on a set of partners."""
 
     _name = "portal.wizard"
     _description = "Grant Portal Access"
@@ -14,8 +13,6 @@ class PortalWizard(models.TransientModel):
         partner_ids = self.env.context.get(
             "default_partner_ids", []
         ) or self.env.context.get("active_ids", [])
-        # Dict used as ordered set: preserves browse order so wizard rows render
-        # predictably (Python sets iterate in hash order, not insertion order).
         contact_ids = {}
         for partner in self.env["res.partner"].sudo().browse(partner_ids):
             contact_partners = (
@@ -58,17 +55,10 @@ class PortalWizard(models.TransientModel):
 
     @api.model
     def action_open_wizard(self):
-        """Create a ``portal.wizard`` and open its form modal.
-
-        The wizard form embeds a one2many on ``portal.wizard.user``; per-row
-        action buttons require persisted ids, so we create the wizard first
-        and only then return the act_window descriptor.
-        """
         portal_wizard = self.create({})
-        return portal_wizard._action_open_modal()
+        return portal_wizard._action_view_modal()
 
-    def _action_open_modal(self):
-        """Return the act_window descriptor that re-opens this wizard's form modal."""
+    def _action_view_modal(self):
         return {
             "name": _("Portal Access Management"),
             "type": "ir.actions.act_window",
@@ -80,7 +70,6 @@ class PortalWizard(models.TransientModel):
 
 
 class PortalWizardUser(models.TransientModel):
-    """One row per partner inside the portal wizard's user list."""
 
     _name = "portal.wizard.user"
     _description = "Portal User Config"
@@ -111,9 +100,6 @@ class PortalWizardUser(models.TransientModel):
         compute="_compute_email_state",
     )
 
-    # ``user_id`` too: _is_portal_similar_than_user compares against it to let a
-    # row keep its own user's login. Without it in the dependencies, a row whose
-    # partner (and so user_id) changed kept a stale "exist"/"ok" status.
     @api.depends("email", "user_id")
     def _compute_email_state(self):
         portal_users_with_email = self.filtered(
@@ -122,8 +108,6 @@ class PortalWizardUser(models.TransientModel):
         (self - portal_users_with_email).email_state = "ko"
 
         if not portal_users_with_email:
-            # Nothing to match: the domain would be ``login in []``, a query
-            # whose answer is known to be empty.
             return
 
         existing_users = (
@@ -132,7 +116,7 @@ class PortalWizardUser(models.TransientModel):
             .sudo()
             .search_read(
                 self._get_similar_users_domain(portal_users_with_email),
-                self._get_similar_users_fields(),
+                self._get_fields_similar_users(),
             )
         )
         for portal_user in portal_users_with_email:
@@ -157,8 +141,6 @@ class PortalWizardUser(models.TransientModel):
         for portal_wizard_user in self:
             user = portal_wizard_user.user_id
 
-            # If a user was internal when archived, reusing
-            # their user for portal should be done via settings
             if user and user._is_internal():
                 portal_wizard_user.is_internal = True
                 portal_wizard_user.is_portal = False
@@ -170,12 +152,6 @@ class PortalWizardUser(models.TransientModel):
                 portal_wizard_user.is_portal = False
 
     def action_grant_access(self):
-        """Grant portal access to the partner.
-
-        Creates a user (in the partner's company or the current company) if none
-        exists, activates the user, and adds them to ``base.group_portal`` while
-        removing ``base.group_public``. An invitation email is sent at the end.
-        """
         self.ensure_one()
         self._assert_user_email_uniqueness()
 
@@ -194,12 +170,9 @@ class PortalWizardUser(models.TransientModel):
         user_sudo = self.user_id.sudo()
 
         if not user_sudo:
-            # create a user if necessary and make sure it is in the portal group
             company = self.partner_id.company_id or self.env.company
             user_sudo = self.sudo().with_company(company.id)._create_user()
 
-        # Users whose access was revoked are archived but kept in the portal
-        # group, so re-granting only needs to reactivate them.
         user_sudo.write(
             {
                 "active": True,
@@ -209,7 +182,6 @@ class PortalWizardUser(models.TransientModel):
                 ],
             }
         )
-        # prepare for the signup process
         user_sudo.partner_id.signup_prepare()
 
         self.with_context(active_test=True)._send_email()
@@ -217,13 +189,6 @@ class PortalWizardUser(models.TransientModel):
         return self.action_refresh_modal()
 
     def action_revoke_access(self):
-        """Archive the portal user of the partner.
-
-        The user is kept in ``group_portal``: ``group_public`` should only be
-        used for automated tasks and guest interactions, never for a revoked
-        portal user (which could otherwise be picked as a website's default
-        public user).
-        """
         self.ensure_one()
         if not self.is_portal:
             raise UserError(
@@ -235,7 +200,6 @@ class PortalWizardUser(models.TransientModel):
 
         self._update_partner_email()
 
-        # Remove the sign up token, so it can not be used
         self.partner_id.sudo().signup_type = None
 
         user_sudo = self.user_id.sudo()
@@ -246,7 +210,6 @@ class PortalWizardUser(models.TransientModel):
         return self.action_refresh_modal()
 
     def action_invite_again(self):
-        """Re-send the invitation email to a partner that already has portal access."""
         self.ensure_one()
         self._assert_user_email_uniqueness()
 
@@ -264,19 +227,9 @@ class PortalWizardUser(models.TransientModel):
         return self.action_refresh_modal()
 
     def action_refresh_modal(self):
-        """Re-open the wizard modal so users can chain actions.
-
-        Used as the fallback action of email-state icon buttons — these must be
-        non-disabled to fire mouse events for tooltips.
-        """
-        return self.wizard_id._action_open_modal()
+        return self.wizard_id._action_view_modal()
 
     def _create_user(self):
-        """Create a new ``res.users`` from the row's email + partner.
-
-        :return: the new user record (in sudo)
-        :rtype: res.users
-        """
         return (
             self.env["res.users"]
             .with_context(no_reset_password=True)
@@ -292,7 +245,6 @@ class PortalWizardUser(models.TransientModel):
         )
 
     def _send_email(self):
-        """Send the ``auth_signup.portal_set_password_email`` template to the new portal user."""
         self.ensure_one()
 
         template = self.env.ref(
@@ -319,7 +271,6 @@ class PortalWizardUser(models.TransientModel):
         return True
 
     def _assert_user_email_uniqueness(self):
-        """Refuse to grant portal access when the email is invalid or already taken."""
         self.ensure_one()
         if self.email_state == "ko":
             raise UserError(
@@ -334,8 +285,7 @@ class PortalWizardUser(models.TransientModel):
             )
 
     def _update_partner_email(self):
-        """Sync the partner's email with the wizard row when the row's email is valid and changed."""
-        self.ensure_one()  # reads self.email / self.partner_id as singletons
+        self.ensure_one()
         email_normalized = email_normalize(self.email)
         if (
             self.email_state == "ok"
@@ -344,19 +294,16 @@ class PortalWizardUser(models.TransientModel):
             self.partner_id.write({"email": email_normalized})
 
     def _get_similar_users_domain(self, portal_users_with_email):
-        """Return the domain finding users whose login matches one of the wizard rows' emails."""
         normalized_emails = [
             email_normalize(portal_user.email)
             for portal_user in portal_users_with_email
         ]
         return [("login", "in", normalized_emails)]
 
-    def _get_similar_users_fields(self):
-        """Field list ``search_read``-fetched by ``_compute_email_state``."""
+    def _get_fields_similar_users(self):
         return ["id", "login"]
 
     def _is_portal_similar_than_user(self, user, portal_user):
-        """Whether ``user`` (search_read dict) duplicates ``portal_user`` (recordset row)."""
         return (
             user["login"] == email_normalize(portal_user.email)
             and user["id"] != portal_user.user_id.id

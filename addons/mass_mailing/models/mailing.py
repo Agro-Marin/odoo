@@ -98,7 +98,7 @@ class MailingMailing(models.Model):
         return vals
 
     @api.model
-    def _get_default_mail_server_id(self):
+    def _default_mail_server_id(self):
         server_id = (
             self.env["ir.config_parameter"]
             .sudo()
@@ -273,7 +273,7 @@ class MailingMailing(models.Model):
         "ir.mail_server",
         string="Mail Server",
         index="btree_not_null",
-        default=_get_default_mail_server_id,
+        default=_default_mail_server_id,
         help="Use a specific mail server in priority. Otherwise Odoo relies on the first outgoing mail server available (based on their sequencing) as it does for normal mails.",
     )
     contact_list_ids = fields.Many2many(
@@ -737,7 +737,7 @@ class MailingMailing(models.Model):
                 self._fields.get("mailing_type").selection
             ).get(mailing.mailing_type)
 
-    @api.depends(lambda self: self._get_ab_testing_description_modifying_fields())
+    @api.depends(lambda self: self._get_fields_ab_testing_description_modifying())
     def _compute_ab_testing_description(self):
         mailing_ab_test = self.filtered("ab_testing_enabled")
         (self - mailing_ab_test).ab_testing_description = False
@@ -756,7 +756,7 @@ class MailingMailing(models.Model):
             )
             rec.is_ab_test_sent = bool(selected_mailings)
 
-    def _get_ab_testing_description_modifying_fields(self):
+    def _get_fields_ab_testing_description_modifying(self):
         return [
             "ab_testing_enabled",
             "ab_testing_pc",
@@ -848,7 +848,7 @@ class MailingMailing(models.Model):
         for mailing, vals in zip(self, vals_list, strict=False):
             vals["contact_list_ids"] = mailing.contact_list_ids.ids
             if mailing.mail_server_id and not mailing.mail_server_id.active:
-                vals["mail_server_id"] = self._get_default_mail_server_id()
+                vals["mail_server_id"] = self._default_mail_server_id()
             if mailing.ab_testing_enabled:
                 vals["ab_testing_schedule_datetime"] = (
                     mailing.ab_testing_schedule_datetime
@@ -932,7 +932,7 @@ class MailingMailing(models.Model):
         self.ensure_one()
         if self.schedule_date and self.schedule_date > fields.Datetime.now():
             return self.action_put_in_queue()
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mass_mailing.mailing_mailing_schedule_date_action"
         )
         action["context"] = dict(
@@ -1019,7 +1019,7 @@ class MailingMailing(models.Model):
         return self._action_view_traces_filtered("sent")
 
     def _action_view_traces_filtered(self, view_filter):
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mass_mailing.mailing_trace_action"
         )
         action["name"] = _("Sent Mailings")
@@ -1123,7 +1123,7 @@ class MailingMailing(models.Model):
     def action_view_mailing_contacts(self):
         """Show the mailing contacts who are in a mailing list selected for this mailing."""
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mass_mailing.action_view_mass_mailing_contacts"
         )
         if self.contact_list_ids:
@@ -1248,7 +1248,7 @@ class MailingMailing(models.Model):
         )
         self.campaign_id.ab_testing_winner_mailing_id = final_mailing
         final_mailing.action_launch()
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "mass_mailing.action_ab_testing_open_winner_mailing"
         )
         action["res_id"] = final_mailing.id
@@ -1966,7 +1966,7 @@ class MailingMailing(models.Model):
         checksums_set, checksum_original_id, new_attachment_by_checksum = set(), {}, {}
         next_img_id = len(existing_attachments)
         for b64image, original_id in b64images:
-            checksum = IrAttachment._content_checksum(base64.b64decode(b64image))
+            checksum = IrAttachment._get_content_checksum(base64.b64decode(b64image))
             checksums.append(checksum)
             existing_attach = existing_attachments.get(checksum)
             # Existing_attach can be None, in which case it acts as placeholder

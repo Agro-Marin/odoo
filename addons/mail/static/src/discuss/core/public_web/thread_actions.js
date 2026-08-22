@@ -28,7 +28,7 @@ registerThreadAction("show-threads", {
             this.popover = usePopover(SubChannelList, {
                 onClose: () => this.close(),
                 fixedPosition: true,
-                popoverClass: this.panelOuterClass,
+                class: this.panelOuterClass,
             });
         }
         useChildSubEnv({ subChannelMenu: { open: () => this.open() } });

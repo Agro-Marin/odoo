@@ -126,14 +126,14 @@ class RatingRating(models.Model):
     def create(self, vals_list):
         for values in vals_list:
             if values.get('res_model_id') and values.get('res_id'):
-                values.update(self._find_parent_data(values))
+                values.update(self._get_parent_data(values))
             if 'rating' in values or 'feedback' in values:
                 values['rated_on'] = fields.Datetime.now()
         return super().create(vals_list)
 
     def write(self, vals):
         if vals.get('res_model_id') and vals.get('res_id'):
-            vals.update(self._find_parent_data(vals))
+            vals.update(self._get_parent_data(vals))
         if 'rating' in vals or 'feedback' in vals:
             vals['rated_on'] = fields.Datetime.now()
         return super().write(vals)
@@ -143,7 +143,7 @@ class RatingRating(models.Model):
         self.env['mail.message'].search([('rating_ids', 'in', self.ids)]).unlink()
         return super().unlink()
 
-    def _find_parent_data(self, values):
+    def _get_parent_data(self, values):
         """Determine the parent res_model/res_id, based on the values to create or write.
 
         Returns ``parent_res_model_id``, ``parent_res_model`` (the stored char),

@@ -8,9 +8,9 @@ import {
     useState,
     useSubEnv,
 } from "@odoo/owl";
-import { getFirstElementOfNode } from "@web/components/dropdown";
 import { useNavigation } from "@web/core/navigation/navigation";
 import { usePosition } from "@web/core/position/position_hook";
+import { getComponentElement } from "@web/core/utils/components";
 export class CallDropdown extends Component {
     static template = "discuss.CallDropdown";
     static props = {
@@ -66,7 +66,7 @@ export class CallDropdown extends Component {
     }
 
     get triggerRef() {
-        return { el: getFirstElementOfNode(this.__owl__.bdom) };
+        return { el: getComponentElement(this) };
     }
 
     get window() {

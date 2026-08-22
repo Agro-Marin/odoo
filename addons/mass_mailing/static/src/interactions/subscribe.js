@@ -114,7 +114,7 @@ export class Subscribe extends Interaction {
                 mailing_id: this.customerData.mailingId,
             }),
         );
-        this.protectSyncAfterAsync((result) => {
+        this.bindDeferred((result) => {
             if (result === true) {
                 this.customerData.isBlocklisted = true;
                 this.customerData.feedbackEnabled = true;
@@ -138,7 +138,7 @@ export class Subscribe extends Interaction {
                 mailing_id: this.customerData.mailingId,
             }),
         );
-        this.protectSyncAfterAsync((result) => {
+        this.bindDeferred((result) => {
             if (result === true) {
                 this.customerData.isBlocklisted = false;
                 this.customerData.feedbackEnabled = false;
@@ -170,7 +170,7 @@ export class Subscribe extends Interaction {
                 mailing_id: this.customerData.mailingId,
             }),
         );
-        this.protectSyncAfterAsync((result) => {
+        this.bindDeferred((result) => {
             const has_error = ["error", "unauthorized"].includes(result);
             let callKey;
             if (has_error) {
@@ -214,7 +214,7 @@ export class Subscribe extends Interaction {
                 opt_out_reason_id: optoutReasonId,
             }),
         );
-        this.protectSyncAfterAsync((result) => {
+        this.bindDeferred((result) => {
             if (result === true) {
                 this.unsubscribeFeedbackStatus = "feedback_sent";
             } else {

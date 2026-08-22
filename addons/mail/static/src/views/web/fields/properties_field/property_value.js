@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { useOpenChat } from "@mail/core/web/open_chat_hook";
-import { TagsList } from "@web/components/tags_list/tags_list";
+import { TagsList } from "@web/components/tags_list";
 import { patch } from "@web/core/utils/patch";
 import { PropertyValue } from "@web/fields/specialized/properties";
 patch(PropertyValue.prototype, {

@@ -1533,7 +1533,7 @@ class MixinMailThread(models.AbstractModel):
             }
             token = False
             if (cid and cid in body_cids) or (name and name in body_filenames):
-                token = self.env["ir.attachment"]._generate_access_token()
+                token = self.env["ir.attachment"]._prepare_access_token()
                 attachment_values["access_token"] = token
             values_list.append(attachment_values)
             extra_list.append((cid, name, token, info))
@@ -4626,8 +4626,8 @@ class MixinMailThread(models.AbstractModel):
             Store.Many("partner_ids", ["avatar_128", "name"]),
             "pinned_at",
             "write_date",
-            *message._get_store_linked_messages_fields(),
-            *self._get_store_message_update_extra_fields(),
+            *message._get_fields_store_linked_messages(),
+            *self._get_fields_store_message_update_extra(),
         ]
         if "subject" in kwargs:
             res.append("subject")
@@ -4641,7 +4641,7 @@ class MixinMailThread(models.AbstractModel):
     def _clean_empty_message(self, message: MailMessage) -> None:
         message.message_link_preview_ids._unlink_and_notify()
 
-    def _get_store_message_update_extra_fields(self) -> list[StoreFieldSpec]:
+    def _get_fields_store_message_update_extra(self) -> list[StoreFieldSpec]:
         return []
 
     def _thread_to_store_batch_data(
@@ -4731,11 +4731,6 @@ class MixinMailThread(models.AbstractModel):
                 res["areAttachmentsLoaded"] = True
                 res["isLoadingAttachments"] = False
             if "contact_fields" in request_list:
-                # ``or False``: a model whose ``_primary_email`` names no real
-                # field yields None, and Store.Attr reads None as "no value
-                # supplied", then looks for a field called primary_email_field
-                # and raises. False is a value, so it is passed through --
-                # matching what _mail_get_primary_email() already returns.
                 res["primary_email_field"] = (
                     thread._mail_get_primary_email_field() or False
                 )

@@ -15,7 +15,7 @@ import {
     htmlToTextContentInline,
 } from "@mail/utils/common/format";
 import { markup, toRaw } from "@odoo/owl";
-import { loadEmoji } from "@web/components/emoji_picker/emoji_picker";
+import { loadEmoji } from "@web/components/emoji_picker";
 import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
 import { luxon } from "@web/core/l10n/luxon";

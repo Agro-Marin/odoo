@@ -5,7 +5,7 @@ import { ConversationTagEdit } from "@im_livechat/core/web/livechat_conversation
 import { ActionPanel } from "@mail/core/common/action_panel";
 import { prettifyMessageContent } from "@mail/utils/common/format";
 import { Component, useEffect, useRef, useSubEnv } from "@odoo/owl";
-import { TagsList } from "@web/components/tags_list/tags_list";
+import { TagsList } from "@web/components/tags_list";
 import { startUrl } from "@web/core/browser/router";
 import { rpc } from "@web/core/network";
 import { useService } from "@web/core/utils/hooks";

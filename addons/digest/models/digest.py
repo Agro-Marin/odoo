@@ -261,7 +261,7 @@ class DigestDigest(models.Model):
             'kpi_col3':  { ... },
         }, { ... }] """
         self.ensure_one()
-        digest_fields = self._get_kpi_fields()
+        digest_fields = self._get_fields_kpi()
         invalid_fields = []
         kpis = [
             {'kpi_name': field_name,
@@ -433,7 +433,7 @@ class DigestDigest(models.Model):
             company = digest.company_id or self.env.company
             digest[digest_kpi_field] = values_per_company.get(company.id, 0)
 
-    def _get_kpi_fields(self):
+    def _get_fields_kpi(self):
         return [field_name for field_name, field in self._fields.items()
                 if field.type == 'boolean' and field_name.startswith(('kpi_', 'x_kpi_', 'x_studio_kpi_')) and self[field_name]
                ]

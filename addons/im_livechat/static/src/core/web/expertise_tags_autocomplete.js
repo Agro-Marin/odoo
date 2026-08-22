@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { useTagNavigation } from "@web/components/record_selectors";
-import { TagsList } from "@web/components/tags_list/tags_list";
+import { TagsList } from "@web/components/tags_list";
 import { rpc } from "@web/core/network";
 import { x2ManyCommands } from "@web/core/network";
 import { _t } from "@web/core/translation";

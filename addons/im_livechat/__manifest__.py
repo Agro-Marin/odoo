@@ -155,6 +155,12 @@ Help your customers with this chat, and analyse their feedback.
             ('remove', 'im_livechat/static/src/embed/external/boot.js'),
             ('remove', 'mail/static/src/discuss/core/web/discuss_core_common_service_patch.js'),
             'web/static/src/core/browser/title_service.js',
+            # `web_test_helpers.js` imports its `_framework/` siblings relatively
+            # and `web.assets_unit_tests_setup` carries no `web/static/tests` JS,
+            # so hand-picking the helper alone left 21 modules to be fetched as
+            # raw source, outside the import map. `test_lint`'s
+            # `test_every_bundled_module_can_resolve_its_own_imports` reports them.
+            'web/static/tests/_framework/**/*',
             'web/static/tests/web_test_helpers.js',
             'bus/static/tests/bus_test_helpers.js',
             'mail/static/tests/mail_test_helpers.js',

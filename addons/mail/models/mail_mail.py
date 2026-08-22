@@ -997,7 +997,7 @@ class MailMail(models.Model):
                         domain_notifications_email=alias_domain.default_from_email,
                         domain_bounce_address=alias_domain.bounce_email,
                     )
-                mail_server, smtp_from = mail_server._find_mail_server(
+                mail_server, smtp_from = mail_server._get_mail_server(
                     email_from, allowed_mail_servers
                 )
                 mail_server_id = mail_server.id if mail_server else False
@@ -1636,7 +1636,7 @@ class MailMail(models.Model):
                 or batch.alias_domain.bounce_email,
             )
         SendIrMailServer = IrMailServer.with_context(**send_context)
-        msg = SendIrMailServer._build_email__(
+        msg = SendIrMailServer._prepare_email__(
             email_from=email_from,
             email_to=email["email_to"],
             subject=email["subject"],

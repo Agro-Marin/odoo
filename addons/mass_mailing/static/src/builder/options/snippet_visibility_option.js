@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
-import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
+import { DomainSelectorDialog } from "@web/components/domain_selector_dialog";
 import { Domain } from "@web/core/domain";
 import { useService } from "@web/core/utils/hooks";
 

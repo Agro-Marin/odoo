@@ -158,7 +158,7 @@ class TestIrMailServer(MailCommon):
                     self.env.company.alias_domain_id = self.mail_alias_domain
                 else:
                     self.env.company.alias_domain_id = False
-                message = self.env["ir.mail_server"]._build_email__(
+                message = self.env["ir.mail_server"]._prepare_email__(
                     False,
                     "recipient@example.com",
                     "Subject",
@@ -335,7 +335,7 @@ class TestIrMailServer(MailCommon):
             strict=False,
         ):
             with self.subTest(email_from=email_from):
-                mail_server, mail_from = self.env["ir.mail_server"]._find_mail_server(
+                mail_server, mail_from = self.env["ir.mail_server"]._get_mail_server(
                     email_from=email_from
                 )
                 self.assertEqual(mail_server, expected_mail_server)

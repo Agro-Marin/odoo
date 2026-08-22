@@ -12,8 +12,8 @@ class IrModelFields(models.Model):
         help="If set every modification done to this field is tracked. Value is used to order tracking values.",
     )
 
-    def _reflect_field_params(self, field: fields.Field, model_id: int) -> dict:
-        vals = super()._reflect_field_params(field, model_id)
+    def _prepare_field_vals(self, field: fields.Field, model_id: int) -> dict:
+        vals = super()._prepare_field_vals(field, model_id)
         tracking = getattr(field, "tracking", None)
         if tracking is True:
             tracking = 100
@@ -22,8 +22,8 @@ class IrModelFields(models.Model):
         vals["tracking"] = tracking
         return vals
 
-    def _instantiate_attrs(self, field_data: dict) -> dict:
-        attrs = super()._instantiate_attrs(field_data)
+    def _prepare_field_attrs(self, field_data: dict) -> dict:
+        attrs = super()._prepare_field_attrs(field_data)
         if attrs and field_data.get("tracking"):
             attrs["tracking"] = field_data["tracking"]
         return attrs

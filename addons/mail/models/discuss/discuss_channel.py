@@ -1575,7 +1575,7 @@ class DiscussChannel(models.Model):
             for channel in self
         }
 
-    def _find_or_create_member_for_self(self) -> DiscussChannelMember:
+    def _get_or_create_member_for_self(self) -> DiscussChannelMember:
         self.ensure_one()
         if member := self.self_member_id:
             return member
@@ -1586,7 +1586,7 @@ class DiscussChannel(models.Model):
             return self._add_members(guests=guest)
         return self.env["discuss.channel.member"]
 
-    def _find_or_create_persona_for_channel(
+    def _get_or_create_persona_for_channel(
         self,
         guest_name: str,
         timezone: str | None,
@@ -2056,7 +2056,7 @@ class DiscussChannel(models.Model):
             Store.Many(
                 "rtc_session_ids",
                 mode="ADD",
-                extra_fields=self.sudo().rtc_session_ids._get_store_extra_fields(),
+                extra_fields=self.sudo().rtc_session_ids._get_fields_store_extra(),
                 sudo=True,
             ),
             "uuid",

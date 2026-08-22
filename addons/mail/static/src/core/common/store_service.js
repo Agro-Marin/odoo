@@ -7,7 +7,7 @@ import { fields, makeStore, Store as BaseStore } from "@mail/core/common/record"
 import { attClassObjectToString, prettifyMessageText } from "@mail/utils/common/format";
 import { compareDatetime } from "@mail/utils/common/misc";
 import { reactive } from "@odoo/owl";
-import { loader } from "@web/components/emoji_picker/emoji_picker";
+import { loader } from "@web/components/emoji_picker";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { colorScheme } from "@web/core/color_scheme";

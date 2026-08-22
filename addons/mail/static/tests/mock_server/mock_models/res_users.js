@@ -49,7 +49,7 @@ export class ResUsers extends webModels.ResUsers {
             ),
         });
         if (!this._is_public(this.env.uid)) {
-            const userSettings = ResUsersSettings._find_or_create_for_user(
+            const userSettings = ResUsersSettings._get_or_create_for_user(
                 this.env.uid,
             );
             store.add({
@@ -215,12 +215,12 @@ export class ResUsers extends webModels.ResUsers {
         return Object.values(userActivitiesByModelName);
     }
 
-    _get_store_avatar_card_fields() {
+    _get_fields_store_avatar_card() {
         return [
             "share",
             mailDataHelpers.Store.one(
                 "partner_id",
-                this.env["res.partner"]._get_store_avatar_card_fields(),
+                this.env["res.partner"]._get_fields_store_avatar_card(),
             ),
         ];
     }

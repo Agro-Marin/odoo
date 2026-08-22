@@ -140,7 +140,7 @@ class PublicPageController(http.Controller):
             raise NotFound
         guest_already_known = channel.env["mail.guest"]._get_guest_from_context()
         with replace_exceptions(UserError, by=NotFound()):
-            __, guest = channel.sudo()._find_or_create_persona_for_channel(
+            __, guest = channel.sudo()._get_or_create_persona_for_channel(
                 guest_name=guest_email or request.env._("Guest"),
                 country_code=request.geoip.country_code,
                 timezone=request.env["mail.guest"]._get_timezone_from_request(request),

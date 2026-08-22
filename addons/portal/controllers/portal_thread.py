@@ -11,12 +11,6 @@ from odoo.addons.portal.utils import get_portal_partner
 
 
 class PortalChatter(ThreadController):
-    """Portal-facing chatter routes: avatar serving, message fetch, internal-flag toggle.
-
-    Anonymous and portal-authenticated callers reach these routes; access is
-    gated by HMAC token (``_hash`` + ``pid``) or per-thread ``access_token``,
-    validated in :func:`portal.utils.get_portal_partner` / :mod:`mixin.mail.thread`.
-    """
 
     @http.route(
         "/mail/avatar/mail.message/<int:res_id>/author_avatar/<int:width>x<int:height>",
@@ -26,34 +20,12 @@ class PortalChatter(ThreadController):
     def portal_avatar(
         self, res_id, width, height, access_token=None, _hash=None, pid=None
     ):
-        """Serve the chatter author avatar for portal-rendered threads.
-
-        Validates the request against the thread (via token or HMAC). Any
-        failure — invalid credentials, missing message, or no credentials at
-        all — falls through to ``ir.binary``'s placeholder image rather than
-        a 403 or 500, so the response does not leak whether ``res_id`` exists.
-
-        ``res_id`` / ``width`` / ``height`` are required and already ``int``:
-        the route's ``<int:...>`` converters guarantee both, so a request that
-        omits or misspells them never reaches this method (it 404s in routing).
-        The previous ``=None`` / ``=50`` defaults could therefore never apply,
-        and reading them as fallbacks invited the false impression that this
-        method has to re-validate what the router already settled.
-        """
-        # Coerce ``pid`` once at entry: a non-numeric value resolves the same
-        # as a missing pid (placeholder fallback below), so the response does
-        # not leak whether ``res_id`` exists via a 500 from ``int(pid)``.
         try:
             pid = int(pid) if pid else None
         except ValueError:
             pid = None
         message_su = request.env["mail.message"]
         if access_token or (_hash and pid):
-            # sudo: mail.message - look up the message before access validation;
-            # _get_thread_with_access then validates token/HMAC. Guard against
-            # an empty recordset: message_su.model would be False and
-            # request.env[False] raises KeyError, returning 500 and leaking
-            # res_id existence to unauthenticated callers.
             candidate_su = request.env["mail.message"].browse(res_id).exists().sudo()
             if candidate_su and self._get_thread_with_access(
                 candidate_su.model,
@@ -63,10 +35,7 @@ class PortalChatter(ThreadController):
                 pid=pid,
             ):
                 message_su = candidate_su
-        # Empty recordset triggers ir.binary's documented placeholder fallback
-        # via _get_placeholder_filename — same bytes that ``web.image_placeholder``
-        # used to resolve to, reached through the framework's intended path.
-        stream = request.env["ir.binary"]._get_image_stream_from(
+        stream = request.env["ir.binary"]._get_stream_image_from_record(
             message_su,
             field_name="author_avatar",
             width=width,
@@ -76,16 +45,8 @@ class PortalChatter(ThreadController):
 
     @http.route("/portal/chatter_init", type="jsonrpc", auth="public", website=True)
     def portal_chatter_init(self, thread_model, thread_id, **kwargs):
-        """Build the initial Store payload for the portal chatter.
-
-        Includes the current partner, optional portal_partner derived from
-        HMAC/token, the thread itself, and whether the caller can react/post.
-        """
         store = Store()
         request.env["res.users"]._init_store_data(store)
-        # Optional dependency: when the `website` module is installed, mark the
-        # current user as a publisher so the chatter shows the editor badge.
-        # Safe to reference: has_group returns False when the xmlid is unknown.
         if request.env.user.has_group("website.group_website_restricted_editor"):
             store.add(request.env.user.partner_id, {"is_user_publisher": True})
         thread = self._get_thread_with_access(thread_model, thread_id, **kwargs)
@@ -121,13 +82,8 @@ class PortalChatter(ThreadController):
                 thread,
                 {
                     "can_react": bool(can_react),
-                    # sudo(False) checks direct ACL access (no HMAC fallback).
-                    # Lets the frontend distinguish token-only viewers from
-                    # users with real read rights on the underlying record.
                     "hasReadAccess": thread.sudo(False).has_access("read"),
                 },
-                # display_name lets the frontend rebuild the prettified link of
-                # a posted message thread after a page refresh.
                 ["display_name"],
                 as_thread=True,
             )
@@ -135,37 +91,13 @@ class PortalChatter(ThreadController):
 
     @http.route("/mail/chatter_fetch", type="jsonrpc", auth="public", website=True)
     def portal_message_fetch(self, thread_model, thread_id, fetch_params=None, **kw):
-        """Fetch the messages displayed in the portal chatter.
-
-        Builds the search domain from the thread model's ``website_message_ids``
-        field and restricts it to the share-safe subset of messages
-        (``_get_search_domain_share``) — i.e. non-internal messages of any
-        non-internal subtype, not only ``mail.mt_comment``. All portal viewers,
-        and internal users (who are meant to see the portal as portal users do),
-        get the same non-internal-only visibility. Empty messages are dropped.
-        For token-based auth, validates the token and rebinds ``Message`` to
-        a sudo recordset so the search returns the messages the validator
-        already authorised.
-        """
-        # ``thread_model`` is client-supplied: an unknown model or one that
-        # does not carry the portal chatter field must be a clean 404, not a
-        # KeyError bubbling up as "Odoo Server Error" (leaking model names).
         if thread_model not in request.env:
             raise NotFound
         model = request.env[thread_model]
         field = model._fields.get("website_message_ids")
         if field is None:
             raise NotFound
-        # Coerce here too: the non-token path never calls _get_thread_with_access,
-        # so a non-numeric thread_id would otherwise reach the ORM as
-        # Domain("res_id", "=", "abc") and 500 with a ValueError.
         thread_id = to_record_id(thread_id)
-        # Delegated to the model rather than re-derived here: the same four
-        # clauses also answer the counters that must agree with this list
-        # (``website_slides.comments_count``), and two copies of that rule are
-        # exactly how a badge and its chatter drift apart. ``message_domain``
-        # carries the one clause the controller owns, so ``portal_rating`` can
-        # still widen the chatter without widening the counters.
         domain = Domain(
             self._setup_portal_message_fetch_extra_domain(kw)
         ) & model.browse(thread_id)._get_portal_message_fetch_domain(
@@ -174,9 +106,6 @@ class PortalChatter(ThreadController):
 
         Message = request.env["mail.message"]
         if kw.get("token"):
-            # Token-only access check (no hash/pid): the model's portal override
-            # leaves its HMAC branch inert without hash+pid, so only the token is
-            # validated here.
             thread = self._get_thread_with_access(
                 thread_model,
                 thread_id,
@@ -197,12 +126,6 @@ class PortalChatter(ThreadController):
                     },
                 )
             Message = request.env["mail.message"].sudo()
-        # Sanitise like every other message route: this one splatted the raw
-        # client dict, so any key ``_message_fetch`` does not declare arrived as
-        # an unexpected keyword argument and surfaced as a bare TypeError -- an
-        # anonymous server-error primitive, since this route is auth="public".
-        # ``paging.FETCH_PARAMS`` exists for exactly this and five of the six
-        # call sites already used it.
         res = Message._message_fetch(
             domain, **Message._sanitize_fetch_params(fetch_params)
         )
@@ -214,33 +137,13 @@ class PortalChatter(ThreadController):
         }
 
     def _get_non_empty_message_domain(self):
-        """Visibility clause applied to the portal chatter's message list.
-
-        Delegates to the model so the rule has one definition; this stays as the
-        controller-side extension point (``portal_rating`` widens it to keep
-        body-less ratings visible), which is why the model takes it as a
-        parameter rather than the two agreeing by coincidence.
-        """
         return request.env["mixin.mail.thread"]._get_portal_message_non_empty_domain()
 
     def _setup_portal_message_fetch_extra_domain(self, data) -> Domain:
-        """Hook for downstream modules to add domain leaves to the portal message fetch."""
         return Domain.TRUE
 
     @http.route(["/mail/update_is_internal"], type="jsonrpc", auth="user", website=True)
     def portal_message_update_is_internal(self, message_id, is_internal):
-        """Toggle the ``is_internal`` flag on a message.
-
-        Access is gated by ``auth="user"`` (login required) and ``mail.message``
-        ACL — the ``write()`` call below runs in the current user's env, so
-        users who cannot write to the message are blocked by the ORM.
-
-        ``bool()`` on the flag: this is ``jsonrpc``, so the caller picks the
-        JSON *type*, and a Boolean field stored whatever truthiness the ORM
-        derived from it. ``{}``/``[]``/``""`` reading as "not internal" and
-        ``"false"`` (a non-empty string) reading as "internal" is not a contract
-        anyone intended; the route takes a flag, so it coerces to one.
-        """
         message = request.env["mail.message"].browse(to_record_id(message_id))
         message.write({"is_internal": bool(is_internal)})
         return message.is_internal

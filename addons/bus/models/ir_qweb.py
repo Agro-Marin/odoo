@@ -32,7 +32,7 @@ class IrQWeb(models.AbstractModel):
 
         The compiled code is returned alongside the URL on purpose: the
         attachment row is committed out of band on a dedicated cursor
-        (see ``_persist_esm_attachment_rows``), so the *current* request's
+        (see ``_save_esm_attachment_rows``), so the *current* request's
         repeatable-read transaction cannot see it yet — the serving
         controller must not need a row lookup.
         """
@@ -49,11 +49,11 @@ class IrQWeb(models.AbstractModel):
         tools.ormcache(cache="assets"),
     )
     def _get_websocket_worker_bundle_cached(self):
-        assets_params = self.env["ir.asset"]._get_asset_params()
+        assets_params = self.env["ir.asset"]._prepare_assets_params()
         asset_bundle = self._get_asset_bundle(
             WORKER_BUNDLE, css=False, assets_params=assets_params
         )
-        esbuild_result, _child_bundles = self._esm_run_esbuild(
+        esbuild_result, _child_bundles = self._compile_with_esbuild_locked(
             WORKER_BUNDLE, asset_bundle, assets_params
         )
         if not esbuild_result.code:

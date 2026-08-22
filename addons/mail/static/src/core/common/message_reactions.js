@@ -3,7 +3,7 @@ import { useMessageActions } from "@mail/core/common/message_actions";
 import { MessageReactionList } from "@mail/core/common/message_reaction_list";
 import { QuickReactionMenu } from "@mail/core/common/quick_reaction_menu";
 import { Component, useRef } from "@odoo/owl";
-import { useEmojiPicker } from "@web/components/emoji_picker/emoji_picker";
+import { useEmojiPicker } from "@web/components/emoji_picker";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { useService } from "@web/core/utils/hooks";
 export class MessageReactions extends Component {

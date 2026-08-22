@@ -11,7 +11,7 @@ class MailingList(models.Model):
 
     def action_view_mailings(self):
         if self.env.context.get('mailing_sms'):
-            action = self.env["ir.actions.actions"]._for_xml_id('mass_mailing_sms.mailing_mailing_action_sms')
+            action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id('mass_mailing_sms.mailing_mailing_action_sms')
             action['domain'] = [('id', 'in', self.mailing_ids.ids)]
             action['context'] = {
                 'default_mailing_type': 'sms',
@@ -29,7 +29,7 @@ class MailingList(models.Model):
 
     def action_send_mailing_sms(self):
         view = self.env.ref('mass_mailing_sms.mailing_mailing_view_form_sms')
-        action = self.env["ir.actions.actions"]._for_xml_id('mass_mailing_sms.mailing_mailing_action_sms')
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id('mass_mailing_sms.mailing_mailing_action_sms')
         action.update({
             'context': {
                 'default_contact_list_ids': self.ids,
@@ -43,13 +43,13 @@ class MailingList(models.Model):
 
         return action
 
-    def _get_contact_statistics_fields(self):
+    def _get_fields_contact_statistics(self):
         """ See super method docstring for more info.
         Adds:
         - contact_count_sms:           all valid sms
         - contact_count_blacklisted:   override the dict entry to add SMS blacklist condition """
 
-        values = super(MailingList, self)._get_contact_statistics_fields()
+        values = super(MailingList, self)._get_fields_contact_statistics()
         values.update({
             'contact_count_sms': '''
                 SUM(CASE WHEN

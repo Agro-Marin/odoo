@@ -61,7 +61,7 @@ patch(WebClient.prototype, {
 
     /** @param {number} [numberTry=1] */
     async _doSubscribePush(numberTry = 1) {
-        await this.serviceWorker.activated;
+        await this.serviceWorker.registrationSettled;
         const pushManager = await this.pushManager();
         if (!pushManager) {
             return;
@@ -135,7 +135,7 @@ patch(WebClient.prototype, {
     },
 
     async _doUnsubscribePush() {
-        await this.serviceWorker.activated;
+        await this.serviceWorker.registrationSettled;
         const pushManager = await this.pushManager();
         if (!pushManager) {
             return;

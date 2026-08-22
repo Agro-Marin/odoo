@@ -2,7 +2,7 @@
 import { partnerCompareRegistry } from "@mail/core/common/partner_compare";
 import { cleanTerm } from "@mail/utils/common/format";
 import { toRaw } from "@odoo/owl";
-import { loadEmoji } from "@web/components/emoji_picker/emoji_picker";
+import { loadEmoji } from "@web/components/emoji_picker";
 import { registry } from "@web/core/registry";
 import { fuzzyLookup } from "@web/core/utils/search";
 
@@ -27,7 +27,7 @@ function byPrefixThenAlphaThenId(cleanedKeyFn, cleanedSearchTerm) {
     };
 }
 
-/** @typedef {import("@web/components/emoji_picker/emoji_picker").Emoji} Emoji */
+/** @typedef {import("@web/components/emoji_picker").Emoji} Emoji */
 /** @typedef {import("@mail/core/common/suggestion_hook").Suggestion} Suggestion */
 export class SuggestionService {
     /**

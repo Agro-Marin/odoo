@@ -204,13 +204,13 @@ export class DiscussChannelMember extends models.ServerModel {
                 "partner_id",
                 (m) => {
                     const ResPartner = this.env["res.partner"];
-                    let partnerFields = this._get_store_partner_fields(fields);
+                    let partnerFields = this._get_fields_store_partner(fields);
                     if (!partnerFields) {
                         partnerFields = ResPartner._to_store_defaults;
                     }
                     if (partnerFields.length) {
                         partnerFields = partnerFields.concat(
-                            ResPartner._get_store_mention_fields(),
+                            ResPartner._get_fields_store_mention(),
                         );
                     }
                     return mailDataHelpers.Store.one(
@@ -253,7 +253,7 @@ export class DiscussChannelMember extends models.ServerModel {
         ].concat(this._to_store_persona());
     }
 
-    _get_store_partner_fields(fields) {
+    _get_fields_store_partner(fields) {
         return fields;
     }
 

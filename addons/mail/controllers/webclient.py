@@ -228,4 +228,4 @@ class WebclientController(ThreadController):
                 .with_context(**context)
                 .search([("id", "=", record_id)])
             )
-            store.add(record, record._get_store_avatar_card_fields(store.target))
+            store.add(record, record._get_fields_store_avatar_card(store.target))

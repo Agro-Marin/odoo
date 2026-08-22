@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.http import Request
 from odoo.libs.web import urls
 from odoo.tests import HttpCase, tagged
@@ -32,10 +30,6 @@ class TestPortalAddresses(BaseCommon, HttpCase):
         cls.submit_url = urls.urljoin(base_url, "/my/address/submit")
         cls.archive_url = urls.urljoin(base_url, "/my/address/archive")
 
-        # Company tree-like hierarchy
-        #       Company
-        #       /     \
-        #      A       B
         cls.account_a = cls._create_new_portal_user(login="portal_a")
         cls.account_b = cls._create_new_portal_user(login="portal_b")
         cls.company_partner = cls.env["res.partner"].create(
@@ -56,25 +50,11 @@ class TestPortalAddresses(BaseCommon, HttpCase):
             }
         )
 
-    # Some utils c/p from payment http_common
     def _make_http_post_request(self, url, data=None):
-        """Make an HTTP POST request to the provided URL.
-
-        :param str url: The URL to make the request to
-        :param dict data: The data to be send in the request body
-        :return: The response of the request
-        :rtype: :class:`requests.models.Response`
-        """
         formatted_data = self._format_http_request_payload(payload=data)
         return self.url_open(url, data=formatted_data)
 
     def _format_http_request_payload(self, payload=None):
-        """Format a request payload to replace float values by their string representation.
-
-        :param dict payload: The payload to format
-        :return: The formatted payload
-        :rtype: dict
-        """
         formatted_payload = {}
         if payload is not None:
             for k, v in payload.items():
@@ -85,13 +65,6 @@ class TestPortalAddresses(BaseCommon, HttpCase):
         return self._make_http_post_request(self.submit_url, values).json()
 
     def test_country_info_includes_state_required(self):
-        """``/my/address/country_info`` must expose ``state_required``.
-
-        ``address.js`` reads ``data.state_required`` to decide whether to show
-        (and require) the state input; a state-mandatory country with no defined
-        states would otherwise get a hidden-but-required select the user cannot
-        fill, making the form unsubmittable.
-        """
         self.authenticate(self.portal_user.login, self.portal_user.login)
         country = self.quick_ref("base.us")
         result = self.make_jsonrpc_request(
@@ -102,7 +75,6 @@ class TestPortalAddresses(BaseCommon, HttpCase):
         self.assertEqual(result["state_required"], country.state_required)
 
     def test_required_values(self):
-        """Check that empty values for required fields are correctly caught."""
         self.authenticate(self.portal_user.login, self.portal_user.login)
         csrf_token = Request.csrf_token(self)
         for fname in ("name", "email", "street", "city", "country_id", "phone"):
@@ -117,7 +89,6 @@ class TestPortalAddresses(BaseCommon, HttpCase):
             self.assertIn(fname, res["invalid_fields"])
 
     def test_email_validation(self):
-        """Check that wrong email values are correctly caught."""
         self.authenticate(self.portal_user.login, self.portal_user.login)
         csrf_token = Request.csrf_token(self)
         res = self._submit_address_values(
@@ -153,10 +124,8 @@ class TestPortalAddresses(BaseCommon, HttpCase):
         csrf_token = Request.csrf_token(self)
 
         internal_partner = self.internal_user.partner_id
-        # Fill the incomplete address
         internal_partner.write(self.default_address_values)
 
-        # Try to update the account name
         res = self._submit_address_values(
             {
                 **self.default_address_values,
@@ -172,10 +141,8 @@ class TestPortalAddresses(BaseCommon, HttpCase):
         csrf_token = Request.csrf_token(self)
 
         internal_partner = self.internal_user.partner_id
-        # Fill the incomplete address
         internal_partner.write(self.default_address_values)
 
-        # Try to update the account email
         res = self._submit_address_values(
             {
                 **self.default_address_values,
@@ -205,10 +172,6 @@ class TestPortalAddresses(BaseCommon, HttpCase):
         )
 
     def test_cannot_update_vat_on_child_addresses(self):
-        """Check that the VAT cannot be updated on a child address.
-
-        Customers are supposed to update it through their main address (and the route /my/account)
-        """
         self.authenticate(self.account_a.login, self.account_a.login)
         csrf_token = Request.csrf_token(self)
 
@@ -318,28 +281,22 @@ class TestPortalAddresses(BaseCommon, HttpCase):
             [self.default_address_values],
         )
 
-    # def test_billing_address_update(self):
-
-    # def test_delivery_address_update(self):
 
     def test_address_archiving(self):
         self.authenticate(self.account_a.login, self.account_a.login)
 
-        # Address doesn't belong to logged in user
         with self.assertRaises(JsonRpcException):
             self.make_jsonrpc_request(
                 self.archive_url,
                 params={"partner_id": self.portal_user.partner_id.id},
             )
 
-        # Cannot archive main address of customer
         with self.assertRaises(JsonRpcException), mute_logger("odoo.http"):
             self.make_jsonrpc_request(
                 self.archive_url,
                 params={"partner_id": self.account_a.partner_id.id},
             )
 
-        # Cannot archive a contact address, even if it belongs to the user commercial partner
         with self.assertRaises(JsonRpcException):
             self.make_jsonrpc_request(
                 self.archive_url,
@@ -362,14 +319,6 @@ class TestPortalAddresses(BaseCommon, HttpCase):
         self.assertFalse(child_partner.active)
 
     def test_zipcode_alias_is_consumed_from_extra_form_data(self):
-        """``zipcode`` aliases to ``zip`` AND is dropped from extra_form_data.
-
-        Regression: before the fix, _parse_form_data would copy ``zipcode``
-        into ``extra_form_data`` (because it is not a partner field) and then
-        only delete it from ``form_data`` when aliasing. Any subclass that
-        overrode ``_handle_extra_form_data`` would observe a stale
-        ``zipcode`` entry that had already been consumed.
-        """
         captured = {}
 
         original = CustomerPortal._handle_extra_form_data

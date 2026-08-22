@@ -338,7 +338,6 @@ class TestMailUtils(MailCommon):
 
 @tagged("mail_tools")
 class TestMailBannedEmails(MailCommon):
-    """OdooBot's address is only worth banning while it is OdooBot's alone."""
 
     @classmethod
     def setUpClass(cls):
@@ -377,13 +376,6 @@ class TestMailBannedEmails(MailCommon):
 
 @tagged("mail_tools")
 class TestPostprocessPayload(MailCommon):
-    """Rewriting cid: images must not invent a wrapper around the body.
-
-    libxml2 2.14 changed which element `lxml.html.fromstring` wraps a bare
-    fragment in -- `<span>` where older builds used `<p>` -- so a body that had
-    no root element came back out with one, and which one depended on the build
-    Odoo happened to link against.
-    """
 
     @classmethod
     def setUpClass(cls):

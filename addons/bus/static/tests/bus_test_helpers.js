@@ -10,6 +10,7 @@ import {
     getService,
     MockServer,
     mockService,
+    onRpc,
     patchWithCleanup,
     webModels,
 } from "@web/../tests/web_test_helpers";
@@ -232,6 +233,9 @@ export function addBusServiceListeners(...listeners) {
 }
 
 export function defineBusModels() {
+    onRpc("/bus/has_missed_notifications", function hasMissedNotifications() {
+        return false;
+    });
     return defineModels({ ...webModels, ...busModels });
 }
 

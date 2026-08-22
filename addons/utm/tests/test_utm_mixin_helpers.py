@@ -22,13 +22,13 @@ class TestUtmMixinHelpers(TransactionCase):
 
     def test_find_or_create_is_idempotent(self):
         """A second lookup of the same name returns the same record."""
-        first = self.Mixin._find_or_create_record("utm.source", "Loop test source")
-        second = self.Mixin._find_or_create_record("utm.source", "loop test source")
+        first = self.Mixin._get_or_create_record("utm.source", "Loop test source")
+        second = self.Mixin._get_or_create_record("utm.source", "loop test source")
         self.assertEqual(first, second)
 
     def test_find_or_create_record_payload(self):
         """The frontend wrapper returns the record id and display name."""
-        payload = self.Mixin.find_or_create_record("utm.medium", "Loop test medium")
+        payload = self.Mixin.get_or_create_record("utm.medium", "Loop test medium")
         self.assertIn("id", payload)
         self.assertEqual(payload["name"], "Loop test medium")
 

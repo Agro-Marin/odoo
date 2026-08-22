@@ -4,7 +4,7 @@ import { Message } from "@mail/core/common/message";
 import { messageActionOpenFullComposer } from "@mail/core/web/message_actions_patch";
 import {
     formatChar,
-    formatFloat,
+    formatFieldFloat,
     formatInteger,
     formatMonetary,
     formatText,
@@ -112,7 +112,7 @@ patch(Message.prototype, {
                 return formatDateTime(value);
             }
             case "float":
-                return formatFloat(trackingValue, {
+                return formatFieldFloat(trackingValue, {
                     digits: trackingFieldInfo.floatPrecision,
                 });
             case "integer":

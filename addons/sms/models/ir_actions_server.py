@@ -34,11 +34,11 @@ class IrActionsServer(models.Model):
     def _name_depends(self):
         return [*super()._name_depends(), "sms_template_id"]
 
-    def _generate_action_name(self):
+    def _prepare_automated_name(self):
         self.ensure_one()
         if self.state == 'sms' and self.sms_template_id:
             return _('Send %(template_name)s', template_name=self.sms_template_id.name)
-        return super()._generate_action_name()
+        return super()._prepare_automated_name()
 
     @api.depends('state')
     def _compute_available_model_ids(self):
@@ -82,8 +82,8 @@ class IrActionsServer(models.Model):
                 action.sms_method = 'sms'
 
     @api.model
-    def _warning_depends(self):
-        return super()._warning_depends() + [
+    def _get_fields_warning_depends(self):
+        return super()._get_fields_warning_depends() + [
             'model_id',
             'state',
             'sms_template_id',

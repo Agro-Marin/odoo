@@ -41,8 +41,7 @@ export class ChatBubble extends Component {
         this.popover = usePopover(ChatBubblePreview, {
             animation: false,
             position: "left-middle",
-            popoverClass:
-                "dropdown-menu bg-view border-0 p-0 overflow-visible o-rounded-bubble mx-1",
+            class: "dropdown-menu bg-view border-0 p-0 overflow-visible o-rounded-bubble mx-1",
             ref: popoverRef,
         });
         useBus(

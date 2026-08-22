@@ -2,7 +2,6 @@ from odoo import fields, models
 
 
 class ResConfigSettings(models.TransientModel):
-    """Expose the ``portal.allow_api_keys`` toggle in the General Settings."""
 
     _inherit = "res.config.settings"
 

@@ -8,7 +8,7 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
-import { loadEmoji } from "@web/components/emoji_picker/emoji_picker";
+import { loadEmoji } from "@web/components/emoji_picker";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
 export class MessageReactionMenu extends Component {

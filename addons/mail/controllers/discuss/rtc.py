@@ -112,7 +112,7 @@ class RtcController(http.Controller):
         camera: bool = False,
     ) -> dict:
         channel = get_channel_or_404(channel_id)
-        member = channel._find_or_create_member_for_self()
+        member = channel._get_or_create_member_for_self()
         if not member:
             raise NotFound
         store = Store()

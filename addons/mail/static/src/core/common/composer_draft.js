@@ -109,7 +109,7 @@ export function useComposerDraft() {
         closeOnClickAway: false,
         closeOnEscape: false,
         position: "top-end",
-        popoverClass: "dropdown-menu bg-view overflow-visible o-rounded-bubble mx-1",
+        class: "dropdown-menu bg-view overflow-visible o-rounded-bubble mx-1",
     });
     useEffect(
         /**

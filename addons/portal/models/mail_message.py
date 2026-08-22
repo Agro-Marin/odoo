@@ -4,23 +4,12 @@ from odoo.tools import format_datetime, groupby
 
 
 class MailMessage(models.Model):
-    """Portal-specific extensions to mail.message (visibility, avatar URLs, attachment tokens)."""
 
     _inherit = "mail.message"
 
-    # Avatar resolution served to portal chatter clients. Kept low because the
-    # rendered avatar is rendered at ~32px CSS; bumping this requires a matching
-    # change in the chatter SCSS to actually display the higher resolution.
     _PORTAL_AVATAR_SIZE = "50x50"
 
     def _compute_is_current_user_or_guest_author(self):
-        """Mark portal-authored messages as 'current user' when the request was
-        validated via HMAC hash+pid or access token.
-
-        The ``portal_data`` context key is set by portal controllers after
-        :func:`portal.utils.get_portal_partner` has cryptographically validated
-        the requester. The ``isinstance`` checks below are defense-in-depth.
-        """
         super()._compute_is_current_user_or_guest_author()
         portal_data = self.env.context.get("portal_data", {})
         portal_partner = portal_data.get("portal_partner")
@@ -41,20 +30,6 @@ class MailMessage(models.Model):
                 message.is_current_user_or_guest_author = True
 
     def portal_message_format(self, options=None):
-        """Simpler and portal-oriented version of 'message_format'. Purpose
-        is to prepare, organize and format values required by frontend widget
-        (frontend Chatter).
-
-        This public API asks for read access on messages before doing the
-        actual computation in the private implementation.
-
-        :param dict options: options, used notably for inheritance and adding
-          specific fields or properties to compute;
-
-        :returns: list of dict, one per message in self. Each dict contains
-          values for either fields, either properties derived from fields.
-        :rtype: list[dict]
-        """
         self.check_access("read")
         return self._portal_message_format(
             self._portal_get_default_format_properties_names(options=options),
@@ -62,14 +37,6 @@ class MailMessage(models.Model):
         )
 
     def _portal_get_default_format_properties_names(self, options=None):
-        """Fields and values to compute for portal format.
-
-        :param dict options: options, used notably for inheritance and adding
-          specific fields or properties to compute;
-
-        :returns: fields or properties derived from fields
-        :rtype: set
-        """
         return {
             "attachment_ids",
             "author_avatar_url",
@@ -89,15 +56,6 @@ class MailMessage(models.Model):
         }
 
     def _portal_format_avatar_url(self, message, options):
-        """Build the avatar URL appropriate to the caller's auth method.
-
-        :param message: single ``mail.message`` record
-        :param dict options: caller-supplied options carrying ``token`` /
-                             ``hash`` + ``pid`` when the request was authenticated
-                             against a thread access token or HMAC pair
-        :return: URL serving the author avatar at 50x50, with auth params
-        :rtype: str
-        """
         size = self._PORTAL_AVATAR_SIZE
         if options and options.get("token"):
             return f"/mail/avatar/mail.message/{message.id}/author_avatar/{size}?access_token={options['token']}"
@@ -106,26 +64,8 @@ class MailMessage(models.Model):
         return f"/web/image/mail.message/{message.id}/author_avatar/{size}"
 
     def _portal_message_format(self, properties_names, options=None):
-        """Format messages for the portal frontend; assumes read access checked upstream.
-
-        :param set properties_names: fields or properties derived from fields
-                                     for which we are going to compute values
-        :param dict options: caller-supplied options (token, hash, pid, ...)
-        :return: list of dict, one per message in ``self``
-        :rtype: list[dict]
-        """
-        # Work on a copy: ``properties_names`` belongs to the caller, and
-        # ``attachment_ids`` is removed from it below. Today every caller happens
-        # to build a fresh set per call, so the mutation is invisible — but a
-        # caller that computes the set once and formats several batches with it
-        # (an override caching its property list, a loop over pages of a thread)
-        # would silently lose attachments on every batch after the first. A
-        # formatting method has no business editing its argument.
         properties_names = set(properties_names)
 
-        # When attachments are requested, fetch them via sudo: read access on
-        # the parent message implies read access on its attachments, but
-        # ir.attachment ACL would otherwise refuse the portal user.
         message_to_attachments = {}
         if "attachment_ids" in properties_names:
             properties_names.remove("attachment_ids")
@@ -163,24 +103,15 @@ class MailMessage(models.Model):
 
         note_id = self.env["ir.model.data"]._xmlid_to_res_id("mail.mt_note")
         for message, values in zip(self, vals_list, strict=True):
-            # Every other property below is applied conditionally; ``body`` was
-            # not, so an override trimming it out of ``properties_names`` (a
-            # supported use of the hook) raised KeyError here instead of simply
-            # omitting the field.
             if "body" in values:
                 values["body"] = ["markup", values["body"]]
             if message_to_attachments:
-                # ``[]`` not ``{}``: the frontend iterates this as a list of
-                # attachment dicts. The fallback is unreachable while the map is
-                # built from ``self`` itself, but a wrong-typed default is a trap
-                # for the first override that narrows the map.
                 values["attachment_ids"] = message_to_attachments.get(message.id, [])
             if "author_avatar_url" in properties_names:
                 values["author_avatar_url"] = self._portal_format_avatar_url(
                     message, options
                 )
             if "is_message_subtype_note" in properties_names:
-                # ``subtype_id`` is read in classic format: ``[id, name]`` or False.
                 subtype = values.get("subtype_id")
                 values["is_message_subtype_note"] = (
                     bool(subtype) and subtype[0] == note_id
@@ -202,13 +133,11 @@ class MailMessage(models.Model):
                     {
                         "content": content,
                         "count": len(reaction_records),
-                        # sudo: mail.guest - reading guest names of reactions on accessible message is allowed
                         "guests": [
                             {"id": guest.id, "name": guest.name}
                             for guest in reaction_records.guest_id
                         ],
                         "message": message.id,
-                        # sudo: res.partner - reading partners of reactions on accessible message is allowed
                         "partners": [
                             {"id": partner.id, "name": partner.name}
                             for partner in reaction_records.partner_id.sudo()
@@ -225,27 +154,12 @@ class MailMessage(models.Model):
                     if message.author_id
                     else False,
                     "thread": {
-                        # The "add reaction" button must be hidden on messages
-                        # whose model does not inherit from mail.thread.
-                        # ``model`` is a plain Char: messages outlive the module
-                        # that owned their model, so an uninstall leaves rows
-                        # pointing at a name no longer in the registry. Indexing
-                        # env with it would raise KeyError and take down the
-                        # whole chatter fetch over one stale message. Shared with
-                        # the two chatter controllers that resolve the same
-                        # column -- one rule, one place.
                         "has_mail_thread": message._is_thread_model(),
-                        # Read off the record, not ``values``: these two are
-                        # always available, whereas ``values`` only carries what
-                        # ``properties_names`` asked for.
                         "id": message.res_id,
                         "model": message.model,
                     },
                 }
             )
-        # Linked messages (e.g. a message link posted in the chatter) carry the
-        # referenced thread's display_name so the frontend can rebuild the
-        # prettified link after a refresh.
         _by_message, readable_links = self._get_linked_messages()
         linked_messages = readable_links - self
         linked_messages_vals_list = linked_messages._read_format(
@@ -256,7 +170,6 @@ class MailMessage(models.Model):
             linked_messages, linked_messages_vals_list, strict=True
         ):
             record = record_by_linked_message.get(message)
-            # sudo: mixin.mail.thread - reading display_name of accessed thread is acceptable
             values["thread"] = {
                 "display_name": record.sudo().display_name if record else False
             }
@@ -264,17 +177,7 @@ class MailMessage(models.Model):
         return vals_list
 
     def _portal_message_format_attachments(self, attachment_values):
-        """From ``attachment_values`` build the dict consumed by the frontend chatter.
-
-        :param dict attachment_values: values read from ``ir.attachment``
-        :return: same dict augmented with filename, possibly remapped mimetype,
-                 and raw/ownership access tokens
-        :rtype: dict
-        """
         self.ensure_one()
-        # Safari plays video MIME types inline ignoring Content-Disposition:
-        # attachment, so serve them as octet-stream to force the browser
-        # download dialog.
         safari = (
             request
             and request.httprequest.user_agent

@@ -27,7 +27,7 @@ import {
     useState,
     useSubEnv,
 } from "@odoo/owl";
-import { ActionSwiper } from "@web/components/action_swiper/action_swiper";
+import { ActionSwiper } from "@web/components/action_swiper";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { hasTouch, isMobileOS } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/translation";

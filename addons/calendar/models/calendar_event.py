@@ -131,7 +131,7 @@ class CalendarEvent(models.Model):
         return defaults
 
     @api.model
-    def _default_partners(self):
+    def _default_partner_ids(self):
         """When active_model is res.partner, the current partners should be attendees"""
         partners = self.env.user.partner_id
         active_id = self.env.context.get("active_id")
@@ -301,7 +301,7 @@ class CalendarEvent(models.Model):
         "res.partner",
         "calendar_event_res_partner_rel",
         string="Attendees",
-        default=_default_partners,
+        default=_default_partner_ids,
     )
     invalid_email_partner_ids = fields.Many2many(
         "res.partner", compute="_compute_invalid_email_partner_ids"
@@ -686,7 +686,7 @@ class CalendarEvent(models.Model):
 
     @api.depends("recurrence_id", "recurrency", "rrule_type_ui")
     def _compute_recurrence(self):
-        recurrence_fields = self._get_recurrent_fields()
+        recurrence_fields = self._get_fields_recurrent()
         false_values = dict.fromkeys(recurrence_fields, False)  # computes need to set a value
         defaults = self.env["calendar.recurrence"].default_get(recurrence_fields)
         default_rrule_values = self.recurrence_id.default_get(recurrence_fields)
@@ -1021,7 +1021,7 @@ class CalendarEvent(models.Model):
         the callers pair each event with its own vals by position. Track the
         original index of every vals so `events` can be rebuilt in caller order.
         """
-        recurrence_fields = self._get_recurrent_fields()
+        recurrence_fields = self._get_fields_recurrent()
         other_idx = [i for i, vals in enumerate(vals_list) if not vals.get("recurrency")]
         recurring_idx = [i for i, vals in enumerate(vals_list) if vals.get("recurrency")]
         other_vals = [vals_list[i] for i in other_idx]
@@ -1093,7 +1093,7 @@ class CalendarEvent(models.Model):
         if self.env.su:
             return super()._fetch_query(query, fields)
 
-        public_fnames = self._get_public_fields()
+        public_fnames = self._get_fields_public()
         private_fields = [field for field in fields if field.name not in public_fnames]
         if not private_fields:
             return super()._fetch_query(query, fields)
@@ -1123,7 +1123,7 @@ class CalendarEvent(models.Model):
     # Resource reservation integration (contracts from mixin.resource.scheduling)
     # ------------------------------------------------------------------
 
-    def _get_reservation_date_fields(self):
+    def _get_fields_reservation_date(self):
         """Return (start_field, end_field) names for reservation sync."""
         return ("start", "stop")
 
@@ -1181,14 +1181,14 @@ class CalendarEvent(models.Model):
             )
         return vals_list
 
-    def _get_sync_trigger_fields(self):
+    def _get_fields_sync_trigger(self):
         """Attendees, title and the busy/free flag also move bookings.
 
         ``name`` is a trigger because the reservation label is built from
         ``display_name``; ``show_as`` because flipping it to *free* has to
         release the claims, and back to *busy* to retake them.
         """
-        return super()._get_sync_trigger_fields() | {
+        return super()._get_fields_sync_trigger() | {
             "partner_ids",
             "name",
             "show_as",
@@ -1218,7 +1218,7 @@ class CalendarEvent(models.Model):
         )
         break_recurrence = values.get("recurrency") is False
 
-        if any(vals in self._get_recurrent_fields() for vals in values) and not (
+        if any(vals in self._get_fields_recurrent() for vals in values) and not (
             update_recurrence or values.get("recurrency")
         ):
             raise UserError(_('Unable to save the recurrence with "This Event"'))
@@ -1233,7 +1233,7 @@ class CalendarEvent(models.Model):
             values["attendee_ids"] = self._attendees_values(values["partner_ids"])
             self._write_sync_videocall_members(values["partner_ids"])
 
-        time_fields = self._get_time_fields()
+        time_fields = self._get_fields_time()
         touches_time = self._touches_time(values)
         update_time = touches_time
         # Alarms are rescheduled when the event moves, when its reminders change,
@@ -1253,7 +1253,7 @@ class CalendarEvent(models.Model):
 
         recurrence_values = {
             field: values.pop(field)
-            for field in self._get_recurrent_fields()
+            for field in self._get_fields_recurrent()
             if field in values
         }
         future_edge_case = (
@@ -1315,7 +1315,7 @@ class CalendarEvent(models.Model):
         # rewrite settled.  `written_fnames` rather than `values`, which the
         # branches above emptied; `exists()` because `_rewrite_recurrence` and
         # `_update_future_events` unlink occurrences, `self` among them.
-        if written_fnames & (self._get_sync_trigger_fields() | {"active"}):
+        if written_fnames & (self._get_fields_sync_trigger() | {"active"}):
             to_sync = self.exists()._active_for_sync()
             # Settle first: the computes this write triggered are still
             # pending, and reading `stop` to build a booking would otherwise
@@ -1397,7 +1397,7 @@ class CalendarEvent(models.Model):
         if not self.env.su:
             for event in self:
                 if event._check_private_event_conditions():
-                    raise self.env["ir.rule"]._make_access_error("write", event)
+                    raise self.env["ir.rule"]._prepare_access_error("write", event)
 
     def _check_private_event_conditions(self):
         """Checks if the event is private, returning True if the conditions match and False otherwise."""
@@ -1438,7 +1438,7 @@ class CalendarEvent(models.Model):
         Every field `_fetch_query` actually masks is a stored, non-public field,
         so this set is exactly the search/group oracle surface.
         """
-        public = self._get_public_fields()
+        public = self._get_fields_public()
         return {
             fname
             for fname in fnames
@@ -2579,7 +2579,7 @@ class CalendarEvent(models.Model):
         return (lang.date_format, lang.time_format)
 
     @api.model
-    def _get_recurrent_fields(self):
+    def _get_fields_recurrent(self):
         return {
             "byday",
             "until",
@@ -2602,7 +2602,7 @@ class CalendarEvent(models.Model):
         }
 
     @api.model
-    def _get_time_fields(self):
+    def _get_fields_time(self):
         return {"start", "stop", "start_date", "stop_date"}
 
     @api.model
@@ -2618,19 +2618,19 @@ class CalendarEvent(models.Model):
         `{'start_date': False}` therefore detached an event that had not moved.
         One predicate, truthiness, used by both.
         """
-        return any(values.get(fname) for fname in self._get_time_fields())
+        return any(values.get(fname) for fname in self._get_fields_time())
 
     @api.model
-    def _get_custom_fields(self):
+    def _get_fields_custom(self):
         all_fields = self.fields_get(attributes=["manual"])
         return {fname for fname in all_fields if all_fields[fname]["manual"]}
 
     @api.model
-    def _get_public_fields(self):
+    def _get_fields_public(self):
         return (
-            self._get_recurrent_fields()
-            | self._get_time_fields()
-            | self._get_custom_fields()
+            self._get_fields_recurrent()
+            | self._get_fields_time()
+            | self._get_fields_custom()
             | {
                 "id",
                 "active",

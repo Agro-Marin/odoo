@@ -102,7 +102,7 @@ class TestPartner(MailCommon):
             expected_email_normalized or tools.email_normalize(expected_email) or ""
         )
         with self.mockPartnerCalls():
-            partner = self.env["res.partner"].find_or_create(test_string)
+            partner = self.env["res.partner"].get_or_create(test_string)
         if expected_partner:
             self.assertEqual(
                 partner,
@@ -273,7 +273,7 @@ class TestPartner(MailCommon):
                 )
 
         with self.assertRaises(ValueError):
-            self.env["res.partner"].find_or_create(
+            self.env["res.partner"].get_or_create(
                 "Raoul chirurgiens-dentistes.fr", assert_valid_email=True
             )
 
@@ -318,7 +318,7 @@ class TestPartner(MailCommon):
         ):
             with self.subTest(email=email):
                 self.assertEqual(
-                    self.env["res.partner"].find_or_create(email), partners[0]
+                    self.env["res.partner"].get_or_create(email), partners[0]
                 )
         for email in (
             "FIND.ME.FORMAT@TEST.EXAMPLE.COM",
@@ -326,14 +326,14 @@ class TestPartner(MailCommon):
         ):
             with self.subTest(email=email):
                 self.assertEqual(
-                    self.env["res.partner"].find_or_create(email), partners[1]
+                    self.env["res.partner"].get_or_create(email), partners[1]
                 )
         for email_input, match_partner in [
             ("find.me.multi.1@test.example.com", partners[2]),
             ("find.me.multi.2@test.example.com", self.env["res.partner"]),
         ]:
             with self.subTest(email_input=email_input):
-                partner = self.env["res.partner"].find_or_create(email_input)
+                partner = self.env["res.partner"].get_or_create(email_input)
                 if match_partner:
                     self.assertEqual(partner, match_partner)
                 else:
@@ -359,7 +359,7 @@ class TestPartner(MailCommon):
             ),
         ]:
             with self.subTest(email_input=email_input):
-                partner = self.env["res.partner"].find_or_create(email_input)
+                partner = self.env["res.partner"].get_or_create(email_input)
                 if match_partner:
                     self.assertEqual(partner, match_partner)
                 else:
@@ -374,7 +374,7 @@ class TestPartner(MailCommon):
             partners = (
                 self.env["res.partner"]
                 .with_context(lang="en_US")
-                ._find_or_create_from_emails(
+                ._get_or_create_from_emails(
                     [item[0] for item in self.samples],
                     additional_values=None,
                 )
@@ -420,7 +420,7 @@ class TestPartner(MailCommon):
             partners = (
                 self.env["res.partner"]
                 .with_context(lang="en_US")
-                ._find_or_create_from_emails(
+                ._get_or_create_from_emails(
                     all_emails,
                     additional_values={
                         tools.email_normalize(email) or email: {
@@ -464,7 +464,7 @@ class TestPartner(MailCommon):
     def test_find_or_create_from_emails_returns_what_it_created(self):
         Partner = self.env["res.partner"]
         with RecordCapturer(Partner, []) as capture:
-            partners = Partner._find_or_create_from_emails(["  Spacey Name  "])
+            partners = Partner._get_or_create_from_emails(["  Spacey Name  "])
 
         self.assertEqual(len(capture.records), 1, "the partner is created either way")
         self.assertEqual(capture.records.name, "Spacey Name")
@@ -475,7 +475,7 @@ class TestPartner(MailCommon):
         )
 
     def test_find_or_create_from_emails_strips_the_name_it_stores(self):
-        partner = self.env["res.partner"].find_or_create("  Spacey Name  ")
+        partner = self.env["res.partner"].get_or_create("  Spacey Name  ")
         self.assertEqual(partner.name, "Spacey Name")
 
     def test_find_or_create_from_emails_keeps_first_match_after_sorting(self):
@@ -487,12 +487,12 @@ class TestPartner(MailCommon):
             ]
         )
         self.assertEqual(
-            Partner._find_or_create_from_emails(["dupe@test.example.com"]),
+            Partner._get_or_create_from_emails(["dupe@test.example.com"]),
             [first],
             "id order without a sort key",
         )
         self.assertEqual(
-            Partner._find_or_create_from_emails(
+            Partner._get_or_create_from_emails(
                 ["dupe@test.example.com"], sort_key=lambda partner: partner.name
             ),
             [second],
@@ -502,7 +502,7 @@ class TestPartner(MailCommon):
     def test_find_or_create_from_emails_repeats_one_partner_per_input(self):
         Partner = self.env["res.partner"]
         emails = ["repeat@test.example.com", "REPEAT@test.example.com", "  Named  "]
-        partners = Partner._find_or_create_from_emails(emails)
+        partners = Partner._get_or_create_from_emails(emails)
         self.assertEqual(len(partners), 3)
         self.assertEqual(partners[0], partners[1], "same address, same partner")
         self.assertTrue(partners[2], "and the name-only input resolves too")
@@ -538,7 +538,7 @@ class TestPartner(MailCommon):
                     partner_list = (
                         self.env["res.partner"]
                         .with_context(lang="en_US")
-                        ._find_or_create_from_emails(
+                        ._get_or_create_from_emails(
                             samples,
                             additional_values=None,
                         )
@@ -586,7 +586,7 @@ class TestPartner(MailCommon):
             new_partners = (
                 self.env["res.partner"]
                 .with_context(lang="en_US")
-                ._find_or_create_from_emails(
+                ._get_or_create_from_emails(
                     new_samples,
                     additional_values=None,
                 )
@@ -642,7 +642,7 @@ class TestPartner(MailCommon):
             no_new_partners = (
                 self.env["res.partner"]
                 .with_context(lang="en_US")
-                ._find_or_create_from_emails(
+                ._get_or_create_from_emails(
                     no_new_samples,
                     additional_values=None,
                 )

@@ -106,7 +106,7 @@ class ResPartner(models.Model):
 
     def schedule_meeting(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("calendar.action_calendar_event")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("calendar.action_calendar_event")
         # Not `partner_ids = self.ids; partner_ids.append(...)`: that reads as a
         # mutation of the recordset's own ids and is only safe because `ids`
         # happens to build a fresh list each time.

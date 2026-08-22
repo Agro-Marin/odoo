@@ -47,10 +47,13 @@ class MailGroup(models.Model):
     is_member = fields.Boolean('Is Member', compute='_compute_is_member')
     member_ids = fields.One2many('mail.group.member', 'mail_group_id', string='Members')
     member_partner_ids = fields.Many2many('res.partner', string='Partners Member', compute='_compute_member_partner_ids', search='_search_member_partner_ids')
-    member_count = fields.Integer('Members Count', compute='_compute_member_count')
+    member_count = fields.Count("member_ids", 'Members Count')
     is_moderator = fields.Boolean(string='Moderator', help='Current user is a moderator of the group', compute='_compute_is_moderator')
     moderation = fields.Boolean(string='Moderate')
-    moderation_rule_count = fields.Integer(string='Moderated emails count', compute='_compute_moderation_rule_count')
+    moderation_rule_count = fields.Count(
+        "moderation_rule_ids",
+        string='Moderated emails count',
+    )
     moderation_rule_ids = fields.One2many('mail.group.moderation', 'mail_group_id', string='Moderated Emails')
     moderator_ids = fields.Many2many('res.users', 'mail_group_moderator_rel', string='Moderators',
                                      domain=lambda self: [('all_group_ids', 'in', self.env.ref('base.group_user').id)])
@@ -121,11 +124,6 @@ class MailGroup(models.Model):
         for group in self:
             group.mail_group_message_moderation_count = result_per_group.get(group.id, 0)
 
-    @api.depends('member_ids')
-    def _compute_member_count(self):
-        for group in self:
-            group.member_count = len(group.member_ids)
-
     @api.depends_context('uid')
     def _compute_is_member(self):
         if not self or self.env.user._is_public():
@@ -160,11 +158,6 @@ class MailGroup(models.Model):
     def _compute_is_moderator(self):
         for group in self:
             group.is_moderator = self.env.user.id in group.moderator_ids.ids
-
-    @api.depends('moderation_rule_ids')
-    def _compute_moderation_rule_count(self):
-        for group in self:
-            group.moderation_rule_count = len(group.moderation_rule_ids)
 
     @api.depends('is_moderator')
     @api.depends_context('uid')
@@ -658,10 +651,10 @@ class MailGroup(models.Model):
     def _find_member(self, email, partner_id=None):
         self.ensure_one()
 
-        result = self._find_members(email, partner_id)
+        result = self._get_members(email, partner_id)
         return result.get(self.id)
 
-    def _find_members(self, email, partner_id):
+    def _get_members(self, email, partner_id):
         """Return ``{group_id: mail.group.member}`` over ``self``, for one email.
 
         One email can match several members, since ``res.partner.email`` is not

@@ -966,7 +966,7 @@ test("chat - states: close should call update server data", async () => {
     await waitForSteps(["set_res_users_settings"]);
     const newSettings = await getService("orm").call(
         "res.users.settings",
-        "_find_or_create_for_user",
+        "_get_or_create_for_user",
         [serverState.userId],
     );
     expect(newSettings.is_discuss_sidebar_category_chat_open).toBe(false);
@@ -997,7 +997,7 @@ test("chat - states: open should call update server data", async () => {
     await waitForSteps(["set_res_users_settings"]);
     const newSettings = await getService("orm").call(
         "res.users.settings",
-        "_find_or_create_for_user",
+        "_get_or_create_for_user",
         [serverState.userId],
     );
     expect(newSettings.is_discuss_sidebar_category_chat_open).toBe(true);

@@ -286,7 +286,7 @@ export class DiscussChannel extends models.ServerModel {
             fieldNames = fieldNames.filter((field) => field !== "group_public_id");
         }
         const [data] = this._read_format(ids, fieldNames, false);
-        const memberOfCurrentUser = this._find_or_create_member_for_self(channel.id);
+        const memberOfCurrentUser = this._get_or_create_member_for_self(channel.id);
         Object.assign(data, {
             is_editable: (() => {
                 if (channel.channel_type === "channel") {
@@ -338,7 +338,7 @@ export class DiscussChannel extends models.ServerModel {
             if (!lastMessage) {
                 continue;
             }
-            const memberOfCurrentUser = this._find_or_create_member_for_self(
+            const memberOfCurrentUser = this._get_or_create_member_for_self(
                 channel.id,
             );
             DiscussChannelMember.write([memberOfCurrentUser.id], {
@@ -484,7 +484,7 @@ export class DiscussChannel extends models.ServerModel {
                         message_needaction_counter_bus_id: bus_last_id,
                     });
                 }
-                const memberOfCurrentUser = this._find_or_create_member_for_self(
+                const memberOfCurrentUser = this._get_or_create_member_for_self(
                     channel.id,
                 );
                 if (memberOfCurrentUser) {
@@ -560,7 +560,7 @@ export class DiscussChannel extends models.ServerModel {
         const ResPartner = this.env["res.partner"];
 
         const [channel] = this.browse(ids);
-        const memberOfCurrentUser = this._find_or_create_member_for_self(channel.id);
+        const memberOfCurrentUser = this._get_or_create_member_for_self(channel.id);
         if (memberOfCurrentUser && memberOfCurrentUser.is_pinned !== pinned) {
             DiscussChannelMember.write([memberOfCurrentUser.id], {
                 unpin_dt: pinned ? false : serializeDateTime(today()),
@@ -944,7 +944,7 @@ export class DiscussChannel extends models.ServerModel {
         }
         delete kwargs.special_mentions;
         const messageIds = MailThread.message_post.call(this, [id], kwargs);
-        const memberOfCurrentUser = this._find_or_create_member_for_self(channel.id);
+        const memberOfCurrentUser = this._get_or_create_member_for_self(channel.id);
         const otherMembers = DiscussChannelMember._filter([
             ["channel_id", "=", channel.id],
             ["id", "!=", memberOfCurrentUser?.id || false],
@@ -1137,7 +1137,7 @@ export class DiscussChannel extends models.ServerModel {
      * @param {number} id
      * @returns {import("mock_models").DiscussChannelMember}
      */
-    _find_or_create_member_for_self(id) {
+    _get_or_create_member_for_self(id) {
         /** @type {import("mock_models").DiscussChannelMember} */
         const DiscussChannelMember = this.env["discuss.channel.member"];
         /** @type {import("mock_models").ResPartner} */
@@ -1153,7 +1153,7 @@ export class DiscussChannel extends models.ServerModel {
         ])[0];
     }
 
-    _find_or_create_persona_for_channel(id, guest_name) {
+    _get_or_create_persona_for_channel(id, guest_name) {
         const kwargs = getKwArgs(arguments, "id", "guest_name");
         id = kwargs.id;
         delete kwargs.id;
@@ -1162,7 +1162,7 @@ export class DiscussChannel extends models.ServerModel {
         /** @type {import("mock_models").MailGuest} */
         const MailGuest = this.env["mail.guest"];
 
-        if (this._find_or_create_member_for_self(id)) {
+        if (this._get_or_create_member_for_self(id)) {
             return;
         }
         const guestId =

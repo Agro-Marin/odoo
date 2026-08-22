@@ -151,7 +151,7 @@ class IrActionsServer(models.Model):
     def _name_depends(self) -> list[str]:
         return [*super()._name_depends(), "template_id.name", "activity_type_id.name"]
 
-    def _generate_action_name(self) -> str:
+    def _prepare_automated_name(self) -> str:
         self.ensure_one()
         if self.state == "mail_post" and self.template_id:
             return _("Send %(template_name)s", template_name=self.template_id.name)
@@ -159,7 +159,7 @@ class IrActionsServer(models.Model):
             return _(
                 "Create %(activity_name)s", activity_name=self.activity_type_id.name
             )
-        return super()._generate_action_name()
+        return super()._prepare_automated_name()
 
     @api.model
     def _get_states_needing_a_live_record(self) -> frozenset[str]:
@@ -332,12 +332,12 @@ class IrActionsServer(models.Model):
         self.ensure_one()
         if self._get_target_model() is None:
             return False
-        field_chain, _field_chain_str = self._get_relation_chain(field_name)
+        field_chain = self._get_relation_chain(field_name)
         return bool(field_chain) and field_chain[-1].comodel_name == comodel
 
     @api.model
-    def _warning_depends(self) -> list[str]:
-        return super()._warning_depends() + [
+    def _get_fields_warning_depends(self) -> list[str]:
+        return super()._get_fields_warning_depends() + [
             "activity_date_deadline_range",
             "activity_type_id",
             "activity_user_field_name",
@@ -435,7 +435,7 @@ class IrActionsServer(models.Model):
         self.ensure_one()
         if not self[field_name]:
             return [unset_message()]
-        field_chain, field_chain_str = self._get_relation_chain(field_name)
+        field_chain = self._get_relation_chain(field_name)
         if not field_chain:
             return [
                 _(
@@ -445,7 +445,7 @@ class IrActionsServer(models.Model):
                 )
             ]
         if field_chain[-1].comodel_name != comodel:
-            return [wrong_comodel_message(field_chain_str)]
+            return [wrong_comodel_message(self._get_relation_chain_label(field_chain))]
         return []
 
     @api.constrains(

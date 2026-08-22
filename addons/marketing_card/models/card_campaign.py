@@ -109,7 +109,7 @@ class CardCampaign(models.Model):
             campaign.card_count += card_count
 
     @api.model
-    def _get_render_fields(self):
+    def _get_fields_render(self):
         return [
             'body_html', 'content_background', 'content_image1_path', 'content_image2_path', 'content_button', 'content_header',
             'content_header_dyn', 'content_header_path', 'content_header_color', 'content_sub_header',
@@ -137,7 +137,7 @@ class CardCampaign(models.Model):
         """
         return
 
-    @api.depends(lambda self: self._get_render_fields() + ['preview_record_ref'])
+    @api.depends(lambda self: self._get_fields_render() + ['preview_record_ref'])
     def _compute_image_preview(self):
         for campaign in self:
             if campaign.preview_record_ref and campaign.preview_record_ref.exists():
@@ -180,7 +180,7 @@ class CardCampaign(models.Model):
 
     def write(self, vals):
         link_tracker_vals = {}
-        if vals.keys() & set(self._get_render_fields()):
+        if vals.keys() & set(self._get_fields_render()):
             self.env['card.card'].with_context(active_test=False).search([('campaign_id', 'in', self.ids)]).requires_sync = True
         if 'target_url' in vals:
             link_tracker_vals['url'] = vals['target_url'] or self.env['card.campaign'].get_base_url()
@@ -207,21 +207,21 @@ class CardCampaign(models.Model):
 
     def action_view_cards(self):
         self.ensure_one()
-        return self.env["ir.actions.actions"]._for_xml_id("marketing_card.cards_card_action") | {
+        return self.env["ir.actions.actions"]._get_action_dict_by_xml_id("marketing_card.cards_card_action") | {
             'context': {},
             'domain': [('campaign_id', '=', self.id)],
         }
 
     def action_view_cards_clicked(self):
         self.ensure_one()
-        return self.env["ir.actions.actions"]._for_xml_id("marketing_card.cards_card_action") | {
+        return self.env["ir.actions.actions"]._get_action_dict_by_xml_id("marketing_card.cards_card_action") | {
             'context': {'search_default_filter_visited': True},
             'domain': [('campaign_id', '=', self.id)],
         }
 
     def action_view_cards_shared(self):
         self.ensure_one()
-        return self.env["ir.actions.actions"]._for_xml_id("marketing_card.cards_card_action") | {
+        return self.env["ir.actions.actions"]._get_action_dict_by_xml_id("marketing_card.cards_card_action") | {
             'context': {'search_default_filter_shared': True},
             'domain': [('campaign_id', '=', self.id)],
         }

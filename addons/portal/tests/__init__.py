@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from . import test_address_param_injection
 from . import test_address_trust_boundary
 from . import test_addresses

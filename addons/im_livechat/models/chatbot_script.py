@@ -198,7 +198,7 @@ class ChatbotScript(models.Model):
 
     def action_view_livechat_channels(self):
         self.ensure_one()
-        action = self.env['ir.actions.act_window']._for_xml_id('im_livechat.im_livechat_channel_action')
+        action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('im_livechat.im_livechat_channel_action')
         action['domain'] = [('rule_ids.chatbot_script_id', 'in', self.ids)]
         return action
 

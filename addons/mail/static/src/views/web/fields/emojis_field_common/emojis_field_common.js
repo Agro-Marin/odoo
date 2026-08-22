@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { useRef } from "@odoo/owl";
-import { useEmojiPicker } from "@web/components/emoji_picker/emoji_picker";
+import { useEmojiPicker } from "@web/components/emoji_picker";
 /**
  * @param {typeof import("@odoo/owl").Component} T
  * @returns {typeof T}

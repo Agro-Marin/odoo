@@ -26,7 +26,7 @@ import {
     waitForSteps,
     webModels,
 } from "@web/../tests/web_test_helpers";
-import { loadEmoji } from "@web/components/emoji_picker/emoji_picker";
+import { loadEmoji } from "@web/components/emoji_picker";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { useServiceProtectMethodHandling } from "@web/core/utils/hooks";

@@ -31,6 +31,7 @@ MISC_SUITES = (
     "@mail/mail_utils",
     "@mail/search",
     "@mail/service_worker_utils",
+    "@mail/allowed_qweb_expressions_service",
 )
 ALL_MAIL_SUITE_PREFIXES = (
     "@mail/discuss",

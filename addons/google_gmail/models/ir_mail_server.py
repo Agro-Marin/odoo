@@ -25,11 +25,11 @@ class IrMail_Server(models.Model):
         super(IrMail_Server, self - gmail_servers)._compute_smtp_authentication_info()
 
     @api.onchange('smtp_encryption')
-    def _onchange_encryption(self):
+    def _onchange_smtp_encryption(self):
         """Do not change the SMTP configuration if it's a Gmail server
         (e.g. the port which is already set)"""
         if self.smtp_authentication != 'gmail':
-            super()._onchange_encryption()
+            super()._onchange_smtp_encryption()
 
     @api.onchange('smtp_authentication')
     def _onchange_smtp_authentication_gmail(self):

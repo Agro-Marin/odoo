@@ -198,7 +198,7 @@ async function channel_call_join(request) {
 
     const { channel_id } = await parseRequestParams(request);
     const memberOfCurrentUser =
-        DiscussChannel._find_or_create_member_for_self(channel_id);
+        DiscussChannel._get_or_create_member_for_self(channel_id);
     const sessionId = DiscussChannelRtcSession.create({
         channel_member_id: memberOfCurrentUser.id,
         channel_id,
@@ -430,7 +430,7 @@ async function discuss_settings_mute(request) {
     } else {
         mute_until_dt = false;
     }
-    const member = DiscussChannel._find_or_create_member_for_self(channel_id);
+    const member = DiscussChannel._get_or_create_member_for_self(channel_id);
     DiscussChannelMember.write([member.id], { mute_until_dt });
     const [partner] = ResPartner.read(this.env.user.partner_id);
     BusBus._sendone(
@@ -457,10 +457,10 @@ async function discuss_custom_notifications(request) {
     let record;
     let model;
     if (!channel_id) {
-        record = ResUsersSettings._find_or_create_for_user(this.env.uid);
+        record = ResUsersSettings._get_or_create_for_user(this.env.uid);
         model = ResUsersSettings;
     } else {
-        record = DiscussChannel._find_or_create_member_for_self(channel_id);
+        record = DiscussChannel._get_or_create_member_for_self(channel_id);
         model = DiscussChannelMember;
     }
     if (!record) {
@@ -479,7 +479,7 @@ async function discuss_channel_notify_typing(request) {
 
     const { channel_id, is_typing } = await parseRequestParams(request);
     const memberOfCurrentUser =
-        DiscussChannel._find_or_create_member_for_self(channel_id);
+        DiscussChannel._get_or_create_member_for_self(channel_id);
     if (!memberOfCurrentUser) {
         return;
     }
@@ -1325,7 +1325,7 @@ function _process_request_for_internal_user(store, name, params) {
         const Model = this.env[model];
         const [record] = Model.search([["id", "=", id]]);
         if (record) {
-            const fields = Model._get_store_avatar_card_fields();
+            const fields = Model._get_fields_store_avatar_card();
             store.add(Model.browse(record), makeKwArgs({ fields }));
         }
     }

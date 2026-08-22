@@ -15,8 +15,6 @@ from odoo.addons.portal.utils import (
 class MixinMailThread(models.AbstractModel):
     _inherit = "mixin.mail.thread"
 
-    # Token field used to authenticate external posts (defaults to mixin.portal's
-    # ``access_token``). Subclasses with a different token field override this.
     _mail_post_token_field = "access_token"
 
     website_message_ids = fields.One2many(
@@ -31,36 +29,11 @@ class MixinMailThread(models.AbstractModel):
                 ("comment", "email", "email_outgoing", "auto_comment", "out_of_office"),
             ),
         ],
-        # Portal users see their own thread messages without mail.message ACL.
-        # Access-token / HMAC validation happens upstream in the controller.
         bypass_search_access=True,
         help="Portal communication history for this record.",
     )
 
     def _get_portal_message_fetch_domain(self, message_domain=None):
-        """Domain selecting the messages the portal chatter displays for ``self``.
-
-        Single source of truth for "which messages are visible in the portal
-        chatter of these records": the ``website_message_ids`` message types,
-        restricted to ``self``, share-visible only (non-internal subtype) and
-        non-empty. Used both by the chatter fetch controller
-        (``portal.controllers.portal_thread``) and by counters that must agree
-        with it (e.g. ``website_slides.comments_count``) so a badge never
-        diverges from what the chatter actually shows.
-
-        That guarantee was only a claim: the controller re-derived the same four
-        clauses inline instead of calling this, leaving two copies of the rule
-        free to drift. It now calls this method and passes its own visibility
-        clause through ``message_domain``, which is the one part the two callers
-        legitimately differ on — ``portal_rating`` *widens* the chatter's
-        non-empty rule (a rating with no body is still a message worth showing)
-        without widening the counters.
-
-        :param message_domain: visibility clause to apply instead of the default
-                               non-empty rule; ``None`` uses
-                               :meth:`_get_portal_message_non_empty_domain`.
-        :rtype: odoo.fields.Domain
-        """
         MailMessage = self.env["mail.message"]
         field = self._fields["website_message_ids"]
         if message_domain is None:
@@ -73,20 +46,11 @@ class MixinMailThread(models.AbstractModel):
         )
 
     def _get_portal_message_non_empty_domain(self):
-        """Filter out empty-body messages and the empty-edit-marker stub.
-
-        The marker is the literal mail core inserts when an author removes all
-        content from a previously-posted message; the canonical form is
-        :data:`mail.tools.discuss.EMPTY_EDIT_MARKER`.
-
-        :rtype: odoo.fields.Domain
-        """
         return Domain("body", "not in", [False, EMPTY_EDIT_MARKER]) | Domain(
             "attachment_ids", "!=", False
         )
 
     def _notify_get_recipients_groups(self, message, model_description, msg_vals=False):
-        """Add a 'portal_customer' notification group with an HMAC-signed access link."""
         groups = super()._notify_get_recipients_groups(
             message, model_description, msg_vals=msg_vals
         )
@@ -99,15 +63,11 @@ class MixinMailThread(models.AbstractModel):
 
         customer = self._mail_get_partners(introspect_fields=False)[self.id]
         if customer:
-            # sudo: mixin.mail.thread - user posting with read access should be able to create token when
-            # notifying other customers that need it
             access_token = self.sudo()._portal_ensure_token()
             local_msg_vals = dict(msg_vals or {})
             local_msg_vals["access_token"] = access_token
             local_msg_vals["pid"] = customer.id
             local_msg_vals["hash"] = self._sign_token(customer.id)
-            # sudo: mixin.mail.thread - user posting with read access should be able to get/create signup
-            # token when notifying other customers that need it
             local_msg_vals.update(customer.sudo().signup_get_auth_param()[customer.id])
             access_link = self._notify_get_action_link("view", **local_msg_vals)
 
@@ -127,9 +87,6 @@ class MixinMailThread(models.AbstractModel):
         else:
             new_group = []
 
-        # Activate the parent "portal" group so portal users get the access
-        # button. Defensive lookup: parent currently guarantees this group exists,
-        # but tolerate future refactors that might not.
         portal_group = next((g for g in groups if g[0] == "portal"), None)
         if portal_group is not None:
             portal_group[2]["active"] = True
@@ -138,19 +95,6 @@ class MixinMailThread(models.AbstractModel):
         return new_group + groups
 
     def _sign_token(self, pid) -> str:
-        """Generate an HMAC binding this record's token to a partner id.
-
-        :param int pid: ``res.partner`` id authorised to post on this thread
-        :return: HMAC-SHA256 hex digest (64 chars)
-        :rtype: str
-        :raises NotImplementedError: if the model lacks the configured token field
-
-        Implementation note: this signs ``repr((dbname, access_token, pid))``
-        rather than delegating to :func:`odoo.tools.security.hmac`, which wraps
-        the message as ``repr((scope, message))``. The two formats produce
-        different digests, so switching helpers would invalidate every existing
-        portal link in production. Kept hand-rolled for backward compatibility.
-        """
         self.ensure_one()
         if self._mail_post_token_field not in self._fields:
             raise NotImplementedError(
@@ -167,41 +111,16 @@ class MixinMailThread(models.AbstractModel):
         ).hexdigest()
 
     def _portal_get_parent_hash_token(self, pid):
-        """Return a parent record's signed token for shared-portal use cases.
-
-        Overridden in models that have a Many2one ``parent`` field and can be
-        shared either individually or indirectly via the parent.
-
-        :param int pid: ``res.partner`` id to sign against
-        :return: parent's ``_sign_token(pid)`` or ``False`` if no parent applies
-        """
         return False
 
     @api.model
     def _get_allowed_access_params(self):
-        """Allow ``hash``, ``pid``, ``token`` in portal access-validation kwargs."""
         return super()._get_allowed_access_params() | {"hash", "pid", "token"}
 
     @api.model
     def _get_thread_with_access(
         self, thread_id, *, hash=None, pid=None, token=None, **kwargs
     ):
-        """Resolve a thread by id, falling back to HMAC / access-token validation.
-
-        First tries the parent's ACL-based resolution. If the user has no rights
-        but provides a valid ``hash+pid`` HMAC pair or a valid ``token``, returns
-        the sudo recordset so portal controllers can render the page.
-
-        ``thread_id`` is client-supplied, so it is resolved through
-        :func:`resolve_thread_for_credentials` before any credential is checked:
-        both validators read the token field off the record, and reading a field
-        of a row that is not in the database raises ``MissingError``. The parent
-        only ever returns a thread that exists, so an id pointing at a deleted
-        (or never-existing) record lands here — and used to surface as an error
-        response on the ``auth="public"`` chatter routes, confirming to an
-        anonymous caller which ids exist. It also guarantees this method never
-        hands back a phantom recordset to its callers.
-        """
         if thread := super()._get_thread_with_access(
             thread_id, hash=hash, pid=pid, token=token, **kwargs
         ):

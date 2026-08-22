@@ -10,7 +10,6 @@ from odoo.addons.mail.tests.common import mail_new_test_user
 @tagged("-at_install", "post_install")
 class TestUsersHttp(HttpCase):
     def test_account_holder_name_update(self):
-        """Test that bank account holder name updates when partner name changes via /my/account route."""
         login = "test_portal_user"
         portal_user = mail_new_test_user(
             self.env,
@@ -38,7 +37,6 @@ class TestUsersHttp(HttpCase):
         }
 
         self.authenticate(login, login)
-        # request without changing partner name
         response = self.url_open(
             url="/my/address/submit",
             data={
@@ -52,7 +50,6 @@ class TestUsersHttp(HttpCase):
         self.assertEqual(bank_account.acc_holder_name, "Partner A Holder")
 
     def test_deactivate_portal_user(self):
-        # Create a portal user with data which should be removed on deactivation
         login = "portal_user"
         portal_user = self.env["res.users"].create(
             {
@@ -62,21 +59,14 @@ class TestUsersHttp(HttpCase):
                 "group_ids": [Command.set([self.env.ref("base.group_portal").id])],
             }
         )
-        # Portal users may only hold API keys behind the opt-in parameter
-        # (base policy is internal-only, see res.users.apikeys._check_generate_access)
         self.env["ir.config_parameter"].sudo().set_param(
             "portal.allow_api_keys", "True"
         )
-        # timedelta(hours=1): stays under the 1-day cap that
-        # _check_expiration_date enforces for users without a configured
-        # api_key_duration (fields.Datetime.now() truncates to the second, so
-        # "now + exactly 1 day" would overshoot the cap by microseconds).
         self.env["res.users.apikeys"].with_user(portal_user)._generate(
             None, "Portal API Key", datetime.now() + timedelta(hours=1)
         )
         self.assertTrue(portal_user.api_key_ids)
 
-        # Request the deactivation of the portal account as portal through the route meant for this purpose
         self.authenticate(login, login)
         self.url_open(
             "/my/deactivate_account",
@@ -87,25 +77,18 @@ class TestUsersHttp(HttpCase):
             },
         )
 
-        # Assert the user is disabled, correctly renamed, the critical data is well removed.
         self.assertFalse(portal_user.active)
         self.assertTrue(portal_user.login.startswith("__deleted_user_"))
         self.env.cr.execute(
             "SELECT password FROM res_users WHERE id = %s", [portal_user.id]
         )
         [hashed] = self.env.cr.fetchone()
-        # This fork stores SQL NULL for an emptied password (see
-        # res.users._set_empty_password) so no credential can ever verify
-        # against it — upstream stored hash("") and relied on auth-path guards.
         self.assertIsNone(hashed)
         self.assertFalse(portal_user.api_key_ids)
-        # Assert the deletion of the account is added to the deletion processing queue.
         self.assertTrue(
             self.env["res.users.deletion"].search([("user_id", "=", portal_user.id)])
         )
-        # Run the cron processing the deletion queue
         self.env.ref("base.ir_cron_res_users_deletion").method_direct_trigger()
-        # Assert the account is completely deleted
         self.assertFalse(portal_user.exists())
 
     def test_submit_address_from_anonymous_partner(self):

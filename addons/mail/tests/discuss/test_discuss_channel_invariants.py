@@ -89,7 +89,7 @@ class TestDiscussChannelInvariants(MailCommon):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        member = sub_channel.with_user(insider)._find_or_create_member_for_self()
+        member = sub_channel.with_user(insider)._get_or_create_member_for_self()
 
         self.assertTrue(member, "a parent member must be able to join the sub-channel")
         self.assertEqual(member.partner_id, insider.partner_id)
@@ -454,9 +454,9 @@ class TestDiscussChannelInvariants(MailCommon):
         )
 
         self.assertEqual(as_user.self_member_id, searched)
-        self.assertEqual(as_user._find_or_create_member_for_self(), searched)
+        self.assertEqual(as_user._get_or_create_member_for_self(), searched)
 
-    def test_find_or_create_member_for_self_is_idempotent_for_a_guest(self):
+    def test_get_or_create_member_for_self_is_idempotent_for_a_guest(self):
         channel = self.Channel._create_channel(name="Guest Self", group_id=None)
         guest = self.env["mail.guest"].create({"name": "Guesty"})
         as_guest = self.env(
@@ -464,8 +464,8 @@ class TestDiscussChannelInvariants(MailCommon):
             context=dict(self.env.context, guest=guest),
         )["discuss.channel"].browse(channel.id)
 
-        first = as_guest._find_or_create_member_for_self()
-        second = as_guest._find_or_create_member_for_self()
+        first = as_guest._get_or_create_member_for_self()
+        second = as_guest._get_or_create_member_for_self()
 
         self.assertTrue(first)
         self.assertEqual(first, second, "a second call must not create a second row")

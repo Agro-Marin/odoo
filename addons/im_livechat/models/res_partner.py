@@ -70,7 +70,7 @@ class ResPartner(models.Model):
         for partner in self:
             partner.livechat_channel_count = livechat_count_by_partner.get(partner, 0)
 
-    def _get_store_livechat_username_fields(self):
+    def _get_fields_store_livechat_username(self):
         """Return the fields to be stored for live chat username."""
         return [
             Store.Attr("name", predicate=lambda p: not p.user_livechat_username),
@@ -100,7 +100,7 @@ class ResPartner(models.Model):
             partner.display_name = partner.name
 
     def action_view_livechat_sessions(self):
-        action = self.env["ir.actions.act_window"]._for_xml_id("im_livechat.discuss_channel_action")
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id("im_livechat.discuss_channel_action")
         livechat_channel_ids = self.env['im_livechat.channel.member.history'].search([
             ('partner_id', '=', self.id),
             ('livechat_member_type', '=', 'visitor'),

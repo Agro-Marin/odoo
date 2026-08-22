@@ -73,7 +73,7 @@ class CalendarRecurrence(models.Model):
         self.calendar_event_ids._cancel()
         super()._cancel()
 
-    def _get_google_synced_fields(self):
+    def _get_fields_google_synced(self):
         return {'rrule'}
 
     @api.model
@@ -143,8 +143,8 @@ class CalendarRecurrence(models.Model):
                 self.with_context(dont_notify=True)._apply_recurrence()
         else:
             time_fields = (
-                    self.env["calendar.event"]._get_time_fields()
-                    | self.env["calendar.event"]._get_recurrent_fields()
+                    self.env["calendar.event"]._get_fields_time()
+                    | self.env["calendar.event"]._get_fields_recurrent()
             )
             # We avoid to write time_fields because they are not shared between events.
             self._write_events(dict({

@@ -380,7 +380,7 @@ export class ResPartner extends webModels.ResPartner {
         ];
     }
 
-    _get_store_mention_fields() {
+    _get_fields_store_mention() {
         return [mailDataHelpers.Store.attr("mention_token", (p) => p.id)];
     }
 
@@ -503,7 +503,7 @@ export class ResPartner extends webModels.ResPartner {
         return [this.browse(this.env.user.partner_id)[0], null];
     }
 
-    _get_store_avatar_card_fields() {
+    _get_fields_store_avatar_card() {
         return ["email", "partner_share", "name", "phone"];
     }
 }

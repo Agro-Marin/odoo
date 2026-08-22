@@ -7,7 +7,7 @@ import { user } from "@web/core/user";
 import { isHtmlEmpty } from "@web/core/utils/dom/html";
 import { Field } from "@web/fields/field";
 import { getFormattedRecord, getImageSrcFromRecordInfo } from "@web/views/kanban";
-import { useViewCompiler } from "@web/views/view_compiler";
+import { compileViewTemplates } from "@web/views/view_compiler";
 export class ActivityRecord extends Component {
     static components = {
         Field,
@@ -27,7 +27,7 @@ export class ActivityRecord extends Component {
             isHtmlEmpty,
         };
         const { templateDocs } = this.props.archInfo;
-        const templates = useViewCompiler(ActivityCompiler, templateDocs);
+        const templates = compileViewTemplates(ActivityCompiler, templateDocs);
         this.recordTemplate = templates["activity-box"];
     }
 

@@ -2,7 +2,7 @@
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { CharField, charField } from "@web/fields/basic/char/char_field";
-import { AutoComplete } from "@web/components/autocomplete/autocomplete";
+import { AutoComplete } from "@web/components/autocomplete";
 import { googlePlacesSession } from "../google_places_session.js";
 import { useChildRef } from "@web/core/utils/hooks";
 import { useInputField } from "@web/fields/input_field_hook";

@@ -3,7 +3,7 @@ import { Gif } from "@mail/core/common/gif";
 import { useOnBottomScrolled } from "@mail/utils/common/hooks";
 import { makeSequential } from "@mail/utils/common/misc";
 import { Component, onWillStart, useEffect, useState } from "@odoo/owl";
-import { PICKER_PROPS, usePicker } from "@web/components/emoji_picker/emoji_picker";
+import { PICKER_PROPS, usePicker } from "@web/components/emoji_picker";
 import { rpc } from "@web/core/network";
 import { user } from "@web/core/user";
 import { useAutofocus, useService } from "@web/core/utils/hooks";

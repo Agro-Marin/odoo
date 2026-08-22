@@ -1,8 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from random import randint
-
-from odoo import fields, models, api, Command
+from odoo import Command, api, fields, models
 
 
 class Im_LivechatConversationTag(models.Model):
@@ -10,21 +8,18 @@ class Im_LivechatConversationTag(models.Model):
 
     _name = "im_livechat.conversation.tag"
     _description = "Live Chat Conversation Tags"
-    _order = "name"
+    # `name` (translated, unique on the source term), `active`, `color` and
+    # `code` come from the mixin, whose index replaces the plain `(name)` one
+    # this model declared -- that one compares whole jsonb documents once `name`
+    # is translatable. Flat: conversation tags do not nest.
+    _inherit = ["mixin.tag"]
 
-    @api.model
-    def _get_default_color(self):
-        return randint(1, 11)
-
-    name = fields.Char("Name", required=True)
-    color = fields.Integer("Color", default=_get_default_color)
+    name = fields.Char("Name")
     conversation_ids = fields.Many2many(
         "discuss.channel",
         "livechat_conversation_tag_rel",
         string="Discuss Channels",
     )
-
-    _name_unique = models.UniqueIndex("(name)")
 
     @api.ondelete(at_uninstall=False)
     def _unlink_sync_conversation(self):

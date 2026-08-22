@@ -171,7 +171,7 @@ class ChannelController(http.Controller):
         channel = get_channel_or_404(channel_id)
         is_typing = bool(is_typing)
         if is_typing:
-            member = channel._find_or_create_member_for_self()
+            member = channel._get_or_create_member_for_self()
         else:
             member = get_self_member(channel.id)
         if member:
@@ -215,7 +215,7 @@ class ChannelController(http.Controller):
     @add_guest_to_context
     def discuss_channel_join(self, channel_id: int) -> dict:
         channel = get_channel_or_404(channel_id)
-        channel._find_or_create_member_for_self()
+        channel._get_or_create_member_for_self()
         return Store().add(channel).get_result()
 
     @http.route(

@@ -181,6 +181,70 @@ class TestInlineImages:
         assert result.attachments == []
 
 
+class TestAttachedMessage:
+
+    NESTED = (
+        b'Content-Type: message/rfc822; name="original_msg.eml"\r\n'
+        b'Content-Disposition: attachment; filename="original_msg.eml"\r\n\r\n'
+        b"From: <deep@example.com>\r\n"
+        b"Subject: Attached\r\n"
+        b"Content-Type: text/plain; charset=utf-8\r\n\r\n"
+        b"INNER BODY"
+    )
+
+    def test_an_attached_mail_is_one_file(self):
+        result = payload(
+            HEADERS + multipart(b"mixed", b"M", PLAIN + b"CARRIER", self.NESTED)
+        )
+        assert [a.fname for a in result.attachments] == ["original_msg.eml"]
+
+    def test_the_attached_body_is_not_a_second_file(self):
+        result = payload(
+            HEADERS + multipart(b"mixed", b"M", PLAIN + b"CARRIER", self.NESTED)
+        )
+        assert "attachment" not in [a.fname for a in result.attachments]
+
+    def test_the_attached_body_does_not_leak_into_the_carrier(self):
+        result = payload(
+            HEADERS + multipart(b"mixed", b"M", PLAIN + b"CARRIER", self.NESTED)
+        )
+        assert "CARRIER" in result.body
+        assert "INNER BODY" not in result.body
+
+    NESTED_CARRYING_A_FILE = (
+        b'Content-Type: message/rfc822; name="original_msg.eml"\r\n'
+        b'Content-Disposition: attachment; filename="original_msg.eml"\r\n\r\n'
+        b'Content-Type: multipart/mixed; boundary="INNER"\r\n\r\n'
+        b"--INNER\r\n"
+        b"Content-Type: text/plain; charset=utf-8\r\n\r\nINNER BODY\r\n"
+        b"--INNER\r\n"
+        b'Content-Type: application/pdf; name="invoice.pdf"\r\n'
+        b'Content-Disposition: attachment; filename="invoice.pdf"\r\n\r\n%PDF-FAKE\r\n'
+        b"--INNER--\r\n"
+    )
+
+    def test_a_file_inside_the_attached_mail_is_not_lifted_out(self):
+        result = payload(
+            HEADERS
+            + multipart(b"mixed", b"M", PLAIN + b"CARRIER", self.NESTED_CARRYING_A_FILE)
+        )
+        assert [a.fname for a in result.attachments] == ["original_msg.eml"]
+        assert "INNER BODY" not in result.body
+
+    def test_the_nested_file_survives_inside_the_archive(self):
+        [attached] = payload(
+            HEADERS
+            + multipart(b"mixed", b"M", PLAIN + b"CARRIER", self.NESTED_CARRYING_A_FILE)
+        ).attachments
+        assert b"%PDF-FAKE" in attached.content.as_bytes()
+
+    def test_the_attached_mail_is_kept_whole(self):
+        [attached] = payload(
+            HEADERS + multipart(b"mixed", b"M", PLAIN + b"CARRIER", self.NESTED)
+        ).attachments
+        assert b"INNER BODY" in attached.content.as_bytes()
+
+
 class TestSaveOriginal:
     def test_the_archive_holds_the_delivered_bytes(self):
         raw = HEADERS + b"Content-Type: text/plain; charset=utf-8\r\n\r\n" + ACCENTED

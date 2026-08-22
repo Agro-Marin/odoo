@@ -2,7 +2,6 @@ from odoo import fields, models
 
 
 class IrUiView(models.Model):
-    """Surface the 'optional inheritance' toggle used by the website editor's view picker."""
 
     _inherit = "ir.ui.view"
 

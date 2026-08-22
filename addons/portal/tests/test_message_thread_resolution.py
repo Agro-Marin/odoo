@@ -1,16 +1,3 @@
-"""``mail.message.model`` is free-form; the portal chatter must survive that.
-
-Nothing constrains that column to a model that is still installed, nor to one
-that inherits ``mixin.mail.thread``. Portal has three places that dereference it — one
-formatter and two controller overrides that resolve the thread purely to check a
-portal credential against it — and only the formatter used to guard.
-
-The two controller overrides run on ``auth="public"`` routes, so an unguarded
-``request.env[message.model]`` is a traceback served to an anonymous caller:
-``KeyError`` for a model that is gone, ``AttributeError`` from
-``_mail_post_token_field`` for one that is not a thread.
-"""
-
 from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.portal.utils import get_portal_partner, resolve_message_thread
@@ -24,15 +11,6 @@ class TestMessageThreadResolution(TransactionCase):
         cls.partner = cls.env["res.partner"].create({"name": "Thread Resolution"})
 
     def _message(self, model, res_id):
-        """A message pointing wherever we say.
-
-        Written through SQL on purpose: ``mail.message.create`` resolves
-        ``reply_to`` *through* the named model, so a row naming a model that is
-        not in the registry cannot be built with the ORM at all. That is exactly
-        the state the database is left in by an uninstall — the rows outlive the
-        model — which is why the reader has to cope with it and the writer never
-        produced it.
-        """
         message = self.env["mail.message"].create(
             {
                 "model": "res.partner",
@@ -53,9 +31,7 @@ class TestMessageThreadResolution(TransactionCase):
         self.assertTrue(
             self._message("res.partner", self.partner.id)._is_thread_model()
         )
-        # A live model that never inherited mail.thread.
         self.assertFalse(self._message("res.currency", currency.id)._is_thread_model())
-        # The name of a model whose module has been uninstalled.
         self.assertFalse(
             self._message("x.module.was.uninstalled", 1)._is_thread_model()
         )
@@ -71,7 +47,6 @@ class TestMessageThreadResolution(TransactionCase):
             with self.subTest(model=model):
                 fallback = self._message(model, res_id)._get_thread_model()
                 self.assertEqual(fallback._name, "mixin.mail.thread")
-                # The whole point: mixin.mail.thread class methods are now reachable.
                 self.assertTrue(fallback._get_allowed_access_params())
         live = self._message("res.partner", self.partner.id)._get_thread_model()
         self.assertEqual(live._name, "res.partner")
@@ -96,11 +71,6 @@ class TestMessageThreadResolution(TransactionCase):
         self.assertEqual(thread, self.partner)
 
     def test_credentials_against_an_unusable_thread_are_simply_false(self):
-        """The whole point: a bad ``model`` must answer "no", not raise.
-
-        Both credential shapes are exercised — a hash+pid pair and a bare token —
-        because each reaches ``_mail_post_token_field`` by a different route.
-        """
         currency = self.env["res.currency"].search([], limit=1)
         for model, res_id in (
             ("res.currency", currency.id),
@@ -119,11 +89,6 @@ class TestMessageThreadResolution(TransactionCase):
                     self.assertEqual(partner._name, "res.partner")
 
     def test_portal_format_reports_no_thread_for_unusable_models(self):
-        """``has_mail_thread`` drives the chatter's reaction button.
-
-        Formatting a whole page of messages must not fail over one row whose
-        model has since been uninstalled.
-        """
         messages = self._message("x.module.was.uninstalled", 1) | self._message(
             "res.partner", self.partner.id
         )

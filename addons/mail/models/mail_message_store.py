@@ -95,7 +95,7 @@ class MailMessage(models.Model):
             "subject",
             Store.One("subtype_id", ["description"], sudo=True),
             "write_date",
-            *self._get_store_linked_messages_fields(),
+            *self._get_fields_store_linked_messages(),
         ]
         if target.is_internal(self.env) and not self.env.context.get(
             "mail_notify_inbox"
@@ -288,10 +288,13 @@ class MailMessage(models.Model):
     ) -> list[StoreFieldSpec]:
         self.ensure_one()
         if target.is_current_user(self.env) and self.is_current_user_or_guest_author:
-            return self.env["ir.attachment"]._get_store_ownership_fields()
+            return self.env["ir.attachment"]._get_fields_store_ownership()
         return []
 
-    def _get_store_linked_messages_fields(self) -> list[StoreFieldSpec]:
+    def _get_fields_store_partner_name(self) -> list[StoreFieldSpec]:
+        return ["name"]
+
+    def _get_fields_store_linked_messages(self) -> list[StoreFieldSpec]:
         by_message, linked_messages = self._get_linked_messages()
         record_by_message = linked_messages._record_by_message()
         return [

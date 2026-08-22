@@ -831,11 +831,11 @@ class TestUserSettings(MailCommon):
         settings = self.user_employee.res_users_settings_ids
         self.assertFalse(settings, "no records should exist")
 
-        self.env["res.users.settings"]._find_or_create_for_user(self.user_employee)
+        self.env["res.users.settings"]._get_or_create_for_user(self.user_employee)
         settings = self.user_employee.res_users_settings_ids
         self.assertTrue(
             settings,
-            "a record should be created after _find_or_create_for_user is called",
+            "a record should be created after _get_or_create_for_user is called",
         )
 
     @users("employee")
@@ -846,7 +846,7 @@ class TestUserSettings(MailCommon):
                 "user_id": self.user_employee.id,
             }
         )
-        result = self.env["res.users.settings"]._find_or_create_for_user(
+        result = self.env["res.users.settings"]._get_or_create_for_user(
             self.user_employee
         )
         self.assertEqual(

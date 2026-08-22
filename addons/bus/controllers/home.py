@@ -36,7 +36,7 @@ def _admin_password_warn(uid):
     admin = env.ref("base.partner_admin")
     if uid not in admin.user_ids.ids:
         return
-    has_demo = bool(env["ir.module.module"].search_count([("demo", "=", True)]))
+    has_demo = bool(env["ir.module.module"].search_count([("demo", "=", True)], limit=1))
     if has_demo:
         return
     admin.with_context(request.env(user=uid)["res.users"].context_get())._bus_send(

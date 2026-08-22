@@ -1,10 +1,3 @@
-"""Tests for the portal extension of the API-key holding policy.
-
-Base policy (``res.users.apikeys._check_generate_access``) is internal users
-only; portal widens it to portal users when the ``portal.allow_api_keys``
-parameter is enabled — the "Customer API Keys" setting.
-"""
-
 from datetime import timedelta
 
 from odoo import fields
@@ -47,13 +40,11 @@ class TestPortalApiKeysPolicy(TransactionCase):
         self.assertTrue(self.portal_user.api_key_ids)
 
     def test_make_key_ui_path_follows_same_policy(self):
-        """The description wizard's access check must agree with _generate."""
         Description = self.env["res.users.apikeys.description"]
         self._set_allow_api_keys(False)
         with self.assertRaises(AccessError):
             Description.with_user(self.portal_user).check_access_make_key()
         self._set_allow_api_keys("True")
-        # Must not raise anymore.
         Description.with_user(self.portal_user).check_access_make_key()
 
     def test_public_user_rejected_even_when_opted_in(self):

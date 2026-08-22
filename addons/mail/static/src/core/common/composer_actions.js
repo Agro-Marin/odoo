@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
 import { toRaw, useComponent, useEffect, useRef, useState } from "@odoo/owl";
-import { useEmojiPicker } from "@web/components/emoji_picker/emoji_picker";
+import { useEmojiPicker } from "@web/components/emoji_picker";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { markEventHandled } from "@web/core/utils/dom/events";

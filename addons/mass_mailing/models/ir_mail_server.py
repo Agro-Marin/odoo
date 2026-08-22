@@ -28,7 +28,7 @@ class IrMail_Server(models.Model):
         usages_super = super()._active_usages_compute()
         default_mail_server_id = self.env[
             "mailing.mailing"
-        ]._get_default_mail_server_id()
+        ]._default_mail_server_id()
         for record in self:
             usages = []
             if default_mail_server_id == record.id:

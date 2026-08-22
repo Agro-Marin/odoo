@@ -12,9 +12,9 @@ export class DiscussChannelMember extends mailModels.DiscussChannelMember {
     });
     /**
      * @override
-     * @type {typeof mailModels.DiscussChannelMember["prototype"]["_get_store_partner_fields"]}
+     * @type {typeof mailModels.DiscussChannelMember["prototype"]["_get_fields_store_partner"]}
      */
-    _get_store_partner_fields(fields) {
+    _get_fields_store_partner(fields) {
         /** @type {import("mock_models").DiscussChannel} */
         const DiscussChannel = this.env["discuss.channel"];
 
@@ -35,7 +35,7 @@ export class DiscussChannelMember extends mailModels.DiscussChannelMember {
                 }
             }
         }
-        return super._get_store_partner_fields(fields);
+        return super._get_fields_store_partner(fields);
     }
     /**
      * @override

@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { parseEmail } from "@mail/utils/common/format";
 import { Component } from "@odoo/owl";
-import { AutoComplete } from "@web/components/autocomplete/autocomplete";
+import { AutoComplete } from "@web/components/autocomplete";
 import { useTagNavigation } from "@web/components/record_selectors";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";

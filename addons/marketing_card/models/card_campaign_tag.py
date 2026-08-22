@@ -1,19 +1,10 @@
-import random
-
-from odoo import fields, models
+from odoo import models
 
 
 class CardCampaignTag(models.Model):
     _name = 'card.campaign.tag'
     _description = 'Marketing Card Campaign Tag'
-
-    def _get_default_color(self):
-        return random.randint(1, 11)
-
-    name = fields.Char(required=True)
-    color = fields.Integer(default=_get_default_color)
-
-    _name_uniq = models.Constraint(
-        'unique(name)',
-        'Tags may not reuse existing names.',
-    )
+    # `name` (translated, unique on the source term), `active`, `color` and
+    # `code` come from the mixin, whose index replaces the `unique(name)`
+    # constraint this model declared. Flat: campaign tags do not nest.
+    _inherit = ['mixin.tag']

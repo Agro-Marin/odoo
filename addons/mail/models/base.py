@@ -913,7 +913,7 @@ class Base(models.AbstractModel):
         ban_emails = (ban_emails or []) + alias_emails
         sort_key = records._partner_find_from_emails_sort_key(emails_key_company_id)
 
-        partners = self.env["res.partner"]._find_or_create_from_emails(
+        partners = self.env["res.partner"]._get_or_create_from_emails(
             emails_all,
             additional_values={
                 mail_key: {
@@ -1184,9 +1184,9 @@ class Base(models.AbstractModel):
             author_name = self.env.user.name
 
         formatted_email = tools.formataddr((author_name, record_email))
-        if len(formatted_email) >= _MAIL_REPLY_TO_LENGTH_LIMIT:
+        if len(formatted_email) > _MAIL_REPLY_TO_LENGTH_LIMIT:
             formatted_email = tools.formataddr((self.env.user.name, record_email))
-        if len(formatted_email) >= _MAIL_REPLY_TO_LENGTH_LIMIT:
+        if len(formatted_email) > _MAIL_REPLY_TO_LENGTH_LIMIT:
             formatted_email = record_email
         return formatted_email
 

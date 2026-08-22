@@ -192,7 +192,7 @@ class MailingList(models.Model):
 
     def action_open_import(self):
         """Open the mailing list contact import wizard."""
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mass_mailing.mailing_contact_import_action"
         )
         action["context"] = {
@@ -206,7 +206,7 @@ class MailingList(models.Model):
 
     def action_send_mailing(self):
         """Open the mailing form view, with the current lists set as recipients."""
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mass_mailing.mailing_mailing_action_mail"
         )
 
@@ -226,7 +226,7 @@ class MailingList(models.Model):
         return action
 
     def action_view_contacts(self):
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mass_mailing.action_view_mass_mailing_contacts"
         )
         action["domain"] = [("list_ids", "in", self.ids)]
@@ -241,7 +241,7 @@ class MailingList(models.Model):
         return action
 
     def action_view_mailings(self):
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mass_mailing.mailing_mailing_action_mail"
         )
         action["domain"] = [("contact_list_ids", "in", self.ids)]
@@ -252,7 +252,7 @@ class MailingList(models.Model):
         return action
 
     def action_view_contacts_opt_out(self):
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mass_mailing.action_view_mass_mailing_contacts"
         )
         action["domain"] = [("list_ids", "in", self.id)]
@@ -264,7 +264,7 @@ class MailingList(models.Model):
         return action
 
     def action_view_contacts_blacklisted(self):
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mass_mailing.action_view_mass_mailing_contacts"
         )
         action["domain"] = [("list_ids", "in", self.id)]
@@ -276,7 +276,7 @@ class MailingList(models.Model):
         return action
 
     def action_view_contacts_bouncing(self):
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mass_mailing.action_view_mass_mailing_contacts"
         )
         action["domain"] = [("list_ids", "in", self.id)]
@@ -508,7 +508,7 @@ class MailingList(models.Model):
             self.env.cr.execute(
                 f"""
                 SELECT
-                    {",".join(self._get_contact_statistics_fields().values())}
+                    {",".join(self._get_fields_contact_statistics().values())}
                 FROM
                     mailing_subscription r
                     {self._get_contact_statistics_joins()}
@@ -529,12 +529,12 @@ class MailingList(models.Model):
             # adds default 0 values for ids that don't have statistics
             if mass_mailing.id not in contact_counts:
                 contact_counts[mass_mailing.id] = dict.fromkeys(
-                    mass_mailing._get_contact_statistics_fields(), 0
+                    mass_mailing._get_fields_contact_statistics(), 0
                 )
 
         return contact_counts
 
-    def _get_contact_statistics_fields(self):
+    def _get_fields_contact_statistics(self):
         """Returns fields and SQL query select path in a dictionnary.
         This is done to be easily overridable in subsequent modules.
 

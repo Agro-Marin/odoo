@@ -46,7 +46,9 @@ class AttachmentController(ThreadController):
         with zipfile.ZipFile(stream, "w") as attachment_zip:
             for record in attachments:
                 self._raise_for_zip_size(written + record.file_size)
-                binary_stream = request.env["ir.binary"]._get_stream_from(record, "raw")
+                binary_stream = request.env["ir.binary"]._get_stream_from_record(
+                    record, "raw"
+                )
                 if not binary_stream:
                     continue
                 data = binary_stream.read()
@@ -106,7 +108,9 @@ class AttachmentController(ThreadController):
             )
         try:
             attachment = (
-                request.env["ir.attachment"].sudo()._from_request_file(ufile, **vals)
+                request.env["ir.attachment"]
+                .sudo()
+                ._create_from_request_file(ufile, **vals)
             )
             attachment._post_add_create(**kwargs)
             res = {
@@ -116,7 +120,7 @@ class AttachmentController(ThreadController):
                         attachment,
                         extra_fields=request.env[
                             "ir.attachment"
-                        ]._get_store_ownership_fields(),
+                        ]._get_fields_store_ownership(),
                     )
                     .get_result(),
                     "attachment_id": attachment.id,

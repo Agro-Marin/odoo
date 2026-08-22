@@ -100,9 +100,9 @@ class ResPartner(models.Model):
         return key + (self.env.context.get("force_email"),)
 
     @api.model
-    def find_or_create(self, email: str, assert_valid_email: bool = False) -> Self:
+    def get_or_create(self, email: str, assert_valid_email: bool = False) -> Self:
         if not email:
-            raise ValueError(_("An email is required for find_or_create to work"))
+            raise ValueError(_("An email is required for get_or_create to work"))
 
         parsed_name, parsed_email_normalized = tools.parse_contact_from_email(email)
         parsed_name = parsed_name.strip()
@@ -125,7 +125,7 @@ class ResPartner(models.Model):
         return self.create(create_values)
 
     @api.model
-    def _find_or_create_from_emails(
+    def _get_or_create_from_emails(
         self,
         emails: list[str],
         ban_emails: list[str] | None = None,
@@ -222,10 +222,10 @@ class ResPartner(models.Model):
         self.ensure_one()
         return limited_field_access_token(self, "id", scope="mail.message_mention")
 
-    def _get_store_mention_fields(self) -> list[StoreFieldSpec]:
+    def _get_fields_store_mention(self) -> list[StoreFieldSpec]:
         return [Store.Attr("mention_token", lambda p: p._get_mention_token())]
 
-    def _get_store_avatar_card_fields(
+    def _get_fields_store_avatar_card(
         self, target: Store.Target
     ) -> list[StoreFieldSpec]:
         fields = [
@@ -273,7 +273,7 @@ class ResPartner(models.Model):
     def get_mention_suggestions(self, search: str, limit: int = 8) -> dict:
         domain = self._get_mention_suggestions_domain(search)
         partners = self._search_mention_suggestions(domain, limit)
-        store = Store().add(partners, extra_fields=partners._get_store_mention_fields())
+        store = Store().add(partners, extra_fields=partners._get_fields_store_mention())
         try:
             roles = self.env["res.role"].search([("name", "ilike", search)], limit=8)
             store.add(roles, "name")

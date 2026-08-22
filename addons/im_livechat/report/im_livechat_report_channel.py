@@ -313,7 +313,7 @@ class Im_LivechatReportChannel(models.Model):
     @api.model
     def action_open_discuss_channel_view(self, domain=()):
         discuss_channels = self.search_fetch(domain, ["channel_id"]).channel_id
-        action = self.env["ir.actions.act_window"]._for_xml_id("im_livechat.discuss_channel_action")
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id("im_livechat.discuss_channel_action")
         if len(discuss_channels) == 1:
             action["res_id"] = discuss_channels.id
             action["view_mode"] = "form"

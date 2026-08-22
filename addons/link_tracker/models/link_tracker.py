@@ -271,7 +271,7 @@ class LinkTracker(models.Model):
         raise NotImplementedError('Moved on mixin.mail.render')
 
     def action_view_statistics(self):
-        action = self.env['ir.actions.act_window']._for_xml_id('link_tracker.link_tracker_click_action_statistics')
+        action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('link_tracker.link_tracker_click_action_statistics')
         action['domain'] = [('link_id', '=', self.id)]
         action['context'] = dict(self.env.context, create=False)
         return action

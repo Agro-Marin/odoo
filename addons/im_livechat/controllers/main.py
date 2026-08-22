@@ -44,7 +44,7 @@ class LivechatController(http.Controller):
         asset = request.env["ir.qweb"]._get_asset_bundle(bundle)
         if ext not in ('css', 'js'):
             raise request.not_found()
-        stream = request.env['ir.binary']._get_stream_from(getattr(asset, ext)())
+        stream = request.env['ir.binary']._get_stream_from_record(getattr(asset, ext)())
         return stream.get_response()
 
     @http.route('/im_livechat/font-awesome', type='http', auth='none', cors="*")
@@ -60,7 +60,7 @@ class LivechatController(http.Controller):
     def get_emoji_bundle(self):
         bundle = 'web.assets_emoji'
         asset = request.env["ir.qweb"]._get_asset_bundle(bundle)
-        stream = request.env['ir.binary']._get_stream_from(asset.js())
+        stream = request.env['ir.binary']._get_stream_from_record(asset.js())
         return stream.get_response()
 
     @http.route('/im_livechat/support/<int:channel_id>', type='http', auth='public')

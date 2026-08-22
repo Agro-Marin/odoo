@@ -45,7 +45,7 @@ class CalendarEvent(models.Model):
         super(CalendarEvent, self - events_with_google_url)._compute_videocall_source()
 
     @api.model
-    def _get_google_synced_fields(self):
+    def _get_fields_google_synced(self):
         return {'name', 'description', 'allday', 'start', 'date_end', 'stop',
                 'attendee_ids', 'alarm_ids', 'location', 'privacy', 'active', 'show_as', 'videocall_location'}
 
@@ -67,7 +67,7 @@ class CalendarEvent(models.Model):
     @api.model
     def _check_values_to_sync(self, values):
         """ Return True if values being updated intersects with Google synced values and False otherwise. """
-        synced_fields = self._get_google_synced_fields()
+        synced_fields = self._get_fields_google_synced()
         return any(key in synced_fields for key in values)
 
     @api.model
@@ -96,7 +96,7 @@ class CalendarEvent(models.Model):
         if not notify_context and ([self.env.user.id != record.user_id.id for record in self]):
             self._check_modify_event_permission(vals)
         res = super(CalendarEvent, self.with_context(dont_notify=notify_context)).write(vals)
-        if recurrence_update_setting == 'all_events' and len(self) == 1 and vals.keys() & self._get_google_synced_fields():
+        if recurrence_update_setting == 'all_events' and len(self) == 1 and vals.keys() & self._get_fields_google_synced():
             self.recurrence_id.need_sync = True
         return res
 

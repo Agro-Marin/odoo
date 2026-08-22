@@ -116,7 +116,7 @@ class IrAttachment(models.Model):
             )
         self.unlink()
 
-    def _get_store_ownership_fields(self) -> list[StoreFieldSpec]:
+    def _get_fields_store_ownership(self) -> list[StoreFieldSpec]:
         return [Store.Attr("ownership_token", lambda a: a._get_ownership_token())]
 
     def _to_store_defaults(self, target: Store.Target) -> StoreFieldsInput:

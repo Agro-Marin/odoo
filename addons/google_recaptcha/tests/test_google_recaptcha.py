@@ -105,7 +105,7 @@ class TestGoogleRecaptcha(TransactionCase):
         result = self._verify_token(post_side_effect=ValueError("boom"))
         self.assertEqual(result, "bad_request")
 
-    # ── _verify_request_recaptcha_token (raising wrapper) ────────────
+    # ── _check_request_recaptcha_token (raising wrapper) ────────────
 
     def test_request_verification_raises_on_wrong_secret(self):
         """The request wrapper raises ValidationError on an invalid secret."""
@@ -115,7 +115,7 @@ class TestGoogleRecaptcha(TransactionCase):
             json_result={"success": False, "error-codes": ["invalid-input-secret"]}
         ):
             with self.assertRaises(ValidationError):
-                self.env["ir.http"]._verify_request_recaptcha_token("login")
+                self.env["ir.http"]._check_request_recaptcha_token("login")
 
     def test_verify_wrong_token_error_code(self):
         """An invalid-response error code maps to 'wrong_token'."""
@@ -155,7 +155,7 @@ class TestGoogleRecaptcha(TransactionCase):
         self.icp.set_param("enable_recaptcha", "False")
         with self._mocked_verify(json_result={"success": True, "score": 0.9}):
             self.assertIsNone(
-                self.env["ir.http"]._verify_request_recaptcha_token("login")
+                self.env["ir.http"]._check_request_recaptcha_token("login")
             )
 
     def test_request_verification_raises_usererror_on_bot(self):
@@ -167,7 +167,7 @@ class TestGoogleRecaptcha(TransactionCase):
             json_result={"success": True, "score": 0.1, "action": "login"}
         ):
             with self.assertRaises(UserError):
-                self.env["ir.http"]._verify_request_recaptcha_token("login")
+                self.env["ir.http"]._check_request_recaptcha_token("login")
 
     def test_settings_enable_recaptcha_roundtrip(self):
         """Saving then reading the settings round-trips the enable flag."""

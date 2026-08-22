@@ -95,7 +95,7 @@ class MailTemplatePreview(models.TransientModel):
             model_id = preview_sudo.model_id
             preview.no_record = not model_id or not self.env[
                 model_id.model
-            ].search_count([])
+            ].search_count([], limit=1)
 
     @api.depends("lang", "resource_ref")
     def _compute_mail_template_fields(self) -> None:

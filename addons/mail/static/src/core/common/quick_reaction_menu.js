@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
-import { loadEmoji, useEmojiPicker } from "@web/components/emoji_picker/emoji_picker";
+import { loadEmoji, useEmojiPicker } from "@web/components/emoji_picker";
 import { useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props
@@ -34,7 +34,7 @@ export class QuickReactionMenu extends Component {
             },
             {
                 position: "bottom-middle",
-                popoverClass: "o-mail-QuickReactionMenu-pickerPopover",
+                class: "o-mail-QuickReactionMenu-pickerPopover",
             },
         );
         this.dropdown = useState(

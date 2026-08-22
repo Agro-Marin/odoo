@@ -35,9 +35,6 @@ capabilities so portal pages can be rendered without the ``website`` module.
         "web._assets_frontend_helpers": [
             ("prepend", "portal/static/src/scss/bootstrap_overridden.scss"),
         ],
-        # Backend-only widgets used by the portal-access wizard
-        # (portal.wizard.user Many2one + list controller). Lives in this module
-        # because the wizard is owned by portal, even though the bundle is backend.
         "web.assets_backend": [
             "portal/static/src/views/**/*",
         ],
@@ -47,34 +44,23 @@ capabilities so portal pages can be rendered without the ``website`` module.
             "portal/static/src/js/**/*",
             "portal/static/src/xml/**/*",
             "portal/static/src/signature_form/**/*",
-            # Lazy-loader entry. Every other file under chatter/ lives in the
-            # custom portal.assets_chatter bundle (loaded on demand to keep
-            # portal pages light); only this boot_service ships eagerly.
             "portal/static/src/chatter/boot/boot_service.js",
         ],
         "web.assets_unit_tests_setup": [
             "portal/static/src/interactions/**/*",
             "portal/static/src/js/components/input_confirmation_dialog/*",
             "portal/static/src/xml/**/*",
-            # Source under test for the hoot suites below.
             "portal/static/src/signature_form/**/*",
         ],
         "web.assets_unit_tests": [
             "portal/static/tests/**/*.test.js",
         ],
-        # Tours only (the hoot *.test.js files belong to web.assets_unit_tests).
         "web.assets_tests": [
             "portal/static/tests/tours/**/*",
         ],
         "portal.assets_chatter_helpers": [
             "web/static/src/views/view_dialogs/form_view_dialog.js",
             "web/static/src/views/view_dialogs/export_data_dialog.js",
-            # Not the whole directory. `action_dialog.js` below needs `DebugMenu`
-            # and nothing else here does, but the glob also took `debug_items.js`,
-            # which imports `@web/views/view_dialogs/select_create_dialog` -- a
-            # backend module no frontend page registers. This bundle is a lazy
-            # child of `web.assets_frontend`, so that import resolved to a bridge
-            # shim reading `odoo.loader.modules.get(...)` === `undefined`.
             "web/static/src/webclient/debug/debug_menu.js",
             "web/static/src/webclient/debug/debug_menu_basic.js",
             "web/static/src/webclient/debug/debug_menu.xml",
@@ -89,12 +75,8 @@ capabilities so portal pages can be rendered without the ``website`` module.
             "web/static/src/webclient/actions/reports/report_action.js",
             "web/static/src/webclient/actions/reports/report_hook.js",
             "web/static/src/views/view_utils.js",
-            "web/static/src/fields/field_types.js",
+            "web/static/src/core/field_types.js",
             "web/static/src/core/formatters.js",
-            # mail is consumed through its named sub-bundles; do not glob
-            # mail/static/src/** internals here. The portal chatter is a
-            # document chatter: it deliberately ships no discuss layer
-            # (channels, calls, typing, ...).
             ("include", "mail.assets_core_common"),
             ("include", "mail.assets_core_web_portal"),
             ("include", "mail.assets_chatter_web_portal"),
@@ -105,8 +87,6 @@ capabilities so portal pages can be rendered without the ``website`` module.
             "web/static/src/scss/pre_variables.scss",
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
-            # The chatter and the editor style themselves off the palette's
-            # `--o-*` tokens; nothing else in this bundle publishes them.
             "web/static/src/scss/tokens.scss",
             ("include", "html_editor._assets_editor"),
             ("include", "portal.assets_chatter_helpers"),
@@ -121,11 +101,8 @@ capabilities so portal pages can be rendered without the ``website`` module.
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
             "web/static/lib/bootstrap/scss/_maps.scss",
-            "portal/static/src/chatter/scss/primary_variables.scss",  # to force interprise primary color
+            "portal/static/src/chatter/scss/primary_variables.scss",
             ("include", "web._assets_bootstrap_backend"),
-            # Same reason as portal.assets_chatter: webclient.scss, avatar,
-            # dropdown, the emoji picker and mail's chatter styling all read
-            # `--o-*`.
             "web/static/src/scss/tokens.scss",
             "web/static/src/scss/mimetypes.scss",
             "web/static/src/scss/ui.scss",
@@ -138,18 +115,11 @@ capabilities so portal pages can be rendered without the ``website`` module.
             "web/static/src/core/avatar/avatar.scss",
             "web/static/src/components/dropdown/dropdown.scss",
             "web/static/src/components/emoji_picker/**/*",
-            # A light bundle: web's dark siblings would compile against the
-            # light palette and override the files they answer.
             ("remove", "web/static/src/**/*.dark.scss"),
-            # Style-only projection of mail.assets_core_common /
-            # mail.assets_chatter_web_portal (an include would drag JS/XML in).
             "mail/static/src/core/common/**/*.scss",
             "mail/static/src/chatter/web_portal/**/*.scss",
             "portal/static/src/chatter/scss/shadow.scss",
         ],
-        # Contributes to a website-owned bundle. The contribution is silently
-        # ignored when website is not installed, which is intentional: portal
-        # must remain installable without website. Do NOT add website to depends.
         "website.assets_inside_builder_iframe": [
             "portal/static/src/scss/portal.edit.*"
         ],
@@ -160,13 +130,6 @@ capabilities so portal pages can be rendered without the ``website`` module.
         "bundles": [
             "portal.assets_chatter",
         ],
-        # portal.assets_chatter is fetched at runtime by loadBundle() from
-        # chatter/boot/boot_service.js, which ships in web.assets_frontend.
-        # Declaring the parent->child link is what puts the bundle in the ESM
-        # registry's dynamic_bundle_names; without it /web/bundle falls through
-        # to the LEGACY serving path, and the bundle's
-        # `/** @odoo-module native */` files never register -- so the portal
-        # chatter silently never mounts.
         "dynamic_children": {
             "web.assets_frontend": [
                 "portal.assets_chatter",

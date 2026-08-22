@@ -350,8 +350,8 @@ class MailingMailing(models.Model):
     # A/B Test Override
     # ------------------------------------------------------
 
-    def _get_ab_testing_description_modifying_fields(self):
-        fields_list = super()._get_ab_testing_description_modifying_fields()
+    def _get_fields_ab_testing_description_modifying(self):
+        fields_list = super()._get_fields_ab_testing_description_modifying()
         return fields_list + ['ab_testing_sms_winner_selection']
 
     def _get_ab_testing_description_values(self):

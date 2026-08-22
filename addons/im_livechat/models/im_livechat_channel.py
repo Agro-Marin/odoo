@@ -63,7 +63,7 @@ class Im_LivechatChannel(models.Model):
     web_page = fields.Char('Web Page', compute='_compute_web_page_link', store=False, readonly=True,
         help="URL to a static page where you client can discuss with the operator of the channel.")
     are_you_inside = fields.Boolean(string='Are you inside the matrix?',
-        compute='_are_you_inside', store=False, readonly=True)
+        compute='_compute_are_you_inside', store=False, readonly=True)
     available_operator_ids = fields.Many2many('res.users', compute='_compute_available_operator_ids')
     script_external = fields.Html('Script (external)', compute='_compute_script_external', store=False, readonly=True, sanitize=False)
     nbr_channel = fields.Integer('Number of conversation', compute='_compute_nbr_channel', store=False, readonly=True)
@@ -90,7 +90,7 @@ class Im_LivechatChannel(models.Model):
             user_context["im_livechat_channel_id"] = self.id
         return super().web_read(specification)
 
-    def _are_you_inside(self):
+    def _compute_are_you_inside(self):
         for channel in self:
             channel.are_you_inside = self.env.user in channel.user_ids
 
@@ -267,7 +267,7 @@ class Im_LivechatChannel(models.Model):
             :returns : the ir.action 'action_view_rating' with the correct context
         """
         self.ensure_one()
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "im_livechat.discuss_channel_action_from_livechat_channel"
         )
         action["context"] = {
@@ -277,7 +277,7 @@ class Im_LivechatChannel(models.Model):
         return action
 
     def action_view_chatbot_scripts(self):
-        action = self.env['ir.actions.act_window']._for_xml_id('im_livechat.chatbot_script_action')
+        action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('im_livechat.chatbot_script_action')
         chatbot_script_ids = self.env['im_livechat.channel.rule'].search(
             [('channel_id', 'in', self.ids)]).mapped('chatbot_script_id')
         if len(chatbot_script_ids) == 1:

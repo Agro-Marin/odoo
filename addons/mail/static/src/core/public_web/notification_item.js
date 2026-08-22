@@ -2,7 +2,7 @@
 import { isToday } from "@mail/utils/common/dates";
 import { useHover } from "@mail/utils/common/hooks";
 import { Component, useRef, useSubEnv } from "@odoo/owl";
-import { ActionSwiper } from "@web/components/action_swiper/action_swiper";
+import { ActionSwiper } from "@web/components/action_swiper";
 import { luxon } from "@web/core/l10n/luxon";
 import { useService } from "@web/core/utils/hooks";
 const { DateTime } = luxon;

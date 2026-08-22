@@ -4,7 +4,7 @@ from typing import NamedTuple
 
 from odoo.tools.mail import append_content_to_html, html_sanitize
 
-from odoo.addons.mail.tools.html_body import (
+from .html_body import (
     iter_fragment_elements,
     parse_body_fragments,
     render_body_fragments,

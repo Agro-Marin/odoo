@@ -46,10 +46,10 @@ class IrMail_Server(models.Model):
                             'This should be the same account as the one used for the Outlook OAuthentication Token.'))
 
     @api.onchange('smtp_encryption')
-    def _onchange_encryption(self):
+    def _onchange_smtp_encryption(self):
         """Keep the SMTP configuration of an Outlook server (e.g. its port) untouched."""
         if self.smtp_authentication != 'outlook':
-            super()._onchange_encryption()
+            super()._onchange_smtp_encryption()
 
     @api.onchange('smtp_authentication')
     def _onchange_smtp_authentication_outlook(self):

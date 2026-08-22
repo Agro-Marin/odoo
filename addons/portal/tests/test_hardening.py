@@ -1,11 +1,3 @@
-"""Regression guards for portal-owned failure modes reachable from a request.
-
-Each test here corresponds to an input a client can send that used to produce an
-HTTP 500 / error payload (and, on the anonymous chatter routes, disclose that a
-record id exists) instead of the ordinary "no access" / "nothing requested"
-answer.
-"""
-
 from odoo.exceptions import AccessError
 from odoo.tests import HttpCase, TransactionCase, tagged
 from odoo.tools import mute_logger
@@ -40,28 +32,12 @@ class PortalHardeningCommon(TransactionCase):
         )
 
     def _missing_thread(self, model="res.partner"):
-        """A recordset pointing at an id that is not in the database."""
         Model = self.env[model]
         highest = Model.sudo().search([], order="id desc", limit=1).id or 0
         return Model.sudo().browse(highest + 10_000_000)
 
 
 class TestDeletedThreadCredentials(PortalHardeningCommon):
-    """Credentials presented against a record that does not exist.
-
-    ``mail.thread._get_thread_with_access`` is reached with a fully
-    client-supplied ``thread_id`` on ``auth="public"`` routes. Both validators
-    have to read the thread's token field, and reading a field off an id with no
-    row raises ``MissingError`` — which surfaced as an error response naming the
-    model and the id the caller guessed.
-
-    Portal declares no concrete ``mixin.portal`` model of its own, so these
-    tests retarget ``_mail_post_token_field`` at ``res.partner.signup_type``
-    (``auth_signup`` is a hard dependency). That is enough to make the
-    validators actually *read* a field, which is the step that raises on a
-    phantom id; with the default ``access_token`` the field-presence guard
-    short-circuits first and the hazard is never reached.
-    """
 
     def setUp(self):
         super().setUp()
@@ -70,7 +46,6 @@ class TestDeletedThreadCredentials(PortalHardeningCommon):
         )
 
     def test_reading_the_token_field_would_raise(self):
-        """Guards the premise: without resolution, the read really does raise."""
         from odoo.exceptions import MissingError
 
         with self.assertRaises(MissingError):
@@ -96,7 +71,6 @@ class TestDeletedThreadCredentials(PortalHardeningCommon):
         )
 
     def test_get_thread_with_access_on_deleted_record(self):
-        """The model-level resolver must answer "no thread", not raise."""
         missing_id = self._missing_thread().id
         for creds in (
             {"token": "a" * 32},
@@ -111,7 +85,6 @@ class TestDeletedThreadCredentials(PortalHardeningCommon):
                 )
 
     def test_valid_credentials_still_grant_access(self):
-        """The resolution step must not weaken a genuine credential."""
         record = self.customer.sudo()
         record.signup_type = "a-live-token"
         self.assertTrue(validate_thread_with_token(record, "a-live-token"))
@@ -127,12 +100,6 @@ class TestDeletedThreadCredentials(PortalHardeningCommon):
 
 class TestDocumentCheckAccess(PortalHardeningCommon):
     def test_token_against_model_without_token_field(self):
-        """A token cannot unlock a model that has no ``access_token`` field.
-
-        The answer is the ``AccessError`` the ACL already raised, not the
-        ``AttributeError`` the recordset used to raise while looking for a field
-        that does not exist on the model.
-        """
         cron = self.env["ir.cron"].sudo().search([], limit=1)
         self.assertNotIn("access_token", self.env["ir.cron"]._fields)
 
@@ -161,12 +128,6 @@ class TestDocumentCheckAccess(PortalHardeningCommon):
 
 
 class TestCounterNames(TransactionCase):
-    """``/my/counters`` payload coercion.
-
-    Overrides of ``_prepare_home_portal_values`` do ``"x_count" in counters``,
-    so a non-collection raised ``TypeError`` and a bare string matched
-    *substrings* of the names it was tested against.
-    """
 
     def test_collections_keep_their_string_entries(self):
         self.assertEqual(
@@ -181,7 +142,6 @@ class TestCounterNames(TransactionCase):
                 self.assertEqual(_parse_counter_names(raw), [])
 
     def test_bare_string_is_not_a_collection_of_names(self):
-        """Guards the substring-match hazard, not just the crash."""
         self.assertEqual(_parse_counter_names("order_count"), [])
 
     def test_non_string_entries_are_dropped(self):
@@ -192,7 +152,6 @@ class TestCounterNames(TransactionCase):
 
 
 class TestSearchbarOptionResolution(TransactionCase):
-    """``?sortby=``/``?filterby=``/``?groupby=`` clamping."""
 
     def setUp(self):
         super().setUp()
@@ -232,7 +191,6 @@ class TestSearchbarOptionResolution(TransactionCase):
 
 
 class TestPagerEmptyResultSet(TransactionCase):
-    """An empty result set is one empty page, never page zero."""
 
     def test_empty_total_has_no_page_zero(self):
         result = pager("/my/things", total=0)
@@ -249,14 +207,6 @@ class TestPagerEmptyResultSet(TransactionCase):
 
 
 class TestMailRenderSlugWithoutRequest(TransactionCase):
-    """``slug()`` must resolve from the env, with no HTTP request bound.
-
-    Portal used to overwrite ``MixinMailRender``'s env-derived ``slug`` with a
-    ``request``-bound lambda via ``template_env_globals``, so every render
-    without a request (the mail schedulers' ``ir.cron``, queued mail, a server
-    action) raised ``RuntimeError: object is not bound`` inside ``safe_eval`` —
-    which ``mail.template`` swallows into a generic "could not render".
-    """
 
     def test_slug_is_not_request_bound_in_render_context(self):
         record = self.env["res.partner"].create({"name": "Slug Target"})
@@ -294,7 +244,6 @@ class TestMailRenderSlugWithoutRequest(TransactionCase):
 
 @tagged("-at_install", "post_install")
 class TestPortalRouteRobustness(HttpCase):
-    """End-to-end: the same inputs over HTTP must not produce a server error."""
 
     @classmethod
     def setUpClass(cls):
@@ -313,9 +262,6 @@ class TestPortalRouteRobustness(HttpCase):
 
     def setUp(self):
         super().setUp()
-        # See TestDeletedThreadCredentials: retarget the token field at a Char
-        # that res.partner really has, so the validators reach the field read
-        # that is the actual hazard on a phantom id.
         self.patch(
             self.env.registry["res.partner"], "_mail_post_token_field", "signup_type"
         )
@@ -326,7 +272,6 @@ class TestPortalRouteRobustness(HttpCase):
 
     @mute_logger("odoo.http")
     def test_chatter_init_on_deleted_record_is_not_an_error(self):
-        """Anonymous caller, guessed id: an empty store, not a MissingError."""
         missing = self._missing_id()
         for creds in (
             {"token": "a" * 32},
@@ -347,12 +292,6 @@ class TestPortalRouteRobustness(HttpCase):
 
     @mute_logger("odoo.http")
     def test_chatter_fetch_on_deleted_record_is_a_plain_404(self):
-        """404 is this route's designed answer for an inaccessible thread.
-
-        What must not happen is a ``MissingError`` naming the model and the id,
-        which is what the caller got — and which distinguishes "deleted" from
-        "never existed" for an anonymous caller probing ids.
-        """
         body = self.url_open(
             "/mail/chatter_fetch",
             json={

@@ -38,7 +38,7 @@ class MixinUtm(models.AbstractModel):
                     value = request.cookies.get(cookie_name)
                 # if we receive a string for a many2one, we search/create the id
                 if field.type == 'many2one' and isinstance(value, str) and value:
-                    record = self._find_or_create_record(field.comodel_name, value)
+                    record = self._get_or_create_record(field.comodel_name, value)
                     value = record.id
                 if value:
                     values[field_name] = value
@@ -67,9 +67,9 @@ class MixinUtm(models.AbstractModel):
         }
 
     @api.model
-    def find_or_create_record(self, model_name, name):
-        """ Version of ``_find_or_create_record`` used in frontend notably in
-        website_links. For UTM models it calls _find_or_create_record. For other
+    def get_or_create_record(self, model_name, name):
+        """ Version of ``_get_or_create_record`` used in frontend notably in
+        website_links. For UTM models it calls _get_or_create_record. For other
         models (as through inheritance custom models could be used notably in
         website links) it simply calls a create. In the end it relies on
         standard ACLs, and is mainly a wrapper for UTM models.
@@ -79,12 +79,12 @@ class MixinUtm(models.AbstractModel):
             instead of a recordset.
         """
         if model_name in self._tracking_models():
-            record = self._find_or_create_record(model_name, name)
+            record = self._get_or_create_record(model_name, name)
         else:
             record = self.env[model_name].create({self.env[model_name]._rec_name: name})
         return {'id': record.id, 'name': record.display_name}
 
-    def _find_or_create_record(self, model_name, name):
+    def _get_or_create_record(self, model_name, name):
         """Based on the model name and on the name of the record, retrieve the corresponding record or create it."""
         Model = self.env[model_name]
 

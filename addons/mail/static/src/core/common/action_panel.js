@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { attClassObjectToString } from "@mail/utils/common/format";
 import { Component, useSubEnv } from "@odoo/owl";
-import { ResizablePanel } from "@web/components/resizable_panel/resizable_panel";
+import { ResizablePanel } from "@web/components/resizable_panel";
 import { useForwardRefToParent, useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props

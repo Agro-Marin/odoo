@@ -293,7 +293,6 @@ class MailAliasDomain(models.Model):
 
     @api.model
     def _get_company_for_catchall_emails(self, emails: Iterable[str]) -> ResCompany:
-        """Company owning the alias domain whose catchall is one of ``emails``."""
         wanted = {email for email in emails if email}
         if not wanted:
             return self.env["res.company"]

@@ -85,7 +85,7 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
 
     @contextmanager
     def mock_mail_gateway(self, mail_unlink_sent=False):
-        build_email_origin = IrMail_Server._build_email__
+        build_email_origin = IrMail_Server._prepare_email__
         send_email_origin = IrMail_Server.send_email
         mail_create_origin = MailMail.create
         mail_private_send_origin = MailMail._send
@@ -124,7 +124,7 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
             self.mock_smtplib_connection(),
             patch.object(
                 IrMail_Server,
-                "_build_email__",
+                "_prepare_email__",
                 autospec=True,
                 wraps=IrMail_Server,
                 side_effect=_ir_mail_server_build_email,

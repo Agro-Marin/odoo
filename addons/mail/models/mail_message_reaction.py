@@ -70,7 +70,7 @@ class MailMessageReaction(models.Model):
                 "message": message.id,
                 "partners": Store.Many(
                     reactions.partner_id.with_prefetch(all_partner_ids),
-                    ["avatar_128", *message._get_store_partner_name_fields()],
+                    ["avatar_128", *message._get_fields_store_partner_name()],
                 ),
                 "sequence": min(reactions.ids),
             }

@@ -16,7 +16,7 @@ class ResUsers(models.Model):
          ('private', 'Private by default'),
          ('confidential', 'Internal users only')],
         compute="_compute_calendar_default_privacy",
-        inverse="_inverse_calendar_res_users_settings",
+        inverse="_inverse_calendar_default_privacy",
     )
 
     def _get_calendar_event_resource(self):
@@ -104,18 +104,18 @@ class ResUsers(models.Model):
         for user in self:
             user.calendar_default_privacy = user.sudo().res_users_settings_id.calendar_default_privacy or fallback_default_privacy
 
-    def _inverse_calendar_res_users_settings(self):
+    def _inverse_calendar_default_privacy(self):
         """
         Updates the values of the calendar fields in 'res_users_settings_ids' to have the same values as their related
         fields in 'res.users'. If there is no 'res.users.settings' record for the user, then the record is created.
         """
         for user in self.filtered(lambda user: user._is_internal()):
-            settings = self.env["res.users.settings"].sudo()._find_or_create_for_user(user)
-            configuration = {field: user[field] for field in self._get_user_calendar_configuration_fields()}
+            settings = self.env["res.users.settings"].sudo()._get_or_create_for_user(user)
+            configuration = {field: user[field] for field in self._get_fields_user_calendar_configuration()}
             settings.sudo().update(configuration)
 
     @api.model
-    def _get_user_calendar_configuration_fields(self) -> list[str]:
+    def _get_fields_user_calendar_configuration(self) -> list[str]:
         """ Return the list of configurable fields for the user related to the res.users.settings table. """
         return ['calendar_default_privacy']
 

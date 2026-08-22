@@ -433,7 +433,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
             SERVER_TEARDOWN_BUDGET * len(records)
         )
         records.with_context(cron_end_time=time_buffer)._fetch_mail(**kw)
-        if not self.search_count(MAIL_SERVER_DOMAIN):
+        if not self.search_count(MAIL_SERVER_DOMAIN, limit=1):
             self.env["ir.cron"]._commit_progress(deactivate=True)
 
     def _fetch_mail(self, batch_limit: int = 50) -> Exception | None:

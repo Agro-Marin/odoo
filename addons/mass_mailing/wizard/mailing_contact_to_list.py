@@ -23,7 +23,7 @@ class MailingContactToList(models.TransientModel):
         this list."""
         self.ensure_one()
 
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mass_mailing.mailing_mailing_action_mail"
         )
         action["views"] = [[False, "form"]]

@@ -48,7 +48,7 @@ class MailActivityPlan(models.Model):
         help="Specify a model if the activity should be specific to a model"
         " and not available when managing activities for other models.",
     )
-    steps_count = fields.Integer(compute="_compute_steps_count")
+    steps_count = fields.Count("template_ids")
     has_user_on_demand = fields.Boolean(
         "Has on demand responsible", compute="_compute_has_user_on_demand"
     )
@@ -64,11 +64,6 @@ class MailActivityPlan(models.Model):
     @api.constrains("res_model")
     def _check_res_model_compatibility_with_templates(self) -> None:
         self.template_ids._check_activity_type_res_model()
-
-    @api.depends("template_ids")
-    def _compute_steps_count(self) -> None:
-        for plan in self:
-            plan.steps_count = len(plan.template_ids)
 
     @api.depends("template_ids.responsible_type")
     def _compute_has_user_on_demand(self) -> None:

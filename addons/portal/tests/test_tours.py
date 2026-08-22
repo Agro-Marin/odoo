@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.tests import tagged
 
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo, HttpCaseWithUserPortal
@@ -10,7 +8,6 @@ class TestUi(HttpCaseWithUserDemo, HttpCaseWithUserPortal):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # be sure some expected values are set otherwise homepage may fail
         cls.partner_portal.write(
             {
                 "city": "Bayonne",

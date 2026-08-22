@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { loader } from "@web/components/emoji_picker/emoji_picker";
+import { loader } from "@web/components/emoji_picker";
 import { loadJS } from "@web/core/assets";
 import { patch } from "@web/core/utils/patch";
 import { url } from "@web/core/utils/urls";

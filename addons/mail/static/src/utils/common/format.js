@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { htmlEscape, markup } from "@odoo/owl";
-import { loadEmoji, loader } from "@web/components/emoji_picker/emoji_picker";
+import { loadEmoji, loader } from "@web/components/emoji_picker";
 import { router } from "@web/core/browser/router";
 import { normalize } from "@web/core/l10n/utils";
 import {

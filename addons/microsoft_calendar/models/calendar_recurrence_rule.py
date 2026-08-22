@@ -72,8 +72,8 @@ class CalendarRecurrence(models.Model):
             dtstart = self.dtstart
         return super()._get_rrule(dtstart, **kwargs)
 
-    def _get_microsoft_synced_fields(self):
-        return {'rrule'} | self.env['calendar.event']._get_microsoft_synced_fields()
+    def _get_fields_microsoft_synced(self):
+        return {'rrule'} | self.env['calendar.event']._get_fields_microsoft_synced()
 
     @api.model
     def _restart_microsoft_sync(self):
@@ -123,8 +123,8 @@ class CalendarRecurrence(models.Model):
                 self.with_context(dont_notify=True)._apply_recurrence()
         else:
             time_fields = (
-                    self.env["calendar.event"]._get_time_fields()
-                    | self.env["calendar.event"]._get_recurrent_fields()
+                    self.env["calendar.event"]._get_fields_time()
+                    | self.env["calendar.event"]._get_fields_recurrent()
             )
             # We avoid to write time_fields because they are not shared between events.
             self.with_context(dont_notify=True)._write_events(dict({

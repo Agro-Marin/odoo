@@ -40,7 +40,7 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
                 "password": self.password,
             },
         ])
-        settings = self.env["res.users.settings"]._find_or_create_for_user(self.users[1])
+        settings = self.env["res.users.settings"]._get_or_create_for_user(self.users[1])
         settings.livechat_username = "chuck"
         self.maxDiff = None
 

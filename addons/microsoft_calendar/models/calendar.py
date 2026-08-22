@@ -45,7 +45,7 @@ class CalendarEvent(models.Model):
         return self.user_id
 
     @api.model
-    def _get_microsoft_synced_fields(self):
+    def _get_fields_microsoft_synced(self):
         return {'name', 'description', 'allday', 'start', 'date_end', 'stop',
                 'user_id', 'privacy',
                 'attendee_ids', 'alarm_ids', 'location', 'show_as', 'active', 'videocall_location'}
@@ -217,7 +217,7 @@ class CalendarEvent(models.Model):
             res |= super(CalendarEvent, deactivated_events.with_context(dont_notify=notify_context)).write({**values, 'active': False})
 
         if recurrence_update_setting in ('all_events',) and len(self) == 1 \
-           and values.keys() & self._get_microsoft_synced_fields():
+           and values.keys() & self._get_fields_microsoft_synced():
             self.recurrence_id.need_sync_m = True
         return res
 

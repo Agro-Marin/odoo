@@ -367,7 +367,7 @@ class DiscussChannelMember(models.Model):
             "new_message_separator",
             Store.One(
                 "rtc_inviting_session_id",
-                extra_fields=self.rtc_inviting_session_id._get_store_extra_fields(),
+                extra_fields=self.rtc_inviting_session_id._get_fields_store_extra(),
                 sudo=True,
             ),
             "unpin_dt",
@@ -472,7 +472,7 @@ class DiscussChannelMember(models.Model):
                 lambda m: Store.One(
                     m.partner_id.sudo(),
                     (p_fields := m._get_store_partner_fields(field_specs)),
-                    extra_fields=self.env["res.partner"]._get_store_mention_fields()
+                    extra_fields=self.env["res.partner"]._get_fields_store_mention()
                     if p_fields or p_fields is None
                     else None,
                 ),

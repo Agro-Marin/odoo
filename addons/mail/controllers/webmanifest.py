@@ -18,6 +18,6 @@ class WebManifest(webmanifest.WebManifest):
             with file_open("mail/static/src/service_worker_utils.js") as f:
                 utils = _ESM_EXPORT_RE.sub("", f.read())
             with file_open("mail/static/src/service_worker.js") as f:
-                body += "\n" + utils + "\n" + f.read()
+                body += f"\n(() => {{\n{utils}\n{f.read()}\n}})();\n"
 
         return body

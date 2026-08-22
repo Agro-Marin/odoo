@@ -25,7 +25,7 @@ import { useDebounced } from "@web/core/utils/timing";
  * @property {import("models").ResPartner} [partner]
  * @property {import("models").Thread} [thread]
  * @property {import("models").CannedResponse} [cannedResponse]
- * @property {import("@web/components/emoji_picker/emoji_picker").Emoji} [emoji]
+ * @property {import("@web/components/emoji_picker").Emoji} [emoji]
  * @property {string} [help]
  * @property {string} [source]
  * @property {true} [isSpecial]
@@ -40,7 +40,7 @@ import { useDebounced } from "@web/core/utils/timing";
  * @property {string} term
  */
 /**
- * @typedef {import("models").ResPartner | import("models").ResRole | import("models").Thread | import("models").CannedResponse | import("@web/components/emoji_picker/emoji_picker").Emoji | (import("@mail/discuss/core/common/channel_commands").ChannelCommand & {name: string}) | import("@mail/core/common/store_service").SpecialMention} Suggestion
+ * @typedef {import("models").ResPartner | import("models").ResRole | import("models").Thread | import("models").CannedResponse | import("@web/components/emoji_picker").Emoji | (import("@mail/discuss/core/common/channel_commands").ChannelCommand & {name: string}) | import("@mail/core/common/store_service").SpecialMention} Suggestion
  */
 export const DELAY_FETCH = 250;
 
@@ -419,7 +419,7 @@ export function mapSuggestionsToOptions(type, suggestions, { thread } = {}) {
             return {
                 optionTemplate: "mail.Composer.suggestionEmoji",
                 options:
-                    /** @type {(import("@web/components/emoji_picker/emoji_picker").Emoji)[]} */ (
+                    /** @type {(import("@web/components/emoji_picker").Emoji)[]} */ (
                         suggestions
                     ).map((suggestion) => ({
                         emoji: suggestion,

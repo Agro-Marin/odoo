@@ -476,7 +476,7 @@ export class MailThread extends models.ServerModel {
                         temporary_id,
                     },
                 ]);
-                const memberOfCurrentUser = this._find_or_create_member_for_self(
+                const memberOfCurrentUser = this._get_or_create_member_for_self(
                     ids[0],
                 );
                 if (memberOfCurrentUser) {

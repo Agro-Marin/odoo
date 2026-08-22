@@ -1,4 +1,5 @@
 declare module "services" {
+    import { allowedQwebExpressionsService } from "@mail/core/common/allowed_qweb_expressions_service";
     import { attachmentUploadService } from "@mail/core/common/attachment_upload_service";
     import { discussCoreCommon } from "@mail/discuss/core/common/discuss_core_common_service";
     import { discussCorePublic } from "@mail/discuss/core/public/discuss_core_public_service";
@@ -38,6 +39,7 @@ declare module "services" {
         "mail.sound_effects": typeof soundEffects;
         "mail.store": typeof storeService;
         "mail.suggestion": typeof suggestionService;
+        allowed_qweb_expressions: typeof allowedQwebExpressionsService;
         im_status: typeof im_status;
     }
 }

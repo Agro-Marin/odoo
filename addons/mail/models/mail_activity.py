@@ -941,7 +941,7 @@ class MailActivity(models.Model):
 
     def action_done_redirect_to_other(self) -> dict:
         self.action_done()
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mail.mail_activity_without_access_action"
         )
         action_context = literal_eval(action.get("context", "{}"))

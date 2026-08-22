@@ -1,10 +1,3 @@
-"""Regression tests: malformed client input must yield 4xx feedback, not 500s.
-
-Each test here mirrors a request shape that used to crash with an uncaught
-exception (KeyError / ValueError) before the corresponding controller guard
-was added.
-"""
-
 from odoo.http import Request
 from odoo.tests.common import HttpCase, JsonRpcException, tagged
 
@@ -27,7 +20,6 @@ class TestPortalControllerRobustness(HttpCase):
         self.authenticate("portal_robustness", "portal_robustness")
 
     def test_security_post_missing_password_fields(self):
-        """A POST omitting old/new1/new2 must render the form error, not 500."""
         self._login()
         response = self.url_open(
             "/my/security",
@@ -70,7 +62,6 @@ class TestPortalControllerRobustness(HttpCase):
         self.assertNotIn("KeyError", str(capture.exception))
 
     def test_chatter_fetch_model_without_portal_chatter(self):
-        """Models that don't carry website_message_ids must 404, not KeyError."""
         self._login()
         with self.assertRaises(JsonRpcException) as capture:
             self.make_jsonrpc_request(
@@ -80,8 +71,6 @@ class TestPortalControllerRobustness(HttpCase):
         self.assertNotIn("KeyError", str(capture.exception))
 
     def test_mail_routes_non_numeric_id_no_valueerror(self):
-        """Public chatter routes must 404 on non-numeric ids, not 500 with a
-        ValueError (which would leak a traceback to anonymous callers)."""
         self._login()
         cases = [
             (

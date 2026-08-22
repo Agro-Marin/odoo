@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.exceptions import AccessError, UserError
 from odoo.tests.common import users
 
@@ -10,7 +8,6 @@ class TestPortalWizard(MailCommon):
     def setUp(self):
         super().setUp()
 
-        # for those tests, consider user_employee cannot manager partners for acl testse
         self.user_employee.write(
             {"group_ids": [(3, self.env.ref("base.group_partner_manager").id)]}
         )
@@ -64,7 +61,6 @@ class TestPortalWizard(MailCommon):
             AccessError,
             msg="Standard users should not be able to open the portal wizard",
         ):
-            # Reading the field is what triggers the ACL check we assert on.
             _ = portal_wizard.with_user(self.user_employee).welcome_message
 
         with self.assertRaises(
@@ -110,10 +106,6 @@ class TestPortalWizard(MailCommon):
 
     @users("admin")
     def test_portal_wizard_public_user(self):
-        """Test to grant the access to a public user.
-
-        Should remove the group "base.group_public" and add the group "base.group_portal"
-        """
         public_partner = self.public_user.partner_id
         portal_wizard = (
             self.env["portal.wizard"]
@@ -165,7 +157,6 @@ class TestPortalWizard(MailCommon):
 
     @users("admin")
     def test_portal_wizard_internal_user(self):
-        """Internal user can not be managed from this wizard."""
         internal_partner = self.internal_user.partner_id
         portal_wizard = (
             self.env["portal.wizard"]

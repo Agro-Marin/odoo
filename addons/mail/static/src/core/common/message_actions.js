@@ -2,7 +2,7 @@
 import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
 import { QuickReactionMenu } from "@mail/core/common/quick_reaction_menu";
 import { toRaw, useComponent, useState } from "@odoo/owl";
-import { useEmojiPicker } from "@web/components/emoji_picker/emoji_picker";
+import { useEmojiPicker } from "@web/components/emoji_picker";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { luxon } from "@web/core/l10n/luxon";
 import { download } from "@web/core/network";

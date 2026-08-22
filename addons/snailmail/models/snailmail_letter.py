@@ -171,7 +171,7 @@ class SnailmailLetter(models.Model):
 
             pdf_bin = self._overwrite_margins(pdf_bin)
             if self.cover:
-                pdf_bin = self._append_cover_page(pdf_bin)
+                pdf_bin = self._add_cover_page(pdf_bin)
             attachment = self.env['ir.attachment'].create({
                 'name': filename,
                 'datas': base64.b64encode(pdf_bin),
@@ -476,10 +476,10 @@ class SnailmailLetter(models.Model):
             address_split[2] = f'{self.zip} {self.city}'
         return address_split
 
-    def _append_cover_page(self, invoice_bin: bytes):
+    def _add_cover_page(self, invoice_bin: bytes):
         out_writer = PdfFileWriter()
         address_split = self._get_cover_address_split()
-        address_split[0] = self.partner_id.name or self.partner_id.parent_id and self.partner_id.parent_id.name or address_split[0]
+        address_split[0] = self.partner_id.name or (self.partner_id.parent_id and self.partner_id.parent_id.name) or address_split[0]
         address = '<br/>'.join(address_split)
         address_x = 118 * mm
         address_y = 60 * mm

@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
-import { ModelSelector } from "@web/components/model_selector/model_selector";
+import { ModelSelector } from "@web/components/model_selector";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { memoize } from "@web/core/utils/functions";
