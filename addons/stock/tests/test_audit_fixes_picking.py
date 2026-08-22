@@ -297,6 +297,58 @@ class TestAuditFixesPicking(TestStockCommon):
         )
         self.assertEqual(picking.state, "confirmed")
 
+    def test_a_recomputed_schedule_does_not_flatten_the_other_moves(self):
+        picking = self._create_confirmed_delivery(self.storable_1, 1)
+        sibling = self.MoveObj.create(
+            {
+                "product_id": self.storable_2.id,
+                "product_uom_qty": 1,
+                "product_uom_id": self.storable_2.uom_id.id,
+                "picking_id": picking.id,
+                "location_id": picking.location_id.id,
+                "location_dest_id": picking.location_dest_id.id,
+            }
+        )
+        picking.action_confirm()
+        today = fields.Datetime.now()
+        yesterday = today - timedelta(days=1)
+        picking.move_ids.write({"date": today})
+        self.env.flush_all()
+
+        moved = picking.move_ids[0]
+        moved.date = yesterday
+        picking.write({"date_planned": picking.date_planned})
+        self.env.flush_all()
+
+        self.assertEqual(picking.date_planned, yesterday)
+        self.assertEqual(moved.date, yesterday)
+        self.assertEqual(
+            sibling.date,
+            today,
+            "a sibling move keeps the date it was given",
+        )
+
+    def test_setting_the_schedule_by_hand_still_moves_every_open_move(self):
+        picking = self._create_confirmed_delivery(self.storable_1, 1)
+        self.MoveObj.create(
+            {
+                "product_id": self.storable_2.id,
+                "product_uom_qty": 1,
+                "product_uom_id": self.storable_2.uom_id.id,
+                "picking_id": picking.id,
+                "location_id": picking.location_id.id,
+                "location_dest_id": picking.location_dest_id.id,
+            }
+        )
+        picking.action_confirm()
+        picking.move_ids.write({"date": fields.Datetime.now()})
+        self.env.flush_all()
+
+        wanted = fields.Datetime.now() + timedelta(days=9)
+        picking.date_planned = wanted
+        self.env.flush_all()
+        self.assertEqual(picking.move_ids.mapped("date"), [wanted, wanted])
+
     def test_dashboard_graph_sql_bucketing(self):
         picking_type = self.picking_type_out
         now = fields.Datetime.now()

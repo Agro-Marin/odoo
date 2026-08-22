@@ -150,7 +150,7 @@ class TestProcRule(TransactionCase):
         pick_output.action_confirm()
 
         with mute_logger("odoo.addons.stock.models.procurement"):
-            self.env["stock.rule"].run_scheduler()
+            self.env["stock.scheduler"].run()
 
         moves = self.env["stock.move"].search(
             [
@@ -346,7 +346,7 @@ class TestProcRule(TransactionCase):
         )
         delivery_move._action_confirm()
         orderpoint._compute_qty()
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
 
         receipt_move = self.env["stock.move"].search(
             [
@@ -1339,7 +1339,7 @@ class TestProcRuleLoad(TransactionCase):
         (products[50] | products[99] | products[150] | products[199]).write(
             {"route_ids": [(4, wrong_route.id)]}
         )
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
         self.assertTrue(
             self.env["stock.move"].search([("product_id", "in", products.ids)])
         )

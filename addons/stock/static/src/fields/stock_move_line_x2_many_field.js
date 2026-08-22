@@ -79,59 +79,72 @@ export class SMLX2ManyField extends X2ManyField {
         return this.selectCreate({ domain, context, title });
     }
 
-    /**
-     * The form's current view of this move's lines, as the server expects it.
-     *
-     * `quant_id` is `store=False`, so a value here is always a quant the user
-     * just picked rather than anything the database knows about.
-     */
-    get _pendingLines() {
-        return this._move_line_ids.map((ml) => ({
-            id: ml.resId || false,
-            quantity: ml.data.quantity,
-            quant_id: ml.data.quant_id?.id || false,
-        }));
+    _unsavedQtyDelta(ml) {
+        return ml._values.quantity - ml._changes.quantity;
     }
 
-    /**
-     * True once the form holds something the database does not: an edited line,
-     * a deleted one, or a quant picked by hand. Nothing to reconcile otherwise,
-     * so the round trip is skipped.
-     */
-    get _hasPendingChanges() {
-        // The move record covers a deleted line, which leaves nothing behind to
-        // ask; the per-line checks cover edits and picks on a move that is
-        // otherwise clean. Erring towards the round trip is cheap, a stale
-        // availability is not.
-        return (
-            this.props.record.dirty ||
-            this._move_line_ids.some(
-                (ml) => ml.dirty || !ml.resId || ml.data.quant_id?.id,
-            )
-        );
-    }
-
-    /**
-     * Ask the server how much of each candidate quant is still free, given what
-     * the form is holding. The arithmetic and the unit conversion both live in
-     * `get_pending_quant_availability`: quant availability is in the product's
-     * reference UoM and form quantities are in the line's, and only the server
-     * has the factor. The numbers that come back are in the move's UoM, which is
-     * what `onAdd` and `selectRecord` below work in.
-     */
     async updateDirtyQuantsData() {
         this.dirtyQuantsData.clear();
-        if (!this._hasPendingChanges) {
+        const dirtyQuantityMoveLines = this._move_line_ids.filter(
+            (ml) => !ml.data.quant_id && this._unsavedQtyDelta(ml),
+        );
+        const dirtyQuantMoveLines = this._move_line_ids.filter(
+            (ml) => ml.data.quant_id.id,
+        );
+        const dirtyMoveLines = [...dirtyQuantityMoveLines, ...dirtyQuantMoveLines];
+        if (!dirtyMoveLines.length) {
             return;
         }
-        const availability = await this.orm.call(
+        const match = await this.orm.call(
             "stock.move.line",
-            "get_pending_quant_availability",
-            [this.props.record.resId, this._pendingLines],
+            "get_move_line_quant_match",
+            [
+                this._move_line_ids.filter((rec) => rec.resId).map((rec) => rec.resId),
+                this.props.record.resId,
+                dirtyMoveLines.filter((rec) => rec.resId).map((rec) => rec.resId),
+                dirtyQuantMoveLines.map((ml) => ml.data.quant_id.id),
+            ],
+            {},
         );
-        for (const [quantId, availableQuantity] of availability) {
-            this.dirtyQuantsData.set(quantId, {
-                available_quantity: availableQuantity,
+        const quants = match.quants;
+        if (!quants.length) {
+            return;
+        }
+        const dbMoveLinesData = new Map();
+        for (const line of match.move_lines) {
+            dbMoveLinesData.set(line.id, {
+                quantity: line.quantity,
+                quantId: line.quant_id,
+            });
+        }
+        const offsetByQuant = new Map();
+        for (const ml of dirtyQuantMoveLines) {
+            const quantId = ml.data.quant_id.id;
+            offsetByQuant.set(
+                quantId,
+                (offsetByQuant.get(quantId) || 0) - ml.data.quantity,
+            );
+            const dbQuantId = dbMoveLinesData.get(ml.resId)?.quantId;
+            if (dbQuantId && quantId !== dbQuantId) {
+                offsetByQuant.set(
+                    dbQuantId,
+                    (offsetByQuant.get(dbQuantId) || 0) +
+                        dbMoveLinesData.get(ml.resId).quantity,
+                );
+            }
+        }
+        const offsetByQuantity = new Map();
+        for (const ml of dirtyQuantityMoveLines) {
+            offsetByQuantity.set(ml.resId, this._unsavedQtyDelta(ml));
+        }
+        for (const quant of quants) {
+            const quantityOffset = quant.move_line_ids
+                .map((ml) => offsetByQuantity.get(ml) || 0)
+                .reduce((val, sum) => val + sum, 0);
+            const quantOffset = offsetByQuant.get(quant.id) || 0;
+            this.dirtyQuantsData.set(quant.id, {
+                available_quantity:
+                    quant.available_quantity + quantityOffset + quantOffset,
             });
         }
     }
@@ -141,7 +154,7 @@ export class SMLX2ManyField extends X2ManyField {
             this.props.record.data.product_uom_qty -
             this._move_line_ids
                 .map((ml) => ml.data.quantity)
-                .reduce((sum, quantity) => sum + quantity, 0);
+                .reduce((val, sum) => val + sum, 0);
         const params = {
             context: { default_quant_id: res_ids[0] },
         };

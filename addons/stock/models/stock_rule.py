@@ -1,8 +1,7 @@
-import datetime
 import logging
-from collections import OrderedDict, defaultdict
+from ast import literal_eval
+from collections import defaultdict
 from functools import partial
-from itertools import batched
 
 from dateutil.relativedelta import relativedelta
 
@@ -161,11 +160,29 @@ class StockRule(models.Model):
     rule_message = fields.Html(compute="_compute_action_message")
     push_domain = fields.Char(string="Push Applicability")
 
+    @api.constrains("push_domain")
+    def _check_push_domain(self):
+        Move = self.env["stock.move"]
+        for rule in self:
+            if not rule.push_domain:
+                continue
+            try:
+                Domain(literal_eval(rule.push_domain)).validate(Move)
+            except Exception as error:
+                raise ValidationError(
+                    _(
+                        "The push applicability of rule %(rule)s is not a valid "
+                        "domain on stock moves: %(error)s",
+                        rule=rule.display_name,
+                        error=error,
+                    ),
+                ) from error
+
     @api.constrains("company_id")
     def _check_company_consistency(self):
         for rule in self:
             route = rule.route_id
-            if route.company_id and rule.company_id.id != route.company_id.id:
+            if route.company_id and rule.company_id != route.company_id:
                 raise ValidationError(
                     _(
                         "Rule %(rule)s belongs to %(rule_company)s while the route belongs to %(route_company)s.",
@@ -179,7 +196,7 @@ class StockRule(models.Model):
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         if "name" not in default:
-            for rule, vals in zip(self, vals_list, strict=False):
+            for rule, vals in zip(self, vals_list, strict=True):
                 vals["name"] = _("%s (copy)", rule.name)
         return vals_list
 
@@ -198,7 +215,7 @@ class StockRule(models.Model):
     def _onchange_route(self):
         if self.route_id.company_id:
             self.company_id = self.route_id.company_id
-        if self.picking_type_id.warehouse_id.company_id != self.route_id.company_id:
+        if self.picking_type_id.company_id != self.company_id:
             self.picking_type_id = False
 
     def _get_message_values(self):
@@ -269,47 +286,76 @@ class StockRule(models.Model):
         "location_dest_from_rule",
     )
     def _compute_action_message(self):
-        action_rules = self.filtered(lambda rule: rule.action)
-        for rule in action_rules:
+        for rule in self:
             message_dict = rule._get_message_dict()
-            message = message_dict.get(rule.action) or ""
             if rule.action == "pull_push":
-                message = message_dict["pull"] + "<br/><br/>" + message_dict["push"]
-            rule.rule_message = message
-        (self - action_rules).rule_message = None
+                rule.rule_message = (
+                    message_dict["pull"] + "<br/><br/>" + message_dict["push"]
+                )
+            else:
+                rule.rule_message = message_dict.get(rule.action) or ""
 
     @api.depends("action")
     def _compute_picking_type_code_domain(self):
-        self.picking_type_code_domain = []
+        for rule in self:
+            rule.picking_type_code_domain = rule._get_picking_type_code_domain()
+
+    def _get_picking_type_code_domain(self):
+        return []
 
     def _get_push_new_date(self, move):
         return fields.Datetime.to_string(move.date + relativedelta(days=self.delay))
 
-    def _run_push(self, move):
+    def _run_push(self, moves):
         self.ensure_one()
-        new_date = self._get_push_new_date(move)
         if self.auto == "transparent":
-            old_dest_location = move.location_dest_id
-            move.write({"date": new_date, "location_dest_id": self.location_dest_id.id})
-            if move.move_line_ids:
-                move.move_line_ids.location_dest_id = (
-                    move.location_dest_id._get_putaway_strategy(move.product_id)
-                    or move.location_dest_id
-                )
+            return {move.id: self._run_push_in_place(move) for move in moves}
+        return self._run_push_copy(moves)
 
-            if self.location_dest_id != old_dest_location:
-                return move._push_apply()[:1]
-            return self.env["stock.move"]
+    def _run_push_in_place(self, move):
+        old_dest_location = move.location_dest_id
+        move.write(
+            {
+                "date": self._get_push_new_date(move),
+                "location_dest_id": self.location_dest_id.id,
+            },
+        )
+        if move.move_line_ids:
+            move.move_line_ids.location_dest_id = (
+                move.location_dest_id._get_putaway_strategy(move.product_id)
+                or move.location_dest_id
+            )
+        if self.location_dest_id != old_dest_location:
+            return move._push_apply()[:1]
+        return self.env["stock.move"]
 
-        new_move_vals = self._push_prepare_move_copy_values(move, new_date)
-        new_move = move.sudo().copy(new_move_vals)
-        if new_move._skip_push():
-            new_move.write({"location_dest_id": new_move.location_final_id.id})
-        if new_move._should_bypass_reservation():
-            new_move.write({"procure_method": "make_to_stock"})
-        if not new_move.location_id.should_bypass_reservation():
-            move.sudo().write({"move_dest_ids": [Command.link(new_move.id)]})
-        return new_move
+    def _run_push_copy(self, moves):
+        vals_list = []
+        for move in moves:
+            vals = move.sudo().copy_data(
+                self._push_prepare_move_copy_values(
+                    move,
+                    self._get_push_new_date(move),
+                ),
+            )[0]
+            if not move.location_dest_id.should_bypass_reservation():
+                vals["move_orig_ids"] = [Command.link(move.id)]
+            vals_list.append(vals)
+        new_moves = self.env["stock.move"].sudo().create(vals_list)
+        self._correct_pushed_moves(new_moves)
+        return dict(zip(moves.ids, new_moves, strict=True))
+
+    def _correct_pushed_moves(self, new_moves):
+        moves_by_final_location = defaultdict(list)
+        for move in new_moves.filtered(lambda move: move._skip_push()):
+            moves_by_final_location[move.location_final_id.id].append(move.id)
+        for location_id, move_ids in moves_by_final_location.items():
+            new_moves.browse(move_ids).location_dest_id = location_id
+        unreserved = new_moves.filtered(
+            lambda move: move._should_bypass_reservation(),
+        )
+        if unreserved:
+            unreserved.procure_method = "make_to_stock"
 
     def _push_prepare_move_copy_values(self, move_to_copy, new_date):
         company_id = self.company_id.id
@@ -357,10 +403,19 @@ class StockRule(models.Model):
     def _run_pull(self, procurements):
         moves_values_by_company = defaultdict(list)
 
-        for procurement, rule in procurements:
-            if not rule.location_src_id:
-                msg = _("No source location defined on stock rule: %s!", rule.name)
-                raise ProcurementException([(procurement, msg)])
+        source_errors = [
+            (
+                procurement,
+                _(
+                    "No source location defined on stock rule: %s!",
+                    rule.display_name,
+                ),
+            )
+            for procurement, rule in procurements
+            if not rule.location_src_id
+        ]
+        if source_errors:
+            raise ProcurementException(source_errors)
 
         procurements = sorted(
             procurements,
@@ -373,10 +428,10 @@ class StockRule(models.Model):
             if rule.procure_method == "mts_else_mto":
                 procure_method = "make_to_stock"
 
-            move_values = rule._get_stock_move_values(*procurement)
+            move_values = rule._get_stock_move_values(procurement)
             move_values["procure_method"] = procure_method
-            rule._propagate_transit_partner(procurement)
             moves_values_by_company[procurement.company_id.id].append(move_values)
+        self._propagate_transit_partner(procurements)
 
         for company_id, moves_values in moves_values_by_company.items():
             moves = (
@@ -388,72 +443,57 @@ class StockRule(models.Model):
             moves._action_confirm()
         return True
 
+    @api.model
+    def _get_action_runners(self):
+        return {"pull": "_run_pull"}
+
     def _get_fields_custom_move(self):
         return []
 
-    def _get_stock_move_values(
-        self,
-        product_id,
-        product_qty,
-        product_uom_id,
-        location_dest_id,
-        name,
-        origin,
-        company_id,
-        values,
-    ):
+    def _get_stock_move_values(self, procurement):
+        product_uom_id = procurement.product_uom_id
+        values = procurement.values
         date_scheduled = fields.Datetime.to_string(
             fields.Datetime.from_string(values["date_planned"])
-            - relativedelta(days=self.delay or 0)
+            - relativedelta(days=self.delay)
         )
         date_deadline = (
             values.get("date_deadline")
             and (
                 fields.Datetime.to_datetime(values["date_deadline"])
-                - relativedelta(days=self.delay or 0)
+                - relativedelta(days=self.delay)
             )
         ) or False
-        partner = self.partner_address_id.id or values.get("partner_id", False)
-
         dest_moves = values.get("move_dest_ids") or self.env["stock.move"]
-        move_dest_ids = [Command.link(move.id) for move in dest_moves]
+        move_dest_ids = [Command.link(move_id) for move_id in dest_moves.ids]
+        partner = self._get_move_partner(procurement, dest_moves)
 
-        if (
-            move_dest_ids
-            and not partner
-            and location_dest_id == company_id.internal_transit_location_id
-        ):
-            partners = dest_moves.location_dest_id.warehouse_id.partner_id
-            if len(partners) == 1:
-                partner = partners.id
-
-        if product_uom_id.compare(product_qty, 0.0) < 0:
+        if product_uom_id.compare(procurement.product_qty, 0.0) < 0:
             values = dict(values, to_refund=True)
 
         move_values = {
             "company_id": self.company_id.id
             or self.location_src_id.company_id.id
             or self.location_dest_id.company_id.id
-            or company_id.id,
-            "product_id": product_id.id,
+            or procurement.company_id.id,
+            "product_id": procurement.product_id.id,
             "product_uom_id": product_uom_id.id,
-            "product_uom_qty": product_qty,
+            "product_uom_qty": procurement.product_qty,
             "partner_id": partner,
             "location_id": self.location_src_id.id,
-            "location_final_id": location_dest_id.id,
+            "location_final_id": procurement.location_id.id,
             "move_dest_ids": move_dest_ids,
             "rule_id": self.id,
             "reference_ids": [
                 Command.set(
-                    [reference.id for reference in values.get("reference_ids") or []],
+                    (values.get("reference_ids") or self.env["stock.reference"]).ids
                 ),
             ],
             "procure_method": self.procure_method,
-            "origin": origin,
+            "origin": procurement.origin,
             "picking_type_id": self.picking_type_id.id,
-            "procurement_values": self._serialize_procurement_values(values),
             "route_ids": [
-                Command.set([route.id for route in values.get("route_ids") or []]),
+                Command.set((values.get("route_ids") or self.env["stock.route"]).ids),
             ],
             "never_product_template_attribute_value_ids": values.get(
                 "never_product_template_attribute_value_ids"
@@ -467,35 +507,44 @@ class StockRule(models.Model):
         }
         if self.location_dest_from_rule:
             move_values["location_dest_id"] = self.location_dest_id.id
+        decided = set(move_values)
         for field in self._get_fields_custom_move():
-            if field in values:
+            if field in values and field not in decided:
                 move_values[field] = values.get(field)
         return move_values
 
-    def _propagate_transit_partner(self, procurement):
-        self.ensure_one()
-        move_dest = procurement.values.get("move_dest_ids")
-        if not move_dest:
-            return
+    def _get_move_partner(self, procurement, dest_moves):
+        partner = self.partner_address_id.id or procurement.values.get(
+            "partner_id",
+            False,
+        )
         if (
-            procurement.location_id
-            == procurement.company_id.internal_transit_location_id
+            partner
+            or not dest_moves
+            or procurement.location_id
+            != procurement.company_id.internal_transit_location_id
         ):
-            move_dest.partner_id = (
-                self.location_src_id.warehouse_id.partner_id
-                or self.company_id.partner_id
-            )
+            return partner
+        partners = dest_moves.location_dest_id.warehouse_id.partner_id
+        return partners.id if len(partners) == 1 else partner
 
-    def _serialize_procurement_values(self, values):
-        serialized = {}
-        for key, value in values.items():
-            if isinstance(value, models.BaseModel):
-                serialized[key] = value.ids
-            elif isinstance(value, (datetime.datetime, datetime.date)):
-                serialized[key] = value.isoformat()
-            else:
-                serialized[key] = value
-        return serialized
+    @api.model
+    def _propagate_transit_partner(self, procurements):
+        moves_by_partner = defaultdict(lambda: self.env["stock.move"])
+        for procurement, rule in procurements:
+            dest_moves = procurement.values.get("move_dest_ids")
+            if not dest_moves or (
+                procurement.location_id
+                != procurement.company_id.internal_transit_location_id
+            ):
+                continue
+            partner = (
+                rule.location_src_id.warehouse_id.partner_id
+                or rule.company_id.partner_id
+            )
+            moves_by_partner[partner.id] |= dest_moves
+        for partner_id, moves in moves_by_partner.items():
+            moves.partner_id = partner_id
 
     def _get_lead_days(self, product, **values):
         _ = self.env._
@@ -512,10 +561,9 @@ class StockRule(models.Model):
                     (_("Delay on %s", rule.name), _("+ %d day(s)", rule.delay))
                     for rule in delaying_rules
                 ]
-        bypass_global_horizon_days = self.env.context.get("bypass_global_horizon_days")
-        if bypass_global_horizon_days:
-            return delays, delay_description
-        global_horizon_days = self.env["stock.warehouse.orderpoint"].get_horizon_days()
+        global_horizon_days = self.env["stock.warehouse.orderpoint"]._get_horizon_days(
+            self.company_id[:1],
+        )
         if global_horizon_days:
             delays["horizon_time"] += global_horizon_days
             if not bypass_delay_description:
@@ -523,6 +571,16 @@ class StockRule(models.Model):
                     (_("Time Horizon"), _("+ %d day(s)", global_horizon_days))
                 )
         return delays, delay_description
+
+    @api.model
+    def _get_procurement_defaults(self, procurement):
+        return {
+            "company_id": procurement.location_id.company_id,
+            "priority": "0",
+            **procurement.values,
+            "date_planned": procurement.values.get("date_planned")
+            or fields.Datetime.now(),
+        }
 
     @api.model
     def _skip_procurement(self, procurement):
@@ -541,18 +599,13 @@ class StockRule(models.Model):
 
         actions_to_run = defaultdict(list)
         procurement_errors = []
-        valid_procurements = []
-        for procurement in procurements:
-            procurement.values.setdefault(
-                "company_id", procurement.location_id.company_id
+        valid_procurements = [
+            procurement._replace(
+                values=self._get_procurement_defaults(procurement),
             )
-            procurement.values.setdefault("priority", "0")
-            procurement.values["date_planned"] = (
-                procurement.values.get("date_planned") or fields.Datetime.now()
-            )
-            if self._skip_procurement(procurement):
-                continue
-            valid_procurements.append(procurement)
+            for procurement in procurements
+            if not self._skip_procurement(procurement)
+        ]
         rules = self._get_rules_batch(valid_procurements)
         for procurement, rule in zip(valid_procurements, rules, strict=True):
             if not rule:
@@ -569,8 +622,11 @@ class StockRule(models.Model):
         if procurement_errors:
             raise_exception(procurement_errors)
 
+        runners = self._get_action_runners()
         for action, action_procurements in actions_to_run.items():
-            run_action = getattr(self.env["stock.rule"], f"_run_{action}", None)
+            run_action = (
+                getattr(self, runners[action], None) if action in runners else None
+            )
             if run_action is None:
                 _logger.error(
                     "The method _run_%s doesn't exist on the procurement rules", action
@@ -621,41 +677,44 @@ class StockRule(models.Model):
         ):
             valid_route_ids |= set(routes.ids)
         if warehouse_ids:
-            filter_function = partial(
-                self._filter_warehouse_routes, product_id, warehouse_ids
-            )
             valid_route_ids |= set(
-                warehouse_ids.route_ids.filtered(filter_function).ids
+                warehouse_ids.route_ids.filtered(
+                    partial(self._is_route_usable_for, product_id),
+                ).ids,
             )
         return valid_route_ids
 
     @api.model
-    def _search_rule_for_warehouses(
-        self, route_ids, packaging_uom_id, product_id, warehouse_ids, domain
-    ):
-        domain = Domain(domain)
+    def _get_rule_candidates(self, values, locations, warehouse_ids, valid_route_ids):
+        domain = self._get_rule_location_domain(
+            locations,
+        ) & self._get_rule_scope_domain(values)
         if warehouse_ids:
             domain &= Domain("warehouse_id", "in", [False, *warehouse_ids.ids])
-        valid_route_ids = self._get_valid_route_ids(
-            route_ids, packaging_uom_id, product_id, warehouse_ids
-        )
         if valid_route_ids:
             domain &= Domain("route_id", "in", list(valid_route_ids))
-        res = self.env["stock.rule"]._read_group(
+        candidates = defaultdict(lambda: defaultdict(lambda: self.env["stock.rule"]))
+        for location, route, rules in self.env["stock.rule"]._read_group(
             domain,
-            groupby=["location_dest_id", "warehouse_id", "route_id"],
+            groupby=["location_dest_id", "route_id"],
             aggregates=["id:recordset"],
-            order="route_sequence:min, sequence:min",
-        )
-        rule_dict = defaultdict(OrderedDict)
-        for group in res:
-            rule_dict[group[0].id, group[2].id][group[1].id] = min(
-                group[3], key=lambda rule: (rule.route_sequence, rule.sequence)
-            )
-        return rule_dict
+        ):
+            candidates[location.id][route.id] |= rules
+        return candidates
 
-    def _filter_warehouse_routes(self, product, warehouses, route):
-        return route
+    def _is_route_usable_for(self, product, route):
+        return True
+
+    @api.model
+    def _sorted_by_precedence(self, rules, warehouse_id):
+        return rules.sorted(
+            key=lambda rule: (
+                bool(warehouse_id) and rule.warehouse_id != warehouse_id,
+                rule.route_sequence,
+                rule.sequence,
+                rule.id,
+            ),
+        )
 
     @api.model
     def _sorted_bucket_routes(self, routes, product_id):
@@ -668,61 +727,57 @@ class StockRule(models.Model):
             ),
         )
 
-    def _search_rule(
+    @api.model
+    def _get_sorted_buckets(self, product_id, warehouse_id, values):
+        return [
+            self._sorted_bucket_routes(routes, product_id)
+            for routes in self._get_route_buckets(
+                values.get("route_ids") or self.env["stock.route"],
+                values.get("packaging_uom_id") or self.env["uom.uom"],
+                product_id,
+                warehouse_id,
+            )
+        ]
+
+    @api.model
+    def _get_best_rule(self, candidates_by_route, sorted_buckets, warehouse_id):
+        for routes in sorted_buckets:
+            for route in routes:
+                candidates = candidates_by_route.get(route.id)
+                if not candidates:
+                    continue
+                if warehouse_id:
+                    candidates = candidates.filtered(
+                        lambda rule: (
+                            not rule.warehouse_id or rule.warehouse_id == warehouse_id
+                        ),
+                    )
+                if candidates:
+                    return self._sorted_by_precedence(candidates, warehouse_id)[:1]
+        return self.env["stock.rule"]
+
+    def _get_rule_by_domain(
         self, route_ids, packaging_uom_id, product_id, warehouse_id, domain
     ):
-        Rule = self.env["stock.rule"]
+        values = {"route_ids": route_ids, "packaging_uom_id": packaging_uom_id}
         domain = Domain(domain)
         if warehouse_id:
             domain &= Domain("warehouse_id", "in", [False, warehouse_id.id])
-        domain = domain.optimize(Rule)
-        for routes in self._get_route_buckets(
+        valid_route_ids = self._get_valid_route_ids(
             route_ids, packaging_uom_id, product_id, warehouse_id
+        )
+        if valid_route_ids:
+            domain &= Domain("route_id", "in", list(valid_route_ids))
+        candidates_by_route = defaultdict(lambda: self.env["stock.rule"])
+        for route, rules in self.env["stock.rule"]._read_group(
+            domain, groupby=["route_id"], aggregates=["id:recordset"]
         ):
-            if not routes:
-                continue
-            rules = Rule.search(Domain("route_id", "in", routes.ids) & domain)
-            if not rules:
-                continue
-            for route in self._sorted_bucket_routes(rules.route_id, product_id):
-                route_rules = rules.filtered(
-                    lambda rule, route=route: rule.route_id == route,
-                )
-                if route_rules:
-                    return route_rules.sorted(
-                        key=lambda rule: (rule.sequence, rule.id),
-                    )[:1]
-        return Rule
-
-    def _extract_rule_from_dict(
-        self, rule_dict, routes, warehouse_id, location_dest_id, product_id
-    ):
-        for route in self._sorted_bucket_routes(routes, product_id):
-            sub_dict = rule_dict.get((location_dest_id.id, route.id))
-            if not sub_dict:
-                continue
-            if not warehouse_id:
-                return sub_dict[next(iter(sub_dict))]
-            rule = sub_dict.get(warehouse_id.id) or sub_dict.get(False)
-            if rule:
-                return rule
-        return self.env["stock.rule"]
-
-    def _get_rule_from_dict(self, rule_dict, product_id, location_dest_id, values):
-        warehouse_id = values.get("warehouse_id", location_dest_id.warehouse_id)
-        buckets = self._get_route_buckets(
-            values.get("route_ids", self.env["stock.route"]),
-            values.get("packaging_uom_id", self.env["uom.uom"]),
-            product_id,
+            candidates_by_route[route.id] |= rules
+        return self._get_best_rule(
+            candidates_by_route,
+            self._get_sorted_buckets(product_id, warehouse_id, values),
             warehouse_id,
         )
-        for routes in buckets:
-            rule = self._extract_rule_from_dict(
-                rule_dict, routes, warehouse_id, location_dest_id, product_id
-            )
-            if rule:
-                return rule
-        return self.env["stock.rule"]
 
     @api.model
     def _get_location_hierarchy(self, location_id):
@@ -732,22 +787,31 @@ class StockRule(models.Model):
         return locations
 
     @api.model
-    def _get_rule_from_hierarchy(self, rule_dict, product_id, locations, values):
-        intercomp_transit = self.env.ref(
-            "stock.stock_location_inter_company", raise_if_not_found=False
-        )
+    def _get_rule_from_hierarchy(self, candidates, product_id, locations, values):
+        intercomp_transit = self._get_intercomp_transit_location()
         intercomp_customers = self.env["stock.location"]
         if self._check_intercomp_location(locations):
             intercomp_customers = self.env.ref(
                 "stock.stock_location_customers", raise_if_not_found=False
             )
+        buckets_by_warehouse = {}
         for location in locations:
             candidate_locations = location
             if intercomp_customers and location == intercomp_transit:
                 candidate_locations = location | intercomp_customers
             for candidate_location in candidate_locations:
-                rule = self._get_rule_from_dict(
-                    rule_dict, product_id, candidate_location, values
+                warehouse_id = values.get(
+                    "warehouse_id",
+                    candidate_location.warehouse_id,
+                )
+                if warehouse_id.id not in buckets_by_warehouse:
+                    buckets_by_warehouse[warehouse_id.id] = self._get_sorted_buckets(
+                        product_id, warehouse_id, values
+                    )
+                rule = self._get_best_rule(
+                    candidates.get(candidate_location.id) or {},
+                    buckets_by_warehouse[warehouse_id.id],
+                    warehouse_id,
                 )
                 if rule:
                     return rule
@@ -759,15 +823,19 @@ class StockRule(models.Model):
         if not location_id:
             return Rule
         locations = self._get_location_hierarchy(location_id)
-        domain = self._get_rule_domain(locations, values)
-        rule_dict = self._search_rule_for_warehouses(
-            values.get("route_ids", False),
-            values.get("packaging_uom_id", False),
-            product_id,
-            values.get("warehouse_id", locations.warehouse_id),
-            domain,
+        warehouse_ids = values.get("warehouse_id", locations.warehouse_id)
+        candidates = self._get_rule_candidates(
+            values,
+            locations,
+            warehouse_ids,
+            self._get_valid_route_ids(
+                values.get("route_ids", False),
+                values.get("packaging_uom_id", False),
+                product_id,
+                warehouse_ids,
+            ),
         )
-        return self._get_rule_from_hierarchy(rule_dict, product_id, locations, values)
+        return self._get_rule_from_hierarchy(candidates, product_id, locations, values)
 
     @api.model
     def _get_rules_batch(self, procurements):
@@ -780,52 +848,64 @@ class StockRule(models.Model):
             values = procurement.values
             locations = self._get_location_hierarchy(procurement.location_id)
             warehouse_ids = values.get("warehouse_id", locations.warehouse_id)
-            explicit_routes = values.get("route_ids") or self.env["stock.route"]
             valid_route_ids = self._get_valid_route_ids(
                 values.get("route_ids", False),
                 values.get("packaging_uom_id", False),
                 procurement.product_id,
                 warehouse_ids,
             )
-            company_id = values.get("company_id")
             key = (
+                str(self._get_rule_scope_domain(values)),
                 locations[-1].id,
-                tuple(company_id.ids) if company_id else (),
-                tuple(warehouse_ids.ids) if warehouse_ids else (),
-                tuple(explicit_routes.company_id.ids),
+                tuple(warehouse_ids.ids),
                 frozenset(valid_route_ids),
             )
-            groups[key].append((index, procurement, locations, warehouse_ids))
+            groups[key].append((index, procurement, locations, valid_route_ids))
         for group in groups.values():
             group_locations = self.env["stock.location"].union(
-                *(locations for _index, _procurement, locations, _wh in group),
+                *(locations for _index, _procurement, locations, _routes in group),
             )
-            _index0, representative, _locations0, warehouse_ids = group[0]
-            domain = self._get_rule_domain(group_locations, representative.values)
-            rule_dict = self._search_rule_for_warehouses(
-                representative.values.get("route_ids", False),
-                representative.values.get("packaging_uom_id", False),
-                representative.product_id,
+            _index0, representative, _locations0, valid_route_ids = group[0]
+            warehouse_ids = representative.values.get(
+                "warehouse_id",
+                group[0][2].warehouse_id,
+            )
+            candidates = self._get_rule_candidates(
+                representative.values,
+                group_locations,
                 warehouse_ids,
-                domain,
+                valid_route_ids,
             )
-            for index, procurement, locations, _warehouse_ids in group:
+            for index, procurement, locations, _routes in group:
                 rules[index] = self._get_rule_from_hierarchy(
-                    rule_dict, procurement.product_id, locations, procurement.values
+                    candidates, procurement.product_id, locations, procurement.values
                 )
         return rules
 
     @api.model
-    def _check_intercomp_location(self, locations):
-        if locations.filtered(lambda location: location.usage == "transit"):
-            inter_comp_location = self.env.ref(
-                "stock.stock_location_inter_company", raise_if_not_found=False
+    def _get_intercomp_transit_location(self):
+        return (
+            self.env.ref(
+                "stock.stock_location_inter_company",
+                raise_if_not_found=False,
             )
-            return inter_comp_location and inter_comp_location.id in locations.ids
-        return None
+            or self.env["stock.location"]
+        )
+
+    @api.model
+    def _check_intercomp_location(self, locations):
+        if not locations.filtered(lambda location: location.usage == "transit"):
+            return False
+        return self._get_intercomp_transit_location().id in locations.ids
 
     @api.model
     def _get_rule_domain(self, locations, values):
+        return self._get_rule_location_domain(
+            locations,
+        ) & self._get_rule_scope_domain(values)
+
+    @api.model
+    def _get_rule_location_domain(self, locations):
         location_ids = locations.ids
         if self._check_intercomp_location(locations):
             customers_location = self.env.ref(
@@ -833,19 +913,24 @@ class StockRule(models.Model):
             )
             if customers_location:
                 location_ids.append(customers_location.id)
-        domain = Domain("location_dest_id", "in", location_ids) & Domain(
+        return Domain("location_dest_id", "in", location_ids) & Domain(
             "action", "!=", "push"
         )
+
+    @api.model
+    def _get_rule_scope_domain(self, values):
+        domain = Domain.TRUE
         if self.env.su and values.get("company_id"):
-            company_ids = set(values.get("company_id").ids)
+            company_ids = set(values["company_id"].ids)
             if values.get("route_ids"):
                 company_ids |= set(values["route_ids"].company_id.ids)
-            domain_company = [
-                "|",
-                ("company_id", "=", False),
-                ("company_id", "child_of", list(company_ids)),
-            ]
-            domain &= Domain(domain_company)
+            domain &= Domain(
+                [
+                    "|",
+                    ("company_id", "=", False),
+                    ("company_id", "child_of", list(company_ids)),
+                ],
+            )
         return domain
 
     @api.model
@@ -858,7 +943,7 @@ class StockRule(models.Model):
             )
             if dom := values.get("domain"):
                 domain &= Domain(dom)
-            found_rule = self._search_rule(
+            found_rule = self._get_rule_by_domain(
                 values.get("route_ids"),
                 values.get("packaging_uom_id"),
                 product_id,
@@ -867,84 +952,3 @@ class StockRule(models.Model):
             )
             location = location.location_id
         return found_rule
-
-    @api.model
-    def _get_moves_to_assign_domain(self, company_id):
-        return Domain(
-            [
-                ("company_id", "=?", company_id),
-                ("state", "in", ["confirmed", "partially_available"]),
-                ("product_uom_qty", "!=", 0.0),
-                "|",
-                ("date_reservation", "<=", fields.Date.today()),
-                ("picking_type_id.reservation_method", "=", "at_confirm"),
-            ]
-        )
-
-    @api.model
-    def _run_scheduler_tasks(self, use_new_cursor=False, company_id=False):
-        if use_new_cursor:
-            self.env["ir.cron"]._commit_progress(
-                remaining=self._get_scheduler_tasks_to_do()
-            )
-
-        domain = self._get_orderpoint_domain(company_id=company_id)
-        orderpoints = self.env["stock.warehouse.orderpoint"].search(domain)
-        orderpoints.sudo()._compute_qty_to_order_computed()
-        orderpoints.sudo()._compute_deadline_date()
-        stats_domain = [("product_id.active", "=", True)]
-        if company_id:
-            stats_domain += [("company_id", "=", company_id)]
-        stats_orderpoints = self.env["stock.warehouse.orderpoint"].search(stats_domain)
-        stats_orderpoints.sudo()._compute_lead_time_stats()
-
-        if use_new_cursor:
-            self.env["ir.cron"]._commit_progress(1)
-
-        orderpoints.sudo()._procure_orderpoint_confirm(
-            use_new_cursor=use_new_cursor, company_id=company_id, raise_user_error=False
-        )
-
-        domain = self._get_moves_to_assign_domain(company_id)
-        moves_to_assign = self.env["stock.move"].search(
-            domain,
-            limit=None,
-            order="date_reservation, priority desc, date asc, id asc",
-        )
-        for moves_chunk in batched(moves_to_assign.ids, 1000, strict=False):
-            self.env["stock.move"].browse(moves_chunk).sudo()._action_assign()
-            if use_new_cursor:
-                self.env.cr.commit()
-                _logger.info(
-                    "A batch of %d moves are assigned and committed", len(moves_chunk)
-                )
-
-        if use_new_cursor:
-            self.env["ir.cron"]._commit_progress(1)
-
-        self.env["stock.quant"]._quant_tasks()
-
-        if use_new_cursor:
-            self.env["ir.cron"]._commit_progress(1)
-
-    @api.model
-    def _get_scheduler_tasks_to_do(self):
-        return 3
-
-    @api.model
-    def run_scheduler(self, use_new_cursor=False, company_id=False):
-        try:
-            self._run_scheduler_tasks(
-                use_new_cursor=use_new_cursor, company_id=company_id
-            )
-        except Exception:
-            _logger.exception("Error during stock scheduler")
-            raise
-        return {}
-
-    @api.model
-    def _get_orderpoint_domain(self, company_id=False):
-        domain = [("trigger", "=", "auto"), ("product_id.active", "=", True)]
-        if company_id:
-            domain += [("company_id", "=", company_id)]
-        return domain

@@ -144,14 +144,14 @@ class TestAuditRuleResolution(TransactionCase):
             for product in products
         ]
 
-        original = StockRule._search_rule_for_warehouses
+        original = StockRule._get_rule_candidates
         calls = []
 
         def counting(rule_model, *args, **kwargs):
             calls.append(1)
             return original(rule_model, *args, **kwargs)
 
-        with patch.object(StockRule, "_search_rule_for_warehouses", counting):
+        with patch.object(StockRule, "_get_rule_candidates", counting):
             self.env["stock.rule"].run(procurements)
 
         self.assertEqual(
@@ -268,13 +268,17 @@ class TestAuditOrderpointFixes(TransactionCase):
         orderpoint.qty_to_order = 4
         self.env.flush_all()
         self.assertEqual(orderpoint.qty_to_order, 4.0)
-        self.assertFalse(orderpoint.qty_to_order_manual_zero)
+        self.assertTrue(
+            orderpoint.qty_to_order_manual_set,
+            "4 differs from the suggestion, so it is an override like any other -- "
+            "the flag records that one exists, not that it is zero.",
+        )
         orderpoint.qty_to_order = 0
         self.env.flush_all()
         orderpoint.action_remove_manual_qty_to_order()
         self.assertEqual(orderpoint.qty_to_order, 10.0)
 
-    def test_qty_to_order_onchange_echo_not_latched(self):
+    def test_qty_to_order_onchange_reflects_the_live_suggestion(self):
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {
                 "product_id": self.product.id,
@@ -284,14 +288,61 @@ class TestAuditOrderpointFixes(TransactionCase):
             },
         )
         self.assertEqual(orderpoint.qty_to_order, 10.0)
-        orderpoint.write({"product_min_qty": 8, "qty_to_order": 0})
-        self.env.flush_all()
-        self.assertFalse(orderpoint.qty_to_order_manual_zero)
-        self.assertEqual(
-            orderpoint.qty_to_order,
-            10.0,
-            "The echoed zero must be dropped and the fresh suggestion kept.",
+        spec = {
+            name: {}
+            for name in (
+                "product_id",
+                "location_id",
+                "trigger",
+                "product_min_qty",
+                "product_max_qty",
+                "qty_to_order",
+            )
+        }
+        values = {
+            name: (value[0] if isinstance(value, tuple) else value)
+            for name, value in orderpoint.read(list(spec))[0].items()
+            if name != "id"
+        }
+        echoed = orderpoint.onchange(
+            dict(values, product_min_qty=8),
+            ["product_min_qty"],
+            spec,
+        )["value"]
+        self.assertNotEqual(
+            echoed.get("qty_to_order", 10.0),
+            0.0,
+            "An unsaved record carries a NewId, which is falsy. A suggestion that "
+            "filters on `orderpoint.id` therefore answers 0 for every row the user "
+            "is still editing, and the web client renders that 0 in the To Order "
+            "cell until the row is saved.",
         )
+        orderpoint.write({"product_min_qty": 8, "qty_to_order": 10.0})
+        self.env.flush_all()
+        self.assertFalse(
+            orderpoint.qty_to_order_manual_set,
+            "A value that equals the live suggestion is not an override, whatever "
+            "else the same write touches.",
+        )
+        self.assertEqual(orderpoint.qty_to_order, 10.0)
+
+    def test_an_explicit_zero_survives_a_source_field_in_the_same_write(self):
+        orderpoint = self.env["stock.warehouse.orderpoint"].create(
+            {
+                "product_id": self.product.id,
+                "trigger": "manual",
+                "product_min_qty": 5,
+                "product_max_qty": 10,
+            },
+        )
+        orderpoint.write({"product_min_qty": 8, "qty_to_order": 0.0})
+        self.env.flush_all()
+        self.assertTrue(
+            orderpoint.qty_to_order_manual_set,
+            "0 differs from the suggestion, so it is an override. The heuristic "
+            "that used to drop it could not tell a typed zero from a stale echo.",
+        )
+        self.assertEqual(orderpoint.qty_to_order, 0.0)
 
     def test_compute_qty_to_order_computed_is_batched(self):
         products = self.env["product.product"].create(
@@ -310,25 +361,27 @@ class TestAuditOrderpointFixes(TransactionCase):
                 for product in products
             ],
         )
+        self.env.flush_all()
+        self.env.invalidate_all()
 
-        original = StockWarehouseOrderpoint._get_qty_to_order
-        seen_kwargs = []
+        in_progress_calls = []
+        original = StockWarehouseOrderpoint._quantity_in_progress
 
-        def recording(orderpoint_record, **kwargs):
-            seen_kwargs.append(kwargs)
-            return original(orderpoint_record, **kwargs)
+        def recording(records):
+            in_progress_calls.append(len(records))
+            return original(records)
 
-        with patch.object(StockWarehouseOrderpoint, "_get_qty_to_order", recording):
+        self.patch(
+            StockWarehouseOrderpoint, "_quantity_in_progress", recording
+        )
+        with self.assertQueryCount(__system__=16):
             orderpoints._compute_qty_to_order_computed()
 
-        self.assertEqual(len(seen_kwargs), 3)
-        self.assertTrue(
-            all(
-                kwargs.get("qty_available_virtual") is not None
-                for kwargs in seen_kwargs
-            ),
-            "Every per-orderpoint call must receive the pre-batched forecast "
-            "value instead of re-reading qty_available_virtual per record.",
+        self.assertEqual(
+            in_progress_calls,
+            [3],
+            "One `_quantity_in_progress()` for the whole set, not one per record "
+            "and not one for the shortage test plus another for the quantity.",
         )
         for orderpoint in orderpoints:
             self.assertEqual(orderpoint.qty_to_order_computed, 7.0)

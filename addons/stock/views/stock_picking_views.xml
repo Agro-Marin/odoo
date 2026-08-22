@@ -45,10 +45,10 @@
                     domain="[('picking_type_code', '=', 'internal')]" />
                 <separator />
                 <filter invisible="1" name="before" string="Before"
-                    domain="[('date_category', '=', 'before')]" />
-                <filter name="late" string="Late" 
-                    help="Deadline exceed or/and by the scheduled"
-                    domain="[('state', 'in', ('assigned', 'waiting', 'confirmed')), '|', '|', ('has_deadline_issue', '=', True), ('date_deadline', '&lt;', current_date), ('date_planned', '&lt;', current_date)]" />
+                    domain="[('search_date_category', '=', 'before')]" />
+                <filter name="late" string="Late"
+                    help="Deadline exceeded, or scheduled before today"
+                    domain="[('state', 'in', ('assigned', 'waiting', 'confirmed')), '|', ('has_deadline_issue', '=', True), ('search_date_category', 'in', ['before', 'yesterday'])]" />
                 <filter name="yesterday" string="Yesterday"
                     domain="[('date_category', '=', 'yesterday')]" />
                 <filter name="today" string="Today"
@@ -475,7 +475,7 @@
                                     <field name="show_lots_text" column_invisible="True" />
                                     <field name="show_lots_m2o" column_invisible="True" />
                                     <field name="is_initial_demand_editable" column_invisible="True" />
-                                    <field name="has_lines_without_result_package"
+                                    <field name="has_partial_result_packages"
                                         column_invisible="True" />
                                     <field name="package_ids" optional="show" widget="package_m2m"
                                         groups="stock.group_tracking_lot" width="200px" readonly="1" />
@@ -763,21 +763,21 @@
         <field name="name">stock.method_action_picking_tree_incoming</field>
         <field name="model_id" ref="stock.model_stock_picking" />
         <field name="state">code</field>
-        <field name="code">action = model.get_action_picking_tree_incoming()</field>
+        <field name="code">action = model.action_view_pickings_incoming()</field>
     </record>
 
     <record id="method_action_picking_tree_outgoing" model="ir.actions.server">
         <field name="name">stock.method_action_picking_tree_outgoing</field>
         <field name="model_id" ref="stock.model_stock_picking" />
         <field name="state">code</field>
-        <field name="code">action = model.get_action_picking_tree_outgoing()</field>
+        <field name="code">action = model.action_view_pickings_outgoing()</field>
     </record>
 
     <record id="method_action_picking_tree_internal" model="ir.actions.server">
         <field name="name">stock.method_action_picking_tree_internal</field>
         <field name="model_id" ref="stock.model_stock_picking" />
         <field name="state">code</field>
-        <field name="code">action = model.get_action_picking_tree_internal()</field>
+        <field name="code">action = model.action_view_pickings_internal()</field>
     </record>
 
     <record id="action_install_barcode" model="ir.actions.server">

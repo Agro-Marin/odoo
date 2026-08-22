@@ -8,7 +8,7 @@ import {
 
 export class Many2ManyPackageTagsField extends Many2ManyTagsField {
     get hasNoneTag() {
-        return this.props.record.data?.has_lines_without_result_package || false;
+        return this.props.record.data?.has_partial_result_packages || false;
     }
 
     get tags() {

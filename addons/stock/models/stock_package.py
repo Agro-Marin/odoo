@@ -1,5 +1,4 @@
 import json
-from ast import literal_eval
 from collections import defaultdict
 from collections.abc import Iterable
 
@@ -7,8 +6,11 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.barcode import check_barcode_encoding
-from odoo.libs.numbers import float_is_zero
-from odoo.tools import format_list, groupby
+from odoo.libs.numbers import float_is_zero, float_round
+from odoo.tools import format_list
+
+from ..const import INVENTORY_REFERENCE_PACKAGE_RELOCATED
+from odoo.addons.base.models.ir_actions import eval_action_context
 
 
 class StockPackage(models.Model):
@@ -18,6 +20,7 @@ class StockPackage(models.Model):
     _parent_name = "parent_package_id"
     _parent_store = True
     _rec_name = "complete_name"
+    _rec_names_search = ["complete_name", "dest_complete_name", "name"]
 
     name = fields.Char(
         string="Package Reference",
@@ -34,6 +37,7 @@ class StockPackage(models.Model):
     dest_complete_name = fields.Char(
         string="Package Name At Destination",
         compute="_compute_dest_complete_name",
+        store=True,
         recursive=True,
     )
     quant_ids = fields.One2many(
@@ -112,18 +116,25 @@ class StockPackage(models.Model):
         comodel_name="stock.package",
         string="Outermost Destination Container",
         compute="_compute_outermost_package_id",
-        search="_search_outermost_package_id",
+        store=True,
         recursive=True,
+        index="btree_not_null",
     )
     child_package_dest_ids = fields.One2many(
         comodel_name="stock.package",
         inverse_name="package_dest_id",
         string="Assigned Contained Packages",
     )
+    result_move_line_ids = fields.One2many(
+        comodel_name="stock.move.line",
+        inverse_name="result_package_id",
+        string="Move Lines Targeting This Package",
+    )
     move_line_ids = fields.One2many(
         comodel_name="stock.move.line",
         compute="_compute_move_line_ids",
         search="_search_move_line_ids",
+        recursive=True,
     )
     picking_ids = fields.Many2many(
         comodel_name="stock.picking",
@@ -134,13 +145,14 @@ class StockPackage(models.Model):
     )
     shipping_weight = fields.Float(
         string="Shipping Weight",
+        digits="Stock Weight",
         help="Total weight of the package.",
     )
     valid_sscc = fields.Boolean(
         string="Package name is valid SSCC",
         compute="_compute_valid_sscc",
     )
-    pack_date = fields.Date(string="Pack Date", default=fields.Date.today)
+    pack_date = fields.Date(string="Pack Date", default=fields.Date.context_today)
     parent_path = fields.Char(index=True)
     json_popover = fields.Char(
         string="JSON data for popover widget",
@@ -149,26 +161,28 @@ class StockPackage(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        new_vals_list = []
         for vals in vals_list:
+            vals = dict(vals)
             if vals.get("complete_name"):
-                vals["name"] = vals["complete_name"]
-                del vals["complete_name"]
+                vals["name"] = vals.pop("complete_name")
             if not vals.get("name"):
                 package_type = self.env["stock.package.type"].browse(
                     vals.get("package_type_id")
                 )
                 vals["name"] = package_type._get_next_name_by_sequence()
+            new_vals_list.append(vals)
 
-        return super().create(vals_list)
+        return super().create(new_vals_list)
 
     def write(self, vals):
         if "name" in vals and not vals.get("name"):
+            vals = {key: value for key, value in vals.items() if key != "name"}
             for package in self:
                 package_type = self.env["stock.package.type"].browse(
                     vals.get("package_type_id", package.package_type_id.id)
                 )
                 package.name = package_type._get_next_name_by_sequence()
-            del vals["name"]
         if "location_id" in vals:
             empty_packs = self.filtered(lambda pack: not pack.contained_quant_ids)
             if not vals["location_id"] and self - empty_packs:
@@ -184,14 +198,14 @@ class StockPackage(models.Model):
                 )
                 quant_to_move.move_quants(
                     location_dest_id,
-                    message=_("Package manually relocated"),
+                    message=INVENTORY_REFERENCE_PACKAGE_RELOCATED,
                     up_to_parent_packages=self,
                 )
                 negative_quants = self.contained_quant_ids.filtered(
                     lambda q: q.product_uom_id.compare(q.quantity, 0) < 0
                 )
                 if negative_quants:
-                    message = _("Package manually relocated")
+                    message = INVENTORY_REFERENCE_PACKAGE_RELOCATED
                     moves = self.env["stock.move"].create(
                         [
                             quant.with_context(
@@ -207,16 +221,22 @@ class StockPackage(models.Model):
                         ]
                     )
                     moves._action_done()
-        if vals.get("package_dest_id"):
-            current_children_dest_ids = self._get_all_children_package_dest_ids()[1]
-            if vals["package_dest_id"] in current_children_dest_ids:
+        return super().write(vals)
+
+    @api.constrains("package_dest_id")
+    def _check_package_dest_is_not_a_descendant(self):
+        for package in self:
+            if not package.package_dest_id:
+                continue
+            if (
+                package.package_dest_id.id
+                in package._get_all_children_package_dest_ids()[1]
+            ):
                 raise ValidationError(
                     _(
                         "A package can't have one of its contained packages as destination container."
                     ),
                 )
-
-        return super().write(vals)
 
     @api.depends("child_package_ids", "child_package_ids.parent_path")
     def _compute_all_children_package_ids(self):
@@ -253,6 +273,7 @@ class StockPackage(models.Model):
         show_dest_package = self.env.context.get("show_dest_package")
         show_src_package = self.env.context.get("show_src_package")
         is_done = self.env.context.get("is_done")
+        formatted = self.env.context.get("formatted_display_name")
         for package in self:
             if is_done:
                 display_name = package.name
@@ -264,7 +285,7 @@ class StockPackage(models.Model):
                 display_name = package.name
 
             if (
-                package.env.context.get("formatted_display_name")
+                formatted
                 and package.package_type_id
                 and package.package_type_id.packaging_length
                 and package.package_type_id.width
@@ -274,27 +295,20 @@ class StockPackage(models.Model):
             else:
                 package.display_name = display_name
 
+    def _compute_path_name(self, parent_field, name_field):
+        for package in self:
+            parent = package[parent_field]
+            package[name_field] = (
+                f"{parent[name_field]} > {package.name}" if parent else package.name
+            )
+
     @api.depends("name", "parent_package_id.complete_name")
     def _compute_complete_name(self):
-        for package in self:
-            if package.parent_package_id:
-                package.complete_name = "%s > %s" % (
-                    package.parent_package_id.complete_name,
-                    package.name,
-                )
-            else:
-                package.complete_name = package.name
+        self._compute_path_name("parent_package_id", "complete_name")
 
     @api.depends("name", "package_dest_id.dest_complete_name")
     def _compute_dest_complete_name(self):
-        for package in self:
-            if package.package_dest_id:
-                package.dest_complete_name = "%s > %s" % (
-                    package.package_dest_id.dest_complete_name,
-                    package.name,
-                )
-            else:
-                package.dest_complete_name = package.name
+        self._compute_path_name("package_dest_id", "dest_complete_name")
 
     @api.depends("quant_ids", "all_children_package_ids.quant_ids")
     def _compute_contained_quant_ids(self):
@@ -303,33 +317,30 @@ class StockPackage(models.Model):
                 package.quant_ids | package.all_children_package_ids.quant_ids
             )
 
-    @api.depends("contained_quant_ids")
+    @api.depends("contained_quant_ids.quantity", "contained_quant_ids.product_id")
     def _compute_content_description(self):
-        def format_content(qty, uom_name, product_name, display_uom):
+        precision = self.env["decimal.precision"].precision_get("Product Unit")
+
+        def format_content(product, qty):
+            qty = float_round(qty, precision_digits=precision)
             quantity = str(int(qty) if qty == int(qty) else qty)
-            return " ".join(
-                [quantity, uom_name, product_name]
-                if display_uom
-                else [quantity, product_name]
-            )
+            if display_uom:
+                return f"{quantity} {product.uom_id.name} {product.display_name}"
+            return f"{quantity} {product.display_name}"
 
         display_uom = self.env.user.has_group("uom.group_uom")
         for package in self:
-            package_content = package.contained_quant_ids.grouped(
-                lambda q: (q.product_uom_id, q.product_id)
-            )
-            package_content = [
-                (uom.name, product.display_name, sum(quants.mapped("quantity")))
-                for ((uom, product), quants) in package_content.items()
-            ]
             package.content_description = format_list(
                 self.env,
                 [
-                    format_content(qty, uom_name, product_name, display_uom)
-                    for (uom_name, product_name, qty) in package_content
+                    format_content(product, sum(quants.mapped("quantity")))
+                    for product, quants in package.contained_quant_ids.grouped(
+                        "product_id"
+                    ).items()
                 ],
             )
 
+    @api.depends("move_line_ids", "move_line_ids.location_dest_id")
     def _compute_json_popover(self):
         for package in self:
             if not package._has_issues():
@@ -350,14 +361,18 @@ class StockPackage(models.Model):
                 },
             )
 
-    @api.depends("move_line_ids")
+    @api.depends("move_line_ids.location_dest_id")
     def _compute_location_dest_id(self):
         for package in self:
-            package.location_dest_id = (
-                package.move_line_ids.location_dest_id[:1] or False
-            )
+            locations = package.move_line_ids.location_dest_id
+            package.location_dest_id = locations if len(locations) == 1 else False
 
-    @api.depends("location_id", "child_package_dest_ids")
+    @api.depends(
+        "result_move_line_ids",
+        "result_move_line_ids.state",
+        "child_package_dest_ids",
+        "child_package_dest_ids.move_line_ids",
+    )
     def _compute_move_line_ids(self):
         children_by_dest_pack, all_pack_ids = self._get_all_children_package_dest_ids()
         groups = self.env["stock.move.line"]._read_group(
@@ -413,29 +428,10 @@ class StockPackage(models.Model):
                 ):
                     package.company_id = companies
 
-    @api.depends("child_package_dest_ids")
+    @api.depends("move_line_ids")
     def _compute_picking_ids(self):
-        children_by_dest_pack, all_pack_ids = self._get_all_children_package_dest_ids()
-        groups = self.env["stock.move.line"]._read_group(
-            domain=[
-                ("state", "not in", ["done", "cancel"]),
-                ("result_package_id", "in", all_pack_ids),
-            ],
-            groupby=["result_package_id"],
-            aggregates=["picking_id:array_agg"],
-        )
-        pickings_by_package = {
-            package.id: picking_ids for package, picking_ids in groups
-        }
-
         for package in self:
-            picking_ids = {
-                picking_id
-                for child_id in children_by_dest_pack[package]
-                for picking_id in pickings_by_package.get(child_id, [])
-            }
-            picking_ids.update(pickings_by_package.get(package.id, []))
-            package.picking_ids = [Command.set(list(picking_ids))]
+            package.picking_ids = package.move_line_ids.picking_id
 
     @api.depends("contained_quant_ids.owner_id")
     def _compute_owner_id(self):
@@ -457,10 +453,10 @@ class StockPackage(models.Model):
 
     @api.depends("name")
     def _compute_valid_sscc(self):
-        self.valid_sscc = False
         for package in self:
-            if package.name:
-                package.valid_sscc = check_barcode_encoding(package.name, "sscc")
+            package.valid_sscc = bool(package.name) and check_barcode_encoding(
+                package.name, "sscc"
+            )
 
     def _search_all_children_package_ids(self, operator, value):
         if operator in Domain.NEGATIVE_OPERATORS:
@@ -468,7 +464,9 @@ class StockPackage(models.Model):
         packages = self.search_fetch(
             domain=[("id", operator, value)], field_names=["id"]
         )
-        return [("id", "parent_of", packages.ids)]
+        return Domain("id", "parent_of", packages.ids) & Domain(
+            "id", "not in", packages.ids
+        )
 
     def _search_contained_quant_ids(self, operator, value):
         if operator in Domain.NEGATIVE_OPERATORS:
@@ -479,20 +477,21 @@ class StockPackage(models.Model):
         else:
             return [("id", "=", False)]
 
-    def _search_location_dest_id(self, operator, value):
-        if operator not in ["in", "not in"]:
-            return NotImplemented
-
+    def _packages_of_move_lines(self, domain):
         move_lines = self.env["stock.move.line"].search_fetch(
-            domain=[
-                ("state", "not in", ["done", "cancel"]),
-                ("location_dest_id", operator, value),
-            ],
+            domain=Domain("state", "not in", ["done", "cancel"]) & Domain(domain),
             field_names=["result_package_id"],
         )
-        all_package_ids = move_lines.result_package_id._get_all_package_dest_ids()
+        return move_lines.result_package_id._get_all_package_dest_ids()
 
-        return [("id", "in", all_package_ids)]
+    def _search_location_dest_id(self, operator, value):
+        if operator != "in":
+            return NotImplemented
+        here = self._packages_of_move_lines(Domain("location_dest_id", "in", value))
+        elsewhere = self._packages_of_move_lines(
+            Domain("location_dest_id", "not in", value)
+        )
+        return [("id", "in", list(set(here) - set(elsewhere)))]
 
     def _search_move_line_ids(self, operator, value):
         if operator not in ("in", "any"):
@@ -504,49 +503,27 @@ class StockPackage(models.Model):
 
         if isinstance(value, Iterable) and not isinstance(value, str):
             value = list(value)
-        domain = Domain("state", "not in", ["done", "cancel"])
-        pack_operator = "in"
         if isinstance(value, list) and value == [False]:
-            pack_operator = "not in"
-        else:
-            domain &= Domain("id", operator, value)
-        move_lines = self.env["stock.move.line"].search_fetch(
-            domain=domain, field_names=["result_package_id"]
-        )
-        all_package_ids = move_lines.result_package_id._get_all_package_dest_ids()
-
-        return [("id", pack_operator, all_package_ids)]
-
-    def _search_outermost_package_id(self, operator, value):
-        if operator not in ["in", "not in"]:
-            return NotImplemented
-
-        packages = self.env["stock.package"].search_fetch(
-            domain=[("package_dest_id", operator, value)],
-            field_names=["child_package_dest_ids"],
-        )
-        __, all_children_ids = packages._get_all_children_package_dest_ids()
-        return [("id", "in", all_children_ids)]
+            return [("id", "not in", self._packages_of_move_lines(Domain.TRUE))]
+        return [
+            ("id", "in", self._packages_of_move_lines(Domain("id", operator, value)))
+        ]
 
     def _search_owner_id(self, operator, value):
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
-        return Domain("quant_ids.owner_id", operator, value)
+        return Domain("contained_quant_ids.owner_id", operator, value)
 
     def _search_picking_ids(self, operator, value):
-        if operator not in ["in", "not in"]:
+        if operator != "in":
             return NotImplemented
-
-        move_lines = self.env["stock.move.line"].search_fetch(
-            domain=[
-                ("state", "not in", ["done", "cancel"]),
-                ("picking_id", operator, value),
-            ],
-            field_names=["result_package_id"],
-        )
-        all_package_ids = move_lines.result_package_id._get_all_package_dest_ids()
-
-        return [("id", "in", all_package_ids)]
+        return [
+            (
+                "id",
+                "in",
+                self._packages_of_move_lines(Domain("picking_id", "in", value)),
+            )
+        ]
 
     def action_add_to_picking(self):
         picking = self.env["stock.picking"].browse(self.env.context.get("picking_id"))
@@ -574,8 +551,8 @@ class StockPackage(models.Model):
                     "name": package_name,
                 }
             )
-        previous_dest_packages = self.env["stock.package"].browse(
-            self._get_all_package_dest_ids()
+        previous_dest_packages = (
+            self.env["stock.package"].browse(self._get_all_package_dest_ids()) - self
         )
         self.package_dest_id = package
         if packs_to_clear := previous_dest_packages.filtered(
@@ -592,8 +569,8 @@ class StockPackage(models.Model):
         move_line_ids_to_unlink = set()
         related_move_ids = set()
         move_line_ids_to_update = set()
+        picking_ids = self.env.context.get("picking_ids")
         for line in self.move_line_ids:
-            picking_ids = self.env.context.get("picking_ids")
             if picking_ids and line.picking_id.id not in picking_ids:
                 continue
             if line.result_package_id.id in self.ids:
@@ -633,23 +610,18 @@ class StockPackage(models.Model):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.action_picking_tree_all"
         )
-        domain = [
-            "|",
-            ("result_package_id", "in", self.ids),
-            ("package_id", "in", self.ids),
-        ]
-        pickings = self.env["stock.move.line"].search(domain).mapped("picking_id")
-        action["domain"] = [("id", "in", pickings.ids)]
+        move_lines = self.env["stock.move.line"].search_fetch(
+            domain=Domain("result_package_id", "in", self.ids)
+            | Domain("package_id", "in", self.ids),
+            field_names=["picking_id"],
+        )
+        action["domain"] = [("id", "in", move_lines.picking_id.ids)]
         return action
 
     def _apply_dest_to_package(self, processed_package_ids=None):
-        packages_todo = self
-        if processed_package_ids:
-            packages_todo = packages_todo.filtered(
-                lambda p: p.id not in processed_package_ids
-            )
-        else:
+        if processed_package_ids is None:
             processed_package_ids = set()
+        packages_todo = self.filtered(lambda p: p.id not in processed_package_ids)
         packs_by_container = packages_todo.grouped("package_dest_id")
         for container_package, packages in packs_by_container.items():
             if not container_package:
@@ -711,7 +683,6 @@ class StockPackage(models.Model):
             )
 
     def _get_weight(self, picking_id=False):
-        res = {}
         if picking_id:
             return {
                 package: weight
@@ -719,15 +690,16 @@ class StockPackage(models.Model):
                     [picking_id]
                 ).items()
             }
+        res = {}
         for package in self:
-            weight = package.package_type_id.base_weight or 0.0
-            weight += sum(
-                package.all_children_package_ids.mapped(
-                    lambda p: p.package_type_id.base_weight,
-                ),
+            weight = sum(
+                contained.package_type_id.base_weight
+                for contained in package | package.all_children_package_ids
             )
-            for quant in package.contained_quant_ids:
-                weight += quant.quantity * quant.product_id.weight
+            weight += sum(
+                quant.quantity * quant.product_id.weight
+                for quant in package.contained_quant_ids
+            )
             res[package] = weight
         return res
 
@@ -782,31 +754,40 @@ class StockPackage(models.Model):
 
         all_children_ids = set(self.ids)
         all_children_by_pack = defaultdict(list)
+        all_children_ids = set(self.ids)
         for package in self:
-            if package.child_package_dest_ids:
-                child_ids = list(fetch_next_children(package.child_package_dest_ids))
-                all_children_ids.update(child_ids)
-                all_children_by_pack[package] = child_ids
+            descendants = self._walk_dest_tree(
+                package.child_package_dest_ids, "child_package_dest_ids"
+            )
+            if descendants:
+                all_children_by_pack[package] = list(descendants)
+                all_children_ids.update(descendants)
 
         return all_children_by_pack, all_children_ids
 
-    def _get_all_package_dest_ids(self):
-        def fetch_next_parents(packages):
-            if packages.package_dest_id:
-                return set(packages.ids) | fetch_next_parents(packages.package_dest_id)
-            else:
-                return set(packages.ids)
+    @staticmethod
+    def _walk_dest_tree(start, link_field):
+        seen = set()
+        frontier = start
+        while frontier:
+            frontier = frontier.browse(set(frontier.ids) - seen)
+            seen.update(frontier.ids)
+            frontier = frontier[link_field]
+        return seen
 
-        return list(fetch_next_parents(self))
+    def _clear_orphaned_package_dests(self):
+        self.filtered(
+            lambda package: package.package_dest_id and not package.picking_ids
+        ).package_dest_id = False
+
+    def _get_all_package_dest_ids(self):
+        return list(self._walk_dest_tree(self, "package_dest_id"))
 
     def unpack(self):
         self.child_package_ids.parent_package_id = False
-        if self.quant_ids:
-            quants = self.quant_ids
-            self.quant_ids.move_quants(
-                message=_("Quantities unpacked"),
-                unpack=True,
-            )
+        quants = self.quant_ids
+        if quants:
+            quants.move_quants(message=_("Quantities unpacked"), unpack=True)
             quants._quant_tasks()
 
     def _pre_put_in_pack_hook(
@@ -823,7 +804,7 @@ class StockPackage(models.Model):
                 "stock.action_put_in_pack_wizard"
             )
             action["context"] = {
-                **literal_eval(action.get("context", "{}")),
+                **eval_action_context(action.get("context"), self.env),
                 "default_package_ids": self.ids,
                 "default_location_dest_id": self.location_dest_id[:1].id,
             }
@@ -842,31 +823,25 @@ class StockPackage(models.Model):
 
         if not move_lines:
             return True
+        precision_digits = self.env["decimal.precision"].precision_get("Product Unit")
 
-        grouped_quants = {}
-        for k, g in groupby(self.contained_quant_ids, key=_keys_groupby):
-            grouped_quants[k] = sum(
-                self.env["stock.quant"].concat(*g).mapped("quantity")
-            )
+        def by_product_and_lot(records, quantity_field):
+            return {
+                key: sum(group.mapped(quantity_field))
+                for key, group in records.grouped(
+                    lambda record: (record.product_id, record.lot_id)
+                ).items()
+            }
 
-        grouped_ops = {}
-        for k, g in groupby(move_lines, key=_keys_groupby):
-            grouped_ops[k] = sum(
-                self.env["stock.move.line"].concat(*g).mapped("quantity_product_uom"),
-            )
+        quantities = by_product_and_lot(self.contained_quant_ids, "quantity")
+        operations = by_product_and_lot(move_lines, "quantity_product_uom")
 
         return all(
             float_is_zero(
-                grouped_quants.get(key, 0) - grouped_ops.get(key, 0),
+                quantities.get(key, 0) - operations.get(key, 0),
                 precision_digits=precision_digits,
             )
-            for key in grouped_quants
-        ) and all(
-            float_is_zero(
-                grouped_ops.get(key, 0) - grouped_quants.get(key, 0),
-                precision_digits=precision_digits,
-            )
-            for key in grouped_ops
+            for key in quantities.keys() | operations.keys()
         )
 
     def _has_issues(self):

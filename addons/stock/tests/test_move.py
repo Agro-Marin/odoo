@@ -100,7 +100,7 @@ class TestStockMove(TestStockCommon):
 
         for move in moves:
             self.assertEqual(set(move.move_line_ids.lot_id.ids), {lot_a.id, lot_b.id})
-            self.assertAlmostEqual(move.quantity, move._quantity_sml())
+            self.assertAlmostEqual(move.quantity, move._get_move_line_quantity())
 
     def test_in_1(self):
         move1 = self.env["stock.move"].create(

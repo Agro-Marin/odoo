@@ -2,6 +2,7 @@ from . import const
 from . import controllers
 from . import models
 from . import report
+from . import tools
 from . import wizard
 
 

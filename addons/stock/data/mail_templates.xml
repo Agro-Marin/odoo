@@ -8,6 +8,18 @@
         </div>
     </template>
 
+    <template id="track_move_lines_template">
+        <div>
+            <t t-set="move" t-value="corrections[0]['move']" />
+            <t t-call="stock.message_head" />
+            <t t-foreach="corrections" t-as="correction">
+                <t t-set="move" t-value="correction['move']" />
+                <t t-set="vals" t-value="correction['vals']" />
+                <t t-call="stock.message_body" />
+            </t>
+        </div>
+    </template>
+
     <template id="exception_on_picking">
         <div> Exception(s) occurred on the picking <a href="#" data-oe-model="stock.picking"
                 t-att-data-oe-id="origin_picking.id">

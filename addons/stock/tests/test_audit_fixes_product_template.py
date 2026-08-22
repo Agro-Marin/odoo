@@ -233,9 +233,20 @@ class TestProductTemplateAuditFixes(TransactionCase):
         action = tmpl.action_view_quants()
         self.assertNotIn(v_arch.id, action["domain"][0][2])
 
-    def test_count_lot_ids_removed_from_template(self):
-        self.assertNotIn("count_lot_ids", self.Tmpl._fields)
+    def test_count_lot_ids_is_on_both_models_and_the_template_sums_its_variants(self):
+        self.assertIn("count_lot_ids", self.Tmpl._fields)
         self.assertIn("count_lot_ids", self.env["product.product"]._fields)
+        template = self.env["product.template"].create(
+            {"name": "Lot Count Tmpl", "is_storable": True, "tracking": "lot"},
+        )
+        self.env["stock.lot"].create(
+            [
+                {"name": "LCT-1", "product_id": template.product_variant_id.id},
+                {"name": "LCT-2", "product_id": template.product_variant_id.id},
+            ],
+        )
+        self.assertEqual(template.product_variant_id.count_lot_ids, 2)
+        self.assertEqual(template.count_lot_ids, 2)
 
     def test_action_view_routes_is_gone(self):
         self.assertFalse(hasattr(self.env["product.product"], "action_view_routes"))

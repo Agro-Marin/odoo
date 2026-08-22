@@ -641,7 +641,7 @@ class TestStockMoveReviewFixes(TestStockCommon):
         for fname in (
             "is_quantity_done_editable",
             "show_lot_actions",
-            "has_lines_without_result_package",
+            "has_partial_result_packages",
         ):
             self.assertIsInstance(
                 move[fname],

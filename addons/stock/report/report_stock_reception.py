@@ -101,27 +101,21 @@ class ReportStockReport_Reception(models.AbstractModel):
 
     def _search_candidate_outs(self, docs, doc_states, qty_to_assign, qty_draft):
         warehouse = docs[0].picking_type_id.warehouse_id
-        wh_location_ids = self.env["stock.location"]._search(
-            [
-                ("id", "child_of", warehouse.view_location_id.id),
-                ("usage", "!=", "supplier"),
-            ]
+        wh_location_ids = self.env["stock.location"]._get_allocation_source_ids(
+            warehouse.view_location_id.ids,
         )
-
-        allowed_states = ["confirmed", "partially_available", "waiting"]
-        if "done" in doc_states:
-            allowed_states.append("assigned")
-
         product_ids = [product.id for product in {*qty_to_assign, *qty_draft}]
-        return self.env["stock.move"].search(
+        Move = self.env["stock.move"]
+        return Move.search(
             [
-                ("state", "in", allowed_states),
-                ("product_qty", ">", 0),
-                ("location_id", "in", wh_location_ids),
+                *Move._get_allocatable_demand_domain(
+                    wh_location_ids,
+                    product_ids,
+                    include_assigned="done" in doc_states,
+                ),
                 ("move_orig_ids", "=", False),
-                ("product_id", "in", product_ids),
-            ]
-            + self._get_extra_domain(docs),
+                *self._get_extra_domain(docs),
+            ],
             order="date_reservation, priority desc, date, id",
         )
 

@@ -140,9 +140,7 @@ class StockPutawayRule(models.Model):
                 self.env["stock.warehouse"]._check_company_domain(self.env.company),
                 limit=1,
             )
-            input_loc, __ = wh._get_input_output_locations(
-                wh.reception_steps, wh.delivery_steps
-            )
+            input_loc, __ = wh._get_input_output_locations()
             return input_loc
         return None
 

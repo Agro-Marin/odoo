@@ -376,7 +376,7 @@ class TestAuditFixesProduct(TransactionCase):
                 f"inventory_date default must be the user-timezone today ({tz})",
             )
 
-    def test_search_qty_available_new_positive_only(self):
+    def test_search_qty_available_from_quants_positive_only(self):
         self.env["stock.quant"]._update_available_quantity(
             self.product,
             self.stock_location,

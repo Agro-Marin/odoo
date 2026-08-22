@@ -131,11 +131,13 @@ class StockPackageType(models.Model):
 
     def write(self, vals):
         seq_vals = {}
-        if vals.get("sequence_code"):
-            seq_vals["name"] = self.env._(
-                "Package Type Sequence %(code)s", code=vals["sequence_code"]
-            )
-            seq_vals["prefix"] = vals["sequence_code"]
+        if "sequence_code" in vals:
+            code = vals["sequence_code"]
+            seq_vals["prefix"] = code or False
+            if code:
+                seq_vals["name"] = self.env._(
+                    "Package Type Sequence %(code)s", code=code
+                )
         if "company_id" in vals:
             seq_vals["company_id"] = vals["company_id"]
         if seq_vals:
@@ -217,18 +219,18 @@ class StockPackageType(models.Model):
             package_type.has_quants = pack_type_quants.get(package_type, 0) > 0
 
     def _compute_length_uom_name(self):
-        for package_type in self:
-            package_type.length_uom_name = self.env[
-                "product.template"
-            ]._get_length_uom_name_from_ir_config_parameter()
+        self.length_uom_name = self.env[
+            "product.template"
+        ]._get_length_uom_name_from_ir_config_parameter()
 
     def _compute_weight_uom_name(self):
-        for package_type in self:
-            package_type.weight_uom_name = self.env[
-                "product.template"
-            ]._get_weight_uom_name_from_ir_config_parameter()
+        self.weight_uom_name = self.env[
+            "product.template"
+        ]._get_weight_uom_name_from_ir_config_parameter()
 
     def _get_next_name_by_sequence(self):
-        if len(self) == 1 and self.sequence_id:
+        if len(self) > 1:
+            raise ValueError(f"Expected at most one package type, got {self}")
+        if self.sequence_id:
             return self.sequence_id.next_by_id()
         return self.env["ir.sequence"].next_by_code("stock.package")

@@ -81,7 +81,7 @@ class TestOrderpointSchedulerContract(TransactionCase):
                 "_procure_orderpoint_confirm",
                 _probing_procure,
             ):
-                scheduler_env["stock.rule"]._run_scheduler_tasks(use_new_cursor=True)
+                scheduler_env["stock.scheduler"]._run_tasks(use_new_cursor=True)
 
         self.assertAlmostEqual(
             captured.get("flushed_qty"),
@@ -127,7 +127,7 @@ class TestOrderpointSchedulerContract(TransactionCase):
                     _record_procure,
                 ),
             ):
-                scheduler_env["stock.rule"]._run_scheduler_tasks(use_new_cursor=True)
+                scheduler_env["stock.scheduler"]._run_tasks(use_new_cursor=True)
 
         self.assertIn("lead_stats", calls)
         self.assertIn("procure", calls)

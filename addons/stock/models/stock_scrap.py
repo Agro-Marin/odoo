@@ -271,17 +271,59 @@ class StockScrap(models.Model):
                     ", ".join(already_done.mapped("name")),
                 )
             )
+        self._update_names()
+        moves = self.env["stock.move"]
         for scrap in self:
-            scrap.name = self.env["ir.sequence"].with_company(
-                scrap.company_id
-            ).next_by_code("stock.scrap") or _("New")
-            move = scrap._create_scrap_move()
-            move.with_context(is_scrap=True)._action_done()
-            scrap.write({"state": "done"})
-            scrap.date_done = fields.Datetime.now()
-            if scrap.should_replenish:
-                scrap.do_replenish()
+            moves |= scrap._create_scrap_move()
+        moves.with_context(is_scrap=True)._action_done()
+        self.write({"state": "done", "date_done": fields.Datetime.now()})
+        for scrap in self.filtered("should_replenish"):
+            scrap.do_replenish()
         return True
+
+    def _check_shortfall_is_not_an_unnamed_lot(self):
+        self.ensure_one()
+        if self.product_id.tracking == "none" or self.lot_id:
+            return
+        under_lots = self.env["stock.quant"].search(
+            [
+                ("product_id", "=", self.product_id.id),
+                ("location_id", "child_of", self.location_id.id),
+                ("lot_id", "!=", False),
+                ("quantity", ">", 0),
+            ],
+        )
+        if not under_lots:
+            return
+        raise UserError(
+            _(
+                "There is no untracked stock of %(product)s in %(location)s to "
+                "scrap, but %(quantity)s under lot/serial numbers: %(lots)s.\n"
+                "Pick the one you mean to scrap.",
+                product=self.product_id.display_name,
+                location=self.location_id.display_name,
+                quantity=sum(under_lots.mapped("quantity")),
+                lots=", ".join(sorted(under_lots.lot_id.mapped("name"))),
+            ),
+        )
+
+    def _update_names(self):
+        for scrap in self:
+            name = (
+                self.env["ir.sequence"]
+                .with_company(scrap.company_id)
+                .next_by_code("stock.scrap")
+            )
+            if not name:
+                raise UserError(
+                    _(
+                        "No scrap sequence is configured for %(company)s, so this "
+                        "scrap cannot be given a reference. Create an "
+                        "ir.sequence with code 'stock.scrap' for it.",
+                        company=scrap.company_id.display_name,
+                    ),
+                )
+            scrap.name = name
 
     def _create_scrap_move(self):
         self.ensure_one()
@@ -323,6 +365,7 @@ class StockScrap(models.Model):
         return self.product_id.is_storable
 
     def check_available_qty(self):
+        self.ensure_one()
         if not self._should_check_available_qty():
             return True
 
@@ -346,6 +389,7 @@ class StockScrap(models.Model):
         if self.check_available_qty():
             return self.do_scrap()
         else:
+            self._check_shortfall_is_not_an_unnamed_lot()
             ctx = dict(self.env.context)
             ctx.update(
                 {

@@ -2,42 +2,24 @@ from datetime import UTC, timedelta
 
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.tools import SQL
+from odoo.tools.translate import LazyTranslate
+
+_lt = LazyTranslate(__name__)
 
 
 class MixinDateCategory(models.AbstractModel):
     _name = "mixin.date.category"
     _description = "Relative Day Category"
 
-    _date_category_field = None
-
-    date_category = fields.Selection(
-        selection=[
-            ("before", "Before"),
-            ("yesterday", "Yesterday"),
-            ("today", "Today"),
-            ("day_1", "Tomorrow"),
-            ("day_2", "The day after tomorrow"),
-            ("after", "After"),
-        ],
-        string="Date Category",
-        store=False,
-        readonly=True,
-        search="_search_date_category",
+    DATE_CATEGORIES = (
+        ("before", "yesterday", _lt("Before"), "past"),
+        ("yesterday", "today", _lt("Yesterday"), "past"),
+        ("today", "day_1", _lt("Today"), "present"),
+        ("day_1", "day_2", _lt("Tomorrow"), "future"),
+        ("day_2", "day_3", _lt("The day after tomorrow"), "future"),
+        ("after", None, _lt("After"), "future"),
     )
-
-    def _search_date_category(self, operator, value):
-        if operator != "in":
-            return NotImplemented
-        if not self._date_category_field:
-            raise NotImplementedError(
-                f"{self._name} inherits date.category.mixin without setting "
-                f"_date_category_field, so there is no column to bucket."
-            )
-        return Domain.OR(
-            domain
-            for item in value
-            if (domain := self.date_category_to_domain(self._date_category_field, item))
-        )
 
     @api.model
     def _date_category_boundaries(self):
@@ -54,6 +36,20 @@ class MixinDateCategory(models.AbstractModel):
         }
 
     @api.model
+    def _date_category_selection(self):
+        return [
+            (key, self.env._(label))  # pylint: disable=gettext-variable
+            for key, _upper, label, _kind in self.DATE_CATEGORIES
+        ]
+
+    @api.model
+    def _naive_date_category_boundaries(self):
+        return {
+            key: value.astimezone(UTC).replace(tzinfo=None)
+            for key, value in self._date_category_boundaries().items()
+        }
+
+    @api.model
     def calculate_date_category(self, value):
         if not value:
             return ""
@@ -62,42 +58,59 @@ class MixinDateCategory(models.AbstractModel):
         else:
             value = value.astimezone(UTC)
         bound = self._date_category_boundaries()
-        if value < bound["yesterday"]:
-            return "before"
-        if value < bound["today"]:
-            return "yesterday"
-        if value < bound["day_1"]:
-            return "today"
-        if value < bound["day_2"]:
-            return "day_1"
-        if value < bound["day_3"]:
-            return "day_2"
-        return "after"
+        for key, upper, _label, _kind in self.DATE_CATEGORIES:
+            if upper is None or value < bound[upper]:
+                return key
+        return ""
 
     @api.model
     def date_category_to_domain(self, field_name, date_category):
-        bound = {
-            key: value.astimezone(UTC).replace(tzinfo=None)
-            for key, value in self._date_category_boundaries().items()
-        }
-        date_category_to_search_domain = {
-            "before": [(field_name, "<", bound["yesterday"])],
-            "yesterday": [
-                (field_name, ">=", bound["yesterday"]),
-                (field_name, "<", bound["today"]),
-            ],
-            "today": [
-                (field_name, ">=", bound["today"]),
-                (field_name, "<", bound["day_1"]),
-            ],
-            "day_1": [
-                (field_name, ">=", bound["day_1"]),
-                (field_name, "<", bound["day_2"]),
-            ],
-            "day_2": [
-                (field_name, ">=", bound["day_2"]),
-                (field_name, "<", bound["day_3"]),
-            ],
-            "after": [(field_name, ">=", bound["day_3"])],
-        }
-        return date_category_to_search_domain.get(date_category)
+        bound = self._naive_date_category_boundaries()
+        lower = None
+        for key, upper, _label, _kind in self.DATE_CATEGORIES:
+            if key == date_category:
+                conditions = []
+                if lower is not None:
+                    conditions.append((field_name, ">=", bound[lower]))
+                if upper is not None:
+                    conditions.append((field_name, "<", bound[upper]))
+                return conditions
+            lower = upper
+        return None
+
+    @api.model
+    def _date_category_sql(self, date_sql):
+        bound = self._naive_date_category_boundaries()
+        arms = [
+            SQL(
+                "WHEN %(date_value)s < %(limit)s THEN %(category)s",
+                date_value=date_sql,
+                limit=bound[upper],
+                category=key,
+            )
+            for key, upper, _label, _kind in self.DATE_CATEGORIES
+            if upper is not None
+        ]
+        final = self.DATE_CATEGORIES[-1][0]
+        return SQL("CASE %s ELSE %s END", SQL(" ").join(arms), final)
+
+    def _get_date_category_counts(self, model_name, date_field, group_field, domain):
+        model = self.env[model_name]
+        model.browse().check_access("read")
+        query = model._search(
+            Domain(domain)
+            & Domain(group_field, "in", self.ids)
+            & Domain(date_field, "!=", False),
+        )
+        counts_by_record = {record_id: {} for record_id in self.ids}
+        if query.is_empty():
+            return counts_by_record
+        group_sql = model._field_to_sql(model._table, group_field, query)
+        date_sql = model._field_to_sql(model._table, date_field, query)
+        query.groupby = SQL("1, 2")
+        rows = self.env.execute_query(
+            query.select(group_sql, self._date_category_sql(date_sql), SQL("COUNT(*)"))
+        )
+        for record_id, date_category, count in rows:
+            counts_by_record[record_id][date_category] = count
+        return counts_by_record

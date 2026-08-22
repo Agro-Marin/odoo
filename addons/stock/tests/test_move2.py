@@ -453,7 +453,7 @@ class TestPickShip(TestStockCommon):
         picking_ship.action_cancel()
         picking_ship.move_ids.procure_method = "make_to_order"
 
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
         next_activity = self.env["mail.activity"].search(
             [
                 ("res_model", "=", "product.template"),
@@ -3079,14 +3079,14 @@ class TestSinglePicking(TestStockCommon):
         self.env["stock.quant"]._update_available_quantity(
             product, self.stock_location, 5
         )
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
         self.assertRecordValues(
             picking.move_line_ids, [{"state": "partially_available", "quantity": 5.0}]
         )
         self.env["stock.quant"]._update_available_quantity(
             product, self.stock_location, 10
         )
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
         self.assertRecordValues(
             picking.move_line_ids, [{"state": "assigned", "quantity": 10.0}]
         )
@@ -3262,7 +3262,7 @@ class TestSinglePicking(TestStockCommon):
         move._action_confirm()
         move._action_assign()
         self.assertEqual(move.quantity, 5)
-        move.move_line_ids = move._set_quantity_done_prepare_vals(1)
+        move.move_line_ids = move._prepare_quantity_done_vals(1)
         self.assertRecordValues(
             move.move_line_ids,
             [
@@ -3299,7 +3299,7 @@ class TestSinglePicking(TestStockCommon):
         move._action_confirm()
         move._action_assign()
         self.assertEqual(move.quantity, 5)
-        move.move_line_ids = move._set_quantity_done_prepare_vals(1)
+        move.move_line_ids = move._prepare_quantity_done_vals(1)
         self.assertRecordValues(
             move.move_line_ids,
             [

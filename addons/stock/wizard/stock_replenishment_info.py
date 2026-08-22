@@ -105,7 +105,7 @@ class StockReplenishmentInfo(models.TransientModel):
         orderpoint = self.orderpoint_id
         orderpoints_values = orderpoint._get_lead_days_values()
         return orderpoint.rule_ids.with_context(
-            global_horizon_days=orderpoint.get_horizon_days(),
+            global_horizon_days=orderpoint._get_horizon_days(),
         )._get_lead_days(
             orderpoint.product_id,
             **orderpoints_values,

@@ -20,3 +20,17 @@ QUANTITY_FIELDS = (
 )
 
 TEMPLATE_QUANTITY_FIELDS = tuple(f for f in QUANTITY_FIELDS if f != "qty_free")
+
+INVENTORY_REFERENCE_CONFIRMED = "Product Quantity Confirmed"
+INVENTORY_REFERENCE_UPDATED = "Product Quantity Updated"
+INVENTORY_REFERENCE_RELOCATED = "Quantity Relocated"
+INVENTORY_REFERENCE_PACKAGE_RELOCATED = "Package manually relocated"
+INVENTORY_REFERENCE_REVERTED = "%s [reverted]"
+
+ADVANCED_STOCK_OPTION_GROUPS = (
+    "stock.group_stock_multi_locations",
+    "stock.group_tracking_owner",
+    "stock.group_tracking_lot",
+)
+
+TEMPLATE_STOCK_FLAGS = ("type", "is_storable", "tracking")

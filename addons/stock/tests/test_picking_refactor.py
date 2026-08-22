@@ -198,17 +198,19 @@ class TestPickingRefactor(TestStockCommon):
 
     def test_allocation_allowed_move_states_helper(self):
         self.assertEqual(
-            self.PickingObj._get_allocation_allowed_move_states(),
+            self.env["stock.move"]._get_allocation_allowed_states(),
             ["confirmed", "partially_available", "waiting"],
         )
         self.assertEqual(
-            self.PickingObj._get_allocation_allowed_move_states(include_assigned=True),
+            self.env["stock.move"]._get_allocation_allowed_states(
+                include_assigned=True
+            ),
             ["confirmed", "partially_available", "waiting", "assigned"],
         )
 
     def test_allocation_source_location_ids_excludes_suppliers(self):
         view_location = self.picking_type_in.warehouse_id.view_location_id
-        ids = self.PickingObj._get_allocation_source_location_ids(view_location.ids)
+        ids = self.env["stock.location"]._get_allocation_source_ids(view_location.ids)
         locations = self.env["stock.location"].browse(ids)
         self.assertIn(self.stock_location, locations)
         self.assertFalse(

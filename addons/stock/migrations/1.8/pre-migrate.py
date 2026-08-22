@@ -1,49 +1,21 @@
-OLD = "search_date_category"
-NEW = "date_category"
-MODEL = "stock.picking"
-
-
-def _rewrite(expr):
-    return rf"regexp_replace({expr}, '\y{OLD}\y', '{NEW}', 'g')"
-
-
-def _matches(expr):
-    return rf"{expr} ~ '\y{OLD}\y'"
+from odoo.db.schema import column_exists
 
 
 def migrate(cr, version):
-    if not version:
+    if not column_exists(cr, "stock_warehouse_orderpoint", "qty_to_order_manual_zero"):
         return
-
+    if not column_exists(cr, "stock_warehouse_orderpoint", "qty_to_order_manual_set"):
+        cr.execute(
+            """
+            ALTER TABLE stock_warehouse_orderpoint
+            RENAME COLUMN qty_to_order_manual_zero TO qty_to_order_manual_set
+            """,
+        )
     cr.execute(
-        f"""
-        UPDATE ir_ui_view
-           SET arch_db = {_rewrite("arch_db::text")}::jsonb
-         WHERE {_matches("arch_db::text")}
-           AND model = %s
+        """
+        UPDATE stock_warehouse_orderpoint
+           SET qty_to_order_manual_set = TRUE
+         WHERE COALESCE(qty_to_order_manual_set, FALSE) IS FALSE
+           AND COALESCE(qty_to_order_manual, 0) != 0
         """,
-        (MODEL,),
-    )
-    cr.execute(
-        f"""
-        UPDATE ir_filters
-           SET domain = {_rewrite("domain")},
-               context = {_rewrite("context")},
-               sort = {_rewrite("sort")}
-         WHERE ({_matches("domain")}
-                OR {_matches("context")}
-                OR {_matches("sort")})
-           AND model_id = %s
-        """,
-        (MODEL,),
-    )
-    cr.execute(
-        f"""
-        UPDATE ir_act_window
-           SET domain = {_rewrite("domain")},
-               context = {_rewrite("context")}
-         WHERE ({_matches("domain")} OR {_matches("context")})
-           AND res_model = %s
-        """,
-        (MODEL,),
     )

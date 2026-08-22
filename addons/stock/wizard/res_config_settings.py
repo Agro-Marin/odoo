@@ -166,43 +166,11 @@ class ResConfigSettings(models.TransientModel):
             return
 
         warehouse_obj = self.env["stock.warehouse"]
-        if self.group_stock_multi_locations and not previous_group.get(
-            "group_stock_multi_locations"
-        ):
-            warehouse_obj.with_context(active_test=True).search(
-                []
-            ).int_type_id.active = True
-            for view in (
-                self.env.ref(
-                    "stock.view_stock_location_list_2_editable",
-                    raise_if_not_found=False,
-                ),
-                self.env.ref(
-                    "stock.view_stock_location_form_editable", raise_if_not_found=False
-                ),
-            ):
-                if view:
-                    view.active = False
-        elif not self.group_stock_multi_locations and previous_group.get(
-            "group_stock_multi_locations"
-        ):
-            warehouse_obj.search(
-                [
-                    ("reception_steps", "=", "one_step"),
-                    ("delivery_steps", "=", "ship_only"),
-                ]
-            ).int_type_id.active = False
-            for view in (
-                self.env.ref(
-                    "stock.view_stock_location_list_2_editable",
-                    raise_if_not_found=False,
-                ),
-                self.env.ref(
-                    "stock.view_stock_location_form_editable", raise_if_not_found=False
-                ),
-            ):
-                if view:
-                    view.active = True
+        was_multi_location = previous_group.get("group_stock_multi_locations")
+        if bool(self.group_stock_multi_locations) != bool(was_multi_location):
+            warehouse_obj._update_multi_location_defaults(
+                bool(self.group_stock_multi_locations)
+            )
 
         if not self.group_stock_production_lot and previous_group.get(
             "group_stock_production_lot"

@@ -3240,7 +3240,7 @@ class TestStockFlow(TestStockCommon):
                 }
             )
 
-        self.env["stock.rule"].run_scheduler()
+        self.env["stock.scheduler"].run()
 
         out_moves = self.env["stock.move"].search(
             [
@@ -3667,7 +3667,7 @@ class TestStockFlowPostInstall(TestStockCommon):
             {
                 "name": "new_picking_type_1",
                 "code": "internal",
-                "sequence_code": "PT1/",
+                "sequence_code": "PT1",
                 "default_location_src_id": stock_location_1.id,
                 "default_location_dest_id": self.customer_location.id,
             }
@@ -3676,7 +3676,7 @@ class TestStockFlowPostInstall(TestStockCommon):
             {
                 "name": "new_picking_type_2",
                 "code": "internal",
-                "sequence_code": "PT2/",
+                "sequence_code": "PT2",
                 "default_location_src_id": stock_location_2.id,
                 "default_location_dest_id": self.customer_location.id,
             }
@@ -3704,17 +3704,17 @@ class TestStockFlowPostInstall(TestStockCommon):
         )
         picking.action_confirm()
         move = picking.move_ids[0]
-        self.assertEqual(picking.name, "PT1/00001")
+        self.assertEqual(picking.name, "WH/PT1/00001")
         self.assertEqual(move.location_id, stock_location_1)
         self.assertEqual(move.quantity, 50.0)
         picking.picking_type_id = picking_type_2
-        self.assertEqual(picking.name, "PT2/00001")
+        self.assertEqual(picking.name, "WH/PT2/00001")
         self.assertEqual(move.location_id, stock_location_2)
         self.assertEqual(move.quantity, 10.0)
         picking.picking_type_id = picking_type_1
-        self.assertEqual(picking.name, "PT1/00002")
+        self.assertEqual(picking.name, "WH/PT1/00002")
         picking.picking_type_id = picking_type_1
-        self.assertEqual(picking.name, "PT1/00002")
+        self.assertEqual(picking.name, "WH/PT1/00002")
 
     def test_name_create_location(self):
         parent_location = self.env["stock.location"].create({"name": "ParentLocation"})

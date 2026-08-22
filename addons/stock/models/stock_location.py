@@ -1,4 +1,5 @@
 import calendar
+import logging
 from collections import defaultdict
 from datetime import timedelta
 
@@ -7,6 +8,10 @@ from odoo.api import MODULE_UNINSTALL_FLAG
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.numbers import float_compare
+
+from odoo.addons.stock.tools.quantity import resolve_context_record_ids
+
+_logger = logging.getLogger(__name__)
 
 MAX_CYCLIC_INVENTORY_DAYS = 36500
 
@@ -421,6 +426,20 @@ class StockLocation(models.Model):
         return Domain("quantity", "!=", 0) | Domain("reserved_quantity", "!=", 0)
 
     @api.model
+    def _get_allocation_source_ids(self, view_location_ids):
+        """The locations under `view_location_ids` reception allocation may draw from.
+
+        Supplier locations are excluded: stock that has not arrived yet is not
+        stock this warehouse can promise to anything.
+        """
+        return self.search(
+            [
+                ("id", "child_of", view_location_ids),
+                ("usage", "!=", "supplier"),
+            ],
+        ).ids
+
+    @api.model
     def _get_occupied_location_ids(self, locations=None):
         domain = self._get_occupancy_domain() & Domain(
             "location_id.usage", "in", STOCKED_USAGES
@@ -567,6 +586,32 @@ class StockLocation(models.Model):
             )
 
         return putaway_location
+
+    def _get_putaway_strategy_batch(
+        self, product, quantities, package=None, packaging=None, additional_qty=None
+    ):
+        """Place a run of quantities, each one consuming the capacity it takes.
+
+        `_get_putaway_strategy` answers for a single quantity against a single
+        snapshot of occupancy.  Callers placing several lines at once must feed
+        each answer back in through `additional_qty`, or every line is placed as
+        if it were the first and a capped location is filled past its capacity.
+        Doing that by hand was duplicated, and one of the two copies did not.
+        """
+        self.ensure_one()
+        qty_by_location = defaultdict(float, additional_qty or {})
+        locations = []
+        for quantity in quantities:
+            location = self._get_putaway_strategy(
+                product,
+                quantity,
+                package=package,
+                packaging=packaging,
+                additional_qty=qty_by_location,
+            )
+            qty_by_location[location.id] += quantity
+            locations.append(location)
+        return locations
 
     def _get_putaway_qty_by_location(
         self, product, package, package_type, locations, additional_qty=None
@@ -904,3 +949,150 @@ class StockLocation(models.Model):
     def should_bypass_reservation(self):
         self.ensure_one()
         return self.usage in ("supplier", "customer", "inventory", "production")
+
+    def _quantity_domains_from_context(self) -> tuple[Domain, Domain, Domain]:
+        """The quant / incoming / outgoing domains the context's scope implies.
+
+        Falls back to every warehouse of `env.companies` when the context names no
+        scope of its own.
+        """
+        location_ids = self._scope_ids_from_context()
+        fell_back = location_ids is None
+        if fell_back:
+            location_ids = set(
+                self.env["stock.warehouse"]
+                .search([("company_id", "in", self.env.companies.ids)])
+                .mapped("view_location_id")
+                .ids
+            )
+        if _logger.isEnabledFor(logging.DEBUG):
+            # "Why is qty_available zero here?" is nearly always this line: a
+            # context key that resolved to nothing, or a fallback that reached
+            # warehouses the reader did not expect. Nothing downstream reports
+            # which of the six keys shaped the answer.
+            context = self.env.context
+            _logger.debug(
+                "quantity scope: locations=%s%s from %s, companies=%s",
+                sorted(location_ids) or "NONE (every domain is FALSE)",
+                " (fallback: no scope in the context)" if fell_back else "",
+                {
+                    key: context[key]
+                    for key in (
+                        "location",
+                        "search_location",
+                        "warehouse_id",
+                        "search_warehouse",
+                        "strict",
+                        "skip_in_progress",
+                    )
+                    if key in context
+                }
+                or "no scope keys",
+                self.env.companies.ids,
+            )
+        return self._quantity_domains(location_ids)
+
+    def _scope_ids_from_context(self) -> set[int] | None:
+        """Location ids the context scopes quantities to, or None for unscoped."""
+        Location = self.env["stock.location"]
+        Warehouse = self.env["stock.warehouse"]
+
+        def _search_ids(model, values):
+            return resolve_context_record_ids(self.env, model, values)
+
+        location = self.env.context.get("location") or self.env.context.get(
+            "search_location"
+        )
+        if location and not isinstance(location, list):
+            location = [location]
+        warehouse = self.env.context.get("warehouse_id") or self.env.context.get(
+            "search_warehouse"
+        )
+        if warehouse and not isinstance(warehouse, list):
+            warehouse = [warehouse]
+        if warehouse:
+            w_ids = set(
+                Warehouse.browse(_search_ids("stock.warehouse", warehouse))
+                .mapped("view_location_id")
+                .ids
+            )
+            if not location:
+                return w_ids
+            l_ids = _search_ids("stock.location", location)
+            parents = Location.browse(w_ids).mapped("parent_path")
+            return {
+                loc.id
+                for loc in Location.browse(l_ids)
+                if any(loc.parent_path.startswith(parent) for parent in parents)
+            }
+        if location:
+            return _search_ids("stock.location", location)
+        return None
+
+    def _quantity_domains(self, location_ids) -> tuple[Domain, Domain, Domain]:
+        """(quant, incoming move, outgoing move) domains for a set of locations.
+
+        Lived on `product.product` while reading no product field -- nine call
+        sites reached it as `env["product.product"]._get_domain_locations()`,
+        using the product model as a namespace for location logic. The `_new`
+        suffix went with the move; it named nothing.
+        """
+        if not location_ids:
+            return (Domain.FALSE,) * 3
+        locations = self.env["stock.location"].browse(location_ids)
+        if self.env.context.get("strict"):
+            loc_domain = Domain("location_id", "in", locations.ids)
+            dest_loc_domain = Domain("location_dest_id", "in", locations.ids)
+            dest_loc_domain_out = Domain("location_dest_id", "not in", locations.ids)
+            return (
+                loc_domain,
+                dest_loc_domain & ~loc_domain,
+                loc_domain & dest_loc_domain_out,
+            )
+
+        loc_domain = Domain("location_id", "child_of", locations.ids)
+        dest_loc_domain_done = Domain("location_dest_id", "child_of", locations.ids)
+        if self.env.context.get("skip_in_progress"):
+            return (
+                loc_domain,
+                dest_loc_domain_done & ~loc_domain,
+                loc_domain & ~dest_loc_domain_done,
+            )
+        dest_loc_domain_in_progress = Domain(
+            [
+                "|",
+                "&",
+                ("location_final_id", "!=", False),
+                ("location_final_id", "child_of", locations.ids),
+                "&",
+                ("location_final_id", "=", False),
+                ("location_dest_id", "child_of", locations.ids),
+            ],
+        )
+        dest_loc_domain = Domain(
+            [
+                "|",
+                "&",
+                ("state", "=", "done"),
+                dest_loc_domain_done,
+                "&",
+                ("state", "!=", "done"),
+                dest_loc_domain_in_progress,
+            ],
+        )
+        dest_loc_domain_out = Domain(
+            [
+                "|",
+                "&",
+                ("state", "=", "done"),
+                ~dest_loc_domain_done,
+                "&",
+                ("state", "!=", "done"),
+                ~dest_loc_domain_in_progress,
+            ],
+        )
+        return (
+            loc_domain,
+            dest_loc_domain & ~loc_domain,
+            loc_domain & dest_loc_domain_out,
+        )

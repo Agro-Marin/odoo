@@ -5,9 +5,7 @@ from odoo.tests import TransactionCase, new_test_user
 
 class TestGenerateLotNames(TransactionCase):
     def _names(self, base, count):
-        return [
-            d["lot_name"] for d in self.env["stock.lot"].generate_lot_names(base, count)
-        ]
+        return self.env["stock.lot"].generate_lot_names(base, count)
 
     def test_basic_increment(self):
         self.assertEqual(self._names("sn1", 3), ["sn1", "sn2", "sn3"])

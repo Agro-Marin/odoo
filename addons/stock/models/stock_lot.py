@@ -7,6 +7,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 
 from odoo.addons.stock.const import PY_OPERATORS
+from odoo.addons.stock.tools.quantity import filter_quantity_in_python
 
 
 class StockLot(models.Model):
@@ -104,8 +105,9 @@ class StockLot(models.Model):
         "The combination of lot/serial number and product must be unique within a company.",
     )
 
-    @api.constrains("name", "product_id", "company_id")
+    @api.constrains("name", "product_id", "company_id", "active")
     def _check_unique_lot(self):
+        own_pairs = {(lot.product_id.id, lot.name) for lot in self}
         domain = [
             ("product_id", "in", self.product_id.ids),
             ("name", "in", self.mapped("name")),
@@ -113,17 +115,18 @@ class StockLot(models.Model):
         groupby = ["company_id", "product_id", "name"]
         if any(not lot.company_id for lot in self):
             self = self.sudo()
-        records = self.with_context(skip_preprocess_gs1=True)._read_group(
-            domain,
-            groupby,
-            ["__count"],
-        )
+        records = self.with_context(
+            skip_preprocess_gs1=True,
+            active_test=False,
+        )._read_group(domain, groupby, ["__count"])
         cross_lots = {}
         for company, product, name, count in records:
             if not company:
                 cross_lots[(product, name)] = count
         duplicate_pairs = set()
         for company, product, name, count in records:
+            if (product.id, name) not in own_pairs:
+                continue
             duplicates = count
             if company:
                 duplicates += cross_lots.get((product, name), 0)
@@ -165,7 +168,7 @@ class StockLot(models.Model):
                 domain.append(("id", "not in", list(exclude_ids)))
             groups = (
                 self.sudo()
-                .with_context(skip_preprocess_gs1=True)
+                .with_context(skip_preprocess_gs1=True, active_test=False)
                 ._read_group(domain, ["product_id", "name", "company_id"], ["__count"])
             )
             existing = {
@@ -187,12 +190,15 @@ class StockLot(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        lot_product_ids = {val.get("product_id") for val in vals_list} | {
-            self.env.context.get("default_product_id")
+        lot_product_ids = {
+            product_id
+            for product_id in (
+                *(vals.get("product_id") for vals in vals_list),
+                self.env.context.get("default_product_id"),
+            )
+            if product_id
         }
-        lot_product_ids.discard(None)
-        lot_product_ids.discard(False)
-        self.with_context(lot_product_ids=lot_product_ids)._check_create()
+        self._check_lots_allowed(lot_product_ids)
         self._check_duplicate_lot_keys(
             (
                 vals.get("product_id"),
@@ -206,7 +212,13 @@ class StockLot(models.Model):
         )
 
     def write(self, vals):
-        if any(field in vals for field in ("name", "product_id", "company_id")):
+        identity_changed = any(
+            field in vals for field in ("name", "product_id", "company_id")
+        )
+        if identity_changed:
+            self._check_lots_allowed(
+                {vals.get("product_id"), *self.product_id.ids} - {None, False}
+            )
             self._check_duplicate_lot_keys(
                 [
                     (
@@ -232,8 +244,9 @@ class StockLot(models.Model):
         if "product_id" in vals and any(
             vals["product_id"] != lot.product_id.id for lot in self
         ):
-            move_lines = self.env["stock.move.line"].search(
-                [("lot_id", "in", self.ids), ("product_id", "!=", vals["product_id"])]
+            move_lines = self.env["stock.move.line"].search_count(
+                [("lot_id", "in", self.ids), ("product_id", "!=", vals["product_id"])],
+                limit=1,
             )
             if move_lines:
                 raise UserError(
@@ -246,11 +259,15 @@ class StockLot(models.Model):
         return super().write(vals)
 
     def copy_data(self, default=None):
-        default = dict(default or {})
+        default = default or {}
         vals_list = super().copy_data(default=default)
         if "name" not in default:
             for lot, vals in zip(self, vals_list, strict=True):
-                vals["name"] = _("(copy of) %s", lot.name)
+                vals["name"] = self._find_free_lot_name(
+                    lot.company_id,
+                    lot.product_id,
+                    _("(copy of) %s", lot.name),
+                )
         return vals_list
 
     @api.model
@@ -260,14 +277,13 @@ class StockLot(models.Model):
         return super(StockLot, self.with_context(context)).default_get(fields)
 
     def _compute_delivery_ids(self):
-        delivery_ids_by_lot = self._get_delivery_ids_by_lot()
+        delivery_ids_by_lot = self._find_delivery_ids_by_lot()
         for lot in self:
             lot.delivery_ids = delivery_ids_by_lot.get(lot.id, [])
 
     def _compute_partner_ids(self):
         for lot in self:
-            pickings = lot.delivery_ids.sorted(key="date_done", reverse=True)
-            lot.partner_ids = self._get_partners_from_deliveries(pickings)
+            lot.partner_ids = self._get_partners_from_deliveries(lot.delivery_ids)
 
     @api.depends("product_id")
     def _compute_name(self):
@@ -277,11 +293,26 @@ class StockLot(models.Model):
             if lot.product_id.lot_name_format:
                 lot.name = lot._prepare_name()
                 continue
-            lot.name = (
-                lot.product_id.lot_sequence_id.next_by_id()
-                if lot.product_id.lot_sequence_id
-                else self.env["ir.sequence"].next_by_code("stock.lot.serial")
+            lot.name = self._get_next_sequence_value(lot.product_id)
+
+    @api.model
+    def _get_next_sequence_value(self, product) -> str:
+        sequence = product.lot_sequence_id
+        value = (
+            sequence.next_by_id()
+            if sequence
+            else self.env["ir.sequence"].next_by_code("stock.lot.serial")
+        )
+        if not value:
+            raise UserError(
+                _(
+                    "No sequence can name a lot for %(product)s. Set a "
+                    "Serial/Lot Numbers Sequence on the product, or restore the "
+                    "default one.",
+                    product=product.display_name,
+                ),
             )
+        return value
 
     @api.model
     def _get_lot_name_placeholders(self) -> dict[str, str]:
@@ -293,18 +324,25 @@ class StockLot(models.Model):
     def _get_lot_name_values(self) -> dict:
         self.ensure_one()
         now = fields.Datetime.context_timestamp(self, fields.Datetime.now())
-        formats = self.env["ir.sequence"]._get_interpolation_formats()
-        values = {name: now.strftime(fmt) for name, fmt in formats.items()}
-        values["ref"] = self.ref or (
-            self.product_id.lot_sequence_id.next_by_id()
-            if self.product_id.lot_sequence_id
-            else self.env["ir.sequence"].next_by_code("stock.lot.serial")
-        )
+        values = self.env["ir.sequence"]._get_interpolation_mapping(now)
+        values["ref"] = self.ref or self._get_next_sequence_value(self.product_id)
         return values
 
     def _prepare_name(self) -> str:
         self.ensure_one()
-        return self.product_id.lot_name_format % self._get_lot_name_values()
+        lot_format = self.product_id.lot_name_format
+        try:
+            return lot_format % self._get_lot_name_values()
+        except (ValueError, TypeError, KeyError) as error:
+            raise UserError(
+                _(
+                    "The Lot/Serial Name Format on %(product)s cannot be used: "
+                    "%(error)s.\nExpected placeholders are %(placeholders)s.",
+                    product=self.product_id.display_name,
+                    error=error,
+                    placeholders=", ".join(sorted(self._get_lot_name_placeholders())),
+                ),
+            ) from None
 
     def _parse_name(self, name=None):
         self.ensure_one()
@@ -312,32 +350,37 @@ class StockLot(models.Model):
         name = self.name if name is None else name
         if not lot_format or not name:
             return None
-        regex = self.env["ir.sequence"]._pattern_to_regex(
-            lot_format, self._get_lot_name_placeholders()
-        )
+        try:
+            regex = self.env["ir.sequence"]._pattern_to_regex(
+                lot_format, self._get_lot_name_placeholders()
+            )
+        except ValueError:
+            return None
         match = re.match(regex, name)
         return match.groupdict() if match else None
 
     @api.depends("product_id.company_id")
     def _compute_company_id(self):
         for lot in self:
+            owner = lot.product_id.company_id
             if (
-                self.env.company in lot.product_id.company_id.all_child_ids
-                and lot.product_id.company_id not in self.env.companies
+                owner
+                and owner in self.env.company.parent_ids
+                and owner not in self.env.companies
             ):
                 lot.company_id = self.env.company
             else:
-                lot.company_id = lot.product_id.company_id
+                lot.company_id = owner
 
-    @api.depends("name")
+    @api.depends_context("display_complete")
     def _compute_display_complete(self):
         for prod_lot in self:
-            prod_lot.display_complete = prod_lot.id or self.env.context.get(
-                "display_complete"
+            prod_lot.display_complete = bool(
+                prod_lot.id or self.env.context.get("display_complete")
             )
 
-    @api.depends("quant_ids", "quant_ids.quantity")
-    def _compute_location_id(self):
+    @api.depends("quant_ids", "quant_ids.quantity", "quant_ids.location_id")
+    def _compute_single_location(self):
         for lot in self:
             quants = lot.quant_ids.filtered(
                 lambda q: q.product_uom_id.compare(q.quantity, 0) > 0
@@ -355,6 +398,7 @@ class StockLot(models.Model):
         "search_location",
         "search_warehouse",
         "allowed_company_ids",
+        "strict",
     )
     @api.depends("quant_ids", "quant_ids.quantity")
     def _compute_product_qty(self):
@@ -365,26 +409,35 @@ class StockLot(models.Model):
     def _inverse_location_id(self):
         for lot in self:
             quants = lot.quant_ids.filtered(
-                lambda q: q.product_uom_id.compare(q.quantity, 0) > 0
+                lambda quant: quant.product_uom_id.compare(quant.quantity, 0) > 0
             )
-            if len(quants.location_id) == 1:
-                unpack = len(quants.package_id.quant_ids) > 1
-                quants.move_quants(
-                    location_dest_id=lot.location_id,
-                    message=_("Lot/Serial Number Relocated"),
-                    unpack=unpack,
-                )
-            elif len(quants.location_id) > 1:
+            if len(quants.location_id) > 1:
                 raise UserError(
                     _(
                         "You can only move a lot/serial to a new location if it exists in a single location."
                     ),
                 )
+            if not quants:
+                continue
+            message = _("Lot/Serial Number Relocated")
+            breaking = quants._filtered_breaking_a_package()
+            if breaking:
+                breaking.move_quants(
+                    location_dest_id=lot.location_id,
+                    message=message,
+                    unpack=True,
+                )
+            intact = quants - breaking
+            if intact:
+                intact.move_quants(
+                    location_dest_id=lot.location_id,
+                    message=message,
+                )
 
     def _search_product_qty(self, operator, value):
         op = PY_OPERATORS.get(operator)
         if not op:
-            return NotImplemented
+            return filter_quantity_in_python(self, "product_qty", operator, value)
         if isinstance(value, Iterable) and not isinstance(value, str):
             value = {float(v) for v in value}
         else:
@@ -418,7 +471,7 @@ class StockLot(models.Model):
                     Domain("move_partner_id", operator, value),
                 ]
             )
-        domain &= Domain(self._get_outgoing_domain())
+        domain &= self._get_outgoing_domain()
         move_lines = self.env["stock.move.line"].search(domain)
 
         if is_no_partner:
@@ -427,10 +480,10 @@ class StockLot(models.Model):
 
     def action_lot_open_quants(self):
         self.ensure_one()
-        self = self.with_context(search_default_lot_id=self.id, create=False)
+        quants = self.with_context(search_default_lot_id=self.id, create=False)
         if self.env.user.has_group("stock.group_stock_manager"):
-            self = self.with_context(inventory_mode=True)
-        return self.env["stock.quant"].action_view_quants()
+            quants = quants.with_context(inventory_mode=True)
+        return quants.env["stock.quant"].action_view_quants()
 
     def action_lot_open_transfers(self):
         self.ensure_one()
@@ -452,10 +505,11 @@ class StockLot(models.Model):
         partner_locations = locations.search(
             [("usage", "in", ("customer", "supplier"))]
         )
-        return partner_locations + locations.warehouse_id.search([]).lot_stock_id
+        warehouses = self.env["stock.warehouse"].search([])
+        return partner_locations + warehouses.lot_stock_id
 
     @api.model
-    def generate_lot_names(self, first_lot, count):
+    def generate_lot_names(self, first_lot, count) -> list[str]:
         caught_initial_number = re.findall(r"\d+", first_lot)
         if not caught_initial_number:
             return self.generate_lot_names(first_lot + "0", count)
@@ -467,38 +521,60 @@ class StockLot(models.Model):
         initial_number = int(initial_number)
 
         return [
-            {
-                "lot_name": "%s%s%s"
-                % (prefix, str(initial_number + i).zfill(padding), suffix),
-            }
+            f"{prefix}{str(initial_number + i).zfill(padding)}{suffix}"
             for i in range(count)
         ]
 
     @api.model
-    def _get_next_serial(self, company, product):
-        if product.tracking != "none":
-            last_serial = self.search(
-                [
-                    "|",
-                    ("company_id", "=", company.id),
-                    ("company_id", "=", False),
-                    ("product_id", "=", product.id),
-                ],
-                limit=1,
-                order="id DESC",
+    def _find_free_lot_name(self, company, product, first_name, batch=100) -> str:
+        Lot = self.with_context(active_test=False)
+        owned = Domain("product_id", "=", product.id) & (
+            Domain("company_id", "=", company.id) | Domain("company_id", "=", False)
+        )
+        candidates = [first_name]
+        while True:
+            taken = set(
+                Lot.search(owned & Domain("name", "in", candidates)).mapped("name")
             )
-            if last_serial:
-                return self.generate_lot_names(last_serial.name, 2)[1]["lot_name"]
-        return False
+            for candidate in candidates:
+                if candidate not in taken:
+                    return candidate
+            following = self.generate_lot_names(candidates[-1], batch + 1)
+            candidates = following[1:] if following[0] == candidates[-1] else following
+
+    @api.model
+    def _get_next_serial(self, company, product):
+        if product.tracking == "none":
+            return False
+        last_serial = self.with_context(active_test=False).search(
+            Domain("product_id", "=", product.id)
+            & (
+                Domain("company_id", "=", company.id) | Domain("company_id", "=", False)
+            ),
+            limit=1,
+            order="id DESC",
+        )
+        if not last_serial:
+            return False
+        return self._find_free_lot_name(company, product, last_serial.name)
+
+    @api.model
+    def _prepare_next_lot_vals(self, company, product) -> dict:
+        return {
+            "product_id": product.id,
+            "name": self._find_free_lot_name(
+                company, product, self._get_next_sequence_value(product)
+            ),
+        }
 
     def _get_partners_from_deliveries(self, pickings):
         return pickings.partner_id
 
     def _get_product_qty_by_lot(self, lot_domain):
         domain_quant_loc, domain_move_in_loc, domain_move_out_loc = (
-            self.env["product.product"]
+            self.env["stock.location"]
             .with_context(skip_in_progress=True)
-            ._get_domain_locations()
+            ._quantity_domains_from_context()
         )
         owner_id = self.env.context.get("owner_id")
         package_id = self.env.context.get("package_id")
@@ -549,28 +625,33 @@ class StockLot(models.Model):
         }
 
     @api.model
-    def _get_outgoing_domain(self):
-        return [
-            "|",
-            "|",
-            ("picking_code", "=", "outgoing"),
-            ("move_id.picking_code", "=", "outgoing"),
-            ("produce_line_ids", "!=", False),
-        ]
+    def _get_outgoing_domain(self) -> Domain:
+        return Domain(
+            [
+                "|",
+                "|",
+                ("picking_code", "=", "outgoing"),
+                ("move_id.picking_code", "=", "outgoing"),
+                ("produce_line_ids", "!=", False),
+            ]
+        )
 
-    def _get_delivery_ids_by_lot(self):
+    def _find_delivery_ids_by_lot(self):
         all_lot_ids = set(self.ids)
         barren_lines = defaultdict(set)
         parent_map = defaultdict(set)
 
         queue = list(self.ids)
         while queue:
-            domain = Domain(
-                [
-                    ("lot_id", "in", queue),
-                    ("state", "=", "done"),
-                ]
-            ) & Domain(self._get_outgoing_domain())
+            domain = (
+                Domain(
+                    [
+                        ("lot_id", "in", queue),
+                        ("state", "=", "done"),
+                    ]
+                )
+                & self._get_outgoing_domain()
+            )
 
             queue = []
             move_lines = self.env["stock.move.line"].search(domain)
@@ -590,12 +671,10 @@ class StockLot(models.Model):
 
         lots_to_propagate = set()
         delivery_by_lot = {lot_id: set() for lot_id in all_lot_ids}
-        for lot_id in barren_lines:
-            barren_line_ids = barren_lines[lot_id]
-            if barren_line_ids:
-                barren_move_lines = self.env["stock.move.line"].browse(barren_line_ids)
-                delivery_by_lot[lot_id].update(barren_move_lines.picking_id.ids)
-                lots_to_propagate.add(lot_id)
+        for lot_id, barren_line_ids in barren_lines.items():
+            barren_move_lines = self.env["stock.move.line"].browse(barren_line_ids)
+            delivery_by_lot[lot_id].update(barren_move_lines.picking_id.ids)
+            lots_to_propagate.add(lot_id)
 
         while lots_to_propagate:
             lot_id = lots_to_propagate.pop()
@@ -606,7 +685,7 @@ class StockLot(models.Model):
                     delivery_by_lot[parent_id].update(new_deliveries)
                     lots_to_propagate.add(parent_id)
 
-        return {lot_id: list(delivery_by_lot[lot_id]) for lot_id in delivery_by_lot}
+        return {lot_id: list(pickings) for lot_id, pickings in delivery_by_lot.items()}
 
     @api.model
     def _get_accessible_location_domain(self):
@@ -617,13 +696,12 @@ class StockLot(models.Model):
                 "location_id",
                 "any",
                 self.env["stock.location"]._check_company_domain(
-                    self.env.context.get("allowed_company_ids")
-                    or self.env.companies.ids
+                    self.env.companies.ids
                 ),
             ),
         ]
 
-    def _check_create(self):
+    def _check_lots_allowed(self, product_ids):
         active_picking_id = self.env.context.get("active_picking_id", False)
         if active_picking_id:
             picking_id = self.env["stock.picking"].browse(active_picking_id)

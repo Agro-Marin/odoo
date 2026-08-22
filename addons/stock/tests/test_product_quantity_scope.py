@@ -1,9 +1,17 @@
 import datetime
 
 from odoo import fields
-from odoo.exceptions import UserError
+from odoo.exceptions import RedirectWarning, UserError
 from odoo.fields import Domain
 from odoo.tests import TransactionCase, tagged
+
+from odoo.addons.stock.models.product_product import (
+    ProductProduct as StockProductProduct,
+)
+from odoo.addons.stock.tools.quantity import (
+    QuantityFilters,
+    resolve_context_record_ids,
+)
 
 
 @tagged("post_install", "-at_install")
@@ -63,21 +71,47 @@ class TestProductQuantityScope(TransactionCase):
                 product.invalidate_recordset()
                 self.assertEqual(product.qty_available, 7.0)
 
-    def test_strict_scope_already_skips_in_progress(self):
-        Product = self.env["product.product"]
-        location_ids = self.stock_location.ids
-        strict = Product.with_context(strict=True)._get_domain_locations_new(
-            location_ids
+    def test_no_model_still_carries_the_scope_under_its_old_name(self):
+        gone = (
+            "_get_domain_locations",
+            "_get_domain_locations_new",
+            "_scope_location_ids",
+            "_resolve_context_record_ids",
         )
-        strict_skipping = Product.with_context(
+        offenders = [
+            f"{model_name}.{name}"
+            for model_name, Model in self.env.registry.items()
+            for name in gone
+            if hasattr(Model, name)
+        ]
+        self.assertFalse(
+            offenders,
+            "the scope lives on stock.location as _quantity_domains / "
+            "_quantity_domains_from_context / _scope_ids_from_context, and "
+            "resolve_context_record_ids is a function in stock.tools.quantity; "
+            "these are stale and are never called: " + ", ".join(offenders),
+        )
+        Location = type(self.env["stock.location"])
+        for name in (
+            "_quantity_domains",
+            "_quantity_domains_from_context",
+            "_scope_ids_from_context",
+        ):
+            self.assertTrue(hasattr(Location, name), f"stock.location lost {name}")
+
+    def test_strict_scope_already_skips_in_progress(self):
+        Location = self.env["stock.location"]
+        location_ids = self.stock_location.ids
+        strict = Location.with_context(strict=True)._quantity_domains(location_ids)
+        strict_skipping = Location.with_context(
             strict=True, skip_in_progress=True
-        )._get_domain_locations_new(location_ids)
+        )._quantity_domains(location_ids)
         self.assertEqual(repr(strict), repr(strict_skipping))
         self.assertNotIn("location_final_id", repr(strict))
-        plain = Product._get_domain_locations_new(location_ids)
-        skipping = Product.with_context(
-            skip_in_progress=True
-        )._get_domain_locations_new(location_ids)
+        plain = Location._quantity_domains(location_ids)
+        skipping = Location.with_context(skip_in_progress=True)._quantity_domains(
+            location_ids
+        )
         self.assertIn("location_final_id", repr(plain))
         self.assertNotIn("location_final_id", repr(skipping))
 
@@ -248,12 +282,12 @@ class TestProductQuantityScope(TransactionCase):
                 self.assertTrue(result["context"]["search_default_filter_not_snoozed"])
 
     def test_prepare_quantities_scope_carries_the_dates_without_reading(self):
-        location_domains = self.env["product.product"]._get_domain_locations()
+        location_domains = self.env["stock.location"]._quantity_domains_from_context()
         self.env.flush_all()
         past = fields.Datetime.now() - datetime.timedelta(days=5)
         queries_before = self.env.cr.sql_log_count
         scope = self.product._prepare_quantities_scope(
-            None, None, None, to_date=past, location_domains=location_domains
+            QuantityFilters(to_date=past), location_domains=location_domains
         )
         self.assertEqual(
             self.env.cr.sql_log_count,
@@ -266,34 +300,46 @@ class TestProductQuantityScope(TransactionCase):
 
         future = fields.Datetime.now() + datetime.timedelta(days=5)
         scope = self.product._prepare_quantities_scope(
-            None, None, None, to_date=future, location_domains=location_domains
+            QuantityFilters(to_date=future), location_domains=location_domains
         )
         self.assertFalse(scope.dates_in_the_past)
         self.assertEqual(scope.move_in_done, Domain.FALSE)
         self.assertEqual(scope.move_out_done, Domain.FALSE)
 
-    def test_prepare_quantities_scope_honours_the_to_date_parameter_for_expiry(self):
-        context_date = "2020-01-01 00:00:00"
-        param_date = fields.Datetime.now() + datetime.timedelta(days=30)
-        scope = self.product.with_context(
+    def test_stocks_own_expiry_hook_narrows_on_nothing(self):
+        scoped = self.product.with_context(
             with_expiration=datetime.date.today(),
             fresh_qty_forecast=True,
-            to_date=context_date,
-        )._prepare_quantities_scope(None, None, None, to_date=param_date)
-        self.assertIsNotNone(scope.expired_quant)
-        rendered = repr(scope.expired_quant)
-        self.assertIn("removal_date", rendered)
-        self.assertNotIn("2020-01-01", rendered)
+        )
+        self.assertIsNone(
+            StockProductProduct._expired_quant_domain(scoped, Domain.TRUE, None),
+            "stock alone must not narrow on a column it does not define",
+        )
 
-    def test_normalize_to_date_widens_a_bare_date_to_the_whole_day(self):
+    def test_normalize_to_date_widens_a_bare_date_to_the_readers_whole_day(self):
         Product = self.env["product.product"]
         day = datetime.date(2020, 1, 15)
-        normalized, in_the_past = Product._normalize_quantities_to_date(day)
+
+        utc = Product.with_context(tz="UTC")
+        normalized, in_the_past = utc._normalize_quantities_to_date(day)
         self.assertTrue(in_the_past)
         self.assertEqual(normalized.date(), day)
         self.assertEqual((normalized.hour, normalized.minute), (23, 59))
-        normalized, _ = Product._normalize_quantities_to_date("2020-01-15")
-        self.assertEqual((normalized.hour, normalized.minute), (23, 59))
+
+        for tz, expected in (
+            ("America/Mexico_City", datetime.datetime(2020, 1, 16, 5, 59, 59)),
+            ("Pacific/Auckland", datetime.datetime(2020, 1, 15, 10, 59, 59)),
+        ):
+            with self.subTest(tz=tz):
+                scoped = Product.with_context(tz=tz)
+                for value in (day, "2020-01-15"):
+                    normalized, __ = scoped._normalize_quantities_to_date(value)
+                    self.assertEqual(
+                        normalized.replace(microsecond=0),
+                        expected,
+                        f"{value!r} must end the reader's day, not UTC's",
+                    )
+
         normalized, in_the_past = Product._normalize_quantities_to_date(False)
         self.assertFalse(normalized)
         self.assertFalse(in_the_past)
@@ -301,9 +347,9 @@ class TestProductQuantityScope(TransactionCase):
     def test_prepare_quantities_vals_accepts_preresolved_location_domains(self):
         self._stock_up(self.product, 6)
         Product = self.env["product.product"]
-        location_domains = Product._get_domain_locations()
+        location_domains = self.env["stock.location"]._quantity_domains_from_context()
         vals = self.product._prepare_quantities_vals(
-            None, None, None, location_domains=location_domains
+            QuantityFilters(), location_domains=location_domains
         )
         self.assertEqual(vals[self.product.id]["qty_available"], 6.0)
         candidates = Product._get_quantity_search_candidates(
@@ -314,19 +360,19 @@ class TestProductQuantityScope(TransactionCase):
     def test_quantity_search_resolves_location_domains_once_per_condition(self):
         self._stock_up(self.product, 6)
         Product = self.env["product.product"]
-        cls = type(Product)
+        cls = type(self.env["stock.location"])
         calls = []
-        original = cls._get_domain_locations
+        original = cls._quantity_domains_from_context
 
         def counting(records):
             calls.append(1)
             return original(records)
 
-        cls._get_domain_locations = counting
+        cls._quantity_domains_from_context = counting
         try:
             Product.search([("qty_free", ">", 0)])
         finally:
-            cls._get_domain_locations = original
+            cls._quantity_domains_from_context = original
         self.assertEqual(
             len(calls),
             1,
@@ -334,7 +380,9 @@ class TestProductQuantityScope(TransactionCase):
         )
 
     def test_resolve_context_record_ids_accepts_ids_and_names(self):
-        resolve = self.env["product.product"]._resolve_context_record_ids
+        def resolve(model, values):
+            return resolve_context_record_ids(self.env, model, values)
+
         self.assertEqual(
             resolve("stock.location", [self.stock_location.id]),
             {self.stock_location.id},
@@ -347,7 +395,9 @@ class TestProductQuantityScope(TransactionCase):
         self.assertEqual(resolve("stock.location", ["No Such Location"]), set())
 
     def test_resolve_context_record_ids_rejects_booleans(self):
-        resolve = self.env["product.product"]._resolve_context_record_ids
+        def resolve(model, values):
+            return resolve_context_record_ids(self.env, model, values)
+
         for value in (True, False):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 resolve("stock.location", [value])
@@ -355,13 +405,15 @@ class TestProductQuantityScope(TransactionCase):
     def test_narrow_quantity_domains_leaves_unfiltered_domains_alone(self):
         product = self.env["product.product"]
         base = (Domain.TRUE, Domain.TRUE, Domain.TRUE)
-        untouched = product._narrow_quantity_domains(*base, None, None, None)
+        untouched = product._narrow_quantity_domains(*base, QuantityFilters())
         self.assertEqual([repr(d) for d in untouched], [repr(d) for d in base])
-        quant, move_in, __ = product._narrow_quantity_domains(*base, False, None, None)
+        quant, move_in, __ = product._narrow_quantity_domains(
+            *base, QuantityFilters(lot_id=False)
+        )
         self.assertIn("lot_id", repr(quant))
         self.assertIn("move_line_ids.lot_id", repr(move_in))
 
-    def test_descendant_locations_query_covers_children(self):
+    def test_location_scope_covers_children(self):
         child = self.env["stock.location"].create(
             {"name": "Scope Child", "location_id": self.stock_location.id}
         )
@@ -380,6 +432,353 @@ class TestProductQuantityScope(TransactionCase):
             0.0,
         )
 
+    def _quantity_dependency_cases(self):
+        Quant = self.env["stock.quant"]
+        Move = self.env["stock.move"]
+        shelf = self.env["stock.location"].create(
+            {"name": "Dep Shelf", "location_id": self.stock_location.id},
+        )
+        customers = self.env.ref("stock.stock_location_customers")
+        suppliers = self.env.ref("stock.stock_location_suppliers")
+
+        def product(name, **kw):
+            return self.env["product.product"].create(
+                {"name": name, "is_storable": True, "type": "consu", **kw},
+            )
+
+        def quant(prod, qty, **kw):
+            return Quant.create(
+                {
+                    "product_id": prod.id,
+                    "location_id": self.stock_location.id,
+                    "quantity": qty,
+                    **kw,
+                },
+            )
+
+        cases = []
+
+        p_qty = product("Dep qty")
+        q_qty = quant(p_qty, 4.0)
+        cases.append(
+            (
+                "quant.quantity",
+                p_qty,
+                {},
+                "qty_available",
+                lambda: q_qty.write({"quantity": 9.0}),
+                9.0,
+            )
+        )
+
+        p_res = product("Dep reserved")
+        q_res = quant(p_res, 4.0)
+        cases.append(
+            (
+                "quant.reserved_quantity",
+                p_res,
+                {},
+                "qty_free",
+                lambda: q_res.write({"reserved_quantity": 1.0}),
+                3.0,
+            )
+        )
+
+        p_loc = product("Dep location")
+        q_loc = quant(p_loc, 4.0)
+        cases.append(
+            (
+                "quant.location_id, out of scope",
+                p_loc,
+                {},
+                "qty_available",
+                lambda: q_loc.write({"location_id": customers.id}),
+                0.0,
+            )
+        )
+
+        p_new = product("Dep new quant")
+        quant(p_new, 4.0)
+        cases.append(
+            (
+                "a second quant created",
+                p_new,
+                {},
+                "qty_available",
+                lambda: quant(p_new, 6.0, location_id=shelf.id),
+                10.0,
+            )
+        )
+
+        p_del = product("Dep unlink")
+        q_del = quant(p_del, 4.0)
+        quant(p_del, 6.0, location_id=shelf.id)
+        cases.append(
+            ("a quant unlinked", p_del, {}, "qty_available", q_del.unlink, 6.0)
+        )
+
+        p_lot = product("Dep lot", tracking="lot")
+        lot_a = self.env["stock.lot"].create(
+            {"name": "DEP-A", "product_id": p_lot.id},
+        )
+        lot_b = self.env["stock.lot"].create(
+            {"name": "DEP-B", "product_id": p_lot.id},
+        )
+        q_lot = quant(p_lot, 8.0, lot_id=lot_a.id)
+        cases.append(
+            (
+                "quant.lot_id under ctx lot_id",
+                p_lot,
+                {"lot_id": lot_a.id},
+                "qty_available",
+                lambda: q_lot.write({"lot_id": lot_b.id}),
+                0.0,
+            )
+        )
+
+        owner = self.env["res.partner"].create({"name": "Dep Owner"})
+        p_own = product("Dep owner")
+        q_own = quant(p_own, 3.0, owner_id=owner.id)
+        cases.append(
+            (
+                "quant.owner_id under ctx owner_id",
+                p_own,
+                {"owner_id": owner.id},
+                "qty_available",
+                lambda: q_own.write({"owner_id": False}),
+                0.0,
+            )
+        )
+
+        package = self.env["stock.package"].create({})
+        p_pkg = product("Dep package")
+        q_pkg = quant(p_pkg, 3.0, package_id=package.id)
+        cases.append(
+            (
+                "quant.package_id under ctx package_id",
+                p_pkg,
+                {"package_id": package.id},
+                "qty_available",
+                lambda: q_pkg.write({"package_id": False}),
+                0.0,
+            )
+        )
+
+        def move(prod, src, dest, qty=5.0, **kw):
+            rec = Move.create(
+                {
+                    "product_id": prod.id,
+                    "product_uom_qty": qty,
+                    "location_id": src.id,
+                    "location_dest_id": dest.id,
+                    **kw,
+                },
+            )
+            rec._action_confirm()
+            return rec
+
+        p_in = product("Dep incoming")
+        m_in = move(p_in, suppliers, shelf)
+        cases.append(
+            (
+                "move.location_dest_id, out of scope",
+                p_in,
+                {},
+                "qty_incoming",
+                lambda: m_in.write({"location_dest_id": customers.id}),
+                0.0,
+            )
+        )
+
+        p_fin = product("Dep final")
+        m_fin = move(p_fin, suppliers, shelf)
+        cases.append(
+            (
+                "move.location_final_id, out of scope",
+                p_fin,
+                {},
+                "qty_incoming",
+                lambda: m_fin.write({"location_final_id": customers.id}),
+                0.0,
+            )
+        )
+
+        p_out = product("Dep outgoing")
+        m_out = move(p_out, shelf, customers, qty=4.0)
+        cases.append(
+            (
+                "move.location_id, out of scope",
+                p_out,
+                {},
+                "qty_outgoing",
+                lambda: m_out.write({"location_id": customers.id}),
+                0.0,
+            )
+        )
+
+        p_date = product("Dep date")
+        soon = fields.Datetime.now() + datetime.timedelta(days=1)
+        far = fields.Datetime.now() + datetime.timedelta(days=40)
+        m_date = move(p_date, suppliers, shelf, qty=7.0)
+        m_date.date = soon
+        window = {"to_date": fields.Datetime.now() + datetime.timedelta(days=7)}
+        cases.append(
+            (
+                "move.date, pushed past to_date",
+                p_date,
+                window,
+                "qty_incoming",
+                lambda: m_date.write({"date": far}),
+                0.0,
+            )
+        )
+
+        self.env.flush_all()
+        return cases
+
+    def test_every_scope_field_invalidates_the_quantity_fields(self):
+        stale = []
+        for (
+            label,
+            product,
+            context,
+            field,
+            mutate,
+            expected,
+        ) in self._quantity_dependency_cases():
+            with self.subTest(dependency=label):
+                scoped = product.with_context(**context)
+                scoped[field]
+                mutate()
+                got = scoped[field]
+                if abs(got - expected) > 1e-6:
+                    stale.append(f"{label}: {field} read {got}, expected {expected}")
+                self.assertAlmostEqual(
+                    got,
+                    expected,
+                    msg=f"{label!r} did not invalidate {field}",
+                )
+        self.assertFalse(stale, "\n".join(stale))
+
+    def test_a_package_scope_narrows_the_flows_as_well_as_the_stock(self):
+        package = self.env["stock.package"].create({})
+        product = self.env["product.product"].create(
+            {"name": "Scope Package Product", "is_storable": True, "type": "consu"},
+        )
+        self.env["stock.quant"].create(
+            [
+                {
+                    "product_id": product.id,
+                    "location_id": self.stock_location.id,
+                    "quantity": 10.0,
+                    "package_id": package.id,
+                },
+                {
+                    "product_id": product.id,
+                    "location_id": self.stock_location.id,
+                    "quantity": 5.0,
+                },
+            ],
+        )
+        self.env["stock.move"].create(
+            {
+                "product_id": product.id,
+                "product_uom_qty": 3.0,
+                "location_id": self.env.ref("stock.stock_location_suppliers").id,
+                "location_dest_id": self.stock_location.id,
+            },
+        )._action_confirm()
+        self.env.flush_all()
+
+        unscoped = product.with_context(package_id=None)
+        self.assertEqual(unscoped.qty_available, 15.0)
+        self.assertEqual(unscoped.qty_incoming, 3.0)
+        self.assertEqual(unscoped.qty_available_virtual, 18.0)
+
+        scoped = product.with_context(package_id=package.id)
+        scoped.invalidate_recordset()
+        self.assertEqual(scoped.qty_available, 10.0)
+        self.assertEqual(
+            scoped.qty_incoming,
+            0.0,
+            "nothing is on its way into this package",
+        )
+        self.assertEqual(
+            scoped.qty_available_virtual,
+            10.0,
+            "the forecast must not add stock arriving outside the scope it reports",
+        )
+
+    def test_the_missing_warehouse_warning_names_the_company_that_lacks_one(self):
+        company_b = self.env["res.company"].create({"name": "Scope Co No WH"})
+        self.env["stock.warehouse"].search(
+            [("company_id", "=", company_b.id)],
+        ).unlink()
+        self.env.user.company_ids |= company_b
+        self.env.user.group_ids |= self.env.ref("stock.group_stock_manager")
+        product = self.env["product.product"].create(
+            {
+                "name": "Scope MC Product",
+                "is_storable": True,
+                "type": "consu",
+                "company_id": company_b.id,
+            },
+        )
+        scoped = product.with_context(
+            allowed_company_ids=[self.env.company.id, company_b.id],
+        )
+        self.assertEqual(
+            scoped.env.company,
+            self.env.company,
+            "the active company must stay the one that does have a warehouse",
+        )
+        with self.assertRaises(RedirectWarning) as caught:
+            scoped.qty_available = 5.0
+        message = str(caught.exception)
+        self.assertIn(company_b.display_name, message)
+        self.assertNotIn(self.env.company.display_name, message)
+
+    def test_a_false_lot_id_in_the_context_narrows_read_and_search_alike(self):
+        product = self.env["product.product"].create(
+            {
+                "name": "Scope Lot Product",
+                "is_storable": True,
+                "type": "consu",
+                "tracking": "lot",
+            },
+        )
+        lot = self.env["stock.lot"].create(
+            {"name": "SCOPE-L1", "product_id": product.id},
+        )
+        self.env["stock.quant"].with_context(inventory_mode=True).create(
+            {
+                "product_id": product.id,
+                "location_id": self.stock_location.id,
+                "lot_id": lot.id,
+                "inventory_quantity": 8,
+            }
+        )._apply_inventory()
+
+        Product = self.env["product.product"].with_context(lot_id=False)
+        self.assertEqual(
+            product.with_context(lot_id=False).qty_available,
+            0.0,
+            "the only stock is under a lot, so the unlotted scope holds nothing",
+        )
+        self.assertNotIn(
+            product.id,
+            Product.search([("id", "=", product.id), ("qty_available", ">", 0)]).ids,
+            "the search must agree with the read it is the search for",
+        )
+        self.assertIn(
+            product.id,
+            Product.search([("id", "=", product.id), ("qty_available", "<", 1)]).ids,
+        )
+        self.assertEqual(
+            product.with_context(lot_id=lot.id).qty_available,
+            8.0,
+            "and naming the lot must still find it",
+        )
 
     def test_inverse_qty_available_lands_in_the_scoped_warehouse(self):
         warehouse_b = self.env["stock.warehouse"].create(
@@ -523,19 +922,19 @@ class TestProductQuantityScope(TransactionCase):
 
     def test_template_quantity_search_resolves_location_domains_once(self):
         self._stock_up(self.product, 6)
-        cls = type(self.env["product.product"])
+        cls = type(self.env["stock.location"])
         calls = []
-        original = cls._get_domain_locations
+        original = cls._quantity_domains_from_context
 
         def counting(records):
             calls.append(1)
             return original(records)
 
-        cls._get_domain_locations = counting
+        cls._quantity_domains_from_context = counting
         try:
             self.env["product.template"].search([("qty_available_virtual", ">", 0)])
         finally:
-            cls._get_domain_locations = original
+            cls._quantity_domains_from_context = original
         self.assertEqual(
             len(calls),
             1,

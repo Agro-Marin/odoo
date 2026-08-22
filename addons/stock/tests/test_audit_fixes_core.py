@@ -514,8 +514,14 @@ class TestAuditFixesCore(TestStockCommon):
                 },
             ]
         )
-        with self.assertRaises(ValidationError):
-            mls._create_and_assign_production_lot()
+        with self.assertRaises(ValidationError) as caught:
+            mls._create_production_lots()
+        self.assertIn(
+            "AUD-SN-DUP",
+            str(caught.exception),
+            "the error must name the serial the user typed twice, not report a"
+            " lot/product collision reached through stock.lot's own constraint",
+        )
 
     def test_generate_lot_vals_count_bound(self):
         from odoo.addons.stock.models.stock_move import GENERATED_LOT_VALS_MAX

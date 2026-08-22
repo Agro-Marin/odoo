@@ -514,6 +514,7 @@ class TestLotSerial(TestStockCommon):
         product_a = self.env["product.product"].create(
             {
                 "name": "Test Product A",
+                "is_storable": True,
                 "tracking": "lot",
                 "serial_prefix_format": False,
             }

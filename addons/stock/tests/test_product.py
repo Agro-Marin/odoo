@@ -427,6 +427,7 @@ class TestVirtualAvailable(TestStockCommon):
         product = product_form.save()
         self.assertEqual(product.tracking, "none")
 
+        product.type = "consu"
         product.is_storable = True
         product.tracking = "serial"
         self.assertEqual(product.tracking, "serial")

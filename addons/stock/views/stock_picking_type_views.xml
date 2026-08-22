@@ -58,14 +58,14 @@
                                         <span t-else="">View</span>
                                     </h5>
                                     <div role="menuitem">
-                                        <a name="get_stock_picking_action_picking_type"
+                                        <a name="action_view_pickings"
                                             type="object">All</a>
                                     </div>
                                     <div role="menuitem">
-                                        <a name="get_action_picking_tree_ready" type="object">Ready</a>
+                                        <a name="action_view_pickings_ready" type="object">Ready</a>
                                     </div>
                                     <div role="menuitem">
-                                        <a name="get_action_picking_tree_waiting" type="object">
+                                        <a name="action_view_pickings_waiting" type="object">
                                             Waiting</a>
                                     </div>
                                 </div>
@@ -74,7 +74,7 @@
                                         <a name="%(action_picking_form)d" type="action">New</a>
                                     </h5>
                                     <div role="menuitem">
-                                        <a name="get_action_picking_type_moves_analysis"
+                                        <a name="action_view_moves_analysis"
                                             type="object">Reporting</a>
                                     </div>
                                 </div>
@@ -99,7 +99,7 @@
                         <div t-if="record.show_picking_type.raw_value" name="stock_picking"
                             class="px-2">
                             <a t-if="!selection_mode" type="object"
-                                name="get_stock_picking_action_picking_type">
+                                name="action_view_pickings">
                                 <field class="fw-bold fs-4" name="name" />
                             </a>
                             <field t-if="selection_mode" class="fw-bold fs-4" name="name" />
@@ -108,7 +108,7 @@
                             <div t-if="!selection_mode" class="row mt-3">
                                 <div class="col-6">
                                     <button class="btn btn-primary"
-                                        name="get_action_picking_tree_ready" type="object">
+                                        name="action_view_pickings_ready" type="object">
                                         <span t-if="record.count_picking_ready.raw_value > 0">
                                             <field name="count_picking_ready" />
                                             <t t-if="record.code.raw_value === 'incoming'"> To
@@ -124,7 +124,7 @@
                                     <div t-if="record.count_picking_waiting.raw_value > 0"
                                         class="row">
                                         <a class="col-8 offset-4 pe-0 text-truncate"
-                                            name="get_action_picking_tree_waiting" type="object">
+                                            name="action_view_pickings_waiting" type="object">
                                             <div class="row">
                                                 <span class="col-6">Waiting</span>
                                                 <field class="col-2 text-end"
@@ -135,7 +135,7 @@
 
                                     <div t-if="record.count_picking_late.raw_value > 0" class="row">
                                         <a class="col-8 offset-4 pe-0 text-truncate"
-                                            name="get_action_picking_tree_late" type="object">
+                                            name="action_view_pickings_late" type="object">
                                             <div class="row">
                                                 <span class="col-6">Late</span>
                                                 <field class="col-2 text-end"
@@ -147,7 +147,7 @@
                                     <div t-if="record.count_picking_backorders.raw_value > 0"
                                         class="row" name="picking_type_backorder_count">
                                         <a class="col-8 offset-4 pe-0 text-truncate"
-                                            name="get_action_picking_tree_backorder" type="object">
+                                            name="action_view_pickings_backorder" type="object">
                                             <div class="row">
                                                 <span class="col-6">Back Orders</span>
                                                 <field class="col-2 text-end"
@@ -158,7 +158,7 @@
 
                                     <div t-if="record.count_move_ready.raw_value > 0" class="row">
                                         <a class="col-8 offset-4 pe-0 text-truncate"
-                                            name="get_action_picking_type_ready_moves" type="object">
+                                            name="action_view_moves_ready" type="object">
                                             <div class="row">
                                                 <span class="col-6">Operations</span>
                                                 <field class="col-2 text-end"

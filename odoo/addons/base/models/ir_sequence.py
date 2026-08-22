@@ -432,6 +432,28 @@ class IrSequence(models.Model):
         return dict(_INTERPOLATION_FORMATS)
 
     @api.model
+    def _get_interpolation_mapping(self, date=None, range_date=None) -> dict[str, str]:
+        """Mapping that resolves every placeholder `_get_pattern_placeholders` names.
+
+        `_get_interpolation_formats` is the bare table only -- `year`, `month`,
+        ... -- while the vocabulary `_pattern_to_regex` parses against carries the
+        `range_` and `current_` families too, because `_get_prefix_suffix` resolves
+        those through `_InterpolationDict`. A caller that interpolates a pattern
+        itself from the formats alone therefore rejects patterns this model's own
+        parser accepts, and does it with a `KeyError`. Interpolate against this
+        instead and the two directions share one vocabulary.
+
+        Resolution is lazy, so the mapping costs nothing for placeholders the
+        pattern does not name, and a caller may add its own keys to it.
+
+        :param date: the effective date, defaulting to now
+        :param range_date: the date-range date, defaulting to now
+        :return: a mapping usable as the right operand of ``%``
+        """
+        now = datetime.now(self.env.tz)
+        return _InterpolationDict(date or now, range_date or now, now)
+
+    @api.model
     def _get_pattern_placeholders(self) -> dict[str, str]:
         return dict(_INTERPOLATION_REGEXES)
 
