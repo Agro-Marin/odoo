@@ -1,6 +1,6 @@
 # ADR-0056: Stored Python is a binding no checkout holds, and `_for_xml_id` is renamed across it
 
-- **Status:** Accepted
+- **Status:** Accepted; stored half amended 2026-08-22 (see *Update*)
 - **Date:** 2026-08-20
 
 ## Context
@@ -43,8 +43,8 @@ repository of this workspace in one change — 535 occurrences over 351 files in
 `odoo`, `enterprise` and `agromarin`, including the six `<field name="code">`
 blocks that ship a server action calling it.
 
-The database half is carried by a migration,
-`base/migrations/1.8/pre-migration.py`, which rewrites the name inside every
+The database half was carried by a migration (removed 2026-08-22, see *Update*),
+`base/migrations/1.8/pre-migration.py`, which rewrote the name inside every
 column of a database that stores Python: `ir_act_server.code`,
 `ir_actions_server_history.code` and `ir_model_fields.compute`. It matches on
 Postgres word boundaries so a name that merely contains the old one —
@@ -82,7 +82,7 @@ previous bodies per action so a user can roll back to one. An entry left
 unrewritten is a body that fails on restore, defeating the feature; an entry
 rewritten is a trail attributing text to an author who did not type it. The trail
 is an undo buffer for a code editor, not a legal record, so restorability wins.
-The migration logs the two row counts separately.
+The migration logged the two row counts separately.
 
 **Rewrite `ir_ui_view.arch_db` as well.** A QWeb expression can name a model
 method, so the column is reachable in principle. Rejected: no occurrence is
@@ -97,9 +97,10 @@ new blocking gate and owes its own record.
 
 ## Consequences
 
-A database upgraded to `base` 1.8 has its stored Python rewritten once. A
-database that skips 1.8 and jumps a later version still runs the script, because
-Odoo runs every migration directory between the installed and the target version.
+As recorded, a database upgraded to `base` 1.8 had its stored Python rewritten
+once, and one skipping 1.8 still ran the script, because Odoo runs every
+migration directory between the installed and the target version. The *Update*
+below retires that mechanism.
 
 Code outside this workspace that calls `_for_xml_id` — an unvendored addon, an
 RPC client reaching a private method by ignoring the convention — breaks with an
@@ -117,6 +118,30 @@ None by gate, stated rather than hidden. `naming_vocabulary.py` gained
 `stored_code_references()`, which counts the population this record is about and
 feeds the three figures §2.4 states through `doc_restated_counts`; it measures
 the problem and forbids nothing. The rename is held by the absence of the old
-name — `git grep _for_xml_id` over the workspace returns the migration, this
+name — `git grep _for_xml_id` over the workspace returns this
 record, the §2.4 paragraph, and `l10n_nl`'s unrelated `_get_tax_ids_for_xml_id`.
 No call site survives.
+
+## Update — 2026-08-22: the migration is removed, not superseded
+
+`base/migrations/1.8/pre-migration.py` never ran on any database it was written
+for. `52f7aceeadc9` bumped the manifest to 1.8 and an upgrade consumed that
+number; `3c531a8ce43f` added the script afterwards, against a version already
+installed. Odoo runs `migrations/<v>/` only when `<v>` exceeds the stored
+`db_version`, so on every database at `19.0.1.8` it was skipped in silence — no
+warning, exit 0. It was dead code that read as a live guard.
+
+It is removed rather than renumbered, because on the database it exists for it
+has nothing left to do: `ir_act_server.code`, `ir_actions_server_history.code`
+and `ir_model_fields.compute` all match zero rows on `_for_xml_id`, and no view
+carries `history_wizard_action`. The six shipped server actions live in XML and
+were rewritten from source by the ordinary upgrade. That the columns are clean
+*without* the script having run is also the evidence that no hand-written stored
+Python here ever called the old name.
+
+This re-opens **Rename the source and skip the migration** above, which this
+record rejected as the dangerous option, for any database whose stored Python is
+*not* already clean — a developer's local copy, or a restore predating the
+rename. The argument against it is unchanged and still correct; what changed is
+that the population it protects is empty here. A database that needs it should
+restore the script from `3c531a8ce43f` under a version number above its own.

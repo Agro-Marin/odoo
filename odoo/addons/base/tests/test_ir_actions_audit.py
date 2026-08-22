@@ -1,6 +1,3 @@
-import importlib.util
-import pathlib
-
 from psycopg.errors import IntegrityError
 
 from odoo.exceptions import UserError, ValidationError
@@ -8,7 +5,6 @@ from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import mute_logger
 from odoo.tools.safe_eval import safe_eval
 
-import odoo.addons.base
 from odoo.addons.base.models.ir_actions import _eval_dict_or_default
 
 
@@ -1702,50 +1698,3 @@ class TestActionCreateDoesNotEditItsArgument(TransactionCase):
         snapshot = dict(vals)
         menu.write(vals)
         self.assertEqual(vals, snapshot, "ir.ui.menu.write edited its argument")
-
-
-@tagged("post_install", "-at_install")
-class TestForXmlIdMigration(TransactionCase):
-
-    def _rewrite(self):
-        path = (
-            pathlib.Path(odoo.addons.base.__file__).parent
-            / "migrations"
-            / "1.8"
-            / "pre-migration.py"
-        )
-        spec = importlib.util.spec_from_file_location("_base_migration_1_8", path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        return module
-
-    def test_the_script_is_still_where_the_loader_looks_for_it(self):
-        module = self._rewrite()
-        self.assertEqual(module._OLD, "_for_xml_id")
-        self.assertEqual(module._NEW, "_get_action_dict_by_xml_id")
-        self.assertIn(("ir_act_server", "code"), module._COLUMNS)
-
-    def test_the_rewrite_moves_a_call_and_spares_every_longer_name(self):
-        module = self._rewrite()
-        cr = self.env.cr
-        cr.execute("CREATE TEMP TABLE audit_mig (code text) ON COMMIT DROP")
-        cases = {
-            "env['a']._for_xml_id('m.x')": "env['a']._get_action_dict_by_xml_id('m.x')",
-            "_get_tax_ids_for_xml_id(env, 'x')": "_get_tax_ids_for_xml_id(env, 'x')",
-            "env['a']._for_xml_idx()": "env['a']._for_xml_idx()",
-            "def test_for_xml_id_valid(self):": "def test_for_xml_id_valid(self):",
-            "env['a']._get_action_dict_by_xml_id('m.x')": (
-                "env['a']._get_action_dict_by_xml_id('m.x')"
-            ),
-        }
-        for planted in cases:
-            cr.execute("INSERT INTO audit_mig (code) VALUES (%s)", (planted,))
-        module._rewrite(cr, "audit_mig", "code")
-        module._rewrite(cr, "audit_mig", "code")
-        cr.execute("SELECT code FROM audit_mig")
-        got = sorted(row[0] for row in cr.fetchall())
-        self.assertEqual(got, sorted(cases.values()))
-
-    def test_a_missing_column_is_a_no_op_rather_than_an_error(self):
-        module = self._rewrite()
-        module._rewrite(self.env.cr, "table_that_does_not_exist", "code")
