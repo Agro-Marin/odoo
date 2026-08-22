@@ -25,13 +25,12 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
                 ],
             }
         )
-        cls.cr.precommit.run()  # load the CoA
+        cls.cr.precommit.run()
 
         cls.root_company = cls.company_data["company"]
         cls.branch_a, cls.branch_b = cls.root_company.child_ids
 
     def test_chart_template_loading(self):
-        # Some company params have to be the same
         self.assertEqual(self.root_company.currency_id, self.branch_a.currency_id)
         self.assertEqual(
             self.root_company.fiscalyear_last_day, self.branch_a.fiscalyear_last_day
@@ -40,7 +39,6 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
             self.root_company.fiscalyear_last_month, self.branch_a.fiscalyear_last_month
         )
 
-        # The accounts are shared
         root_accounts = self.env["account.account"].search(
             [("company_ids", "parent_of", self.root_company.id)]
         )
@@ -50,7 +48,6 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
         self.assertTrue(root_accounts)
         self.assertEqual(root_accounts, branch_a_accounts)
 
-        # The journals are shared
         root_journals = self.env["account.journal"].search(
             [("company_id", "parent_of", self.root_company.id)]
         )
@@ -103,7 +100,6 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
         self.assertEqual(payment_lines.mapped("amount_residual"), [0, 0])
         self.assertFalse(payment_lines.matched_debit_ids.exchange_move_id)
 
-        # Can still open the invoice with only its branch accessible
         self.env.invalidate_all()
         with Form(invoice.with_context(allowed_company_ids=self.branch_a.ids)):
             pass
@@ -157,7 +153,6 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
             invoice.company_id,
         )
 
-        # Can still open the invoice with only its branch accessible
         self.env.invalidate_all()
         with Form(invoice.with_context(allowed_company_ids=self.branch_a.ids)):
             pass
@@ -181,7 +176,6 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
                 move_type,
                 failure_expected,
             ) in (
-                # before both locks
                 (
                     "3021-01-01",
                     "3022-01-01",
@@ -214,7 +208,6 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
                     "out_invoice",
                     lock_sale,
                 ),
-                # between root and branch lock
                 (
                     "3020-01-01",
                     "3022-01-01",
@@ -247,7 +240,6 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
                     "out_invoice",
                     lock_sale,
                 ),
-                # between branch and root lock
                 (
                     "3022-01-01",
                     "3020-01-01",
@@ -280,7 +272,6 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
                     "out_invoice",
                     lock_sale,
                 ),
-                # after both locks
                 (
                     "3020-01-01",
                     "3021-01-01",
@@ -341,37 +332,29 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
                     self.assertEqual(move.date, fields.Date.to_date(invoice_date))
                     with freeze_time(
                         "4000-01-01"
-                    ):  # ensure we don't lock in the future
+                    ):
                         self.root_company[lock] = root_lock
                         self.branch_a[lock] = branch_lock
                     with check():
                         move.action_draft()
 
     def test_soft_lock_date_honors_archived_parent(self):
-        """A parent company's soft lock date still applies to an active branch when the parent is archived."""
         from datetime import date
 
-        # Standalone hierarchy so the parent (unlike the shared test company) is
-        # not any user's default company and can therefore be archived.
         parent = self.env["res.company"].create({"name": "Archived Parent Co"})
         branch = self.env["res.company"].create(
             {"name": "Active Branch Co", "parent_id": parent.id}
         )
 
-        # Parent's fiscal-year lock is stricter (later) than the branch's own.
-        with freeze_time("4000-01-01"):  # avoid the "lock in the future" guard
+        with freeze_time("4000-01-01"):
             parent.fiscalyear_lock_date = date(3025, 12, 31)
             branch.fiscalyear_lock_date = date(3022, 12, 31)
 
-        # Archive the parent (cascades to the branch) then reactivate only the
-        # branch: an active company with an archived ancestor.
         parent.active = False
         branch.active = True
         self.assertTrue(branch.active)
         self.assertFalse(parent.active)
 
-        # `_get_user_lock_date` must traverse `parent_ids` with `active_test=False`
-        # (like `_compute_user_hard_lock_date`), else archived ancestors are dropped.
         branch.invalidate_recordset(["user_fiscalyear_lock_date"])
         self.assertEqual(
             branch._get_user_lock_date("fiscalyear_lock_date"),
@@ -418,27 +401,21 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
                 self.env["account.move"].create(
                     {"company_id": self.branch_a.id, "line_ids": lines}
                 )
-                # Can switch to main
                 record[company_field] = self.root_company
 
-                # Can switch back
                 record[company_field] = self.branch_a
 
-                # Can't use in main if owned by a branch
                 with self.assertRaisesRegex(UserError, "belongs to another company"):
                     self.env["account.move"].create(
                         {"company_id": self.root_company.id, "line_ids": lines}
                     )
 
-                # Can still switch to main
                 record[company_field] = self.root_company
 
-                # Can use in main now
                 self.env["account.move"].create(
                     {"company_id": self.root_company.id, "line_ids": lines}
                 )
 
-                # Can't switch back to branch if used in main
                 with self.assertRaisesRegex(UserError, "journal items linked"):
                     record[company_field] = self.branch_a
 
@@ -456,11 +433,9 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
                 "country_id": test_country.id,
             }
         )
-        # with the generic_coa, try_loading forces currency_id to USD and account_fiscal_country_id to United States
         self.env["account.chart.template"].try_loading(
             "generic_coa", company=root_company, install_demo=False
         )
-        # So we write these values after try_loading
         root_company.write(
             {
                 "currency_id": test_country.currency_id.id,
@@ -488,18 +463,14 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
         )
 
     def test_switch_company_currency(self):
-        """A user cannot switch the currency of another company that already has journal items."""
-        # Create company A (user's company)
         company_a = self.env["res.company"].create(
             {
                 "name": "Company A",
             }
         )
 
-        # Get company B from test setup
         company_b = self.company_data["company"]
 
-        # Create a purchase journal for company B
         journal = self.env["account.journal"].create(
             {
                 "name": "Vendor Bills Journal",
@@ -510,7 +481,6 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
             }
         )
 
-        # Create an invoice for company B
         invoice = self.env["account.move"].create(
             {
                 "move_type": "in_invoice",
@@ -520,7 +490,6 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
         )
         invoice.currency_id = self.env.ref("base.USD").id
 
-        # Add a line to the invoice using an expense account
         self.env["account.move.line"].create(
             {
                 "move_id": invoice.id,
@@ -530,7 +499,6 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
             }
         )
 
-        # Create a user that only belongs to company A
         user = self.env["res.users"].create(
             {
                 "name": "User A",
@@ -541,7 +509,6 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
             }
         )
 
-        # Try to change company B's currency as user A (should raise UserError)
         user_env = self.env(user=user)
         with self.assertRaises(UserError):
             user_env["res.company"].browse(company_b.id).write(
@@ -551,6 +518,5 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
             )
 
     def test_set_fiscalyear_last_day_to_negative_value(self):
-        """A negative `fiscalyear_last_day` raises a ValidationError."""
         with self.assertRaises(ValidationError):
             self.root_company.fiscalyear_last_day = -1

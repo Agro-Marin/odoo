@@ -52,14 +52,39 @@ export class DocumentFileUploader extends Component {
         return this.props.resModel;
     }
 
+    /**
+     * Model method that turns the uploaded attachments into a document.
+     *
+     * Overridable so a subclass does not have to reimplement the whole upload
+     * flow — the context cleaning, per-file notifications and markup handling
+     * below are the same wherever the documents come from.
+     *
+     * @returns {string}
+     */
+    getUploadMethod() {
+        return "create_document_from_attachment";
+    }
+
+    /**
+     * Recordset ids the upload method is bound to, i.e. the `self` it runs on.
+     *
+     * The base uploads against no records; a subclass that creates documents
+     * *from* existing records (purchase orders, say) returns their ids.
+     *
+     * @returns {Promise<number[]|string>}
+     */
+    async getUploadIds() {
+        return "";
+    }
+
     async onUploadComplete() {
         const resModal = this.getResModel();
         let action;
         try {
             action = await this.orm.call(
                 resModal,
-                "create_document_from_attachment",
-                ["", this.attachmentIdsToProcess],
+                this.getUploadMethod(),
+                [await this.getUploadIds(), this.attachmentIdsToProcess],
                 { context: { ...this.extraContext, ...this.env.searchModel.context } },
             );
         } finally {

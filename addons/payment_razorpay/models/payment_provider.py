@@ -268,18 +268,18 @@ class PaymentProvider(models.Model):
 
     # === REQUEST HELPERS === #
 
-    def _build_request_url(self, endpoint, *, api_version='v1', is_proxy_request=False, **kwargs):
+    def _prepare_request_url(self, endpoint, *, api_version='v1', is_proxy_request=False, **kwargs):
         if self.code != 'razorpay':
-            return super()._build_request_url(
+            return super()._prepare_request_url(
                 endpoint, api_version=api_version, is_proxy_request=is_proxy_request, **kwargs
             )
         if is_proxy_request:
             return f'{const.OAUTH_URL}{endpoint}'
         return f'https://api.razorpay.com/{api_version}/{endpoint}'
 
-    def _build_request_headers(self, *args, is_proxy_request=False, **kwargs):
+    def _prepare_request_headers(self, *args, is_proxy_request=False, **kwargs):
         if self.code != 'razorpay':
-            return super()._build_request_headers(
+            return super()._prepare_request_headers(
                 *args, is_proxy_request=is_proxy_request, **kwargs
             )
 
@@ -290,10 +290,10 @@ class PaymentProvider(models.Model):
             headers = {'Authorization': f'Bearer {self.razorpay_access_token}'}
         return headers
 
-    def _build_request_auth(self, *, is_proxy_request=False, **kwargs):
+    def _prepare_request_auth(self, *, is_proxy_request=False, **kwargs):
         """Override of `payment` to build the request Auth."""
         if self.code != 'razorpay':
-            return super()._build_request_auth(is_proxy_request=is_proxy_request, **kwargs)
+            return super()._prepare_request_auth(is_proxy_request=is_proxy_request, **kwargs)
 
         auth = tuple()
         if not is_proxy_request and self.razorpay_key_id:

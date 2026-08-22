@@ -4,7 +4,7 @@ from unittest.mock import patch
 from markupsafe import Markup
 
 from odoo import Command
-from odoo.exceptions import RedirectWarning
+from odoo.exceptions import RedirectWarning, UserError
 from odoo.tests import tagged
 
 from odoo.addons.account.models.chart_template import (
@@ -13,6 +13,8 @@ from odoo.addons.account.models.chart_template import (
     code_translations,
 )
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
+
+_CHART_TEMPLATE_LOGGER = "odoo.addons.account.models.chart_template"
 
 
 def _get_chart_template_mapping(self, get_all=False):
@@ -240,26 +242,12 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         AccountChartTemplate, "_get_chart_template_mapping", _get_chart_template_mapping
     )
     def setUpClass(cls):
-        """Set up a company with a custom chart template, containing a tax and a fiscal position."""
-        # We need to add xml_ids to the templates because they are loaded from their xml_ids
-        # Avoid creating data from AccountTestInvoicingCommon setUpClass
-        # just use the override of the functions it provides
         super(AccountTestInvoicingCommon, cls).setUpClass()
 
         cls.ChartTemplate = cls.env["account.chart.template"].with_company(cls.company)
         cls.country_be = cls.env.ref("base.be")
 
     def test_parse_csv_integer_field_negative_value(self):
-        """CSV Integer columns must be ast.literal_eval'd, including negative
-        values.
-
-        Regression: the type check compared against "int" instead of the real
-        field type "integer", so Integer CSV columns were never
-        ast.literal_eval'd. A positive value like "10" still worked by
-        accident (str.isdigit() lets the ORM coerce it), but a negative value
-        like "-5" fell into the xml_id fallback (self.ref("-5")), raised, and
-        the field was silently dropped.
-        """
         csv_content = "id,decimal_places\nres_currency_test,-5\n"
 
         def fake_file_open(path, mode="r"):
@@ -422,8 +410,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
 
     def test_update_taxes_creation(self):
-        """Tests that adding a new tax and a fiscal position tax creates new records when updating."""
-
         def local_get_data(self, template_code):
             data = test_get_data(self, template_code)
             data["account.tax"].update(
@@ -449,7 +435,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             )
             return data
 
-        # First try with `force_create=False` (during an upgrade): it shouldn't crash
         with patch.object(
             AccountChartTemplate,
             "_get_chart_template_data",
@@ -466,7 +451,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             )
         )
 
-        # then try with `force_create=True` (when updating the CoA manually)
         with patch.object(
             AccountChartTemplate,
             "_get_chart_template_data",
@@ -497,8 +481,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         self.assertEqual(fiscal_position.map_tax(tax_3), tax_1)
 
     def test_update_accounts_creation(self):
-        """Tests that adding new accounts and a fiscal position account mapping creates new records when updating."""
-
         def local_get_data(self, template_code):
             data = test_get_data(self, template_code)
             data["account.account"].update(
@@ -532,7 +514,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             ]
             return data
 
-        # First try with `force_create=False` (during an upgrade): it shouldn't crash
         with patch.object(
             AccountChartTemplate,
             "_get_chart_template_data",
@@ -549,7 +530,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             )
         )
 
-        # then try with `force_create=True` (when updating the CoA manually)
         with patch.object(
             AccountChartTemplate,
             "_get_chart_template_data",
@@ -569,8 +549,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
 
     def test_remove_fiscal_position_try_loading_force_create_false(self):
-        """Test that removing a fiscal position and calling try_loading with force_create=False does not recreate it."""
-        # Ensure the fiscal position exists
         fiscal_position = self.env["account.fiscal.position"].search(
             [
                 ("name", "=", "Fiscal Position"),
@@ -578,13 +556,10 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
         self.assertTrue(fiscal_position, "Fiscal Position should exist before deletion")
 
-        # Now remove the fiscal position safely
         fiscal_position.unlink()
 
-        # Ensure the fiscal position is removed
         self.assertFalse(fiscal_position.exists(), "Fiscal Position should be deleted")
 
-        # Call try_loading with force_create=False
         with patch.object(
             AccountChartTemplate,
             "_get_chart_template_data",
@@ -595,7 +570,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "test", company=self.company, install_demo=False, force_create=False
             )
 
-        # Ensure the fiscal position was NOT recreated
         fiscal_position_after_reload = self.env["account.fiscal.position"].search(
             [
                 ("name", "=", "Fiscal Position"),
@@ -606,7 +580,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             "Fiscal Position should not be recreated when force_create=False",
         )
 
-        # Call try_loading with force_create=True
         with patch.object(
             AccountChartTemplate,
             "_get_chart_template_data",
@@ -617,7 +590,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "test", company=self.company, install_demo=False, force_create=True
             )
 
-        # Ensure the fiscal position was recreated
         fiscal_position_after_reload = self.env["account.fiscal.position"].search(
             [
                 ("name", "=", "Fiscal Position"),
@@ -629,31 +601,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
 
     def test_new_tax_rate(self):
-        """Test the flow to replace taxes from an old to a new rate."""
-        # Constraints to take into account:
-        # * There is a transition period where both taxes need to be usable
-        # * Some reports might need to keep the references to the old tax i.e. on the fiscal positions (OSS)
-        #
-        # The procedure for the code change is:
-        # * Create the new report section if needed.
-        # * Remove the taxes from the template.
-        #   This will not delete the taxes from the company when updating the template on the company.
-        # * Add the new taxes with a xmlid different from the ones deleted.
-        #   The taxes will be created when updating the template on the company.
-        # * Update all the references to the old taxes to the new ones.
-        #   - Fiscal positions: The previous mappings won't be deleted but the new ones will be created.
-        #                       This ensures that reports still work.
-        # * If such a tax was part of a group, a new group must be created and the old one removed from the template.
-        #
-        # The procedure for the users, when they are ready, is:
-        # * When the old taxes are not needed anymore (i.e. tax period closed), archive them
-        # * Update the taxes on
-        #   - products
-        #   - accounts
-        #   - reconcile models
-
         def local_get_data(self, template_code):
-            # Delete the existing tax and create a new one with a different rate
             data = test_get_data(self, template_code)
             del data["account.tax"]["test_tax_1_template"]
             data["account.tax"]["test_tax_3_template"] = _tax_vals("Tax 3", 30)
@@ -675,8 +623,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "test", company=self.company, install_demo=False
             )
 
-        # On an existing company all the taxes are still present.
-        # The user has to deactivate them manually when not needed anymore (if they needed to encode things in the past)
         taxes = self.env["account.tax"].search([("company_id", "=", self.company.id)])
         self.assertRecordValues(
             taxes,
@@ -695,8 +641,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         self.assertEqual(fiscal_position.map_tax(tax_1), tax_2)
         self.assertEqual(fiscal_position.map_tax(tax_3), tax_2)
 
-        # On a new company you would never see the old tax.
-        # In case users need it, they can duplicate the new one and change the rate.
         new_company = self.env["res.company"].create({"name": "New Company"})
         with patch.object(
             AccountChartTemplate,
@@ -725,8 +669,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         self.assertEqual(new_company.account_sale_tax_id, tax_3)
 
     def test_update_taxes_update(self):
-        """When a tax is close enough from an existing tax we want to update that tax with the new values."""
-
         def local_get_data(self, template_code):
             data = test_get_data(self, template_code)
             data["account.account.tag"]["account.account_tax_tag_1"]["name"] += " [DUP]"
@@ -745,21 +687,16 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         updated_tax = self.env["account.tax"].search(
             [("company_id", "=", self.company.id), ("name", "like", "%Tax 1")]
         )
-        # Check that tax was not recreated
         self.assertEqual(len(updated_tax), 1)
-        # Check that tags have been updated
         self.assertEqual(
             updated_tax.invoice_repartition_line_ids.tag_ids.name,
             "tax_tag_name_1 [DUP]",
         )
 
     def test_update_taxes_update_rounding(self):
-        """Update an existing tax when the template only differs by a minor rounding error."""
-
         def local_get_data(self, template_code):
             data = test_get_data(self, template_code)
             data["account.account.tag"]["account.account_tax_tag_1"]["name"] += " [DUP]"
-            # We compare up to the precision of the field, which is 4 decimals
             data["account.tax"]["test_tax_1_template"]["amount"] += 0.00001
             return data
 
@@ -776,20 +713,14 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         updated_tax = self.env["account.tax"].search(
             [("company_id", "=", self.company.id), ("name", "like", "%Tax 1")]
         )
-        # Check that tax was not recreated
         self.assertEqual(len(updated_tax), 1)
-        # Check that tags have been updated
         self.assertEqual(
             updated_tax.invoice_repartition_line_ids.tag_ids.name,
             "tax_tag_name_1 [DUP]",
         )
 
     def test_update_taxes_recreation(self):
-        """When a tax is too different from an existing tax we want to recreate a new tax with new values."""
-
         def local_get_data(self, template_code):
-            # We increment the amount so the template gets slightly different from the
-            # corresponding tax and triggers recreation
             data = test_get_data(self, template_code)
             data["account.tax"]["test_tax_1_template"]["name"] = "Tax 1 modified"
             data["account.tax"]["test_tax_1_template"]["amount"] += 1
@@ -808,17 +739,14 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "test", company=self.company, install_demo=False
             )
 
-        # Check that old tax has not been changed besides the name prefixed by [old]
         self.assertRecordValues(tax_existing, [{"name": "[old] Tax 1", "amount": 15}])
 
-        # Check that new tax has been recreated
         new_tax = self.env["account.tax"].search(
             [("company_id", "=", self.company.id), ("name", "=", "Tax 1 modified")]
         )
         self.assertEqual(new_tax.amount, tax_existing.amount + 1)
 
     def test_update_taxes_removed_from_templates(self):
-        """Tests updating after the removal of taxes and of a fiscal position tax mapping."""
         fiscal_position = self.env["account.fiscal.position"].search([])
         self.env["account.tax"].search([("company_id", "=", self.company.id)]).unlink()
 
@@ -832,7 +760,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "test", company=self.company, install_demo=False
             )
 
-        # if taxes have been deleted, they will be recreated, and the fiscal position mapping for it too
         self.assertEqual(
             len(self.env["account.tax"].search([("company_id", "=", self.company.id)])),
             2,
@@ -850,7 +777,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "test", company=self.company, install_demo=False
             )
 
-        # if only the fiscal position mapping has been removed, it won't be recreated
         self.assertEqual(len(fiscal_position.tax_ids.original_tax_ids), 0)
 
     def test_update_taxes_conflict_name(self):
@@ -917,10 +843,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
 
     def test_update_taxes_multi_company(self):
-        """In a multi-company environment all companies should be correctly updated."""
-
         def local_get_data(self, template_code):
-            # triggers recreation of tax 1
             data = test_get_data(self, template_code)
             data["account.tax"]["test_tax_1_template"]["amount"] += 1
             return data
@@ -960,17 +883,14 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 ("company_id", "in", [self.company.id, company_2.id]),
             ]
         )
-        # we should have 4 records: 2 companies * (1 original tax + 1 recreated tax)
         self.assertEqual(len(taxes_1_companies), 4)
 
     def test_update_account_codes_conflict(self):
-        # Change code of an existing account to something else
         standard_account = self.env["account.chart.template"].ref(
             "test_account_income_template"
         )
         standard_account.code = "111111"
 
-        # create a new account taking the code the template expects for the income account
         problematic_account = self.env["account.account"].create(
             {
                 "code": "222221",
@@ -978,7 +898,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             }
         )
 
-        # remove an xmlid to see if it gets relinked and not duplicated
         self.env["ir.model.data"].search(
             [
                 ("name", "=", f"{self.company.id}_test_account_expense_template"),
@@ -986,7 +905,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             ]
         ).unlink()
 
-        # reload chart template
         with patch.object(
             AccountChartTemplate,
             "_get_chart_template_data",
@@ -997,7 +915,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "test", company=self.company, install_demo=False
             )
 
-        # check that xmlid is now pointing to problematic_account
         xmlid_account = self.env.ref(
             f"account.{self.company.id}_test_account_income_template"
         )
@@ -1008,8 +925,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
 
     def test_update_taxes_children_tax_ids(self):
-        """Ensures children_tax_ids are correctly generated when updating taxes with amount_type='group'."""
-
         def local_get_data(self, template_code):
             data = test_get_data(self, template_code)
             normal_tax_xmlids = ["test_tax_3_template", "test_tax_4_template"]
@@ -1070,7 +985,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             side_effect=local_get_data,
             autospec=True,
         ):
-            # We don't change anything
             self.env["account.chart.template"].try_loading(
                 "test", company=self.company, install_demo=False
             )
@@ -1082,8 +996,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
 
     def test_update_taxes_children_tax_ids_inactive(self):
-        """Ensure taxes with children taxes are generated on update even if the templates are inactive."""
-
         def local_get_data(self, template_code):
             data = test_get_data(self, template_code)
             normal_tax_xmlids = ["test_tax_3_template", "test_tax_4_template"]
@@ -1158,11 +1070,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
 
     def test_update_reload_no_new_data(self):
-        """Tests that the reload does nothing when data are left unchanged."""
-
-        # Tested models: account.group, account.account, account.tax.group, account.tax,
-        # account.journal, account.reconcile.model, account.fiscal.position,
-        # account.tax.repartition.line, account.account.tag.
         def get_domain(model):
             if model == "account.account.tag":
                 return [("country_id", "=", self.company.country_id.id)]
@@ -1191,8 +1098,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             self.assertEqual(data_before[model], data_after)
 
     def test_unknown_company_fields(self):
-        """Tests that an unknown company template key only raises when 'l10n_check_fields_complete' is set."""
-
         def local_get_data(self, template_code):
             data = test_get_data(self, template_code)
             data["res.company"][company.id]["unknown_company_key"] = (
@@ -1201,7 +1106,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             return data
 
         company = self.company
-        # force first load since company data is removed on reload
         company.chart_template = False
 
         with patch.object(
@@ -1210,20 +1114,16 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             side_effect=local_get_data,
             autospec=True,
         ):
-            # hard fail the loading if the context key is set to ensure `test_all_l10n` works as expected
             with self.assertRaisesRegex(ValueError, "unknown_company_key"):
                 self.env["account.chart.template"].with_context(
                     l10n_check_fields_complete=True
                 ).try_loading("test", company=company, install_demo=False)
 
-            # silently ignore if the field doesn't exist (yet)
             self.env["account.chart.template"].try_loading(
                 "test", company=company, install_demo=False
             )
 
     def test_branch(self):
-        # Test the auto-installation of a chart template (including demo data) on a branch
-        # Create a new main company, because install_demo doesn't do anything when reloading data
         company = self.env["res.company"].create([{"name": "Test Company"}])
         branch = self.env["res.company"].create(
             [
@@ -1258,8 +1158,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 }
             }
 
-        # Check that company fields that should depend on CoA are reset when changing CoA
-        # (afaik there is only `anglo_saxon_accounting`)
         self.company.anglo_saxon_accounting = True
 
         with (
@@ -1279,7 +1177,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "other_test", company=self.company, install_demo=True
             )
 
-            # Create a branch and an unrelated company
             branch, other_company = self.env["res.company"].create(
                 [
                     {
@@ -1291,14 +1188,12 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                     },
                 ]
             )
-            # Run precommit hook to load the template on the branch
             self.env.cr.precommit.run()
 
         self.assertEqual(self.company.chart_template, "other_test")
         self.assertEqual(branch.chart_template, "other_test")
         self.assertFalse(self.company.anglo_saxon_accounting)
 
-        # Setup a shared account, belonging to the company, the branch, and the unrelated company
         shared_account = self.env["account.account"].create(
             [
                 {
@@ -1331,12 +1226,9 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         self.assertEqual(self.company.chart_template, "test")
         self.assertEqual(branch.chart_template, "test")
 
-        # Check that the shared account was not deleted, but just unlinked from the company and the branch.
         self.assertEqual(shared_account.company_ids, other_company)
 
     def test_update_tax_with_non_existent_tag(self):
-        """Tests that updating the CoA with a tax referencing a not-yet-existing tag raises an error."""
-        # Typical use case is when the code got updated but the module hasn't been updated (-u).
         tax_to_load = {
             "name": "Mixed Tags Tax",
             "amount": 30,
@@ -1375,21 +1267,12 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 ),
             ],
         }
-        # `mapping_getter` raises RedirectWarning (which is NOT a UserError
-        # subclass), so the matcher must name RedirectWarning or it never catches.
         with self.assertRaisesRegex(RedirectWarning, "update your localization"):
             self.env["account.chart.template"]._deref_account_tags(
                 "test", {"tax1": tax_to_load}
             )
 
     def test_install_with_translations(self):
-        """Ensure translations, including of untranslatable fields, are loaded when installing chart data."""
-        # '_load_translations' depends on '_get_chart_template_data' for some information.
-        # The result of '_get_chart_template_data' is mocked (correctly) here (and not tested).
-
-        # Local mock for '_get_chart_template_mapping'
-        # We will use / install a dedicated new chart 'translation' (not just reload 'test')
-        # To have control over the original / en_US values.
         def local_get_mapping(self, get_all=False):
             return {
                 "translation": {
@@ -1403,13 +1286,9 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         company = self.company
 
-        # Create records that are not part of the chart template
-        # They will be translated via code translations.
-        # The module used to source the translation is the module from the xml_id or 'account' (as fallback)
 
         non_chart_data = {
             "account.group": {
-                # try module 'no_translation'; fallback to 'account'
                 "no_translation.test_chart_template_company_test_free_account_group": {
                     "name": "Free Account Group",
                     "code_prefix_start": 333330,
@@ -1418,7 +1297,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 },
             },
             "account.account": {
-                # translate via 'translation' module
                 "translation.test_chart_template_company_test_free_account": {
                     "name": "Free Account",
                     "code": "333331",
@@ -1427,8 +1305,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 },
             },
             "account.tax": {
-                # translate via 'translation' module;
-                # 2 translatable fields ('name' and 'description')
                 "translation.test_chart_template_company_test_free_tax": {
                     "name": "Free Tax",
                     "description": "Free Tax Description",
@@ -1438,7 +1314,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             },
         }
 
-        # Local function to "extend" '_post_load_data' to ensure the creation of the records from 'non_chart_data'
         def test_post_load_data(template_code, company, template_data):
             for model, data in non_chart_data.items():
                 for xml_id, values in data.items():
@@ -1451,21 +1326,18 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                         ]
                     )
 
-        # Create a local mock of '_get_chart_template_data'; "extend" 'test_get_data' with the translation info
 
         translation_update_for_test_get_data = {
-            # Use code translations from module 'translation'
             "account.journal": {
                 "bank": {
                     "name": "Bank",
-                    "code": "B",  # untranslatable field; shortened due to length restriction (for _translation)
+                    "code": "B",
                     "__translation_module__": {
                         "name": "translation",
                         "code": "translation",
                     },
                 },
             },
-            # Different modules for code translations of 'name' and 'description'
             "account.tax": {
                 "test_tax_1_template": {
                     "name": "Tax 1",
@@ -1476,7 +1348,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                     },
                 },
             },
-            # Use 'name@' and not code translation
             "account.tax.group": {
                 "tax_group_taxes": {
                     "name": "Taxes",
@@ -1495,29 +1366,24 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                     data[model][xmlid].update(data_update)
             return data
 
-        # Translations should fall back to more generic locale 'fr'
 
-        # Target lang for untranslatable fields
         company.partner_id.lang = self.env["res.lang"]._activate_lang("fr_BE").code
 
-        # Init empty mock translations to make sure we do not use unintended translation
         mock_python_translations = {}
 
         for module, lang, value, translation in [
-            # wrong translations
             (
                 "translation",
                 "fr",
                 "Taxes",
                 "WRONG",
-            ),  # there is a value in the chart data
+            ),
             (
                 "translation",
                 "fr",
                 "Free Account",
                 "Free Account FR",
-            ),  # there is a value for fr_BE
-            # correct translations
+            ),
             ("translation", "fr", "Bank", "Bank FR"),
             ("translation", "fr", "B", "B FR"),
             ("translation", "fr", "Tax 1", "Tax 1 FR"),
@@ -1558,10 +1424,9 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                             "translation", company=company, install_demo=False
                         )
 
-        # Check translations
         translatable_model_fields = self.env[
             "account.chart.template"
-        ]._get_translatable_template_model_fields()
+        ]._get_fields_translatable_template_model()
         untranslatable_model_fields = self.env[
             "account.chart.template"
         ]._get_untranslatable_fields_to_translate()
@@ -1589,12 +1454,12 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 for lang in ["en_US", "fr_BE"]
             },
             {
-                "bank.code@en_US": "B FR",  # untranslatable field loaded in lang fr_BE
+                "bank.code@en_US": "B FR",
                 "bank.code@fr_BE": "B FR",
                 "bank.name@en_US": "Bank",
                 "bank.name@fr_BE": "Bank FR",
                 "no_translation.test_chart_template_company_test_free_account_group.name@en_US": "Free Account Group",
-                "no_translation.test_chart_template_company_test_free_account_group.name@fr_BE": "Free Account Group account/FR",  # fallback to account
+                "no_translation.test_chart_template_company_test_free_account_group.name@fr_BE": "Free Account Group account/FR",
                 "tax_group_taxes.name@en_US": "Taxes",
                 "tax_group_taxes.name@fr_BE": "Taxes FR",
                 "test_tax_1_template.description@en_US": Markup(
@@ -1606,7 +1471,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "test_tax_1_template.name@en_US": "Tax 1",
                 "test_tax_1_template.name@fr_BE": "Tax 1 FR",
                 "translation.test_chart_template_company_test_free_account.name@en_US": "Free Account",
-                "translation.test_chart_template_company_test_free_account.name@fr_BE": "Free Account FR_BE",  # do not use generic lang
+                "translation.test_chart_template_company_test_free_account.name@fr_BE": "Free Account FR_BE",
                 "translation.test_chart_template_company_test_free_tax.description@en_US": Markup(
                     "<div>Free Tax Description</div>"
                 ),
@@ -1690,8 +1555,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         self.ChartTemplate._load_data(data)
 
     def test_command_int_values(self):
-        """Command int values should just work in place of their Enum alternatives."""
-
         def local_get_data(self, template_code):
             data = test_get_data(self, template_code)
             data["account.account"].update(
@@ -1759,7 +1622,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
 
     def test_chart_template_company_without_country(self):
-        """Installing a chart template on a company without a country sets the template's country on it."""
         company = self.env["res.company"].create(
             {"name": "Test Company Without country"}
         )
@@ -1776,7 +1638,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         self.assertEqual(company.country_id.code, "BE")
 
     def test_bank_account_code_prefix(self):
-        """Test that chart template loading works with the default value of bank_account_code_prefix."""
         company = self.env["res.company"].create(
             {"name": "Test Company Without Bank Prefix"}
         )
@@ -1785,7 +1646,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             data = test_get_data(self, template_code)
             del data["res.company"][company.id][
                 "bank_account_code_prefix"
-            ]  # use field's default value, which is 'False' instead of ''
+            ]
             return data
 
         with patch.object(
@@ -1798,3 +1659,247 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "test", company=company, install_demo=False
             )
         self.assertEqual(company.chart_template, "test")
+
+    def test_tax_exigibility_is_scoped_to_the_loading_company(self):
+        transition_account = self.env["account.account"].create(
+            {
+                "name": "CABA transition",
+                "code": "998877",
+                "account_type": "asset_current",
+                "reconcile": True,
+                "company_ids": [Command.link(self.company.id)],
+            }
+        )
+        self.env["account.tax"].with_company(self.company).create(
+            {
+                "name": "Some other company's cash basis tax",
+                "amount": 10,
+                "type_tax_use": "sale",
+                "tax_exigibility": "on_payment",
+                "cash_basis_transition_account_id": transition_account.id,
+                "company_id": self.company.id,
+            }
+        )
+        self.env.flush_all()
+
+        other_company = self.env["res.company"].create({"name": "Untainted Co"})
+        self.assertFalse(other_company.tax_exigibility)
+        with patch.object(
+            AccountChartTemplate,
+            "_get_chart_template_data",
+            side_effect=test_get_data,
+            autospec=True,
+        ):
+            self.env["account.chart.template"].try_loading(
+                "test", company=other_company, install_demo=False
+            )
+
+        self.assertFalse(
+            self.env["account.tax"].search_count(
+                [
+                    *self.env["account.tax"]._check_company_domain(other_company),
+                    ("tax_exigibility", "=", "on_payment"),
+                ]
+            ),
+            "precondition: the loaded company owns no cash-basis tax",
+        )
+        self.assertFalse(
+            other_company.tax_exigibility,
+            "cash basis must not be enabled for a company that owns no caba tax",
+        )
+
+    def test_model_data_skips_a_template_function_returning_none(self):
+        def contributes_nothing(self, template_code):
+            return None
+
+        contributes_nothing._l10n_template = (None, "account.account")
+        contributes_nothing._module = "account"
+
+        register = self.ChartTemplate._template_register
+        register[None]["account.account"].append(contributes_nothing)
+        try:
+            data = self.ChartTemplate._get_chart_template_model_data(
+                "test", "account.account"
+            )
+        finally:
+            register[None]["account.account"].remove(contributes_nothing)
+        self.assertIsInstance(data, dict)
+
+    def test_parse_csv_unknown_submodel_column_is_ignored(self):
+        csv_content = (
+            "id,name,amount,repartition_line_ids/repartition_type,"
+            "repartition_line_ids/no_such_field\n"
+            "csv_tax,A tax,10,tax,42\n"
+        )
+
+        def fake_file_open(path, mode="r"):
+            if path.endswith("account.tax.csv"):
+                return io.StringIO(csv_content)
+            raise FileNotFoundError(path)
+
+        # Dropping the column silently would turn a typo in a localization's CSV
+        # into data quietly missing from the chart, so the warning naming it is
+        # part of the contract -- assert it rather than let it escape into the
+        # suite's output as unattributed noise.
+        with (
+            patch(
+                "odoo.addons.account.models.chart_template.file_open", fake_file_open
+            ),
+            self.assertLogs(_CHART_TEMPLATE_LOGGER, "WARNING") as logs,
+        ):
+            result = self.ChartTemplate._parse_csv(
+                "no_such_template_code", "account.tax", module="account"
+            )
+        self.assertEqual(len(logs.output), 1)
+        self.assertIn(
+            "ignoring column 'repartition_line_ids/no_such_field'", logs.output[0]
+        )
+        self.assertEqual(result["csv_tax"]["name"], "A tax")
+        repartition = result["csv_tax"]["repartition_line_ids"]
+        self.assertEqual(repartition[0][2], {"repartition_type": "tax"})
+
+    def test_parse_csv_leading_row_without_id_is_reported(self):
+        csv_content = (
+            "id,name,amount,repartition_line_ids/repartition_type\n"
+            ",,,base\n"
+            "csv_tax,A tax,10,tax\n"
+        )
+
+        def fake_file_open(path, mode="r"):
+            if path.endswith("account.tax.csv"):
+                return io.StringIO(csv_content)
+            raise FileNotFoundError(path)
+
+        with patch(
+            "odoo.addons.account.models.chart_template.file_open", fake_file_open
+        ):
+            with self.assertRaisesRegex(ValueError, r"account\.tax\.csv, line 2"):
+                self.ChartTemplate._parse_csv(
+                    "no_such_template_code", "account.tax", module="account"
+                )
+
+    def test_utility_account_codes_all_follow_code_digits(self):
+        for code_digits in (4, 6, 9, 12):
+            with self.subTest(code_digits=code_digits):
+                values = self.ChartTemplate._get_accounts_data_values(
+                    self.company, {"code_digits": code_digits}
+                )
+                explicit_codes = {
+                    fname: vals["code"]
+                    for fname, vals in values.items()
+                    if vals.get("code")
+                }
+                self.assertTrue(explicit_codes)
+                for fname, code in explicit_codes.items():
+                    self.assertEqual(
+                        len(code),
+                        code_digits,
+                        f"{fname} is {len(code)} characters in a "
+                        f"{code_digits}-digit chart",
+                    )
+        self.assertEqual(
+            self.ChartTemplate._get_accounts_data_values(
+                self.company, {"code_digits": 6}
+            )["account_journal_early_pay_discount_loss_account_id"]["code"],
+            "999998",
+            "six-digit charts must keep the historical code",
+        )
+
+    def test_base_template_cannot_be_installed_directly(self):
+        def mapping(self, get_all=False):
+            base = {
+                "name": "Base template",
+                "country_id": self.env.ref("base.be").id,
+                "country_code": None,
+                "module": "account",
+                "parent": None,
+                "visible": False,
+            }
+            return {"base_only": base} if get_all else {}
+
+        company = self.env["res.company"].create({"name": "Guarded Co"})
+        with patch.object(AccountChartTemplate, "_get_chart_template_mapping", mapping):
+            with self.assertRaisesRegex(UserError, "shouldn't be selected directly"):
+                self.env["account.chart.template"].try_loading(
+                    "base_only", company=company, install_demo=False
+                )
+
+    def test_template_company_field_matches_each_model(self):
+        for model in TEMPLATE_MODELS + ("account.move",):
+            with self.subTest(model=model):
+                fname = self.ChartTemplate._template_company_field(model)
+                self.assertIn(fname, self.env[model]._fields)
+        self.assertEqual(
+            self.ChartTemplate._template_company_field("account.account"),
+            "company_ids",
+            "account.account is the one TEMPLATE_MODEL that carries company_ids",
+        )
+
+    def test_parse_csv_resolve_comodel_walks_relations_only(self):
+        Tax = self.env["account.tax"]
+        self.assertEqual(
+            self.ChartTemplate._parse_csv_resolve_comodel(
+                Tax, ["repartition_line_ids"]
+            )._name,
+            "account.tax.repartition.line",
+        )
+        self.assertIsNone(
+            self.ChartTemplate._parse_csv_resolve_comodel(Tax, ["name"]),
+            "a non-relational field names no sub-record",
+        )
+        self.assertIsNone(
+            self.ChartTemplate._parse_csv_resolve_comodel(Tax, ["no_such_field"]),
+            "an unknown field names no sub-record",
+        )
+
+    def test_load_should_delay_defers_only_uncreated_models(self):
+        should_delay = self.ChartTemplate._load_should_delay
+        self.assertTrue(
+            should_delay(
+                set(), ["account.account"], "account.tax", "invoice_label", "x"
+            )
+            is False,
+            "a non-relational field is never delayed",
+        )
+        self.assertTrue(
+            should_delay(
+                set(), ["account.tax.group"], "account.tax", "tax_group_id", "grp"
+            ),
+            "a relation to a model still pending is delayed",
+        )
+        self.assertFalse(
+            should_delay(
+                {"account.tax.group"}, [], "account.tax", "tax_group_id", "grp"
+            ),
+            "a relation to a model already created is not delayed",
+        )
+        self.assertFalse(
+            should_delay(
+                set(), ["account.tax.group"], "account.tax", "tax_group_id", 7
+            ),
+            "an integer is already a database id",
+        )
+
+    def test_auto_install_skips_invisible_templates(self):
+        module = self.env["ir.module.module"].search(
+            [("name", "=", "account")], limit=1
+        )
+        company = self.env.company
+        base = {"country_id": company.country_id.id, "visible": False}
+        selectable = {"country_id": company.country_id.id, "visible": True}
+
+        with patch.object(
+            type(module),
+            "account_templates",
+            {"a_base": base, "a_selectable": selectable},
+        ):
+            self.assertEqual(
+                module._account_template_to_auto_install(),
+                "a_selectable",
+                "the invisible base must be skipped even though it comes first",
+            )
+        with patch.object(type(module), "account_templates", {"a_base": base}):
+            self.assertIsNone(
+                module._account_template_to_auto_install(),
+                "a module offering only base templates auto-installs nothing",
+            )

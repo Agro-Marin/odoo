@@ -6,7 +6,7 @@ from odoo.addons.account.models.company import PEPPOL_LIST
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
-    has_accounting_entries = fields.Boolean(compute="_compute_has_chart_of_accounts")
+    has_accounting_entries = fields.Boolean(compute="_compute_accounting_presence")
     currency_id = fields.Many2one(
         "res.currency",
         related="company_id.currency_id",
@@ -41,7 +41,7 @@ class ResConfigSettings(models.TransientModel):
         domain="[('account_type', 'in', ('expense', 'expense_other'))]",
     )
     has_chart_of_accounts = fields.Boolean(
-        compute="_compute_has_chart_of_accounts",
+        compute="_compute_accounting_presence",
         string="Company has a chart of accounts",
     )
     chart_template = fields.Selection(
@@ -192,7 +192,7 @@ class ResConfigSettings(models.TransientModel):
         readonly=False,
     )
     preview_ready = fields.Boolean(
-        string="Display preview button", compute="_compute_terms_preview"
+        string="Display preview button", compute="_compute_preview_ready"
     )
 
     use_invoice_terms = fields.Boolean(
@@ -213,23 +213,19 @@ class ResConfigSettings(models.TransientModel):
         inverse="_inverse_account_default_credit_limit",
     )
 
-    # Technical field to hide country specific fields from accounting configuration
     country_code = fields.Char(
         related="company_id.account_fiscal_country_id.code", readonly=True
     )
 
-    # Storno Accounting
     account_storno = fields.Boolean(
         string="Storno accounting", readonly=False, related="company_id.account_storno"
     )
     display_account_storno = fields.Boolean(related="company_id.display_account_storno")
 
-    # Allows for the use of a different delivery address
     group_sale_delivery_address = fields.Boolean(
         "Customer Addresses", implied_group="account.group_delivery_invoice_address"
     )
 
-    # Quick encoding (fiduciary mode)
     quick_edit_mode = fields.Selection(
         string="Quick encoding", readonly=False, related="company_id.quick_edit_mode"
     )
@@ -253,7 +249,6 @@ class ResConfigSettings(models.TransientModel):
         domain="[('account_type', 'in', ('income', 'income_other', 'expense', 'expense_other'))]",
     )
 
-    # Accounts for allocation of discounts
     account_discount_income_allocation_id = fields.Many2one(
         comodel_name="account.account",
         string="Vendor Bills Discounts Account",
@@ -269,13 +264,11 @@ class ResConfigSettings(models.TransientModel):
         domain="[('account_type', 'in', ('income', 'income_other', 'expense', 'expense_other'))]",
     )
 
-    # PEPPOL
     is_account_peppol_eligible = fields.Boolean(
         string="PEPPOL eligible",
         compute="_compute_is_account_peppol_eligible",
-    )  # technical field used for showing the Peppol settings conditionally
+    )
 
-    # Audit trail
     restrictive_audit_trail = fields.Boolean(
         string="Restricted Audit Trail",
         related="company_id.restrictive_audit_trail",
@@ -287,7 +280,6 @@ class ResConfigSettings(models.TransientModel):
         readonly=False,
     )
 
-    # Autopost of bills
     autopost_bills = fields.Boolean(related="company_id.autopost_bills", readonly=False)
     income_account_id = fields.Many2one(
         related="company_id.income_account_id", readonly=False, check_company=True
@@ -298,14 +290,11 @@ class ResConfigSettings(models.TransientModel):
 
     @api.depends("country_code")
     def _compute_is_account_peppol_eligible(self):
-        # we want to show Peppol settings only to customers that are eligible for Peppol,
-        # except countries that are not in Europe
         for config in self:
             config.is_account_peppol_eligible = config.country_code in PEPPOL_LIST
 
     def set_values(self):
         super().set_values()
-        # install a chart of accounts for the given company (if required)
         if (
             self.env.company == self.company_id
             and self.chart_template
@@ -339,7 +328,7 @@ class ResConfigSettings(models.TransientModel):
             )
 
     @api.depends("company_id")
-    def _compute_has_chart_of_accounts(self):
+    def _compute_accounting_presence(self):
         self.has_chart_of_accounts = bool(self.company_id.chart_template)
         self.has_accounting_entries = self.company_id.root_id._existing_accounting()
 
@@ -395,10 +384,8 @@ class ResConfigSettings(models.TransientModel):
         return res
 
     @api.depends("terms_type")
-    def _compute_terms_preview(self):
+    def _compute_preview_ready(self):
         for setting in self:
-            # We display the preview button only if the terms_type is html in the setting but also on the company
-            # to avoid landing on an error page (see terms.py controller)
             setting.preview_ready = (
                 self.env.company.terms_type == "html" and setting.terms_type == "html"
             )

@@ -10,7 +10,6 @@ class TestKpiProvider(TransactionCase):
 
         cls.partner_id = cls.env["res.partner"].create({"name": "Someone"})
 
-        # Clean things for the test
         cls.env["account.move"].search(
             [
                 "|",
@@ -20,7 +19,6 @@ class TestKpiProvider(TransactionCase):
         )._unlink_or_reverse()
 
     def test_empty_kpi_summary(self):
-        # Ensure that nothing gets reported when there is nothing to report
         self.assertCountEqual(self.env["kpi.provider"].get_account_kpi_summary(), [])
 
     def test_kpi_summary(self):

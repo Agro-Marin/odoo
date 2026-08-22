@@ -3,6 +3,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 
 import { DocumentFileUploader } from "../document_file_uploader/document_file_uploader.js";
+import { defaultMoveTypeForJournal } from "../document_file_uploader/journal_defaults.js";
 
 export class AccountFileUploader extends DocumentFileUploader {
     static template = "account.AccountFileUploader";
@@ -20,10 +21,7 @@ export class AccountFileUploader extends DocumentFileUploader {
             ? {
                   ...extraContext,
                   default_journal_id: record_data.id,
-                  default_move_type:
-                      (record_data.type === "sale" && "out_invoice") ||
-                      (record_data.type === "purchase" && "in_invoice") ||
-                      "entry",
+                  default_move_type: defaultMoveTypeForJournal(record_data.type),
               }
             : extraContext;
     }

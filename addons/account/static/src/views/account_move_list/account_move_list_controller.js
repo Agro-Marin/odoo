@@ -3,15 +3,16 @@ import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { deleteConfirmationMessage } from "@web/ui/dialog";
 
-import { showAccountUploadButton } from "../account_file_uploader_mixin.js";
-import { AccountUploadListController } from "../account_upload_list/account_upload_list_controller.js";
+import { WithAccountFileUploader } from "../account_file_uploader_mixin.js";
+import { FileUploadListController } from "../file_upload_list/file_upload_list_controller.js";
 
-export class AccountMoveListController extends AccountUploadListController {
+export class AccountMoveListController extends WithAccountFileUploader(
+    FileUploadListController,
+) {
     setup() {
         super.setup();
         this.orm = useService("orm");
         this.account_move_service = useService("account_move");
-        this.showUploadButton = showAccountUploadButton(this.props.context);
     }
 
     get actionMenuProps() {

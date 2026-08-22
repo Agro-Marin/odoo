@@ -14,11 +14,9 @@ class TestAccountTax(AccountTestInvoicingCommon):
 
     @classmethod
     def default_env_context(cls):
-        # OVERRIDE
         return {}
 
     def set_up_and_use_tax(self):
-
         self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -38,7 +36,6 @@ class TestAccountTax(AccountTestInvoicingCommon):
             }
         )
 
-        # Create two lines after creating the move so that those lines are not used in the move
         self.company_data["default_tax_sale"].write(
             {
                 "invoice_repartition_line_ids": [
@@ -54,14 +51,10 @@ class TestAccountTax(AccountTestInvoicingCommon):
         self.assertTrue(self.company_data["default_tax_sale"].is_used)
 
     def flush_tracking(self):
-        """Force the creation of tracking values."""
         self.env.flush_all()
         self.cr.flush()
 
     def test_changing_tax_company(self):
-        """Ensure you can't change the company of an account.tax if there are some journal entries"""
-
-        # Avoid duplicate key value violates unique constraint "account_tax_name_company_uniq".
         self.company_data["default_tax_sale"].name = "test_changing_account_company"
 
         self.env["account.move"].create(
@@ -91,12 +84,8 @@ class TestAccountTax(AccountTestInvoicingCommon):
             ]
 
     def test_logging_of_tax_update_when_tax_is_used(self):
-        """Modifications of a used tax should be logged."""
-
         self.set_up_and_use_tax()
         tax = self.company_data["default_tax_sale"]
-        # `set_up_and_use_tax` already logged the two repartition lines it added;
-        # measure only the messages produced by the scalar update below.
         messages_before = tax.message_ids
 
         tax.write(
@@ -117,8 +106,6 @@ class TestAccountTax(AccountTestInvoicingCommon):
             1,
             "Only 1 message should have been created when updating all the values.",
         )
-        # The write above updates the 7 tracked scalar fields of account.tax, so
-        # each one must show up as a tracking value in the message
         self.assertEqual(
             len(new_messages.tracking_value_ids),
             7,
@@ -126,8 +113,6 @@ class TestAccountTax(AccountTestInvoicingCommon):
         )
 
     def test_logging_of_repartition_lines_addition_when_tax_is_used(self):
-        """Adding repartition lines in a used tax should be logged."""
-
         self.set_up_and_use_tax()
 
         self.company_data["default_tax_sale"].write(
@@ -157,8 +142,6 @@ class TestAccountTax(AccountTestInvoicingCommon):
         )
 
     def test_logging_of_repartition_lines_update_when_tax_is_used(self):
-        """Updating repartition lines in a used tax should be logged."""
-
         self.set_up_and_use_tax()
 
         last_invoice_rep_line = self.company_data[
@@ -209,8 +192,6 @@ class TestAccountTax(AccountTestInvoicingCommon):
         )
 
     def test_logging_of_repartition_lines_reordering_when_tax_is_used(self):
-        """Reordering repartition lines in a used tax should be logged."""
-
         self.set_up_and_use_tax()
 
         last_invoice_rep_line = self.company_data[
@@ -246,8 +227,6 @@ class TestAccountTax(AccountTestInvoicingCommon):
         )
 
     def test_logging_of_repartition_lines_removal_when_tax_is_used(self):
-        """Deleting repartition lines in a used tax should be logged."""
-
         self.set_up_and_use_tax()
 
         last_invoice_rep_line = self.company_data[
@@ -280,9 +259,6 @@ class TestAccountTax(AccountTestInvoicingCommon):
         )
 
     def test_tax_is_used_when_in_transactions(self):
-        """Ensures that a tax is set to used when it is part of some transactions"""
-
-        # Account.move is one type of transaction
         tax_invoice = self.env["account.tax"].create(
             {
                 "name": "test_is_used_invoice",
@@ -309,7 +285,6 @@ class TestAccountTax(AccountTestInvoicingCommon):
         tax_invoice.invalidate_model(fnames=["is_used"])
         self.assertTrue(tax_invoice.is_used)
 
-        # account.reconcile.model is another type of transaction
         tax_reconciliation = self.env["account.tax"].create(
             {
                 "name": "test_is_used_reconcilition",
@@ -335,13 +310,12 @@ class TestAccountTax(AccountTestInvoicingCommon):
         self.assertTrue(tax_reconciliation.is_used)
 
     def test_tax_unlink_guard_sees_fresh_usage_without_manual_invalidate(self):
-        """`unlink()` on a newly-used tax must be blocked even if `is_used` was read (and cached) earlier in the same transaction."""
         tax = self.env["account.tax"].create(
             {"name": "test_is_used_stale", "amount": "100"}
         )
         self.assertFalse(
             tax.is_used
-        )  # cache a stale False, deliberately no invalidate after this
+        )
 
         self.env["account.move"].create(
             {
@@ -363,8 +337,6 @@ class TestAccountTax(AccountTestInvoicingCommon):
             tax.unlink()
 
     def test_tax_no_duplicate_in_repartition_line(self):
-        """Ensure a tax that generates a second tax line is not applied to that tax line."""
-
         account_1 = self.company_data["default_account_tax_sale"].copy()
         account_2 = self.company_data["default_account_tax_sale"].copy()
         tax = self.env["account.tax"].create(
@@ -475,34 +447,20 @@ class TestAccountTax(AccountTestInvoicingCommon):
         )
 
     def test_display_alternative_taxes_field_follows_dependencies(self):
-        """Ensure `display_alternative_taxes_field` recomputes when `original_tax_ids` changes."""
-        # The compute reads `original_tax_ids` and
-        # `company_id.domestic_fiscal_position_id`, not only `fiscal_position_ids`;
-        # all three must be declared in its `@api.depends` or the non-stored field
-        # stays stale while the form is being edited.
         tax = self.env["account.tax"].create(
             {"name": "alt-main", "amount": 21.0, "type_tax_use": "sale"}
         )
         domestic = self.env["account.tax"].create(
             {"name": "alt-domestic", "amount": 10.0, "type_tax_use": "sale"}
         )
-        # No fiscal positions and nothing replaced yet -> field is falsy.
         self.assertFalse(tax.display_alternative_taxes_field)
-        # Change ONLY the previously-undeclared dependency.
         tax.original_tax_ids = domestic
-        # A missing dependency would leak the cached ``False`` here.
         self.assertTrue(tax.display_alternative_taxes_field)
 
     def test_repartition_lines_logging_survives_language_change(self):
-        """Ensure editing a used tax never crashes on a snapshot stored under another language."""
-        # Snapshot keys and values are language-neutral tokens, translated only at
-        # render time, so diffing snapshots taken under different languages must
-        # not raise ``KeyError`` while merely saving the tax.
         self.set_up_and_use_tax()
         tax = self.company_data["default_tax_sale"]
 
-        # (a) Translated-format snapshot vs neutral-format snapshot: the migration
-        #     path must not raise (it just can't produce a diff).
         old_translated = (
             "{('invoice', 1): {'Porcentaje de factor': 50.0, 'Cuenta': 'X', "
             "'Cuadros de impuestos': None, 'Usar en cierre de impuestos': 'Verdadero'}}"
@@ -511,10 +469,8 @@ class TestAccountTax(AccountTestInvoicingCommon):
             "{('invoice', 1): {'factor_percent': 100.0, 'account': 'X', "
             "'tax_grids': None, 'use_in_tax_closing': True}}"
         )
-        # The mismatched key formats must not raise KeyError.
         tax._message_log_repartition_lines(old_translated, new_neutral)
 
-        # (b) Two neutral-format snapshots produce a correctly-labelled diff.
         tax.message_ids.unlink()
         old_neutral = (
             "{('invoice', 1): {'factor_percent': 50.0, 'account': 'X', "
@@ -528,9 +484,6 @@ class TestAccountTax(AccountTestInvoicingCommon):
         self.assertIn("Use in tax closing", joined)
 
     def test_compute_all_rounds_per_tax_base_under_round_globally(self):
-        """Ensure the per-tax 'base' of compute_all is currency-rounded unless round_base=False."""
-        # Under 'round_globally' the raw base is a full-precision float, so the
-        # per-tax 'base' must follow the same rounding switch as the totals.
         company = self.env.company
         company.tax_calculation_rounding_method = "round_globally"
         currency = company.currency_id
@@ -553,16 +506,12 @@ class TestAccountTax(AccountTestInvoicingCommon):
             currency.round(base),
             "per-tax base must be currency-rounded (round_base default True)",
         )
-        # The raw, unrounded base is still available on explicit request.
         raw = tax.with_context(round_globally=True, round_base=False).compute_all(
             100.0, currency=currency, quantity=1.0
         )["taxes"][0]["base"]
         self.assertNotEqual(raw, currency.round(raw), "round_base=False keeps raw base")
 
     def test_division_tax_batch_over_100_percent_is_rejected(self):
-        """Ensure a price-excluded division-tax batch summing to more than 100% is rejected."""
-        # Such a batch leaves a negative taxable base, which silently flips the
-        # tax sign; raising is the only safe outcome.
         company = self.env.company
         currency = company.currency_id
         div_taxes = self.env["account.tax"].create(
@@ -581,6 +530,5 @@ class TestAccountTax(AccountTestInvoicingCommon):
         with self.assertRaisesRegex(ValidationError, "cannot exceed 100"):
             div_taxes.compute_all(100.0, currency=currency, quantity=1.0)
 
-        # A single valid price-excluded division tax still computes.
         result = div_taxes[0].compute_all(100.0, currency=currency, quantity=1.0)
         self.assertGreater(result["total_included"], 0.0)

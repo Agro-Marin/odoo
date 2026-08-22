@@ -33,8 +33,8 @@ class ResPartner(models.Model):
     def _onchange_vat(self):
         super()._onchange_vat()
 
-    def _get_frontend_writable_fields(self):
-        frontend_writable_fields = super()._get_frontend_writable_fields()
+    def _get_fields_frontend_writable(self):
+        frontend_writable_fields = super()._get_fields_frontend_writable()
         frontend_writable_fields.add('l10n_latam_identification_type_id')
 
         return frontend_writable_fields

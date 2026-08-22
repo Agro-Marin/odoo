@@ -95,7 +95,7 @@ class NemhandelRegistration(models.TransientModel):
     # BUSINESS ACTIONS
     # -------------------------------------------------------------------------
 
-    def _action_open_nemhandel_form(self, reopen=True):
+    def _action_view_nemhandel_form(self, reopen=True):
         if reopen:
             return self._get_records_action(
                 name=_("Send via Nemhandel"),
@@ -167,7 +167,7 @@ class NemhandelRegistration(models.TransientModel):
 
         if self.edi_user_id.edi_mode != 'demo':
             return self.send_nemhandel_verification_code()
-        return self._action_open_nemhandel_form()
+        return self._action_view_nemhandel_form()
 
     @handle_demo
     def button_nemhandel_receiver_registration(self):
@@ -179,7 +179,7 @@ class NemhandelRegistration(models.TransientModel):
             self.edi_user_id._nemhandel_register_as_receiver()
         except (UserError, AccountEdiProxyError) as e:
             self.button_deregister_nemhandel_participant()
-            registration_form_action = self._action_open_nemhandel_form()
+            registration_form_action = self._action_view_nemhandel_form()
             registration_form_action['views'] = [(False, 'form')]
             return {
                 'type': 'ir.actions.client',
@@ -196,7 +196,7 @@ class NemhandelRegistration(models.TransientModel):
                 title=_("Registered to receive documents."),
                 message=_("You can now receive documents via Nemhandel."),
             )
-        return self._action_open_nemhandel_form()
+        return self._action_view_nemhandel_form()
 
     @handle_demo
     def button_update_nemhandel_user_data(self):
@@ -234,7 +234,7 @@ class NemhandelRegistration(models.TransientModel):
             },
         )
         self.l10n_dk_nemhandel_proxy_state = 'in_verification'
-        return self._action_open_nemhandel_form()
+        return self._action_view_nemhandel_form()
 
     @handle_demo
     def button_check_nemhandel_verification_code(self):

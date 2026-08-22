@@ -51,7 +51,7 @@ class PaymentToken(models.Model):
     @api.depends("payment_details", "create_date")
     def _compute_display_name(self):
         for token in self:
-            token.display_name = token._build_display_name()
+            token.display_name = token._prepare_display_name()
 
     # === CRUD METHODS === #
 
@@ -157,7 +157,7 @@ class PaymentToken(models.Model):
                 [("partner_id", "in", [partner.id, partner.commercial_partner_id.id])]
             )
 
-    def _build_display_name(self, *args, max_length=34, should_pad=True, **kwargs):
+    def _prepare_display_name(self, *args, max_length=34, should_pad=True, **kwargs):
         """Build a token name of the desired maximum length with the format `•••• 1234`.
 
         The payment details are padded on the left with up to four padding characters. The padding

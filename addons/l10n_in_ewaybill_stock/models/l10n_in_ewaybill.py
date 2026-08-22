@@ -24,7 +24,7 @@ class L10nInEwaybill(models.Model):
     fiscal_position_id = fields.Many2one(
         comodel_name='account.fiscal.position',
         string="Fiscal Position",
-        compute='_compute_fiscal_position',
+        compute='_compute_fiscal_position_id',
         check_company=True,
         store=True,
         readonly=False
@@ -94,7 +94,7 @@ class L10nInEwaybill(models.Model):
         return super()._is_incoming()
 
     @api.depends('partner_bill_from_id', 'partner_bill_to_id')
-    def _compute_fiscal_position(self):
+    def _compute_fiscal_position_id(self):
         for ewaybill in self:
             if ewaybill.picking_id and ewaybill.state == 'pending':
                 ewaybill.fiscal_position_id = (

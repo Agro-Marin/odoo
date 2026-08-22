@@ -1,4 +1,3 @@
-# pylint: disable=too-many-lines
 from odoo import Command
 from odoo.tests import tagged
 
@@ -204,7 +203,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
         )
         self.assertTotalAmounts(invoice, tax_details)
 
-        # Same with a group of taxes
 
         tax_group = self.env["account.tax"].create(
             {
@@ -1131,7 +1129,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
         self.assertTotalAmounts(invoice, tax_details)
 
     def test_multiple_same_tax_lines(self):
-        """In expense, the same tax line could be generated multiple times."""
         percent_tax = self.env["account.tax"].create(
             {
                 "name": "percent_tax",
@@ -1150,7 +1147,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
                 {
                     "date": "2019-01-01",
                     "line_ids": [
-                        # Base lines
                         Command.create(
                             {
                                 "name": "base1",
@@ -1173,7 +1169,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
                                 "tax_ids": [Command.set(percent_tax.ids)],
                             }
                         ),
-                        # Tax lines
                         Command.create(
                             {
                                 "name": "tax1",
@@ -1196,7 +1191,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
                                 "tax_repartition_line_id": tax_rep.id,
                             }
                         ),
-                        # Balance
                         Command.create(
                             {
                                 "name": "balance",
@@ -1264,7 +1258,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
                 {
                     "date": "2019-01-01",
                     "line_ids": [
-                        # Base lines
                         Command.create(
                             {
                                 "name": "base1",
@@ -1291,7 +1284,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
                                 "tax_ids": [Command.set(percent_tax.ids)],
                             }
                         ),
-                        # Tax lines
                         Command.create(
                             {
                                 "name": "tax1",
@@ -1318,7 +1310,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
                                 "tax_repartition_line_id": tax_rep.id,
                             }
                         ),
-                        # Balance
                         Command.create(
                             {
                                 "name": "balance",
@@ -1345,7 +1336,7 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
                     "base_amount": 1200.0,
                     "tax_amount": 10.91,
                     "base_amount_currency": 2400.0,
-                    "tax_amount_currency": 102.857,  # (2400.0 / 8400.0) * (360.0 / 560.0) * 560.0
+                    "tax_amount_currency": 102.857,
                 },
                 {
                     "base_line_id": base_lines[0].id,
@@ -1353,7 +1344,7 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
                     "base_amount": 1200.0,
                     "tax_amount": 109.09,
                     "base_amount_currency": 2400.0,
-                    "tax_amount_currency": 57.143,  # (2400.0 / 8400.0) * (200.0 / 560.0) * 560.0
+                    "tax_amount_currency": 57.143,
                 },
                 {
                     "base_line_id": base_lines[1].id,
@@ -1361,7 +1352,7 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
                     "base_amount": 12000.0,
                     "tax_amount": 109.09,
                     "base_amount_currency": 6000.0,
-                    "tax_amount_currency": 257.143,  # (6000.0 / 8400.0) * (360.0 / 560.0) * 560.0
+                    "tax_amount_currency": 257.143,
                 },
                 {
                     "base_line_id": base_lines[1].id,
@@ -1369,7 +1360,7 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
                     "base_amount": 12000.0,
                     "tax_amount": 1090.91,
                     "base_amount_currency": 6000.0,
-                    "tax_amount_currency": 142.857,  # (6000.0 / 8400.0) * (200.0 / 560.0) * 560.0
+                    "tax_amount_currency": 142.857,
                 },
             ],
         )
@@ -1472,7 +1463,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
         )
         base_lines, tax_lines = self._dispatch_move_lines(invoice)
 
-        # Break the configuration
         tax_lines.account_id = self.company_data["default_account_assets"]
 
         tax_details = self._get_tax_details(fallback=True)
@@ -1595,7 +1585,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
                     self.assertTotalAmounts(invoice, tax_details)
 
     def test_multiple_same_tax_lines_with_analytic(self):
-        """Tax details when only one base line of a tax group has an analytic distribution."""
         analytic_plan = self.env["account.analytic.plan"].create(
             {"name": "Plan with Tax details"}
         )
@@ -1606,7 +1595,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
                 "company_id": False,
             }
         )
-        # Leave "analytic" unset so the ORM stores SQL NULL, the case under test
         child1_tax = self.env["account.tax"].create(
             {
                 "name": "child1_tax",

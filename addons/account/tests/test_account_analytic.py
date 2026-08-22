@@ -13,7 +13,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         super().setUpClass()
         cls.company_data_2 = cls.setup_other_company()
 
-        # By default, tests are run with the current user set on the first company.
         cls.env.user.company_id = cls.company_data["company"]
 
         cls.cross_plan = cls.env["account.analytic.plan"].create({"name": "Cross"})
@@ -56,9 +55,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         )
 
     def test_changing_analytic_company(self):
-        """Ensure you can't change the company of an account.analytic.account if there are analytic lines linked to
-        the account
-        """
         self.env["account.analytic.line"].create(
             {
                 "name": "company specific account",
@@ -67,16 +63,12 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             }
         )
 
-        # Set a different company on the analytic account.
         with self.assertRaises(UserError):
             self.analytic_account_3.company_id = self.company_data_2["company"]
 
-        # Making the analytic account not company dependent is allowed.
         self.analytic_account_3.company_id = False
 
     def test_analytic_lines(self):
-        """Ensures analytic lines are created when posted and are recreated when editing the account.move"""
-
         out_invoice = self.env["account.move"].create(
             [
                 {
@@ -102,7 +94,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
 
         out_invoice.action_post()
 
-        # Analytic lines are created when posting the invoice
         self.assertRecordValues(
             self.get_analytic_lines(out_invoice),
             [
@@ -121,7 +112,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             ],
         )
 
-        # Analytic lines are updated when a posted invoice's distribution changes
         out_invoice.invoice_line_ids.analytic_distribution = {
             self.analytic_account_3.id: 100,
             self.analytic_account_4.id: 25,
@@ -140,13 +130,10 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             ],
         )
 
-        # Analytic lines are deleted when resetting to draft
         out_invoice.action_draft()
         self.assertFalse(self.get_analytic_lines(out_invoice))
 
     def test_analytic_lines_multicurrency(self):
-        """Ensures analytic lines are created when the aml has a secondary currency set."""
-        # set up second currency
         self.env.ref("base.PYG").write(
             {
                 "rounding": 1.0,
@@ -188,7 +175,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
 
         out_invoice.action_post()
 
-        # Will not show up if the wrong currency is used to round the amount.
         self.assertRecordValues(
             self.get_analytic_lines(out_invoice),
             [
@@ -200,13 +186,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         )
 
     def test_analytic_lines_rounding(self):
-        """Ensures analytic lines rounding errors are spread across all lines, so that summing them gives the right amount"""
-
-        # in this scenario,
-        # 94% of 182.25 = 171.315 rounded to 171.32
-        # 2% of 182.25 = 3.645 rounded to 3.65
-        # 3 * 3.65 + 171.32 = 182.27
-        # we remove 0.01 to two lines to counter the rounding errors.
         out_invoice = self.env["account.move"].create(
             [
                 {
@@ -261,10 +240,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         )
 
         out_invoice.action_draft()
-        # in this scenario,
-        # 25% of 182.25 = 45.5625 rounded to 45.56
-        # 45.56 * 4 = 182.24
-        # we add 0.01 to one of the line to counter the rounding errors.
         out_invoice.invoice_line_ids[0].analytic_distribution = {
             self.analytic_account_1.id: 25,
             self.analytic_account_2.id: 25,
@@ -300,8 +275,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         )
 
     def test_model_score(self):
-        """Test that the models are applied correctly based on the score"""
-
         self.env["account.analytic.distribution.model"].create(
             [
                 {
@@ -316,30 +289,25 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             ]
         )
 
-        # Partner and product match, score 2
         invoice = self.create_invoice(self.partner_a, self.product_a)
         self.assertEqual(
             invoice.invoice_line_ids.analytic_distribution,
             {str(self.analytic_account_4.id): 100},
         )
 
-        # Match the partner but not the product, score 0
         invoice = self.create_invoice(self.partner_a, self.product_b)
         self.assertEqual(invoice.invoice_line_ids.analytic_distribution, False)
 
-        # Product match, score 1
         invoice = self.create_invoice(self.partner_b, self.product_a)
         self.assertEqual(
             invoice.invoice_line_ids.analytic_distribution,
             {str(self.analytic_account_3.id): 100},
         )
 
-        # No rule match with the product, score 0
         invoice = self.create_invoice(self.partner_b, self.product_b)
         self.assertEqual(invoice.invoice_line_ids.analytic_distribution, False)
 
     def test_model_application(self):
-        """Test that the distribution is recomputed if and only if it is needed when changing the partner."""
         self.env["account.analytic.distribution.model"].create(
             [
                 {
@@ -356,38 +324,32 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         )
 
         invoice = self.create_invoice(self.env["res.partner"], self.product_a)
-        # No model is found, don't put anything
         self.assertEqual(invoice.invoice_line_ids.analytic_distribution, False)
 
-        # A model is found, set the new values
         invoice.partner_id = self.partner_a
         self.assertEqual(
             invoice.invoice_line_ids.analytic_distribution,
             {str(self.analytic_account_3.id): 100},
         )
 
-        # A model is found, set the new values
         invoice.partner_id = self.partner_b
         self.assertEqual(
             invoice.invoice_line_ids.analytic_distribution,
             {str(self.analytic_account_4.id): 100},
         )
 
-        # No model is found, don't change previously set values
         invoice.partner_id = invoice.company_id.partner_id
         self.assertEqual(
             invoice.invoice_line_ids.analytic_distribution,
             {str(self.analytic_account_4.id): 100},
         )
 
-        # No model is found, don't change previously set values
         invoice.partner_id = False
         self.assertEqual(
             invoice.invoice_line_ids.analytic_distribution,
             {str(self.analytic_account_4.id): 100},
         )
 
-        # The manual value is not erased in form view when saving
         with Form(invoice) as invoice_form:
             invoice_form.partner_id = self.partner_a
             with invoice_form.invoice_line_ids.edit(0) as line_form:
@@ -417,7 +379,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             }
         )
 
-        # ValidationError is raised only when validate_analytic is in the context and the distribution is != 100
         with self.assertRaisesRegex(ValidationError, "100% analytic distribution."):
             invoice.with_context({"validate_analytic": True}).action_post()
 
@@ -439,7 +400,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         invoice.with_context({"validate_analytic": True}).action_post()
         self.assertEqual(invoice.state, "posted")
 
-        # reset and post without the validate_analytic context key
         invoice.action_draft()
         invoice.invoice_line_ids.analytic_distribution = {
             self.analytic_account_4.id: 0.9
@@ -448,7 +408,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         self.assertEqual(invoice.state, "posted")
 
     def test_mandatory_plan_validation_mass_posting(self):
-        """Ensures mandatory analytic plans are still checked when posting in mass"""
         invoice1 = self.create_invoice(self.partner_a, self.product_a)
         invoice2 = self.create_invoice(self.partner_b, self.product_a)
         self.analytic_plan_2.write(
@@ -476,7 +435,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             )
             .create({"force_post": True})
         )
-        # A single entry selected raises a ValidationError, several raise a RedirectWarning
         for invoices in [invoice1, invoice1 | invoice2]:
             with self.subTest(invoices=invoices):
                 with self.assertRaises(Exception):
@@ -484,7 +442,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
                 self.assertTrue("posted" not in invoices.mapped("state"))
 
     def test_cross_analytics_computing(self):
-
         out_invoice = self.env["account.move"].create(
             [
                 {
@@ -547,7 +504,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         self.assertEqual(self.analytic_account_3.vendor_bill_count, 1)
 
     def test_applicability_score(self):
-        """Tests which applicability is chosen if several ones are valid"""
         applicability_without_company, applicability_with_company = self.env[
             "account.analytic.applicability"
         ].create(
@@ -577,8 +533,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             applicability, "mandatory", "product takes precedence over company"
         )
 
-        # If the model that asks for a validation does not have a company_id,
-        # the score shouldn't take into account the company of the applicability
         score = applicability_without_company._get_score(
             business_domain="invoice", product=self.product_a.id
         )
@@ -629,7 +583,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             "company_id": self.env.company.id,
         }
 
-        # Priority: m1 > m2 > m3 : A1, B1
         distribution = self.env[
             "account.analytic.distribution.model"
         ]._get_distribution(criteria)
@@ -637,7 +590,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             distribution, m1.analytic_distribution, "m1 fills A & B, ignore m1 & m2"
         )
 
-        # Priority: m2 > m1 > m3 : A2, B3, C2
         m1.sequence, m2.sequence, m3.sequence = 2, 1, 3
         distribution = self.env[
             "account.analytic.distribution.model"
@@ -648,7 +600,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             "m2 fills A, ignore m1",
         )
 
-        # Priority: m3 > m1 > m2 : A2, B3, C2
         m1.sequence, m2.sequence, m3.sequence = 2, 3, 1
         distribution = self.env[
             "account.analytic.distribution.model"
@@ -680,7 +631,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             .grouped("code")
         )
         invoice = self.create_invoice(self.env["res.partner"], self.product_a)
-        # No model is found, don't put anything
         self.assertEqual(invoice.invoice_line_ids.analytic_distribution, False)
         invoice.invoice_line_ids.account_id = accounts_by_code.get("611000")
         self.assertEqual(
@@ -707,7 +657,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         )
 
     def test_analytic_distribution_prefix_with_space_before_delimiter(self):
-        """A trailing space before the delimiter (e.g. "60 ,61") must not stop the prefix from matching."""
         self.env["account.analytic.distribution.model"].create(
             {
                 "account_prefix": "60 ,61",
@@ -726,7 +675,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         )
 
     def test_analytic_applicability_multiple_prefixes(self):
-        # This applicability should block all invoices with lines having account_code who starts with '40' or '41'
         self.env["account.analytic.applicability"].create(
             [
                 {
@@ -781,7 +729,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             }
         )
 
-        # This invoice should be blocked as there is no analytic plans on lines
         with self.assertRaisesRegex(ValidationError, "100% analytic distribution."):
             invoice.with_context({"validate_analytic": True}).action_post()
 
@@ -789,7 +736,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             0
         ].write({"analytic_distribution": {account_analytic.id: 100}})
 
-        # This invoice should be blocked because one line is missing plans
         with self.assertRaisesRegex(ValidationError, "100% analytic distribution."):
             invoice.with_context({"validate_analytic": True}).action_post()
 
@@ -797,12 +743,9 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             0
         ].write({"analytic_distribution": {account_analytic.id: 100}})
 
-        # This invoice should not be blocked, as all lines have plans
         invoice.with_context({"validate_analytic": True}).action_post()
 
     def test_analytic_lines_partner_compute(self):
-        """Ensures analytic lines partner is changed when changing partner on move line"""
-
         def get_analytic_lines():
             return (
                 self.env["account.analytic.line"]
@@ -843,7 +786,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         )
         entry.action_post()
 
-        # Analytic lines are created when posting the entry
         analytic_line = get_analytic_lines()
         self.assertRecordValues(
             analytic_line,
@@ -855,7 +797,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
                 }
             ],
         )
-        # Change the move line on the analytic line, partner changes on the analytic line
         analytic_line.move_line_id = entry.line_ids[0]
         self.assertRecordValues(
             analytic_line,
@@ -867,7 +808,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
                 }
             ],
         )
-        # Change the move line's partner, partner changes on the analytic line
         entry.line_ids.write({"partner_id": self.partner_b.id})
         self.assertRecordValues(
             analytic_line,
@@ -881,7 +821,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         )
 
     def test_tax_line_sync_with_analytic(self):
-        """Ensures the synced lines, especially the tax line, keep the analytic distribution when saving the move"""
         sale_tax = self.company_data["default_tax_sale"]
         account_with_tax = self.company_data["default_account_revenue"].copy(
             {"tax_ids": [Command.set(sale_tax.ids)]}
@@ -924,7 +863,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         )
 
     def test_get_relevant_plans_in_multi_company(self):
-        """Test the plans returned with applicability rules and options in multi-company"""
         self.analytic_plan_1.write(
             {
                 "applicability_ids": [
@@ -952,9 +890,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         self.assertTrue(plans_json)
 
     def test_analytic_distribution_with_discount(self):
-        """Ensure that discount lines include analytic distribution when a discount expense account is set."""
-
-        # Create discount expense account
         self.company_data["company"].account_discount_expense_allocation_id = self.env[
             "account.account"
         ].create(
@@ -966,7 +901,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             }
         )
 
-        # Create invoice with 2 lines: each has a discount and analytic distribution
         out_invoice = self.env["account.move"].create(
             [
                 {
@@ -980,7 +914,7 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
                                 "product_id": self.product_a.id,
                                 "tax_ids": [Command.clear()],
                                 "price_unit": 200.0,
-                                "discount": 20,  # 40.0 discount
+                                "discount": 20,
                                 "analytic_distribution": {
                                     self.analytic_account_1.id: 100,
                                 },
@@ -991,7 +925,7 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
                                 "product_id": self.product_b.id,
                                 "tax_ids": [Command.clear()],
                                 "price_unit": 200.0,
-                                "discount": 10,  # 20.0 discount
+                                "discount": 10,
                                 "analytic_distribution": {
                                     self.analytic_account_2.id: 100,
                                 },
@@ -1042,8 +976,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         )
 
     def test_synchronization_between_analytic_distribution_and_analytic_lines(self):
-        """Test creating, updating, and deleting analytic lines and ensure the changes are reflected in move_line's analytic_distribution."""
-        # Create an invoice with analytic distribution
         invoice = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -1065,14 +997,11 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             }
         )
 
-        # Post the invoice
         invoice.action_post()
 
-        # Fetch the associated move line and analytic lines
         invoice_line = invoice.invoice_line_ids
         analytic_lines = invoice_line.analytic_line_ids.sorted("amount")
 
-        # Update the account of the first analytic line
         analytic_lines[0].write(
             {
                 self.analytic_account_3.plan_id._column_name(): self.analytic_account_3.id,
@@ -1087,7 +1016,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             },
         )
 
-        # Delete the first analytic line
         analytic_lines[0].unlink()
         self.assertEqual(
             invoice_line.analytic_distribution,
@@ -1096,7 +1024,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             },
         )
 
-        # Create analytic line
         self.env["account.analytic.line"].create(
             {
                 "name": "Extra Analytic Line",
@@ -1113,12 +1040,10 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             },
         )
 
-        # Unlink from a move line
         analytic_lines = invoice.invoice_line_ids.analytic_line_ids
         analytic_lines.move_line_id = False
         self.assertFalse(invoice_line.analytic_distribution)
 
-        # Link to a move line
         analytic_lines.move_line_id = invoice_line
         self.assertEqual(
             invoice_line.analytic_distribution,
@@ -1129,7 +1054,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         )
 
     def test_zero_balance_invoice_with_analytic_line(self):
-        """Test that creating an analytic line on a 0-amount invoice does not crash and updates analytic_distribution safely."""
         self.product_a.list_price = 0.0
         invoice = self.create_invoice(self.partner_a, self.product_a)
         invoice.action_post()
@@ -1398,8 +1322,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
                 self.assertEqual(invoice_line.analytic_distribution, expect)
 
     def test_move_with_analytic_lines(self):
-        """Ensures analytic lines created on a draft move are unlinked while the AMLs keep the distribution"""
-        # Create a move with commands to create analytic lines, as happens when importing a move with analytics
         journal_entry = self.env["account.move"].create(
             {
                 "move_type": "entry",
@@ -1450,10 +1372,8 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             }
         )
 
-        # No analytic line should be created at this point
         self.assertFalse(self.get_analytic_lines(journal_entry))
 
-        # Confirm that the analytic distribution was correctly set based on the analytic_line_ids values
         self.assertRecordValues(
             journal_entry.line_ids,
             [
@@ -1466,7 +1386,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             ],
         )
 
-        # Write to an existing draft move, with a command to create analytic lines
         journal_entry.line_ids[0].write(
             {
                 "analytic_line_ids": [
@@ -1483,10 +1402,8 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             }
         )
 
-        # Still no analytic line
         self.assertFalse(self.get_analytic_lines(journal_entry))
 
-        # Confirm that the analytic distribution is correct
         self.assertRecordValues(
             journal_entry.line_ids,
             [
@@ -1495,14 +1412,10 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             ],
         )
 
-        # After posting the move, the analytic line should be created as usual
         journal_entry.action_post()
         self.assertTrue(self.get_analytic_lines(journal_entry))
 
     def test_analytic_lines_on_post(self):
-        """Ensures analytic lines are kept when posting a move whose dependencies are written while still draft"""
-        # With a purchase lock date, changing the state to posted first triggers a write for
-        # dependencies while the move state is still 'draft'; the analytic lines created must survive it.
         in_invoice = self.env["account.move"].create(
             [
                 {
@@ -1529,7 +1442,6 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         self.assertTrue(self.get_analytic_lines(in_invoice))
 
     def test_multicurrency_different_rounding_analytic_line(self):
-        """If using a foreign currency, the rounding of the analytic_line amount should be the one from the company currency"""
         foreign_currency = self.env["res.currency"].create(
             {
                 "name": "Great Currency",

@@ -1,10 +1,3 @@
-"""Product-catalog integration for account.move."""
-
-# The catalog is the grid used to add products to a document from a picker
-# rather than line by line. account.move participates in it through the shared
-# `mixin.product.catalog` protocol; these are its answers to that protocol.
-# Extracted from account_move.py.
-
 from collections import defaultdict
 
 from odoo import models
@@ -40,7 +33,7 @@ class AccountMove(models.Model):
             return domain & Domain("sale_ok", "=", True)
         elif self.is_purchase_document():
             return domain & Domain("purchase_ok", "=", True)
-        else:  # In case of an entry
+        else:
             return domain
 
     def _default_order_line_values(self, child_field=False):
@@ -57,11 +50,6 @@ class AccountMove(models.Model):
         return product_catalog
 
     def _get_product_price_and_data(self, product):
-        """Return a dict containing the price of the product: the list price ("Sales Price")
-        for a sale document, otherwise the standard_price ("Cost").
-        For a purchase document a partner-specific price may exist, so check the sellers
-        set on the product and update the price and min_qty accordingly.
-        """
         self.ensure_one()
         product_infos = {
             "price": product.list_price
@@ -69,7 +57,6 @@ class AccountMove(models.Model):
             else product.standard_price
         }
 
-        # Check if there is a price and a minimum quantity for the order's vendor.
         if self.is_purchase_document() and self.partner_id:
             seller = product._select_seller(
                 partner_id=self.partner_id,
@@ -114,19 +101,6 @@ class AccountMove(models.Model):
         child_field="line_ids",
         **kwargs,
     ):
-        """Update account_move_line information for a given product or create a
-        new one if none exists yet.
-        :param int product_id: The product, as a `product.product` id.
-        :param int quantity: The quantity selected in the catalog
-        :param int section_id: The id of section selected in the catalog.
-        :return: The unit price of the product, based on the pricelist of the
-                 sale order and the quantity selected.
-        :rtype: float
-        """
-        # Several lines can share the same product and section (the catalog
-        # aggregates them for display): operate on the first one only, both to
-        # avoid writing the aggregated quantity on each of them and because
-        # the price_unit read below requires a single record.
         move_line = self.line_ids.filtered(
             lambda line: (
                 line.product_id.id == product_id
@@ -140,9 +114,6 @@ class AccountMove(models.Model):
                 price_unit = self._get_product_price_and_data(move_line.product_id)[
                     "price"
                 ]
-                # The catalog is designed to allow the user to select products quickly.
-                # Therefore, sometimes they may select the wrong product or decide to remove
-                # some of them from the quotation. The unlink is there for that reason.
                 move_line.unlink()
                 return price_unit
             else:
@@ -159,14 +130,6 @@ class AccountMove(models.Model):
         return move_line.price_unit
 
     def _is_readonly(self):
-        """Return whether the move can no longer be edited via the catalog.
-
-        Only a draft move is catalog-editable: `state != "draft"` also
-        covers "posted" (matching the o2m field's own client-side
-        `readonly="state != 'draft'"` in the form view), not just
-        "cancel" — the previous narrower check let the catalog RPC route
-        mutate/create lines on an already-posted, hash-protected entry.
-        """
         self.ensure_one()
         return self.state != "draft"
 
@@ -174,12 +137,6 @@ class AccountMove(models.Model):
         return "move_id"
 
     def _is_line_valid_for_section_line_count(self, line):
-        """Check if a line is valid for inclusion in the section's line count.
-
-        :param recordset line: A record of a move line.
-        :return: True if this line is a valid, else False.
-        :rtype: bool
-        """
         return (
             line.product_id
             and line.product_id.product_tmpl_id.type != "combo"

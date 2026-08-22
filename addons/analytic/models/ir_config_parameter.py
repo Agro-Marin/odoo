@@ -16,7 +16,7 @@ class IrConfigParameter(models.Model):
             new_plan_id
             and str(new_plan_id).isnumeric()
             and (plan := self.env["account.analytic.plan"].browse(int(new_plan_id)))
-            and (plan_field := plan._find_plan_column())
+            and (plan_field := plan._get_plan_column())
         ):
             raise UserError(
                 _(

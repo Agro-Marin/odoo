@@ -38,29 +38,16 @@ AGGREGATION_ENGINE_FORMULA_REGEX = re.compile(
     rf"(?:{operator_regex}[\s(]*(?:{number_regex}|{report_line_code_regex})[\s)]*)*"
 )
 
-# Engines whose computed values can be audited (drilled down to their journal items).
 AUDITABLE_ENGINES = frozenset(
     {"tax_tags", "domain", "account_codes", "external", "aggregation"}
 )
 
-# Dependencies shared by every report-option-filter field (see _report_option_filter_field).
 _REPORT_OPTION_FILTER_DEPENDS = ["root_report_id", "section_main_report_ids"]
 
 
 def _report_option_filter_field(
     field_type, field_name, string, default=False, **kwargs
 ):
-    """Declare a report-option-filter field.
-
-    :param field_type: the ``fields.*`` class to instantiate (e.g. ``fields.Boolean``).
-    :param field_name: the field's own name; used by the compute to know what to inherit.
-    :param default: fallback value when nothing is inherited.
-    """
-    # Every such field behaves identically: it is stored, user-overridable, precomputed,
-    # and its value is inherited from the root report (for a variant) or the parent
-    # composite report (for a section), falling back to ``default`` otherwise. The actual
-    # logic lives in AccountReport._compute_report_option_filter; this factory only
-    # removes the boilerplate that would otherwise be duplicated on each of these fields.
     return field_type(
         string=string,
         compute=lambda records: records._compute_report_option_filter(
@@ -79,7 +66,6 @@ class AccountReport(models.Model):
     _description = "Accounting Report"
     _order = "sequence, id"
 
-    #  CORE ==========================================================================================================================================
 
     name = fields.Char(string="Name", required=True, translate=True)
     sequence = fields.Integer(string="Sequence")
@@ -137,7 +123,7 @@ class AccountReport(models.Model):
             ("coa", "Chart of Accounts Matches"),
             ("always", "Always"),
         ],
-        compute="_compute_default_availability_condition",
+        compute="_compute_availability_condition",
         readonly=False,
         store=True,
     )
@@ -183,8 +169,6 @@ class AccountReport(models.Model):
         ],
     )
 
-    #  FILTERS =======================================================================================================================================
-    # Those fields control the display of menus on the report
 
     filter_multi_company = _report_option_filter_field(
         fields.Selection,
@@ -269,18 +253,12 @@ class AccountReport(models.Model):
     )
 
     def _compute_report_option_filter(self, field_name, default_value=False):
-        # We don't depend on the different filter fields on the root report, as we don't want a manual change on it to be reflected on all the reports
-        # using it as their root (would create confusion). The root report filters are only used as some kind of default values.
-        # When a report is a section, it can also get its default filter values from its parent composite report. This only happens when we're sure
-        # the report is not used as a section of multiple reports, nor as a standalone report.
         accessible_report_ids = self._get_accessible_report_ids()
         for report in self.sorted(lambda x: not x.section_report_ids):
-            # Reports are sorted in order to first treat the composite reports, in case they need to compute their filters at the same time
-            # as their sections
             is_accessible = report.id in accessible_report_ids
             is_variant = bool(report.root_report_id)
             if (is_accessible or is_variant) and report.section_main_report_ids:
-                continue  # prevent updating the filters of a report when being added as a section of a report
+                continue
             if report.root_report_id:
                 report[field_name] = report.root_report_id[field_name]
             elif len(report.section_main_report_ids) == 1 and not is_accessible:
@@ -289,17 +267,6 @@ class AccountReport(models.Model):
                 report[field_name] = default_value
 
     def _get_accessible_report_ids(self):
-        """Return the ids of the reports in ``self`` reachable through an ``account_report``
-        client action (i.e. exposed to users as standalone reports).
-        """
-        # A client action references its report through a {'report_id': <id>} entry in
-        # its serialized context. We match that entry with an explicit right delimiter
-        # (, or }) so that, for instance, report 5 is not reported as accessible because
-        # of an action targeting report 50: a bare ilike substring match would wrongly
-        # collide on the shared 5 prefix.
-        # Records not yet persisted (NewId) cannot be targeted by any stored action, so
-        # they are never accessible and are excluded before searching -- which also means
-        # no query is emitted while these fields are precomputed on create.
         needles_by_report_id = {
             report.id: (
                 f"'report_id': {report.id},",
@@ -329,7 +296,7 @@ class AccountReport(models.Model):
         }
 
     @api.depends("root_report_id", "country_id")
-    def _compute_default_availability_condition(self):
+    def _compute_availability_condition(self):
         for report in self:
             if report.root_report_id and report.country_id:
                 report.availability_condition = "country"
@@ -392,8 +359,6 @@ class AccountReport(models.Model):
             self.country_id = None
 
     def write(self, vals):
-        # Overridden so that changing the country of a report also creates new tax tags if necessary, or updates the country
-        # of existing tags, if they aren't shared with another report.
         if "country_id" in vals:
             impacted_reports = self.filtered(
                 lambda x: x.country_id.id != vals["country_id"]
@@ -410,11 +375,8 @@ class AccountReport(models.Model):
                 tag_reports = tax_tags._get_related_tax_report_expressions().report_line_id.report_id
 
                 if all(report in self for report in tag_reports):
-                    # Only reports in self are using these tags; let's change their country
                     tax_tags.write({"country_id": vals["country_id"]})
                 else:
-                    # Another report uses these tags as well; let's keep them and create new tags in the target country
-                    # if they don't exist yet.
                     existing_tax_tags = self.env["account.account.tag"]._get_tax_tags(
                         expression.formula, vals["country_id"]
                     )
@@ -434,18 +396,12 @@ class AccountReport(models.Model):
         ]
 
     def copy(self, default=None):
-        """Copy the whole financial report hierarchy by duplicating each line recursively.
-
-        :param default: Default values.
-        :return: The copied account.report record.
-        """
         new_reports = super().copy(default=default)
         for old_report, new_report in zip(self, new_reports, strict=True):
             code_mapping = {}
             for line in old_report.line_ids.filtered(lambda x: not x.parent_id):
                 line._copy_hierarchy(new_report, code_mapping=code_mapping)
 
-            # Replace line codes by their copy in aggregation formulas
             for expression in new_report.line_ids.expression_ids:
                 if expression.engine == "aggregation":
                     expression.formula = self._replace_codes_in_formula(
@@ -461,11 +417,6 @@ class AccountReport(models.Model):
 
     @staticmethod
     def _replace_codes_in_formula(formula, code_mapping):
-        """Return ``formula`` with each ``old_code`` replaced by its ``new_code``."""
-        # The formula is temporarily padded with spaces so that the word-boundary
-        # lookbehind/lookahead also match codes sitting at the very start or end of the
-        # formula (we can't rely on \b because line codes may contain dots). Codes are
-        # escaped so a code is matched literally rather than as a regular expression.
         padded_formula = f" {formula} "
         for old_code, new_code in code_mapping.items():
             padded_formula = re.sub(
@@ -481,14 +432,9 @@ class AccountReport(models.Model):
             raise UserError(_("You can't delete a report that has variants."))
 
     def _get_copied_name(self):
-        """Return a copied name of the account.report record by adding the suffix (copy) at the end
-        until the name is unique.
-
-        :return: an unique name for the copied account.report
-        """
         self.ensure_one()
         name = self.name + " " + _("(copy)")
-        while self.search_count([("name", "=", name)]) > 0:
+        while self.search_count([("name", "=", name)], limit=1) > 0:
             name += " " + _("(copy)")
         return name
 
@@ -612,7 +558,7 @@ class AccountReportLine(models.Model):
     tax_tags_formula = fields.Char(
         string="Tax Tags Formula Shortcut",
         help="Internal field to shorten expression_ids creation for the tax_tags engine",
-        inverse="_inverse_aggregation_tax_formula",
+        inverse="_inverse_tax_tags_formula",
         store=False,
     )
 
@@ -679,13 +625,6 @@ class AccountReportLine(models.Model):
             )
 
     def _copy_hierarchy(self, copied_report, parent=None, code_mapping=None):
-        """Copy the whole hierarchy from this line by copying each line children recursively and adapting the
-        formulas with the new copied codes.
-
-        :param copied_report: The copy of the report.
-        :param parent: The parent line in the hierarchy (a copy of the original parent line).
-        :param code_mapping: A dictionary keeping track of mapping old_code -> new_code
-        """
         self.ensure_one()
 
         copied_line = self.copy(
@@ -696,39 +635,28 @@ class AccountReportLine(models.Model):
             }
         )
 
-        # Keep track of old_code -> new_code in a mutable dict
         if code_mapping is None:
             code_mapping = {}
         if self.code:
             code_mapping[self.code] = copied_line.code
 
-        # Copy children
         for line in self.children_ids:
             line._copy_hierarchy(
                 copied_report, parent=copied_line, code_mapping=code_mapping
             )
 
-        # Update aggregation expressions, so that they use the copied lines
         for expression in self.expression_ids:
             copy_defaults = {"report_line_id": copied_line.id}
             expression.copy(copy_defaults)
 
     def _get_copied_code(self, target_report):
-        """Return a code for the copy of this line, unique within ``target_report``.
-
-        :param target_report: the report the copied line will belong to.
-        :return: a unique code for the copied account.report.line
-        """
         self.ensure_one()
         if not self.code:
             return False
-        # Line codes only need to be unique per report (see the _code_uniq constraint), so
-        # the uniqueness search is scoped to the report the copy will belong to rather than
-        # the whole database. A global search would needlessly accumulate _COPY suffixes
-        # because of identical codes living in unrelated reports.
         code = self.code + "_COPY"
         while self.search_count(
-            [("code", "=", code), ("report_id", "=", target_report.id)]
+            [("code", "=", code), ("report_id", "=", target_report.id)],
+            limit=1,
         ):
             code += "_COPY"
         return code
@@ -739,7 +667,7 @@ class AccountReportLine(models.Model):
     def _inverse_aggregation_formula(self):
         self._create_report_expression(engine="aggregation")
 
-    def _inverse_aggregation_tax_formula(self):
+    def _inverse_tax_tags_formula(self):
         self._create_report_expression(engine="tax_tags")
 
     def _inverse_account_codes_formula(self):
@@ -749,8 +677,6 @@ class AccountReportLine(models.Model):
         self._create_report_expression(engine="external")
 
     def _create_report_expression(self, engine):
-        # create account.report.expression for each report line based on the formula provided to each
-        # engine-related field. This makes xmls a bit shorter
         vals_list = []
         xml_ids = self.expression_ids.filtered(
             lambda exp: exp.label == "balance"
@@ -769,7 +695,6 @@ class AccountReportLine(models.Model):
                         )
                     )
                 subformula, formula = domain_match.groups()
-                # Resolve the calls to ref(), to mimic the fact those formulas are normally given with an eval="..." in XML
                 formula = re.sub(
                     r"""\bref\((?P<quote>['"])(?P<xmlid>.+?)(?P=quote)\)""",
                     lambda m: str(self.env.ref(m["xmlid"]).id),
@@ -788,9 +713,6 @@ class AccountReportLine(models.Model):
             elif engine == "tax_tags" and report_line.tax_tags_formula:
                 subformula, formula = None, report_line.tax_tags_formula
             else:
-                # If we want to replace a formula shortcut with a full-syntax expression, we need to make the formula field falsy
-                # We can't simply remove it from the xml because it won't be updated
-                # If the formula field is falsy, we need to remove the expression that it generated
                 report_line.expression_ids.filtered(
                     lambda exp: (
                         exp.engine == engine
@@ -804,20 +726,15 @@ class AccountReportLine(models.Model):
                 "report_line_id": report_line.id,
                 "label": "balance",
                 "engine": engine,
-                "formula": formula.lstrip(" \t\n"),  # Avoid IndentationError in evals
+                "formula": formula.lstrip(" \t\n"),
                 "subformula": subformula,
             }
             if engine == "external" and report_line.external_formula:
                 vals["figure_type"] = report_line.external_formula
 
             if report_line.expression_ids:
-                # expressions already exists, update the first expression with the right engine
-                # since syntactic sugar aren't meant to be used with multiple expressions
                 for expression in report_line.expression_ids:
                     if expression.label == "balance":
-                        # If we had a 'balance' expression coming from the xml and are using a formula shortcut on top of it,
-                        # we expect the shortcut to replace the original expression. The full declaration should also
-                        # be removed from the data file, leading to the ORM deleting it automatically.
                         if xml_ids.get(expression.id):
                             expression.unlink()
                             vals_list.append(vals)
@@ -825,7 +742,6 @@ class AccountReportLine(models.Model):
                             expression.write(vals)
                         break
             else:
-                # else prepare batch creation
                 vals_list.append(vals)
 
         if vals_list:
@@ -833,10 +749,6 @@ class AccountReportLine(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_child_expressions(self):
-        """Explicitly unlink child expressions."""
-        # This is necessary even if there is an ondelete='cascade' on it, because the
-        # @api.ondelete method _unlink_archive_used_tags is not automatically called if
-        # the parent model is deleted.
         self.expression_ids.unlink()
 
 
@@ -897,7 +809,6 @@ class AccountReportExpression(models.Model):
         string="Auditable", store=True, readonly=False, compute="_compute_auditable"
     )
 
-    # Carryover fields
     carryover_target = fields.Char(
         string="Carry Over To",
         help="Formula in the form line_code.expression_label. This allows setting the target of the carryover for this expression "
@@ -933,10 +844,6 @@ class AccountReportExpression(models.Model):
                 )
 
     def _parse_carryover_target(self):
-        """Split ``carryover_target`` into its ``(line_code, expression_label)`` parts.
-
-        :raises UserError: if the target is not of the form ``line_code.expression_label``.
-        """
         self.ensure_one()
         parts = self.carryover_target.split(".")
         if len(parts) != 2 or not all(parts):
@@ -974,7 +881,7 @@ class AccountReportExpression(models.Model):
             for token in ACCOUNT_CODES_ENGINE_SPLIT_REGEX.split(
                 expression.formula.replace(" ", "")
             ):
-                if token:  # e.g. if the first character of the formula is "-", the first token is ''
+                if token:
                     token_match = ACCOUNT_CODES_ENGINE_TERM_REGEX.match(token)
                     prefix = token_match and token_match["prefix"]
                     if not prefix:
@@ -1025,8 +932,6 @@ class AccountReportExpression(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        # Overridden so that we create the corresponding account.account.tag objects when instantiating an expression
-        # with engine 'tax_tags'.
         for vals in vals_list:
             self._strip_formula(vals)
 
@@ -1046,7 +951,6 @@ class AccountReportExpression(models.Model):
         tax_tags_expressions = self.filtered(lambda x: x.engine == "tax_tags")
 
         if vals.get("engine") == "tax_tags":
-            # We already generate the tags for the expressions receiving a new engine
             tags_create_vals = []
             for expression_with_new_engine in self - tax_tags_expressions:
                 tag_name = vals.get("formula") or expression_with_new_engine.formula
@@ -1063,7 +967,6 @@ class AccountReportExpression(models.Model):
 
             self.env["account.account.tag"].create(tags_create_vals)
 
-        # In case the engine is changed we don't propagate any change to the tags themselves
         if "formula" not in vals or (
             vals.get("engine") and vals["engine"] != "tax_tags"
         ):
@@ -1083,7 +986,6 @@ class AccountReportExpression(models.Model):
                 )
 
                 if not new_tax_tags:
-                    # If new tags already exist, nothing to do ; else, we must create them or update existing tags.
                     former_tax_tags = self.env["account.account.tag"]._get_tax_tags(
                         former_formula, country.id
                     )
@@ -1092,12 +994,10 @@ class AccountReportExpression(models.Model):
                         tag_expr in self
                         for tag_expr in former_tax_tags._get_related_tax_report_expressions()
                     ):
-                        # If we're changing the formula of all the expressions using that tag, rename the tag
                         former_tax_tags._update_field_translations(
                             "name", {"en_US": vals["formula"].lstrip("-")}
                         )
                     else:
-                        # Else, create a new tag. Its the compute functions will make sure it is properly linked to the expressions
                         tag_vals = self.env[
                             "account.report.expression"
                         ]._get_tags_create_vals(vals["formula"], country.id)
@@ -1107,8 +1007,6 @@ class AccountReportExpression(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_archive_used_tags(self):
-        """Unlink or archive tax_tags when their account.report.expression are deleted."""
-        # If a tag is still in use on amls, we archive it instead of unlinking it.
         expressions_tags = self._get_matching_tags()
         tags_to_archive = self.env["account.account.tag"]
         tags_to_unlink = self.env["account.account.tag"]
@@ -1160,7 +1058,6 @@ class AccountReportExpression(models.Model):
             expr.display_name = f"{expr.report_line_name} [{expr.label}]"
 
     def _expand_aggregations(self):
-        """Return self and its full aggregation expression dependency"""
         result = self
 
         to_expand = self.filtered(lambda x: x.engine == "aggregation")
@@ -1205,11 +1102,6 @@ class AccountReportExpression(models.Model):
         return result
 
     def _get_cross_report_id(self):
-        """Resolve the report targeted by a ``cross_report(<report_id>|<xml_id>)`` subformula.
-
-        :raises UserError: if the subformula is malformed, the target cannot be resolved,
-            or it points back to this expression's own report.
-        """
         self.ensure_one()
         error_context = {
             "report_name": self.report_line_id.report_id.display_name,
@@ -1248,11 +1140,6 @@ class AccountReportExpression(models.Model):
         return report_id
 
     def _get_aggregation_terms_details(self):
-        """Return a single dict aggregating the details of each aggregation expression in self.
-
-        A formula ``A.balance + B.balance + A.other`` yields
-        ``{'A': {'balance', 'other'}, 'B': {'balance'}}``.
-        """
         totals_by_code = defaultdict(set)
         for expression in self:
             if expression.engine != "aggregation":
@@ -1268,7 +1155,7 @@ class AccountReportExpression(models.Model):
             for term in expression_terms:
                 if term and not re.match(
                     r"^([0-9]*[.])?[0-9]*$", term
-                ):  # term might be empty if the formula contains a negative term
+                ):
                     line_code, total_name = term.split(".")
                     totals_by_code[line_code].add(total_name)
 
@@ -1285,7 +1172,6 @@ class AccountReportExpression(models.Model):
         return totals_by_code
 
     def _get_matching_tags(self):
-        """Returns all the signed account.account.tags records whose name matches any of the formulas of the tax_tags expressions contained in self."""
         tag_expressions = self.filtered(lambda x: x.engine == "tax_tags")
         if not tag_expressions:
             return self.env["account.account.tag"]
@@ -1406,7 +1292,6 @@ class AccountReportExternalValue(models.Model):
         default=lambda self: self.env.company,
     )
 
-    # Carryover fields
     carryover_origin_expression_label = fields.Char(string="Origin Expression Label")
     carryover_origin_report_line_id = fields.Many2one(
         string="Origin Line", comodel_name="account.report.line"

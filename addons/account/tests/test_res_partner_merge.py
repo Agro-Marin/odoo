@@ -13,7 +13,6 @@ class TestMergePartner(AccountTestInvoicingCommon):
         cls.Bank = cls.env["res.partner.bank"]
         cls.Payment = cls.env["account.payment"]
 
-        # Create partners
         cls.partner1 = cls.Partner.create(
             {"name": "Partner 1", "email": "partner1@example.com"}
         )
@@ -24,7 +23,6 @@ class TestMergePartner(AccountTestInvoicingCommon):
             {"name": "Partner 3", "email": "partner3@example.com"}
         )
 
-        # Create bank accounts
         cls.bank1 = cls.Bank.create(
             {"acc_number": "12345", "partner_id": cls.partner1.id}
         )
@@ -35,7 +33,6 @@ class TestMergePartner(AccountTestInvoicingCommon):
             {"acc_number": "12345", "partner_id": cls.partner3.id}
         )
 
-        # Create payments linked to bank accounts
         cls.payment1 = cls.Payment.create(
             {
                 "partner_id": cls.partner1.id,

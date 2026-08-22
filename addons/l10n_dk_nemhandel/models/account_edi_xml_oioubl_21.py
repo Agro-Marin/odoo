@@ -259,7 +259,7 @@ class AccountEdiXmlOIOUBL21(models.AbstractModel):
         # Override 'account.edi.xml.ubl_20' to accomodate to oioubl_21 specific rules
         currency_suffix = vals['currency_suffix']
         base_line = vals['base_line']
-        product_price_dp = self.env['decimal.precision'].precision_get('Product Price')
+        product_price_dp = self.env['decimal.precision'].get_precision('Product Price')
 
         line_node['cac:Price'] = {
             # Rule F-INV348 enforces that lineExtensionAmount equals directly PriceAmount * Quantity, while other
@@ -273,11 +273,11 @@ class AccountEdiXmlOIOUBL21(models.AbstractModel):
             },
         }
 
-    def _retrieve_rebate_val(self, tree, xpath_dict, quantity):
+    def _get_rebate_val(self, tree, xpath_dict, quantity):
         # Override 'account.edi.xml.ubl_20' to include AllowanceCharge in it, as PriceAmount is different in OIOUBL
-        rebate = super()._retrieve_rebate_val(tree, xpath_dict, quantity)
+        rebate = super()._get_rebate_val(tree, xpath_dict, quantity)
 
-        discount_amount, charges = self._retrieve_charge_allowance_vals(tree, xpath_dict, quantity)
+        discount_amount, charges = self._prepare_charge_allowance_vals(tree, xpath_dict, quantity)
         charge_amount = sum(d['amount'] for d in charges)
 
         return rebate + (discount_amount - charge_amount) / quantity

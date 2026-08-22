@@ -42,7 +42,3 @@ class AccountMoveLine(models.Model):
             'price_subtotal': invoice.currency_id.round(raw_total),
             'price_net': price_net,
         }
-
-    # TODO: deprecated, remove in master
-    def get_column_to_exclude_for_colspan_calculation(self, taxes=None):
-        return super().get_column_to_exclude_for_colspan_calculation(taxes)

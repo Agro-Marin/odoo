@@ -33,7 +33,6 @@ class AccountLock_Exception(models.Model):
         readonly=True,
         default=lambda self: self.env.company,
     )
-    # An exception w/o user_id is an exception for everyone
     user_id = fields.Many2one(
         "res.users",
         string="User",
@@ -42,12 +41,10 @@ class AccountLock_Exception(models.Model):
     reason = fields.Char(
         string="Reason",
     )
-    # An exception without `end_datetime` is valid forever
     end_datetime = fields.Datetime(
         string="End Date",
     )
 
-    # The changed lock date
     lock_date_field = fields.Selection(
         selection=[
             ("fiscalyear_lock_date", "Global Lock Date"),
@@ -69,7 +66,6 @@ class AccountLock_Exception(models.Model):
         help="Technical field giving the date the company lock date at the time the exception was created.",
     )
 
-    # (Non-stored) computed lock date fields; c.f. res.company
     fiscalyear_lock_date = fields.Date(
         string="Global Lock Date",
         compute="_compute_lock_dates",
@@ -171,15 +167,8 @@ class AccountLock_Exception(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        # Preprocess arguments:
-        # 1. Parse lock date arguments
-        #   E.g. to create an exception for 'fiscalyear_lock_date' to '2024-01-01' put
-        #   {'fiscalyear_lock_date': '2024-01-01'} in the create vals.
-        #   The same thing works for all other fields in SOFT_LOCK_DATE_FIELDS.
-        # 2. Fetch company lock date
         for vals in vals_list:
             if "lock_date" not in vals or "lock_date_field" not in vals:
-                # Use vals[field] (for field in SOFT_LOCK_DATE_FIELDS) to init the data
                 changed_fields = [
                     field for field in SOFT_LOCK_DATE_FIELDS if field in vals
                 ]
@@ -198,11 +187,9 @@ class AccountLock_Exception(models.Model):
 
         exceptions = super().create(vals_list)
 
-        # Log the creation of the exception and the changed field on the company chatter
         for exception in exceptions:
             company = exception.company_id
 
-            # Create tracking values to display the lock date change in the chatter
             field = exception.lock_date_field
             value = exception.lock_date
             field_info = exception.fields_get([field])[field]
@@ -215,7 +202,6 @@ class AccountLock_Exception(models.Model):
             )
             tracking_value_ids = [Command.create(tracking_values)]
 
-            # In case there is no explicit end datetime "forever" is implied by not mentioning an end datetime
             end_datetime_string = (
                 _(" valid until %s", format_datetime(self.env, exception.end_datetime))
                 if exception.end_datetime
@@ -243,18 +229,14 @@ class AccountLock_Exception(models.Model):
         raise UserError(_("You cannot duplicate a Lock Date Exception."))
 
     def _recreate(self):
-        """Recreate the exceptions in self with a refreshed company lock date."""
         if not self:
             return self.env["account.lock_exception"]
-        # company_lock_date has copy=False, so create() refreshes it to the current company value
         vals_list = self.with_context(active_test=False).copy_data()
         new_records = self.create(vals_list)
-        # Revoke the originals; the new records returned above supersede them
         self.sudo().action_revoke()
         return new_records
 
     def action_revoke(self):
-        """Revokes an active exception."""
         if (
             not self.env.user.has_group("account.group_account_manager")
             and not self.env.su
@@ -280,7 +262,7 @@ class AccountLock_Exception(models.Model):
                 if company[field]
             )
             & Domain("company_id", "=", company.id)
-            & Domain("state", "=", "active")  # checks the datetime
+            & Domain("state", "=", "active")
         )
 
     def _get_audit_trail_during_exception_domain(self):
@@ -294,7 +276,6 @@ class AccountLock_Exception(models.Model):
         if self.end_datetime:
             common_message_domain.append(("date", "<=", self.end_datetime))
 
-        # Add restrictions on the accounting date to avoid unnecessary entries
         min_date = self.lock_date
         max_date = self.company_lock_date
         move_date_domain = []
@@ -321,7 +302,6 @@ class AccountLock_Exception(models.Model):
             ("company_id", "child_of", self.company_id.id),
             ("audit_trail_message_ids", "any", common_message_domain),
             "|",
-            # The date was changed from or to a value inside the excepted period
             (
                 "audit_trail_message_ids",
                 "any",
@@ -336,7 +316,6 @@ class AccountLock_Exception(models.Model):
                     *Domain.AND(tracking_new_datetime_domain),
                 ],
             ),
-            # The date of the move is inside the excepted period and sth. was changed on the move
             *Domain.AND(move_date_domain),
         ]
 

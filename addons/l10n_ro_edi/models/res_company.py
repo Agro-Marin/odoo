@@ -27,7 +27,7 @@ class ResCompany(models.Model):
         comodel_name='account.journal',
         string="Select journal for SPV imported bills",
         domain="[('type', '=', 'purchase')]",
-        compute="_compute_l10n_ro_edi_anaf_imported_inv_journal",
+        compute="_compute_l10n_ro_edi_anaf_imported_inv_journal_id",
         store=True,
         readonly=False,
     )
@@ -42,7 +42,7 @@ class ResCompany(models.Model):
                 company.l10n_ro_edi_callback_url = False
 
     @api.depends('country_code')
-    def _compute_l10n_ro_edi_anaf_imported_inv_journal(self):
+    def _compute_l10n_ro_edi_anaf_imported_inv_journal_id(self):
         for company in self:
             company.l10n_ro_edi_anaf_imported_inv_journal_id = False
             if company.country_code == 'RO':

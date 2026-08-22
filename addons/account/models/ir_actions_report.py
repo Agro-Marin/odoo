@@ -17,7 +17,6 @@ class IrActionsReport(models.Model):
     )
 
     def _render_qweb_pdf_prepare_streams(self, report_ref, data, res_ids=None):
-        # Custom behavior for 'account.report_original_vendor_bill'.
         if (
             self._get_report(report_ref).report_name
             != "account.report_original_vendor_bill"
@@ -37,7 +36,7 @@ class IrActionsReport(models.Model):
 
         collected_streams = OrderedDict()
         for invoice in invoices:
-            attachment = self._prepare_local_attachments(
+            attachment = self._migrate_attachments_to_local(
                 invoice.message_main_attachment_id.sudo()
             )
             if attachment:
@@ -75,29 +74,14 @@ class IrActionsReport(models.Model):
 
     def _get_splitted_report(self, report_ref, content, report_type):
         if report_type == "html":
-            # In test mode, _pre_render_qweb_pdf returns raw HTML bytes.
-            # Parse article elements to map each record ID to its HTML chunk.
             report = self._get_report(report_ref)
             root = lxml.html.fromstring(
                 content, parser=lxml.html.HTMLParser(encoding="utf-8")
             )
-            # Standard class matching (space-separated CSS classes).
             articles = root.xpath(
                 "//div[contains(concat(' ', normalize-space(@class), ' '), ' article ')]"
             )
             if not articles:
-                # WORKAROUND: QWeb t-att-class with dict expressions renders
-                # the raw Python dict string as the class attribute value
-                # (e.g. "{'article': True, 'o_report_layout': True}") instead
-                # of converting it to space-separated CSS classes like the JS
-                # implementation does.
-                #
-                # Root cause: ir_qweb._post_processing_att does not handle dict
-                # values for the 'class' attribute — it should convert
-                # truthy-valued keys to CSS class strings.
-                #
-                # TODO: Fix QWeb _post_processing_att to convert dict class
-                # values to "key1 key2 ..." strings, then remove this fallback.
                 articles = root.xpath("//div[contains(@class, \"'article'\")]")
             result = {}
             for article in articles:
@@ -105,14 +89,11 @@ class IrActionsReport(models.Model):
                     res_id = int(article.get("data-oe-id", 0))
                     result[res_id] = lxml.html.tostring(article)
             if not result and articles:
-                # Articles found but data-oe-model doesn't match —
-                # use data-oe-id directly if available.
                 for article in articles:
                     res_id = int(article.get("data-oe-id", 0))
                     if res_id:
                         result[res_id] = lxml.html.tostring(article)
             if not result:
-                # Fallback: single document without article markers
                 result[False] = (
                     content if isinstance(content, bytes) else content.encode()
                 )
@@ -128,8 +109,6 @@ class IrActionsReport(models.Model):
         return None
 
     def _pre_render_qweb_pdf(self, report_ref, res_ids=None, data=None):
-        # Check for reports only available for invoices.
-        # + append context data with the display_name_in_footer parameter
         if self._is_invoice_report(report_ref):
             invoices = self.env["account.move"].browse(res_ids)
             if (

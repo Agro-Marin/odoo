@@ -123,7 +123,6 @@ class TaxReportTest(AccountTestInvoicingCommon):
         )
 
     def test_add_expression(self):
-        """Adding a tax_tags expression creates new tags."""
         tags_before = self._get_tax_tags(self.test_country_1)
         self._create_basic_tax_report_line(
             self.tax_report_1, "new tax_tags line", "tournicoti"
@@ -133,7 +132,6 @@ class TaxReportTest(AccountTestInvoicingCommon):
         self.assertEqual(len(tags_after), len(tags_before) + 1)
 
     def test_write_single_line_tagname_not_shared(self):
-        """Writing on the formula of a tax_tags expression should overwrite the name of the existing tags if they are not used in other formulas."""
         start_tags = self._get_tax_tags(self.test_country_1)
         original_tag_name = self.tax_report_line_1_55.expression_ids.formula
         original_tags = self.tax_report_line_1_55.expression_ids._get_matching_tags()
@@ -157,7 +155,6 @@ class TaxReportTest(AccountTestInvoicingCommon):
         )
 
     def test_write_single_line_tagname_shared(self):
-        """Writing on the formula of a tax_tags expression should create new tags if the formula was shared."""
         start_tags = self._get_tax_tags(self.test_country_1)
         original_tag_name = self.tax_report_line_1_1.expression_ids.formula
         original_tags = self.tax_report_line_1_1.expression_ids._get_matching_tags()
@@ -181,7 +178,6 @@ class TaxReportTest(AccountTestInvoicingCommon):
         )
 
     def test_write_multi_no_change(self):
-        """Rewriting the formula of a tax_tags expression to the same value shouldn't do anything"""
         tags_before = self._get_tax_tags(self.test_country_1)
         (self.tax_report_line_1_1 + self.tax_report_line_2_1).expression_ids.write(
             {"formula": "01"}
@@ -194,9 +190,6 @@ class TaxReportTest(AccountTestInvoicingCommon):
         )
 
     def test_edit_multi_line_tagname_all_different_new(self):
-        """Writing a new, common formula on expressions with distinct formulas should create a single new tag."""
-        # Previously-set tags are not deleted; the user can archive them to hide them, and keeping them
-        # preserves the previous history in case the change has to be reverted.
         lines = (
             self.tax_report_line_1_1
             + self.tax_report_line_2_2
@@ -219,9 +212,6 @@ class TaxReportTest(AccountTestInvoicingCommon):
         )
 
     def test_tax_report_change_country(self):
-        """Duplicating a tax report and then modifying the country of the copy works as intended."""
-        # Countries wanting to reuse the tax report of another country depend on this.
-        # Copy our first report
         country_1_tags_before_copy = self._get_tax_tags(self.test_country_1)
         copied_report_1 = self.tax_report_1.copy()
         country_1_tags_after_copy = self._get_tax_tags(self.test_country_1)
@@ -232,7 +222,6 @@ class TaxReportTest(AccountTestInvoicingCommon):
             "Report duplication should not create or remove any tag",
         )
 
-        # Assign another country to one of the copies
         country_2_tags_before_change = self._get_tax_tags(self.test_country_2)
         copied_report_1.country_id = self.test_country_2
         country_2_tags_after_change = self._get_tax_tags(self.test_country_2)
@@ -271,7 +260,6 @@ class TaxReportTest(AccountTestInvoicingCommon):
                 "Tags matched by original and copied expression should have different countries.",
             )
 
-        # Directly change the country of a report without copying it first (some of its tags are shared, but not all)
         original_report_2_tags = {
             line: line.expression_ids._get_matching_tags()
             for line in self.tax_report_2.line_ids
@@ -281,14 +269,12 @@ class TaxReportTest(AccountTestInvoicingCommon):
             line_tags = line.expression_ids._get_matching_tags()
 
             if line == self.tax_report_line_2_42:
-                # This line is the only one of the report not sharing its tags
                 self.assertEqual(
                     line_tags,
                     original_report_2_tags[line],
                     "The tax_tags expressions not sharing their tags with any other report should keep the same tags when the country of their report is changed.",
                 )
             else:
-                # Tags already exist since 'copied_report_1' belongs to 'test_country_2'
                 for tag in line_tags:
                     self.assertIn(
                         tag,
@@ -297,7 +283,6 @@ class TaxReportTest(AccountTestInvoicingCommon):
                     )
 
     def test_unlink_report_line_tags_used_by_amls(self):
-        """Deletion of a report line whose tags are still referenced by an aml should archive the tags and not delete them."""
         tag_name = "55b"
         tax_report_line = self._create_basic_tax_report_line(
             self.tax_report_1, "Line 55 bis", tag_name
@@ -335,7 +320,6 @@ class TaxReportTest(AccountTestInvoicingCommon):
             }
         )
 
-        # Make sure the fiscal country allows using this tax directly
         self.env.company.account_fiscal_country_id = self.test_country_1
 
         test_invoice = self.env["account.move"].create(
@@ -362,7 +346,6 @@ class TaxReportTest(AccountTestInvoicingCommon):
         tags_after = self._get_tax_tags(
             self.test_country_1, tag_name=tag_name, active_test=False
         )
-        # the tag should still exist, but archived, because an aml references it
         self.assertEqual(
             tags_after.mapped("active"),
             [False],
@@ -375,10 +358,9 @@ class TaxReportTest(AccountTestInvoicingCommon):
         )
 
     def test_unlink_report_line_tags_used_by_other_expression(self):
-        """Deletion of a report line whose tags are still referenced by another expression should neither delete nor archive the tags."""
         tag_name = (
             self.tax_report_line_1_1.expression_ids.formula
-        )  # tag "01" is used in both line 1.1 and line 2.1
+        )
         tags_before = self._get_tax_tags(
             self.test_country_1, tag_name=tag_name, active_test=False
         )
@@ -400,7 +382,6 @@ class TaxReportTest(AccountTestInvoicingCommon):
         )
 
     def test_tag_recreation_archived(self):
-        """Reusing the formula of a deleted or archived tax tag should leave a single tag with that name."""
         tag_name = self.tax_report_line_1_55.expression_ids.formula
         tags_before = self._get_tax_tags(
             self.test_country_1, tag_name=tag_name, active_test=False
@@ -487,7 +468,7 @@ class TaxReportTest(AccountTestInvoicingCommon):
 
         self.tax_report_line_1_55.expression_ids.write(
             {
-                "engine": "tax_tags",  # Same value as before
+                "engine": "tax_tags",
                 "formula": "Buny",
             }
         )

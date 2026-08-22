@@ -455,20 +455,20 @@ class PaymentProvider(models.Model):
 
     # === REQUEST HELPERS === #
 
-    def _build_request_url(self, endpoint, *, is_proxy_request=False, version=1, **kwargs):
+    def _prepare_request_url(self, endpoint, *, is_proxy_request=False, version=1, **kwargs):
         if self.code != 'stripe':
-            return super()._build_request_url(
+            return super()._prepare_request_url(
                 endpoint, is_proxy_request=is_proxy_request, version=version, **kwargs
             )
         if is_proxy_request:
             return url_join(const.PROXY_URL, f'{version}/{endpoint}')
         return url_join('https://api.stripe.com/v1/', endpoint)
 
-    def _build_request_headers(
+    def _prepare_request_headers(
         self, method, *args, idempotency_key=None, is_proxy_request=False, **kwargs
     ):
         if self.code != 'stripe':
-            return super()._build_request_headers(
+            return super()._prepare_request_headers(
                 method,
                 *args,
                 idempotency_key=idempotency_key,

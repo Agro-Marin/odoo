@@ -34,7 +34,6 @@ class AccountAnalyticDistributionModel(models.Model):
     def _get_applicable_models(self, vals):
         applicable_models = super()._get_applicable_models(vals)
 
-        # Regex pattern to split by either ';' or ','
         delimiter_pattern = re.compile(r"[;,]\s*")
 
         return applicable_models.filtered(
@@ -54,8 +53,6 @@ class AccountAnalyticDistributionModel(models.Model):
             return []
         return super()._create_domain(fname, value)
 
-    # To be able to see the placeholder when creating a record in the list view, need to depends on a field that has a
-    # value directly, analytic precision has a default.
     @api.depends("analytic_precision")
     def _compute_prefix_placeholder(self):
         expense_account = self.env["account.account"].search(
@@ -70,7 +67,6 @@ class AccountAnalyticDistributionModel(models.Model):
             if expense_account:
                 prefix_base = expense_account.code[:2]
                 try:
-                    # Convert prefix_base to an integer for numerical manipulation
                     prefix_num = int(prefix_base)
                     account_prefixes = (
                         f"{prefix_num}, {prefix_num + 1}, {prefix_num + 2}"

@@ -1,21 +1,14 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import Command
 from odoo.exceptions import ValidationError
 from odoo.tests import common
 
 
 class TestFiscalPosition(common.TransactionCase):
-    """Tests for fiscal positions in auto apply (account.fiscal.position)."""
-
-    # A partner with a VAT number prefers positions with vat_required=True.
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.fp = cls.env["account.fiscal.position"]
 
-        # reset any existing FP
         cls.fp.search([]).write({"auto_apply": False})
 
         cls.res_partner = cls.env["res.partner"]
@@ -65,15 +58,13 @@ class TestFiscalPosition(common.TransactionCase):
                 self.fp._get_fiscal_position(partner).id, expected_pos.id, message
             )
 
-        # Lower sequence = higher precedence if country/group and VAT matches
-        self.assertFalse(self.ben.vat)  # No VAT set
+        self.assertFalse(self.ben.vat)
         assert_fp(
             self.ben,
             self.be_nat,
             "BE-NAT should match before EU-INTRA due to lower sequence",
         )
 
-        # Zip range
         fr_b2b_zip100 = self.fr_b2b.copy({"zip_from": 0, "zip_to": 5000, "sequence": 1})
         self.george.zip = 6000
         assert_fp(
@@ -83,7 +74,6 @@ class TestFiscalPosition(common.TransactionCase):
         assert_fp(self.george, fr_b2b_zip100, "FR-B2B with ok zip range should match")
         self.george.zip = None
 
-        # States
         fr_b2b_state = self.fr_b2b.copy(
             {"state_ids": [(4, self.state_fr.id)], "sequence": 1}
         )
@@ -91,7 +81,6 @@ class TestFiscalPosition(common.TransactionCase):
         self.george.state_id = self.state_fr
         assert_fp(self.george, fr_b2b_state, "FR-B2B with states should match")
 
-        # Dedicated position has max precedence
         self.george.property_account_position_id = self.be_nat
         assert_fp(self.george, self.be_nat, "Forced position has max precedence")
 
@@ -132,14 +121,11 @@ class TestFiscalPosition(common.TransactionCase):
         self.assertEqual(mapped_taxes, self.dst1_tax | self.dst2_tax)
 
     def test_30_fp_delivery_address(self):
-        # Make sure the billing company is from Belgium (within the EU)
         self.env.company.vat = "BE0477472701"
         self.env.company.country_id = self.be
 
-        # Reset any existing FP
         self.env["account.fiscal.position"].search([]).auto_apply = False
 
-        # Create the fiscal positions
         fp_be_nat = self.env["account.fiscal.position"].create(
             {
                 "name": "Régime National",
@@ -174,7 +160,6 @@ class TestFiscalPosition(common.TransactionCase):
             }
         )
 
-        # Create the partners
         partner_be_vat = self.env["res.partner"].create(
             {
                 "name": "BE VAT",
@@ -202,10 +187,6 @@ class TestFiscalPosition(common.TransactionCase):
             }
         )
 
-        # Case : 1
-        # Billing (VAT/country) : BE/BE
-        # Delivery (VAT/country) : NL/NL
-        # Expected FP : Régime National
         self.assertEqual(
             self.env["account.fiscal.position"]._get_fiscal_position(
                 partner_be_vat, partner_nl_vat
@@ -213,10 +194,6 @@ class TestFiscalPosition(common.TransactionCase):
             fp_be_nat,
         )
 
-        # Case : 2
-        # Billing (VAT/country) : NL/NL
-        # Delivery (VAT/country) : BE/BE
-        # Expected FP : Régime National
         self.assertEqual(
             self.env["account.fiscal.position"]._get_fiscal_position(
                 partner_nl_vat, partner_be_vat
@@ -224,10 +201,6 @@ class TestFiscalPosition(common.TransactionCase):
             fp_be_nat,
         )
 
-        # Case : 3
-        # Billing (VAT/country) : BE/BE
-        # Delivery (VAT/country) : None/NL
-        # Expected FP : Régime National
         self.assertEqual(
             self.env["account.fiscal.position"]._get_fiscal_position(
                 partner_be_vat, partner_nl_no_vat
@@ -235,10 +208,6 @@ class TestFiscalPosition(common.TransactionCase):
             fp_be_nat,
         )
 
-        # Case : 4
-        # Billing (VAT/country) : NL/NL
-        # Delivery (VAT/country) : NL/NL
-        # Expected FP : Régime Intra-Communautaire
         self.assertEqual(
             self.env["account.fiscal.position"]._get_fiscal_position(
                 partner_nl_vat, partner_nl_vat
@@ -246,10 +215,6 @@ class TestFiscalPosition(common.TransactionCase):
             fp_eu_intra,
         )
 
-        # Case : 5
-        # Billing (VAT/country) : None/NL
-        # Delivery (VAT/country) : None/NL
-        # Expected FP : EU privé
         self.assertEqual(
             self.env["account.fiscal.position"]._get_fiscal_position(
                 partner_nl_no_vat, partner_nl_no_vat
@@ -257,10 +222,6 @@ class TestFiscalPosition(common.TransactionCase):
             fp_eu_priv,
         )
 
-        # Case : 6
-        # Billing (VAT/country) : None/US
-        # Delivery (VAT/country) : None/US
-        # Expected FP : Régime Extra-Communautaire
         self.assertEqual(
             self.env["account.fiscal.position"]._get_fiscal_position(
                 partner_us_no_vat, partner_us_no_vat
@@ -288,7 +249,6 @@ class TestFiscalPosition(common.TransactionCase):
         self.assertEqual(fp.map_tax(tax), tax)
 
     def test_domestic_fp(self):
-        """Check the domestic fiscal position computation in several scenarios."""
         country_group, a_country_group = self.env["res.country.group"].create(
             [
                 {
@@ -310,7 +270,6 @@ class TestFiscalPosition(common.TransactionCase):
         )
         self.env.company.country_id = my_country
 
-        # AT case - no sequence, one country_id
         fp_1, fp_2, fp_3 = self.env["account.fiscal.position"].create(
             [
                 {
@@ -329,7 +288,6 @@ class TestFiscalPosition(common.TransactionCase):
         )
         self.assertEqual(self.env.company.domestic_fiscal_position_id, fp_2)
 
-        # SA case - same sequence, one country_id
         (fp_1 + fp_2 + fp_3).write({"sequence": 10})
         fp_1.write(
             {
@@ -340,26 +298,22 @@ class TestFiscalPosition(common.TransactionCase):
         fp_2.write({"country_id": False})
         self.assertEqual(self.env.company.domestic_fiscal_position_id, fp_1)
 
-        # NL case - different sequence, both country_group_id and country_id on a fp
         (fp_1 + fp_2).write({"country_group_id": country_group.id})
         fp_1.write({"country_id": False})
         fp_2.write({"country_id": my_country.id})
         fp_3.write({"country_group_id": a_country_group.id})
         self.assertEqual(self.env.company.domestic_fiscal_position_id, fp_2)
 
-        # Check that sequence is applied after the country
         fp_2.write({"sequence": 20})
         fp_3.write({"sequence": 15})
         self.assertEqual(self.env.company.domestic_fiscal_position_id, fp_1)
 
-        # CH/LI case - one fp with country_group_id only, nothing for others
         fp_1.write({"sequence": 30})
         fp_2.write({"country_id": False})
         fp_3.write({"country_group_id": False})
         self.assertEqual(self.env.company.domestic_fiscal_position_id, fp_2)
 
     def test_fiscal_position_constraint(self):
-        """Test the zip range constraint: zip_from and zip_to must be set together."""
         fiscal_position = self.fp.create(
             {
                 "name": "Test fiscal",
@@ -402,14 +356,12 @@ class TestFiscalPosition(common.TransactionCase):
         )
 
     def test_zip_range_multi_record_write(self):
-        """Multi-record zip write pads each record against its own counterpart."""
         fp_short, fp_long = self.fp.create(
             [
                 {"name": "ZIP short", "zip_from": "1", "zip_to": "999"},
                 {"name": "ZIP long", "zip_from": "1", "zip_to": "999999"},
             ]
         )
-        # Sanity: create() already padded zip_from to each record's own width.
         self.assertRecordValues(
             fp_short | fp_long,
             [
@@ -418,21 +370,17 @@ class TestFiscalPosition(common.TransactionCase):
             ],
         )
 
-        # Write a single zip_from to BOTH records in one call.
         (fp_short | fp_long).write({"zip_from": "5"})
 
         self.assertRecordValues(
             fp_short | fp_long,
             [
-                # padded to its own zip_to width (3), zip_to untouched
                 {"zip_from": "005", "zip_to": "999"},
-                # padded to its own zip_to width (6), zip_to untouched
                 {"zip_from": "000005", "zip_to": "999999"},
             ],
         )
 
     def test_fiscal_position_different_vat_country(self):
-        """An EU fiscal position accepts a foreign VAT with another country prefix."""
         fiscal_position = self.fp.create(
             {
                 "name": "Special Delivery Case",

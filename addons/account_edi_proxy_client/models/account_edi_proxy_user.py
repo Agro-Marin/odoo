@@ -93,7 +93,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
         '''
         return False
 
-    def _make_request(self, url, params=False, *, auth_type: Literal['hmac', 'asymmetric'] = 'hmac'):
+    def _prepare_request(self, url, params=False, *, auth_type: Literal['hmac', 'asymmetric'] = 'hmac'):
         ''' Make a request to proxy and handle the generic elements of the reponse (errors, new refresh token).
         '''
         payload = {
@@ -132,8 +132,8 @@ class Account_Edi_Proxy_ClientUser(models.Model):
             error_code = proxy_error['code']
             if error_code == 'refresh_token_expired':
                 self._renew_token()
-                self.env.cr.commit()  # We do not want to lose it if in the _make_request below something goes wrong
-                return self._make_request(url, params, auth_type='hmac')
+                self.env.cr.commit()  # We do not want to lose it if in the _prepare_request below something goes wrong
+                return self._prepare_request(url, params, auth_type='hmac')
             if error_code == 'no_such_user':
                 # This error is also raised if the user didn't exchange data and someone else claimed the edi_identificaiton.
                 self.sudo().active = False
@@ -177,7 +177,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
             try:
                 # b64encode returns a bytestring, we need it as a string
                 server_url = self._get_server_url(proxy_type, edi_mode)
-                response = self._make_request(
+                response = self._prepare_request(
                     f'{server_url}/iap/account_edi/2/create_user',
                     params=self._get_iap_params(company, proxy_type, private_key_sudo))
             except AccountEdiProxyError as e:
@@ -210,7 +210,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
             self.lock_for_update()
         except LockError:
             return
-        response = self._make_request(self._get_server_url() + '/iap/account_edi/1/renew_token')
+        response = self._prepare_request(self._get_server_url() + '/iap/account_edi/1/renew_token')
         if 'error' in response:
             # can happen if the database was duplicated and the refresh_token was refreshed by the other database.
             # we don't want two database to be able to query the proxy with the same user

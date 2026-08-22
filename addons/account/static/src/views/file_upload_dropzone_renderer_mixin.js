@@ -1,10 +1,12 @@
 /** @odoo-module native */
+import {
+    PASTEABLE_MIMETYPES,
+    sendFilesToUploadInput,
+} from "@account/components/document_file_uploader/upload_input";
 import { UploadDropZone } from "@account/components/upload_drop_zone/upload_drop_zone";
 import { useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-
-import { uploadFileFromData } from "./upload_file_from_data_hook.js";
 
 /**
  * Adds paste-to-upload and drag-dropzone behaviour to the file-upload list and
@@ -22,7 +24,7 @@ export const FileUploadDropzoneRendererMixin = (Base) =>
         setup() {
             super.setup();
             this.dropzoneState = useState({ visible: false });
-            this.uploadFileFromData = uploadFileFromData(useService("notification"));
+            this.notification = useService("notification");
             this.dropZoneTitle = _t(
                 "Drop and let the AI process your bills automatically.",
             );
@@ -33,7 +35,10 @@ export const FileUploadDropzoneRendererMixin = (Base) =>
                 return;
             }
             ev.preventDefault();
-            await this.uploadFileFromData(ev.clipboardData);
+            sendFilesToUploadInput(ev.clipboardData, {
+                acceptedMimetypes: PASTEABLE_MIMETYPES,
+                notification: this.notification,
+            });
         }
 
         onDragStart(ev) {

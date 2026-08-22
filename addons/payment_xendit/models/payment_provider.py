@@ -83,16 +83,16 @@ class PaymentProvider(models.Model):
 
     # === REQUEST HELPERS ===#
 
-    def _build_request_url(self, endpoint, **kwargs):
+    def _prepare_request_url(self, endpoint, **kwargs):
         """Override of `payment` to build the request URL."""
         if self.code != 'xendit':
-            return super()._build_request_url(endpoint, **kwargs)
+            return super()._prepare_request_url(endpoint, **kwargs)
         return f'https://api.xendit.co/{endpoint}'
 
-    def _build_request_auth(self, **kwargs):
+    def _prepare_request_auth(self, **kwargs):
         """Override of `payment` to build the request Auth."""
         if self.code != 'xendit':
-            return super()._build_request_auth(**kwargs)
+            return super()._prepare_request_auth(**kwargs)
         return self.xendit_secret_key, ''
 
     def _parse_response_error(self, response):

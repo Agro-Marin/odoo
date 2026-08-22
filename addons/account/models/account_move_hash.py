@@ -1,5 +1,3 @@
-"""Inalterability hash chain for account.move."""
-
 from hashlib import sha256
 from json import dumps
 
@@ -12,13 +10,10 @@ from .account_move import MAX_HASH_VERSION
 from .account_move import AccountMove as AccountMoveMain
 
 
-# Self-contained hash/integrity cluster; the per-model set of hashed fields is
-# the extension point, overridden via _get_integrity_hash_fields.
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-    def _get_integrity_hash_fields(self):
-        # Use the latest hash version by default, but keep the old one for backward compatibility when generating the integrity report.
+    def _get_fields_integrity_hash(self):
         hash_version = self.env.context.get("hash_version", MAX_HASH_VERSION)
         if hash_version == 1:
             return ["date", "journal_id", "company_id"]
@@ -27,18 +22,13 @@ class AccountMove(models.Model):
         raise NotImplementedError(f"hash_version={hash_version} doesn't exist")
 
     def _get_integrity_hash_fields_and_subfields(self):
-        return self._get_integrity_hash_fields() + [
+        return self._get_fields_integrity_hash() + [
             f"line_ids.{subfield}"
-            for subfield in self.line_ids._get_integrity_hash_fields()
+            for subfield in self.line_ids._get_fields_integrity_hash()
         ]
 
     @api.model
     def _get_move_hash_domain(self, common_domain=False, force_hash=False):
-        """
-        Returns a search domain on model account.move checking whether they should be hashed.
-        :param common_domain: a search domain that will be included in the returned domain in any case
-        :param force_hash: if True, we'll check all moves posted, independently of journal settings
-        """
         domain = Domain(common_domain or Domain.TRUE) & Domain("state", "=", "posted")
         if force_hash:
             return domain
@@ -46,11 +36,6 @@ class AccountMove(models.Model):
 
     @api.model
     def _is_move_restricted(self, move, force_hash=False):
-        """
-        Returns whether a move should be hashed (depending on journal settings)
-        :param move: the account.move we check
-        :param force_hash: if True, we'll check all moves posted, independently of journal settings
-        """
         return move.filtered_domain(self._get_move_hash_domain(force_hash=force_hash))
 
     def _hash_moves(self, **kwargs):
@@ -61,12 +46,7 @@ class AccountMove(models.Model):
                 chain["moves"].sudo()._calculate_hashes(chain["previous_hash"])
             )
             for move, move_hash in move_hashes.items():
-                # Bypass account.move.write(): a purely technical field write
-                # cannot affect balance or business sync, and the secure
-                # entries wizard hashes thousands of moves — one full
-                # validation/sync pipeline per move is prohibitive.
                 super(AccountMoveMain, move).write({"inalterable_hash": move_hash})
-            # If any secured entries belong to journals without 'hash on post', the user should be granted access rights
             if not chain["journal_restrict_mode"]:
                 grant_secure_group_access = True
             chain["moves"]._message_log_batch(
@@ -81,11 +61,9 @@ class AccountMove(models.Model):
     def _get_chain_info(
         self, force_hash=False, include_pre_last_hash=False, early_stop=False
     ):
-        """All records in `self` must belong to the same journal and sequence_prefix"""
         if not self:
             return False
 
-        # Delegate to the database, instead of max(self, key=lambda m: m.sequence_number)
         last_move_in_chain = (
             self.env["account.move"]
             .sudo()
@@ -95,7 +73,6 @@ class AccountMove(models.Model):
                     "sequence_prefix",
                     "sequence_number",
                     "journal_id",
-                    # Pre-emptive fetching for `_is_move_restricted`
                     "state",
                     "restrict_mode_hash_table",
                 ],
@@ -111,9 +88,6 @@ class AccountMove(models.Model):
             ("journal_id", "=", journal.id),
             ("sequence_prefix", "=", last_move_in_chain.sequence_prefix),
         ]
-        # sudo() like every other chain query here: a record rule hiding the
-        # last hashed move would silently chain new hashes from the wrong
-        # ancestor, permanently corrupting the inalterability chain.
         last_move_hashed = (
             self.env["account.move"]
             .sudo()
@@ -137,11 +111,8 @@ class AccountMove(models.Model):
             force_hash=True,
         )
         if last_move_hashed and not include_pre_last_hash:
-            # Hash moves only after the last hashed move, not the ones that may have been posted before the journal was set on restrict mode
             domain &= Domain("sequence_number", ">", last_move_hashed.sequence_number)
 
-        # On the accounting dashboard, we are only interested on whether there are documents to hash or not
-        # so we can stop the computation early if we find at least one document to hash
         if early_stop:
             return self.env["account.move"].sudo().search_count(domain, limit=1)
         moves_to_hash = (
@@ -156,14 +127,6 @@ class AccountMove(models.Model):
         if self.env.context.get("chain_info_warnings", True):
             warnings = set()
             if moves_to_hash:
-                # Gap warning. `moves_to_hash` is ordered by sequence_number, so
-                # a well-formed chain segment is exactly the contiguous range
-                # [start, ..., last] with no missing numbers AND no duplicates.
-                # Comparing the exact sequence against the range (rather than
-                # count against span) catches a duplicate sequence number that
-                # would otherwise pad the count back to the span, and stays
-                # correct when `include_pre_last_hash` pulls in moves numbered
-                # before `last_move_hashed`.
                 seq_numbers = moves_to_hash.mapped("sequence_number")
                 if last_move_hashed and not include_pre_last_hash:
                     start = last_move_hashed.sequence_number + 1
@@ -172,7 +135,6 @@ class AccountMove(models.Model):
                 if seq_numbers != list(range(start, seq_numbers[-1] + 1)):
                     warnings.add("gap")
 
-                # unreconciled warning
                 has_unreconciled = bool(
                     self.env["account.bank.statement.line"].search_count(
                         [
@@ -207,18 +169,6 @@ class AccountMove(models.Model):
         include_pre_last_hash=False,
         early_stop=False,
     ):
-        """Retrieve the chains of moves to hash, taking into account the last move of each chain in ``self``.
-
-        :param force_hash: if True, we'll check all moves posted, independently of journal settings
-        :param raise_if_gap: if True, we'll raise an error if a gap is detected in the sequence
-        :param raise_if_no_document: if True, we'll raise an error if no document needs to be hashed
-        :param raise_if_unreconciled: if True, we'll raise an error if an unreconciled statement line is found
-        :param include_pre_last_hash: if True, we'll include the moves not hashed that are previous to the last hashed move
-        :param early_stop: if True, we'll stop the computation as soon as we find at least one document to hash
-        :return bool when early_stop else a list of dictionaries (each dict generated by `_get_chain_info`)
-        """
-        # If INV/1..INV/4 are unhashed in the database and self holds INV/2, INV/3,
-        # the returned chain is INV/1, INV/2, INV/3 (up to self's last move), not INV/4.
         res = []
         for journal, journal_moves in self.grouped("journal_id").items():
             for chain_moves in journal_moves.grouped("sequence_prefix").values():
@@ -234,8 +184,6 @@ class AccountMove(models.Model):
                     return True
                 chain_info["journal_restrict_mode"] = journal.restrict_mode_hash_table
 
-                # .get(): _get_chain_info omits "warnings" entirely under
-                # chain_info_warnings=False in the context.
                 warnings = chain_info.get("warnings") or set()
                 if raise_if_unreconciled and "unreconciled" in warnings:
                     raise UserError(
@@ -264,9 +212,6 @@ class AccountMove(models.Model):
         return res
 
     def _calculate_hashes(self, previous_hash):
-        """
-        :return: dict of move_id: hash
-        """
         hash_version = self.env.context.get("hash_version", MAX_HASH_VERSION)
 
         def _getattrstring(obj, field_name):
@@ -284,13 +229,13 @@ class AccountMove(models.Model):
             if previous_hash and previous_hash.startswith("$"):
                 previous_hash = previous_hash.split("$")[
                     2
-                ]  # The hash version is not used for the computation of the next hash
+                ]
             values = {}
-            for fname in move._get_integrity_hash_fields():
+            for fname in move._get_fields_integrity_hash():
                 values[fname] = _getattrstring(move, fname)
 
             for line in move.line_ids:
-                for fname in line._get_integrity_hash_fields():
+                for fname in line._get_fields_integrity_hash():
                     k = "line_%d_%s" % (line.id, fname)
                     values[k] = _getattrstring(line, fname)
             current_record = dumps(

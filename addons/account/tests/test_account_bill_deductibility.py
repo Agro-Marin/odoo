@@ -65,8 +65,6 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
             {},
         )
 
-        # Rewriting the bill must not reorder it: the non-deductible block keeps
-        # the position it had on creation, before the tax and payment-term lines.
         bill.invoice_line_ids[0].quantity = 2
         self.assertInvoiceValues(
             bill,
@@ -177,9 +175,6 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "balance": 100.0,
                     "tax_ids": [self.tax_purchase_a.id],
                 },
-                # Posting renames the two summary lines after the entry, which
-                # is what puts the total ahead of the per-line one here: they
-                # share a sequence and assertInvoiceValues breaks ties on name.
                 {
                     "display_type": "non_deductible_product_total",
                     "name": bill.name + " - private part",
@@ -941,14 +936,9 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
         )
 
     def test_bill_partial_deductibility_foreign_currency(self):
-        """Check the non-deductible lines of a bill in a foreign currency."""
-        # The non-deductible lines must carry the company-currency amount in
-        # ``balance`` and the document-currency amount in ``amount_currency``; a swap
-        # between the two is invisible at rate == 1, hence the foreign currency.
         foreign = self.env["res.currency"].create(
             {"name": "FDX", "symbol": "F", "rounding": 0.01}
         )
-        # 1 company-currency unit == 2 FDX at the invoice date.
         self.env["res.currency.rate"].create(
             {
                 "name": "2017-01-01",
@@ -967,9 +957,9 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     Command.create(
                         {
                             "name": "Partial item",
-                            "price_unit": 200.0,  # 200 FDX == 100 company
+                            "price_unit": 200.0,
                             "quantity": 1,
-                            "deductible_amount": 75.00,  # 25% non-deductible
+                            "deductible_amount": 75.00,
                             "tax_ids": [Command.set(self.tax_purchase_a.ids)],
                         }
                     )
@@ -978,7 +968,6 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
         )
         self.assertEqual(bill.invoice_currency_rate, 2.0)
 
-        # 25% of a 200-FDX / 100-company base == 50 FDX / 25 company.
         non_deductible = bill.line_ids.filtered(
             lambda line: line.display_type == "non_deductible_product"
         )
@@ -1022,11 +1011,6 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
         )
 
     def test_non_deductible_lines_never_migrate_between_moves(self):
-        """A batched write must not move lines from one bill onto another.
-
-        The two bills need a different number of non-deductible lines, which is
-        what used to make the delete/create lists line up across moves.
-        """
         bill_a = self._partial_bill([80.0])
         bill_b = self._partial_bill([80.0, 60.0, 40.0])
         lines_of_b = set(self._non_deductible_lines(bill_b).ids)
@@ -1058,7 +1042,6 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
             )
 
     def test_non_deductible_block_keeps_its_position_after_a_write(self):
-        """The 'private part' lines must not drift below the payment-term line."""
         bill = self._partial_bill([75.0])
         payment_term = bill.line_ids.filtered(
             lambda line: line.display_type == "payment_term"
@@ -1076,11 +1059,6 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
             )
 
     def test_deductible_amount_locked_after_hashing(self):
-        """`deductible_amount` must be rejected by the hash guard once posted, same as debit/credit."""
-        # Starts fully deductible (100.0): posting creates no non_deductible_*
-        # lines, which sidesteps a separate, pre-existing issue where _post()
-        # renames those lines AFTER hashing and collides with the guard on
-        # `name` itself (unrelated to this fix).
         self.company_data["default_journal_purchase"].restrict_mode_hash_table = True
         bill = self._partial_bill([100.0])
         bill.action_post()

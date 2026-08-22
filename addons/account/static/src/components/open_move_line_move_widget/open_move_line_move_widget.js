@@ -15,7 +15,7 @@ class LineOpenMoveWidget extends Component {
     static props = { ...Many2OneField.props };
 
     setup() {
-        this.action = useService("action");
+        this.accountMove = useService("account_move");
     }
 
     get m2oProps() {
@@ -25,12 +25,12 @@ class LineOpenMoveWidget extends Component {
         };
     }
 
-    async openAction() {
-        return this.action.doActionButton({
-            type: "object",
+    openAction() {
+        return this.accountMove.openBusinessDoc({
+            // The field's own relation, rather than the one model this widget
+            // happens to be used on today.
+            resModel: this.props.record.fields[this.props.name].relation,
             resId: this.props.record.data[this.props.name].id,
-            name: "action_view_business_doc",
-            resModel: "account.move.line",
         });
     }
 }

@@ -1,3 +1,4 @@
+from . import mixin_default_read_fields
 from . import mixin_sequence
 from . import mixin_account_document_import
 from . import partner
@@ -10,7 +11,7 @@ from . import account_tax
 from . import account_reconcile_model
 from . import account_payment_term
 from . import account_move
-from . import account_move_edi
+from . import account_move_import
 from . import account_move_hash
 from . import account_move_catalog
 from . import account_move_mail

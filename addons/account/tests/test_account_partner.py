@@ -23,10 +23,10 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         )
         self.assertEqual(partner.days_sales_outstanding, 0.0)
         move_1.action_post()
-        self.env.invalidate_all()  # needed to force the update of partner.credit
+        self.env.invalidate_all()
         self.assertEqual(
             partner.days_sales_outstanding, 150
-        )  # DSO = number of days since move_1
+        )
         self.env["account.payment.register"].with_context(
             active_model="account.move", active_ids=move_1.ids
         ).create(
@@ -51,11 +51,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         self.assertEqual(partner.days_sales_outstanding, 50)
 
     def test_credit_search_matches_credit_on_archived_account(self):
-        """The ``credit`` search must agree with the computed Total Receivable."""
-        # A receivable account can be archived while still carrying an open
-        # residual. ``_compute_credit_debit`` ignores ``account.active``, so the
-        # form keeps showing the debt and the search behind ``credit`` must not
-        # filter on that column either.
         partner = self.env["res.partner"].create({"name": "ArchivedAcctDebtor"})
         move = self.init_invoice(
             "out_invoice", partner, invoice_date="2023-01-01", amounts=[1000], post=True
@@ -80,9 +75,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         )
 
     def test_move_counts_roll_up_to_parent(self):
-        """A child contact's moves count towards its parent."""
-        # Exercises the shared ``_aggregate_by_partner_hierarchy`` helper, also
-        # behind ``total_invoiced`` and ``supplier_invoice_count``.
         parent = self.env["res.partner"].create({"name": "RollupParent"})
         child = self.env["res.partner"].create(
             {"name": "RollupChild", "parent_id": parent.id}
@@ -126,13 +118,11 @@ class TestAccountPartner(AccountTestInvoicingCommon):
             ]
         ).action_post()
 
-        # rank updates are updated in the post-commit phase
         with self.enter_registry_test_mode():
             self.env.cr.postcommit.run()
         self.assertEqual(self.partner_a.supplier_rank, 1)
         self.assertEqual(self.partner_a.customer_rank, 1)
 
-        # a second move is updated in postcommit
         self.env["account.move"].create(
             [
                 {
@@ -144,7 +134,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
                 },
             ]
         ).action_post()
-        # rank updates are updated in the post-commit phase
         with self.enter_registry_test_mode():
             self.env.cr.postcommit.run()
         self.assertEqual(self.partner_a.customer_rank, 2)
@@ -173,17 +162,14 @@ class TestAccountPartner(AccountTestInvoicingCommon):
             lambda l: l.display_type == "payment_term"
         )
 
-        # Changing the partner should be possible despite being in locked periods as long as the VAT is the same
         move.company_id.fiscalyear_lock_date = "9999-12-31"
         move.company_id.tax_lock_date = "9999-12-31"
 
-        # Initially, move's commercial partner should be partner_a
         self.assertEqual(move.commercial_partner_id, self.partner_a)
         self.assertEqual(receivable_lines.mapped("reconciled"), [True, True])
 
         self.partner_a.parent_id = self.partner_b
 
-        # Assert accounting move and move lines now use new commercial partner
         self.assertEqual(move.commercial_partner_id, self.partner_b)
         self.assertTrue(
             all(line.partner_id == self.partner_b for line in move.line_ids),
@@ -238,7 +224,7 @@ class TestAccountPartner(AccountTestInvoicingCommon):
     def test_res_partner_bank(self):
         self.env.user.group_ids -= self.env.ref(
             "base.group_system"
-        )  # it is implying the group below
+        )
         self.env.user.group_ids += self.env.ref("base.group_partner_manager")
         self.env.user.group_ids += self.env.ref("account.group_validate_bank_account")
         partner = self.env["res.partner"].create({"name": "MyCustomer"})
@@ -275,8 +261,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
 
     @freeze_time("2023-06-30")
     def test_days_sales_outstanding_never_negative(self):
-        """DSO must stay non-negative for a customer in credit balance."""
-        # Credit balance here = a fully paid invoice plus an unpaid refund.
         partner = self.env["res.partner"].create({"name": "NegDSO"})
         inv = self.init_invoice(
             "out_invoice", partner, invoice_date="2023-01-01", amounts=[5000], post=True
@@ -296,9 +280,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         )
 
     def test_credit_search_ignores_partnerless_lines(self):
-        """A posted receivable line with no partner must not leak into the
-        ``credit``/``debit`` searchable filters as a NULL partner group.
-        """
         partner = self.env["res.partner"].create({"name": "RealDebtor"})
         self.init_invoice(
             "out_invoice", partner, invoice_date="2023-01-01", amounts=[1000], post=True
@@ -331,9 +312,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         self.assertIn(partner, Partner.search([("credit", ">", 0)]))
 
     def test_map_tax_account_singleton_contract(self):
-        """``map_tax``/``map_account``: an empty position is a no-op, a
-        multi-record position raises a singleton error.
-        """
         FP = self.env["account.fiscal.position"]
         tax = self.tax_sale_a
         acc = self.company_data["default_account_receivable"]
@@ -350,11 +328,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
             both.map_account(acc)
 
     def test_fiscal_country_codes_lands_in_the_misc_group(self):
-        """`fiscal_country_codes` must be added next to the top-level `company_id`, not the unrelated one nested under `child_ids`."""
-        # An earlier, ambiguous `//field[@name='company_id']` xpath matched
-        # the FIRST company_id in document order within base.view_partner_form,
-        # which is the one nested inside child_ids' own contact_internal
-        # subview group, not the intended `group[@name='misc']` one.
         view = self.env["res.partner"].get_view(
             view_id=self.env.ref("account.view_partner_property_form").id,
             view_type="form",

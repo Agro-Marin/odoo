@@ -161,7 +161,7 @@ class ResCompany(models.Model):
                             ], order='sequence,id desc', limit=1)
                             foreign_tax_copy_name = existing_foreign_tax and _('%(tax_name)s (Copy)', tax_name=existing_foreign_tax.name)
 
-                            extra_fields = company._get_country_specific_account_tax_fields()
+                            extra_fields = company._get_fields_country_specific_account_tax()
                             foreign_taxes[tax_amount] = self.env['account.tax'].create({
                                 'name': foreign_tax_copy_name or foreign_tax_name,
                                 'amount': tax_amount,
@@ -270,7 +270,7 @@ class ResCompany(models.Model):
             country = self.account_fiscal_country_id
         return country
 
-    def _get_country_specific_account_tax_fields(self):
+    def _get_fields_country_specific_account_tax(self):
         country = self._get_country_from_vat()
         chart_template = self.env['account.chart.template']._guess_chart_template(country)
         is_coa_module_installed = self.env['account.chart.template']._get_chart_template_mapping()[chart_template]['installed']

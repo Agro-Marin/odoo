@@ -8,7 +8,7 @@ class ResConfigSettings(models.TransientModel):
 
     l10n_it_edi_register = fields.Boolean(
         compute='_compute_l10n_it_edi_register',
-        inverse='_set_l10n_it_edi_register',
+        inverse='_inverse_l10n_it_edi_register',
         readonly=False,
     )
     l10n_it_edi_purchase_journal_id = fields.Many2one(
@@ -36,7 +36,7 @@ class ResConfigSettings(models.TransientModel):
         for config in self:
             config.l10n_it_edi_register = config.company_id._l10n_it_get_edi_company().l10n_it_edi_register
 
-    def _set_l10n_it_edi_register(self):
+    def _inverse_l10n_it_edi_register(self):
         for config in self:
             company = config.company_id._l10n_it_get_edi_company()
             company.l10n_it_edi_register = config.l10n_it_edi_register

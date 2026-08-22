@@ -420,7 +420,11 @@
         <field name="priority">999</field>
         <field name="arch" type="xml">
             <xpath expr="//list" position="attributes">
-                <attribute name="js_class">account_x2many_list</attribute>
+                <!-- Opening a row runs the model's own "go to the business document"
+                     button, which the base list controller already dispatches for
+                     `action` + `type`. -->
+                <attribute name="action">action_view_business_doc</attribute>
+                <attribute name="type">object</attribute>
                 <attribute name="create">false</attribute>
             </xpath>
             <xpath expr="//field[@name='name']" position="attributes">

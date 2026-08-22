@@ -67,10 +67,10 @@ class PaymentProvider(models.Model):
 
     # === REQUEST HELPERS === #
 
-    def _build_request_url(self, endpoint, **kwargs):
+    def _prepare_request_url(self, endpoint, **kwargs):
         """Override of `payment` to build the request URL."""
         if self.code != 'worldline':
-            return super()._build_request_url(endpoint, **kwargs)
+            return super()._prepare_request_url(endpoint, **kwargs)
         api_url = self._worldline_get_api_url()
         return f'{api_url}/v2/{self.worldline_pspid}/{endpoint}'
 
@@ -85,10 +85,10 @@ class PaymentProvider(models.Model):
         else:  # 'test'
             return 'https://payment.preprod.direct.worldline-solutions.com'
 
-    def _build_request_headers(self, method, endpoint, *args, idempotency_key=None, **kwargs):
+    def _prepare_request_headers(self, method, endpoint, *args, idempotency_key=None, **kwargs):
         """Override of `payment` to build the request headers."""
         if self.code != 'worldline':
-            return super()._build_request_headers(
+            return super()._prepare_request_headers(
                method, endpoint, *args, idempotency_key=idempotency_key, **kwargs
             )
 

@@ -19,9 +19,6 @@ class TestIrActionsReport(AccountTestInvoicingCommon):
         self.minimal_pdf_reader = pdf.OdooPdfFileReader(self.minimal_reader_buffer)
 
     def test_download_one_corrupted_pdf(self):
-        """Printing a single "Original Vendor Bill" renders even when PyPDF2 cannot merge the PDF."""
-        # PyPDF2 is not flawless: a PDF may previsualise yet fail to be merged by it. Selecting a
-        # single record must still download without error, since no merge is required for one record.
         attach_name = "original_vendor_bill.pdf"
 
         in_invoice_1 = self.env["account.move"].create(
@@ -50,26 +47,19 @@ class TestIrActionsReport(AccountTestInvoicingCommon):
         )
         self.assertTrue(test_record_report, "The PDF should have been generated")
 
-    # Document synchronization being enabled, avoid a warning when computing the number of page of the corrupted pdf.
     @mute_logger("odoo.addons.documents.models.documents_document")
     def test_download_with_encrypted_pdf(self):
-        """Same as test_download_one_corrupted_pdf but for a PDF whose /Encrypt reference is corrupted."""
         attach_name = "original_vendor_bill.pdf"
-        # we need to encrypt the file
         with file_open("base/tests/minimal.pdf", "rb") as pdf_file:
             pdf_reader = PdfFileReader(pdf_file)
             pdf_writer = PdfFileWriter()
             for page_num in range(len(pdf_reader.pages)):
                 pdf_writer.add_page(pdf_reader.pages[page_num])
-            # Encrypt the PDF
             pdf_writer.encrypt("")
-            # Get the binary
             output_buffer = io.BytesIO()
             pdf_writer.write(output_buffer)
             encrypted_file = output_buffer.getvalue()
 
-        # corrupt encryption: point the /Encrypt xref as a non-encrypt
-        # (but valid otherwise pypdf skips it)
         encrypted_file, n = re.subn(
             rb"/Encrypt (?P<index>\d+) (?P<gen>\d+) R",
             b"/Encrypt 1 \\g<gen> R",
@@ -114,7 +104,6 @@ class TestIrActionsReport(AccountTestInvoicingCommon):
                 "res_id": in_invoice_2.id,
             }
         )
-        # trying to merge with a corrupted attachment should not work
         with self.assertRaises(RedirectWarning):
             self.env["ir.actions.report"].with_context(
                 force_report_rendering=True

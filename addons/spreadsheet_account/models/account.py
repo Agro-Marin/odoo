@@ -42,7 +42,7 @@ class AccountAccount(models.Model):
             start, _ = date_utils.get_fiscal_year(end, fiscal_day, fiscal_month)
         return start, end
 
-    def _build_spreadsheet_formula_domain(self, formula_params, default_accounts=False):
+    def _prepare_spreadsheet_formula_domain(self, formula_params, default_accounts=False):
         company_id = formula_params.get("company_id") or self.env.company.id
         company = self.env["res.company"].browse(company_id)
         start, end = self._get_date_period_boundaries(formula_params["date_range"], company)
@@ -94,7 +94,7 @@ class AccountAccount(models.Model):
     @api.readonly
     @api.model
     def spreadsheet_move_line_action(self, args):
-        domain = self._build_spreadsheet_formula_domain(args, default_accounts=True)
+        domain = self._prepare_spreadsheet_formula_domain(args, default_accounts=True)
         return {
             "type": "ir.actions.act_window",
             "res_model": "account.move.line",
@@ -124,7 +124,7 @@ class AccountAccount(models.Model):
         results = []
         for args in args_list:
             company_id = args["company_id"] or self.env.company.id
-            domain = self._build_spreadsheet_formula_domain(args)
+            domain = self._prepare_spreadsheet_formula_domain(args)
             MoveLines = self.env["account.move.line"].with_company(company_id)
             [(debit, credit)] = MoveLines._read_group(domain, aggregates=['debit:sum', 'credit:sum'])
             results.append({'debit': debit or 0, 'credit': credit or 0})
@@ -150,7 +150,7 @@ class AccountAccount(models.Model):
         results = []
         for args in args_list:
             company_id = args["company_id"] or self.env.company.id
-            domain = self._build_spreadsheet_formula_domain(args, default_accounts=True)
+            domain = self._prepare_spreadsheet_formula_domain(args, default_accounts=True)
             MoveLines = self.env["account.move.line"].with_company(company_id)
             [(amount_residual,)] = MoveLines._read_group(domain, aggregates=['amount_residual:sum'])
             results.append({'amount_residual': amount_residual or 0})
@@ -181,7 +181,7 @@ class AccountAccount(models.Model):
                 continue
 
             company_id = args["company_id"] or self.env.company.id
-            domain = self._build_spreadsheet_formula_domain(args, default_accounts=True)
+            domain = self._prepare_spreadsheet_formula_domain(args, default_accounts=True)
             MoveLines = self.env["account.move.line"].with_company(company_id)
             [(balance,)] = MoveLines._read_group(domain, aggregates=['balance:sum'])
             results.append({'balance': balance or 0})
@@ -224,7 +224,7 @@ class AccountAccount(models.Model):
                 continue
 
             company_id = args["company_id"] or self.env.company.id
-            domain = self._build_spreadsheet_formula_domain(args)
+            domain = self._prepare_spreadsheet_formula_domain(args)
             MoveLines = self.env["account.move.line"].with_company(company_id)
             [(balance,)] = MoveLines._read_group(domain, aggregates=['balance:sum'])
             results.append({'balance': balance or 0.0})

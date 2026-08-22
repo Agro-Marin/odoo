@@ -1,6 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from freezegun import freeze_time
+
+from odoo import Command
 from odoo.tests import tagged
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
@@ -46,3 +48,67 @@ class TestAccountFleet(AccountTestInvoicingCommon):
         result_action = wizard.do_action()
         transfer_moves = self.env['account.move'].search(result_action['domain'])
         self.assertEqual(transfer_moves.line_ids.filtered(lambda l: l.account_id == expense_account).vehicle_id, car_1, "Vehicle info is missing")
+
+    def test_vehicle_bills_are_not_cached_across_users(self):
+        """`account_move_ids` is per-user, so its cache must key on the user.
+
+        The compute answers `False` outright for anyone without
+        `account.group_account_readonly`. A non-stored compute's cache is keyed
+        by exactly what its field declares, so with no `depends_context` the
+        whole transaction shares ONE entry: an accountant reading a vehicle's
+        bills populates it, and the next user is served THOSE MOVES rather than
+        the empty set the compute would have returned for them.
+
+        Both reads happen in one transaction on purpose -- that is the shape a
+        cron, a `_broadcast`-style loop, or any `with_user` iteration has.
+        """
+        self.env.user.group_ids |= self.env.ref("fleet.fleet_group_manager")
+        brand = self.env["fleet.vehicle.model.brand"].create({"name": "Leak"})
+        model = self.env["fleet.vehicle.model"].create(
+            {"brand_id": brand.id, "name": "L1"}
+        )
+        vehicle = self.env["fleet.vehicle"].create({"model_id": model.id})
+
+        bill = self.init_invoice(
+            "in_invoice", products=self.product_a, invoice_date="2021-09-01", post=False
+        )
+        bill.invoice_line_ids.write({"vehicle_id": vehicle.id})
+        bill.action_post()
+
+        accountant = self.env["res.users"].create(
+            {
+                "name": "Fleet accountant",
+                "login": "fleet_accountant",
+                "group_ids": [
+                    Command.set(
+                        [
+                            self.env.ref("base.group_user").id,
+                            self.env.ref("account.group_account_readonly").id,
+                            self.env.ref("fleet.fleet_group_manager").id,
+                        ]
+                    )
+                ],
+            }
+        )
+        outsider = self.env["res.users"].create(
+            {
+                "name": "Fleet outsider",
+                "login": "fleet_outsider",
+                "group_ids": [
+                    Command.set(
+                        [
+                            self.env.ref("base.group_user").id,
+                            self.env.ref("fleet.fleet_group_manager").id,
+                        ]
+                    )
+                ],
+            }
+        )
+        self.assertFalse(outsider.has_group("account.group_account_readonly"))
+
+        # The accountant reads first and fills the cache.
+        self.assertEqual(vehicle.with_user(accountant).account_move_ids, bill)
+        # Same transaction, no manual invalidation: the outsider must get their
+        # own answer, not the accountant's.
+        self.assertFalse(vehicle.with_user(outsider).account_move_ids)
+        self.assertEqual(vehicle.with_user(outsider).bill_count, 0)

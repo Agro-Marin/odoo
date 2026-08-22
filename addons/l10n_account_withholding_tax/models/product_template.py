@@ -10,7 +10,7 @@ class ProductTemplate(models.Model):
     # CRUD, inherited methods
     # -----------------------
 
-    def _construct_tax_string(self, price):
+    def _prepare_tax_string(self, price):
         """ Updates the tax string computation to include the withheld amount when withholding taxes are involved. """
         # OVERRIDE 'account'
         company_taxes = self.taxes_id.filtered(lambda t: t.company_id == self.env.company)

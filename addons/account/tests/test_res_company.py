@@ -7,10 +7,6 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 class _FakeAccount:
-    """Identity-hashable stand-in for an account record."""
-
-    # The planner uses accounts as dict keys; ``SimpleNamespace`` cannot serve
-    # because it defines ``__eq__`` and is therefore unhashable.
     def __init__(self, id_, currency_id=False):
         self.id = id_
         self.currency_id = currency_id
@@ -18,21 +14,15 @@ class _FakeAccount:
 
 @tagged("post_install", "-at_install")
 class TestResCompanyAccountCode(AccountTestInvoicingCommon):
-    """Pins ``get_new_account_code`` and ``reflect_code_prefix_change``."""
-
-    # The cases below document the real behaviour of the ``lstrip('0')`` /
-    # ``rjust`` transform: the code length survives only while the new prefix and
-    # the zero-stripped tail still fit in it.
     def test_get_new_account_code_pure(self):
         new_code = self.env["res.company"].get_new_account_code
         cases = {
-            # (current, old_prefix, new_prefix): expected
-            ("101000", "1", "2"): "201000",  # same-length swap, tail kept
-            ("101000", "10", "20"): "201000",  # multi-char same-length swap
-            ("511001", "511", "512"): "512001",  # real bank-prefix style swap
-            ("570", "5", "512"): "51270",  # new prefix longer -> grows
-            ("500", "5", "5000000"): "5000000",  # prefix > code -> tail absorbed
-            ("5", "5", "6"): "6",  # whole tail consumed
+            ("101000", "1", "2"): "201000",
+            ("101000", "10", "20"): "201000",
+            ("511001", "511", "512"): "512001",
+            ("570", "5", "512"): "51270",
+            ("500", "5", "5000000"): "5000000",
+            ("5", "5", "6"): "6",
         }
         for (code, old, new), expected in cases.items():
             self.assertEqual(
@@ -42,9 +32,6 @@ class TestResCompanyAccountCode(AccountTestInvoicingCommon):
             )
 
     def test_get_new_account_code_length_preserved_for_same_length_prefix(self):
-        """A same-length prefix the code starts with round-trips to the same length."""
-        # ``reflect_code_prefix_change`` only feeds codes matched by its
-        # ``=like old%`` search, so the old prefix is always present.
         new_code = self.env["res.company"].get_new_account_code
         for code in ("511001", "511999", "511000", "511100"):
             self.assertEqual(len(new_code(code, "511", "622")), len(code))
@@ -58,7 +45,6 @@ class TestResCompanyAccountCode(AccountTestInvoicingCommon):
         cash_b = Account.create(
             {"name": "Cash B", "code": "511050", "account_type": "asset_cash"}
         )
-        # An account outside the cash/credit-card scope must stay untouched.
         other = Account.create(
             {"name": "Other 511", "code": "511900", "account_type": "expense"}
         )
@@ -76,21 +62,14 @@ class TestResCompanyAccountCode(AccountTestInvoicingCommon):
             .with_company(company)
             .create({"name": "Cash", "code": "511001", "account_type": "asset_cash"})
         )
-        company.reflect_code_prefix_change("511", "511")  # same -> no-op
-        company.reflect_code_prefix_change(False, "622")  # falsy old -> no-op
+        company.reflect_code_prefix_change("511", "511")
+        company.reflect_code_prefix_change(False, "622")
         self.assertEqual(cash.code, "511001")
 
 
 @tagged("post_install", "-at_install")
 class TestUnaffectedEarningsAccount(AccountTestInvoicingCommon):
-    """Pins ``get_unaffected_earnings_account`` code selection."""
-
-    # The fallback counting down from 999999 is never exercised by a standard
-    # chart of accounts: it already ships an ``equity_unaffected`` account, so
-    # the method returns early.
     def _fresh_company(self, name):
-        # A company with no chart template: no equity_unaffected account exists,
-        # forcing get_unaffected_earnings_account down its creation path.
         return self.env["res.company"].create({"name": name})
 
     def test_returns_existing_unaffected_account(self):
@@ -113,13 +92,11 @@ class TestUnaffectedEarningsAccount(AccountTestInvoicingCommon):
         company = self._fresh_company("Unaffected Fresh")
         account = company.get_unaffected_earnings_account()
         self.assertEqual(account.account_type, "equity_unaffected")
-        # `code` is company-dependent -> read it under this company.
         self.assertEqual(account.with_company(company).code, "999999")
 
     def test_skips_taken_codes_counting_down(self):
         company = self._fresh_company("Unaffected Collision")
         Account = self.env["account.account"].with_company(company)
-        # Occupy 999999 and 999998 with unrelated accounts.
         for code in ("999999", "999998"):
             Account.create(
                 {
@@ -136,14 +113,11 @@ class TestUnaffectedEarningsAccount(AccountTestInvoicingCommon):
             "999997",
             "must skip the taken codes",
         )
-        # Idempotent: a second call returns the same account, no new code burned.
         self.assertEqual(company.get_unaffected_earnings_account(), account)
 
 
 @tagged("post_install", "-at_install")
 class TestResCompanyDomesticFP(common.TransactionCase):
-    """Pins the ordering of ``_compute_domestic_fiscal_position_id``."""
-
     def setUp(self):
         super().setUp()
         self.be = self.env.ref("base.be")
@@ -171,8 +145,6 @@ class TestResCompanyDomesticFP(common.TransactionCase):
         self.assertEqual(self.company.domestic_fiscal_position_id, group_low)
 
     def test_specific_beats_group_on_sequence_tie(self):
-        # group created first (earlier in the recordset) to prove the tiebreak
-        # is by country specificity, not insertion order.
         self._fp("group-seq5", 5, specific=False)
         spec = self._fp("spec-seq5", 5, specific=True)
         self.company.invalidate_recordset(["domestic_fiscal_position_id"])
@@ -184,10 +156,6 @@ class TestResCompanyDomesticFP(common.TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestResCompanyMultiVat(common.TransactionCase):
-    """Pins that ``multi_vat_foreign_country_ids`` tracks the position country."""
-
-    # Guards the ``fiscal_position_ids.country_id`` entry of the ``@api.depends``
-    # on ``_compute_multi_vat_foreign_country``.
     def test_multi_vat_follows_country_id(self):
         be = self.env.ref("base.be")
         fr = self.env.ref("base.fr")
@@ -206,19 +174,12 @@ class TestResCompanyMultiVat(common.TransactionCase):
         )
         self.assertEqual(company.multi_vat_foreign_country_ids, be)
 
-        # Moving the position to FR (foreign_vat stays 'BE0477472701') must be
-        # reflected in the computed country set.
         fp.write({"country_id": fr.id})
         self.assertEqual(company.multi_vat_foreign_country_ids, fr)
 
 
 @tagged("post_install", "-at_install")
 class TestOpeningMovePlanner(common.TransactionCase):
-    """DB-free unit tests for the pure planner ``_plan_opening_move_lines``."""
-
-    # Records and currency are faked. Command tuples are ``(0, 0, vals)`` create,
-    # ``(1, id, vals)`` update, ``(2, id, 0)`` delete.
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -285,8 +246,6 @@ class TestOpeningMovePlanner(common.TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestUpdateOpeningMove(AccountTestInvoicingCommon):
-    """End-to-end: ``_update_opening_move`` creates/updates a balanced move."""
-
     def test_create_then_update_stays_balanced(self):
         company = self.company_data["company"]
         revenue = self.company_data["default_account_revenue"]
@@ -303,7 +262,6 @@ class TestUpdateOpeningMove(AccountTestInvoicingCommon):
             move.line_ids.filtered(lambda ln: ln.account_id == revenue).balance, 1000.0
         )
 
-        # Re-run to update one account: the move must stay balanced.
         company._update_opening_move({revenue: (500.0, 0.0)})
         self.assertEqual(sum(move.line_ids.mapped("balance")), 0.0)
         self.assertEqual(

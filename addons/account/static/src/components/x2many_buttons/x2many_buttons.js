@@ -14,8 +14,8 @@ class X2ManyButtons extends Component {
     };
 
     setup() {
-        this.orm = useService("orm");
         this.action = useService("action");
+        this.accountMove = useService("account_move");
     }
 
     async openTreeAndDiscard() {
@@ -39,14 +39,11 @@ class X2ManyButtons extends Component {
     }
 
     async openFormAndDiscard(id) {
-        const action = await this.orm.call(
-            this.currentField.resModel,
-            "action_view_business_doc",
-            [id],
-            {},
-        );
+        // Read the model before discarding: the discard reloads the record this
+        // field hangs off.
+        const resModel = this.currentField.resModel;
         await this.props.record.discard();
-        this.action.doAction(action);
+        return this.accountMove.openBusinessDoc({ resModel, resId: id });
     }
 
     get currentField() {

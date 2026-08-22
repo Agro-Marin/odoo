@@ -39,7 +39,7 @@ class AuthorizeAPI:
         self.name = provider.authorize_login
         self.transaction_key = provider.authorize_transaction_key
 
-    def _make_request(self, operation, data=None):
+    def _prepare_request(self, operation, data=None):
         request = {
             operation: {
                 'merchantAuthentication': {
@@ -110,7 +110,7 @@ class AuthorizeAPI:
                  last digits of the card number
         :rtype: dict
         """
-        response = self._make_request('createCustomerProfileFromTransactionRequest', {
+        response = self._prepare_request('createCustomerProfileFromTransactionRequest', {
             'transId': transaction_id,
             'customer': {
                 'merchantCustomerId': ('ODOO-%s-%s' % (partner.id, uuid4().hex[:8]))[:20],
@@ -134,7 +134,7 @@ class AuthorizeAPI:
             'payment_profile_id': response.get('customerPaymentProfileIdList')[0]
         }
 
-        response = self._make_request('getCustomerPaymentProfileRequest', {
+        response = self._prepare_request('getCustomerPaymentProfileRequest', {
             'customerProfileId': res['profile_id'],
             'customerPaymentProfileId': res['payment_profile_id'],
         })
@@ -155,7 +155,7 @@ class AuthorizeAPI:
         :return: a dict containing the response code
         :rtype: dict
         """
-        response = self._make_request("deleteCustomerProfileRequest", {'customerProfileId': profile_id})
+        response = self._prepare_request("deleteCustomerProfileRequest", {'customerProfileId': profile_id})
         return self._format_response(response, 'deleteCustomerProfile')
 
     #=== Transaction management ===#
@@ -212,7 +212,7 @@ class AuthorizeAPI:
         :rtype: dict
         """
         tx_data = self._prepare_tx_data(token=token, opaque_data=opaque_data)
-        response = self._make_request(
+        response = self._prepare_request(
             'createTransactionRequest',
             self._prepare_authorization_transaction_request('authOnlyTransaction', tx_data, tx)
         )
@@ -232,7 +232,7 @@ class AuthorizeAPI:
         :rtype: dict
         """
         tx_data = self._prepare_tx_data(token=token, opaque_data=opaque_data)
-        response = self._make_request(
+        response = self._prepare_request(
             'createTransactionRequest',
             self._prepare_authorization_transaction_request('authCaptureTransaction', tx_data, tx)
         )
@@ -273,7 +273,7 @@ class AuthorizeAPI:
         :return: a dict containing the transaction details
         :rtype: dict
         """
-        return self._make_request('getTransactionDetailsRequest', {'transId': transaction_id})
+        return self._prepare_request('getTransactionDetailsRequest', {'transId': transaction_id})
 
     def capture(self, transaction_id, amount):
         """Capture a previously authorized payment for the given amount.
@@ -288,7 +288,7 @@ class AuthorizeAPI:
         :return: a dict containing the response code, transaction id and transaction type
         :rtype: dict
         """
-        response = self._make_request('createTransactionRequest', {
+        response = self._prepare_request('createTransactionRequest', {
             'transactionRequest': {
                 'transactionType': 'priorAuthCaptureTransaction',
                 'amount': str(amount),
@@ -305,7 +305,7 @@ class AuthorizeAPI:
         :return: a dict containing the response code, transaction id and transaction type
         :rtype: dict
         """
-        response = self._make_request('createTransactionRequest', {
+        response = self._prepare_request('createTransactionRequest', {
             'transactionRequest': {
                 'transactionType': 'voidTransaction',
                 'refTransId': transaction_id
@@ -325,7 +325,7 @@ class AuthorizeAPI:
         :rtype: dict
         """
         card = tx_details.get('transaction', {}).get('payment', {}).get('creditCard', {}).get('cardNumber')
-        response = self._make_request('createTransactionRequest', {
+        response = self._prepare_request('createTransactionRequest', {
             'transactionRequest': {
                 'transactionType': 'refundTransaction',
                 'amount': str(amount),
@@ -346,7 +346,7 @@ class AuthorizeAPI:
 
         :return: Dictionary containing the merchant details
         :rtype: dict"""
-        return self._make_request('getMerchantDetailsRequest')
+        return self._prepare_request('getMerchantDetailsRequest')
 
     # Test
     def test_authenticate(self):
@@ -355,4 +355,4 @@ class AuthorizeAPI:
         :return: The authentication results
         :rtype: dict
         """
-        return self._make_request('authenticateTestRequest')
+        return self._prepare_request('authenticateTestRequest')

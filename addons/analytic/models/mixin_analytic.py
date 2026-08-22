@@ -23,7 +23,7 @@ class MixinAnalytic(models.AbstractModel):
     )
     analytic_precision = fields.Integer(
         store=False,
-        default=lambda self: self.env["decimal.precision"].precision_get(
+        default=lambda self: self.env["decimal.precision"].get_precision(
             "Percentage Analytic"
         ),
     )
@@ -248,7 +248,7 @@ class MixinAnalytic(models.AbstractModel):
 
     def write(self, vals):
         """Format the analytic_distribution float value, so equality on analytic_distribution can be done"""
-        decimal_precision = self.env["decimal.precision"].precision_get(
+        decimal_precision = self.env["decimal.precision"].get_precision(
             "Percentage Analytic"
         )
         vals = self._sanitize_values(vals, decimal_precision)
@@ -257,7 +257,7 @@ class MixinAnalytic(models.AbstractModel):
     @api.model_create_multi
     def create(self, vals_list):
         """Format the analytic_distribution float value, so equality on analytic_distribution can be done"""
-        decimal_precision = self.env["decimal.precision"].precision_get(
+        decimal_precision = self.env["decimal.precision"].get_precision(
             "Percentage Analytic"
         )
         vals_list = [
@@ -277,7 +277,7 @@ class MixinAnalytic(models.AbstractModel):
             ]
             if not mandatory_plans_ids:
                 return
-            decimal_precision = self.env["decimal.precision"].precision_get(
+            decimal_precision = self.env["decimal.precision"].get_precision(
                 "Percentage Analytic"
             )
             distribution_by_root_plan = {}

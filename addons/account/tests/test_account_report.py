@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from odoo import Command
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
@@ -9,7 +8,6 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 @tagged("post_install", "-at_install")
 class TestAccountReport(AccountTestInvoicingCommon):
     def test_copy_report(self):
-        """Ensure that copying a report correctly adjust codes, formulas and subformulas."""
         report = self.env["account.report"].create(
             {
                 "name": "Report To Copy",
@@ -62,10 +60,8 @@ class TestAccountReport(AccountTestInvoicingCommon):
             }
         )
         copy = report.copy()
-        # Ensure that the two line codes are updated.
         self.assertEqual(copy.line_ids[0].code, "test_line_1_COPY")
         self.assertEqual(copy.line_ids[1].code, "test_line_2_COPY")
-        # Ensure that the line 2 expression formula and subformula point to the correct code.
         expression = copy.line_ids[1].expression_ids
         self.assertEqual(expression.formula, "test_line_1_COPY.balance")
         self.assertEqual(
@@ -85,15 +81,12 @@ class TestAccountReport(AccountTestInvoicingCommon):
             )
 
     def test_domain_formula_malformed_raises_validation_error(self):
-        """A malformed ``domain_formula`` raises a clear ValidationError."""
         report = self.env["account.report"].create({"name": "Domain Formula Report"})
         line = self.env["account.report.line"].create(
             {"name": "dom_line", "report_id": report.id}
         )
-        # Guards against an opaque AttributeError from DOMAIN_REGEX.match(...).groups() when the match fails.
         for bad_formula in ("summ(domain)", "just text", "sum missing parens"):
             with self.assertRaisesRegex(ValidationError, "Invalid domain formula"):
                 line.domain_formula = bad_formula
-        # A well-formed formula is still accepted.
         line.domain_formula = "sum([('account_id.account_type', '=', 'income')])"
         self.assertTrue(line.expression_ids)

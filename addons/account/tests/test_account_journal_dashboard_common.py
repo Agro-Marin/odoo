@@ -13,7 +13,6 @@ class TestAccountJournalDashboardCommon(AccountTestInvoicingCommon):
         cls.other_currency = cls.setup_other_currency("EUR")
 
     def _create_test_vendor_bills(self, journal):
-        # Setup multiple payments term
         twentyfive_now_term = self.env["account.payment.term"].create(
             {
                 "name": "25% now, rest in 30 days",
@@ -60,8 +59,6 @@ class TestAccountJournalDashboardCommon(AccountTestInvoicingCommon):
                 ],
             }
         ).action_post()
-        # This bill has two residual amls. One of 1000$ and one of 3000$. Both are waiting for payment and due in 17 and 47 days.
-        # number_waiting += 1, sum_waiting += -4000$, number_late += 0, sum_late += 0$
 
         self.env["account.move"].create(
             {
@@ -84,9 +81,6 @@ class TestAccountJournalDashboardCommon(AccountTestInvoicingCommon):
                 ],
             }
         ).action_post()
-        # This bill has two residual amls. One of 100$ and one of 300$. One is late and due 14 days prior and one which is waiting for payment and due in 16 days.
-        # Even though one entry is late, the entire move isn't considered late since all entries are not.
-        # number_waiting += 1, sum_waiting += -400$, number_late += 0, sum_late += 0$
 
         self.env["account.move"].create(
             {
@@ -109,8 +103,6 @@ class TestAccountJournalDashboardCommon(AccountTestInvoicingCommon):
                 ],
             }
         ).action_post()
-        # This bill has two residual amls. One of 10$ and one of 30$. Both of them are late and due 42 and 12 days prior.
-        # number_waiting += 1, sum_waiting += -40$, number_late += 1, sum_late += -40$
 
     def assertDashboardPurchaseSaleData(
         self,

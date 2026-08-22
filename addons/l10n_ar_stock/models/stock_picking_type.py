@@ -37,13 +37,13 @@ class StockPickingType(models.Model):
         string="Delivery Guide Prefix",
         default='00001',
         compute='_compute_l10n_ar_stock_sequence_fields',
-        inverse='_set_l10n_ar_stock_delivery_sequence_prefix',
+        inverse='_inverse_l10n_ar_delivery_sequence_prefix',
         help="Argentina: Prefix for the delivery guide sequence number. It is used to generate the delivery guide number.",
     )
     l10n_ar_next_delivery_number = fields.Integer(
         string="Next Delivery Guide Number",
         compute='_compute_l10n_ar_stock_sequence_fields',
-        inverse='_set_l10n_ar_stock_next_delivery_number',
+        inverse='_inverse_l10n_ar_next_delivery_number',
         help="Argentina: Hold the next sequence to use as delivery guide number.",
     )
     l10n_ar_sequence_id = fields.Many2one(
@@ -97,13 +97,13 @@ class StockPickingType(models.Model):
                     'implementation': 'no_gap',
                 })
 
-    def _set_l10n_ar_stock_delivery_sequence_prefix(self):
+    def _inverse_l10n_ar_delivery_sequence_prefix(self):
         for picking_type in self:
             if prefix := picking_type.l10n_ar_delivery_sequence_prefix:
                 picking_type._ensure_l10n_ar_stock_sequence()
                 picking_type.l10n_ar_sequence_id.prefix = f'{prefix}-'
 
-    def _set_l10n_ar_stock_next_delivery_number(self):
+    def _inverse_l10n_ar_next_delivery_number(self):
         for picking_type in self:
             if number := picking_type.l10n_ar_next_delivery_number:
                 picking_type._ensure_l10n_ar_stock_sequence()

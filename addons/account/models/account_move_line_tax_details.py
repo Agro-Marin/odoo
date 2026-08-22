@@ -7,12 +7,6 @@ class AccountMoveLine(models.Model):
 
     @api.model
     def _get_query_tax_details_from_domain(self, domain, fallback=True) -> SQL:
-        """Create the tax details sub-query based on the orm domain passed as parameter.
-
-        :param domain:      An orm domain on account.move.line.
-        :param fallback:    Fallback on an approximated mapping if the mapping failed.
-        :return:            query as SQL object
-        """
         query = self.env["account.move.line"]._search(domain)
 
         return self._get_query_tax_details(
@@ -21,20 +15,12 @@ class AccountMoveLine(models.Model):
 
     @api.model
     def _get_extra_query_base_tax_line_mapping(self) -> SQL:
-        # TO OVERRIDE
         return SQL()
 
     @api.model
     def _get_query_tax_details(
         self, table_references, search_condition, fallback=True
     ) -> SQL:
-        """Build the tax details sub-query from raw SQL table references and a WHERE condition.
-
-        :param table_references:    The query to inject after the FROM, as an SQL object.
-        :param search_condition:    The query to inject in the WHERE clause, as an SQL object.
-        :param fallback:            Fallback on an approximated mapping if the mapping failed.
-        :return:                    query as an SQL object
-        """
         group_taxes = self.env["account.tax"].search([("amount_type", "=", "group")])
 
         group_taxes_query_list = []

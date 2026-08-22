@@ -5,8 +5,6 @@ from odoo.exceptions import RedirectWarning, UserError
 
 
 class AccountMoveSendBatchWizard(models.TransientModel):
-    """Wizard that handles the sending of multiple invoices."""
-
     _name = "account.move.send.batch.wizard"
     _inherit = ["mixin.account.move.send"]
     _description = "Account Move Send Batch Wizard"
@@ -15,22 +13,15 @@ class AccountMoveSendBatchWizard(models.TransientModel):
     summary_data = fields.Json(compute="_compute_summary_data")
     alerts = fields.Json(compute="_compute_alerts")
 
-    # -------------------------------------------------------------------------
-    # DEFAULTS
-    # -------------------------------------------------------------------------
 
     @api.model
     def default_get(self, fields):
-        # EXTENDS 'base'
         results = super().default_get(fields)
         if "move_ids" in fields and "move_ids" not in results:
             move_ids = self.env.context.get("active_ids", [])
             results["move_ids"] = [Command.set(move_ids)]
         return results
 
-    # -------------------------------------------------------------------------
-    # COMPUTES
-    # -------------------------------------------------------------------------
 
     @api.depends("move_ids")
     def _compute_summary_data(self):
@@ -40,7 +31,7 @@ class AccountMoveSendBatchWizard(models.TransientModel):
         )
         sending_methods["manual"] = _(
             "Manually"
-        )  # in batch sending, everything is done asynchronously, we never "Download"
+        )
 
         for wizard in self:
             edi_counter = Counter()
@@ -82,21 +73,14 @@ class AccountMoveSendBatchWizard(models.TransientModel):
             }
             wizard.alerts = self._get_alerts(wizard.move_ids._origin, moves_data)
 
-    # -------------------------------------------------------------------------
-    # CONSTRAINS
-    # -------------------------------------------------------------------------
 
     @api.constrains("move_ids")
     def _check_move_ids_constraints(self):
         for wizard in self:
             self._check_move_constraints(wizard.move_ids)
 
-    # -------------------------------------------------------------------------
-    # ACTIONS
-    # -------------------------------------------------------------------------
 
     def action_send_and_print(self, force_synchronous=False, allow_fallback_pdf=False):
-        """Launch asynchronously the generation and sending of invoices."""
         self.ensure_one()
         if self.alerts:
             self._raise_danger_alerts(self.alerts)

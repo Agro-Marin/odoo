@@ -164,7 +164,6 @@ class TestAccountSectionAndSubsection(AccountTestInvoicingCommon):
                 self.assertEqual(line_value[key], value)
 
     def test_resequence_section_moves_lines_nested_under_a_subsection(self):
-        """Moving a section must carry its subsections' lines along with it."""
         move = self.init_invoice("out_invoice")
         move.invoice_line_ids = [
             Command.create(
@@ -199,7 +198,5 @@ class TestAccountSectionAndSubsection(AccountTestInvoicingCommon):
         target_section = next(s for s in sections if s["id"] == section_b.id)
         move._resequence_sections([move_section, target_section], "invoice_line_ids")
 
-        # Section A's whole block (including the product nested under its
-        # subsection) must now sort after Section B's.
         self.assertGreater(subsection_a1.sequence, p3.sequence)
         self.assertGreater(p2_under_subsection.sequence, p3.sequence)

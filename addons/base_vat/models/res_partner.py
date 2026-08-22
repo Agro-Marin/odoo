@@ -151,10 +151,10 @@ class ResPartner(models.Model):
                 try:
                     return self._run_vat_checks(self.env['res.country'].search([('code', '=', country_code)], limit=1), vat_prefix + vat_number, partner_name, validation)
                 except ValidationError as e:
-                    msg = self._build_vat_error_message(code_to_check, vat, partner_label)
+                    msg = self._prepare_vat_error_message(code_to_check, vat, partner_label)
                     raise ValidationError(msg + "\n\n" + _('If you are trying to input a European number, this is the expected format: ') + _ref_vat[country_code.lower()]) from e
             if validation == 'error':
-                msg = self._build_vat_error_message(code_to_check, vat, partner_label)
+                msg = self._prepare_vat_error_message(code_to_check, vat, partner_label)
                 raise ValidationError(msg)
             return '', code_to_check
         return vat_to_return, code_to_check
@@ -193,7 +193,7 @@ class ResPartner(models.Model):
     @api.depends('vat')
     def _compute_vies_valid(self):
         """ Check the VAT number with VIES, if enabled."""
-        if not self.env['res.company'].sudo().search_count([('vat_check_vies', '=', True)]):
+        if not self.env['res.company'].sudo().search_count([('vat_check_vies', '=', True)], limit=1):
             self.vies_valid = False
             return
 
@@ -256,7 +256,7 @@ class ResPartner(models.Model):
         return check_func(vat_number) if check_func else True
 
     @api.model
-    def _build_vat_error_message(self, country_code, wrong_vat, record_label):
+    def _prepare_vat_error_message(self, country_code, wrong_vat, record_label):
         # OVERRIDE account
         if self.env.context.get('company_id'):
             company = self.env['res.company'].browse(self.env.context['company_id'])

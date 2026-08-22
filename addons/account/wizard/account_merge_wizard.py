@@ -42,7 +42,6 @@ class AccountMergeWizard(models.TransientModel):
         return res
 
     def _get_grouping_key(self, account):
-        """Return a grouping key for the given account."""
         self.ensure_one()
         grouping_fields = [
             "account_type",
@@ -57,9 +56,7 @@ class AccountMergeWizard(models.TransientModel):
 
     @api.depends("is_group_by_name", "account_ids")
     def _compute_wizard_line_ids(self):
-        """Determine which accounts to merge together."""
         for wizard in self:
-            # Filter out Bank / Cash accounts
             accounts = wizard.account_ids._origin.filtered(
                 lambda a: a.account_type not in ("asset_bank", "asset_cash")
             )
@@ -77,7 +74,7 @@ class AccountMergeWizard(models.TransientModel):
                         "sequence": (sequence := sequence + 1),
                         "account_id": group_accounts[
                             0
-                        ].id,  # Used to compute the group name
+                        ].id,
                     }
                 )
                 wizard_lines_vals_list.extend(
@@ -122,7 +119,6 @@ class AccountMergeWizard(models.TransientModel):
         }
 
     def action_merge(self):
-        """Merge each group of accounts in `self.wizard_line_ids`."""
         self._check_access_rights(self.account_ids)
 
         for wizard in self:
@@ -133,8 +129,6 @@ class AccountMergeWizard(models.TransientModel):
                 "grouping_key"
             ).values():
                 if len(wizard_lines_group) > 1:
-                    # This ensures that if one account in the group has hashed entries, it appears first, ensuring
-                    # that its ID doesn't get changed by the merge.
                     self._action_merge(
                         wizard_lines_group.sorted(
                             "account_has_hashed_entries", reverse=True
@@ -167,12 +161,6 @@ class AccountMergeWizard(models.TransientModel):
 
     @api.model
     def _action_merge(self, accounts):
-        """Merge `accounts` into the first one."""
-        # The first account is extended to each company of the others, keeping their codes and
-        # names; the others are deleted; and journal items and other references are retargeted
-        # to the first account.
-        # Step 1: Keep track of the company_ids and codes we should write on the account.
-        # We will do so only at the end, to avoid triggering the constraint that prevents duplicate codes.
         company_ids_to_write = accounts.sudo().company_ids
         code_by_company = self.env.execute_query(
             SQL(
@@ -189,23 +177,17 @@ class AccountMergeWizard(models.TransientModel):
         account_to_merge_into = accounts[0]
         accounts_to_remove = accounts[1:]
 
-        # Step 2: Check that we have write access to all the accounts and access to all the companies
-        # of these accounts.
         self._check_access_rights(accounts)
 
-        # Step 3: Update records in DB.
-        # 3.1: Update foreign keys in DB
         wiz = self.env["base.partner.merge.automatic.wizard"].new()
         wiz._update_foreign_keys_generic(
             "account.account", accounts_to_remove, account_to_merge_into
         )
 
-        # 3.2: Update Reference and Many2OneReference fields that reference account.account
         wiz._update_reference_fields_generic(
             "account.account", accounts_to_remove, account_to_merge_into
         )
 
-        # 3.3: Merge translations
         account_names = self.env.execute_query(
             SQL(
                 """
@@ -218,7 +200,6 @@ class AccountMergeWizard(models.TransientModel):
         )
         account_name_by_id = dict(account_names)
 
-        # Construct JSON of name translations, with first account taking precedence.
         merged_account_name = {}
         for account_id in accounts.ids[::-1]:
             merged_account_name.update(account_name_by_id[account_id])
@@ -235,7 +216,6 @@ class AccountMergeWizard(models.TransientModel):
             )
         )
 
-        # Step 4: Remove merged accounts
         self.env.invalidate_all()
         self.env.cr.execute(
             SQL(
@@ -247,10 +227,8 @@ class AccountMergeWizard(models.TransientModel):
             )
         )
 
-        # Clear ir.model.data ormcache
         self.env.registry.clear_cache()
 
-        # Step 5: Write company_ids and codes on the account
         self.env.cr.execute(
             SQL(
                 """
@@ -311,7 +289,6 @@ class AccountMergeWizardLine(models.TransientModel):
 
     @api.depends("account_id")
     def _compute_account_has_hashed_entries(self):
-        # optimization to avoid having to re-check which accounts have hashed entries
         query = self.env["account.move.line"]._search(
             [
                 ("account_id", "in", self.account_id.ids),
@@ -331,11 +308,6 @@ class AccountMergeWizardLine(models.TransientModel):
 
     @api.depends("account_id", "wizard_id.wizard_line_ids.is_selected", "display_type")
     def _compute_info(self):
-        """Recompute the error message for each wizard line."""
-        # Runs on every select/deselect. An account only affects the mergeability of other
-        # accounts in its own merge group, so this delegates to
-        # `_apply_different_companies_constraint` and `_apply_hashed_moves_constraint`, which
-        # work on a merge-group basis.
         for wizard_line in self.filtered(lambda l: l.display_type == "line_section"):
             wizard_line.info = wizard_line._get_group_name()
         for wizard_line_group in (
@@ -343,15 +315,11 @@ class AccountMergeWizardLine(models.TransientModel):
             .grouped(lambda l: (l.wizard_id, l.grouping_key))
             .values()
         ):
-            # Reset the error messages for the wizard lines in the group to False, then
-            # re-compute them for the whole group.
             wizard_line_group.info = False
             wizard_line_group._apply_different_companies_constraint()
             wizard_line_group._apply_hashed_moves_constraint()
 
     def _get_group_name(self):
-        """Return a human-readable name for a wizard line's group, based on its `account_id`."""
-        # Format: '{Trade/Non-trade} Receivable {USD} {Reconcilable} {Deprecated}'.
         self.ensure_one()
 
         account_type_label = dict(
@@ -386,9 +354,6 @@ class AccountMergeWizardLine(models.TransientModel):
         return grouping_key_name
 
     def _apply_different_companies_constraint(self):
-        """Set `info` on wizard lines if an account cannot be merged because it belongs to the same company as another account."""
-        # If users want to merge such accounts, they should mass-edit the account on the
-        # journal items instead. The wizard lines in `self` should have the same `grouping_key`.
         companies_seen = self.env["res.company"]
         account_belonging_to_company = {}
         for wizard_line in self:
@@ -407,10 +372,6 @@ class AccountMergeWizardLine(models.TransientModel):
                             )
 
     def _apply_hashed_moves_constraint(self):
-        """Set `info` on wizard lines if an account cannot be merged because it has hashed entries."""
-        # If an account has hashed entries, the merge must preserve that account's ID, so two
-        # accounts that both contain hashed entries cannot be merged. The wizard lines in `self`
-        # should have the same `grouping_key`.
         account_to_merge_into = None
         for wizard_line in self:
             if (

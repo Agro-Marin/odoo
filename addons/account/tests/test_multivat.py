@@ -30,7 +30,6 @@ def _get_chart_template_mapping(self, get_all=False):
 
 def data_method_provider(chart_template_name, country_code):
     country = f"base.{country_code}"
-    # this is used to simulate differences between xml_ids
     external_id_prefix = (
         "" if chart_template_name == "local" else f"{chart_template_name}_"
     )
@@ -200,10 +199,6 @@ class TestMultiVAT(AccountTestInvoicingCommon):
         AccountChartTemplate, "_get_chart_template_mapping", _get_chart_template_mapping
     )
     def setUpClass(cls):
-        """Set up a company with a custom chart template, a tax and a fiscal position."""
-        # Templates are loaded from their xml_ids, so the test data must carry them
-        # Avoid creating data from AccountTestInvoicingCommon setUpClass
-        # just use the override of the functions it provides
         super(AccountTestInvoicingCommon, cls).setUpClass()
 
         foreign_country = cls.env.ref("base.fr")
@@ -226,12 +221,9 @@ class TestMultiVAT(AccountTestInvoicingCommon):
             cls.foreign_vat_fpos.action_create_foreign_taxes()
 
     def test_tax_and_tax_group_should_be_reachable_using_standard_api(self):
-        # Ensure local and foreign tax and tax group are reachable using the custom ref api
         for xml_id in (
-            # tax group
             "tax_group_taxes",
             "foreign_tax_group_taxes",
-            # tax
             "test_tax_1_template",
             "test_tax_2_template",
             "test_composite_tax_template",
@@ -246,7 +238,6 @@ class TestMultiVAT(AccountTestInvoicingCommon):
                 self.assertTrue(record, "We should be able to retrieve the record")
 
     def test_tax_group_data(self):
-        # Ensure the correct country is set on tax group
         for xml_id, country_code in (
             ("tax_group_taxes", "BE"),
             ("foreign_tax_group_taxes", "FR"),
@@ -275,9 +266,7 @@ class TestMultiVAT(AccountTestInvoicingCommon):
                 )
 
     def test_tax_data_should_be_consistent(self):
-        # Ensure the correct country is set
         for xml_id, country_code in (
-            # tax
             ("test_tax_1_template", "BE"),
             ("test_tax_2_template", "BE"),
             ("foreign_test_tax_1_template", "FR"),
@@ -306,7 +295,6 @@ class TestMultiVAT(AccountTestInvoicingCommon):
         )
 
     def test_children_taxes(self):
-        # Ensure that group-type taxes are correctly linked to their children
         composite_taxes = [
             "test_composite_tax_template",
             "foreign_test_composite_tax_template",
@@ -377,4 +365,56 @@ class TestMultiVAT(AccountTestInvoicingCommon):
         self.assertTrue(
             self.env.company.tax_exigibility,
             "Creating foreign cash basis taxes should enable the cash basis setting on the company.",
+        )
+
+    def test_foreign_vat_banner_is_scoped_to_the_fiscal_position_company(self):
+        self.assertTrue(
+            self.env["account.tax"]
+            .sudo()
+            .search_count([("country_id", "=", self.env.ref("base.fr").id)]),
+            "precondition: FR taxes exist somewhere in the database",
+        )
+        other_company = self.env["res.company"].create({"name": "Second Co"})
+        other_fpos = (
+            self.env["account.fiscal.position"]
+            .with_context(allowed_company_ids=[self.env.company.id, other_company.id])
+            .create(
+                {
+                    "name": "FR foreign VAT, second company",
+                    "auto_apply": True,
+                    "company_id": other_company.id,
+                    "country_id": self.env.ref("base.fr").id,
+                    "foreign_vat": "FR23334175221",
+                }
+            )
+        )
+        self.assertTrue(
+            other_fpos.env["account.tax"].search_count(
+                [("country_id", "=", self.env.ref("base.fr").id)]
+            ),
+            "precondition: an unscoped search from this fiscal position's own"
+            " environment does reach the other company's FR taxes",
+        )
+        self.assertFalse(
+            self.env["account.tax"].search_count(
+                [
+                    *self.env["account.tax"]._check_company_domain(other_company),
+                    ("country_id", "=", self.env.ref("base.fr").id),
+                ]
+            ),
+            "precondition: the second company owns none of them",
+        )
+        self.assertTrue(
+            other_fpos.foreign_vat_header_mode,
+            "the second company must still be offered the taxes it does not own",
+        )
+
+    def test_instantiate_foreign_taxes_is_idempotent(self):
+        again = self.env["account.chart.template"]._instantiate_foreign_taxes(
+            self.env.ref("base.fr"), self.env.company
+        )
+        self.assertIsInstance(again, dict)
+        self.assertTrue(
+            again.get("account.tax", self.env["account.tax"]),
+            "the taxes that already exist are handed back, so the caller can link them",
         )

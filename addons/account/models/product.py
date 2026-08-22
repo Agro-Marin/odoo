@@ -33,11 +33,6 @@ class ProductCategory(models.Model):
     )
 
 
-# ----------------------------------------------------------
-# Products
-# ----------------------------------------------------------
-
-
 class ProductTemplate(models.Model):
     _inherit = "product.template"
 
@@ -108,7 +103,6 @@ class ProductTemplate(models.Model):
         }
 
     def _get_category_account(self, field_name):
-        """Return the first account defined on the product category hierarchy for ``field_name``."""
         categ = self.categ_id
         while categ:
             account = categ[field_name]
@@ -138,9 +132,9 @@ class ProductTemplate(models.Model):
     @api.depends_context("company")
     def _compute_tax_string(self):
         for record in self:
-            record.tax_string = record._construct_tax_string(record.list_price)
+            record.tax_string = record._prepare_tax_string(record.list_price)
 
-    def _construct_tax_string(self, price):
+    def _prepare_tax_string(self, price):
         currency = self.currency_id
         res = self.taxes_id._filter_taxes_by_company(self.env.company).compute_all(
             price, product=self, partner=self.env["res.partner"]
@@ -202,11 +196,6 @@ class ProductTemplate(models.Model):
         return super()._onchange_type()
 
     def _force_default_tax_field(self, companies, company_tax_field, product_tax_field):
-        """Add ``companies``' default taxes (``company_tax_field``) onto every
-        product in ``self`` (``product_tax_field``), writing in batches.
-        """
-        # ``mapped`` on a Many2one already drops empty relations, so no
-        # ``filtered`` prefilter is needed to skip companies without a default.
         default_taxes = companies.mapped(company_tax_field)
         if not default_taxes:
             return
@@ -225,15 +214,8 @@ class ProductTemplate(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         products = super().create(vals_list)
-        # A product without a company is shared across every company and must
-        # therefore also carry the default taxes of the companies the current
-        # user may not see. Only look those companies up when such a product was
-        # actually created -- the common case (every product has a company) must
-        # not pay for a res.company search it won't use.
         products_without_company = products.filtered(lambda p: not p.company_id)
         if products_without_company:
-            # sudo(): we need every other company's default taxes, which the
-            # user may not have access to.
             other_companies = (
                 self.env["res.company"]
                 .sudo()
@@ -244,21 +226,16 @@ class ProductTemplate(models.Model):
         return products
 
     def _get_list_price(self, price):
-        """Get the product sales price from a public price based on taxes defined on the product"""
         self.ensure_one()
         if not self.taxes_id:
             return super()._get_list_price(price)
-        # Pass ``product=self`` so product-sensitive taxes compute against this
-        # product, matching ``_construct_tax_string``.
         computed_price = self.taxes_id.compute_all(
             price, self.currency_id, product=self
         )
         total_included = computed_price["total_included"]
 
         if self.currency_id.compare_amounts(price, total_included) == 0:
-            # Tax is configured as price included
             return total_included
-        # calculate base from tax
         included_computed_price = self.taxes_id.with_context(
             force_price_include=True
         ).compute_all(price, self.currency_id, product=self)
@@ -291,9 +268,6 @@ class ProductProduct(models.Model):
         product_taxes=None,
         fiscal_position=None,
     ):
-        """Get the price unit for the product."""
-        # Centralised so different models (sale order, account move, etc.)
-        # compute the same unit price from the same parameters.
         self.ensure_one()
         company.ensure_one()
 
@@ -323,13 +297,11 @@ class ProductProduct(models.Model):
                 product_taxes = product.supplier_taxes_id
         if product_taxes:
             product_taxes = product_taxes._filter_taxes_by_company(company)
-        # Apply unit of measure.
         if product_uom_id and product.uom_id != product_uom_id:
             product_price_unit = product.uom_id._compute_price(
                 product_price_unit, product_uom_id
             )
 
-        # Apply fiscal position.
         if product_taxes and fiscal_position:
             product_price_unit = self._get_tax_included_unit_price_from_price(
                 product_price_unit,
@@ -337,10 +309,6 @@ class ProductProduct(models.Model):
                 fiscal_position=fiscal_position,
             )
 
-        # Apply currency rate. ``product_currency`` is only resolved for the
-        # 'sale'/'purchase' document types, so guard against it being unset
-        # before dereferencing it (an unknown document_type with an explicit
-        # price would otherwise raise AttributeError on ``None``).
         if product_currency and currency != product_currency:
             product_price_unit = product_currency._convert(
                 product_price_unit, currency, company, document_date, round=False
@@ -375,13 +343,10 @@ class ProductProduct(models.Model):
     @api.depends_context("company")
     def _compute_tax_string(self):
         for record in self:
-            record.tax_string = record.product_tmpl_id._construct_tax_string(
+            record.tax_string = record.product_tmpl_id._prepare_tax_string(
                 record.lst_price
             )
 
-    # -------------------------------------------------------------------------
-    # EDI
-    # -------------------------------------------------------------------------
 
     def _import_retrieve_product_from_barcode(self, product_values):
         barcode = product_values.get("barcode")
@@ -396,11 +361,6 @@ class ProductProduct(models.Model):
         return None
 
     def _get_product_name_similarity_threshold(self):
-        """Similarity ratio in ``(0, 1]`` required to treat two product names as
-        a match during import. Falls back to ``0.9`` when the config parameter
-        ``account.product_name_similarity_threshold`` is missing, non-numeric, or
-        out of range.
-        """
         raw = (
             self.env["ir.config_parameter"]
             .sudo()
@@ -419,15 +379,11 @@ class ProductProduct(models.Model):
         if not name:
             return None
 
-        # Cut the Sales Description from the name (everything after the first line).
         name = name.split("\n", 1)[0]
         if not name:
             return None
 
         def find_product_by_name_similarity(values):
-            """Return the product whose name is most similar to ``name`` when the best ratio meets the configured threshold."""
-            # Returning the best match (not the first one over the threshold)
-            # avoids auto-linking a weaker candidate that merely sorts earlier.
             similarity_threshold = self._get_product_name_similarity_threshold()
             all_product_ids = self.search(
                 Domain.AND(
@@ -449,7 +405,6 @@ class ProductProduct(models.Model):
                     ratio = SequenceMatcher(
                         None, lowered_name, product.name.lower()
                     ).ratio()
-                    # ``>`` (not ``>=``) keeps the first candidate on ties.
                     if ratio >= similarity_threshold and ratio > best_ratio:
                         best_ratio = ratio
                         best_product = product
@@ -468,18 +423,6 @@ class ProductProduct(models.Model):
         }
 
     def _get_import_product_classification_specs(self):
-        """Classification-code criteria used to refine product retrieval during import.
-
-        :return: list of dicts with keys ``value_key`` (the ``product_values``
-            key), ``field`` (the product field), ``comodel`` (the classification
-            model) and ``code_field`` (the field matched on that model).
-        :rtype: list[dict]
-        """
-        # Each spec ties an incoming ``product_values`` key to the model and
-        # field that store that classification on the product, so retrieval can
-        # both filter and rank on a matching classification. Localization modules
-        # override this to contribute their own codes rather than have ``account``
-        # name their (possibly not-installed) models.
         return [
             {
                 "value_key": "intrastat_code",
@@ -508,19 +451,12 @@ class ProductProduct(models.Model):
         ]
 
     def _get_import_product_cache_discriminators(self, product_values):
-        """Extra cache-key entries so two rows sharing a search domain but
-        differing by classification code are cached separately."""
         return {
             spec["value_key"]: product_values.get(spec["value_key"])
             for spec in self._get_import_product_classification_specs()
         }
 
     def _get_import_product_classification_domain(self, product_values):
-        """Extra domain and ordering that prefer products whose classification
-        matches ``product_values``.
-
-        :return: a tuple ``(extra_domain_leaves, order_fields)``.
-        """
         extra_domain = []
         order_fields = []
         for spec in self._get_import_product_classification_specs():
@@ -555,9 +491,6 @@ class ProductProduct(models.Model):
             cache_discriminators = self._get_import_product_cache_discriminators(
                 product_values
             )
-            # The classification domain/order depend only on product_values, so
-            # compute them at most once per row -- and lazily, so a fully cached
-            # row pays nothing for the classification-model lookups.
             refined = None
 
             product = None
@@ -579,7 +512,6 @@ class ProductProduct(models.Model):
                         {"cache_key": source_cache_key, **cache_discriminators}
                     )
 
-                    # Reuse a product already found for this key in this run.
                     if cache_key in cache:
                         if product := cache[cache_key]:
                             product_values["product"] = product
@@ -609,9 +541,6 @@ class ProductProduct(models.Model):
                             {**criteria, "static_domain": product_domain}
                         )
 
-                    # Only cache a genuine key: a criteria with neither domain nor
-                    # cache_key must not poison the cache for another row that
-                    # merely shares the same classification codes.
                     if product:
                         if source_cache_key is not None:
                             cache[cache_key] = product
@@ -629,22 +558,9 @@ class ProductProduct(models.Model):
         ]
 
     def _retrieve_product(self, company=None, extra_domain=None, **product_vals):
-        """Search all products and find one that matches one of the parameters.
-
-        :param name:            The name of the product.
-        :param default_code:    The default_code of the product.
-        :param barcode:         The barcode of the product.
-        :param company:         The company of the product.
-        :param extra_domain:    Any extra domain to add to the search.
-        :return:                A product or an empty recordset if not found.
-        """
         self._import_retrieve_product(
             search_plan=[
                 method
-                # Sort on the priority only: the tuples also carry bound methods,
-                # which are not orderable, so a bare sort() would crash the moment
-                # two plan entries share a priority (e.g. an override colliding
-                # with a base one).
                 for _priority, method in sorted(
                     self._get_retrieval_product_search_plan(),
                     key=lambda plan: plan[0],

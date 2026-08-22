@@ -6,27 +6,13 @@ from stdnum.iso7064 import mod_97_10
 
 
 def sanitize_structured_reference(reference):
-    """Strip whitespace from a reference, and the framing characters from Belgian ones.
-
-    :param reference: the reference to sanitize
-    :return: the sanitized reference
-    :rtype: str
-    """
     ref = re.sub(r"\s", "", reference)
-    # Belgian framing: `+++020/3430/57642+++` / `***020/3430/57642***` -> `020343057642`
     if re.fullmatch(r"(\+{3}|\*{3}|)\d{3}/\d{4}/\d{5}\1", ref):
         return re.sub(r"[+*/]", "", ref)
     return ref
 
 
 def format_structured_reference_iso(number):
-    """Format a string into a Structured Creditor Reference (ISO 11649).
-
-    :param number: the reference to format
-    :return: the formatted reference
-    :rtype: str
-    """
-    # `123456789` -> `RF18 1234 5678 9`: RF, the mod-97-10 check digits, groups of 4.
     check_digits = mod_97_10.calc_check_digits(f"{number}RF")
     return "RF{} {}".format(
         check_digits,
@@ -37,37 +23,21 @@ def format_structured_reference_iso(number):
 
 
 def is_valid_structured_reference_iso(reference):
-    """Check whether the provided reference is a valid Structured Creditor Reference (ISO).
-
-    :param reference: the reference to check
-    """
     ref = sanitize_structured_reference(reference)
     return iso11649.is_valid(ref)
 
 
 def is_valid_structured_reference_be(reference):
-    """Check whether the provided reference is a valid structured reference for Belgium.
-
-    :param reference: the reference to check
-    """
     ref = sanitize_structured_reference(reference)
     be_ref = re.fullmatch(r"(\d{10})(\d{2})", ref)
     if not be_ref:
         return False
-    # The check number is `base % 97`, with 0 represented as 97 (never 00).
-    # Applying `% 97` to the check field too (the previous code) wrongly
-    # accepted tampered checks like 00/98/99 whenever `base % 97` was 1/2.
     check = int(be_ref.group(1)) % 97 or 97
     return check == int(be_ref.group(2))
 
 
 def is_valid_structured_reference_dk(reference):
-    """Check whether the provided reference is a valid structured reference for Denmark.
-
-    :param reference: the reference to check
-    """
     ref = sanitize_structured_reference(reference)
-    # Form: `+71<022646321691226+88655702<` (15 payment digits after `71<`, 16 after `75<`)
     match = re.fullmatch(r"\+?(?:71<(\d{15})|75<(\d{16}))\+\d{8}<", ref)
     if not match:
         return False
@@ -77,10 +47,6 @@ def is_valid_structured_reference_dk(reference):
 
 
 def is_valid_structured_reference_fi(reference):
-    """Check whether the provided reference is a valid structured reference for Finland.
-
-    :param reference: the reference to check
-    """
     ref = sanitize_structured_reference(reference)
     fi_ref = re.fullmatch(r"(\d{1,19})(\d)", ref)
     if not fi_ref:
@@ -93,24 +59,12 @@ def is_valid_structured_reference_fi(reference):
 
 
 def is_valid_structured_reference_no_se(reference):
-    """Check whether the provided reference is a valid structured reference for Norway or Sweden.
-
-    :param reference: the reference to check
-    """
     ref = sanitize_structured_reference(reference)
     no_se_ref = re.fullmatch(r"\d+", ref)
     return no_se_ref and luhn.is_valid(ref)
 
 
 def is_valid_structured_reference_nl(reference):
-    """Check whether the provided reference is a valid Dutch reference (betalingskenmerk).
-
-    Accepted lengths: 7 digits (no check digit), 9-14 and 16 digits (leading
-    digit is a MOD 11 check digit).
-
-    :param reference: the reference to check
-    :return: True if reference is a structured reference, False otherwise
-    """
     sanitized_reference = sanitize_structured_reference(reference)
 
     if re.fullmatch(r"\d{7}", sanitized_reference):
@@ -140,31 +94,20 @@ def is_valid_structured_reference_nl(reference):
 
 
 def is_valid_structured_reference_si(reference):
-    """Check whether the provided reference is a valid Slovenian reference (model SI01).
-
-    Format: ``SI01`` followed by three digit segments separated by two hyphens,
-    the last digit of the third segment being a MOD 11 check digit.
-
-    :param reference: the reference to check
-    :return: True if reference is a structured reference, False otherwise
-    """
     sanitized_reference = sanitize_structured_reference(reference)
 
     if sanitized_reference.startswith("SI01"):
-        sanitized_reference = sanitized_reference[4:]  # Remove SI01
+        sanitized_reference = sanitized_reference[4:]
     else:
         return False
 
-    # Contains maximum of two hyphens
     if sanitized_reference.count("-") > 2:
         return False
 
-    # Validate hyphenated parts using regex: 3 numeric parts (last ends with check digit)
     match = re.match(r"^(\d+)-(\d+)-(\d+)$", sanitized_reference)
     if not match:
         return False
 
-    # Split into main digits and check digit
     core = sanitized_reference.replace("-", "")
     if not core.isdigit() or len(core) < 2:
         return False
@@ -185,10 +128,6 @@ def is_valid_structured_reference_si(reference):
 
 
 def is_valid_structured_reference(reference):
-    """Check the reference against every country supported here, ISO 11649 last.
-
-    :param reference: the reference to check
-    """
     reference = sanitize_structured_reference(reference or "")
 
     return (
@@ -207,12 +146,6 @@ def is_valid_structured_reference(reference):
 
 
 def is_valid_structured_reference_for_country(reference, country_code=""):
-    """Check the validity of the reference's structure for a specific country or ISO 11649 as a fallback.
-
-    :param reference: the reference to check
-    :param country_code: the country code to check against
-    :return: True if reference is a structured reference for the given country or ISO 11649, False otherwise
-    """
     check_per_country = {
         "BE": is_valid_structured_reference_be,
         "FI": is_valid_structured_reference_fi,

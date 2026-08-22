@@ -11,7 +11,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
     def setUpClass(cls):
         super().setUpClass()
         cls.other_currency = cls.setup_other_currency("EUR")
-        # Payment Terms
         cls.early_pay_10_percents_10_days = cls.env["account.payment.term"].create(
             {
                 "name": "10% discount if paid within 10 days",
@@ -72,7 +71,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             }
         )
 
-    # ========================== Tests Payment Terms ==========================
     def test_early_payment_end_date(self):
         inv_1200_10_percents_discount_no_tax = self.env["account.move"].create(
             {
@@ -95,7 +93,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
                 )
 
     def test_early_payment_date_eligibility(self):
-        """Check early payment eligibility uses the payment term line's stored date."""
         inv = self.env["account.move"].create(
             {
                 "move_type": "in_invoice",
@@ -121,7 +118,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
                 inv.currency_id, fields.Date.from_string("2019-01-12")
             )
         )
-        # Changing number of days on payment term should not change the discount eligibility
         self.early_pay_10_percents_10_days.discount_days = 5
         self.assertTrue(
             inv._is_eligible_for_early_payment_discount(
@@ -162,8 +158,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             )
         )
 
-        # Activate the early discount after the invoice has been posted.
-        # Calling _is_eligible_for_early_payment_discount shouldn't fail
         self.early_pay_10_percents_10_days.early_discount = True
         self.assertFalse(
             inv._is_eligible_for_early_payment_discount(
@@ -177,7 +171,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         )
 
     def test_invoice_report_without_invoice_date(self):
-        """Ensure an invoice with an early discount term and no date renders to PDF."""
         out_invoice = self.env["account.move"].create(
             [
                 {
@@ -194,7 +187,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             ]
         )
 
-        # Assert that the invoice date is not set
         self.assertEqual(out_invoice.invoice_date, False)
 
         with self.allow_pdf_render():
@@ -205,7 +197,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             )
         self.assertTrue(report)
 
-        # Test for invoices with multiple due dates and no early discount
         out_invoice.invoice_payment_term_id = self.pay_30_percents_now_balance_60_days
         with self.allow_pdf_render():
             new_report = self.env["ir.actions.report"]._render_qweb_pdf(
@@ -213,7 +204,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             )
         self.assertTrue(new_report)
 
-    # ========================== Tests Taxes Amounts =============================
     def test_fixed_tax_amount_discounted_payment_mixed(self):
         fixed_tax = self.env["account.tax"].create(
             {
@@ -236,7 +226,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
                             "price_unit": 1000.0,
                             "tax_ids": [
                                 Command.set(self.product_a.taxes_id.ids + fixed_tax.ids)
-                            ],  # 15% tax + fixed 0.05
+                            ],
                         }
                     )
                 ],
@@ -247,7 +237,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         self.assertInvoiceValues(
             invoice,
             [
-                # pylint: disable=bad-whitespace
                 {"display_type": "epd", "balance": -100.0},
                 {"display_type": "epd", "balance": 100.0},
                 {"display_type": "product", "balance": -1000.0},
@@ -262,7 +251,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             },
         )
 
-    # ========================== Tests Payment Register ==========================
     def test_register_discounted_payment_on_single_invoice(self):
         self.early_pay_10_percents_10_days.early_pay_discount_computation = "included"
         out_invoice_1 = self.env["account.move"].create(
@@ -854,7 +842,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
                 "amount": 20,
                 "type_tax_use": "purchase",
                 "invoice_repartition_line_ids": [
-                    # pylint: disable=bad-whitespace
                     Command.create(
                         {
                             "repartition_type": "base",
@@ -878,7 +865,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
                     ),
                 ],
                 "refund_repartition_line_ids": [
-                    # pylint: disable=bad-whitespace
                     Command.create(
                         {
                             "repartition_type": "base",
@@ -954,7 +940,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         self.assertRecordValues(
             payment.move_id.line_ids.sorted("balance"),
             [
-                # pylint: disable=bad-whitespace
                 {"amount_currency": -980.0, "tax_ids": [], "tax_tag_ids": []},
                 {
                     "amount_currency": -20.0,
@@ -972,7 +957,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         )
 
     def test_mixed_early_discount_with_tag_on_tax_base_line(self):
-        """Group epd lines properly when a tax adds tax tags to its base line."""
         tax_tag = self.env["account.account.tag"].create(
             {
                 "name": "tax_tag",
@@ -1152,9 +1136,9 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         )
         self.assertEqual(
             len(inv.line_ids), 5
-        )  # 1 prod, 1 tax, 1 epd, 1 epd tax discount, 1 payment terms
+        )
         inv.write({"invoice_payment_term_id": self.pay_terms_a.id})
-        self.assertEqual(len(inv.line_ids), 3)  # 1 prod, 1 tax, 1 payment terms
+        self.assertEqual(len(inv.line_ids), 3)
         inv.write({"invoice_payment_term_id": self.early_pay_10_percents_10_days.id})
         self.assertEqual(len(inv.line_ids), 5)
 
@@ -1202,15 +1186,14 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         )
         self.assertEqual(
             len(inv.line_ids), 8
-        )  # 2 prod, 2 tax, 1 epd, 2 epd tax discount, 1 payment terms
+        )
         inv.invoice_line_ids[1].unlink()
         self.assertEqual(
             len(inv.line_ids), 5
-        )  # 1 prod, 1 tax, 1 epd, 1 epd tax discount, 1 payment terms
-        self.assertEqual(inv.amount_tax, 9.00)  # $100.0 @ 10% tax (-10% epd)
+        )
+        self.assertEqual(inv.amount_tax, 9.00)
 
     def test_mixed_epd_with_rounding_issue(self):
-        """Ensure the epd lines do not unbalance the invoice."""
         tax_6 = self.env["account.tax"].create(
             {
                 "name": "6%",
@@ -1260,7 +1243,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             }
         )
 
-        # The following vals will create a rounding issue
         line_create_vals = [
             (116, 6, tax_6),
             (0.91, 350, tax_6),
@@ -1268,7 +1250,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             (31.46, 5, tax_176 | tax_12),
         ]
 
-        # If invoice is not balanced the following create will fail
         self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -1289,7 +1270,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         )
 
     def test_register_payment_batch_with_discount_and_without_discount(self):
-        """Ungrouped batch payment mixing discount and plain terms does not crash."""
         out_invoice_1 = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -1350,7 +1330,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         )
 
     def test_register_payment_batch_without_discount(self):
-        """Ungrouped batch payment over invoices without discount does not crash."""
         out_invoice_1 = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -1410,7 +1389,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         )
 
     def test_mixed_epd_with_tax_refund(self):
-        """Ensure epd lines are added to refunds."""
         self.early_pay_10_percents_10_days.write(
             {"early_pay_discount_computation": "mixed"}
         )
@@ -1490,7 +1468,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         )
 
     def test_epd_validation_on_payment_terms(self):
-        """Enabling EPD raises ValidationError unless the term has a single line."""
         payment_term = self.env["account.payment.term"].create(
             {
                 "name": "Test Term",
@@ -1512,7 +1489,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         ):
             payment_term.early_discount = True
 
-        # Modify the payment term to have a single line
         payment_term.line_ids = [
             Command.clear(),
             Command.create({"value": "percent", "value_amount": 100, "nb_days": 30}),
@@ -1526,8 +1502,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             )
 
     def test_epd_multiple_repartition_lines(self):
-        """Check the EPD lines for taxes defined with multiple repartition lines."""
-        # Taxes.
         common_values = {
             "amount": 17.0,
             "invoice_repartition_line_ids": [
@@ -1549,7 +1523,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             ]
         )
 
-        # Early payment.
         payment_term = self.env["account.payment.term"].create(
             {
                 "name": "10% discount if paid within 10 days",
@@ -1569,7 +1542,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             }
         )
 
-        # Invoice.
         invoice = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -1596,7 +1568,6 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         )
         invoice.action_post()
 
-        # Payment.
         payment = (
             self.env["account.payment.register"]
             .with_context(active_model="account.move", active_ids=invoice.ids)
@@ -1604,20 +1575,16 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             ._create_payments()
         )
 
-        # Rounding difference lands on the biggest base line: 14.79 instead of 14.80.
         self.assertRecordValues(
             payment.move_id.line_ids.sorted("amount_currency"),
             [
-                # Invoice's total:
                 {"amount_currency": -777.75},
-                # Base / tax lines:
                 {"amount_currency": -2.51},
                 {"amount_currency": -0.13},
                 {"amount_currency": 0.13},
                 {"amount_currency": 0.76},
                 {"amount_currency": 2.51},
                 {"amount_currency": 14.79},
-                # Discounted amount:
                 {"amount_currency": 762.2},
             ],
         )

@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { Notebook } from "@web/components/notebook/notebook";
+import { useRef } from "@odoo/owl";
+import { Notebook } from "@web/components/notebook";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { append, createElement } from "@web/core/utils/dom/xml";
@@ -62,14 +63,21 @@ export class AccountMoveFormRenderer extends FormRenderer {
         AccountMoveFormNotebook: AccountMoveFormNotebook,
     };
 
+    setup() {
+        super.setup();
+        // The ref the form compiler puts on this view's root element.
+        this.rootRef = useRef("compiled_view_root");
+    }
+
     async saveBeforeTabChange() {
-        if (this.props.record.isInEdition && (await this.props.record.isDirty())) {
-            const contentEl = document.querySelector(".o_content");
-            const scrollPos = contentEl.scrollTop;
-            await this.props.record.save();
-            if (scrollPos) {
-                contentEl.scrollTop = scrollPos;
-            }
+        if (!this.props.record.isInEdition || !(await this.props.record.isDirty())) {
+            return;
+        }
+        const contentEl = this.rootRef.el?.closest(".o_content");
+        const scrollPos = contentEl?.scrollTop;
+        await this.props.record.save();
+        if (scrollPos) {
+            contentEl.scrollTop = scrollPos;
         }
     }
 }

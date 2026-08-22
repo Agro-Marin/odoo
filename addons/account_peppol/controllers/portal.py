@@ -45,7 +45,7 @@ class PortalAccount(CustomerPortal):
                 invalid_fields.add('country_id')
                 address_values['country_id'] = 'error'
                 error_messages.append(_("That country is not available for Peppol."))
-            if endpoint_error_message := request.env['res.partner']._build_error_peppol_endpoint(peppol_eas, peppol_endpoint):
+            if endpoint_error_message := request.env['res.partner']._prepare_error_peppol_endpoint(peppol_eas, peppol_endpoint):
                 invalid_fields.add('invalid_peppol_endpoint')
                 error_messages.append(endpoint_error_message)
             if request.env['res.partner']._get_peppol_verification_state(peppol_endpoint, peppol_eas, edi_format) != 'valid':

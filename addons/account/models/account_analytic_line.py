@@ -82,7 +82,6 @@ class AccountAnalyticLine(models.Model):
         if not unit:
             unit = self.product_id.uom_id
 
-        # Compute based on pricetype
         amount_unit = self.product_id._compute_price("standard_price", uom=unit)[
             self.product_id.id
         ]

@@ -83,8 +83,8 @@ class ResPartner(models.Model):
             raise UserError(_('No VAT configured for partner [%i] %s', self.id, self.name))
         return self.l10n_ar_vat
 
-    def _get_frontend_writable_fields(self):
-        frontend_writable_fields = super()._get_frontend_writable_fields()
+    def _get_fields_frontend_writable(self):
+        frontend_writable_fields = super()._get_fields_frontend_writable()
         frontend_writable_fields.add('l10n_ar_afip_responsibility_type_id')
 
         return frontend_writable_fields

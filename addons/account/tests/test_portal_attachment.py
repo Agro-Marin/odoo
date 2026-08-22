@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import json
 
 from odoo import http
@@ -35,16 +33,14 @@ class TestPortalAttachment(AccountTestInvoicingHttpCommon):
 
     @mute_logger("odoo.addons.http_routing.models.ir_http", "odoo.http")
     def test_01_portal_attachment(self):
-        """Test the portal chatter attachment route."""
         self.partner_a.write(
-            {  # ensure an email for message_post
+            {
                 "email": "partner.a@test.example.com",
             }
         )
 
         self.authenticate(None, None)
 
-        # Test public user can't create attachment without token of document
         with file_open("addons/web/__init__.py") as file:
             res = self.url_open(
                 url=f"{self.invoice_base_url}/mail/attachment/upload",
@@ -58,7 +54,6 @@ class TestPortalAttachment(AccountTestInvoicingHttpCommon):
         self.assertEqual(res.status_code, 404)
         self.assertIn("The requested URL was not found on the server.", res.text)
 
-        # Test public user can create attachment with token
         with file_open("addons/web/__init__.py") as file:
             res = self.url_open(
                 url=f"{self.invoice_base_url}/mail/attachment/upload",
@@ -82,18 +77,15 @@ class TestPortalAttachment(AccountTestInvoicingHttpCommon):
             self.env["ir.attachment"].sudo().search([("id", "=", create_res["id"])])
         )
 
-        # Test created attachment is private
         res_binary = self.url_open("/web/content/%d" % create_res["id"])
         self.assertEqual(res_binary.status_code, 404)
 
-        # Test created access_token is working
         res_binary = self.url_open(
             "/web/content/%d?access_token=%s"
             % (create_res["id"], create_res["raw_access_token"])
         )
         self.assertEqual(res_binary.status_code, 200)
 
-        # Test mimetype is neutered as non-admin
         res = self.url_open(
             url=f"{self.invoice_base_url}/mail/attachment/upload",
             data={
@@ -131,7 +123,6 @@ class TestPortalAttachment(AccountTestInvoicingHttpCommon):
         self.assertEqual(res_image.headers["Content-Type"], "application/octet-stream")
         self.assertEqual(res_image.content, b"<svg></svg>")
 
-        # Test attachment can't be removed without valid token
         res = self.url_open(
             url=f"{self.invoice_base_url}/mail/attachment/delete",
             json={
@@ -147,7 +138,6 @@ class TestPortalAttachment(AccountTestInvoicingHttpCommon):
         )
         self.assertIn("The requested URL was not found on the server.", res.text)
 
-        # Test attachment can be removed with token if "pending" state
         res = self.url_open(
             url=f"{self.invoice_base_url}/mail/attachment/delete",
             json={
@@ -162,7 +152,6 @@ class TestPortalAttachment(AccountTestInvoicingHttpCommon):
             self.env["ir.attachment"].sudo().search([("id", "=", create_res["id"])])
         )
 
-        # Test attachment can be removed with token if not "pending" state
         attachment = self.env["ir.attachment"].create(
             {
                 "name": "an attachment",
@@ -182,7 +171,6 @@ class TestPortalAttachment(AccountTestInvoicingHttpCommon):
             self.env["ir.attachment"].sudo().search([("id", "=", attachment.id)])
         )
 
-        # Test attachment can be removed if attached to a message
         attachment = self.env["ir.attachment"].create(
             {
                 "name": "an attachment",
@@ -209,7 +197,6 @@ class TestPortalAttachment(AccountTestInvoicingHttpCommon):
         self.assertFalse(attachment.exists())
         message.sudo().unlink()
 
-        # Test attachment can't be associated if no attachment token.
         attachment = self.env["ir.attachment"].create(
             {
                 "name": "an attachment",
@@ -238,7 +225,6 @@ class TestPortalAttachment(AccountTestInvoicingHttpCommon):
             res.text,
         )
 
-        # Test attachment can't be associated if no main document token
         res = self.url_open(
             url=f"{self.invoice_base_url}/mail/message/post",
             json={
@@ -256,8 +242,6 @@ class TestPortalAttachment(AccountTestInvoicingHttpCommon):
         self.assertEqual(res.status_code, 200)
         self.assertIn("The requested URL was not found on the server.", res.text)
 
-        # Test attachment can't be associated if not "pending" state
-        # not messages which are sent by `_post_add_create` in the previous steps
         self.assertFalse(
             self.out_invoice.message_ids.filtered(
                 lambda m: m.author_id == self.partner_a
@@ -281,7 +265,6 @@ class TestPortalAttachment(AccountTestInvoicingHttpCommon):
         )
         self.assertEqual(res.status_code, 200)
         self.out_invoice.invalidate_recordset(["message_ids"])
-        # not messages which are sent by `_post_add_create` in the previous steps
         message = self.out_invoice.message_ids.filtered(
             lambda m: m.author_id == self.partner_a
         )
@@ -289,7 +272,6 @@ class TestPortalAttachment(AccountTestInvoicingHttpCommon):
         self.assertEqual(message.body, "<p>test message 1</p>")
         self.assertFalse(message.attachment_ids)
 
-        # Test attachment can't be associated if not correct user
         attachment.write({"res_model": "mail.compose.message"})
         res = self.url_open(
             url=f"{self.invoice_base_url}/mail/message/post",
@@ -308,7 +290,6 @@ class TestPortalAttachment(AccountTestInvoicingHttpCommon):
         )
         self.assertEqual(res.status_code, 200)
         self.out_invoice.invalidate_recordset(["message_ids"])
-        # not messages which are sent by `_post_add_create` in the previous steps
         messages = self.out_invoice.message_ids.filtered(
             lambda m: m.author_id == self.partner_a
         )
@@ -318,7 +299,6 @@ class TestPortalAttachment(AccountTestInvoicingHttpCommon):
         self.assertEqual(messages[0].email_from, self.partner_a.email_formatted)
         self.assertFalse(messages.attachment_ids)
 
-        # Test attachment can be associated if all good (complete flow)
         res = self.url_open(
             url=f"{self.invoice_base_url}/mail/attachment/upload",
             data={
@@ -357,7 +337,6 @@ class TestPortalAttachment(AccountTestInvoicingHttpCommon):
         )
         self.assertEqual(res.status_code, 200)
         self.out_invoice.invalidate_recordset(["message_ids"])
-        # not messages which are sent by `_post_add_create` in previous steps
         messages = self.out_invoice.message_ids.filtered(
             lambda m: m.author_id == self.partner_a
         )

@@ -7,14 +7,6 @@ from odoo.tools.misc import get_flag
 
 
 def _flag(country_code):
-    """Return the flag emoji for ``country_code``, or "" if it has none.
-
-    ``get_flag`` rejects anything that is not two ASCII letters. ``res.country``
-    codes are third-party/user data (a custom country can be saved with a
-    one-character or digit code), and this feeds the Apps list — a bad code must
-    cost that one entry its flag, not raise out of ``_compute_account_templates``
-    and break the whole list. Mirrors the guard in ``base``'s ``ir.module.module``.
-    """
     with contextlib.suppress(ValueError):
         return get_flag(country_code)
     return ""
@@ -57,10 +49,11 @@ class IrModuleModule(models.Model):
         compute="_compute_account_templates", exportable=False
     )
 
-    @api.depends("state")
+    @api.depends("state", "category_id")
     def _compute_account_templates(self):
         chart_category = self.env.ref(
-            "base.module_category_accounting_localizations_account_charts"
+            "base.module_category_accounting_localizations_account_charts",
+            raise_if_not_found=False,
         )
         ChartTemplate = self.env["account.chart.template"]
         for module in self:
@@ -94,8 +87,22 @@ class IrModuleModule(models.Model):
                 )
             }
 
+    def _account_template_to_auto_install(self):
+        company_country_id = self.env.company.country_id.id
+        return next(
+            (
+                tname
+                for tname, tvals in self.account_templates.items()
+                if tvals.get("visible", True)
+                and (
+                    (company_country_id and tvals["country_id"] == company_country_id)
+                    or tname == "generic_coa"
+                )
+            ),
+            None,
+        )
+
     def write(self, vals):
-        # Instanciate the first template of the module on the current company upon installing the module
         was_installed = len(self) == 1 and self.state in (
             "installed",
             "to upgrade",
@@ -108,22 +115,8 @@ class IrModuleModule(models.Model):
             and is_installed
             and not self.env.company.chart_template
             and self.account_templates
-            and (
-                guessed := next(
-                    (
-                        tname
-                        for tname, tvals in self.account_templates.items()
-                        if (
-                            self.env.company.country_id.id
-                            and tvals["country_id"] == self.env.company.country_id.id
-                        )
-                        or tname == "generic_coa"
-                    ),
-                    None,
-                )
-            )
+            and (guessed := self._account_template_to_auto_install())
         ):
-
             def try_loading(env):
                 env["account.chart.template"].try_loading(
                     guessed,
@@ -136,7 +129,6 @@ class IrModuleModule(models.Model):
     def _load_module_terms(self, modules, langs, overwrite=False):
         super()._load_module_terms(modules, langs, overwrite=overwrite)
         if "account" in modules:
-
             def load_account_translations(env):
                 env["account.chart.template"]._load_translations(langs=langs)
                 env["account.account.tag"]._translate_tax_tags(langs=langs)

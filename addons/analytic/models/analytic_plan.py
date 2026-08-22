@@ -44,9 +44,9 @@ class AccountAnalyticPlan(models.Model):
         "parent_id",
         string="Childrens",
     )
-    children_count = fields.Integer(
+    children_count = fields.Count(
+        "children_ids",
         "Children Plans Count",
-        compute="_compute_children_count",
     )
     complete_name = fields.Char(
         "Complete Name",
@@ -59,13 +59,13 @@ class AccountAnalyticPlan(models.Model):
         "plan_id",
         string="Accounts",
     )
-    account_count = fields.Integer(
+    account_count = fields.Count(
+        "account_ids",
         "Analytic Accounts Count",
-        compute="_compute_analytic_account_count",
     )
     all_account_count = fields.Integer(
         "All Analytic Accounts Count",
-        compute="_compute_all_analytic_account_count",
+        compute="_compute_all_account_count",
     )
     color = fields.Integer(
         "Color",
@@ -160,13 +160,8 @@ class AccountAnalyticPlan(models.Model):
             else:
                 plan.complete_name = plan.name
 
-    @api.depends("account_ids")
-    def _compute_analytic_account_count(self):
-        for plan in self:
-            plan.account_count = len(plan.account_ids)
-
     @api.depends("account_ids", "children_ids")
-    def _compute_all_analytic_account_count(self):
+    def _compute_all_account_count(self):
         # Get all children_ids from each plan
         if not self.ids:
             self.all_account_count = 0
@@ -197,11 +192,6 @@ class AccountAnalyticPlan(models.Model):
                 plans_count.get(child_id, 0)
                 for child_id in all_children_ids.get(plan.id, [])
             )
-
-    @api.depends("children_ids")
-    def _compute_children_count(self):
-        for plan in self:
-            plan.children_count = len(plan.children_ids)
 
     @api.onchange("parent_id")
     def _onchange_parent_id(self):
@@ -310,8 +300,8 @@ class AccountAnalyticPlan(models.Model):
 
     def unlink(self):
         # Remove the dynamic field created with the plan (see `_inverse_name`)
-        self._find_plan_column().unlink()
-        related_fields = self._find_related_field()
+        self._get_plan_column().unlink()
+        related_fields = self._get_related_field()
         res = super().unlink()
         related_fields.filtered(lambda f: not self._is_subplan_field_used(f)).unlink()
         self.env.registry.clear_cache("stable")
@@ -346,13 +336,13 @@ class AccountAnalyticPlan(models.Model):
             )
         )
 
-    def _find_plan_column(self, model=False):
+    def _get_plan_column(self, model=False):
         domain = [("name", "in", [plan._strict_column_name() for plan in self])]
         if model:
             domain.append(("model", "=", model))
         return self.env["ir.model.fields"].sudo().search(domain)
 
-    def _find_related_field(self, model=False):
+    def _get_related_field(self, model=False):
         domain = [("name", "in", [plan._hierarchy_name()[1] for plan in self])]
         if model:
             domain.append(("model", "=", model))
@@ -369,9 +359,9 @@ class AccountAnalyticPlan(models.Model):
         # Create/delete a new field/column on related models for this plan, and keep the name in sync.
         # Sort by parent_path to ensure parents are processed before children
         for plan in self.sorted("parent_path"):
-            prev_stored = plan._find_plan_column(model)
+            prev_stored = plan._get_plan_column(model)
             depth, name_related = plan._hierarchy_name()
-            prev_related = plan._find_related_field(model)
+            prev_related = plan._get_related_field(model)
             if plan.parent_id:
                 # If there is a parent, we just need to make sure there is a field to group by the hierarchy level
                 # of this plan, allowing to group by sub plan

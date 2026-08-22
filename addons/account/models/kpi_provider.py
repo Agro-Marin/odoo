@@ -7,10 +7,6 @@ class KpiProvider(models.AbstractModel):
 
     @api.model
     def get_account_kpi_summary(self):
-        # get_kpi_summary() reads the tables with raw SQL, which does not see
-        # pending ORM writes. Flush the fields it inspects so the counts reflect
-        # the current transaction (e.g. a move just (un)checked or a statement
-        # line just reconciled) instead of stale rows.
         self.env["account.move"].flush_model(
             ["state", "checked", "journal_id", "statement_line_id"]
         )
@@ -25,9 +21,6 @@ class KpiProvider(models.AbstractModel):
 
 
 def get_kpi_summary(cr, uid):
-    """Return the count of account moves per journal type requiring user attention."""
-    # Bypasses the ORM on purpose so KPI summaries can be retrieved without
-    # loading a registry, letting multi-database servers serve them faster.
     expected_columns = {
         "account_bank_statement_line.is_reconciled",
         "account_move.checked",
@@ -48,11 +41,8 @@ def get_kpi_summary(cr, uid):
     )
     existing_columns = {x[0] for x in cr.fetchall()}
     if expected_columns - existing_columns:
-        # Needed columns are not present -> module is not installed
         return []
 
-    # Count moves needing attention: draft entries, posted-but-unchecked
-    # entries, and posted bank entries not yet reconciled.
     cr.execute(
         SQL(
             """

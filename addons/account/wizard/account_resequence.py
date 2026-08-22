@@ -91,7 +91,6 @@ class AccountResequenceWizard(models.TransientModel):
 
     @api.depends("new_values", "ordering")
     def _compute_preview_moves(self):
-        """Reduce the computed new_values to a smaller set to display in the preview."""
         for record in self:
             new_values = sorted(
                 json.loads(record.new_values).values(),
@@ -150,8 +149,6 @@ class AccountResequenceWizard(models.TransientModel):
 
     @api.depends("first_name", "move_ids", "sequence_number_reset")
     def _compute_new_values(self):
-        """Compute the proposed new values."""
-
         def _get_move_key(move_id):
             company = move_id.company_id
             date_start, date_end = get_fiscal_year(
@@ -169,9 +166,6 @@ class AccountResequenceWizard(models.TransientModel):
                 return (move_id.date.year, move_id.date.month)
             return "default"
 
-        # new_values maps account.move ids to a dict with the name to apply if the
-        # action is executed, plus information for the preview widget; serialized to
-        # json on the new_values field.
         self.new_values = "{}"
         for record in self.filtered("first_name"):
             moves_by_period = defaultdict(
@@ -179,7 +173,7 @@ class AccountResequenceWizard(models.TransientModel):
             )
             for move in (
                 record.move_ids._origin
-            ):  # Sort the moves by period depending on the sequence number reset
+            ):
                 moves_by_period[_get_move_key(move)] += move
 
             seq_format, format_values = record.move_ids[0]._get_sequence_format_param(
@@ -191,7 +185,6 @@ class AccountResequenceWizard(models.TransientModel):
 
             new_values = {}
             for j, period_recs in enumerate(moves_by_period.values()):
-                # compute the new values period by period
                 date_start, date_end, forced_year_start, forced_year_end = period_recs[
                     0
                 ]._get_sequence_date_range(sequence_number_reset)
@@ -225,7 +218,6 @@ class AccountResequenceWizard(models.TransientModel):
                     for i in range(len(period_recs))
                 ]
 
-                # For all the moves of this period, assign the name by increasing initial name
                 for move, new_name in zip(
                     period_recs.sorted(
                         lambda m: (m.sequence_prefix, m.sequence_number)
@@ -234,7 +226,6 @@ class AccountResequenceWizard(models.TransientModel):
                     strict=False,
                 ):
                     new_values[move.id]["new_by_name"] = new_name
-                # For all the moves of this period, assign the name by increasing date
                 for move, new_name in zip(
                     period_recs.sorted(lambda m: (m.date, m.name or "", m.id)),
                     new_name_list,
@@ -259,7 +250,6 @@ class AccountResequenceWizard(models.TransientModel):
         moves_to_rename = self.env["account.move"].browse(int(k) for k in new_values)
         moves_to_rename.name = False
         moves_to_rename.flush_recordset(["name"])
-        # If the db is not forcibly updated, the temporary renaming could only happen in cache and still trigger the constraint
 
         for move_id in self.move_ids:
             if str(move_id.id) in new_values:

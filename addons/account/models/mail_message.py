@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
@@ -242,7 +241,6 @@ class MailMessage(models.Model):
                 )
 
     def write(self, vals):
-        # We allow any whitespace modifications in the subject
         normalized_subject = (
             " ".join(vals["subject"].split()) if vals.get("subject") else None
         )

@@ -13,7 +13,12 @@ export class DynamicSelectionField extends SelectionField {
     };
 
     get availableOptions() {
-        return this.props.record.data[this.props.available_field]?.split(",") || [];
+        // Split on the separator with its surrounding space: "a, b" is as
+        // natural a way to write the field as "a,b", and an untrimmed " b"
+        // matches no selection key.
+        return (
+            this.props.record.data[this.props.available_field]?.split(/\s*,\s*/) || []
+        );
     }
 
     /**

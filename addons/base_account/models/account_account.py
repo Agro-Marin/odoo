@@ -372,7 +372,14 @@ class AccountAccount(models.Model):
         self.invalidate_recordset(fnames=["code"], flush=False)
         self._compute_code()
 
-    @api.depends_context("company")
+    # `uid` as well as `company`: the fallback below reads
+    # `self.env.user._get_company_ids()`, so the answer is the acting user's.
+    # Declaring only `company` gives the whole transaction ONE cache entry per
+    # company value, and the first reader's placeholder is then served to every
+    # user after it -- including one with no access to the company whose code it
+    # names. See TestAccountAccount.test_placeholder_code, which had to
+    # invalidate the field by hand to ask a second user.
+    @api.depends_context("company", "uid")
     @api.depends("code")
     def _compute_placeholder_code(self):
         self.placeholder_code = False
@@ -440,7 +447,7 @@ class AccountAccount(models.Model):
             for root in roots
         )
 
-    def _search_panel_domain_image(
+    def _search_panel_get_domain_image(
         self,
         field_name,
         domain,
@@ -448,7 +455,7 @@ class AccountAccount(models.Model):
         limit=False,
     ):
         if field_name != "root_id" or set_count:
-            return super()._search_panel_domain_image(
+            return super()._search_panel_get_domain_image(
                 field_name,
                 domain,
                 set_count,

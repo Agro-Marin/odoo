@@ -38,7 +38,7 @@ class AccountEdiXmlUBL20(models.AbstractModel):
     def _export_invoice(self, invoice):
         """ Generates an UBL 2.0 xml for a given invoice. """
         # 1. Validate the structure of the taxes
-        self._validate_taxes(invoice.invoice_line_ids.tax_ids)
+        self._check_taxes(invoice.invoice_line_ids.tax_ids)
 
         # 2. Instantiate the XML builder
         vals = {'invoice': invoice.with_context(lang=invoice.partner_id.lang)}
@@ -1027,7 +1027,7 @@ class AccountEdiXmlUBL20(models.AbstractModel):
 
     def _add_document_line_price_nodes(self, line_node, vals):
         currency_suffix = vals['currency_suffix']
-        product_price_dp = self.env['decimal.precision'].precision_get('Product Price')
+        product_price_dp = self.env['decimal.precision'].get_precision('Product Price')
 
         line_node['cac:Price'] = {
             'cbc:PriceAmount': {

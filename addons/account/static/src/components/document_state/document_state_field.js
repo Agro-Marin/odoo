@@ -7,12 +7,12 @@ import {
     SelectionField,
     selectionField,
 } from "@web/fields/selection/selection/selection_field";
+import { usePopover } from "@web/ui/popover";
 
 export class DocumentStatePopover extends Component {
     static template = "account.DocumentStatePopover";
     static props = {
         close: Function,
-        onClose: Function,
         copyText: Function,
         message: String,
     };
@@ -23,7 +23,13 @@ export class DocumentState extends SelectionField {
 
     setup() {
         super.setup();
-        this.popover = useService("popover");
+        // `usePopover` owns the open/closed state and closes on unmount. Tracking
+        // it by hand missed the click-away close, which left the widget believing
+        // the popover was still open and refusing to reopen it.
+        this.popover = usePopover(DocumentStatePopover, {
+            closeOnClickAway: true,
+            position: "top",
+        });
         this.notification = useService("notification");
     }
 
@@ -40,34 +46,18 @@ export class DocumentState extends SelectionField {
                 type: "warning",
             });
         }
-        this.popoverCloseFn();
-        this.popoverCloseFn = null;
+        this.popover.close();
     }
 
     showMessagePopover(ev) {
-        const close = () => {
-            this.popoverCloseFn();
-            this.popoverCloseFn = null;
-        };
-
-        if (this.popoverCloseFn) {
-            close();
+        if (this.popover.isOpen) {
+            this.popover.close();
             return;
         }
-
-        this.popoverCloseFn = this.popover.add(
-            ev.currentTarget,
-            DocumentStatePopover,
-            {
-                message: this.message,
-                copyText: this.copyText.bind(this),
-                onClose: close,
-            },
-            {
-                closeOnClickAway: true,
-                position: "top",
-            },
-        );
+        this.popover.open(ev.currentTarget, {
+            message: this.message,
+            copyText: this.copyText.bind(this),
+        });
     }
 }
 

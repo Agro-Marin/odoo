@@ -12,21 +12,12 @@ _logger = logging.getLogger(__name__)
 
 
 class MixinAccountMoveSend(models.AbstractModel):
-    """Shared class between the two sending wizards."""
-
-    # 'account.move.send.batch.wizard' is the multiple-invoices wizard (async);
-    # 'account.move.send.wizard' is the single-invoice wizard (sync).
-
     _name = "mixin.account.move.send"
     _description = "Account Move Send"
 
-    # -------------------------------------------------------------------------
-    # DEFAULTS
-    # -------------------------------------------------------------------------
 
     @api.model
     def _get_default_sending_methods(self, move) -> set:
-        """By default, we use the sending method set on the partner or email."""
         return {
             move.commercial_partner_id.with_company(
                 move.company_id
@@ -36,14 +27,10 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     @api.model
     def _get_all_extra_edis(self) -> dict:
-        """Returns a dict representing EDI data such as:
-        { 'edi_key': {'label': 'EDI label', 'is_applicable': function, 'help': 'optional help'} }
-        """
         return {}
 
     @api.model
     def _get_default_extra_edis(self, move) -> set:
-        """By default, we use all applicable extra EDIs."""
         extra_edis = self._get_all_extra_edis()
         return {
             edi_key
@@ -53,7 +40,6 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     @api.model
     def _get_default_invoice_edi_format(self, move, **kwargs) -> str:
-        """By default, we generate the EDI format set on partner."""
         return move.commercial_partner_id.with_company(
             move.company_id
         ).invoice_edi_format
@@ -83,10 +69,6 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     @api.model
     def _get_default_sending_settings(self, move, from_cron=False, **custom_settings):
-        """Returns a dict with all the necessary data to generate and send invoices.
-        Either takes the provided custom_settings, or the default value.
-        """
-
         def get_setting(key, from_cron=False, default_value=None):
             return (
                 custom_settings.get(key)
@@ -153,7 +135,6 @@ class MixinAccountMoveSend(models.AbstractModel):
                     ),
                 }
             )
-        # Add mail attachments if sending methods support them
         if self._display_attachments_widget(
             vals["invoice_edi_format"], vals["sending_methods"]
         ):
@@ -169,20 +150,9 @@ class MixinAccountMoveSend(models.AbstractModel):
             )
         return vals
 
-    # -------------------------------------------------------------------------
-    # ALERTS
-    # -------------------------------------------------------------------------
 
     @api.model
     def _get_alerts(self, moves, moves_data):
-        """Returns a dict of all alerts corresponding to moves with the given context (sending method,
-        edi format to generate, extra_edi to generate).
-        An alert can have some information:
-        - level (danger, info, warning, ...)  (! danger alerts are considered blocking and will be raised)
-        - message to display
-        - action_text for the text to show on the clickable link
-        - action the action to run when the link is clicked
-        """
         alerts = {}
         send_cron = self.env.ref(
             "account.ir_cron_account_move_send", raise_if_not_found=False
@@ -201,28 +171,20 @@ class MixinAccountMoveSend(models.AbstractModel):
                 "action_text": _("Check") if has_cron_access else None,
                 "action": send_cron._get_records_action() if has_cron_access else None,
             }
-        # Filter moves that are trying to send via email
         email_moves = moves.filtered(
             lambda m: "email" in moves_data[m]["sending_methods"]
         )
         if email_moves:
-            # Identify partners without email depending on batch/single send
             if is_batch := len(moves) > 1:
-                # Batch sending
                 partners_without_mail = email_moves.filtered(
                     lambda m: not m.partner_id.email
                 ).mapped("partner_id")
             else:
-                # Single sending. `mail_partner_ids` is a recordset when it comes
-                # from the single wizard's M2M field, but a list of ids when it
-                # comes from `_get_default_sending_settings` (batch data shape);
-                # normalize before filtering so this can't crash on the list form.
                 mail_partners = moves_data[email_moves]["mail_partner_ids"]
                 if not isinstance(mail_partners, models.BaseModel):
                     mail_partners = self.env["res.partner"].browse(mail_partners)
                 partners_without_mail = mail_partners.filtered(lambda p: not p.email)
 
-            # If there are partners without email, add an alert
             if partners_without_mail:
                 alerts["account_missing_email"] = {
                     "level": "warning" if is_batch else "danger",
@@ -239,9 +201,6 @@ class MixinAccountMoveSend(models.AbstractModel):
 
         return alerts
 
-    # -------------------------------------------------------------------------
-    # MAIL
-    # -------------------------------------------------------------------------
 
     @api.model
     def _get_mail_default_field_value_from_template(
@@ -280,13 +239,9 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     @api.model
     def _get_default_mail_partner_ids(self, move, mail_template, mail_lang):
-        # TDE FIXME: this should use standard composer / template code to be sure
-        # it is aligned with standard recipients management. Todo later
         partners = self.env["res.partner"].with_company(move.company_id)
         if mail_template.use_default_to:
             defaults = move._message_get_default_recipients()[move.id]
-            # `_message_get_default_recipients` is called without `with_cc`, so
-            # there is no CC here.
             email_cc = ""
             email_to = defaults["email_to"]
             partners |= partners.browse(defaults["partner_ids"])
@@ -321,9 +276,6 @@ class MixinAccountMoveSend(models.AbstractModel):
             else partners.filtered("email")
         )
 
-    # -------------------------------------------------------------------------
-    # ATTACHMENTS
-    # -------------------------------------------------------------------------
 
     @api.model
     def _get_default_mail_attachments_widget(
@@ -352,16 +304,6 @@ class MixinAccountMoveSend(models.AbstractModel):
     def _get_placeholder_mail_attachments_data(
         self, move, invoice_edi_format=None, extra_edis=None, pdf_report=None
     ):
-        """Return the placeholder attachment data.
-
-        :param move: The current move.
-        :return: A list of one dict per placeholder, each with keys:
-            * id (str): The (fake) id of the attachment, needed in rendering in t-key.
-            * name (str): The name of the attachment.
-            * mimetype (str): The mimetype of the attachment.
-            * placeholder (bool): True to prevent download / deletion.
-        """
-        # Should be extended to add placeholders based on the sending method.
         if move.invoice_pdf_report_id:
             return []
         filename = move._get_invoice_report_filename(report=pdf_report)
@@ -378,19 +320,6 @@ class MixinAccountMoveSend(models.AbstractModel):
     def _get_placeholder_mail_template_dynamic_attachments_data(
         self, move, mail_template, pdf_report=None
     ):
-        """Return the placeholder data for the dynamic attachments.
-
-        :param move:            The current move we are generating documents for.
-        :param mail_template:   The mail template used to get dynamic attachments for the move.
-        :param pdf_report:      The 'ir.actions.report' used for the move.
-                                Usually it will be the generic 'account.account_invoices' but the user can customize it
-                                from the Send Wizard interface.
-        :return:                A list of dictionary, one for each placeholder.
-        """
-        # The Send wizard will generate a legal PDF based on a specific ir.actions.report.
-        # In case the report selected to do so is also added in dynamic attachments of the mail template, we need to
-        # filter them out to avoid duplicated placeholders, since they are already added in the
-        # _get_placeholder_mail_attachments_data method.
         pdf_report = pdf_report or self._get_default_pdf_report_id(move)
         invoice_template = pdf_report | self.env.ref("account.account_invoices")
         extra_mail_templates = mail_template.report_template_ids - invoice_template
@@ -432,7 +361,6 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     @api.model
     def _get_mail_template_attachments_data(self, mail_template):
-        """Returns all mail template data."""
         return [
             {
                 "id": attachment.id,
@@ -445,9 +373,6 @@ class MixinAccountMoveSend(models.AbstractModel):
             for attachment in mail_template.attachment_ids
         ]
 
-    # -------------------------------------------------------------------------
-    # HELPERS
-    # -------------------------------------------------------------------------
 
     @api.model
     def _raise_danger_alerts(self, alerts):
@@ -476,11 +401,6 @@ class MixinAccountMoveSend(models.AbstractModel):
             constraints["not_posted"] = _(
                 "You can't generate invoices that are not posted."
             )
-        # Self-billing journals produce vendor documents (in_invoice/in_refund)
-        # that the buyer issues on the supplier's behalf and sends out (EDI/UBL,
-        # dedicated e-mail templates). They are legitimately "sendable" here even
-        # though they are purchase documents, so exempt them from the sale-only
-        # constraint.
         is_self_billing = move.journal_id.is_self_billing and move.is_purchase_document(
             include_receipts=True
         )
@@ -510,21 +430,11 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     @api.model
     def _format_error_text(self, error):
-        """Format the error that can be a dict (complex format needed)
-
-        :param error: the error to format.
-        :return: a text formatted error.
-        """
         errors = "\n- ".join(error.get("errors", ""))
         return f"{error['error_title']}\n- {errors}" if errors else error["error_title"]
 
     @api.model
     def _format_error_html(self, error):
-        """Format the error that can be a dict (complex format needed)
-
-        :param error: the error to format.
-        :return: a html formatted error.
-        """
         if "errors" not in error:
             return error["error_title"]
         errors = Markup().join(
@@ -536,43 +446,23 @@ class MixinAccountMoveSend(models.AbstractModel):
     def _display_attachments_widget(self, edi_format, sending_methods):
         return "email" in sending_methods
 
-    # -------------------------------------------------------------------------
-    # SENDING METHODS
-    # -------------------------------------------------------------------------
 
     @api.model
     def _is_applicable_to_company(self, method, company):
-        """TO OVERRIDE - used to determine if we should display the sending method in the selection."""
         return True
 
     @api.model
     def _is_applicable_to_move(self, method, move, **move_data):
-        """TO OVERRIDE -"""
         if method == "email" and "mail_partner_ids" in move_data:
             return bool(move_data["mail_partner_ids"])
         return True
 
     @api.model
     def _hook_invoice_document_before_pdf_report_render(self, invoice, invoice_data):
-        """Hook allowing to add some extra data for the invoice passed as parameter before the rendering of the pdf
-        report.
-        :param invoice:         An account.move record.
-        :param invoice_data:    The collected data for the invoice so far.
-        """
         return
 
     @api.model
     def _prepare_invoice_pdf_report(self, invoices_data):
-        """Generate the pdf report for each invoice and attach it to its `invoice_data`.
-
-        :param invoices_data: dict mapping each account.move record to its collected data so far.
-        """
-
-        # Group by company as well as report: a cron batch is sliced by size and
-        # NOT filtered by company (see _cron_account_move_send), so it can mix
-        # companies. Rendering the whole batch under the first invoice's company
-        # would resolve currency/number formatting and company-scoped report data
-        # to the wrong company for the others.
         grouped_invoices_by_report = defaultdict(dict)
         for invoice, invoice_data in invoices_data.items():
             grouped_invoices_by_report[
@@ -586,11 +476,6 @@ class MixinAccountMoveSend(models.AbstractModel):
             Report = self.env["ir.actions.report"].with_company(company)
             ids = [inv.id for inv in group_invoices_data]
 
-            # Per-invoice render options (e.g. Factur-X native PDF/A-3 with the
-            # invoice XML embedded) force one render per invoice so each PDF
-            # carries its own embedded file. When no invoice in the group asks
-            # for options, keep the single batched render (one WeasyPrint session
-            # warms the shared font/asset cache for the whole group).
             render_options = {
                 invoice: self._get_invoice_pdf_render_options(invoice, invoice_data)
                 for invoice, invoice_data in group_invoices_data.items()
@@ -598,9 +483,6 @@ class MixinAccountMoveSend(models.AbstractModel):
             if any(render_options.values()):
                 content_by_id = {}
                 for invoice in group_invoices_data:
-                    # Namespaced channel: PDF options must never travel as
-                    # top-level ``data`` keys, which would leak them into the
-                    # QWeb template rendering context.
                     content, report_type = Report._pre_render_qweb_pdf(
                         pdf_report.report_name,
                         res_ids=[invoice.id],
@@ -611,11 +493,6 @@ class MixinAccountMoveSend(models.AbstractModel):
                     splitted_report = self.env[
                         "ir.actions.report"
                     ]._get_splitted_report(pdf_report.report_name, content, report_type)
-                    # Mirror the guard on the batched branch below: if the
-                    # splitter couldn't tie the PDF back to this invoice it keys
-                    # the content under ``False``, and the ``content_by_id[...]``
-                    # lookup afterwards would raise an opaque KeyError instead of
-                    # this actionable error.
                     if invoice.id not in splitted_report:
                         raise ValidationError(
                             _(
@@ -643,30 +520,15 @@ class MixinAccountMoveSend(models.AbstractModel):
                     "mimetype": "application/pdf",
                     "res_model": invoice._name,
                     "res_id": invoice.id,
-                    "res_field": "invoice_pdf_report_file",  # Binary field
+                    "res_field": "invoice_pdf_report_file",
                 }
 
     @api.model
     def _get_invoice_pdf_render_options(self, invoice, invoice_data):
-        """Hook: per-invoice native PDF render options.
-
-        :return: The bare render-options dict (empty for the default batched render).
-        """
-        # Returning a non-empty dict (e.g. {"pdf_variant": "pdf/a-3b",
-        # "attachments": [...], "xmp_metadata": [...]}) makes
-        # _prepare_invoice_pdf_report render that invoice on its own so the
-        # options -- notably native PDF/A output with embedded files -- apply to
-        # a single record's PDF. The caller forwards the returned dict to
-        # _pre_render_qweb_pdf under the reserved PDF_OPTIONS_DATA_KEY entry of
-        # ``data`` (return the bare options here, not the wrapper).
         return {}
 
     @api.model
     def _prepare_invoice_proforma_pdf_report(self, invoice, invoice_data):
-        """Prepare the proforma pdf report for the invoice passed as parameter.
-        :param invoice:         An account.move record.
-        :param invoice_data:    The collected data for the invoice so far.
-        """
         pdf_report = invoice_data["pdf_report"]
         content, report_type = (
             self.env["ir.actions.report"]
@@ -689,21 +551,10 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     @api.model
     def _hook_invoice_document_after_pdf_report_render(self, invoice, invoice_data):
-        """Hook allowing to add some extra data for the invoice passed as parameter after the rendering of the
-        (proforma) pdf report.
-        :param invoice:         An account.move record.
-        :param invoice_data:    The collected data for the invoice so far.
-        """
         return
 
     @api.model
     def _link_invoice_documents(self, invoices_data):
-        """Create the attachments containing the pdf/electronic documents for each invoice.
-
-        :param invoices_data: dict mapping each account.move record to its collected data so far.
-        """
-        # create an attachment that will become 'invoice_pdf_report_file'
-        # note: Binary is used for security reason
         attachment_to_create = [
             invoice_data["pdf_attachment_values"]
             for invoice_data in invoices_data.values()
@@ -727,7 +578,6 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     @api.model
     def _hook_if_errors(self, moves_data, allow_raising=True):
-        """Process errors found so far when generating the documents."""
         group_by_partner = defaultdict(list)
         for move, move_data in moves_data.items():
             error = move_data["error"]
@@ -739,7 +589,6 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     @api.model
     def _hook_if_success(self, moves_data, from_cron=False):
-        """Process (typically send) successful documents."""
         group_by_partner = defaultdict(list)
         to_send_mail = {}
         for move, move_data in moves_data.items():
@@ -752,7 +601,6 @@ class MixinAccountMoveSend(models.AbstractModel):
         self._send_mails(to_send_mail, from_cron=from_cron)
         self._send_notifications_to_partners(group_by_partner)
 
-        # Notify subscribers.
         for move in moves_data:
             if not move.is_invoice(include_receipts=True):
                 continue
@@ -813,7 +661,6 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     @api.model
     def _send_mail(self, move, mail_template, **kwargs):
-        """Send the journal entry passed as parameter by mail."""
         new_message = move.with_context(
             email_notification_allow_footer=True,
             disable_attachment_import=True,
@@ -830,15 +677,10 @@ class MixinAccountMoveSend(models.AbstractModel):
             },
         )
 
-        # Prevent duplicated attachments linked to the invoice.
         new_message.attachment_ids.invalidate_recordset(
             ["res_id", "res_model"], flush=False
         )
         if new_message.attachment_ids.ids:
-            # ``= ANY(%s)`` with a list, not ``IN %s`` with a tuple: under
-            # psycopg3 (with auto-prepared statements) the tuple binds as a
-            # single ``$1`` parameter, producing ``IN $1`` — a syntax error.
-            # ``= ANY(array)`` is the fork's portable idiom for id-set queries.
             self.env.cr.execute(
                 "UPDATE ir_attachment SET res_id = NULL WHERE id = ANY(%s)",
                 [list(new_message.attachment_ids.ids)],
@@ -856,8 +698,6 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     @api.model
     def _get_mail_params(self, move, move_data):
-        # We must ensure the newly created PDF are added. At this point, the PDF has been generated but not added
-        # to 'mail_attachments_widget'.
         mail_attachments_widget = move_data.get("mail_attachments_widget")
         seen_attachment_ids = set()
         to_exclude = {x["name"] for x in mail_attachments_widget if x.get("skip")}
@@ -896,17 +736,6 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     @api.model
     def _generate_dynamic_reports(self, moves_data, from_cron=False):
-        """Generate the per-move dynamic mail reports.
-
-        :return: The moves whose report generation failed (only possible when
-            ``from_cron``); the caller must skip sending those.
-        """
-        # In a cron run the whole batch shares one transaction, so an unguarded
-        # raise here (e.g. a QWeb error on one move) would roll back every move
-        # in the batch -- including their ``sending_data = False`` reset -- and
-        # the same batch would be re-fetched and fail again on the next tick (a
-        # permanent stall). Isolate each move so one bad report can't poison the
-        # batch; outside a cron the error still propagates to the caller/UI.
         failed = self.env["account.move"]
         for move, move_data in moves_data.items():
             try:
@@ -990,8 +819,6 @@ class MixinAccountMoveSend(models.AbstractModel):
                 attachment = move_data["proforma_pdf_attachment"]
                 mail_params["attachments"].append((attachment.name, attachment.raw))
 
-            # synchronize author / email_from, as mixin.account.move.send wizard computes
-            # a bit too much stuff
             author_id = mail_params.pop("author_id", False)
             email_from = self._get_mail_default_field_value_from_template(
                 mail_template, mail_lang, move, "email_from"
@@ -1014,9 +841,6 @@ class MixinAccountMoveSend(models.AbstractModel):
                     **mail_params,
                 )
             except Exception:
-                # Same rationale as `_generate_dynamic_reports`: in a cron run a
-                # single failed send must not roll back the whole batch. Outside
-                # a cron, let it propagate to the caller/UI.
                 if not from_cron:
                     raise
                 _logger.exception("Failed sending the email for move %s", move.id)
@@ -1029,30 +853,18 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     @api.model
     def _can_commit(self):
-        """Return whether committing the current transaction is acceptable.
-        :return: True if commit is accepted, False otherwise.
-        """
         return not (tools.config["test_enable"] or modules.module.current_test)
 
     @api.model
     def _call_web_service_before_invoice_pdf_render(self, invoices_data):
-        # TO OVERRIDE
-        # call a web service before the pdfs are rendered
         return
 
     @api.model
     def _call_web_service_after_invoice_pdf_render(self, invoices_data):
-        # TO OVERRIDE
-        # call a web service after the pdfs are rendered
         return
 
     @api.model
     def _generate_invoice_documents(self, invoices_data, allow_fallback_pdf=False):
-        """Generate the invoice PDF and electronic documents.
-        :param invoices_data:   The collected data for invoices so far.
-        :param allow_fallback_pdf:  In case of error when generating the documents for invoices, generate a
-                                    proforma PDF report instead.
-        """
         for invoice, invoice_data in invoices_data.items():
             self._hook_invoice_document_before_pdf_report_render(invoice, invoice_data)
             invoice_data["blocking_error"] = invoice_data.get("error") and not (
@@ -1076,7 +888,6 @@ class MixinAccountMoveSend(models.AbstractModel):
             if not invoice_data.get("error") or invoice_data.get("error_but_continue")
         }
 
-        # Use batch to avoid memory error
         batch_size = (
             self.env["ir.config_parameter"]
             .sudo()
@@ -1087,7 +898,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         for invoice, invoice_data in invoices_data_pdf.items():
             if (
                 not invoice_data.get("error") and not invoice.invoice_pdf_report_id
-            ):  # we don't regenerate pdf if it already exists
+            ):
                 pdf_to_generate[invoice] = invoice_data
 
                 if len(pdf_to_generate) > int(batch_size):
@@ -1106,7 +917,6 @@ class MixinAccountMoveSend(models.AbstractModel):
                     invoice, invoice_data
                 )
 
-        # Cleanup the error if we don't want to block the regular pdf generation.
         if allow_fallback_pdf:
             invoices_data_pdf_error = {
                 invoice: invoice_data
@@ -1119,7 +929,6 @@ class MixinAccountMoveSend(models.AbstractModel):
                     invoices_data_pdf_error, allow_raising=not allow_fallback_pdf
                 )
 
-        # Web-service after the PDF generation.
         invoices_data_web_service = {
             invoice: invoice_data
             for invoice, invoice_data in invoices_data.items()
@@ -1128,7 +937,6 @@ class MixinAccountMoveSend(models.AbstractModel):
         if invoices_data_web_service:
             self._call_web_service_after_invoice_pdf_render(invoices_data_web_service)
 
-        # Create and link the generated documents to the invoice if the web-service didn't failed.
         invoices_to_link = {
             invoice: invoice_data
             for invoice, invoice_data in invoices_data_web_service.items()
@@ -1138,10 +946,6 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     @api.model
     def _generate_invoice_fallback_documents(self, invoices_data):
-        """Generate the fallback proforma PDF report for invoices that errored.
-
-        :param invoices_data:   The collected data for invoices so far.
-        """
         for invoice, invoice_data in invoices_data.items():
             if not invoice.invoice_pdf_report_id and invoice_data.get("error"):
                 invoice_data.pop("error")
@@ -1154,8 +958,6 @@ class MixinAccountMoveSend(models.AbstractModel):
                 ].create(invoice_data.pop("proforma_pdf_attachment_values"))
 
     def _check_sending_data(self, moves, **custom_settings):
-        """Assert the data provided to _generate_and_send_invoices are correct."""
-        # A safeguard in case the method is called directly, bypassing the wizards.
         self._check_move_constraints(moves)
         self._check_invoice_report(moves, **custom_settings)
         if "sending_methods" in custom_settings and not all(
@@ -1174,13 +976,6 @@ class MixinAccountMoveSend(models.AbstractModel):
         allow_fallback_pdf=False,
         **custom_settings,
     ):
-        """Generate and send the moves given custom_settings if provided, else their default configuration set on related partner/company.
-        :param moves: account.move to process
-        :param from_cron: whether the processing comes from a cron.
-        :param allow_raising: whether the process can raise errors, or should log them on the move's chatter.
-        :param allow_fallback_pdf:  In case of error when generating the documents for invoices, generate a proforma PDF report instead.
-        :param custom_settings: settings to apply instead of related partner's defaults settings.
-        """
         self._check_sending_data(moves, **custom_settings)
         moves_data = {
             move.sudo(): {
@@ -1191,12 +986,10 @@ class MixinAccountMoveSend(models.AbstractModel):
             for move in moves
         }
 
-        # Generate all invoice documents (PDF and electronic documents if relevant).
         self._generate_invoice_documents(
             moves_data, allow_fallback_pdf=allow_fallback_pdf
         )
 
-        # Manage errors.
         errors = {
             move: move_data
             for move, move_data in moves_data.items()
@@ -1210,7 +1003,6 @@ class MixinAccountMoveSend(models.AbstractModel):
                 and allow_raising,
             )
 
-        # Fallback in case of error.
         errors = {
             move: move_data
             for move, move_data in moves_data.items()
@@ -1219,7 +1011,6 @@ class MixinAccountMoveSend(models.AbstractModel):
         if allow_fallback_pdf and errors:
             self._generate_invoice_fallback_documents(errors)
 
-        # Successfully generated a PDF - Process sending.
         success = {
             move: move_data
             for move, move_data in moves_data.items()
@@ -1228,14 +1019,11 @@ class MixinAccountMoveSend(models.AbstractModel):
         if success:
             self._hook_if_success(success, from_cron=from_cron)
 
-        # Update sending data of moves
         for move, move_data in moves_data.items():
-            # We keep the sending_data, so it will be retried
             if from_cron and move_data.get("error", {}).get("retry"):
                 continue
             move.sending_data = False
 
-        # Return generated attachments.
         attachments = self.env["ir.attachment"]
         for move, move_data in success.items():
             extra_attachments = self._get_invoice_extra_attachments(move)

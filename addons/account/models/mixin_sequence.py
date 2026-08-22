@@ -14,12 +14,6 @@ _logger = logging.getLogger(__name__)
 
 
 class MixinSequence(models.AbstractModel):
-    """Mechanism used to have an editable sequence number.
-
-    Be careful of how you use this regarding the prefixes. More info in the
-    docstring of _get_last_sequence.
-    """
-
     _name = "mixin.sequence"
     _description = "Automatic sequence"
 
@@ -32,7 +26,6 @@ class MixinSequence(models.AbstractModel):
     prefix3 = r"(?P<prefix3>\D+?)"
     seq = r"(?P<seq>\d*)"
     month = r"(?P<month>(0[1-9]|1[0-2]))"
-    # `(19|20|21)` is for catching 19 20 and 21 century prefixes
     year = r"(?P<year>((?<=\D)|(?<=^))((19|20|21)\d{2}|(\d{2}(?=\D))))"
     year_end = r"(?P<year_end>((?<=\D)|(?<=^))((19|20|21)\d{2}|(\d{2}(?=\D))))"
     suffix = r"(?P<suffix>\D*?)"
@@ -51,11 +44,6 @@ class MixinSequence(models.AbstractModel):
     sequence_number = fields.Integer(compute="_compute_split_sequence", store=True)
 
     def init(self):
-        # Add indexes to optimise the query searching for the highest sequence
-        # number. `IF NOT EXISTS` makes each index self-healing and independent:
-        # if one is dropped, or was introduced in a later version than the other,
-        # it is (re)created on its own instead of being skipped because a sibling
-        # index happens to already exist.
         if not self._abstract and self._sequence_index:
             index_name = self._table + "_sequence_index"
             self.env.cr.execute(
@@ -97,29 +85,6 @@ class MixinSequence(models.AbstractModel):
                 )
 
     def _get_sequence_cache(self):
-        # To avoid requiring multiple savepoints when generating successive
-        # sequence numbers within a single transaction, we cache the sequence value
-        # for the duration of the in-flight transaction.
-        #
-        # We use `cr.cache` and expects any savepoint rollback or commit to clear the cache.
-        # This is important because as soon as the lock is released, there might be a record
-        # consumming the next sequence in a concurent transaction for which the cache can't be
-        # aware.
-        #
-        # Before adding an entry for a sequence to this `mixin.sequence` cache,
-        # the transaction must have locked the corresponding unique constraint,
-        # typically by successfully updating or inserting a row governed by the
-        # constraint (note: be mindful of partial constraint clauses).
-        #
-        # Entries in the mixin.sequence cache will look like this:
-        # {
-        #   (<seq_format>    , <seq_index>        ) : <seq_number>,
-        #   ('2042/04/000000', account.journal(1,)) : 123,
-        # }
-        #
-        # See also:
-        # - https://postgres.ai/blog/20210831-postgresql-subtransactions-considered-harmful
-        # - the documentation in _locked_increment()
         return self.env.cr.cache.setdefault("mixin.sequence", {})
 
     def write(self, vals):
@@ -181,8 +146,6 @@ class MixinSequence(models.AbstractModel):
 
     @api.constrains(lambda self: (self._sequence_field, self._sequence_date_field))
     def _constrains_date_sequence(self):
-        # Make it possible to bypass the constraint to allow edition of already messed up documents.
-        # /!\ Do not use this to completely disable the constraint as it will make this mixin unreliable.
         constraint_date = fields.Date.to_date(
             self.env["ir.config_parameter"]
             .sudo()
@@ -213,9 +176,6 @@ class MixinSequence(models.AbstractModel):
 
     @api.depends(lambda self: [self._sequence_field])
     def _compute_split_sequence(self):
-        # `_sequence_fixed_regex` can vary per record (e.g. account.move derives it
-        # from the journal's `sequence_override_regex`), so memoise the compiled
-        # pattern per distinct regex instead of rebuilding it on every record.
         compiled = {}
         for record in self:
             sequence = record[record._sequence_field] or ""
@@ -223,14 +183,8 @@ class MixinSequence(models.AbstractModel):
             matcher = compiled.get(pattern)
             if matcher is None:
                 matcher = compiled[pattern] = re.compile(pattern)
-            # Read the `seq` group directly by name — no need to rewrite the regex
-            # to make `seq` the only capturing group.
             matching = matcher.match(sequence)
             if matching is None:
-                # `_sequence_fixed_regex` may come from a journal's
-                # `sequence_override_regex`; a regex that doesn't match the
-                # existing name (or lacks a `seq` group) would otherwise blow up
-                # with an opaque AttributeError on every read of the split fields.
                 raise ValidationError(
                     self.env._(
                         "The sequence regex %(regex)s does not match the current "
@@ -245,12 +199,6 @@ class MixinSequence(models.AbstractModel):
 
     @api.model
     def _deduce_sequence_number_reset(self, name):
-        """Detect if the used sequence resets yearly, monthly or never.
-
-        :param name: the sequence that is used as a reference to detect the resetting
-            periodicity. Typically, it is the last before the one you want to give a
-            sequence.
-        """
         for regex, ret_val, requirements in [
             (
                 self._sequence_year_range_monthly_regex,
@@ -280,7 +228,6 @@ class MixinSequence(models.AbstractModel):
                         != int(groupdict["year_end"])
                     )
                 ):
-                    # year and year_end are not compatible for range (the difference is not 1)
                     continue
                 if all(groupdict.get(req) is not None for req in requirements):
                     return ret_val
@@ -291,67 +238,21 @@ class MixinSequence(models.AbstractModel):
             )
         )
 
-    def _make_regex_non_capturing(self, regex):
-        r"""Replace named capturing groups in the regex with non-capturing groups.
-
-        :param regex: the regex to modify
-        :return: the modified regex
-        """
+    def _prepare_regex_non_capturing(self, regex):
         return re.sub(r"\?P<\w+>", "?:", regex)
 
     def _get_last_sequence_domain(self, relaxed=False):
-        """Get the SQL domain to retrieve the previous sequence number.
-
-        Override this in models inheriting from this mixin.
-
-        :param relaxed: see _get_last_sequence.
-
-        :returns: tuple(where_string, where_params): with
-            where_string: the entire SQL WHERE clause as a string (must start
-                with ``WHERE``; the caller appends ``AND sequence_prefix = ...``).
-            where_params: a dictionary containing the parameters to substitute
-                at the execution of the query.
-        """
         self.ensure_one()
-        # Abstract: the caller appends ``AND sequence_prefix = (...)`` to this
-        # clause, so an empty string would build syntactically invalid SQL.
-        # Fail explicitly instead of leaving that trap for a forgotten override.
         raise NotImplementedError(
             "Models inheriting 'mixin.sequence' must override "
             "'_get_last_sequence_domain' and return a 'WHERE ...' clause."
         )
 
     def _get_starting_sequence(self):
-        """Get a default sequence number.
-
-        Override this in models inheriting from this mixin. The returned number is
-        incremented, so start the sequence at 0.
-
-        :return: string to use as the default sequence to increment
-        """
         self.ensure_one()
         return "00000000"
 
     def _get_last_sequence(self, relaxed=False, with_prefix=None):
-        """Retrieve the previous sequence.
-
-        This is done by taking the number with the greatest alphabetical value within
-        the domain of _get_last_sequence_domain. This means that the prefix has a
-        huge importance.
-        For instance, if you have INV/2019/0001 and INV/2019/0002, when you rename the
-        last one to FACT/2019/0001, one might expect the next number to be
-        FACT/2019/0002 but it will be INV/2019/0002 (again) because INV > FACT.
-        Therefore, changing the prefix might not be convenient during a period, and
-        would only work when the numbering makes a new start (domain returns by
-        _get_last_sequence_domain is [], i.e: a new year).
-
-        :param relaxed: this should be set to True when a previous request didn't find
-            something without. This allows to find a pattern from a previous period, and
-            try to adapt it for the new period.
-        :param with_prefix: The sequence prefix to restrict the search on, if any.
-
-        :return: the string of the previous sequence or None if there wasn't any.
-        """
         self.ensure_one()
         if (
             self._sequence_field not in self._fields
@@ -364,10 +265,6 @@ class MixinSequence(models.AbstractModel):
             param["id"] = self._origin.id
         if with_prefix is not None:
             where_string += " AND sequence_prefix = %(with_prefix)s "
-            # A NULL sequence_prefix is read back by the ORM as False (not ''),
-            # so callers passing self.sequence_prefix can hand us a bool. psycopg
-            # would then bind it as a SQL boolean and break "varchar = boolean".
-            # Coerce to '' so empty/NULL prefixes compare as text.
             param["with_prefix"] = with_prefix or ""
 
         query = f"""
@@ -383,16 +280,6 @@ class MixinSequence(models.AbstractModel):
         return (self.env.cr.fetchone() or [None])[0]
 
     def _get_sequence_format_param(self, previous):
-        """Get the python format and format values for the sequence.
-
-        :param previous: the sequence we want to extract the format from
-         tuple(format, format_values)
-        :returns: a 2-elements tuple with:
-
-            - format is the format string on which we should call .format()
-            - format_values is the dict of values to format the `format` string
-              ``format.format(**format_values)`` should be equal to ``previous``
-        """
         sequence_number_reset = self._deduce_sequence_number_reset(previous)
         regex = self._sequence_fixed_regex
         if sequence_number_reset == "year":
@@ -413,16 +300,11 @@ class MixinSequence(models.AbstractModel):
             and "prefix1" in format_values
             and "suffix" in format_values
         ):
-            # if we don't have a seq, consider we only have a prefix and not a suffix
             format_values["prefix1"] = format_values["suffix"]
             format_values["suffix"] = ""
         for field in ("seq", "year", "month", "year_end"):
             format_values[field] = int(format_values.get(field) or 0)
 
-        # Derive the placeholder order from the compiled group positions rather
-        # than by re-parsing the regex source. `match.re.groupindex` is canonical,
-        # so the order no longer depends on how the named groups happen to be
-        # spelled (e.g. the `year` / `year_end` word-boundary overlap).
         placeholders = [
             name
             for name, _ in sorted(match.re.groupindex.items(), key=lambda kv: kv[1])
@@ -443,28 +325,9 @@ class MixinSequence(models.AbstractModel):
         return format, format_values
 
     def _locked_increment(self, format_string, format_values):
-        """Increment the sequence for the given format, returning the new value.
-
-        This method will lock the sequence in the database through its unique
-        constraint, in order to ensure cross-transactional uniqueness of sequence
-        numbers. If the sequence is already locked by another transaction, it
-        will wait until the other one finishes, then grab the next available
-        number.
-
-        Once the sequence has been locked by the transaction, further increments
-        will rely on a cache, to avoid the need for multiple savepoints
-        (see implementation comments)
-
-        At entry, the sequence record must be governed by the unique constraint,
-        e.g. for an account.move, it must be in state `posted`, otherwise the lock
-        won't be taken, and sequence numbers may not be unique when returned.
-        """
         cache = self._get_sequence_cache()
-        # Split out `seq` without mutating the caller's dict: `format_values` is
-        # rebound to a local copy that carries every value except the counter.
         seq = format_values["seq"]
         format_values = {k: v for k, v in format_values.items() if k != "seq"}
-        # cache key unique to a sequence: its format string + its sequence index
         cache_key = (
             format_string.format(**format_values, seq=0),
             self._sequence_index and self[self._sequence_index],
@@ -475,33 +338,6 @@ class MixinSequence(models.AbstractModel):
 
         self.flush_recordset()
         with self.env.cr.savepoint(flush=False) as sp:
-            # By updating a row covered by the sequence's UNIQUE constraint,
-            # the transaction acquires an exclusive lock on the corresponding
-            # B-tree index entry. This prevents other transactions from inserting
-            # the same sequence value. See _bt_doinsert() and _bt_check_unique()
-            # in the PostgreSQL source code.
-            #
-            # This guarantee holds only if the sequence row is currently covered
-            # by a unique index, so any partial index conditions must be satisfied
-            # beforehand.
-            #
-            # This operation requires a savepoint because, after waiting for the lock,
-            # the transaction may discover that the new number is already taken,
-            # resulting in a constraint violation. Such violations cannot be
-            # cleanly recovered from without a savepoint. In that case, we retry
-            # until a free number is found.
-            #
-            # Unfortunately, repeated savepoints can severely impact performance,
-            # so we minimize their use. Once the lock is acquired, we rely on a
-            # transactional cache provided by _get_sequence_cache.
-            # Because the transaction holds the lock on the initially assigned
-            # sequence number, other transactions must wait for its completion
-            # before assigning newer numbers. It is therefore safe to continue
-            # assigning sequential numbers without additional savepoints.
-            #
-            # See also:
-            #  - https://postgres.ai/blog/20210831-postgresql-subtransactions-considered-harmful
-            #  - the documentation of _get_sequence_cache()
             while True:
                 seq += 1
                 sequence = format_string.format(**format_values, seq=seq)
@@ -522,12 +358,6 @@ class MixinSequence(models.AbstractModel):
                     sp.rollback()
 
     def _set_next_sequence(self):
-        """Set the next sequence.
-
-        This method ensures that the field is set both in the ORM and in the database.
-        This is necessary because we use a database query to get the previous sequence,
-        and we need that query to always be executed on the latest data.
-        """
         self.ensure_one()
         format_string, format_values = self._get_next_sequence_format()
 
@@ -536,26 +366,11 @@ class MixinSequence(models.AbstractModel):
             sequence
         )
 
-        # `_locked_increment` wrote the sequence field with a raw SQL UPDATE that
-        # bypassed the ORM, so tell the ORM the field changed. `modified` walks the
-        # full trigger graph and flags every dependent stored/related field for
-        # recomputation (e.g. `account.move.line.move_name`, `account.payment.name`)
-        # — the canonical replacement for hand-walking `registry._field_triggers`.
         self.modified([self._sequence_field])
 
         self._compute_split_sequence()
 
     def _get_next_sequence_format(self):
-        """Get the next sequence format and its values.
-
-        This method retrieves the last used sequence and determines the next sequence format based on it.
-        If there is no previous sequence, it initializes a new sequence using the starting sequence format.
-
-        :returns: a 2-element tuple with:
-
-            - format_string (str): the string on which we should call .format()
-            - format_values (dict): the dict of values to format ``format_string``
-        """
         last_sequence = self._get_last_sequence()
         new = not last_sequence
         if new:
@@ -565,10 +380,6 @@ class MixinSequence(models.AbstractModel):
 
         format_string, format_values = self._get_sequence_format_param(last_sequence)
         if new:
-            # Starting a fresh sequence is driven entirely by the record's date
-            # (period boundaries + month). Without it the downstream date maths
-            # would raise an opaque ``'NoneType' has no attribute 'year'``; fail
-            # early with a message that names the missing field instead.
             if not self[self._sequence_date_field]:
                 raise ValidationError(
                     _(
@@ -593,10 +404,6 @@ class MixinSequence(models.AbstractModel):
         return format_string, format_values
 
     def _is_last_from_seq_chain(self):
-        """Return whether this element is the last one of the sequence chain.
-
-        :return: True if it is the last element of the chain.
-        """
         last_sequence = self._get_last_sequence(with_prefix=self.sequence_prefix)
         if not last_sequence:
             return True
@@ -605,10 +412,6 @@ class MixinSequence(models.AbstractModel):
         return seq_format.format(**seq_format_values) == self[self._sequence_field]
 
     def _is_end_of_seq_chain(self):
-        """Return whether these elements are the last ones of the sequence chain.
-
-        :return: True if self are the last elements of the chain.
-        """
         batched = defaultdict(lambda: {"last_rec": self.browse(), "seq_list": []})
         for record in self.filtered(lambda x: x[x._sequence_field]):
             seq_format, format_values = record._get_sequence_format_param(
@@ -621,12 +424,10 @@ class MixinSequence(models.AbstractModel):
                 batch["last_rec"] = record
 
         for values in batched.values():
-            # The sequences we are deleting are not sequential
             seq_list = values["seq_list"]
             if max(seq_list) - min(seq_list) != len(seq_list) - 1:
                 return False
 
-            # last_rec must have the highest number in the database
             record = values["last_rec"]
             if not record._is_last_from_seq_chain():
                 return False

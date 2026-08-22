@@ -115,10 +115,10 @@ class PaymentProvider(models.Model):
 
     # === REQUEST HELPERS === #
 
-    def _build_request_url(self, endpoint, **kwargs):
+    def _prepare_request_url(self, endpoint, **kwargs):
         """Override of `payment` to build the request URL."""
         if self.code != 'paypal':
-            return super()._build_request_url(endpoint, **kwargs)
+            return super()._prepare_request_url(endpoint, **kwargs)
         return self._paypal_get_api_url() + endpoint
 
     def _paypal_get_api_url(self):
@@ -136,12 +136,12 @@ class PaymentProvider(models.Model):
         else:
             return 'https://api-m.sandbox.paypal.com'
 
-    def _build_request_headers(
+    def _prepare_request_headers(
         self, *args, idempotency_key=None, is_refresh_token_request=False, **kwargs
     ):
         """Override of `payment` to build the request headers."""
         if self.code != 'paypal':
-            return super()._build_request_headers(
+            return super()._prepare_request_headers(
                 *args,
                 idempotency_key=idempotency_key,
                 is_refresh_token_request=is_refresh_token_request,
@@ -190,10 +190,10 @@ class PaymentProvider(models.Model):
             return super()._parse_response_error(response)
         return response.json().get('message', '')
 
-    def _build_request_auth(self, *, is_refresh_token_request=False, **kwargs):
+    def _prepare_request_auth(self, *, is_refresh_token_request=False, **kwargs):
         """Override of `payment` to build the request Auth."""
         if self.code != 'paypal' or not is_refresh_token_request:
-            return super()._build_request_auth(
+            return super()._prepare_request_auth(
                 is_refresh_token_request=is_refresh_token_request, **kwargs
             )
         return self.paypal_client_id, self.paypal_client_secret

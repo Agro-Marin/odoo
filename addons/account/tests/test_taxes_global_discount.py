@@ -17,13 +17,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
         )
 
     def _test_taxes_l10n_in(self):
-        """Yield the global discount test cases for the GST taxes of l10n_in."""
-        # 3 percentage taxes:
-        # tax1: % tax, include_base_amount
-        # tax2: same % as tax1, include_base_amount, not is_base_affected
-        # tax3: % tax
-        # The amounts of tax1 and tax2 must always be the same, which makes the
-        # include_base_amount / is_base_affected setup delicate.
         tax1 = self.percent_tax(
             6, include_base_amount=True, tax_group_id=self.tax_groups[0].id
         )
@@ -99,7 +92,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 },
             )
 
-            # Discount 2%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -158,7 +150,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 3-6%
             for percent in range(3, 7):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -174,7 +165,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                     expected_values,
                 )
 
-            # Discount 7%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -233,7 +223,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 8-17%
             for percent in range(8, 18):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -249,7 +238,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                     expected_values,
                 )
 
-            # Discount 18%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -308,7 +296,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 19-20%
             for percent in range(19, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -379,7 +366,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 },
             )
 
-            # Discount 2%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -438,7 +424,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 3-6%
             for percent in range(3, 7):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -454,7 +439,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                     expected_values,
                 )
 
-            # Discount 7%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -513,7 +497,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 8-17%
             for percent in range(8, 18):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -529,7 +512,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                     expected_values,
                 )
 
-            # Discount 18%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -588,7 +570,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 19-20%
             for percent in range(19, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -670,7 +651,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 },
             )
 
-            # Discount 2%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -729,7 +709,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 3-6%
             for percent in range(3, 7):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -745,7 +724,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                     expected_values,
                 )
 
-            # Discount 7%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -804,7 +782,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 8-17%
             for percent in range(8, 18):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -820,7 +797,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                     expected_values,
                 )
 
-            # Discount 18%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -879,7 +855,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 19-20%
             for percent in range(19, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -950,7 +925,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 },
             )
 
-            # Discount 2%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -1009,7 +983,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 3-6%
             for percent in range(3, 7):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -1025,7 +998,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                     expected_values,
                 )
 
-            # Discount 7%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -1084,7 +1056,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 8-17%
             for percent in range(8, 18):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -1100,7 +1071,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                     expected_values,
                 )
 
-            # Discount 18%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -1159,7 +1129,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 19-20%
             for percent in range(19, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -1195,9 +1164,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
         self._run_js_tests()
 
     def _test_taxes_l10n_br(self):
-        """Yield the global discount test cases for the division taxes of l10n_br."""
-        # The 5 division taxes have to be computed all together and are computed
-        # as part of the price_unit.
         tax1 = self.division_tax(5, tax_group_id=self.tax_groups[0].id)
         tax2 = self.division_tax(3, tax_group_id=self.tax_groups[1].id)
         tax3 = self.division_tax(0.65, tax_group_id=self.tax_groups[2].id)
@@ -1286,7 +1252,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 },
             )
 
-            # Discount 2%
             expected_values = {
                 "same_tax_base": True,
                 "currency_id": self.foreign_currency.id,
@@ -1363,7 +1328,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 3-20%
             for percent in range(3, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -1452,7 +1416,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 },
             )
 
-            # Discount 2%
             expected_values = {
                 "same_tax_base": True,
                 "currency_id": self.foreign_currency.id,
@@ -1529,7 +1492,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 3-20%
             for percent in range(3, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -1628,7 +1590,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 },
             )
 
-            # Discount 2%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -1705,7 +1666,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 3-20%
             for percent in range(3, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -1794,7 +1754,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 },
             )
 
-            # Discount 2%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -1871,7 +1830,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 3-20%
             for percent in range(3, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -1907,9 +1865,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
         self._run_js_tests()
 
     def _test_taxes_l10n_be(self):
-        """Yield the global discount test cases for the mixed taxes of l10n_be."""
-        # The fixed tax has include_base_amount, so it affects the base of the
-        # following percentage tax.
         tax1 = self.fixed_tax(
             1, include_base_amount=True, tax_group_id=self.tax_groups[0].id
         )
@@ -1970,13 +1925,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 },
             )
 
-            # Discount 2%
-            # The total of the document will be 43.06.
-            # However, only the percentage tax is considered in the discount. So the discount will be based on:
-            # 2 * 16.79 * 1.21 = 40.6318 ~= 40.63
-            # For a discount of 2%,
-            # 40.63 * 0.02 = 0.81 is the discount amount.
-            # 43.06 - 0.81 = 42.25 is the total amount after discount.
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -2026,7 +1974,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 3-20%
             for percent in range(3, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -2088,13 +2035,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 },
             )
 
-            # Discount 2%
-            # The total of the document will be 43.05.
-            # However, only the percentage tax is considered in the discount. So the discount will be based on:
-            # 2 * 16.79 * 1.21 = 40.6318 ~= 40.63
-            # For a discount of 2%,
-            # 40.63 * 0.02 = 0.81 is the discount amount.
-            # 43.05 - 0.81 = 42.24 is the total amount after discount.
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -2144,7 +2084,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 3-20%
             for percent in range(3, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -2216,13 +2155,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 },
             )
 
-            # Discount 2%
-            # The total of the document will be 43.06.
-            # However, only the percentage tax is considered in the discount. So the discount will be based on:
-            # 2 * 16.79338843 * 1.21 = 40.64
-            # For a discount of 2%,
-            # 40.64 * 0.02 = 0.81 is the discount amount.
-            # 43.06 - 0.81 = 42.25 is the total amount after discount.
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -2272,7 +2204,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 3-20%
             for percent in range(3, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -2334,13 +2265,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 },
             )
 
-            # Discount 2%
-            # The total of the document will be 43.06.
-            # However, only the percentage tax is considered in the discount. So the discount will be based on:
-            # 2 * 16.79338843 * 1.21 = 40.64
-            # For a discount of 2%,
-            # 40.64 * 0.02 = 0.81 is the discount amount.
-            # 43.06 - 0.81 = 42.25 is the total amount after discount.
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -2390,7 +2314,6 @@ class TestTaxesGlobalDiscount(TestTaxCommon):
                 expected_values,
             )
 
-            # Discount 3-20%
             for percent in range(3, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(

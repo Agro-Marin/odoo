@@ -1,3 +1,7 @@
+import ast
+import collections
+import inspect
+import textwrap
 from datetime import date
 
 from freezegun import freeze_time
@@ -7,13 +11,12 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.tests import Form, tagged
 from odoo.tools import SQL
 
+from odoo.addons.account.models.account_move_line import AccountMoveLine
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install", "-at_install")
 class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
-    """Regression tests for fork fixes in account/models/account_move_line.py."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -28,7 +31,6 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         )
 
     def test_discount_allocation_analytic_distribution_is_weighted(self):
-        """The discount allocation line mirrors the product line's weighted analytic split."""
         discount_account = self.company_data["default_account_expense"].copy()
         self.company_data[
             "company"
@@ -64,7 +66,6 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
             )
 
     def test_term_key_recomputes_on_discount_date_change(self):
-        """term_key embeds discount_date, so changing discount_date must invalidate it."""
         invoice = self.init_invoice(
             "out_invoice",
             partner=self.partner_a,
@@ -86,7 +87,6 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         self.assertEqual(after["discount_date"], term_line.discount_date)
 
     def test_hash_guard_covers_balance(self):
-        """The inalterable-hash guard blocks a direct `balance` write, not just debit/credit."""
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
         move = self.init_invoice(
             "out_invoice", self.partner_a, "2023-01-01", amounts=[1000.0], post=True
@@ -94,37 +94,29 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         self.assertTrue(move.inalterable_hash)
         product_line = move.line_ids.filtered(lambda l: l.display_type == "product")
 
-        # debit/credit are computed from the writable `balance`, so an unguarded
-        # balance write would rewrite the hashed values with nothing to catch it
-        # until the integrity report runs.
         with self.assertRaises(UserError):
             product_line.write({"balance": product_line.balance + 10.0})
         with self.assertRaises(UserError):
             product_line.write({"debit": product_line.debit + 10.0})
 
-        # No corruption occurred and the hash still verifies.
         move.invalidate_recordset()
         results = move.company_id._check_hash_integrity()["results"]
         self.assertFalse(
             any("corrupted" in (r.get("msg_cover") or "").lower() for r in results)
         )
 
-        # Allowed edits (non-hashed field, or a no-op same-value write) must not be
-        # rejected by the change-gated guard.
         move.write({"ref": "still editable"})
         product_line.write({"name": product_line.name})
 
     def test_hash_guard_allows_balance_on_unhashed_move(self):
-        """The balance guard must only bite on hashed moves."""
         move = self.init_invoice(
             "out_invoice", self.partner_a, "2023-01-01", amounts=[1000.0], post=False
         )
         self.assertFalse(move.inalterable_hash)
         product_line = move.line_ids.filtered(lambda l: l.display_type == "product")
-        product_line.write({"balance": product_line.balance - 5.0})  # must not raise
+        product_line.write({"balance": product_line.balance - 5.0})
 
     def test_parent_id_not_stale_on_sequence_change(self):
-        """`parent_id` must not serve a stale cached section after a sibling's sequence changes."""
         move = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -141,34 +133,28 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         )
         product_line = move.line_ids.filtered(lambda l: l.display_type == "product")
         section = move.line_ids.filtered(lambda l: l.display_type == "line_section")
-        self.assertEqual(product_line.parent_id, section)  # populate the cache
+        self.assertEqual(product_line.parent_id, section)
 
-        section.write({"sequence": 20})  # section now sorts after the product line
+        section.write({"sequence": 20})
         self.assertFalse(
             product_line.parent_id,
             "parent_id must recompute automatically once the section moves after it",
         )
 
     def test_deductible_amount_boundary_tolerance(self):
-        """Both deductible_amount bounds use the vendor-bill check's rounding tolerance."""
         move = self.init_invoice(
             "in_invoice", self.partner_a, "2023-01-01", amounts=[100.0], post=False
         )
         product_line = move.line_ids.filtered(lambda l: l.display_type == "product")[:1]
-        # within rounding tolerance -> accepted
         product_line.deductible_amount = 100.000001
         product_line.deductible_amount = 0.0
         product_line.deductible_amount = 100.0
-        # genuinely out of range -> rejected
         with self.assertRaises(ValidationError):
             product_line.deductible_amount = 100.01
         with self.assertRaises(ValidationError):
             product_line.deductible_amount = -0.01
 
     def test_payment_date_timezone_consistency(self):
-        """`payment_date` must resolve the same user-timezone today (context_today) in
-        the Python compute, the `_search_payment_date` filter and `_field_to_sql`.
-        """
         AML = self.env["account.move.line"]
         recv = self.company_data["default_account_receivable"]
         misc = self.company_data["default_account_revenue"]
@@ -196,8 +182,6 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         line.discount_date = d_disc
         self.env.flush_all()
 
-        # Frozen at 2026-07-08 03:00 UTC; a user in UTC-11 is still on 2026-07-07,
-        # so date.today() (07-08) and context_today (07-07) deliberately disagree.
         with freeze_time("2026-07-08 03:00:00"):
             line_tz = line.with_context(tz="Pacific/Midway")
             aml_tz = AML.with_context(tz="Pacific/Midway")
@@ -211,22 +195,18 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
             )
             sql_val = self.env.cr.fetchone()[0]
 
-            # Both must resolve against the user's 2026-07-07: discount_date is still
-            # valid, so payment_date is the discount_date, not the maturity date.
             self.assertEqual(
                 py_val, d_disc, "compute must use user-tz today (discount_date valid)"
             )
             self.assertEqual(sql_val, d_disc, "SQL must use the same user-tz today")
             self.assertEqual(py_val, sql_val, "compute and SQL sort value must agree")
 
-            # The filter must agree with the computed value too.
             found = aml_tz.search([("id", "=", line.id), ("payment_date", "=", d_disc)])
             self.assertIn(
                 line, found, "search filter must agree with the computed payment_date"
             )
 
     def test_name_retranslates_on_partner_language_change(self):
-        """An auto-derived line label re-translates when the invoice partner's language changes."""
         self.env["res.lang"]._activate_lang("fr_FR")
         partner_en = self.env["res.partner"].create(
             {"name": "EN partner", "lang": "en_US"}
@@ -261,8 +241,6 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         self.assertNotIn("English description", product_line.name)
 
     def test_line_compute_depends_completeness(self):
-        """Registry-level guard: each compute declares in @api.depends the fields it reads."""
-
         def deps(fname):
             field = self.env["account.move.line"]._fields[fname]
             return " ".join(self.env.registry.field_depends.get(field, ()))
@@ -275,4 +253,346 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         self.assertTrue(
             self.env.registry.field_depends.get(parent_field),
             "parent_id must declare dependencies",
+        )
+
+    def test_exchange_move_is_linked_to_the_partial_that_produced_it(self):
+        company = self.company_data["company"]
+        currency = self.setup_other_currency(
+            "EUR", rates=[("2024-01-01", 2.0), ("2024-06-01", 4.0)]
+        )
+        journal = self.company_data["default_journal_misc"]
+        company.currency_exchange_journal_id = journal
+        account = self.company_data["default_account_receivable"]
+        account.reconcile = True
+        counterpart = self.company_data["default_account_expense"]
+
+        def entry(entry_date, amount_currency, rate):
+            move = self.env["account.move"].create(
+                {
+                    "move_type": "entry",
+                    "journal_id": journal.id,
+                    "date": entry_date,
+                    "line_ids": [
+                        Command.create(
+                            {
+                                "account_id": account.id,
+                                "partner_id": self.partner_a.id,
+                                "currency_id": currency.id,
+                                "amount_currency": amount_currency,
+                                "balance": amount_currency / rate,
+                            }
+                        ),
+                        Command.create(
+                            {
+                                "account_id": counterpart.id,
+                                "partner_id": self.partner_a.id,
+                                "currency_id": currency.id,
+                                "amount_currency": -amount_currency,
+                                "balance": -amount_currency / rate,
+                            }
+                        ),
+                    ],
+                }
+            )
+            move.action_post()
+            return move.line_ids.filtered(lambda line: line.account_id == account)
+
+        debit = entry("2024-01-15", 600.0, 2.0)
+        credit_same_rate = entry("2024-02-15", -300.0, 2.0)
+        credit_other_rate = entry("2024-07-15", -300.0, 4.0)
+
+        amls = debit + credit_same_rate + credit_other_rate
+        amls._reconcile_plan([amls])
+
+        partial_same_rate = debit.matched_credit_ids.filtered(
+            lambda partial: partial.credit_move_id == credit_same_rate
+        )
+        partial_other_rate = debit.matched_credit_ids.filtered(
+            lambda partial: partial.credit_move_id == credit_other_rate
+        )
+        self.assertTrue(partial_same_rate and partial_other_rate)
+        self.assertFalse(
+            partial_same_rate.exchange_move_id,
+            "the same-rate match produced no exchange difference and must own none",
+        )
+        self.assertTrue(
+            partial_other_rate.exchange_move_id,
+            "the exchange difference belongs to the match that generated it",
+        )
+
+        exchange_move = partial_other_rate.exchange_move_id
+        partial_same_rate.unlink()
+        self.assertFalse(
+            self.env["account.move"].search_count(
+                [("reversed_entry_id", "=", exchange_move.id)]
+            ),
+            "undoing an unrelated match must not reverse this exchange difference",
+        )
+        self.assertEqual(
+            debit.amount_residual_currency,
+            300.0,
+            "600 - 300 still open in the foreign currency",
+        )
+        self.assertEqual(
+            debit.amount_residual,
+            150.0,
+            "300 - 75 (the surviving match) - 75 (its exchange difference)",
+        )
+
+    def test_default_read_field_set_is_resolved_per_user(self):
+        group_xmlid = "analytic.group_analytic_accounting"
+        group = self.env.ref(group_xmlid, raise_if_not_found=False)
+        restricted_fname = next(
+            (
+                fname
+                for fname, field in self.env["account.move.line"]._fields.items()
+                if field.groups == group_xmlid
+            ),
+            None,
+        )
+        if not (group and restricted_fname):
+            self.skipTest(
+                "no field restricted to %s on account.move.line here" % group_xmlid
+            )
+
+        base = self.env.ref("base.group_user")
+        privileged, plain = self.env["res.users"].create(
+            [
+                {
+                    "name": "Privileged",
+                    "login": "aml_privileged",
+                    "group_ids": [Command.set([base.id, group.id])],
+                },
+                {
+                    "name": "Plain",
+                    "login": "aml_plain",
+                    "group_ids": [Command.set([base.id])],
+                },
+            ]
+        )
+        AML = self.env["account.move.line"]
+        for warmer, other in ((privileged, plain), (plain, privileged)):
+            self.env.registry.clear_cache()
+            AML.with_user(warmer)._get_fields_default_read()
+            self.assertEqual(
+                restricted_fname in AML.with_user(other)._get_fields_default_read(),
+                other == privileged,
+                "the field set must follow the reader, not whoever warmed the cache",
+            )
+
+    def test_technical_fields_stay_out_of_read_for_every_spelling_of_all(self):
+        move = self.env["account.move"].create(
+            {
+                "move_type": "entry",
+                "line_ids": [
+                    Command.create(
+                        {
+                            "account_id": self.company_data[
+                                "default_account_revenue"
+                            ].id,
+                            "balance": balance,
+                        }
+                    )
+                    for balance in (100.0, -100.0)
+                ],
+            }
+        )
+        for record in (move, move.line_ids[0]):
+            technical = {
+                fname
+                for fname, field in record._fields.items()
+                if not record._is_readable_by_default(field)
+            }
+            self.assertTrue(
+                technical, "%s must exclude something to test" % record._name
+            )
+            for fields_arg in (None, []):
+                self.assertFalse(
+                    set(record.read(fields_arg)[0]) & technical,
+                    "%s.read(%r) resolved %s"
+                    % (record._name, fields_arg, sorted(technical)),
+                )
+
+    def test_sibling_of_an_excluded_compute_is_excluded_too(self):
+        AML = self.env["account.move.line"]
+        for compute in (
+            "_compute_epd",
+            "_compute_discount_allocation",
+        ):
+            written = [
+                fname
+                for fname, field in AML._fields.items()
+                if field.compute == compute
+            ]
+            self.assertGreater(len(written), 1, "expected a multi-field compute")
+            resolved = [f for f in written if AML._is_readable_by_default(AML._fields[f])]
+            self.assertFalse(
+                resolved,
+                "%s is skipped by default, but %s would still trigger it"
+                % (compute, resolved),
+            )
+
+    def test_tax_ids_skip_list_derives_from_the_display_type_tuple(self):
+        tree = ast.parse(
+            textwrap.dedent(inspect.getsource(AccountMoveLine._compute_tax_ids))
+        )
+        literals = {
+            node.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        }
+        docstring = ast.get_docstring(tree.body[0]) or ""
+        literals.discard(docstring)
+        restated = literals & set(
+            self.env["account.move.line"]._NON_ACCOUNTABLE_DISPLAY_TYPES
+        )
+        self.assertFalse(
+            restated,
+            "derive the skip list from _NON_ACCOUNTABLE_DISPLAY_TYPES instead of "
+            "restating %s" % sorted(restated),
+        )
+
+    def test_one_full_reconcile_per_batch_across_overlapping_plans(self):
+        account = self.company_data["default_account_receivable"]
+        account.reconcile = True
+        journal = self.company_data["default_journal_misc"]
+        counterpart = self.company_data["default_account_expense"]
+
+        def entry(balance):
+            move = self.env["account.move"].create(
+                {
+                    "move_type": "entry",
+                    "journal_id": journal.id,
+                    "date": "2024-01-01",
+                    "line_ids": [
+                        Command.create(
+                            {
+                                "account_id": account.id,
+                                "partner_id": self.partner_a.id,
+                                "balance": balance,
+                            }
+                        ),
+                        Command.create(
+                            {
+                                "account_id": counterpart.id,
+                                "partner_id": self.partner_a.id,
+                                "balance": -balance,
+                            }
+                        ),
+                    ],
+                }
+            )
+            move.action_post()
+            return move.line_ids.filtered(lambda line: line.account_id == account)
+
+        invoice_line = entry(90.0)
+        credits = entry(-30.0) + entry(-30.0) + entry(-30.0)
+
+        FullReconcile = self.env["account.full.reconcile"]
+        before = FullReconcile.search_count([])
+        self.env["account.move.line"]._reconcile_plan(
+            [invoice_line + credit for credit in credits]
+        )
+        created = FullReconcile.search_count([]) - before
+
+        involved = invoice_line + credits
+        self.assertTrue(all(involved.mapped("reconciled")))
+        self.assertEqual(
+            len(involved.full_reconcile_id),
+            1,
+            "all four lines belong to one full reconciliation",
+        )
+        self.assertEqual(
+            created,
+            1,
+            "one batch, one account.full.reconcile -- surplus batches leave orphans",
+        )
+
+    def test_reconciling_a_shape_and_its_mirror_agree(self):
+        company = self.company_data["company"]
+        currency = self.setup_other_currency("EUR", rates=[("2024-01-01", 0.8)])
+        journal = self.company_data["default_journal_misc"]
+        company.currency_exchange_journal_id = journal
+        account = self.company_data["default_account_receivable"]
+        account.reconcile = True
+        counterpart = self.company_data["default_account_expense"]
+
+        def line(amount_currency, balance, day):
+            move = self.env["account.move"].create(
+                {
+                    "move_type": "entry",
+                    "journal_id": journal.id,
+                    "date": "2024-01-%s" % day,
+                    "line_ids": [
+                        Command.create(
+                            {
+                                "account_id": account.id,
+                                "partner_id": self.partner_a.id,
+                                "currency_id": currency.id,
+                                "amount_currency": amount_currency,
+                                "balance": balance,
+                            }
+                        ),
+                        Command.create(
+                            {
+                                "account_id": counterpart.id,
+                                "partner_id": self.partner_a.id,
+                                "currency_id": currency.id,
+                                "amount_currency": -amount_currency,
+                                "balance": -balance,
+                            }
+                        ),
+                    ],
+                }
+            )
+            move.action_post()
+            return move.line_ids.filtered(lambda x: x.account_id == account)
+
+        def reconcile(sign):
+            amls = (
+                line(0.0, sign * 100.0, "10")
+                + line(sign * -80.0, sign * -100.0, "11")
+                + line(sign * 50.0, sign * 62.5, "12")
+            )
+            amls._reconcile_plan([amls])
+            amls.invalidate_recordset()
+            partials = amls.matched_debit_ids | amls.matched_credit_ids
+            return (
+                len(partials),
+                sorted(round(sign * x.amount_residual, 2) for x in amls),
+                sorted(round(sign * x.amount_residual_currency, 2) for x in amls),
+            )
+
+        self.assertEqual(
+            reconcile(1),
+            reconcile(-1),
+            "the same reconciliation mirrored must give the same answer mirrored",
+        )
+
+    def test_sync_invoice_snapshots_only_what_it_compares(self):
+        tree = ast.parse(
+            textwrap.dedent(inspect.getsource(AccountMoveLine._sync_invoice))
+        )
+        snapshot = next(
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name == "existing"
+        )
+        keys = [
+            key.value
+            for dict_node in ast.walk(snapshot)
+            if isinstance(dict_node, ast.Dict)
+            for key in dict_node.keys
+            if isinstance(key, ast.Constant) and isinstance(key.value, str)
+        ]
+        self.assertTrue(keys, "expected the snapshot to capture something")
+        uses = collections.Counter(
+            node.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        )
+        unread = sorted({key for key in keys if uses[key] < 2})
+        self.assertFalse(
+            unread,
+            "_sync_invoice snapshots %s and never compares them" % unread,
         )

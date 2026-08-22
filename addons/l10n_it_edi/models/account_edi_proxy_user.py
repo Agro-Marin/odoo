@@ -43,9 +43,9 @@ class Account_Edi_Proxy_ClientUser(models.Model):
         server_url = self._get_proxy_urls()['l10n_it_edi'][self.edi_mode]
 
         if self.active:
-            self._make_request(f"{server_url}/api/l10n_it_edi/1/deactivate_user")
+            self._prepare_request(f"{server_url}/api/l10n_it_edi/1/deactivate_user")
         else:
-            self._make_request(f"{server_url}/api/l10n_it_edi/1/reactivate_user")
+            self._prepare_request(f"{server_url}/api/l10n_it_edi/1/reactivate_user")
 
         self.active = not self.active
 

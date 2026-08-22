@@ -6,7 +6,7 @@ import {
     CopyClipboardButtonField,
 } from "@web/fields/basic/copy_clipboard/copy_clipboard_field";
 
-import { CopyButton } from "@web/components/copy_button/copy_button";
+import { CopyButton } from "@web/components/copy_button";
 
 class PaymentWizardCopyButton extends CopyButton {
     async onClick() {

@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 import io
 import zipfile
 from itertools import chain
@@ -50,7 +49,7 @@ class AccountDocumentDownloadController(http.Controller):
                 filename = invoice._get_invoice_report_filename(extension="zip")
             else:
                 filename = _("invoices") + ".zip"
-            content = attachments._build_zip_from_attachments()
+            content = attachments._prepare_zip_from_attachments()
             headers = _get_headers(filename, "application/zip", content)
             return request.make_response(content, headers)
 
@@ -100,7 +99,6 @@ class AccountDocumentDownloadController(http.Controller):
         auth="user",
     )
     def download_move_attachments(self, moves):
-
         def rename_duplicates(docs):
             seen = {}
             for doc in docs:

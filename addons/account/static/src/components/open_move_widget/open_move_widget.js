@@ -9,16 +9,13 @@ class OpenMoveWidget extends Component {
     static props = { ...standardFieldProps };
 
     setup() {
-        super.setup();
-        this.action = useService("action");
+        this.accountMove = useService("account_move");
     }
 
-    async openMove(ev) {
-        this.action.doActionButton({
-            type: "object",
-            resId: this.props.record.resId,
-            name: "action_view_business_doc",
+    openMove() {
+        return this.accountMove.openBusinessDoc({
             resModel: this.props.record.resModel,
+            resId: this.props.record.resId,
         });
     }
 }

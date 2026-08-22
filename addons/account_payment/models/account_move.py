@@ -21,9 +21,7 @@ class AccountMove(models.Model):
         string="Authorized Transactions", comodel_name='payment.transaction',
         compute='_compute_authorized_transaction_ids', readonly=True, copy=False,
         compute_sudo=True)
-    transaction_count = fields.Integer(
-        string="Transaction Count", compute='_compute_transaction_count'
-    )
+    transaction_count = fields.Count("transaction_ids", string="Transaction Count")
     amount_paid = fields.Monetary(
         string="Amount paid",
         compute='_compute_amount_paid'
@@ -35,11 +33,6 @@ class AccountMove(models.Model):
             invoice.authorized_transaction_ids = invoice.transaction_ids.filtered(
                 lambda tx: tx.state == 'authorized'
             )
-
-    @api.depends('transaction_ids')
-    def _compute_transaction_count(self):
-        for invoice in self:
-            invoice.transaction_count = len(invoice.transaction_ids)
 
     @api.depends('transaction_ids')
     def _compute_amount_paid(self):
@@ -126,7 +119,7 @@ class AccountMove(models.Model):
         self.sudo().authorized_transaction_ids.action_void()
 
     def action_view_payment_transactions(self):
-        action = self.env['ir.actions.act_window']._for_xml_id('payment.action_payment_transaction')
+        action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('payment.action_payment_transaction')
 
         if len(self.transaction_ids) == 1:
             action['view_mode'] = 'form'
@@ -174,7 +167,7 @@ class AccountMove(models.Model):
     def _generate_portal_payment_qr(self):
         self.ensure_one()
         portal_url = self._get_portal_payment_link()
-        barcode = self.env['ir.actions.report'].barcode(barcode_type="QR", value=portal_url, width=128, height=128, quiet=False)
+        barcode = self.env['ir.actions.report'].prepare_barcode(barcode_type="QR", value=portal_url, width=128, height=128, quiet=False)
         return image_data_uri(base64.b64encode(barcode))
 
     def _get_portal_payment_link(self):

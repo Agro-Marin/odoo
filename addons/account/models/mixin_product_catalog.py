@@ -5,17 +5,6 @@ class MixinProductCatalog(models.AbstractModel):
     _inherit = "mixin.product.catalog"
 
     def _create_section(self, child_field, name, position, **kwargs):
-        """Create a new section in order.
-
-        :param str child_field: Field name of the order's lines (e.g., 'line_ids').
-        :param str name: The name of the section to create.
-        :param str position: The position of the section where it should be created, either 'top'
-                              or 'bottom'.
-        :param dict kwargs: Additional values given for inherited models.
-
-        :return: A dictionary with newly created section's 'id' and 'sequence'.
-        :rtype: dict
-        """
         parent_field = self._get_parent_field_on_child_model()
 
         if not parent_field:
@@ -45,19 +34,10 @@ class MixinProductCatalog(models.AbstractModel):
         }
 
     def _get_new_line_sequence(self, child_field, section_id):
-        """Compute the sequence number for inserting a new line into the order.
-
-        :param str child_field: Field name of the order's lines (e.g., 'line_ids').
-        :param int section_id: ID of the section line to insert after.
-        :rtype: int
-        :return: Computed sequence number.
-        """
         lines = self[child_field].sorted("sequence")
 
-        # Default case : insert at the end
         sequence = (lines and lines[-1].sequence + 1) or 10
         if section_id:
-            # Insert after the last product of the selected section
             section_found = False
             for line in lines:
                 if line.display_type != "line_section":
@@ -72,7 +52,6 @@ class MixinProductCatalog(models.AbstractModel):
                 ("display_type", "=", "line_section"),
             ]
         ):
-            # Insert before the first section (top of the order)
             sequence = section_lines[0].sequence
 
         for line in lines.filtered_domain([("sequence", ">=", sequence)]):
@@ -81,13 +60,6 @@ class MixinProductCatalog(models.AbstractModel):
         return sequence
 
     def _get_sections(self, child_field, **kwargs):
-        """Return section data for the product catalog display.
-
-        :param str child_field: Field name of the order's lines (e.g., 'line_ids').
-        :param dict kwargs: Additional values given for inherited models.
-        :rtype: list
-        :return: List of section dicts with 'id', 'name', 'sequence', and 'line_count'.
-        """
         sections = {}
         no_section_count = 0
         lines = self[child_field]
@@ -107,7 +79,6 @@ class MixinProductCatalog(models.AbstractModel):
                     no_section_count += 1
 
         if no_section_count > 0 or not sections:
-            # If there are products outside of a section or no section at all
             sections[False] = {
                 "id": False,
                 "name": self.env._("No Section"),
@@ -118,28 +89,12 @@ class MixinProductCatalog(models.AbstractModel):
         return sorted(sections.values(), key=lambda x: x["sequence"])
 
     def _get_default_create_section_values(self):
-        """Return default values for creating a new section in order through catalog.
-
-        :return: A dictionary with default values for creating a new section.
-        :rtype: dict
-        """
         return {}
 
     def _get_parent_field_on_child_model(self):
-        """Return the parent field for the order lines.
-
-        :return: parent field
-        :rtype: str
-        """
         return ""
 
     def _is_line_valid_for_section_line_count(self, line):
-        """Check if a line is valid for inclusion in the section's line count.
-
-        :param recordset line: A record of an order line.
-        :return: whether this line should be considered in the section lines count.
-        :rtype: bool
-        """
         return (
             not line.display_type
             and line.product_type != "combo"
@@ -147,22 +102,9 @@ class MixinProductCatalog(models.AbstractModel):
         )
 
     def _resequence_sections(self, sections, child_field, **kwargs):
-        """Resequence the order content based on the new sequence order.
-
-        :param list sections: A list of dictionaries containing move and target sections.
-        :param str child_field: Field name of the order's lines (e.g., 'line_ids').
-        :param dict kwargs: Additional values given for inherited models.
-        :return: A dictionary containing the new sequences of all the sections of order.
-        :rtype: dict
-        """
         lines = self[child_field].sorted("sequence")
         move_section, target_section = sections
 
-        # Use `get_line_parent_section()`, not raw `parent_id`: a line nested
-        # under a `line_subsection` has `parent_id` pointing at the
-        # subsection, not the section (see `_get_sections` above, which
-        # already accounts for this). The raw comparison silently left such
-        # lines out of both blocks.
         move_block = lines.filtered(
             lambda line: (
                 line.id == move_section["id"]

@@ -46,8 +46,8 @@ class AccountPaymentTerm(models.Model):
         string="Date example", default=_default_example_date, store=False
     )
     example_invalid = fields.Boolean(compute="_compute_example_invalid")
-    example_preview = fields.Html(compute="_compute_example_preview")
-    example_preview_discount = fields.Html(compute="_compute_example_preview")
+    example_preview = fields.Html(compute="_compute_example_previews")
+    example_preview_discount = fields.Html(compute="_compute_example_previews")
 
     discount_percentage = fields.Float(
         string="Discount %",
@@ -68,7 +68,7 @@ class AccountPaymentTerm(models.Model):
         string="Cash Discount Tax Reduction",
         readonly=False,
         store=True,
-        compute="_compute_discount_computation",
+        compute="_compute_early_pay_discount_computation",
     )
     early_discount = fields.Boolean(string="Early Discount")
     is_immediate = fields.Boolean(
@@ -96,28 +96,13 @@ class AccountPaymentTerm(models.Model):
             )
 
     def _get_amount_due_after_discount(self, total_amount, tax_amount):
-        """Return the amount due once the early-payment discount is applied.
-
-        :param total_amount: the tax-included total of the document.
-        :param tax_amount: the tax portion of ``total_amount``.
-        """
         self.ensure_one()
         if self.early_discount:
             percentage = self.discount_percentage / 100.0
             if self.early_pay_discount_computation in ("excluded", "mixed"):
-                # For excluded/mixed the discount applies on the untaxed base
-                # only, recovered here as ``total_amount - tax_amount``. Pass the
-                # tax amount as the second argument, not the untaxed base --
-                # the untaxed base would silently discount the wrong amount.
                 discount_amount_currency = (total_amount - tax_amount) * percentage
             else:
                 discount_amount_currency = total_amount * percentage
-            # `total_amount` is expressed in the document's
-            # currency when invoked from a move (see the account.move branch
-            # below), otherwise in the term's own (company) currency for the
-            # preview. Round in that same currency: rounding a foreign-currency
-            # amount with `self.currency_id` (always the company currency) gives
-            # impossible sub-unit precision, e.g. 9800.00 on a ¥ invoice.
             move = None
             if self.env.context.get("active_model") == "account.move" and (
                 active_id := self.env.context.get("active_id")
@@ -139,7 +124,7 @@ class AccountPaymentTerm(models.Model):
         return total_amount
 
     @api.depends("company_id")
-    def _compute_discount_computation(self):
+    def _compute_early_pay_discount_computation(self):
         for pay_term in self:
             country_code = (
                 pay_term.company_id.country_code or self.env.company.country_code
@@ -178,7 +163,7 @@ class AccountPaymentTerm(models.Model):
         "discount_percentage",
         "discount_days",
     )
-    def _compute_example_preview(self):
+    def _compute_example_previews(self):
         for record in self:
             example_preview = ""
             record.example_preview_discount = ""
@@ -225,7 +210,6 @@ class AccountPaymentTerm(models.Model):
 
     @api.model
     def _get_amount_by_date(self, terms):
-        """Return a dict keyed by due date with the summed foreign amount per date, in date order."""
         terms_lines = sorted(terms["line_ids"], key=lambda t: t.get("date"))
         amount_by_date = {}
         for term in terms_lines:
@@ -244,15 +228,11 @@ class AccountPaymentTerm(models.Model):
             results["amount"] += term["foreign_amount"]
         return amount_by_date
 
-    # `discount_percentage` and `discount_days` are checked in the body, so they
-    # have to trigger it: without them the rules held on create and not on write,
-    # and a negative or zero-day early discount saved silently and then flowed
-    # into `_compute_terms` and onto invoices.
     @api.constrains(
         "line_ids", "early_discount", "discount_percentage", "discount_days"
     )
     def _check_lines(self):
-        round_precision = self.env["decimal.precision"].precision_get("Payment Terms")
+        round_precision = self.env["decimal.precision"].get_precision("Payment Terms")
         for terms in self:
             total_percent = sum(
                 line.value_amount for line in terms.line_ids if line.value == "percent"
@@ -290,20 +270,6 @@ class AccountPaymentTerm(models.Model):
         untaxed_amount_currency,
         cash_rounding=None,
     ):
-        """Get the distribution of this payment term.
-        :param date_ref: The move date to take into account
-        :param currency: the move's currency
-        :param company: the company issuing the move
-        :param tax_amount: the signed tax amount for the move
-        :param tax_amount_currency: the signed tax amount for the move in the move's currency
-        :param untaxed_amount: the signed untaxed amount for the move
-        :param untaxed_amount_currency: the signed untaxed amount for the move in the move's currency
-        :param sign: the sign of the move
-        :param cash_rounding: the cash rounding that should be applied (or None).
-            We assume that the input total in move currency (tax_amount_currency + untaxed_amount_currency) is already cash rounded.
-            The cash rounding does not change the totals: Consider the sum of all the computed payment term amounts in move / company currency.
-            It is the same as the input total in move / company currency.
-        """
         self.ensure_one()
         company_currency = company.currency_id
         total_amount = tax_amount + untaxed_amount
@@ -323,7 +289,6 @@ class AccountPaymentTerm(models.Model):
         }
 
         if self.early_discount:
-            # Early discount is only available on single line, 100% payment terms.
             discount_percentage = self.discount_percentage / 100.0
             if self.early_pay_discount_computation in ("excluded", "mixed"):
                 pay_term["discount_balance"] = company_currency.round(
@@ -367,13 +332,11 @@ class AccountPaymentTerm(models.Model):
                 "foreign_amount": 0,
             }
 
-            # The last line is always the balance, no matter the type
             on_balance_line = i == len(self.line_ids) - 1
             if on_balance_line:
                 term_vals["company_amount"] = residual_amount
                 term_vals["foreign_amount"] = residual_amount_currency
             elif line.value == "fixed":
-                # Fixed amounts
                 term_vals["company_amount"] = (
                     sign * company_currency.round(line.value_amount / rate)
                     if rate
@@ -381,7 +344,6 @@ class AccountPaymentTerm(models.Model):
                 )
                 term_vals["foreign_amount"] = sign * currency.round(line.value_amount)
             else:
-                # Percentage amounts
                 line_amount = company_currency.round(
                     total_amount * (line.value_amount / 100.0)
                 )
@@ -392,10 +354,6 @@ class AccountPaymentTerm(models.Model):
                 term_vals["foreign_amount"] = line_amount_currency
 
             if cash_rounding and not on_balance_line:
-                # The value `residual_amount_currency` is always cash rounded (in case of cash rounding).
-                #   * We assume `total_amount_currency` is cash rounded.
-                #   * We only subtract cash rounded amounts.
-                # Thus the balance line is cash rounded.
                 cash_rounding_difference_currency = cash_rounding.compute_difference(
                     currency, term_vals["foreign_amount"]
                 )
@@ -449,9 +407,6 @@ class AccountPaymentTerm(models.Model):
         ]
 
     def copy_translations(self, new, excluded=()):
-        # ``copy_data`` renames ``name`` in the duplicating user's language
-        # only; without this the copy would keep the source record's exact
-        # ``name`` in every other language.
         super().copy_translations(new, excluded=(*excluded, "name"))
         self._copy_translations_of_renamed_field(
             new, "name", lambda record, term: record.env._("%s (copy)", term)
@@ -495,7 +450,7 @@ class AccountPaymentTermLine(models.Model):
         size=2,
     )
     nb_days = fields.Integer(
-        string="Days", readonly=False, store=True, compute="_compute_days"
+        string="Days", readonly=False, store=True, compute="_compute_nb_days"
     )
     payment_id = fields.Many2one(
         "account.payment.term",
@@ -537,10 +492,6 @@ class AccountPaymentTermLine(models.Model):
     @api.constrains("days_next_month")
     def _check_valid_char_value(self):
         for record in self:
-            # `isdecimal()` (not `isnumeric()`): the latter accepts Unicode
-            # forms like "²"/"½" that `int()` then rejects with ValueError,
-            # turning this guard into an uncaught traceback instead of a clean
-            # ValidationError.
             if record.days_next_month and record.days_next_month.isdecimal():
                 if not (0 <= int(record.days_next_month) <= 31):
                     raise ValidationError(_("The days added must be between 0 and 31."))
@@ -569,9 +520,8 @@ class AccountPaymentTermLine(models.Model):
                 )
 
     @api.depends("payment_id")
-    def _compute_days(self):
+    def _compute_nb_days(self):
         for line in self:
-            # Line.payment_id.line_ids[-1] is the new line that has been just added when clicking "add a new line"
             if not line.nb_days and len(line.payment_id.line_ids) > 1:
                 line.nb_days = line.payment_id.line_ids[-2].nb_days + 30
             else:
@@ -583,9 +533,6 @@ class AccountPaymentTermLine(models.Model):
             if line.value == "fixed":
                 line.value_amount = 0
             else:
-                # Sum the OTHER percent lines only: `line_ids` includes ``line``
-                # itself, so counting it would subtract its own current value and,
-                # on any recompute of an already-filled line, double-count it.
                 amount = 0
                 for other in line.payment_id.line_ids.filtered(
                     lambda r, line=line: r.value == "percent" and r != line

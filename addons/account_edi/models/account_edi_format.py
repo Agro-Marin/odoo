@@ -5,15 +5,15 @@ from odoo.tools import html_escape
 
 
 class AccountEdiFormat(models.Model):
-    _name = 'account.edi.format'
-    _description = 'EDI format'
+    _name = "account.edi.format"
+    _description = "EDI format"
 
     name = fields.Char()
     code = fields.Char(required=True)
 
     _unique_code = models.Constraint(
-        'unique (code)',
-        'This code already exists',
+        "unique (code)",
+        "This code already exists",
     )
 
     ####################################################
@@ -34,19 +34,19 @@ class AccountEdiFormat(models.Model):
             # Delay it in the register hook
             self.pool._delay_compute_edi_format_ids = True
         else:
-            journals = self.env['account.journal'].search([])
+            journals = self.env["account.journal"].search([])
             journals._compute_edi_format_ids()
 
         # activate cron
         if any(edi_format._needs_web_services() for edi_format in edi_formats):
-            self.env.ref('account_edi.ir_cron_edi_network').active = True
+            self.env.ref("account_edi.ir_cron_edi_network").active = True
 
         return edi_formats
 
     def _register_hook(self):
         if hasattr(self.pool, "_delay_compute_edi_format_ids"):
             del self.pool._delay_compute_edi_format_ids
-            journals = self.env['account.journal'].search([])
+            journals = self.env["account.journal"].search([])
             journals._compute_edi_format_ids()
 
         return super()._register_hook()
@@ -56,7 +56,7 @@ class AccountEdiFormat(models.Model):
     ####################################################
 
     def _get_move_applicability(self, move):
-        """ Core function for the EDI processing: it first checks whether the EDI format is applicable on a given
+        """Core function for the EDI processing: it first checks whether the EDI format is applicable on a given
         move, if so, it then returns a dictionary containing the functions to call for this move.
 
         :return: dict mapping str to function (callable)
@@ -69,7 +69,7 @@ class AccountEdiFormat(models.Model):
         self.ensure_one()
 
     def _needs_web_services(self):
-        """ Indicate if the EDI must be generated asynchronously through to some web services.
+        """Indicate if the EDI must be generated asynchronously through to some web services.
 
         :return: True if such a web service is available, False otherwise.
         """
@@ -77,7 +77,7 @@ class AccountEdiFormat(models.Model):
         return False
 
     def _is_compatible_with_journal(self, journal):
-        """ Indicate if the EDI format should appear on the journal passed as parameter to be selected by the user.
+        """Indicate if the EDI format should appear on the journal passed as parameter to be selected by the user.
         If True, this EDI format will appear on the journal.
 
         :param journal: The journal.
@@ -85,10 +85,10 @@ class AccountEdiFormat(models.Model):
         """
         # TO OVERRIDE
         self.ensure_one()
-        return journal.type == 'sale'
+        return journal.type == "sale"
 
     def _is_enabled_by_default_on_journal(self, journal):
-        """ Indicate if the EDI format should be selected by default on the journal passed as parameter.
+        """Indicate if the EDI format should be selected by default on the journal passed as parameter.
         If True, this EDI format will be selected by default on the journal.
 
         :param journal: The journal.
@@ -97,7 +97,7 @@ class AccountEdiFormat(models.Model):
         return True
 
     def _check_move_configuration(self, move):
-        """ Checks the move and relevant records for potential error (missing data, etc).
+        """Checks the move and relevant records for potential error (missing data, etc).
 
         :param move:    The move to check.
         :returns:       A list of error messages.
@@ -124,5 +124,5 @@ class AccountEdiFormat(models.Model):
 
     @api.model
     def _format_error_message(self, error_title, errors):
-        bullet_list_msg = ''.join('<li>%s</li>' % html_escape(msg) for msg in errors)
-        return '%s<ul>%s</ul>' % (error_title, bullet_list_msg)
+        bullet_list_msg = "".join("<li>%s</li>" % html_escape(msg) for msg in errors)
+        return "%s<ul>%s</ul>" % (error_title, bullet_list_msg)

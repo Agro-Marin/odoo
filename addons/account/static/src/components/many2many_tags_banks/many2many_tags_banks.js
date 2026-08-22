@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { onMounted } from "@odoo/owl";
-import { TagsList } from "@web/components/tags_list/tags_list";
+import { TagsList } from "@web/components/tags_list";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -72,7 +72,17 @@ export const fieldMany2ManyTagsBanks = {
     ],
     relatedFields: ({ options }) => [
         ...many2ManyTagsFieldColorEditable.relatedFields({ options }),
-        { name: options.allow_out_payment_field, type: "boolean", readonly: false },
+        // The option is not required, and a related field named `undefined` is
+        // asked of the server as readily as a real one.
+        ...(options.allow_out_payment_field
+            ? [
+                  {
+                      name: options.allow_out_payment_field,
+                      type: "boolean",
+                      readonly: false,
+                  },
+              ]
+            : []),
     ],
 };
 

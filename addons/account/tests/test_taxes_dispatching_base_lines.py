@@ -81,7 +81,6 @@ class TestTaxesDispatchingBaseLines(TestTaxCommon):
         )
         self._assert_tax_totals_summary(tax_totals, expected_values)
 
-        # Dispatch the return of product on the others base lines.
         self.assertEqual(len(base_lines), 3)
         base_lines = AccountTax._dispatch_return_of_merchandise_lines(
             document["lines"], self.env.company
@@ -145,8 +144,6 @@ class TestTaxesDispatchingBaseLines(TestTaxCommon):
         )
         self._assert_tax_totals_summary(tax_totals, expected_values)
 
-        # Dispatch the return of product on the others base lines.
-        # The dispatching should fail so no changes.
         self.assertEqual(len(base_lines), 2)
         base_lines = AccountTax._dispatch_return_of_merchandise_lines(
             document["lines"], self.env.company
@@ -157,6 +154,124 @@ class TestTaxesDispatchingBaseLines(TestTaxCommon):
             base_lines, document["currency"], self.env.company
         )
         self._assert_tax_totals_summary(tax_totals, expected_values)
+
+    def test_split_tax_data_keeps_raw_and_rounded_amounts_on_the_same_piece(self):
+        AccountTax = self.env["account.tax"]
+        currency = self.env.company.currency_id
+        base_line = {"currency_id": currency, "quantity": 1.0, "price_unit": 1.0}
+        tax_data = {
+            "tax": AccountTax,
+            "taxes": AccountTax,
+            "raw_tax_amount_currency": 0.96,
+            "raw_tax_amount": 0.96,
+            "raw_base_amount_currency": 6.0,
+            "raw_base_amount": 6.0,
+            "tax_amount_currency": 0.96,
+            "tax_amount": 0.96,
+            "base_amount_currency": 6.0,
+            "base_amount": 6.0,
+        }
+        target_factors = [{"factor": 1.0}, {"factor": 5.0}]
+
+        pieces = AccountTax._split_tax_data(
+            base_line, tax_data, self.env.company, target_factors
+        )
+        self.assertEqual(len(pieces), len(target_factors))
+        for index, piece in enumerate(pieces):
+            for prefix in ("tax", "base"):
+                self.assertAlmostEqual(
+                    piece[f"raw_{prefix}_amount_currency"],
+                    piece[f"{prefix}_amount_currency"],
+                    delta=currency.rounding,
+                    msg=(
+                        f"piece {index}: raw and rounded {prefix} amounts come from "
+                        f"different splits"
+                    ),
+                )
+
+    def test_split_base_line_pairs_each_piece_with_its_own_target_factor(self):
+        AccountTax = self.env["account.tax"]
+        tax = self.percent_tax(21)
+        document = self.populate_document(
+            self.init_document(
+                lines=[
+                    {
+                        "product_id": self.product_a,
+                        "price_unit": 100.0,
+                        "quantity": 1,
+                        "tax_ids": tax,
+                    }
+                ]
+            )
+        )
+        base_line = document["lines"][0]
+        target_factors = [{"factor": 1.0}, {"factor": 3.0}, {"factor": 6.0}]
+
+        def populate_function(_base_line, target_factor, kwargs):
+            kwargs["quantity"] = target_factor["factor"]
+
+        pieces = AccountTax._split_base_line(
+            base_line,
+            self.env.company,
+            target_factors,
+            populate_function=populate_function,
+        )
+        total = sum(x["factor"] for x in target_factors)
+        for piece, target_factor in zip(pieces, target_factors, strict=True):
+            self.assertEqual(piece["quantity"], target_factor["factor"])
+            self.assertAlmostEqual(
+                piece["price_unit"],
+                target_factor["factor"] / total * 100.0,
+                places=6,
+                msg="price_unit and populate data come from different pieces",
+            )
+
+    def test_dispatch_return_of_merchandise_lines_partial_match_keeps_the_remainder(
+        self,
+    ):
+        self.env.company.tax_calculation_rounding_method = "round_globally"
+        AccountTax = self.env["account.tax"]
+        tax = self.percent_tax(21)
+        quantities = [10, 6, 6, -14, -9]
+        document = self.populate_document(
+            self.init_document(
+                lines=[
+                    {
+                        "product_id": self.product_a,
+                        "price_unit": 10.0,
+                        "quantity": quantity,
+                        "tax_ids": tax,
+                    }
+                    for quantity in quantities
+                ]
+            )
+        )
+        base_lines = AccountTax._dispatch_return_of_merchandise_lines(
+            document["lines"], self.env.company
+        )
+        AccountTax._squash_return_of_merchandise_lines(base_lines, self.env.company)
+
+        self.assertAlmostEqual(
+            sum(base_line["quantity"] for base_line in base_lines),
+            sum(quantities),
+            places=6,
+            msg="the return dispatching lost quantity",
+        )
+        self.assertAlmostEqual(
+            sum(
+                base_line["tax_details"]["raw_total_excluded_currency"]
+                for base_line in base_lines
+            ),
+            sum(quantities) * 10.0,
+            places=6,
+        )
+        for base_line in base_lines:
+            self.assertAlmostEqual(
+                base_line["tax_details"]["raw_total_excluded_currency"],
+                base_line["quantity"] * 10.0,
+                places=6,
+                msg="quantity and amount disagree on a surviving line",
+            )
 
     def test_dispatch_global_discount_lines(self):
         self.env.company.tax_calculation_rounding_method = "round_globally"
@@ -221,7 +336,6 @@ class TestTaxesDispatchingBaseLines(TestTaxCommon):
         )
         self._assert_tax_totals_summary(tax_totals, expected_values)
 
-        # Global discount 20%.
         discount_base_lines = AccountTax._prepare_global_discount_lines(
             base_lines, self.env.company, "percent", 20.0
         )
@@ -264,7 +378,6 @@ class TestTaxesDispatchingBaseLines(TestTaxCommon):
         }
         self._assert_tax_totals_summary(tax_totals, expected_values)
 
-        # Dispatch the global discount on the others base lines.
         self.assertEqual(len(base_lines), 3)
         base_lines[-1]["special_type"] = "global_discount"
         base_lines = AccountTax._dispatch_global_discount_lines(
@@ -308,7 +421,6 @@ class TestTaxesDispatchingBaseLines(TestTaxCommon):
         document = self.populate_document(document_params)
         base_lines = document["lines"]
 
-        # Should fail to dispatch the global discount on the others base lines.
         self.assertEqual(len(base_lines), 3)
         base_lines = AccountTax._dispatch_global_discount_lines(
             base_lines, self.env.company
@@ -317,7 +429,6 @@ class TestTaxesDispatchingBaseLines(TestTaxCommon):
         self.assertEqual(len(base_lines), 3)
 
     def test_dispatch_taxes_into_new_base_lines(self):
-
         def assert_tax_totals_summary_after_dispatching(
             document, exclude_function, expected_values
         ):

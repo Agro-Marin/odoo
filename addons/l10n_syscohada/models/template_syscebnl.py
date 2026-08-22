@@ -9,6 +9,7 @@ class AccountChartTemplate(models.AbstractModel):
     @template('syscebnl')
     def _get_syscebnl_template_data(self):
         return {
+            'visible': False,
             'property_account_receivable_id': 'syscebnl_409',
             'property_account_payable_id': 'syscebnl_419',
             'name': 'SYSCEBNL',

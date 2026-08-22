@@ -4,12 +4,6 @@ from odoo.tools import float_round
 
 
 class AccountCashRounding(models.Model):
-    """Rounding rule applied to invoice totals to match the smallest circulating coinage."""
-
-    # Some countries need a rounding line on an invoice only because the smallest
-    # coinage has been removed from circulation. For example, Switzerland rounds
-    # invoices to 0.05 CHF because coins of 0.01 CHF and 0.02 CHF aren't used anymore.
-    # See https://en.wikipedia.org/wiki/Cash_rounding for more details.
     _name = "account.cash.rounding"
     _description = "Account Cash Rounding"
     _check_company_auto = True
@@ -64,11 +58,6 @@ class AccountCashRounding(models.Model):
                 )
 
     def round(self, amount):
-        """Compute the rounding on the amount passed as parameter.
-
-        :param amount: the amount to round
-        :return: the rounded amount depending the rounding value and the rounding method
-        """
         return float_round(
             amount,
             precision_rounding=self.rounding,
@@ -76,13 +65,6 @@ class AccountCashRounding(models.Model):
         )
 
     def compute_difference(self, currency, amount):
-        """Compute the difference between the amount and its rounded value.
-
-        :param currency: The currency.
-        :param amount: The amount
-        :return: round(difference)
-        """
         amount = currency.round(amount)
-        # e.g. amount=23.91 rounded to 24.00 yields a difference of 0.09.
         difference = self.round(amount) - amount
         return currency.round(difference)

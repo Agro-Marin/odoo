@@ -149,7 +149,7 @@ class ResPartner(models.Model):
     def _check_peppol_fields(self):
         for partner in self:
             if partner.peppol_endpoint and partner.peppol_eas:
-                error = self._build_error_peppol_endpoint(partner.peppol_eas, partner.peppol_endpoint)
+                error = self._prepare_error_peppol_endpoint(partner.peppol_eas, partner.peppol_endpoint)
                 if error:
                     raise ValidationError(error)
 
@@ -255,7 +255,7 @@ class ResPartner(models.Model):
             if country_code in EAS_MAPPING:
                 field = EAS_MAPPING[country_code].get(partner.peppol_eas)
                 value = partner._get_peppol_endpoint_value(country_code, field, partner.peppol_eas)
-                if field and value and not partner._build_error_peppol_endpoint(partner.peppol_eas, value):
+                if field and value and not partner._prepare_error_peppol_endpoint(partner.peppol_eas, value):
                     partner.peppol_endpoint = value
 
     @api.depends(lambda self: self._peppol_eas_endpoint_depends())
@@ -275,7 +275,7 @@ class ResPartner(models.Model):
                     for eas, field in eas_to_field.items():
                         if field and field in partner._fields:
                             value = partner._get_peppol_endpoint_value(country_code, field, eas)
-                            if value and not partner._build_error_peppol_endpoint(eas, value):
+                            if value and not partner._prepare_error_peppol_endpoint(eas, value):
                                 new_eas = eas
                                 break
                     partner.peppol_eas = new_eas
@@ -286,7 +286,7 @@ class ResPartner(models.Model):
         # TO OVERRIDE
         self.available_peppol_eas = list(dict(self._fields['peppol_eas'].selection))
 
-    def _build_error_peppol_endpoint(self, eas, endpoint):
+    def _prepare_error_peppol_endpoint(self, eas, endpoint):
         """ This function contains all the rules regarding the peppol_endpoint."""
         if eas == '0208' and not re.match(r"^\d{10}$", endpoint):
             return _("The Peppol endpoint is not valid. The expected format is: 0239843188")

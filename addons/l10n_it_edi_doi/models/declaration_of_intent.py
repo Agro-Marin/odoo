@@ -169,7 +169,7 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
         for record in self:
             record.remaining = record.threshold - record.invoiced - record.not_yet_invoiced
 
-    def _build_threshold_warning_message(self, invoiced, not_yet_invoiced):
+    def _prepare_threshold_warning_message(self, invoiced, not_yet_invoiced):
         """
         Build a warning message that will be displayed in a yellow banner on top of a document
         if the `remaining` of the Declaration of Intent is less than 0 when including the document

@@ -41,9 +41,8 @@ class AccountReconcileModelLine(models.Model):
         required=True,
         default="percentage",
     )
-    # technical shortcut to parse the amount to a float
     amount = fields.Float(
-        string="Float Amount", compute="_compute_float_amount", store=True
+        string="Float Amount", compute="_compute_amount", store=True
     )
     amount_string = fields.Char(
         string="Amount",
@@ -77,17 +76,13 @@ class AccountReconcileModelLine(models.Model):
             self.amount_string = r"([\d,]+)"
 
     @api.depends("amount_string")
-    def _compute_float_amount(self):
+    def _compute_amount(self):
         for record in self:
             try:
                 record.amount = float(record.amount_string)
             except ValueError:
                 record.amount = 0
 
-    # `amount_type` selects which rule applies, so it has to trigger the check
-    # too: switching type without touching `amount_string` left the value
-    # unvalidated (and `amount` unrecomputed), so a write could reach a state
-    # `create` rejects -- e.g. `percentage` keeping a regex string, i.e. 0.
     @api.constrains("amount_string", "amount_type")
     def _validate_amount(self):
         for record in self:
@@ -113,7 +108,6 @@ class AccountReconcileModel(models.Model):
     _order = "sequence, id"
     _check_company_auto = True
 
-    # Base fields.
     active = fields.Boolean(default=True)
     name = fields.Char(string="Name", required=True, translate=True)
     sequence = fields.Integer(required=True, default=10)
@@ -136,7 +130,6 @@ class AccountReconcileModel(models.Model):
         comodel_name="mail.activity.type", string="Next Activity"
     )
 
-    # ===== Conditions =====
     can_be_proposed = fields.Boolean(
         compute="_compute_can_be_proposed",
         store=True,
@@ -144,7 +137,7 @@ class AccountReconcileModel(models.Model):
     )
     mapped_partner_id = fields.Many2one(
         comodel_name="res.partner",
-        compute="_compute_partner_mapping",
+        compute="_compute_mapped_partner_id",
         store=True,
         copy=False,
     )
@@ -217,7 +210,7 @@ class AccountReconcileModel(models.Model):
             )
 
     @api.depends("match_label", "line_ids.partner_id", "line_ids.account_id")
-    def _compute_partner_mapping(self):
+    def _compute_mapped_partner_id(self):
         for model in self:
             is_partner_mapping = (
                 model.match_label
@@ -237,7 +230,7 @@ class AccountReconcileModel(models.Model):
 
     def action_reconcile_stat(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "account.action_move_journal_line"
         )
         self.env.cr.execute(
@@ -251,9 +244,6 @@ class AccountReconcileModel(models.Model):
         action.update(
             {
                 "context": {},
-                # ARRAY_AGG over zero matching rows returns a single NULL row;
-                # coalesce to [] so the domain degenerates to "match nothing"
-                # (showing the empty-folder placeholder) instead of ("id", "in", None).
                 "domain": [("id", "in", self.env.cr.fetchone()[0] or [])],
                 "help": """<p class="o_view_nocontent_empty_folder">{}</p>""".format(
                     _("This reconciliation model has created no entry so far")
@@ -277,9 +267,6 @@ class AccountReconcileModel(models.Model):
         return vals_list
 
     def copy_translations(self, new, excluded=()):
-        # ``copy_data`` renames ``name`` in the duplicating user's language
-        # only; without this the copy would keep the source record's exact
-        # ``name`` in every other language.
         super().copy_translations(new, excluded=(*excluded, "name"))
         rounds, name = 0, self.name
         while name != new.name and rounds < 10:

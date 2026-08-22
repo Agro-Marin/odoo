@@ -22,7 +22,7 @@ export class AccountPaymentField extends Component {
         const position = localization.direction === "rtl" ? "bottom" : "left";
         this.popover = usePopover(AccountPaymentPopOver, { position });
         this.orm = useService("orm");
-        this.action = useService("action");
+        this.accountMove = useService("account_move");
     }
 
     getInfo() {
@@ -81,14 +81,11 @@ export class AccountPaymentField extends Component {
         await this.props.record.model.root.load();
     }
 
-    async openMove(moveId) {
-        const action = await this.orm.call(
-            this.props.record.resModel,
-            "action_view_business_doc",
-            [moveId],
-            {},
-        );
-        this.action.doAction(action);
+    openMove(moveId) {
+        return this.accountMove.openBusinessDoc({
+            resModel: this.props.record.resModel,
+            resId: moveId,
+        });
     }
 }
 

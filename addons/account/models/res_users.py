@@ -6,9 +6,6 @@ class ResGroups(models.Model):
 
     @api.model
     def get_application_groups(self, domain):
-        # Remove the accounting groups that carry no privilege_id
-        # ('Show Full Accounting Features', 'Show Accounting Features - Readonly',
-        # 'Basic') from the 'res.users' form view to prevent confusion
         group_account_user = self.env.ref(
             "account.group_account_user", raise_if_not_found=False
         )

@@ -106,7 +106,7 @@ class SaleOrder(models.Model):
                 sales_order=True
             )
 
-            threshold_warning = declaration._build_threshold_warning_message(declaration.invoiced, declaration_not_yet_invoiced)
+            threshold_warning = declaration._prepare_threshold_warning_message(declaration.invoiced, declaration_not_yet_invoiced)
 
             order.l10n_it_edi_doi_warning = '{}\n\n{}'.format('\n'.join(validity_warnings), threshold_warning).strip()
 

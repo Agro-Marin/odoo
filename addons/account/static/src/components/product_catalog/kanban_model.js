@@ -3,7 +3,7 @@ import { ProductCatalogKanbanModel } from "@product/product_catalog/kanban_model
 import { patch } from "@web/core/utils/patch";
 
 patch(ProductCatalogKanbanModel.prototype, {
-    async _loadData(params) {
+    async _loadData(params, ...rest) {
         const selectedSection = this.env.searchModel.selectedSection;
         if (selectedSection.filtered) {
             params = {
@@ -18,7 +18,9 @@ patch(ProductCatalogKanbanModel.prototype, {
                 },
             };
         }
-        return await super._loadData(params);
+        // Forward the cache and abort signal the caller passed: dropping them
+        // leaves an in-flight load running after the view is left.
+        return await super._loadData(params, ...rest);
     },
 
     _getOrderLinesInfoParams(params, productIds) {

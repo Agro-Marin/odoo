@@ -14,8 +14,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
         super().setUpClass()
 
         cls.currency_1 = cls.company_data["currency"]
-        # We need a third currency as you could have a company's currency != journal's
-        # currency != foreign currency.
         cls.currency_2 = cls.setup_other_currency("EUR")
         cls.currency_3 = cls.setup_other_currency(
             "CAD", rates=[("2016-01-01", 6.0), ("2017-01-01", 4.0)]
@@ -128,9 +126,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ).id
         return self.env["account.bank.statement.line"].create(values)
 
-    # -------------------------------------------------------------------------
-    # TESTS about the statement line model.
-    # -------------------------------------------------------------------------
 
     def _test_statement_line_edition(
         self,
@@ -142,16 +137,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
         expected_liquidity_values,
         expected_counterpart_values,
     ):
-        """Test the edition of a statement line from itself or from its linked journal entry.
-
-        :param journal: The account.journal record that will be set on the statement line.
-        :param amount: The amount in journal's currency.
-        :param amount_currency: The amount in the foreign currency.
-        :param journal_currency: The journal's currency as a res.currency record.
-        :param foreign_currency: The foreign currency as a res.currency record.
-        :param expected_liquidity_values: The expected account.move.line values for the liquidity line.
-        :param expected_counterpart_values: The expected account.move.line values for the counterpart line.
-        """
         if journal_currency:
             journal.currency_id = journal_currency.id
 
@@ -167,9 +152,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             }
         )
 
-        # ==== Test the statement line amounts are correct ====
-        # If there is a bug in the compute/inverse methods, the amount/amount_currency could be
-        # incorrect directly after the creation of the statement line.
 
         self.assertRecordValues(
             statement_line,
@@ -192,17 +174,11 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # ==== Test the edition of statement line amounts ====
-        # The statement line must remain consistent with its account.move.
-        # To test the compute/inverse methods are correctly managing all currency setup,
-        # we check the edition of amounts in both directions statement line <-> journal entry.
 
-        # Check initial state of the statement line.
         liquidity_lines, suspense_lines, _other_lines = statement_line._seek_for_lines()
         self.assertRecordValues(liquidity_lines, [expected_liquidity_values])
         self.assertRecordValues(suspense_lines, [expected_counterpart_values])
 
-        # Check the account.move is still correct after editing the account.bank.statement.line.
         statement_line.write(
             {
                 "amount": statement_line.amount * 2,
@@ -246,7 +222,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # Check the account.bank.statement.line is still correct after editing the account.move.
         statement_line.move_id.with_context(skip_readonly_check=True).write(
             {
                 "line_ids": [
@@ -294,17 +269,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
         expected_liquidity_values,
         expected_counterpart_values,
     ):
-        """Run '_test_statement_line_edition' for the customer (positive) and supplier (negative) flows.
-
-        :param amount: The amount in journal's currency.
-        :param amount_currency: The amount in the foreign currency.
-        :param journal_currency: The journal's currency as a res.currency record.
-        :param foreign_currency: The foreign currency as a res.currency record.
-        :param expected_liquidity_values: The expected account.move.line values for the liquidity line.
-        :param expected_counterpart_values: The expected account.move.line values for the counterpart line.
-        """
-
-        # Check the full process with positive amount (customer process).
         self._test_statement_line_edition(
             self.bank_journal_2,
             amount,
@@ -315,7 +279,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             expected_counterpart_values,
         )
 
-        # Check the full process with negative amount (supplier process).
         self._test_statement_line_edition(
             self.bank_journal_3,
             -amount,
@@ -342,7 +305,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
 
     def test_edition_journal_curr_2_statement_curr_3(self):
         self._test_edition_customer_and_supplier_flows(
-            # pylint: disable=bad-whitespace
             80.0,
             120.0,
             self.currency_2,
@@ -363,7 +325,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
 
     def test_edition_journal_curr_2_statement_curr_1(self):
         self._test_edition_customer_and_supplier_flows(
-            # pylint: disable=bad-whitespace
             120.0,
             80.0,
             self.currency_2,
@@ -384,7 +345,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
 
     def test_edition_journal_curr_1_statement_curr_2(self):
         self._test_edition_customer_and_supplier_flows(
-            # pylint: disable=bad-whitespace
             80.0,
             120.0,
             self.currency_1,
@@ -405,7 +365,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
 
     def test_edition_journal_curr_2_statement_false(self):
         self._test_edition_customer_and_supplier_flows(
-            # pylint: disable=bad-whitespace
             80.0,
             0.0,
             self.currency_2,
@@ -426,7 +385,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
 
     def test_edition_journal_curr_1_statement_false(self):
         self._test_edition_customer_and_supplier_flows(
-            # pylint: disable=bad-whitespace
             80.0,
             0.0,
             self.currency_1,
@@ -463,7 +421,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
         self.assertRecordValues(
             statement_line.move_id.line_ids,
             [
-                # pylint: disable=bad-whitespace
                 {
                     "debit": 0.0,
                     "credit": 0.0,
@@ -497,7 +454,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
         self.assertRecordValues(
             statement_line.move_id.line_ids,
             [
-                # pylint: disable=bad-whitespace
                 {
                     "debit": 10.0,
                     "credit": 0.0,
@@ -531,7 +487,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
         self.assertRecordValues(
             statement_line.move_id.line_ids,
             [
-                # pylint: disable=bad-whitespace
                 {
                     "debit": 0.0,
                     "credit": 0.0,
@@ -562,9 +517,7 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             "amount_currency": 0.0,
         }
 
-        # ==== Test constraints at creation ====
 
-        # Can't have a stand alone amount in foreign currency without foreign currency set.
         assertStatementLineConstraint(
             {
                 **statement_line_vals,
@@ -572,7 +525,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             }
         )
 
-        # Can't have a foreign currency set without amount in foreign currency.
         assertStatementLineConstraint(
             {
                 **statement_line_vals,
@@ -580,11 +532,9 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             }
         )
 
-        # ==== Test constraints at edition ====
 
         st_line = self.env["account.bank.statement.line"].create(statement_line_vals)
 
-        # You can't mess up the journal entry by adding another liquidity line.
         addition_lines_to_create = [
             {
                 "debit": 1.0,
@@ -608,16 +558,12 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             st_line.line_ids.create(addition_lines_to_create)
 
     def test_statement_line_move_onchange_1(self):
-        """Test the consistency between the account.bank.statement.line and the generated account.move.lines."""
-
-        # Check the initial state of the statement line.
         self.assertBankStatementLine(
             self.statement_line,
             self.expected_st_line,
             [self.expected_counterpart_line, self.expected_bank_line],
         )
 
-        # Inverse the amount + change them.
         self.statement_line.write(
             {
                 "amount": -2000.0,
@@ -652,7 +598,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # Check changing the label and the partner.
         self.statement_line.write(
             {
                 "payment_ref": "line_1 (bis)",
@@ -693,7 +638,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
         )
 
     def test_prepare_counterpart_amounts_using_st_line_rate(self):
-
         def assertAppliedRate(
             journal_currency,
             foreign_currency,
@@ -909,7 +853,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ]
 
     def test_zero_amount_statement_line(self):
-        """Ensure the statement line is directly marked as reconciled when having an amount of zero."""
         self.company_data[
             "company"
         ].account_journal_suspense_account_id.reconcile = False
@@ -944,7 +887,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
     def test_statement_valid_complete_1(self):
         self.env.user.company_id = self.company_data_2["company"]
 
-        # create a valid and complete statement as the first lines (no statement before)
         line1 = self.create_bank_transaction(1, "2020-01-10")
         line2 = self.create_bank_transaction(2, "2020-01-11")
         statement1 = (
@@ -964,7 +906,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 }
             ],
         )
-        # remove the first line, so not complete but it is still valid because there is no statement before
         line1.statement_id = False
         self.assertRecordValues(
             statement1,
@@ -978,8 +919,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 }
             ],
         )
-        # create a new line in the statement to make it complete again. Starting value does not match the last line
-        # but it is still valid because it is the first statement
         line3 = self.create_bank_transaction(1, "2020-01-12", statement=statement1)
         statement1.invalidate_recordset(["is_valid"])
         self.assertRecordValues(
@@ -991,8 +930,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 }
             ],
         )
-        # add a statement to the first line, statement1 is still complete but not valid because balance start
-        # does not match the previous statement
         statement2 = self.env["account.bank.statement"].create(
             {
                 "line_ids": [Command.set(line1.ids)],
@@ -1009,12 +946,10 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 },
                 {
                     "is_complete": True,
-                    "is_valid": True,  # first statement
+                    "is_valid": True,
                 },
             ],
         )
-        # Fix the statement balance start, the balance_end_real is recomputed accordingly so it
-        # stays complete and becomes valid again
         statement1.balance_start = 1
         statement1.invalidate_recordset(["is_valid"])
         self.assertRecordValues(
@@ -1026,7 +961,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 }
             ],
         )
-        # change the prev statement so the end balance does not match the start balance of statement 1
         statement2.balance_end_real = 10
         statement2.flush_recordset(["balance_end_real"])
         statement1.invalidate_recordset(["is_valid"])
@@ -1039,7 +973,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 }
             ],
         )
-        # make the statement valid again, but keep it incomplete
         statement1.write({"balance_start": 10, "balance_end_real": 3})
         statement1.invalidate_recordset(["is_valid"])
         self.assertRecordValues(
@@ -1051,7 +984,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 }
             ],
         )
-        # and complete again by adding a new transaction to it
         line4 = self.create_bank_transaction(-10, "2020-01-13", statement=statement1)
         (statement1 + statement2).invalidate_recordset(["is_valid"])
         self.assertRecordValues(
@@ -1069,7 +1001,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 },
             ],
         )
-        # check point
         self.assertRecordValues(
             line1 + line2 + line3 + line4,
             [
@@ -1092,8 +1023,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # changing statement 2 balance makes statement 1 invalid,
-        # but making statement 1 the first statement should make it valid again
         statement2.balance_end_real = 100
         statement2.flush_recordset(["balance_end_real"])
         statement1.invalidate_recordset(["is_valid"])
@@ -1118,7 +1047,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # having a gap in the statement shouldn't make it invalid
         line3.statement_id = False
         statement1.flush_recordset(["is_valid"])
         self.assertRecordValues(
@@ -1130,7 +1058,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # Change the statement on one of the lines of statement 1
         statement3 = self.env["account.bank.statement"].create(
             {
                 "line_ids": [Command.set(line4.ids)],
@@ -1145,12 +1072,11 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                     "is_valid": True,
                 },
                 {
-                    "is_valid": False,  # balance does not match with statement1
+                    "is_valid": False,
                 },
             ],
         )
 
-        # changing statement1 end_balance should change the validity of statement3
         statement1.balance_end_real = -5
         statement1.flush_recordset(["balance_end_real"])
         (statement1 + statement3).invalidate_recordset(["is_valid"])
@@ -1161,11 +1087,10 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                     "is_valid": True,
                 },
                 {
-                    "is_valid": True,  # balance start matches previous end, despite the gap
+                    "is_valid": True,
                 },
             ],
         )
-        # check point
         self.assertRecordValues(
             line1 + line2 + line3 + line4,
             [
@@ -1205,7 +1130,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # computing validity of non-consecutive statement shouldn't affect validity
         line5 = self.create_bank_transaction(-10, "2020-01-13")
         statement4 = self.env["account.bank.statement"].create(
             {
@@ -1222,7 +1146,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # adding a statement to the first line should make statement1 invalid
         line1.statement_id = statement2
         statement2.flush_model()
         (statement1 + statement2).invalidate_recordset(["is_valid"])
@@ -1230,8 +1153,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             statement1 + statement2, [{"is_valid": False}, {"is_valid": True}]
         )
 
-        # moving statement2 to the line between statement1 and statement3 should make statement1
-        # valid again and statement3 invalid
         statement2.line_ids = line3
         statement2.flush_model()
         (statement1 + statement2 + statement3).invalidate_recordset(["is_valid"])
@@ -1247,7 +1168,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
     def test_statement_line_ordering(self):
         self.env.user.company_id = self.company_data_2["company"]
 
-        # the line numbers are chosen based on the order of the lines in the list view
         line7 = self.create_bank_transaction(7, "2020-01-10", sequence=1)
         line8 = self.create_bank_transaction(8, "2020-01-10", sequence=2)
         line2 = self.create_bank_transaction(2, "2020-01-13")
@@ -1273,7 +1193,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # Same but with a subset of lines to ensure the balance is not only computed based on selected records.
         self.env["account.bank.statement.line"].invalidate_model(
             fnames=["running_balance"]
         )
@@ -1293,7 +1212,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # Put line2 -> line4 inside a statement with a wrong balance_end_real.
         (line2 + line3 + line4).statement_id = statement1 = self.env[
             "account.bank.statement"
         ].create({"balance_start": 20, "balance_end_real": 29})
@@ -1314,12 +1232,11 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             [
                 {
                     "is_complete": True,
-                    "balance_end_real": 35,  # autocorrect
+                    "balance_end_real": 35,
                 }
             ],
         )
 
-        # line3, line4 and line5 have the same date. Move line5 at the first place using the sequence.
         line5.sequence = -1
         statement1.invalidate_recordset(["is_valid"])
         self.env["account.bank.statement.line"].invalidate_model(
@@ -1354,7 +1271,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 [("company_id", "=", self.env.company.id)]
             ),
             [
-                # pylint: disable=C0326
                 {"amount": 1, "running_balance": 36, "statement_id": False},
                 {"amount": 2, "running_balance": 35, "statement_id": statement1.id},
                 {"amount": 5, "running_balance": 33, "statement_id": False},
@@ -1376,7 +1292,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 [("company_id", "=", self.env.company.id)]
             ),
             [
-                # pylint: disable=C0326
                 {"amount": 1, "running_balance": 36, "statement_id": False},
                 {"amount": 2, "running_balance": 35, "statement_id": statement1.id},
                 {"amount": 5, "running_balance": 33, "statement_id": False},
@@ -1397,7 +1312,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 [("company_id", "=", self.env.company.id)]
             ),
             [
-                # pylint: disable=C0326
                 {"amount": 1, "running_balance": 46, "statement_id": False},
                 {"amount": 2, "running_balance": 45, "statement_id": statement1.id},
                 {"amount": 15, "running_balance": 43, "statement_id": False},
@@ -1419,7 +1333,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 [("company_id", "=", self.env.company.id)]
             ),
             [
-                # pylint: disable=C0326
                 {"amount": 1, "running_balance": 46, "statement_id": False},
                 {"amount": 2, "running_balance": 45, "statement_id": statement1.id},
                 {"amount": 15, "running_balance": 43, "statement_id": False},
@@ -1440,7 +1353,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 [("company_id", "=", self.env.company.id)]
             ),
             [
-                # pylint: disable=C0326
                 {"amount": 1, "running_balance": 45, "statement_id": False},
                 {"amount": 2, "running_balance": 45, "statement_id": statement1.id},
                 {"amount": 15, "running_balance": 43, "statement_id": False},
@@ -1451,7 +1363,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # remove the anchor point
         statement1.line_ids = False
         self.env["account.bank.statement.line"].invalidate_model(
             fnames=["running_balance"]
@@ -1461,7 +1372,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 [("company_id", "=", self.env.company.id)]
             ),
             [
-                # pylint: disable=C0326
                 {"amount": 1, "running_balance": 42, "statement_id": False},
                 {"amount": 2, "running_balance": 42, "statement_id": False},
                 {"amount": 15, "running_balance": 40, "statement_id": False},
@@ -1473,7 +1383,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
         )
 
     def test_formatted_read_group_running_balance(self):
-        """Test `formatted_read_group` annotates each group with its anchor line's running balance."""
         self.env.user.company_id = self.company_data_2["company"]
         self.create_bank_transaction(10, "2020-02-01")
         self.create_bank_transaction(20, "2020-02-02")
@@ -1488,8 +1397,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 ["amount:sum"],
             )
         )
-        # One transaction per day, so each group's running balance is that
-        # line's: 10, then 10+20=30, then 10+20+30=60.
         self.assertEqual(
             sorted(group["running_balance"] for group in groups),
             [10, 30, 60],
@@ -1498,7 +1405,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
     def test_statement_split(self):
         self.env.user.company_id = self.company_data_2["company"]
 
-        # the line numbers are chosen based on the order of the lines in the list view
         line7 = self.create_bank_transaction(7, "2020-01-10", sequence=1)
         line8 = self.create_bank_transaction(8, "2020-01-10", sequence=2)
         line2 = self.create_bank_transaction(2, "2020-01-13")
@@ -1508,7 +1414,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
         line1 = self.create_bank_transaction(1, "2020-01-13")
         line3 = self.create_bank_transaction(3, "2020-01-12", sequence=1)
 
-        # Split the last 2 lines by splitting on the line before last.
         statement1 = (
             self.env["account.bank.statement"]
             .with_context({"split_line_id": line7.id})
@@ -1535,7 +1440,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # Split on a line adjacent to another statement
         statement2 = (
             self.env["account.bank.statement"]
             .with_context({"split_line_id": line6.id})
@@ -1558,7 +1462,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 [("company_id", "=", self.env.company.id)]
             ),
             [
-                # pylint: disable=C0326
                 {"amount": 1, "running_balance": 36, "statement_id": False},
                 {"amount": 2, "running_balance": 35, "statement_id": False},
                 {"amount": 3, "running_balance": 33, "statement_id": False},
@@ -1570,7 +1473,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # Split on a line with a gap to another statement
         statement1.unlink()
         statement3 = (
             self.env["account.bank.statement"]
@@ -1594,7 +1496,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 [("company_id", "=", self.env.company.id)]
             ),
             [
-                # pylint: disable=C0326
                 {"amount": 1, "running_balance": 36, "statement_id": False},
                 {"amount": 2, "running_balance": 35, "statement_id": False},
                 {"amount": 3, "running_balance": 33, "statement_id": statement3.id},
@@ -1605,7 +1506,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 {"amount": 8, "running_balance": 8, "statement_id": False},
             ],
         )
-        # Split on a line with a single line statement
         statement4 = (
             self.env["account.bank.statement"]
             .with_context({"split_line_id": line6.id})
@@ -1635,7 +1535,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 [("company_id", "=", self.env.company.id)]
             ),
             [
-                # pylint: disable=C0326
                 {"amount": 1, "running_balance": 36, "statement_id": False},
                 {"amount": 2, "running_balance": 35, "statement_id": False},
                 {"amount": 3, "running_balance": 33, "statement_id": statement3.id},
@@ -1646,7 +1545,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 {"amount": 8, "running_balance": 8, "statement_id": statement4.id},
             ],
         )
-        # check double split on a single line
         statement5 = (
             self.env["account.bank.statement"]
             .with_context({"split_line_id": line2.id})
@@ -1669,7 +1567,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 [("company_id", "=", self.env.company.id)]
             ),
             [
-                # pylint: disable=C0326
                 {"amount": 1, "running_balance": 36, "statement_id": False},
                 {"amount": 2, "running_balance": 35, "statement_id": statement5.id},
                 {"amount": 3, "running_balance": 33, "statement_id": statement3.id},
@@ -1702,7 +1599,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 [("company_id", "=", self.env.company.id)]
             ),
             [
-                # pylint: disable=C0326
                 {"amount": 1, "running_balance": 36, "statement_id": False},
                 {"amount": 2, "running_balance": 35, "statement_id": statement6.id},
                 {"amount": 3, "running_balance": 33, "statement_id": statement3.id},
@@ -1714,7 +1610,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # Split in the middle of a statement
         statement7 = (
             self.env["account.bank.statement"]
             .with_context({"split_line_id": line4.id})
@@ -1740,7 +1635,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # Fix statement3
         statement3._compute_balance_start()
         self.assertRecordValues(
             statement3,
@@ -1760,7 +1654,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 [("company_id", "=", self.env.company.id)]
             ),
             [
-                # pylint: disable=C0326
                 {"amount": 1, "running_balance": 36, "statement_id": False},
                 {"amount": 2, "running_balance": 35, "statement_id": statement6.id},
                 {"amount": 3, "running_balance": 33, "statement_id": statement3.id},
@@ -1772,7 +1665,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # split at start of another statement
         statement8 = (
             self.env["account.bank.statement"]
             .with_context({"split_line_id": line6.id})
@@ -1802,7 +1694,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 [("company_id", "=", self.env.company.id)]
             ),
             [
-                # pylint: disable=C0326
                 {"amount": 1, "statement_id": False},
                 {"amount": 2, "statement_id": statement6.id},
                 {"amount": 3, "statement_id": statement3.id},
@@ -1814,7 +1705,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # split at end of another statement
         statement9 = (
             self.env["account.bank.statement"]
             .with_context({"split_line_id": line8.id})
@@ -1840,8 +1730,7 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # Fix statement8
-        statement8._compute_balance_start()  # TODO: add_to_compute not working, why?
+        statement8._compute_balance_start()
         self.assertRecordValues(
             statement8,
             [
@@ -1860,7 +1749,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 [("company_id", "=", self.env.company.id)]
             ),
             [
-                # pylint: disable=C0326
                 {"amount": 1, "statement_id": False},
                 {"amount": 2, "statement_id": statement6.id},
                 {"amount": 3, "statement_id": statement3.id},
@@ -1872,7 +1760,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # split at most recent line
         statement10 = (
             self.env["account.bank.statement"]
             .with_context({"split_line_id": line1.id})
@@ -1895,7 +1782,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 [("company_id", "=", self.env.company.id)]
             ),
             [
-                # pylint: disable=C0326
                 {"amount": 1, "statement_id": statement10.id},
                 {"amount": 2, "statement_id": statement6.id},
                 {"amount": 3, "statement_id": statement3.id},
@@ -1943,7 +1829,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 }
             ],
         )
-        # test canceling a line
         line2.move_id.action_cancel()
         self.assertRecordValues(
             statement1,
@@ -1955,7 +1840,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 }
             ],
         )
-        # add a line with same amount as the canceled line makes statement1 complete again
         line3 = self.create_bank_transaction(
             2, "2020-01-12", journal=self.bank_journal_2, statement=statement1
         )
@@ -1969,7 +1853,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 }
             ],
         )
-        # test adding a draft line to a statement, nothing should be changed in statement
         line4 = self.create_bank_transaction(
             4, "2020-01-13", journal=self.bank_journal_2
         )
@@ -1986,7 +1869,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 }
             ],
         )
-        # test split with canceled/draft lines
         statement2 = (
             self.env["account.bank.statement"]
             .with_context({"split_line_id": line2.id})
@@ -2010,8 +1892,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # test cancel/draft all statement lines
-        # line 4 is draft, and we cancel line 3 so the statement should be empty
         line3.move_id.action_cancel()
         self.assertRecordValues(
             statement1,
@@ -2024,7 +1904,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # create a statement with already canceled/draft lines
         statement3 = self.env["account.bank.statement"].create(
             {
                 "line_ids": [Command.set((line3 + line4).ids)],
@@ -2039,9 +1918,9 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                     "balance_end": 0,
                 },
                 {
-                    "is_complete": False,  # no posted transactions
-                    "balance_start": 1,  # from statement2's balance_end_real
-                    "balance_end": 1,  # no posted transactions
+                    "is_complete": False,
+                    "balance_start": 1,
+                    "balance_end": 1,
                 },
             ],
         )
@@ -2071,7 +1950,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
         )
 
     def test_statement_balance_warnings(self):
-        """Ensure that new statements have the correct opening/closing balances or warnings"""
         lines = [
             self.create_bank_transaction(amount, date, journal=self.bank_journal_2)
             for amount, date in [
@@ -2084,7 +1962,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ]
         ]
 
-        # new statement from single line
         contexts = [
             {
                 "active_ids": [line.id],
@@ -2147,7 +2024,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # multi line edit, one line with statement
         context = {
             "active_ids": [line.id for line in lines[:3]],
             "st_line_id": lines[2].id,
@@ -2165,7 +2041,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # multi line edit, skip lines
         context = {
             "active_ids": [line.id for line in lines[2:4]],
             "st_line_id": lines[3].id,
@@ -2183,7 +2058,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # multi line edit
         expected_st_vals = [
             {
                 "balance_start": 10.0,
@@ -2202,7 +2076,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             expected_st_vals,
         )
 
-        # split button
         self.assertRecordValues(
             self.env["account.bank.statement"]
             .with_context({"split_line_id": lines[3].id})
@@ -2210,7 +2083,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             expected_st_vals,
         )
 
-        # raise error if lines skipped during multi-edit
         context = {
             "active_ids": [lines[1].id, lines[3].id],
             "st_line_id": lines[3].id,
@@ -2218,7 +2090,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
         with self.assertRaises(UserError):
             self.env["account.bank.statement"].with_context(context).create({})
 
-        # create the second statement using split button
         st2 = (
             self.env["account.bank.statement"]
             .with_context({"split_line_id": lines[-1].id})
@@ -2236,7 +2107,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # create the third statement using multi edit with canceled line in between
         lines[2].move_id.action_cancel()
         context = {
             "active_ids": [lines[1].id, lines[3].id],
@@ -2260,8 +2130,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
         )
 
     def test_statement_attachments(self):
-        """Ensure that attachments are properly linked to bank statements"""
-
         attachment_vals = {
             "datas": base64.b64encode(b"My attachment"),
             "name": "doc.txt",

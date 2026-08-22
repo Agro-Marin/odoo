@@ -1,5 +1,3 @@
-"""Regression tests for marin-fork correctness guarantees on account.move."""
-
 from odoo import Command, fields
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import tagged
@@ -9,7 +7,6 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 @tagged("post_install", "-at_install")
 class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
-    # ----- @api.depends completeness (registry-level) -------------------
     def _deps(self, fname):
         field = self.env["account.move"]._fields[fname]
         return tuple(self.env.registry.field_depends.get(field, ()))
@@ -23,8 +20,6 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
         self.assertIn("line_ids.matched_debit_ids", recon)
         self.assertIn("line_ids.matched_credit_ids", recon)
         self.assertIn("line_ids.amount_currency", self._deps("payment_term_details"))
-        # show_delivery_date branches on is_sale_document(), which keys off
-        # move_type.
         self.assertIn("move_type", self._deps("show_delivery_date"))
 
     def test_show_delivery_date_recomputes_on_move_type_change(self):
@@ -35,15 +30,12 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
         self.assertTrue(
             invoice.show_delivery_date, "a sale document with a delivery date shows it"
         )
-        # Change to a non-sale type without touching delivery_date: the flag must
-        # refresh (it would stay stale True without the move_type dependency).
         invoice.move_type = "entry"
         self.assertFalse(
             invoice.show_delivery_date,
             "show_delivery_date must refresh when the move type stops being a sale",
         )
 
-    # ----- functional: stale cached warnings ----------------------------
     def test_partner_credit_warning_clears_on_post(self):
         self.env.company.account_use_credit_limit = True
         self.partner_a.credit_limit = 1.0
@@ -71,10 +63,6 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
         )
 
     def test_outstanding_widget_batched_across_moves(self):
-        """Two invoices of one partner both surface the same outstanding credit."""
-        # `_compute_payments_widget_to_reconcile_info` batches the lookup by
-        # (company, commercial partner, payment direction); this guards that the
-        # batching still yields each move its own correct content.
         inv1 = self.init_invoice(
             "out_invoice", partner=self.partner_a, amounts=[100.0], post=True
         )
@@ -106,7 +94,6 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
                 "the batched result must include the partner's outstanding credit",
             )
 
-    # ----- non-mutation of caller-owned data ----------------------------
     def test_sanitize_vals_does_not_mutate_caller(self):
         vals = {
             "move_type": "out_invoice",
@@ -137,7 +124,6 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
             "caller's default_values dict must not be mutated in place",
         )
 
-    # ----- extracted partial-deductibility group reveal -----------------
     def test_partial_deductibility_group_reveal_extracted(self):
         move_model = self.env["account.move"]
         self.assertTrue(
@@ -182,18 +168,13 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
             "posting a partially-deductible bill still reveals the feature",
         )
 
-    # ----- non-stored fields queried through _field_to_sql ---------------
-    # `Field.to_sql` tags each column identifier with `to_flush`, and that tag is
-    # what makes search / read_group / order flush pending values before running
-    # the query. A `_field_to_sql` override that spells the columns out by hand
-    # carries no tag, so the query silently runs against the pre-write table.
 
     def test_status_in_payment_query_sees_unflushed_state(self):
         invoice = self.init_invoice(
             "out_invoice", partner=self.partner_a, amounts=[100.0], post=True
         )
         self.env.flush_all()
-        invoice.action_cancel()  # dirty in cache, deliberately not flushed
+        invoice.action_cancel()
         self.assertEqual(invoice.status_in_payment, "cancel")
         self.assertEqual(
             self.env["account.move"].search(
@@ -203,14 +184,11 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
             "search on status_in_payment must flush the columns its SQL reads",
         )
         self.assertEqual(
-            [
-                group["status_in_payment"]
-                for group in self.env["account.move"].read_group(
-                    [("id", "=", invoice.id)], ["id"], ["status_in_payment"]
-                )
-            ],
-            ["cancel"],
-            "read_group on status_in_payment must flush too",
+            self.env["account.move"]._read_group(
+                [("id", "=", invoice.id)], ["status_in_payment"]
+            ),
+            [("cancel",)],
+            "grouping on status_in_payment must flush too",
         )
 
     def test_move_sent_values_query_sees_unflushed_is_move_sent(self):
@@ -218,20 +196,16 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
             "out_invoice", partner=self.partner_a, amounts=[100.0], post=True
         )
         self.env.flush_all()
-        invoice.is_move_sent = True  # dirty in cache, deliberately not flushed
+        invoice.is_move_sent = True
         self.assertEqual(invoice.move_sent_values, "sent")
         self.assertEqual(
-            [
-                group["move_sent_values"]
-                for group in self.env["account.move"].read_group(
-                    [("id", "=", invoice.id)], ["id"], ["move_sent_values"]
-                )
-            ],
-            ["sent"],
+            self.env["account.move"]._read_group(
+                [("id", "=", invoice.id)], ["move_sent_values"]
+            ),
+            [("sent",)],
         )
 
     def test_status_in_payment_compute_matches_sql_for_every_combination(self):
-        """The python compute and the SQL CASE must bucket identically."""
         invoice = self.init_invoice(
             "out_invoice", partner=self.partner_a, amounts=[100.0], post=False
         )
@@ -263,9 +237,6 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
                         )
         self.assertFalse(mismatches, "compute and SQL disagree for: %s" % mismatches)
 
-    # ----- constraint trigger completeness ------------------------------
-    # A rule checked in the body but absent from @api.constrains holds on
-    # create and silently lapses on write.
 
     def test_payment_term_early_discount_rules_hold_on_write(self):
         term = self.env["account.payment.term"].create(
@@ -302,14 +273,11 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
             }
         )
         self.env.flush_all()
-        # The very same end state is refused by create(); write must agree.
         with self.assertRaises(UserError):
             line.amount_type = "percentage"
             self.env.flush_all()
 
-    # ----- error surface -------------------------------------------------
     def test_conflicting_line_commands_raise_a_handled_error(self):
-        """A client-reachable payload must not surface as a raw ValueError."""
         invoice = self.init_invoice(
             "out_invoice", partner=self.partner_a, amounts=[100.0], post=False
         )
@@ -321,9 +289,7 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
                 }
             )
 
-    # ----- the "remove empty lines" suggestion ---------------------------
     def test_remove_empty_lines_spares_free_of_charge_lines(self):
-        """The alert unlinks what it matches, so it must match only blank lines."""
         bill = self.env["account.move"].create(
             {
                 "move_type": "in_invoice",
@@ -355,7 +321,6 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
                 "partner_id": self.partner_a.id,
                 "invoice_date": "2026-03-03",
                 "invoice_line_ids": [
-                    # exactly what "Add a line" leaves behind when untouched
                     Command.create({}),
                     Command.create({}),
                     Command.create(

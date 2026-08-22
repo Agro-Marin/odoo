@@ -94,7 +94,7 @@ class TestSwissQRCode(AccountTestInvoicingCommon):
 
         # generate the field values, instead of the QR image.
         unstruct_ref = self.ch_qr_invoice.ref and self.ch_qr_invoice.ref or self.ch_qr_invoice.name
-        vals = self.ch_qr_invoice.partner_bank_id._build_qr_code_vals(
+        vals = self.ch_qr_invoice.partner_bank_id._prepare_qr_code_vals(
             self.ch_qr_invoice.amount_residual, unstruct_ref, self.ch_qr_invoice.payment_reference,
             self.ch_qr_invoice.currency_id, self.ch_qr_invoice.partner_id, self.ch_qr_invoice.qr_code_method)
         value_list = self.ch_qr_invoice.partner_bank_id._get_qr_vals(**vals)
@@ -113,7 +113,7 @@ class TestSwissQRCode(AccountTestInvoicingCommon):
     def test_ch_qr_code_cross_mask(self):
         for width, height in ((64, 128), (128, 128), (256, 256), (512, 512)):
             barcode = createBarcodeDrawing('QR', value='', format='png', width=width, height=height)
-            mask_to_apply = self.env['ir.actions.report'].get_available_barcode_masks()['ch_cross']
+            mask_to_apply = self.env['ir.actions.report']._get_barcode_masks_available()['ch_cross']
             mask_to_apply(width, height, barcode)
             zoom_x = width / (32 * (72 / 25.4))
             zoom_y = height / (32 * (72 / 25.4))

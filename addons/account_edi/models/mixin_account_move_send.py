@@ -9,7 +9,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         attachment_sudo = doc.sudo().attachment_id
         if attachment_sudo.res_model and attachment_sudo.res_id:
             return attachment_sudo
-        return self.env['ir.attachment']
+        return self.env["ir.attachment"]
 
     def _get_invoice_extra_attachments(self, move):
         # EXTENDS 'account'

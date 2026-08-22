@@ -368,7 +368,7 @@ class PaymentTransaction(models.Model):
                 captured_txs_sudo |= (
                     tx.sudo().with_context(payment_backend_action=True)._capture()
                 )
-            return captured_txs_sudo._build_action_feedback_notification()
+            return captured_txs_sudo._prepare_action_feedback_notification()
 
     def action_void(self):
         """Check the state of the transaction and request to have them voided."""
@@ -392,7 +392,7 @@ class PaymentTransaction(models.Model):
                 .with_context(payment_backend_action=True)
                 ._void(amount_to_void=tx.amount - captured_amount)
             )
-        return voided_txs_sudo._build_action_feedback_notification()
+        return voided_txs_sudo._prepare_action_feedback_notification()
 
     def action_refund(self, amount_to_refund=None):
         """Check the state of the transactions and request their refund.
@@ -413,9 +413,9 @@ class PaymentTransaction(models.Model):
                 .with_context(payment_backend_action=True)
                 ._refund(amount_to_refund=amount_to_refund)
             )
-        return refunded_txs_sudo._build_action_feedback_notification()
+        return refunded_txs_sudo._prepare_action_feedback_notification()
 
-    def _build_action_feedback_notification(self):
+    def _prepare_action_feedback_notification(self):
         """Build a client notification to display the result of an action.
 
         :return: The client notification.

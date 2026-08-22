@@ -332,7 +332,7 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
             {
                 "total_amount": 434.18,
                 "discount_balance": 390.78,
-                "discount_amount_currency": 781.55,  # w/o cash rounding: 868.35 * 0.9 = 781.515
+                "discount_amount_currency": 781.55,
                 "line_ids": [
                     {
                         "date": datetime.date(2016, 1, 3),
@@ -426,7 +426,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
                 ],
             },
         )
-        # Cash rounding should not affect the totals
         self.assertAlmostEqual(
             434.18, sum(line["company_amount"] for line in computed_term_b["line_ids"])
         )
@@ -715,10 +714,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         )
 
     def test_payment_term_percent_round_calculation(self):
-        """Percent lines summing to 100 only after rounding must pass validation."""
-        # Plain float summation of many decimal percentages drifts away from
-        # 100, so the constraint rounds before comparing. This term
-        # (50 + 20 * 1.66 + 16.8) exercises that rounding.
         self.env["account.payment.term"].create(
             {
                 "name": "test_payment_term_percent_round_calculation",
@@ -882,8 +877,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         )
 
     def test_payment_term_days_end_of_month_on_the(self):
-        """`date_maturity` of a 'days_end_of_month_on_the' term follows the invoice date."""
-        # 2023-12-12 + 30 days = 2024-01-11, then the 10th of the next month.
         with Form(self.invoice) as basic_case:
             basic_case.invoice_payment_term_id = self.pay_term_days_end_of_month_10
             basic_case.invoice_date = "2023-12-12"
@@ -899,7 +892,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
             expected_date_basic_case[0], [fields.Date.from_string("2024-02-10")]
         )
 
-        # Same 2024-01-11 base, but day 31 clamps to the last day of February.
         with Form(self.invoice) as special_case:
             special_case.invoice_payment_term_id = self.pay_term_days_end_of_month_31
             special_case.invoice_date = "2023-12-12"
@@ -916,7 +908,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         )
 
     def test_payment_term_labels(self):
-        # create a payment term with 40% now, 30% in 30 days and 30% in 60 days
         multiple_installment_term = self.env["account.payment.term"].create(
             {
                 "name": "test_payment_term_labels",
@@ -945,7 +936,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
                 ],
             }
         )
-        # create immediate payment term
         immediate_term = self.env["account.payment.term"].create(
             {
                 "name": "Immediate",
@@ -960,15 +950,12 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
                 ],
             }
         )
-        # create an invoice with immediate payment term
         invoice = self.init_invoice("out_invoice", products=self.product_a)
         invoice.invoice_payment_term_id = immediate_term
-        # check the payment term labels
         invoice_terms = invoice.line_ids.filtered(
             lambda l: l.display_type == "payment_term"
         )
         self.assertEqual(invoice_terms[0].name, False)
-        # change the payment term to the multiple installment term
         invoice.invoice_payment_term_id = multiple_installment_term
         invoice_terms = invoice.line_ids.filtered(
             lambda l: l.display_type == "payment_term"
@@ -981,10 +968,8 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         self.assertEqual(invoice_terms[2].debit, invoice.amount_total * 0.3)
 
     def test_payment_term_days_end_of_month_nb_days_0(self):
-        """'days_end_of_month_on_the' with `nb_days` = 0 lands on `days_next_month`."""
         self.pay_term_days_end_of_month_29.line_ids.nb_days = 0
         self.pay_term_days_end_of_month_31.line_ids.nb_days = 0
-        # 2024-05-23 + 0 days = 2024-05-23, then the 29th of the next month.
         with Form(self.invoice) as case_1:
             case_1.invoice_payment_term_id = self.pay_term_days_end_of_month_29
             case_1.invoice_date = "2024-05-23"
@@ -994,7 +979,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         ).mapped("date_maturity")
         self.assertEqual(expected_date_case_1, [fields.Date.from_string("2024-06-29")])
 
-        # Same 2024-05-23 base, but day 31 clamps to the last day of June.
         with Form(self.invoice) as case_2:
             case_2.invoice_payment_term_id = self.pay_term_days_end_of_month_31
             case_2.invoice_date = "2024-05-23"
@@ -1005,11 +989,9 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         self.assertEqual(expected_date_case_2, [fields.Date.from_string("2024-06-30")])
 
     def test_payment_term_days_end_of_month_nb_days_15(self):
-        """'days_end_of_month_on_the' shifts by `nb_days` before `days_next_month`."""
         self.pay_term_days_end_of_month_30.line_ids.nb_days = 15
         self.pay_term_days_end_of_month_31.line_ids.nb_days = 15
 
-        # 2024-05-24 + 15 days = 2024-06-08, then the 30th of the next month.
         with Form(self.invoice) as case_1:
             case_1.invoice_payment_term_id = self.pay_term_days_end_of_month_30
             case_1.invoice_date = "2024-05-24"
@@ -1019,7 +1001,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         ).mapped("date_maturity")
         self.assertEqual(expected_date_case_1, [fields.Date.from_string("2024-07-30")])
 
-        # 2024-05-23 + 15 days = 2024-06-07, then the 31st of the next month.
         with Form(self.invoice) as case_2:
             case_2.invoice_payment_term_id = self.pay_term_days_end_of_month_31
             case_2.invoice_date = "2024-05-23"
@@ -1042,7 +1023,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         self.assertEqual(expected_date_case_1, [fields.Date.from_string("2024-05-31")])
 
     def test_payment_term_multi_company(self):
-        """The payment term is determined by `move.company_id`, not `user.company_id`."""
         user_company = self.env["res.company"].create({"name": "user_company"})
         other_company = self.company_data.get("company")
         self.env.user.write(
@@ -1067,26 +1047,19 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         self.assertFalse(invoice.invoice_payment_term_id)
 
     def test_is_immediate_true(self):
-        """A single line with 100% and 0 days is an immediate payment term."""
         self.assertTrue(self.pay_term_today.is_immediate)
 
     def test_is_immediate_false_nb_days(self):
-        """A single line with 100% but 30 days is not immediate."""
         self.assertFalse(self.pay_term_net_30_days.is_immediate)
 
     def test_is_immediate_false_multi_line(self):
-        """A multi-line payment term is never immediate."""
         self.assertFalse(self.pay_term_60_days.is_immediate)
 
     def test_is_immediate_existing_data(self):
-        """The XML data record 'Immediate Payment' is correctly flagged."""
         immediate = self.env.ref("account.account_payment_term_immediate")
         self.assertTrue(immediate.is_immediate)
 
     def test_days_next_month_unicode_numeric_raises_validation(self):
-        """A Unicode-numeric that `int()` rejects (e.g. the superscript '²') must
-        surface as a clean ValidationError, not an uncaught ValueError. The guard
-        uses `isdecimal()` (what `int()` accepts), not `isnumeric()`."""
         term = self.env["account.payment.term"].create({"name": "unicode days"})
         for bad_value in ("²", "½", "Ⅻ"):
             with self.assertRaises(ValidationError):

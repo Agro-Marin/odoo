@@ -30,7 +30,6 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
     }
 
     /**
-     * Log a failed section RPC and warn the user.
      * @param {Error} error
      */
     _notifySectionError(error) {
@@ -93,8 +92,6 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
     async createSection() {
         const sectionName = this.state.newSectionName.trim();
         const position = this.state.isAddingSection;
-        // Clear the input synchronously so a concurrent trigger (double Enter,
-        // Enter + blur) can't fire a second create RPC with the same name.
         Object.assign(this.state, {
             isAddingSection: "",
             newSectionName: "",
@@ -117,7 +114,7 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
                 let newLineCount = 0;
 
                 if (position === "top") {
-                    newLineCount = sections.get(false).line_count;
+                    newLineCount = sections.get(false)?.line_count ?? 0;
                     sections.delete(false);
                 }
                 sections.set(section.id, {
@@ -177,8 +174,6 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
                 }),
             );
         } catch (error) {
-            // Nothing was mutated locally yet; resync so the sidebar matches the
-            // server order.
             this._notifySectionError(error);
             await this.loadSections();
             return;

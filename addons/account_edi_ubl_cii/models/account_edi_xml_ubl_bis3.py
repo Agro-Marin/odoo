@@ -780,7 +780,7 @@ class AccountEdiXmlUbl_Bis3(models.AbstractModel):
         payment_term_domain.append(('name', '=', payment_term_name))
         return self.env['account.payment.term'].search(payment_term_domain, limit=1)
 
-    def _retrieve_order_vals(self, order, tree):
+    def _prepare_order_vals(self, order, tree):
         order_vals = {}
         logs = []
 
@@ -802,7 +802,7 @@ class AccountEdiXmlUbl_Bis3(models.AbstractModel):
         tree = file_data['xml_tree']
 
         # Update the order.
-        order_vals, logs = self._retrieve_order_vals(order, tree)
+        order_vals, logs = self._prepare_order_vals(order, tree)
         if order:
             order.write(order_vals)
             order.message_post(body=Markup("<strong>%s</strong>") % _("Format used to import the document: %s", self._description))

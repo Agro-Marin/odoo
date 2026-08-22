@@ -34,16 +34,16 @@ class PaymentProvider(models.Model):
 
     # === REQUEST HELPERS === #
 
-    def _build_request_url(self, endpoint, **kwargs):
+    def _prepare_request_url(self, endpoint, **kwargs):
         """Override of `payment` to build the request URL."""
         if self.code != 'dpo':
-            return super()._build_request_url(endpoint, **kwargs)
+            return super()._prepare_request_url(endpoint, **kwargs)
         return 'https://secure.3gdirectpay.com/API/v6/'
 
-    def _build_request_headers(self, *args, **kwargs):
+    def _prepare_request_headers(self, *args, **kwargs):
         """Override of `payment` to build the request headers."""
         if self.code != 'dpo':
-            return super()._build_request_headers(*args, **kwargs)
+            return super()._prepare_request_headers(*args, **kwargs)
         return {'Content-Type': 'application/xml; charset=utf-8'}
 
     def _parse_response_content(self, response, **kwargs):

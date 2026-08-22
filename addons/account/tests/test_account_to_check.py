@@ -41,12 +41,10 @@ class TestCheckAccountMoves(AccountTestInvoicingCommon):
             self.skipTest("accountant is not installed")
         invoice_admin = self._create_invoice()
         invoice_admin.action_post()
-        # As the user has admin right, the move should be auto checked
         self.assertTrue(invoice_admin.checked)
 
         invoice_invoicing = self._create_invoice(user_id=self.simple_accountman.id)
         invoice_invoicing.with_user(self.simple_accountman).action_post()
-        # As the user has only invoicing right, the move shouldn't be checked
         self.assertFalse(invoice_invoicing.checked)
 
     def test_post_move_auto_check_with_auto_post(self):
@@ -64,7 +62,6 @@ class TestCheckAccountMoves(AccountTestInvoicingCommon):
         self.assertTrue(invoice.checked)
 
     def test_create_statement_line_auto_check(self):
-        """Auto-reconciling a bank statement line auto-checks its move; a non-accountant cannot then change the reconciliation."""
         if "accountant" not in self.env["ir.module.module"]._installed():
             self.skipTest("accountant is not installed")
         payment = self.env["account.payment"].create(

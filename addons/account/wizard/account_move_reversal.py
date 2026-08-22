@@ -4,8 +4,6 @@ from odoo.tools.translate import _
 
 
 class AccountMoveReversal(models.TransientModel):
-    """Account move reversal wizard that cancels an account move by reversing it."""
-
     _name = "account.move.reversal"
     _description = "Account Move Reversal"
     _check_company_auto = True
@@ -38,7 +36,6 @@ class AccountMoveReversal(models.TransientModel):
     )
     country_code = fields.Char(related="company_id.country_id.code")
 
-    # computed fields
     residual = fields.Monetary(compute="_compute_from_moves")
     currency_id = fields.Many2one("res.currency", compute="_compute_from_moves")
     move_type = fields.Char(compute="_compute_from_moves")
@@ -161,10 +158,9 @@ class AccountMoveReversal(models.TransientModel):
         self.ensure_one()
         moves = self.move_ids
 
-        # Create default values.
         default_values_list = [
             {
-                "partner_bank_id": False,  # Resets the partner_bank_id as we'll force its recomputation
+                "partner_bank_id": False,
                 **self._prepare_default_reversal(move),
             }
             for move in moves
@@ -175,8 +171,8 @@ class AccountMoveReversal(models.TransientModel):
                 self.env["account.move"],
                 [],
                 True,
-            ],  # Moves to be cancelled by the reverses.
-            [self.env["account.move"], [], False],  # Others.
+            ],
+            [self.env["account.move"], [], False],
         ]
         for move, default_vals in zip(moves, default_values_list, strict=False):
             is_auto_post = default_vals.get("auto_post") != "no"
@@ -187,7 +183,6 @@ class AccountMoveReversal(models.TransientModel):
             batches[batch_index][0] |= move
             batches[batch_index][1].append(default_vals)
 
-        # Handle reverse method.
         moves_to_redirect = self.env["account.move"]
         for moves, default_values_list, is_cancel_needed in batches:
             new_moves = moves._reverse_moves(
@@ -222,7 +217,6 @@ class AccountMoveReversal(models.TransientModel):
 
         self.new_move_ids = moves_to_redirect
 
-        # Create action.
         action = {
             "name": _("Reverse Moves"),
             "type": "ir.actions.act_window",
@@ -261,7 +255,6 @@ class AccountMoveReversal(models.TransientModel):
             "invoice_origin": origin_move.invoice_origin,
         }
 
-        # if has vendor attachment, keep it
         if (
             origin_move.move_type.startswith("in_")
             and origin_move.message_main_attachment_id

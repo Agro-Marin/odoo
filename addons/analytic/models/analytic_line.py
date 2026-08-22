@@ -62,8 +62,8 @@ class AccountAnalyticLine(models.Model):
         [("other", "Other")],
         default="other",
     )
-    fiscal_year_search = fields.Boolean(
-        search="_search_fiscal_date",
+    from_last_fiscal_year = fields.Boolean(
+        search="_search_from_last_fiscal_year",
         store=False,
         exportable=False,
         export_string_translation=False,
@@ -75,7 +75,7 @@ class AccountAnalyticLine(models.Model):
     )
     analytic_precision = fields.Integer(
         store=False,
-        default=lambda self: self.env["decimal.precision"].precision_get(
+        default=lambda self: self.env["decimal.precision"].get_precision(
             "Percentage Analytic"
         ),
     )
@@ -124,7 +124,7 @@ class AccountAnalyticLine(models.Model):
     def _split_amount_fname(self):
         return "amount"
 
-    def _search_fiscal_date(self, operator, value):
+    def _search_from_last_fiscal_year(self, operator, value):
         fiscalyear_date_range = self.env.company.compute_fiscalyear_dates(
             fields.Date.today()
         )

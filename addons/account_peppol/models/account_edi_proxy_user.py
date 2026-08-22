@@ -53,7 +53,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
 
         params = params or {}
         try:
-            response = self._make_request(
+            response = self._prepare_request(
                 f"{self._get_server_url()}{endpoint}",
                 params=params,
             )
@@ -94,7 +94,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
             'refresh_token': None,
         })
         try:
-            self._make_request(
+            self._prepare_request(
                 f'{self._get_server_url()}/api/peppol/1/mark_connection_out_of_sync',
                 params={'token_desync_counter': self.token_sync_version},
                 auth_type='asymmetric'
@@ -111,7 +111,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
         self.ensure_one()
         assert self.is_token_out_of_sync
         self.token_sync_version += 1
-        response = self._make_request(
+        response = self._prepare_request(
             f'{self._get_server_url()}/api/peppol/1/resync_connection',
             params={'token_desync_counter': self.token_sync_version},
             auth_type='asymmetric'
@@ -377,7 +377,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
             if edi_user.proxy_type != 'peppol':
                 continue
             try:
-                proxy_user = edi_user._make_request(f"{edi_user._get_server_url()}/api/peppol/2/participant_status")
+                proxy_user = edi_user._prepare_request(f"{edi_user._get_server_url()}/api/peppol/2/participant_status")
             except AccountEdiProxyError as e:
                 if e.code == 'client_gone':
                     # reset the connection if it was archived/deleted on IAP side
@@ -460,9 +460,9 @@ class Account_Edi_Proxy_ClientUser(models.Model):
 
         proxy_state = None
         try:
-            # call _make_request directly because _peppol_get_participant_status()
+            # call _prepare_request directly because _peppol_get_participant_status()
             # is cron-safe and swallows AccountEdiProxyError.
-            proxy_user = self._make_request(f"{self._get_server_url()}/api/peppol/2/participant_status")
+            proxy_user = self._prepare_request(f"{self._get_server_url()}/api/peppol/2/participant_status")
             proxy_state = proxy_user.get('peppol_state')
         except AccountEdiProxyError as e:
             # If user no longer exists on IAP side, don't try to fetch docs/statuses (they will fail).

@@ -7,7 +7,7 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
-import { TagsList } from "@web/components/tags_list/tags_list";
+import { TagsList } from "@web/components/tags_list";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { formatPercentage } from "@web/core/formatters";
@@ -23,6 +23,7 @@ import {
 import { roundDecimals } from "@web/core/utils/format/numbers";
 import { useService } from "@web/core/utils/hooks";
 import { Field } from "@web/fields/field";
+import { placeholderFieldOption } from "@web/fields/field_options";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { useOpenMany2XRecord } from "@web/fields/relational/many2x_autocomplete";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -876,12 +877,7 @@ export const analyticDistribution = {
             type: "field",
             availableTypes: ["many2one"],
         },
-        {
-            label: _t("Dynamic Placeholder"),
-            name: "placeholder_field",
-            type: "field",
-            availableTypes: ["char"],
-        },
+        placeholderFieldOption(),
     ],
     extractProps: ({ attrs, options, placeholder }) => ({
         business_domain: options.business_domain,

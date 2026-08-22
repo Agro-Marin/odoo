@@ -26,6 +26,6 @@ class EfakturDownloadController(http.Controller):
             return request.make_response(attachments.raw, headers)
         else:
             filename = _('efaktur') + '.zip'
-            content = attachments._build_zip_from_attachments()
+            content = attachments._prepare_zip_from_attachments()
             headers = _get_headers(filename, 'zip', content)
             return request.make_response(content, headers)

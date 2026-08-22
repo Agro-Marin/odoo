@@ -64,7 +64,6 @@ class TestUnexpectedAmount(AccountTestInvoicingCommon):
             "The price of 10 is deviant and thus should trigger a warning",
         )
 
-        # cleaning the bills context to have an unbiased env test for the wizard triggering
         bills = bills.with_context(
             {
                 k: v
@@ -114,7 +113,6 @@ class TestUnexpectedAmount(AccountTestInvoicingCommon):
         self.assertTrue(move.abnormal_date_warning)
 
     def test_date_too_soon_month(self):
-        # We get one invoice on the last day of the month from December 2019 to September 2020
         base = self.env["account.move"].create(
             [
                 self._invoice_vals(date=date(2020, month, 1) - timedelta(days=1))
@@ -123,23 +121,19 @@ class TestUnexpectedAmount(AccountTestInvoicingCommon):
         )
         base.action_post()
 
-        # No issue in having an invoice missing a period, it is the vendor's responsibility
         move_november = self.env["account.move"].create(
             self._invoice_vals(date=date(2020, 11, 30))
         )
         self.assertFalse(move_november.abnormal_date_warning)
-        # The next invoice being on the last day of october is expected
         move_october = self.env["account.move"].create(
             self._invoice_vals(date=date(2020, 10, 31))
         )
         self.assertFalse(move_october.abnormal_date_warning)
-        # But any invoice before the threshold is not expected
         move_october2 = self.env["account.move"].create(
             self._invoice_vals(date=date(2020, 10, 20))
         )
         self.assertTrue(move_october2.abnormal_date_warning)
 
-        # If we posted the one with the abnormal date, then the other one becomes abnormal
         move_october2._post(soft=False)
         move_october.invalidate_recordset(["abnormal_date_warning"])
         self.assertTrue(move_october.abnormal_date_warning)

@@ -16,8 +16,6 @@ from odoo.addons.test_mimetypes.tests.test_guess_mimetypes import contents
 
 
 class TestAccountInvoiceImportMixin:
-    """Helpers for uploading attachments on invoices by various means and asserting how they are decoded."""
-
     @classmethod
     def _get_dummy_pdf_vals(cls):
         rawpdf_base64 = (
@@ -33,12 +31,6 @@ class TestAccountInvoiceImportMixin:
 
     @classmethod
     def _get_dummy_pdf_with_embedded_file_vals(cls):
-        """This PDF has an embedded file with filename 'embedded.xml' and the following content
-        <?xml version="1.0" encoding="UTF-8"?>
-        <TestFileFormat>
-            <PartnerName>partner_a</PartnerName>
-        </TestFileFormat>
-        """
         rawpdf_base64 = (
             b"JVBERi0xLjYKJeLjz9MKMyAwIG9iaiAKPDwKL1R5cGUgL0VtYmVkZGVkRmlsZQovRmlsdGVyIC9GbGF0ZURlY29kZQovUGFyYW1zIDEgMCBSCi9MZW5ndGggMiAwIFIKPj4Kc3RyZWFtCnics7GvyM1RKEstKs7Mz7NVMtQzUFJIzUvOT8nMS7dVCg1x07VQsrfjsglJLS5xy8xJdcsvyk0sseNSAAKbgMSikrzUIr/E3FS7Agg7PtFGH1mYy0YfXSsAc6MmMgplbmRzdHJlYW0gCmVuZG9iaiAKMiAwIG9iaiA5MwplbmRvYmogCjEgMCBvYmogCjw8Ci9TaXplIDExNQo+PgplbmRvYmogCjQgMCBvYmogCjw8Ci9UeXBlIC9GCi9GIChlbWJlZGRlZC54bWwpCi9FRiAKPDwKL0YgMyAwIFIKPj4KL1VGICj+/wBlAG0AYgBlAGQAZABlAGQALgB4AG0AbCkKPj4KZW5kb2JqIAo1IDAgb2JqIAo8PAovTmFtZXMgWyj+/wBlAG0AYgBlAGQAZABlAGQALgB4AG0AbCkgNCAwIFJdCj4+CmVuZG9iaiAKNiAwIG9iaiAKPDwKL0VtYmVkZGVkRmlsZXMgNSAwIFIKPj4KZW5kb2JqIAo3IDAgb2JqIAo8PAovU3VidHlwZSAvWE1MCi9UeXBlIC9NZXRhZGF0YQovTGVuZ3RoIDM1MjUKPj4Kc3RyZWFtCjw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+Cjx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuNC1jMDA1IDc4LjE0NzMyNiwgMjAxMi8wOC8yMy0xMzowMzowMyAgICAgICAgIj4KICAgPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4KICAgICAgPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIKICAgICAgICAgICAgeG1sbnM6cGRmPSJodHRwOi8vbnMuYWRvYmUuY29tL3BkZi8xLjMvIgogICAgICAgICAgICB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iCiAgICAgICAgICAgIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIgogICAgICAgICAgICB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iPgogICAgICAgICA8cGRmOlByb2R1Y2VyPkFjcm9iYXQgRGlzdGlsbGVyIDYuMCAoV2luZG93cyk8L3BkZjpQcm9kdWNlcj4KICAgICAgICAgPHhtcDpDcmVhdGVEYXRlPjIwMDYtMDMtMDZUMTU6MDY6MzMtMDU6MDA8L3htcDpDcmVhdGVEYXRlPgogICAgICAgICA8eG1wOkNyZWF0b3JUb29sPkFkb2JlUFM1LmRsbCBWZXJzaW9uIDUuMi4yPC94bXA6Q3JlYXRvclRvb2w+CiAgICAgICAgIDx4bXA6TW9kaWZ5RGF0ZT4yMDE2LTA3LTE1VDEwOjEyOjIxKzA4OjAwPC94bXA6TW9kaWZ5RGF0ZT4KICAgICAgICAgPHhtcDpNZXRhZGF0YURhdGU+MjAxNi0wNy0xNVQxMDoxMjoyMSswODowMDwveG1wOk1ldGFkYXRhRGF0ZT4KICAgICAgICAgPHhtcE1NOkRvY3VtZW50SUQ+dXVpZDpmZjNkY2ZkMS0yM2ZhLTQ3NmYtODM5YS0zZTVjYWUyZGEyZWI8L3htcE1NOkRvY3VtZW50SUQ+CiAgICAgICAgIDx4bXBNTTpJbnN0YW5jZUlEPnV1aWQ6MzU5MzUwYjMtYWY0MC00ZDhhLTlkNmMtMDMxODZiNGZmYjM2PC94bXBNTTpJbnN0YW5jZUlEPgogICAgICAgICA8ZGM6Zm9ybWF0PmFwcGxpY2F0aW9uL3BkZjwvZGM6Zm9ybWF0PgogICAgICAgICA8ZGM6dGl0bGU+CiAgICAgICAgICAgIDxyZGY6QWx0PgogICAgICAgICAgICAgICA8cmRmOmxpIHhtbDpsYW5nPSJ4LWRlZmF1bHQiPkJsYW5rIFBERiBEb2N1bWVudDwvcmRmOmxpPgogICAgICAgICAgICA8L3JkZjpBbHQ+CiAgICAgICAgIDwvZGM6dGl0bGU+CiAgICAgICAgIDxkYzpjcmVhdG9yPgogICAgICAgICAgICA8cmRmOlNlcT4KICAgICAgICAgICAgICAgPHJkZjpsaT5EZXBhcnRtZW50IG9mIEp1c3RpY2UgKEV4ZWN1dGl2ZSBPZmZpY2Ugb2YgSW1taWdyYXRpb24gUmV2aWV3KTwvcmRmOmxpPgogICAgICAgICAgICA8L3JkZjpTZXE+CiAgICAgICAgIDwvZGM6Y3JlYXRvcj4KICAgICAgPC9yZGY6RGVzY3JpcHRpb24+CiAgIDwvcmRmOlJERj4KPC94OnhtcG1ldGE+CiAg"
             + 681 * b"ICAg"
@@ -83,39 +75,15 @@ class TestAccountInvoiceImportMixin:
         }
 
     def assert_attachment_import(self, origin, attachments_vals, expected_invoices):
-        """Simulate the upload and import of one or more attachments and assert that the
-        created attachments were linked to the expected messages and invoices.
-
-        :param origin: The source from which the attachments came (see `_upload_and_import_attachments`).
-
-        :param attachments_vals: A list of values representing the attachments to be uploaded to Odoo
-
-        :param expected_invoices: a dict {
-            invoice_index (int): {
-                filename: {
-                    'on_invoice': (bool) whether it should be attached on the invoice,
-                    'on_message': (bool) whether it should be attached to a message in the chatter,
-                    'is_decoded': (bool) whether it should have been decoded on the invoice,
-                    'is_new': (bool) whether the call to the decoder should have `new=True`
-                }
-            }
-        }
-        """
-        # Because no decoders are defined in `account` itself, if we want to test the decoder flow we need
-        # to define a fictional format that will be decoded, and patch the `_get_import_file_type`
-        # and `_get_edi_decoder` methods to accept it.
-
         with self._patch_import_methods() as decoder_calls:
             created_attachments, created_messages, created_invoices = (
                 self._upload_and_import_attachments(origin, attachments_vals)
             )
 
-        # Check that no two attachments were created with the same filename (needed for the rest of the test to work properly)
         self.assertEqual(
             len(created_attachments), len(created_attachments.grouped("name"))
         )
 
-        # Construct a dict representing the way the attachments were linked to new invoices and messages.
         actual_invoices = {}
 
         for message in created_messages.filtered(lambda m: m.model == "account.move"):
@@ -140,7 +108,6 @@ class TestAccountInvoiceImportMixin:
             if decoder_call[2]:
                 actual_invoices[invoice.id][filename]["is_new"] = True
 
-        # Map the invoice IDs to the invoice indexes of the expected_invoices.
         index_by_invoice_id = {
             invoice_id: index
             for index, invoice_id in enumerate(created_invoices.mapped("id"), start=1)
@@ -153,17 +120,11 @@ class TestAccountInvoiceImportMixin:
 
     @contextlib.contextmanager
     def _patch_import_methods(self):
-        """Patch `_get_import_file_type` and `_get_edi_decoder` so that 'test_xml' and 'pdf' files get decoded.
-
-        :return: the list of `(invoice, file_data, new)` tuples the decoders were called with.
-        """
-
         original_get_import_file_type = self.env.registry[
             "account.move"
         ]._get_import_file_type
 
         def patched_get_import_file_type(self, file_data):
-            """Recognize the 'test_xml' format: an XML whose root tag is 'TestFileFormat'."""
             if (
                 file_data["xml_tree"] is not None
                 and file_data["xml_tree"].tag == "TestFileFormat"
@@ -177,7 +138,6 @@ class TestAccountInvoiceImportMixin:
 
         def patched_get_edi_decoder(self, file_data, new):
             if file_data["import_file_type"] == "test_xml":
-
                 def decoder(invoice, file_data, new):
                     if invoice.invoice_line_ids:
                         return invoice._reason_cannot_decode_has_invoice_lines()
@@ -198,7 +158,6 @@ class TestAccountInvoiceImportMixin:
                     "priority": 20,
                 }
             elif file_data["import_file_type"] == "pdf":
-
                 def decoder(invoice, file_data, new):
                     if invoice.invoice_line_ids:
                         return invoice._reason_cannot_decode_has_invoice_lines()
@@ -238,21 +197,6 @@ class TestAccountInvoiceImportMixin:
             yield decoder_calls
 
     def _upload_and_import_attachments(self, origin, attachments_vals):
-        """Simulate the upload of one or more attachments and their processing by the import framework.
-
-        :param origin: The source from which the attachments should be introduced into Odoo.
-                       Possible values:
-                            - 'chatter_message': Simulates a message posted on the chatter of an existing vendor bill.
-                            - 'chatter_upload': Simulates attachments uploaded on the chatter of an existing vendor bill.
-                            - 'chatter_email': Simulates an incoming e-mail on the chatter of an existing vendor bill.
-                            - 'mail_alias': Simulates an incoming e-mail on a purchase journal mail alias.
-                            - 'journal': Simulates attachments uploaded on a purchase journal in the dashboard.
-
-        :param attachments_vals: A list of values representing attachments to upload into Odoo.
-
-        :return: the tuple (created_attachments, created_messages, created_invoices).
-        """
-
         with (
             RecordCapturer(self.env["ir.attachment"].sudo()) as attachment_capturer,
             RecordCapturer(self.env["mail.message"].sudo()) as message_capturer,
@@ -304,13 +248,6 @@ class TestAccountInvoiceImportMixin:
         )
 
     def _get_raw_mail_message_str(self, attachments_vals, email_to, message_id=None):
-        """Build a raw RFC822 email string with the given attachments.
-
-        :param attachments_vals: list of attachment values.
-        :param email_to: value of the email's `To` header, typically a journal alias.
-        :param message_id: custom message ID for the email; a UUID is generated when omitted.
-        :return: Formatted email string.
-        """
         if not message_id:
             message_id = str(uuid.uuid4())
 
@@ -354,7 +291,6 @@ class TestAccountIncomingSupplierInvoice(
     def setUpClass(cls):
         super().setUpClass()
 
-        # Disable OCR
         company = cls.company_data["company"]
         if "extract_in_invoice_digitalization_mode" in company._fields:
             company.extract_in_invoice_digitalization_mode = "no_send"
@@ -384,8 +320,6 @@ class TestAccountIncomingSupplierInvoice(
         cls.gif2_vals = {"name": "gif2.gif", **cls._get_dummy_gif_vals()}
         cls.xml1_vals = {"name": "invoice1.xml", **cls._get_dummy_xml_vals()}
         cls.xml2_vals = {"name": "invoice2.xml", **cls._get_dummy_xml_vals()}
-        # These have deliberately similar names to `invoice2.pdf` to test grouping by name similarity
-        # when coming from the mail alias.
         cls.docx_vals = {"name": "invoice2.docx", **cls._get_dummy_docx_vals()}
         cls.xlsx_vals = {"name": "invoice2.xlsx", **cls._get_dummy_xlsx_vals()}
 
@@ -403,7 +337,6 @@ class TestAccountIncomingSupplierInvoice(
 
     @classmethod
     def default_env_context(cls):
-        # OVERRIDE
         return {}
 
     def test_supplier_invoice_mailed_from_supplier(self):
@@ -436,13 +369,6 @@ class TestAccountIncomingSupplierInvoice(
         self.assertRegex(invoice.name_placeholder, r"BILL/\d{4}/\d{2}/0001")
 
     def test_mail_gateway_bounce_uses_the_journal_company(self):
-        """A bounce for an attachment-less alias mail must come from that alias' company.
-
-        `_routing_create_bounce_email` builds the sender from `self.env.company`,
-        so the call has to be made under the journal alias' company and carry an
-        explicit reply-to; otherwise a bounce for company B is sent from, and
-        replied to, whichever company the mail gateway happens to run as.
-        """
         other_company = self.env["res.company"].create({"name": "Bounce Co"})
         other_domain = self.env["mail.alias.domain"].create(
             {
@@ -496,7 +422,6 @@ class TestAccountIncomingSupplierInvoice(
         )
 
     def test_supplier_invoice_forwarded_by_internal_user_without_supplier(self):
-        """The bill is forwarded by an employee and no partner email address is found in the body."""
         message_parsed = {
             "message_id": "message-id-dead-beef",
             "message_type": "email",
@@ -526,7 +451,6 @@ class TestAccountIncomingSupplierInvoice(
         self.assertEqual(invoice.message_partner_ids, self.env.user.partner_id)
 
     def test_supplier_invoice_forwarded_by_internal_with_supplier_in_body(self):
-        """The bill is forwarded by an employee and the partner email address is found in the body."""
         message_parsed = {
             "message_id": "message-id-dead-beef",
             "message_type": "email",
@@ -558,7 +482,6 @@ class TestAccountIncomingSupplierInvoice(
         self.assertEqual(following_partners, self.env.user.partner_id)
 
     def test_supplier_invoice_forwarded_by_internal_with_internal_in_body(self):
-        """The bill is forwarded by an employee and the internal user email address is found in the body."""
         message_parsed = {
             "message_id": "message-id-dead-beef",
             "message_type": "email",
@@ -574,8 +497,6 @@ class TestAccountIncomingSupplierInvoice(
         invoice = self.env["account.move"].message_new(
             message_parsed, {"move_type": "in_invoice", "journal_id": self.journal.id}
         )
-        # The forwarding employee must never become the vendor of the bill they
-        # forwarded, exactly as when no address at all is found in the body.
         self.assertFalse(invoice.partner_id)
 
         message_ids = invoice.message_ids
@@ -1205,7 +1126,6 @@ class TestAccountIncomingSupplierInvoice(
                     "invoice2.pdf": {"on_invoice": True},
                     "invoice3.pdf": {"on_invoice": True},
                     "invoice2.xlsx": {"on_invoice": True},
-                    # The code doesn't put a hard constraint on which of the XMLs gets decoded.
                     "invoice1.xml": {"is_decoded": True, "on_invoice": True},
                     "invoice2.xml": {"on_invoice": True},
                 },
@@ -1225,7 +1145,6 @@ class TestAccountIncomingSupplierInvoice(
                     "invoice2.pdf": {"on_invoice": True, "on_message": True},
                     "invoice3.pdf": {"on_invoice": True, "on_message": True},
                     "invoice2.xlsx": {"on_invoice": True, "on_message": True},
-                    # The code doesn't put a hard constraint on which of the XMLs gets decoded.
                     "invoice1.xml": {
                         "on_invoice": True,
                         "is_decoded": True,
@@ -1327,7 +1246,6 @@ class TestAccountIncomingSupplierInvoice(
                         "is_new": True,
                         "on_message": True,
                     },
-                    # The XLSX and DOCX are attached to this invoice due to filename similarity
                     "invoice2.xlsx": {"on_invoice": True, "on_message": True},
                     "invoice2.docx": {"on_invoice": True, "on_message": True},
                 },
@@ -1339,8 +1257,6 @@ class TestAccountIncomingSupplierInvoice(
         )
 
     def test_import_with_traceback(self):
-        # Verify that even an Exception does not cause the import to fail, and that the attachment
-        # stays linked to the created invoice
         attachment = self.env["ir.attachment"].create(self.xml1_vals)
 
         with (

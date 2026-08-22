@@ -10,8 +10,7 @@ from odoo.tools.misc import format_date
 class IrAttachment(models.Model):
     _inherit = "ir.attachment"
 
-    def _build_zip_from_attachments(self):
-        """Return the zip bytes content resulting from compressing the attachments in `self`"""
+    def _prepare_zip_from_attachments(self):
         buffer = io.BytesIO()
         with zipfile.ZipFile(
             buffer, "w", compression=zipfile.ZIP_DEFLATED
@@ -68,7 +67,7 @@ class IrAttachment(models.Model):
                     or vals.get("res_model") != "documents.document"
                     or vals.keys() & {"raw", "datas", "store_fname", "db_datas"}
                 ):
-                    raise  # do not raise if trying to version the attachment through a document
+                    raise
                 vals.pop("res_model", None)
                 vals.pop("res_id", None)
         return super().write(vals)
@@ -84,8 +83,6 @@ class IrAttachment(models.Model):
             )
         )
         if invoice_pdf_attachments:
-            # only detach the document from the field, but keep it in the database for the audit trail
-            # it shouldn't be an issue as there aren't any security group on the fields as it is the public report
             invoice_pdf_attachments.res_field = False
             today = format_date(self.env, fields.Date.context_today(self))
             for attachment in invoice_pdf_attachments:

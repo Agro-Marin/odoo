@@ -50,10 +50,10 @@ class PaymentProvider(models.Model):
 
     # === REQUEST HELPERS === #
 
-    def _build_request_url(self, endpoint, **kwargs):
+    def _prepare_request_url(self, endpoint, **kwargs):
         """Override of `payment` to build the request URL."""
         if self.code != 'iyzico':
-            return super()._build_request_url(endpoint, **kwargs)
+            return super()._prepare_request_url(endpoint, **kwargs)
 
         if self.state == 'enabled':
             api_url = 'https://api.iyzipay.com'
@@ -62,13 +62,13 @@ class PaymentProvider(models.Model):
 
         return urljoin(api_url, endpoint)
 
-    def _build_request_headers(self, method, endpoint, payload, **kwargs):
+    def _prepare_request_headers(self, method, endpoint, payload, **kwargs):
         """Override of `payment` to build the request headers.
 
         See https://docs.iyzico.com/en/getting-started/preliminaries/authentication/hmacsha256-auth.
         """
         if self.code != 'iyzico':
-            return super()._build_request_headers(method, endpoint, payload, **kwargs)
+            return super()._prepare_request_headers(method, endpoint, payload, **kwargs)
 
         random_string = ''.join(
             random.SystemRandom().choice(string.ascii_letters + string.digits) for _i in range(8)

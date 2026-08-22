@@ -57,7 +57,7 @@ class AccountEdiProxyClientUser(models.Model):
     def _l10n_my_edi_contact_proxy(self, endpoint, params):
         self.ensure_one()
         try:
-            response = self._make_request(
+            response = self._prepare_request(
                 url=url_join(self._get_server_url(), endpoint),
                 params=params,
             )

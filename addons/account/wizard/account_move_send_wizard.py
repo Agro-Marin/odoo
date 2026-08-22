@@ -6,8 +6,6 @@ from odoo.addons.mail.wizard.mail_compose_message import _reopen
 
 
 class AccountMoveSendWizard(models.TransientModel):
-    """Wizard that handles the sending a single invoice."""
-
     _name = "account.move.send.wizard"
     _inherit = ["mixin.account.move.send", "mixin.mail.composer"]
     _description = "Account Move Send Wizard"
@@ -27,7 +25,6 @@ class AccountMoveSendWizard(models.TransientModel):
         readonly=False,
         store=True,
     )
-    # Technical field to display the attachments widget
     display_attachments_widget = fields.Boolean(
         compute="_compute_display_attachments_widget",
     )
@@ -62,8 +59,6 @@ class AccountMoveSendWizard(models.TransientModel):
 
     display_pdf_report_id = fields.Boolean(compute="_compute_display_pdf_report_id")
 
-    # MAIL
-    # Template: override mixin.mail.composer field
     template_id = fields.Many2one(
         domain="[('model', '=', 'account.move')]",
         compute="_compute_template_id",
@@ -71,12 +66,11 @@ class AccountMoveSendWizard(models.TransientModel):
         readonly=False,
         store=True,
     )
-    # Language: override mixin.mail.composer field
     lang = fields.Char(compute="_compute_lang", precompute=False, compute_sudo=True)
     mail_partner_ids = fields.Many2many(
         comodel_name="res.partner",
         string="To",
-        compute="_compute_mail_partners",
+        compute="_compute_mail_partner_ids",
         store=True,
         readonly=False,
     )
@@ -95,24 +89,17 @@ class AccountMoveSendWizard(models.TransientModel):
     res_ids = fields.Text(
         "Related Document IDs", compute="_compute_res_ids", readonly=False, store=True
     )
-    template_name = fields.Char("Template Name")  # used when saving a new mail template
+    template_name = fields.Char("Template Name")
 
-    # -------------------------------------------------------------------------
-    # DEFAULTS
-    # -------------------------------------------------------------------------
 
     @api.model
     def default_get(self, fields):
-        # EXTENDS 'base'
         results = super().default_get(fields)
         active_ids = self.env.context.get("active_ids", [])
         if "move_id" in fields and "move_id" not in results and active_ids:
             results["move_id"] = active_ids[0]
         return results
 
-    # -------------------------------------------------------------------------
-    # COMPUTE METHODS
-    # -------------------------------------------------------------------------
 
     @api.depends("sending_methods", "extra_edis", "mail_partner_ids")
     def _compute_alerts(self):
@@ -143,20 +130,14 @@ class AccountMoveSendWizard(models.TransientModel):
 
     @api.depends("move_id")
     def _compute_sending_method_checkboxes(self):
-        """Preselect the default sending method checkboxes for the move."""
-        # Preselection priority: the method preferred on the partner, then email.
         methods = self.env["ir.model.fields"].get_field_selection(
             "res.partner", "invoice_sending_method"
         )
 
-        # We never want to display the manual method.
         methods = [method for method in methods if method[0] != "manual"]
 
         for wizard in self:
             preferred_methods = self._get_default_sending_methods(wizard.move_id)
-            # Hoist the default settings out of the per-method comprehension: they
-            # are identical for every method key and each call is an expensive
-            # mail-rendering (also avoids re-resolving recipients per method).
             default_settings = self._get_default_sending_settings(wizard.move_id)
             wizard.sending_method_checkboxes = {
                 method_key: {
@@ -170,7 +151,7 @@ class AccountMoveSendWizard(models.TransientModel):
                                 **default_settings,
                             )
                         )
-                    ),  # email method is always ok in single mode since the email can be added if it's missing
+                    ),
                     "label": method_label,
                 }
                 for method_key, method_label in methods
@@ -230,7 +211,6 @@ class AccountMoveSendWizard(models.TransientModel):
 
     @api.depends("move_id")
     def _compute_display_pdf_report_id(self):
-        """Show PDF template selection if there are more than 1 template available for invoices."""
         for wizard in self:
             wizard.display_pdf_report_id = (
                 len(wizard.available_pdf_report_ids) > 1
@@ -244,7 +224,6 @@ class AccountMoveSendWizard(models.TransientModel):
 
     @api.depends("template_id")
     def _compute_lang(self):
-        # OVERRIDE 'mixin.mail.composer'
         for wizard in self:
             wizard.lang = (
                 self._get_default_mail_lang(wizard.move_id, wizard.template_id)
@@ -253,7 +232,7 @@ class AccountMoveSendWizard(models.TransientModel):
             )
 
     @api.depends("template_id", "lang")
-    def _compute_mail_partners(self):
+    def _compute_mail_partner_ids(self):
         for wizard in self:
             wizard.mail_partner_ids = (
                 commercial_partner
@@ -267,7 +246,6 @@ class AccountMoveSendWizard(models.TransientModel):
 
     @api.depends("template_id", "lang")
     def _compute_subject(self):
-        # OVERRIDE 'mixin.mail.composer'
         for wizard in self:
             wizard.subject = None
 
@@ -278,7 +256,6 @@ class AccountMoveSendWizard(models.TransientModel):
 
     @api.depends("template_id", "lang")
     def _compute_body(self):
-        # OVERRIDE 'mixin.mail.composer'
         for wizard in self:
             wizard.body = None
 
@@ -304,13 +281,11 @@ class AccountMoveSendWizard(models.TransientModel):
                 + manual_attachments_data
             )
 
-    # Similar of mail.compose.message
     @api.depends("template_id")
     def _compute_res_ids(self):
         for wizard in self:
             wizard.res_ids = wizard.move_id.ids
 
-    # Similar of mail.compose.message
     @api.depends("template_id")
     def _compute_model(self):
         for wizard in self:
@@ -318,7 +293,6 @@ class AccountMoveSendWizard(models.TransientModel):
                 continue
             wizard.model = self.env.context.get("active_model")
 
-    # Similar of mail.compose.message
     @api.depends("sending_methods")
     def _compute_can_edit_body(self):
         for record in self:
@@ -326,15 +300,11 @@ class AccountMoveSendWizard(models.TransientModel):
                 record.sending_methods and "email" in record.sending_methods
             )
 
-    @api.depends("model")  # Fake trigger otherwise not computed in new mode
+    @api.depends("model")
     def _compute_render_model(self):
-        # OVERRIDE 'mixin.mail.composer'
         self.render_model = "account.move"
 
-    # Similar of mail.compose.message
     def open_template_creation_wizard(self):
-        """Open the wizard prompting for the new template's subject."""
-        # `create_mail_template` is called when saving the new wizard.
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
@@ -349,9 +319,7 @@ class AccountMoveSendWizard(models.TransientModel):
             "res_id": self.id,
         }
 
-    # Similar of mail.compose.message
     def create_mail_template(self):
-        """Creates a mail template with the current mail composer's fields."""
         self.ensure_one()
         if not self.model or self.model not in self.env:
             raise UserError(
@@ -368,7 +336,6 @@ class AccountMoveSendWizard(models.TransientModel):
         }
         template = self.env["mail.template"].create(values)
 
-        # point the composer at the newly saved template
         self.write({"template_id": template.id})
         return _reopen(
             self,
@@ -377,10 +344,7 @@ class AccountMoveSendWizard(models.TransientModel):
             context={**self.env.context, "dialog_size": "large"},
         )
 
-    # Similar of mail.compose.message
     def cancel_save_template(self):
-        """Restore the old subject when canceling the 'save as template' action."""
-        # The subject was erased to let the user give a more custom input.
         self.ensure_one()
         return _reopen(
             self,
@@ -394,18 +358,12 @@ class AccountMoveSendWizard(models.TransientModel):
         for wizard in self:
             wizard.attachments_not_supported = {}
 
-    # -------------------------------------------------------------------------
-    # CONSTRAINS
-    # -------------------------------------------------------------------------
 
     @api.constrains("move_id")
     def _check_move_id_constraints(self):
         for wizard in self:
             self._check_move_constraints(wizard.move_id)
 
-    # -------------------------------------------------------------------------
-    # HELPERS
-    # -------------------------------------------------------------------------
 
     @api.model
     def _get_selected_checkboxes(self, json_checkboxes):
@@ -417,9 +375,6 @@ class AccountMoveSendWizard(models.TransientModel):
             if checkbox_vals["checked"]
         ]
 
-    # -------------------------------------------------------------------------
-    # BUSINESS METHODS
-    # -------------------------------------------------------------------------
 
     def _get_sending_settings(self):
         self.ensure_one()
@@ -446,7 +401,6 @@ class AccountMoveSendWizard(models.TransientModel):
         return send_settings
 
     def _update_preferred_settings(self):
-        """Store the chosen PDF report as the partner's default when it is unset."""
         self.ensure_one()
         if (
             not self.move_id.partner_id.invoice_template_pdf_report_id
@@ -456,13 +410,9 @@ class AccountMoveSendWizard(models.TransientModel):
                 self.pdf_report_id
             )
 
-    # -------------------------------------------------------------------------
-    # BUSINESS ACTIONS
-    # -------------------------------------------------------------------------
 
     @api.model
     def _action_download(self, attachments):
-        """Download the PDF attachment, or a zip of attachments if there are more than one."""
         return {
             "type": "ir.actions.act_url",
             "url": f"/account/download_invoice_attachments/{','.join(map(str, attachments.ids))}",
@@ -470,7 +420,6 @@ class AccountMoveSendWizard(models.TransientModel):
         }
 
     def action_send_and_print(self, allow_fallback_pdf=False):
-        """Create invoice documents and send them."""
         self.ensure_one()
         if self.alerts:
             self._raise_danger_alerts(self.alerts)

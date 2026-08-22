@@ -156,84 +156,63 @@ class TestAccountInvoiceReport(AccountTestInvoicingCommon):
         self.assertRecordValues(reports, expected_values_dict)
 
     def test_invoice_report_multiple_types(self):
-        """Check the report values of one line per invoice line, for every move type."""
-        # The first and the last lines use the "Pack of 6" UoM, so quantity and
-        # price from the invoice are converted to the product's UoM:
-        #   quantity = quantity in product_uom_id
-        #   price_subtotal = price_unit * number_of_packages / currency_rate
-        #   price_average = price_subtotal / quantity
-        #   inventory_value = quantity * standard_price * (-1 OR 1 depending of move_type)
-        #   price_margin = (price_average - standard_price) * quantity
-        # First line: quantity = 6 * 3 = 18, price_subtotal = 4500 * 3 / 3 = 4500,
-        # price_average = 4500 / 18 = 250, inventory_value = 800 * 18 * -1 = -14400,
-        # price_margin = (250 - 800) * 18 = -9900
         self.assertInvoiceReportValues(
             [
-                # pylint: disable=bad-whitespace
-                # price_average, price_subtotal, quantity, price_margin, inventory_value
                 [
                     250,
                     4500,
                     18,
                     -9900,
                     -14400,
-                ],  # price_unit = 4500,  currency.rate = 3.0
-                [2000, 2000, 1, 1200, -800],  # price_unit = 6000, currency.rate = 3.0
-                [1000, 1000, 1, 200, -800],  # price_unit = 3000, currency.rate = 3.0
-                [6, 6, 1, 0, -800],  # price_unit = 12,   currency.rate = 2.0
-                [20, -20, -1, 0, 800],  # price_unit = 60,   currency.rate = 3.0
-                [20, -20, -1, 0, 800],  # price_unit = 60,   currency.rate = 3.0
-                [600, -600, -1, 200, 800],  # price_unit = 1200, currency.rate = 2.0
-                [1200, -1200, -1, -400, 800],  # price_unit = 2400, currency.rate = 2.0
+                ],
+                [2000, 2000, 1, 1200, -800],
+                [1000, 1000, 1, 200, -800],
+                [6, 6, 1, 0, -800],
+                [20, -20, -1, 0, 800],
+                [20, -20, -1, 0, 800],
+                [600, -600, -1, 200, 800],
+                [1200, -1200, -1, -400, 800],
                 [
                     375,
                     -6750,
                     -18,
                     7650,
                     14400,
-                ],  # price_unit = 4500, currency.rate = 2.0
+                ],
             ]
         )
 
     def test_invoice_report_multicompany_product_cost(self):
-        """Check the report only uses the standard price of the company it is read from."""
-        # With product_a costing 800 in company A (default setup) and 700 in
-        # company B, the report of company A must remain unchanged.
         self.product_a.with_company(self.company_data_2.get("company")).write(
             {"standard_price": 700.0}
         )
         self.assertInvoiceReportValues(
             [
-                # pylint: disable=bad-whitespace
-                # price_average, price_subtotal, quantity, price_margin, inventory_value
                 [
                     250,
                     4500,
                     18,
                     -9900,
                     -14400,
-                ],  # price_unit = 4500,  currency.rate = 3.0
-                [2000, 2000, 1, 1200, -800],  # price_unit = 6000, currency.rate = 3.0
-                [1000, 1000, 1, 200, -800],  # price_unit = 3000, currency.rate = 3.0
-                [6, 6, 1, 0, -800],  # price_unit = 12,   currency.rate = 2.0
-                [20, -20, -1, 0, 800],  # price_unit = 60,   currency.rate = 3.0
-                [20, -20, -1, 0, 800],  # price_unit = 60,   currency.rate = 3.0
-                [600, -600, -1, 200, 800],  # price_unit = 1200, currency.rate = 2.0
-                [1200, -1200, -1, -400, 800],  # price_unit = 2400, currency.rate = 2.0
+                ],
+                [2000, 2000, 1, 1200, -800],
+                [1000, 1000, 1, 200, -800],
+                [6, 6, 1, 0, -800],
+                [20, -20, -1, 0, 800],
+                [20, -20, -1, 0, 800],
+                [600, -600, -1, 200, 800],
+                [1200, -1200, -1, -400, 800],
                 [
                     375,
                     -6750,
                     -18,
                     7650,
                     14400,
-                ],  # price_unit = 4500, currency.rate = 2.0
+                ],
             ]
         )
 
     def test_avg_price_calculation(self):
-        """Check the average is computed from the total price divided by the total quantity."""
-        # 10 units * 10$, 5 units * 5$ and 20 units * 2$ give a total quantity of
-        # 35 and a total price of 165$, so the average is 165 / 35 = 4.71.
         product = self.product_a.copy()
         invoice = self.env["account.move"].create(
             {
@@ -284,7 +263,6 @@ class TestAccountInvoiceReport(AccountTestInvoicingCommon):
         self.assertEqual(report[0]["price_subtotal:sum"], 165)
         self.assertEqual(round(report[0]["price_average:avg"], 2), 4.71)
 
-        # ensure that it works with only 'price_average:avg' in aggregates
         report = self.env["account.invoice.report"].formatted_read_group(
             [("product_id", "=", product.id)],
             [],
@@ -293,11 +271,6 @@ class TestAccountInvoiceReport(AccountTestInvoicingCommon):
         self.assertEqual(round(report[0]["price_average:avg"], 2), 4.71)
 
     def test_avg_price_group_by_month(self):
-        """Check the average of several invoices grouped by month."""
-        # January invoice: 10 units * 10$ and 5 units * 5$ give a total quantity
-        # of 15 and a total price of 125$, so the average is 125 / 15 = 8.33.
-        # February invoice: 0 units * 5$ gives no quantity and no price, so the
-        # average is 0.00.
         self.env["account.move"].search([]).unlink()
         invoices = self.env["account.move"].create(
             [

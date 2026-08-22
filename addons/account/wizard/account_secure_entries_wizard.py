@@ -6,8 +6,6 @@ from odoo.fields import Command, Domain
 
 
 class AccountSecureEntriesWizard(models.TransientModel):
-    """Secure journal entries (with a hash)."""
-
     _name = "account.secure.entries.wizard"
     _description = "Secure Journal Entries"
 
@@ -104,11 +102,7 @@ class AccountSecureEntriesWizard(models.TransientModel):
                 continue
 
             last_move_hashed = chain_info["last_move_hashed"]
-            # It is possible that some moves cannot be hashed (i.e. after upgrade).
-            # We show a warning ('account_not_hashable_unlocked_moves') if that is the case.
-            # These moves are ignored for the warning and max_hash_date in case they are protected by the Hard Lock Date
             if last_move_hashed:
-                # remaining_moves either have a hash already or have a higher sequence_number than the last_move_hashed
                 not_hashable_unlocked_moves = chain_info["remaining_moves"].filtered(
                     lambda move, last_move_hashed=last_move_hashed: (
                         not move.inalterable_hash
@@ -278,11 +272,6 @@ class AccountSecureEntriesWizard(models.TransientModel):
     def _get_unhashed_moves_in_hashed_period_domain(
         self, company_id, hash_date, domain=False
     ):
-        """Return the domain matching all moves on or before ``hash_date`` that have not been hashed yet.
-
-        :return: a search domain
-        """
-        # We ignore whether hashing is activated for the journal or not.
         if not (company_id and hash_date):
             return Domain.FALSE
         return Domain.AND(

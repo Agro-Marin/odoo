@@ -33,7 +33,7 @@ class ResConfigSettings(models.TransientModel):
     def action_open_nemhandel_form(self):
         self.ensure_one()
         registration_wizard = self.env['nemhandel.registration'].create({'company_id': self.company_id.id})
-        registration_action = registration_wizard._action_open_nemhandel_form(reopen=False)
+        registration_action = registration_wizard._action_view_nemhandel_form(reopen=False)
         return registration_action
 
     @handle_demo

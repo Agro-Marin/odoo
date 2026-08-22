@@ -9,7 +9,7 @@ class ProductTemplate(models.Model):
     _inherit = "product.template"
 
     l10n_eg_eta_code = fields.Char('ETA Item code', compute='_compute_l10n_eg_eta_code',
-                                   inverse='_set_l10n_eg_eta_code',
+                                   inverse='_inverse_l10n_eg_eta_code',
                                    help="This can be an EGS or GS1 product code, which is needed for the e-invoice.  "
                                         "The best practice however is to use that code also as barcode and in that case, "
                                         "you should put it in the Barcode field instead and leave this field empty.")
@@ -21,7 +21,7 @@ class ProductTemplate(models.Model):
             if len(template.product_variant_ids) == 1:
                 template.l10n_eg_eta_code = template.product_variant_ids.l10n_eg_eta_code
 
-    def _set_l10n_eg_eta_code(self):
+    def _inverse_l10n_eg_eta_code(self):
         if len(self.product_variant_ids) == 1:
             self.product_variant_ids.l10n_eg_eta_code = self.l10n_eg_eta_code
 

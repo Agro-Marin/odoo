@@ -19,7 +19,9 @@ export class AccountSidebar extends Sidebar {
 
     start() {
         super.start();
-        this.invoiceHTMLEl = document.getElementById("invoice_html");
+        // Scoped to this interaction's root: the report iframe is a column of the
+        // same `.o_portal_invoice_sidebar` row.
+        this.invoiceHTMLEl = this.el.querySelector("#invoice_html");
         if (!this.invoiceHTMLEl) {
             // The report iframe is not guaranteed to be in the page; bail
             // instead of crashing the interaction start.
@@ -40,11 +42,15 @@ export class AccountSidebar extends Sidebar {
      * without a scrollbar, then scroll back to the URL anchor if there is one.
      */
     updateIframeSize() {
-        if (!this.invoiceHTMLEl) {
+        // Nothing here is ours: the iframe may be absent, its document may not be
+        // reachable yet, and its body is a report rendered by another route,
+        // which need not carry a `#wrapwrap`. A resize is worth skipping, not
+        // worth throwing over.
+        const wrapwrapEl =
+            this.invoiceHTMLEl?.contentDocument?.querySelector("div#wrapwrap");
+        if (!wrapwrapEl) {
             return;
         }
-        const wrapwrapEl =
-            this.invoiceHTMLEl.contentDocument.querySelector("div#wrapwrap");
         // Set it to 0 first to handle the case where scrollHeight is too big for its content.
         this.invoiceHTMLEl.height = 0;
         this.invoiceHTMLEl.height = wrapwrapEl.scrollHeight;

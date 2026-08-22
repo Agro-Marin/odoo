@@ -17,7 +17,7 @@ class PaymentToken(models.Model):
         ],
     )
 
-    def _build_display_name(self, *args, should_pad=True, **kwargs):
+    def _prepare_display_name(self, *args, should_pad=True, **kwargs):
         """ Override of `payment` to build the display name without padding.
 
         Note: self.ensure_one()
@@ -29,5 +29,5 @@ class PaymentToken(models.Model):
         :rtype: str
         """
         if self.provider_code != 'demo':
-            return super()._build_display_name(*args, should_pad=should_pad, **kwargs)
-        return super()._build_display_name(*args, should_pad=False, **kwargs)
+            return super()._prepare_display_name(*args, should_pad=should_pad, **kwargs)
+        return super()._prepare_display_name(*args, should_pad=False, **kwargs)

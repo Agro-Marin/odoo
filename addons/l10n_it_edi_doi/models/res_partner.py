@@ -13,7 +13,7 @@ class ResPartner(models.Model):
         domain=lambda self: [('company_id', '=', self.env.company.id)],
     )
 
-    def l10n_it_edi_doi_action_open_declarations(self):
+    def l10n_it_edi_doi_action_view_declarations(self):
         self.ensure_one()
         return {
             'name': _("Declaration of Intent of %s", self.display_name),

@@ -4,13 +4,11 @@ from odoo import api, models
 class OnboardingOnboarding(models.Model):
     _inherit = "onboarding.onboarding"
 
-    # Invoice Onboarding
     @api.model
     def action_close_panel_account_invoice(self):
         self.action_close_panel("account.onboarding_onboarding_account_invoice")
 
     def _prepare_rendering_values(self):
-        """Compute existence of invoices for company."""
         self.ensure_one()
         if self == self.env.ref(
             "account.onboarding_onboarding_account_invoice", raise_if_not_found=False
@@ -30,7 +28,6 @@ class OnboardingOnboarding(models.Model):
                     step.action_set_just_done()
         return super()._prepare_rendering_values()
 
-    # Dashboard Onboarding
     @api.model
     def action_close_panel_account_dashboard(self):
         self.action_close_panel("account.onboarding_onboarding_account_dashboard")

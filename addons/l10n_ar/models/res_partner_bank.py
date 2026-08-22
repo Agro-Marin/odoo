@@ -19,9 +19,9 @@ class ResPartnerBank(models.Model):
         return res
 
     @api.model
-    def retrieve_acc_type(self, acc_number):
+    def _get_acc_type(self, acc_number):
         try:
             validate(acc_number)
         except Exception:
-            return super().retrieve_acc_type(acc_number)
+            return super()._get_acc_type(acc_number)
         return 'cbu'

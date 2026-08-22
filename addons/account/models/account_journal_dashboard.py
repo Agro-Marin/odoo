@@ -37,42 +37,35 @@ class AccountJournal(models.Model):
     )
     color = fields.Integer("Color Index", default=0)
     current_statement_balance = fields.Monetary(
-        compute="_compute_current_statement_balance"
-    )  # technical field used to avoid computing the value multiple times
+        compute="_compute_bank_running_balance"
+    )
     has_statement_lines = fields.Boolean(
-        compute="_compute_current_statement_balance"
-    )  # technical field used to avoid computing the value multiple times
-    has_posted_entries = fields.Boolean(compute="_compute_has_entries")
-    has_entries = fields.Boolean(compute="_compute_has_entries")
+        compute="_compute_bank_running_balance"
+    )
+    has_posted_entries = fields.Boolean(compute="_compute_entry_presence")
+    has_entries = fields.Boolean(compute="_compute_entry_presence")
     has_sequence_holes = fields.Boolean(compute="_compute_has_sequence_holes")
     has_unhashed_entries = fields.Boolean(
         string="Unhashed Entries", compute="_compute_has_unhashed_entries"
     )
     last_statement_id = fields.Many2one(
-        comodel_name="account.bank.statement", compute="_compute_last_bank_statement"
+        comodel_name="account.bank.statement", compute="_compute_last_statement_id"
     )
 
     def _dashboard_currency(self):
-        """Currency to display this journal's amounts in."""
         self.ensure_one()
-        # Fall back to the company currency (read as sudo) so the dashboard still
-        # renders when the user has read access on the journal but not its company.
         return self.currency_id or self.env["res.currency"].browse(
             self.company_id.sudo().currency_id.id
         )
 
-    def _compute_current_statement_balance(self):
+    def _compute_bank_running_balance(self):
         query_result = self._get_journal_dashboard_bank_running_balance()
         for journal in self:
-            # every journal in ``self`` is returned by the query above (LEFT JOIN)
             journal.has_statement_lines, journal.current_statement_balance = (
                 query_result[journal.id]
             )
 
-    def _compute_last_bank_statement(self):
-        # first_line_index is a stored computed field fed by the lines'
-        # internal_index; flush both models so the raw SQL below does not
-        # read stale/NULL indexes for statements written in this transaction.
+    def _compute_last_statement_id(self):
         self.env["account.bank.statement.line"].flush_model()
         self.env["account.bank.statement"].flush_model()
         self.env.cr.execute(
@@ -144,7 +137,6 @@ class AccountJournal(models.Model):
     def _compute_json_activity_data(self):
         today = fields.Date.context_today(self)
         activities = defaultdict(list)
-        # search activity on move on the journal
         act_type_name = self.env["mail.activity.type"]._field_to_sql("act_type", "name")
         sql_query = SQL(
             """
@@ -201,16 +193,11 @@ class AccountJournal(models.Model):
         self.env["account.move"].flush_model(
             ["journal_id", "date", "sequence_prefix", "made_sequence_gap"]
         )
-        # A branch company is locked when the parent is locked.
-        # Parent companies of the journal company can not add moves to the journal.
-        # Thus it is good enough to consider all moves in the journal after the journal company lockdate.
-        # This way we find all holes that can still be corrected.
         to_check = self.grouped(
             lambda j: j.company_id._get_user_fiscal_lock_date(j, ignore_exceptions=True)
         )
         queries = []
         for lock_date, journals in to_check.items():
-            # We add the companies to the query to benefit from index `account_move_journal_id_company_id_idx`
             journal_company_ids = journals.company_id.ids
             companies = (
                 self.env["res.company"]
@@ -244,15 +231,6 @@ class AccountJournal(models.Model):
         return self.env.cr.fetchall()
 
     def _get_moves_to_hash(self, include_pre_last_hash, early_stop):
-        """Return the chains of moves to hash for this journal.
-
-        :param include_pre_last_hash: if True, include moves hashed before the
-            last hash chain; otherwise return only the trailing unhashed moves
-        :param early_stop: if True, stop searching when at least one record is found
-        """
-        # e.g. with INV/1, INV/2 not hashed, then INV/3, INV/4 hashed, then INV/5
-        # and INV/6 not hashed: include_pre_last_hash decides whether INV/1 and
-        # INV/2 are included.
         return (
             self.env["account.move"]
             .search(
@@ -267,8 +245,6 @@ class AccountJournal(models.Model):
                 force_hash=True,
                 raise_if_gap=False,
                 raise_if_no_document=False,
-                # This is a listing path (dashboard "entries to hash"): an
-                # unreconciled statement line must not abort the listing.
                 raise_if_unreconciled=False,
                 early_stop=early_stop,
                 include_pre_last_hash=include_pre_last_hash,
@@ -291,7 +267,7 @@ class AccountJournal(models.Model):
             else:
                 journal.has_unhashed_entries = False
 
-    def _compute_has_entries(self):
+    def _compute_entry_presence(self):
         if not self.ids:
             self.has_posted_entries = False
             self.has_entries = False
@@ -341,10 +317,7 @@ class AccountJournal(models.Model):
         return ["", ""]
 
     def _get_bank_cash_graph_data(self):
-        """Compute the graph data for bank and cash journals on the accounting dashboard."""
-
         def build_graph_data(date, amount, currency):
-            # display date in locale format
             name = format_date(date, "d LLLL Y", locale=locale)
             short_name = format_date(date, "d MMM", locale=locale)
             return {"x": short_name, "y": currency.round(amount), "name": name}
@@ -387,19 +360,15 @@ class AccountJournal(models.Model):
                     )
             else:
                 last_balance = journal.current_statement_balance
-                # Make sure the last point in the graph is at least today or a future date
                 if not journal_result or journal_result[0]["date"] < today.date():
                     data.append(build_graph_data(today, last_balance, currency))
                 date = today
                 amount = last_balance
-                # then we subtract the total amount of bank statement lines per day to get the previous points
-                # (graph is drawn backward)
                 for val in journal_result:
                     date = val["date"]
                     data[:0] = [build_graph_data(date, amount, currency)]
                     amount -= val["amount"]
 
-                # make sure the graph starts 1 month ago
                 if date.strftime(DF) != last_month.strftime(DF):
                     data[:0] = [build_graph_data(last_month, amount, currency)]
 
@@ -486,7 +455,6 @@ class AccountJournal(models.Model):
                 graph_key = _("Sample data")
                 for index in range(6):
                     data[index]["type"] = "o_sample_data"
-                    # we use unrealistic values for the sample data
                     data[index]["value"] = random.randint(0, 20)
 
             result[journal.id] = [
@@ -503,7 +471,7 @@ class AccountJournal(models.Model):
         self.env["account.move"].flush_model()
         self.env["account.move.line"].flush_model()
         self.env["account.payment"].flush_model()
-        dashboard_data = {}  # container that will be filled by functions below
+        dashboard_data = {}
         for journal in self:
             dashboard_data[journal.id] = {
                 "currency_id": journal._dashboard_currency().id,
@@ -518,17 +486,6 @@ class AccountJournal(models.Model):
         return dashboard_data
 
     def _fill_dashboard_data_count(self, dashboard_data, model, name, domain):
-        """Populate the dashboard data with the result of a count.
-
-        :param dashboard_data: a mapping between a journal ids and the data needed to display their
-                               dashboard kanban card.
-        :type dashboard_data: dict[int, dict]
-        :param model: the model on which to perform the count
-        :type model: str
-        :param name: the name of the variable to inject in the dashboard's data
-        :type name: str
-        :param domain: the domain of records to count
-        """
         res = {
             journal.id: count
             for journal, count in self.env[model]._read_group(
@@ -547,14 +504,12 @@ class AccountJournal(models.Model):
             dashboard_data[journal.id][name] = res.get(journal.id, 0)
 
     def _fill_bank_cash_dashboard_data(self, dashboard_data):
-        """Populate all bank and cash journal's data dict with relevant information for the kanban card."""
         bank_cash_journals = self.filtered(
             lambda journal: journal.type in ("bank", "cash", "credit")
         )
         if not bank_cash_journals:
             return
 
-        # Number to reconcile
         self.env.cr.execute(
             """
             SELECT st_line.journal_id,
@@ -572,24 +527,16 @@ class AccountJournal(models.Model):
         )
         number_to_reconcile = dict(self.env.cr.fetchall())
 
-        # Last statement
         bank_cash_journals.last_statement_id.mapped(
             lambda s: s.balance_end_real
-        )  # prefetch
+        )
 
         outstanding_pay_account_balances = (
             bank_cash_journals._get_journal_dashboard_outstanding_payments()
         )
 
-        # Payment with method outstanding account == journal default account
         direct_payment_balances = bank_cash_journals._get_direct_bank_payments()
 
-        # Misc Entries (journal items in the default_account not linked to
-        # bank.statement.line). Each journal's window opens after its own
-        # last-statement / lock date, so totals are keyed by (account, date_limit):
-        # two journals sharing a default account but with different windows must
-        # not read each other's lines. One query is issued per distinct date_limit
-        # (usually one), grouping accounts that share the same window.
         misc_base_domain = Domain(
             [
                 *self.env["account.move.line"]._check_company_domain(
@@ -610,7 +557,7 @@ class AccountJournal(models.Model):
             accounts_by_date_limit[journal_misc_date_limit[journal.id]].add(
                 journal.default_account_id.id
             )
-        misc_totals = {}  # (account_id, date_limit) -> (balance, count, currencies)
+        misc_totals = {}
         for date_limit, account_ids in accounts_by_date_limit.items():
             domain = misc_base_domain & Domain("account_id", "in", list(account_ids))
             if date_limit:
@@ -628,7 +575,6 @@ class AccountJournal(models.Model):
                     currencies,
                 )
 
-        # To check
         to_check = {
             journal: (amount, count)
             for journal, amount, count in self.env[
@@ -708,7 +654,6 @@ class AccountJournal(models.Model):
             )
 
     def _fill_sale_purchase_dashboard_data(self, dashboard_data):
-        """Populate all sale and purchase journal's data dict with relevant information for the kanban card."""
         sale_purchase_journals = self.filtered(
             lambda journal: journal.type in ("sale", "purchase")
         )
@@ -725,13 +670,11 @@ class AccountJournal(models.Model):
             "account_move.invoice_date",
             "account_move.company_id",
         ]
-        # DRAFTS
         sql = sale_purchase_journals._get_draft_sales_purchases_query().select(
             *bills_field_list
         )
         query_results_drafts = group_by_journal(self.env.execute_query_dict(sql))
 
-        # WAITING AND LATE BILLS AND PAYMENTS
         query_results_to_pay = {}
         late_query_results = {}
         for journal_type, journals in [
@@ -798,7 +741,7 @@ class AccountJournal(models.Model):
                     "number_late": number_late,
                     "sum_draft": currency.format(
                         sum_draft
-                    ),  # sign is already handled by the SQL query
+                    ),
                     "sum_waiting": currency.format(
                         sum_waiting * (1 if journal.type == "sale" else -1)
                     ),
@@ -813,7 +756,6 @@ class AccountJournal(models.Model):
             )
 
     def _fill_general_dashboard_data(self, dashboard_data):
-        """Populate all miscellaneous journal's data dict with relevant information for the kanban card."""
         general_journals = self.filtered(lambda journal: journal.type == "general")
         if not general_journals:
             return
@@ -845,7 +787,6 @@ class AccountJournal(models.Model):
             )
 
     def _update_onboarding_data(self, dashboard_data):
-        """Populate journals with onboarding data if they have no entries"""
         journal_onboarding_map = {
             "sale": "account_invoice",
             "general": "account_dashboard",
@@ -906,7 +847,6 @@ class AccountJournal(models.Model):
         return SQL("TRUE AS to_pay")
 
     def _get_sale_purchase_aggregation_selects(self, to_pay_select):
-        """Common SELECT list for the aggregated sale/purchase move queries."""
         return [
             SQL("journal_id"),
             SQL("company_id"),
@@ -918,14 +858,10 @@ class AccountJournal(models.Model):
                 " * amount_residual) AS amount_total"
             ),
             SQL("COUNT(*)"),
-            # to_pay_select is the only SELECT entry that varies between the "open"
-            # and "to check" queries; the open query supplies it via the
-            # _get_to_pay_select override point.
             to_pay_select,
         ]
 
     def _grouped_move_aggregation(self, query, selects):
-        """Run an aggregated ``account_move`` query and group its rows by journal."""
         sql = SQL(
             "%s GROUP BY account_move.company_id, account_move.journal_id,"
             " account_move.currency_id, late, to_pay",
@@ -969,9 +905,6 @@ class AccountJournal(models.Model):
         return query, self._get_sale_purchase_aggregation_selects(SQL("TRUE AS to_pay"))
 
     def _count_results_and_sum_amounts(self, results_dict, target_currency):
-        """Count the invoices in a query result and sum their amount_total, converted
-        into the given target currency. amount_total must be signed!
-        """
         if not results_dict:
             return 0, 0
 
@@ -996,10 +929,6 @@ class AccountJournal(models.Model):
         return count, target_currency.round(total_amount)
 
     def _get_journal_dashboard_bank_running_balance(self):
-        # In order to not recompute everything from the start, we take the last
-        # bank statement and only sum starting from there.
-        # Flush statements/lines first: the query filters on the stored
-        # computed first_line_index (see _compute_last_bank_statement).
         self.env["account.bank.statement.line"].flush_model()
         self.env["account.bank.statement"].flush_model()
         self.env.cr.execute(
@@ -1076,9 +1005,6 @@ class AccountJournal(models.Model):
         )
 
     def _summarize_payment_balances(self, query_result):
-        """Aggregate a per-journal payment query result into
-        ``{journal_id: (count, amount)}`` using each journal's display currency.
-        """
         return {
             journal.id: self._count_results_and_sum_amounts(
                 query_result[journal.id], journal._dashboard_currency()
@@ -1142,7 +1068,7 @@ class AccountJournal(models.Model):
             "context": self._get_move_action_context(),
         }
 
-    def _build_no_journal_error_msg(self, company_name, journal_types):
+    def _prepare_no_journal_error_msg(self, company_name, journal_types):
         return _(
             "No journal could be found in company %(company_name)s for any of those types: %(journal_types)s",
             company_name=company_name,
@@ -1151,13 +1077,9 @@ class AccountJournal(models.Model):
 
     @api.model
     def is_sample_action_available(self):
-        """Used to hide 'try our sample' when demo data is not installed."""
         return bool(self.env.ref("base.res_partner_2", raise_if_not_found=False))
 
     def action_create_vendor_bill(self):
-        """This function is called by the "try our sample" button of Vendor Bills,
-        visible on dashboard if no bill has been created yet.
-        """
         context = dict(self.env.context)
         purchase_journal = self.browse(
             context.get("default_journal_id")
@@ -1165,7 +1087,7 @@ class AccountJournal(models.Model):
         partner = self.env.ref("base.res_partner_2", raise_if_not_found=False)
         if not purchase_journal:
             raise UserError(
-                self._build_no_journal_error_msg(
+                self._prepare_no_journal_error_msg(
                     self.env.company.display_name, ["purchase"]
                 )
             )
@@ -1214,7 +1136,6 @@ class AccountJournal(models.Model):
                 }
             )
         )
-        # In case of test environment, don't create the pdf
         if tools.config["test_enable"]:
             bill.message_post()
         else:
@@ -1284,15 +1205,13 @@ class AccountJournal(models.Model):
             return "action_move_journal_line"
 
     def open_action(self):
-        """Return the action to open, based on the journal type."""
         self.ensure_one()
         action_name = self._select_action_to_open()
 
-        # Set 'account.' prefix if missing.
         if not action_name.startswith("account."):
             action_name = "account.%s" % action_name
 
-        action = self.env["ir.actions.act_window"]._for_xml_id(action_name)
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(action_name)
 
         if "context" in action and isinstance(action["context"], str):
             action_context = ast.literal_eval(action["context"])
@@ -1303,15 +1222,12 @@ class AccountJournal(models.Model):
             **self.env.context,
             "default_journal_id": self.id,
         }
-        # The model can be either account.move or account.move.line
         domain_type_field = (
             "move_id.move_type"
             if action["res_model"] == "account.move.line"
             else "move_type"
         )
 
-        # Override the domain only if the action was not explicitly specified in order to keep the
-        # original action domain.
         if action.get("domain") and isinstance(action["domain"], str):
             action["domain"] = ast.literal_eval(action["domain"] or "[]")
         if not self.env.context.get("action_name"):
@@ -1344,7 +1260,7 @@ class AccountJournal(models.Model):
             action_ref = "account.action_account_payments"
         else:
             action_ref = "account.action_account_all_payments"
-        action = self.env["ir.actions.act_window"]._for_xml_id(action_ref)
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(action_ref)
         action["context"] = dict(
             ast.literal_eval(action.get("context")),
             default_journal_id=self.id,
@@ -1378,10 +1294,10 @@ class AccountJournal(models.Model):
         if ctx.get("search_default_journal", False):
             ctx.update(search_default_journal_id=self.id)
             ctx["search_default_journal"] = (
-                False  # otherwise it will do a useless groupby in bank statements
+                False
             )
         ctx.pop("group_by", None)
-        action = self.env["ir.actions.act_window"]._for_xml_id(f"account.{action_name}")
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(f"account.{action_name}")
         action["context"] = ctx
         if ctx.get("use_domain", False):
             action["domain"] = (
@@ -1398,7 +1314,7 @@ class AccountJournal(models.Model):
 
     def open_bank_difference_action(self):
         self.ensure_one()
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "account.action_account_moves_all_a"
         )
         action["context"] = {
@@ -1418,7 +1334,7 @@ class AccountJournal(models.Model):
 
     def open_invalid_statements_action(self):
         self.ensure_one()
-        return self.env["ir.actions.act_window"]._for_xml_id(
+        return self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "account.action_bank_statement_tree"
         )
 
@@ -1481,8 +1397,7 @@ class AccountJournal(models.Model):
         return action
 
     def create_bank_statement(self):
-        """Return the action to create a bank statement. Call only on journals with type == 'bank'."""
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "account.action_bank_statement_tree"
         )
         action.update(
@@ -1494,9 +1409,7 @@ class AccountJournal(models.Model):
         return action
 
     def create_customer_payment(self):
-        """Return the action to create a customer payment."""
         return self.open_payments_action("inbound", mode="form")
 
     def create_supplier_payment(self):
-        """Return the action to create a supplier payment."""
         return self.open_payments_action("outbound", mode="form")

@@ -1,13 +1,13 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 {
-    'name': 'Mexico - Accounting',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/mexico.html',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['mx'],
-    'version': '2.3',
-    'author': 'Vauxoo',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Mexico - Accounting",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/mexico.html",
+    "icon": "/account/static/description/l10n.png",
+    "countries": ["mx"],
+    "version": "2.3",
+    "author": "Vauxoo",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Minimal accounting configuration for Mexico.
 ============================================
 
@@ -26,32 +26,32 @@ With this module you will have:
 
 .. _SAT: http://www.sat.gob.mx/
     """,
-    'depends': [
-        'account',
+    "depends": [
+        "account",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account.account.tag.csv',
-        'data/account_report_diot.xml',
-        'data/res_bank_data.xml',
-        'views/partner_view.xml',
-        'views/res_bank_view.xml',
-        'views/account_views.xml',
-        'views/account_tax_view.xml',
-        'views/res_config_settings_views.xml',
+    "auto_install": ["account"],
+    "data": [
+        "data/account.account.tag.csv",
+        "data/account_report_diot.xml",
+        "data/res_bank_data.xml",
+        "views/partner_view.xml",
+        "views/res_bank_view.xml",
+        "views/account_views.xml",
+        "views/account_tax_view.xml",
+        "views/res_config_settings_views.xml",
         "data/l10n_mx_uom.xml",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "demo": [
+        "demo/demo_company.xml",
     ],
-    'assets': {
-        'web.assets_backend': [
-            'l10n_mx/static/src/helpers/*.js',
+    "assets": {
+        "web.assets_backend": [
+            "l10n_mx/static/src/helpers/*.js",
         ],
-        'web.assets_frontend': [
-            'l10n_mx/static/src/helpers/*.js',
+        "web.assets_frontend": [
+            "l10n_mx/static/src/helpers/*.js",
         ],
     },
-    'license': 'LGPL-3',
-    'post_init_hook': '_enable_group_uom_post_init',
+    "license": "LGPL-3",
+    "post_init_hook": "_enable_group_uom_post_init",
 }

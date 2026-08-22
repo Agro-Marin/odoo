@@ -149,7 +149,7 @@ class AccountEdiXmlCii(models.AbstractModel):
             return grouping_key
 
         # Validate the structure of the taxes
-        self._validate_taxes(invoice.invoice_line_ids.tax_ids)
+        self._check_taxes(invoice.invoice_line_ids.tax_ids)
 
         # Create file content.
         tax_details = invoice._prepare_invoice_aggregated_taxes(grouping_key_generator=grouping_key_generator)

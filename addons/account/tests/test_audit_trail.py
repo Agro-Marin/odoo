@@ -137,7 +137,7 @@ class TestAuditTrail(AccountTestInvoicingCommon):
             Command.update(self.move.line_ids[0].id, {"balance": 300}),
             Command.update(
                 self.move.line_ids[1].id, {"credit": 200}
-            ),  # writing on debit/credit or balance both log
+            ),
             Command.create(
                 {
                     "balance": -100,
@@ -183,20 +183,17 @@ class TestAuditTrail(AccountTestInvoicingCommon):
         self.assertTrail(self.get_trail(self.company), messages_company)
 
     def test_partner_notif(self):
-        """Audit trail should not block partner notification."""
         user = new_test_user(
             self.env,
             "test-user-notif",
             groups="base.group_portal",
             notification_type="email",
         )
-        # identify that user as being a customer
         user.partner_id.sudo().customer_rank += 1
         self.assertGreater(user.partner_id.customer_rank, 0)
         user.partner_id.message_post(body="Test", partner_ids=user.partner_id.ids)
 
     def test_partner_unlink(self):
-        """Audit trail should not block partner unlink if they didn't create moves"""
         partner = self.env["res.partner"].create(
             {
                 "name": "Test",
@@ -269,32 +266,26 @@ class TestAuditTrailAttachment(AccountTestInvoicingHttpCommon):
         invoice.action_post()
         self.assertFalse(invoice.message_main_attachment_id)
 
-        # Print the invoice for the first time
         first_attachment = self._send_and_print(invoice)
         self.assertTrue(first_attachment)
 
-        # Remove the attachment, it should only detach it from the field instead of deleting it
         first_attachment.unlink()
         self.assertTrue(first_attachment.exists())
-        # But we cannot entirely remove it
         with self.assertRaisesRegex(
             UserError, "remove parts of a restricted audit trail."
         ):
             first_attachment.unlink()
 
-        # Print a second time the invoice, it generates a new attachment
         invoice.invalidate_recordset()
         second_attachment = self._send_and_print(invoice)
         self.assertNotEqual(first_attachment, second_attachment)
 
-        # Make sure we can browse all the attachments in the UI (as it changes the main attachment)
         first_attachment.register_as_main_attachment()
         self.assertEqual(invoice.message_main_attachment_id, first_attachment)
         second_attachment.register_as_main_attachment()
         self.assertEqual(invoice.message_main_attachment_id, second_attachment)
 
         if self.document_installed:
-            # Make sure we can change the version history of the document
             document = self.env["documents.document"].search(
                 [
                     ("res_model", "=", "account.move"),
@@ -331,7 +322,6 @@ class TestAuditTrailAttachment(AccountTestInvoicingHttpCommon):
         invoice.action_post()
         self.assertFalse(invoice.message_main_attachment_id)
 
-        # Print the invoice for the first time
         self._send_and_print(invoice)
         attachment = invoice.message_main_attachment_id
 
@@ -350,12 +340,10 @@ class TestAuditTrailAttachment(AccountTestInvoicingHttpCommon):
         ):
             attachment.datas = b"new data"
 
-        # Adding an attachment to the log notes should be allowed
         another_attachment = self.env["ir.attachment"].create(
             {
                 "name": "doc.pdf",
                 "res_model": "mail.compose.message",
-                # Ensures a bytes-like object with guessed mimetype = 'application/pdf' (checked in _except_audit_trail())
                 "datas": attachment.datas,
             }
         )

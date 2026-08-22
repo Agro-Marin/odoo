@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from collections import OrderedDict
 
 from odoo import _, fields, http
@@ -42,9 +40,6 @@ class PortalAccount(CustomerPortal):
             values["bill_count"] = bill_count
         return values
 
-    # ------------------------------------------------------------
-    # My Invoices
-    # ------------------------------------------------------------
 
     def _get_overdue_invoice_count(self):
         return (
@@ -141,10 +136,8 @@ class PortalAccount(CustomerPortal):
             page, date_begin, date_end, sortby, filterby
         )
 
-        # pager
         pager = portal_pager(**values["pager"])
 
-        # content according to pager and archive selected
         invoices = values["invoices"](pager["offset"])
         request.session["my_invoices_history"] = [i["invoice"].id for i in invoices][
             :100
@@ -174,9 +167,6 @@ class PortalAccount(CustomerPortal):
         domain = Domain(domain or Domain.TRUE) & self._get_invoices_domain()
 
         searchbar_sortings = self._get_account_searchbar_sortings()
-        # Clamp to the declared vocabulary: `sortby` / `filterby` come straight
-        # off the query string, and indexing them unchecked answered
-        # `?sortby=anything-else` with a KeyError (HTTP 500).
         sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, "date")
         order = searchbar_sortings[sortby]["order"]
 
@@ -193,8 +183,6 @@ class PortalAccount(CustomerPortal):
         values.update(
             {
                 "date": date_begin,
-                # Deferred as a lambda: the pager offset is only known once the
-                # route method has built the pager.
                 "invoices": lambda pager_offset: (
                     [
                         invoice._get_invoice_portal_extra_values()
@@ -209,7 +197,7 @@ class PortalAccount(CustomerPortal):
                     else AccountInvoice
                 ),
                 "page_name": "invoice",
-                "pager": {  # vals to define the pager.
+                "pager": {
                     "url": url,
                     "url_args": {
                         "date_begin": date_begin,
@@ -247,7 +235,6 @@ class PortalAccount(CustomerPortal):
             return request.redirect("/my")
 
         if report_type == "pdf" and download and invoice_sudo.state == "posted":
-            # Download the official attachment(s) or a Pro Forma invoice
             docs_data = invoice_sudo._get_invoice_legal_documents_all(
                 allow_fallback=True
             )
@@ -263,12 +250,9 @@ class PortalAccount(CustomerPortal):
                 zip_content = _build_zip_from_data(docs_data)
                 headers = _get_headers(filename, "application/zip", zip_content)
                 return request.make_response(zip_content, headers)
-
         elif report_type in ("html", "pdf", "text"):
             has_generated_invoice = bool(invoice_sudo.invoice_pdf_report_id)
             request.update_context(proforma_invoice=not has_generated_invoice)
-            # Match the context language to an RTL partner language so the report
-            # renders with the correct text direction.
             partner_lang = invoice_sudo.partner_id.lang
             if (
                 partner_lang
@@ -276,8 +260,6 @@ class PortalAccount(CustomerPortal):
                 == "rtl"
             ):
                 request.update_context(lang=partner_lang)
-            # Use the template set on the related partner, if any. The stored PDF
-            # may still have been rendered with a different template.
             pdf_report_name = (
                 invoice_sudo.partner_id.invoice_template_pdf_report_id.report_name
                 or "account.account_invoices"
@@ -305,9 +287,6 @@ class PortalAccount(CustomerPortal):
                 "account.portal_my_journal_mail_notifications", ctx, status=status
             )
 
-        # The two entry points authorize differently, so each one carries its own
-        # check. Sharing a single `has_access` between them made it dead code on
-        # the token branch, where the recordset is already sudo.
         if access_token := kw.get("token"):
             try:
                 token_data = verify_hash_signed(
@@ -321,8 +300,6 @@ class PortalAccount(CustomerPortal):
                 return _render({"error": _("Invalid token")}, 403)
             if not token_data or token_data.get("journal_id") != journal_id:
                 return _render({"error": _("Invalid token")}, 403)
-            # The signed token is the authorization: the subscriber proved they
-            # hold a link we issued for this journal and address.
             journal = request.env["account.journal"].sudo().browse(journal_id)
             if not journal.exists():
                 return _render({"error": _("Already unsubscribed")}, 404)
@@ -330,9 +307,6 @@ class PortalAccount(CustomerPortal):
                 token_data.get("email_to_unsubscribe"), strict=False
             )
         else:
-            # Legacy link: authorization is the user's own write access. Test it
-            # before touching any field, or a visitor without access gets an
-            # AccessError traceback instead of the 403 below.
             journal = request.env["account.journal"].browse(journal_id)
             if not journal.exists():
                 return _render({"error": _("Already unsubscribed")}, 404)
@@ -366,9 +340,6 @@ class PortalAccount(CustomerPortal):
 
         return _render({"journal": journal, "email": email_to_unsubscribe})
 
-    # ------------------------------------------------------------
-    # My Home
-    # ------------------------------------------------------------
 
     def _prepare_my_account_rendering_values(self, *args, **kwargs):
         rendering_values = super()._prepare_my_account_rendering_values(*args, **kwargs)

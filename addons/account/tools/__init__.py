@@ -5,12 +5,7 @@ from .structured_reference import *
 
 
 class LegacyHTTPAdapter(requests.adapters.HTTPAdapter):
-    """Adapter allowing the unsafe legacy renegotiation outdated ETA servers require."""
-
     def init_poolmanager(self, *args, **kwargs):
-        # This is not defined before Python 3.12
-        # cfr. https://github.com/python/cpython/pull/93927
-        # Origin: https://github.com/openssl/openssl/commit/ef51b4b9
         OP_LEGACY_SERVER_CONNECT = 0x04
         context = create_urllib3_context(options=OP_LEGACY_SERVER_CONNECT)
         kwargs["ssl_context"] = context

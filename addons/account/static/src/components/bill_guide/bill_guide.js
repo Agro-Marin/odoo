@@ -4,13 +4,14 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
 import { DocumentFileUploader } from "../document_file_uploader/document_file_uploader.js";
+import { defaultMoveTypeForJournal } from "../document_file_uploader/journal_defaults.js";
 
 export class BillGuide extends Component {
     static template = "account.BillGuide";
     static components = {
         DocumentFileUploader,
     };
-    static props = ["*"]; // could contain view_widget props
+    static props = ["*"];
 
     setup() {
         this.orm = useService("orm");
@@ -25,13 +26,9 @@ export class BillGuide extends Component {
         const rec = this.props.record;
         const ctx = this.env.searchModel.context;
         if (rec) {
-            // prepare context from journal record
             this.context = {
                 default_journal_id: rec.resId,
-                default_move_type:
-                    (rec.data.type === "sale" && "out_invoice") ||
-                    (rec.data.type === "purchase" && "in_invoice") ||
-                    "entry",
+                default_move_type: defaultMoveTypeForJournal(rec.data.type),
                 active_model: rec.resModel,
                 active_ids: [rec.resId],
             };

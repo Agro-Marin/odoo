@@ -15,9 +15,6 @@ class TestAccountMoveDateAlgorithm(AccountTestInvoicingCommon):
         super().setUpClass()
         cls.other_currency = cls.setup_other_currency("EUR")
 
-    # -------------------------------------------------------------------------
-    # HELPERS
-    # -------------------------------------------------------------------------
 
     def _create_invoice(self, move_type, date, **kwargs):
         return self.env["account.move"].create(
@@ -71,9 +68,6 @@ class TestAccountMoveDateAlgorithm(AccountTestInvoicingCommon):
         reversal = move_reversal.refund_moves()
         return self.env["account.move"].browse(reversal["res_id"])
 
-    # -------------------------------------------------------------------------
-    # TESTS
-    # -------------------------------------------------------------------------
 
     @freezegun.freeze_time("2017-01-12")
     def test_out_invoice_date_with_lock_date(self):
@@ -330,7 +324,6 @@ class TestAccountMoveDateAlgorithm(AccountTestInvoicingCommon):
 
     @freezegun.freeze_time("2023-05-01")
     def test_caba_with_different_lock_dates(self):
-        """Test the CABA move date when the lock date changes before reconciliation."""
         self.env.company.tax_exigibility = True
 
         tax_waiting_account = self.env["account.account"].create(
@@ -351,7 +344,6 @@ class TestAccountMoveDateAlgorithm(AccountTestInvoicingCommon):
             }
         )
 
-        # User groups (accountant rights) do not matter for the resulting dates
         for group in (
             "account.group_account_manager",
             "account.group_account_invoice",
@@ -388,7 +380,6 @@ class TestAccountMoveDateAlgorithm(AccountTestInvoicingCommon):
                     [("tax_cash_basis_origin_move_id", "=", invoice.id)]
                 )
 
-                # The sale lock date does not matter for the caba move, since it is not in a sale journal
                 self.assertEqual(caba_move.journal_id.type, "general")
                 self.assertEqual(caba_move.date.isoformat(), "2023-02-28")
 

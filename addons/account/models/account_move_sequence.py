@@ -1,11 +1,3 @@
-"""Sequence and payment-reference logic for account.move."""
-
-# The entry name is a mixin.sequence sequence, not a plain ir.sequence: the
-# prefix/number split, the reset period, the gap bookkeeping and the structured
-# payment reference all hang off it. Extracted from account_move.py, which is
-# where the rest of the model lives; no method here is overridden by another
-# module of this addon.
-
 import calendar
 import re
 from datetime import date
@@ -23,12 +15,10 @@ class AccountMove(models.Model):
     _inherit = "account.move"
 
     def _must_check_constrains_date_sequence(self):
-        # OVERRIDES mixin.sequence
         return self.state == "posted" and not self.quick_edit_mode
 
     def _get_last_sequence_domain(self, relaxed=False):
         # pylint: disable=sql-injection
-        # EXTENDS account mixin.sequence
         self.ensure_one()
         if not self.date or not self.journal_id:
             return "WHERE FALSE", {}
@@ -63,7 +53,6 @@ class AccountMove(models.Model):
                         )
                     ]
                 else:
-                    # If the partner id is not set, we can't compute the sequence, so we force a sequence reset.
                     domain += [(0, "=", 1)]
             reference_move_name = (
                 self.sudo()
@@ -86,29 +75,16 @@ class AccountMove(models.Model):
             param["date_start"] = date_start
             param["date_end"] = date_end
 
-            # Some regex are catching more sequence formats than we want, so we
-            # need to exclude them:
-            #
-            #                    |                 Regex type                                 |
-            # Move Name Format   | Fixed | Yearly | Monthly | Year Range | Year range Monthly |
-            # ------------------ | ----- | ------ | ------- | ---------- | ------------------ |
-            # Fixed              |   X   |        |         |            |                    |
-            # Yearly             |   X   |   X    |         |            |                    |
-            # Monthly            |   X   |   X    |    X    |     X      |                    |
-            # Year Range         |   X   |   X    |         |     X      |                    |
-            # Year range Monthly |   X   |   X    |    X    |     X      |          X         |
             if sequence_number_reset in ("year", "year_range"):
                 param["anti_regex"] = (
-                    self._make_regex_non_capturing(
+                    self._prepare_regex_non_capturing(
                         self._sequence_monthly_regex.split("(?P<seq>")[0]
                     )
                     + "$"
                 )
             elif sequence_number_reset == "never":
-                # Excluding yearly will also exclude "monthly", "year range" and
-                # "year range monthly"
                 param["anti_regex"] = (
-                    self._make_regex_non_capturing(
+                    self._prepare_regex_non_capturing(
                         self._sequence_yearly_regex.split("(?P<seq>")[0]
                     )
                     + "$"
@@ -141,7 +117,6 @@ class AccountMove(models.Model):
         return where_string, param
 
     def _get_starting_sequence(self):
-        # EXTENDS account mixin.sequence
         self.ensure_one()
         move_date = self.date or self.invoice_date or fields.Date.context_today(self)
         year_part = "%04d" % move_date.year
@@ -161,12 +136,7 @@ class AccountMove(models.Model):
                     (move_date + relativedelta(years=-1)).strftime("%y"),
                     move_date.strftime("%y"),
                 )
-        # Arbitrarily use annual sequence for sales documents, but monthly
-        # sequence for other documents
         if self.journal_id.type in ["sale", "bank", "cash", "credit"]:
-            # We reduce short code to 4 characters (0000) in case of staggered
-            # year to avoid too long sequences (see Indian GST rule 46(b) for
-            # example). Note that it's already the case for monthly sequences.
             starting_sequence = "%s/%s/%s" % (
                 self.journal_id.code,
                 year_part,
@@ -220,12 +190,6 @@ class AccountMove(models.Model):
         fiscalyear_last_month_max_day = calendar.monthrange(
             self.date.year, fiscalyear_last_month
         )[1]
-        # We need to truncate the month if:
-        # - the fiscal year does not end on the last day of the month
-        # - and the move date is part of that month
-        # The sequence date range will be something like 2020-11-01 to
-        # 2020-11-30. But the sequence should be 2019-2020/11/0001 (or
-        # 2020-2021/11/0001), not 2020-2020/11/0001.
         if (
             fiscalyear_last_day < fiscalyear_last_month_max_day
             and fiscalyear_last_month == self.date.month
@@ -243,17 +207,8 @@ class AccountMove(models.Model):
         else:
             return month_range + forced_year_range
 
-    # -------------------------------------------------------------------------
-    # PAYMENT REFERENCE
-    # -------------------------------------------------------------------------
 
     def _get_invoice_reference_euro_invoice(self):
-        """Compute the reference based on the RF Creditor Reference.
-        The data of the reference is the journal short code and the database
-        id number of the invoice. For instance, if a journal code is INV and
-        an invoice is issued with id 37, the check number is 67 so the
-        reference will be 'RF67 INV0 0003 7'.
-        """
         self.ensure_one()
         journal_identifier = (
             self.journal_id.code
@@ -265,16 +220,6 @@ class AccountMove(models.Model):
         )
 
     def _get_invoice_reference_euro_partner(self):
-        """Compute the reference based on the RF Creditor Reference.
-        The data of the reference is the user defined reference of the
-        partner or the database id number of the parter.
-        For instance, if an invoice is issued for the partner with internal
-        reference 'food buyer 654', the digits will be extracted and used as
-        the data. This will lead to a check number equal to 00 and the
-        reference will be 'RF00 654'.
-        If no reference is set for the partner, its id in the database will
-        be used.
-        """
         self.ensure_one()
         journal_identifier = (
             self.journal_id.code
@@ -289,32 +234,18 @@ class AccountMove(models.Model):
         return format_structured_reference_iso(partner_ref_nr)
 
     def _get_invoice_reference_number_invoice(self):
-        """Return the digits extracted from the Odoo-format invoice reference
-        (the journal sequence number), stripping any non-digit characters.
-        """
         ref = self._get_invoice_reference_odoo_invoice() or ""
         return "".join(char for char in ref if char.isdigit())
 
     def _get_invoice_reference_number_partner(self):
-        """Compute the reference based on the Number format.
-        The data used is the reference set on the partner or its database
-        id otherwise. For instance if the reference of the customer is
-        'customer 97', the reference will be '97'.
-        """
         ref = self._get_invoice_reference_odoo_partner()
         return "".join(char for char in ref if char.isdigit())
 
     def _get_invoice_reference_odoo_invoice(self):
-        """Return self.name, the invoice number generated by the journal sequence."""
         self.ensure_one()
         return self.name
 
     def _get_invoice_reference_odoo_partner(self):
-        """Compute the reference based on the Odoo format.
-        The data used is the reference set on the partner or its database
-        id otherwise. For instance if the reference of the customer is
-        'dumb customer 97', the reference will be 'CUST/dumb customer 97'.
-        """
         ref = self.partner_id.ref or str(self.partner_id.id)
         prefix = _("CUST")
         return "%s/%s" % (prefix, ref)

@@ -4,10 +4,8 @@ from odoo import _, api, models
 class OnboardingOnboardingStep(models.Model):
     _inherit = "onboarding.onboarding.step"
 
-    # COMMON STEPS
     @api.model
     def action_open_step_company_data(self):
-        """Set company's basic information."""
         company = (
             self.env["account.journal"]
             .browse(self.env.context.get("journal_id", None))
@@ -39,7 +37,6 @@ class OnboardingOnboardingStep(models.Model):
 
     @api.model
     def action_validate_step_base_document_layout(self):
-        """Set the onboarding(s) step as done only if layout is set."""
         step = self.env.ref(
             "account.onboarding_onboarding_step_base_document_layout",
             raise_if_not_found=False,
@@ -50,7 +47,6 @@ class OnboardingOnboardingStep(models.Model):
             "account.onboarding_onboarding_step_base_document_layout"
         )
 
-    # INVOICE ONBOARDING
     @api.model
     def action_open_step_bank_account(self):
         return self.env.company.setting_init_bank_account_action()
@@ -65,7 +61,6 @@ class OnboardingOnboardingStep(models.Model):
             "context": {"default_move_type": "out_invoice"},
         }
 
-    # DASHBOARD ONBOARDING
     @api.model
     def action_open_step_fiscal_year(self):
         company = (
@@ -94,8 +89,6 @@ class OnboardingOnboardingStep(models.Model):
 
     @api.model
     def action_open_step_chart_of_accounts(self):
-        """Validate the chart of accounts step and open the accounts view."""
-        # Triggered by the "Chart of Accounts" button of the dashboard onboarding panel.
         company = (
             self.env["account.journal"]
             .browse(self.env.context.get("journal_id", None))
@@ -106,13 +99,10 @@ class OnboardingOnboardingStep(models.Model):
             "account.onboarding_onboarding_step_chart_of_accounts"
         )
 
-        # If an opening move has already been posted, we open the list view showing all the accounts
         if company.opening_move_posted():
             return "account.action_account_form"
 
-        # Then, we open will open a custom list view allowing to edit opening balances of the account
         view_id = self.env.ref("account.init_accounts_tree").id
-        # Hide the current year earnings account as it is automatically computed
         domain = [
             *self.env["account.account"]._check_company_domain(company),
             ("account_type", "!=", "equity_unaffected"),
@@ -128,7 +118,6 @@ class OnboardingOnboardingStep(models.Model):
             "domain": domain,
         }
 
-    # STEPS WITHOUT PANEL
     @api.model
     def action_open_step_sales_tax(self):
         view_id = self.env.ref("account.res_company_form_view_onboarding_sale_tax").id

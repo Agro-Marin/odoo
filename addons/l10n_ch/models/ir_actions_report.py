@@ -15,8 +15,8 @@ class IrActionsReport(models.Model):
     _inherit = 'ir.actions.report'
 
     @api.model
-    def get_available_barcode_masks(self):
-        rslt = super(IrActionsReport, self).get_available_barcode_masks()
+    def _get_barcode_masks_available(self):
+        rslt = super()._get_barcode_masks_available()
         rslt['ch_cross'] = self.apply_qr_code_ch_cross_mask
         return rslt
 

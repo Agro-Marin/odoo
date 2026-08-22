@@ -16,7 +16,6 @@ class BaseDocumentLayout(models.TransientModel):
     )
 
     def document_layout_save(self):
-        """Save layout and onboarding step progress, return super() result"""
         res = super().document_layout_save()
         if step := self.env.ref(
             "account.onboarding_onboarding_step_base_document_layout",
@@ -24,8 +23,6 @@ class BaseDocumentLayout(models.TransientModel):
         ):
             for company_id in self.company_id:
                 step.with_company(company_id).action_set_just_done()
-            # When we finish the configuration of the layout, we want the dialog size to be reset to large
-            # which is the default behaviour.
             if res.get("context"):
                 res["context"]["dialog_size"] = "large"
         return res
@@ -68,7 +65,6 @@ class BaseDocumentLayout(models.TransientModel):
 
     @api.depends("qr_code", "account_number")
     def _compute_preview(self):
-        # EXTENDS 'web' to add dependencies
         super()._compute_preview()
 
     def _inverse_account_number(self):
@@ -82,7 +78,7 @@ class BaseDocumentLayout(models.TransientModel):
             elif record.account_number:
                 record.partner_id.bank_ids += self.env[
                     "res.partner.bank"
-                ]._find_or_create_bank_account(
+                ]._get_or_create_bank_account(
                     account_number=record.account_number,
                     partner=record.partner_id,
                     allow_company_account_creation=True,

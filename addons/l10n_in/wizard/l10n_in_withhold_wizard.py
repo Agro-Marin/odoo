@@ -66,7 +66,7 @@ class L10n_InWithholdWizard(models.TransientModel):
     journal_id = fields.Many2one(
         comodel_name='account.journal',
         string="Journal",
-        compute='_compute_journal', precompute=True,
+        compute='_compute_journal_id', precompute=True,
         readonly=False, store=True,
         required=True,
         check_company=True,
@@ -135,7 +135,7 @@ class L10n_InWithholdWizard(models.TransientModel):
             wizard.company_id = wizard.related_move_id.company_id or wizard.related_payment_id.company_id
 
     @api.depends('company_id')
-    def _compute_journal(self):
+    def _compute_journal_id(self):
         for wizard in self:
             wizard.journal_id = wizard.company_id.parent_ids.l10n_in_withholding_journal_id[-1:] or \
                                 wizard.env['account.journal'].search([*self.env['account.journal']._check_company_domain(wizard.company_id), ('type', '=', 'general')], limit=1)

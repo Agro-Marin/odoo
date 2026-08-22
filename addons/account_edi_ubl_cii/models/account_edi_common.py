@@ -305,11 +305,11 @@ class AccountEdiCommon(models.AbstractModel):
     # TAXES
     # -------------------------------------------------------------------------
 
-    def _validate_taxes(self, tax_ids):
+    def _check_taxes(self, tax_ids):
         """ Validate the structure of the tax repartition lines (invalid structure could lead to unexpected results) """
         for tax in tax_ids:
             try:
-                tax._validate_repartition_lines()
+                tax._check_repartition_line_ids()
             except ValidationError as e:
                 error_msg = _("Tax '%(tax_name)s' is invalid: %(error_message)s", tax_name=tax.name, error_message=e.args[0])  # args[0] gives the error message
                 raise ValidationError(error_msg)
@@ -682,16 +682,16 @@ class AccountEdiCommon(models.AbstractModel):
         logs = []
         lines_values = []
         for line_tree in tree.iterfind(xpath):
-            line_values = self.with_company(record.company_id)._retrieve_invoice_line_vals(line_tree, document_type, qty_factor)
+            line_values = self.with_company(record.company_id)._prepare_invoice_line_vals(line_tree, document_type, qty_factor)
             if line_values is None:
                 continue
 
-            line_values['tax_ids'], tax_logs = self._retrieve_taxes(record, line_values, tax_type)
+            line_values['tax_ids'], tax_logs = self._get_taxes(record, line_values, tax_type)
             logs += tax_logs
             if not line_values['product_uom_id']:
                 line_values.pop('product_uom_id')  # if no uom, pop it so it's inferred from the product_id
             lines_values.append(line_values)
-            lines_values += self._retrieve_line_charges(record, line_values, line_values['tax_ids'])
+            lines_values += self._prepare_line_charge_vals(record, line_values, line_values['tax_ids'])
         return lines_values, logs
 
     def _import_rounding_amount(self, invoice, tree, xpath, document_type=False, qty_factor=1):
@@ -729,7 +729,7 @@ class AccountEdiCommon(models.AbstractModel):
 
         return lines_values, logs
 
-    def _retrieve_invoice_line_vals(self, tree, document_type=False, qty_factor=1):
+    def _prepare_invoice_line_vals(self, tree, document_type=False, qty_factor=1):
         # Start and End date (enterprise fields)
         xpath_dict = self._get_invoice_line_xpaths(document_type, qty_factor)
         deferred_values = {}
@@ -745,7 +745,7 @@ class AccountEdiCommon(models.AbstractModel):
                 'deferred_end_date': end_date,
             }
 
-        line_vals = self._retrieve_line_vals(tree, document_type, qty_factor)
+        line_vals = self._prepare_import_line_vals(tree, document_type, qty_factor)
         if line_vals is None:
             return None
 
@@ -755,7 +755,7 @@ class AccountEdiCommon(models.AbstractModel):
         }
 
     @api.model
-    def _retrieve_rebate_val(self, tree, xpath_dict, quantity):
+    def _get_rebate_val(self, tree, xpath_dict, quantity):
         # Discount. /!\ as no percent discount can be set on a line, need to infer the percentage
         # from the amount of the actual amount of the discount (the allowance charge)
         rebate = 0
@@ -769,7 +769,7 @@ class AccountEdiCommon(models.AbstractModel):
         return rebate
 
     @api.model
-    def _retrieve_charge_allowance_vals(self, tree, xpath_dict, quantity):
+    def _prepare_charge_allowance_vals(self, tree, xpath_dict, quantity):
         charges = []
         discount_amount = 0
         for allowance_charge_node in tree.iterfind(xpath_dict['allowance_charge']):
@@ -788,7 +788,7 @@ class AccountEdiCommon(models.AbstractModel):
                 discount_amount += amount
         return discount_amount, charges
 
-    def _retrieve_line_vals(self, tree, document_type=False, qty_factor=1):
+    def _prepare_import_line_vals(self, tree, document_type=False, qty_factor=1):
         """
         Read the xml invoice, extract the invoice line values, compute the odoo values
         to fill an invoice line form: quantity, price_unit, discount, product_uom_id.
@@ -876,10 +876,10 @@ class AccountEdiCommon(models.AbstractModel):
         quantity = delivered_qty * qty_factor
 
         # rebate (optional)
-        rebate = self._retrieve_rebate_val(tree, xpath_dict, quantity)
+        rebate = self._get_rebate_val(tree, xpath_dict, quantity)
 
         # Charges are collected (they are used to create new lines), Allowances are transformed into discounts
-        discount_amount, charges = self._retrieve_charge_allowance_vals(tree, xpath_dict, quantity)
+        discount_amount, charges = self._prepare_charge_allowance_vals(tree, xpath_dict, quantity)
 
         # price_unit
         charge_amount = sum(d['amount'] for d in charges)
@@ -923,14 +923,14 @@ class AccountEdiCommon(models.AbstractModel):
             'price_unit': price_unit,
             'quantity': quantity,
             'discount': discount,
-            'tax_nodes': self._get_tax_nodes(tree),  # see `_retrieve_taxes`
-            'charges': charges,  # see `_retrieve_line_charges`
+            'tax_nodes': self._get_tax_nodes(tree),  # see `_get_taxes`
+            'charges': charges,  # see `_prepare_line_charge_vals`
         }
 
     def _import_product(self, **product_vals):
         return self.env['product.product']._retrieve_product(**product_vals)
 
-    def _retrieve_fixed_tax(self, company_id, fixed_tax_vals):
+    def _get_fixed_tax(self, company_id, fixed_tax_vals):
         """ Retrieve the fixed tax at import, iteratively search for a tax:
         1. not price_include matching the name and the amount
         2. not price_include matching the amount
@@ -952,7 +952,7 @@ class AccountEdiCommon(models.AbstractModel):
                     return tax
         return self.env['account.tax']
 
-    def _retrieve_taxes(self, record, line_values, tax_type, tax_exigibility=False):
+    def _get_taxes(self, record, line_values, tax_type, tax_exigibility=False):
         """
         Retrieve the taxes on the document line at import.
 
@@ -1002,7 +1002,7 @@ class AccountEdiCommon(models.AbstractModel):
                     line_values['price_unit'] *= (1 + tax.amount / 100)
         return taxes, logs
 
-    def _retrieve_line_charges(self, record, line_values, taxes):
+    def _prepare_line_charge_vals(self, record, line_values, taxes):
         """
         Handle the charges on the document line at import.
 
@@ -1016,7 +1016,7 @@ class AccountEdiCommon(models.AbstractModel):
                 # a 1 eur fixed tax on a line with quantity=2 will yield an AllowanceCharge with amount = 2
                 charge_copy = charge.copy()
                 charge_copy['amount'] /= charge_copy['line_quantity']
-                if tax := self._retrieve_fixed_tax(record.company_id, charge_copy):
+                if tax := self._get_fixed_tax(record.company_id, charge_copy):
                     taxes.append(tax.id)
                     if tax.price_include:
                         line_values['price_unit'] += tax.amount

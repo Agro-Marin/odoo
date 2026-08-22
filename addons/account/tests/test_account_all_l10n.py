@@ -27,10 +27,6 @@ def _load_file(
 
 @standalone("all_l10n")
 def test_all_l10n(env):
-    """Install all the l10n_* modules and load their charts of accounts."""
-    # Module installation is not yet fully transactional, so the modules remain
-    # installed after the test.
-
     try_loading = type(env["account.chart.template"]).try_loading
 
     def try_loading_patch(
@@ -39,11 +35,9 @@ def test_all_l10n(env):
         self = self.with_context(l10n_check_fields_complete=True)
         return try_loading(self, template_code, company, install_demo, force_create)
 
-    # Ensure the presence of demo data, to see if they can be correctly installed
     if not env.ref("base.module_account").demo:
         force_demo(env)
 
-    # Install prerequisite modules
     _logger.info("Installing prerequisite modules")
     pre_mods = env["ir.module.module"].search(
         [
@@ -75,7 +69,6 @@ def test_all_l10n(env):
     ):
         l10n_mods.button_immediate_install()
 
-    # In all_l10n tests we need to verify demo data
     demo_failures = env["ir.demo_failure"].search([])
     if demo_failures:
         _logger.warning("Error while testing demo data for all_l10n tests.")
@@ -86,14 +79,13 @@ def test_all_l10n(env):
                 failure.error,
             )
 
-    env.transaction.reset()  # clear the set of environments
+    env.transaction.reset()
     idxs = []
     for model in env.registry.values():
         if not model._auto:
             continue
 
         for field in model._fields.values():
-            # TODO: handle non-orm indexes where the account field is alone or first
             if (
                 not field.store
                 or field.index
@@ -116,7 +108,6 @@ def test_all_l10n(env):
             )
             idxs.append(idxname)
 
-    # Create one company per chart template that is not loaded yet
     _logger.info("Loading chart of account")
     already_loaded_codes = set(env["res.company"].search([]).mapped("chart_template"))
     not_loaded_codes = [
@@ -125,7 +116,6 @@ def test_all_l10n(env):
         ._get_chart_template_mapping()
         .items()
         if template_code not in already_loaded_codes
-        # We can't make it disappear from the list, but we raise a UserError if it's not already the COA
         and template_code not in ("syscohada", "syscebnl")
     ]
     companies = env["res.company"].create(
@@ -139,7 +129,6 @@ def test_all_l10n(env):
     )
     env.cr.commit()
 
-    # Install the CoAs
     start = time.time()
     env.cr.execute("ANALYZE")
     logger = logging.getLogger("odoo.loading")

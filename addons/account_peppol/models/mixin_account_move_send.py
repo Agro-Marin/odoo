@@ -118,7 +118,7 @@ class MixinAccountMoveSend(models.AbstractModel):
     def _do_peppol_pre_send(self, moves):
         if len(moves.company_id) == 1:
             if not moves.company_id.peppol_can_send:
-                return self.env['peppol.registration'].with_context(default_company_id=moves.company_id.id)._action_open_peppol_form(reopen=False)
+                return self.env['peppol.registration'].with_context(default_company_id=moves.company_id.id)._action_view_peppol_form(reopen=False)
 
         for move in moves:
             if move.peppol_move_state in ('ready', False):
@@ -277,7 +277,7 @@ class MixinAccountMoveSend(models.AbstractModel):
     def action_what_is_peppol_activate(self, moves):
         companies = moves.company_id
         if len(companies) == 1 and not companies.peppol_can_send:
-            action = self.env['peppol.registration']._action_open_peppol_form()
+            action = self.env['peppol.registration']._action_view_peppol_form()
             action['context'] = {
                 'active_model': "account.move",
                 'active_ids': moves.ids,

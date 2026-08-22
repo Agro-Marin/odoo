@@ -1,8 +1,3 @@
-"""Tier-1 (DB-free) tests for the dynamic-lines sync planner."""
-
-# The planner is pure: line handles are opaque hashables (plain strings here),
-# keys are hashable mappings, values are dicts. See account/tools/dynamic_lines.py.
-
 from addons.account.tools.dynamic_lines import (
     filter_trivial,
     plan_dynamic_line_sync,
@@ -52,21 +47,16 @@ def test_no_change_returns_none():
 
 
 def test_manually_created_lines_are_preserved():
-    # No needs before, and the existing lines changed: the user is editing
-    # manually — the planner must not touch anything.
     assert plan({}, {"a": K1}, {}, {K1: V1}) is None
 
 
 def test_technical_keys_ignored_in_manual_guard():
-    # Keys carrying an "id" marker are trivial: their appearance must not
-    # trigger the manual-edition guard.
     before = {}
     after = {"a": frozendict(id=42)}
     result = plan(before, after, {}, {K1: V1})
     assert result is not None
     to_delete, to_create, to_write = result
     assert to_create == {K1: V1}
-    # the keyless technical line is not needed and gets dropped
     assert to_delete == ["a"]
     assert to_write == {}
 
@@ -85,7 +75,6 @@ def test_simple_create():
 
 
 def test_needed_key_without_line_is_created():
-    # A key needed before and after but with no existing line is (re)created.
     _to_delete, to_create, _to_write = plan({}, {}, {K1: V1}, {K1: V1, K2: V2})
     assert to_create == {K1: V1, K2: V2}
 
@@ -112,8 +101,6 @@ def test_write_only_when_values_differ():
 
 
 def test_line_morphing_to_needed_key_is_kept():
-    # Line "a" changed key from K1 to K2; K2 is needed, K1 is not: the line
-    # must be updated in place, not deleted.
     to_delete, to_create, to_write = plan({"a": K1}, {"a": K2}, {K1: V1}, {K2: V2})
     assert to_delete == []
     assert to_create == {}
@@ -121,9 +108,6 @@ def test_line_morphing_to_needed_key_is_kept():
 
 
 def test_key_takeover_after_deletion_does_not_crash():
-    # Regression: line "a" (key K1) was deleted during the operation while a
-    # new line "b" now carries K1; K1 is no longer needed. This used to raise
-    # KeyError on before2after[K1].
     to_delete, to_create, to_write = plan({"a": K1}, {"b": K1}, {K1: V1}, {K2: V2})
     assert set(to_delete) == {"a", "b"}
     assert to_create == {K2: V2}
@@ -131,9 +115,6 @@ def test_key_takeover_after_deletion_does_not_crash():
 
 
 def test_duplicate_keys_are_merged_not_double_written():
-    # Regression: two lines share the needed key (user split a payment-term
-    # line): the needed amount must land on exactly one line, the other must
-    # be deleted — writing it on both doubled the amounts.
     to_delete, to_create, to_write = plan(
         {"a": K1, "b": K1}, {"a": K1, "b": K1}, {K1: V1}, {K1: V2}
     )
@@ -145,8 +126,6 @@ def test_duplicate_keys_are_merged_not_double_written():
 
 
 def test_multi_move_no_cross_contamination():
-    # Independent moves in one batch: deletions on move 1 must not interact
-    # with lines of move 2 (the old "recycling" migrated lines across moves).
     to_delete, to_create, to_write = plan(
         {"a": K1, "c": K3},
         {"a": K1, "c": K3},

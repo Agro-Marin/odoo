@@ -26,7 +26,7 @@ class ResPartner(models.Model):
 
     @api.model
     def _l10n_uy_build_vat_error_message(self, partner):
-        """ Similar to _build_vat_error_message but using latam doc type name instead of vat_label
+        """ Similar to _prepare_vat_error_message but using latam doc type name instead of vat_label
         NOTE: maybe can be implemented in master to l10n_latam_base for the use of different doc types """
         vat_label = _("CI/NIE")
         expected_format = _("3:402.010-2 or 93:402.010-1 (CI or NIE)")

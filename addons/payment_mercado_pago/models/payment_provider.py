@@ -162,7 +162,7 @@ class PaymentProvider(models.Model):
             'return_url': f'{return_url}?{urlencode(return_url_params)}',
             'account_country_code': self.mercado_pago_account_country_id.code.lower(),
         }
-        proxy_url = self._build_request_url('/authorize', is_proxy_request=True)
+        proxy_url = self._prepare_request_url('/authorize', is_proxy_request=True)
         return {
             'type': 'ir.actions.act_url',
             'url': f'{proxy_url}?{urlencode(proxy_url_params)}',
@@ -224,17 +224,17 @@ class PaymentProvider(models.Model):
 
     # === REQUEST HELPERS === #
 
-    def _build_request_url(self, endpoint, *, is_proxy_request=False, **kwargs):
+    def _prepare_request_url(self, endpoint, *, is_proxy_request=False, **kwargs):
         """Override of `payment` to build the request URL."""
         if self.code != 'mercado_pago':
-            return super()._build_request_url(endpoint, is_proxy_request=is_proxy_request, **kwargs)
+            return super()._prepare_request_url(endpoint, is_proxy_request=is_proxy_request, **kwargs)
 
         if is_proxy_request:
             return urljoin(f'{const.PROXY_URL}/1', endpoint)
 
         return urljoin('https://api.mercadopago.com', endpoint)
 
-    def _build_request_headers(
+    def _prepare_request_headers(
         self,
         method,
         *args,
@@ -245,7 +245,7 @@ class PaymentProvider(models.Model):
     ):
         """Override of `payment` to build the request headers."""
         if self.code != 'mercado_pago':
-            return super()._build_request_headers(
+            return super()._prepare_request_headers(
                 method,
                 *args,
                 idempotency_key=idempotency_key,

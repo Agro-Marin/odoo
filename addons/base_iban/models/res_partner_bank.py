@@ -95,12 +95,12 @@ class ResPartnerBank(models.Model):
         return rslt
 
     @api.model
-    def retrieve_acc_type(self, acc_number):
+    def _get_acc_type(self, acc_number):
         try:
             validate_iban(acc_number)
             return 'iban'
         except ValidationError:
-            return super().retrieve_acc_type(acc_number)
+            return super()._get_acc_type(acc_number)
 
     def get_bban(self):
         if self.acc_type != 'iban':

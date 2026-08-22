@@ -13,14 +13,9 @@ class PaymentTransaction(models.Model):
         string="Invoices", comodel_name='account.move', relation='account_invoice_transaction_rel',
         column1='transaction_id', column2='invoice_id', readonly=True, copy=False,
         domain=[('move_type', 'in', ('out_invoice', 'out_refund', 'in_invoice', 'in_refund'))])
-    invoices_count = fields.Integer(string="Invoices Count", compute='_compute_invoices_count')
+    invoices_count = fields.Count("invoice_ids", string="Invoices Count")
 
     #=== COMPUTE METHODS ===#
-
-    @api.depends('invoice_ids')
-    def _compute_invoices_count(self):
-        for tx in self:
-            tx.invoices_count = len(tx.invoice_ids)
 
     #=== ACTION METHODS ===#
 

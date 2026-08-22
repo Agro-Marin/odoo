@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 import contextlib
 import json
 from datetime import date
@@ -12,6 +11,8 @@ from odoo.tools import formataddr, mute_logger
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.addons.mail.tests.common import MailCommon
 
+_SEND_LOGGER = "odoo.addons.account.models.mixin_account_move_send"
+
 
 @tagged("post_install_l10n", "post_install", "-at_install", "mail_flow")
 class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
@@ -19,11 +20,10 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # ensure print params
         cls.partner_a.email = "turlututu@tsointsoin"
         cls.user_accountman = (
             cls.env.user
-        )  # main account setup shadows users, better save it
+        )
         cls.company_main = cls.company_data["company"]
         cls.move_template = cls.env["mail.template"].create(
             {
@@ -49,7 +49,6 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
         )
         cls.move_template.write({"attachment_ids": [(6, 0, cls.attachments.ids)]})
 
-        # test users
         cls.user_account = (
             cls.env["res.users"]
             .with_context(cls._test_context)
@@ -105,7 +104,6 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
             )
         )
 
-        # mass mode: 10 invoices with their customer
         country_id = cls.env.ref("base.be").id
         langs = ["en_US", "es_ES"]
         cls.env["res.lang"]._activate_lang("es_ES")
@@ -142,7 +140,6 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
 
         cls.test_account_moves.action_post()
 
-        # test impact of multi language support
         cls._activate_multi_lang(
             test_record=cls.test_account_moves,
             test_template=cls.move_template,
@@ -150,18 +147,15 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
 
     @classmethod
     def default_env_context(cls):
-        # OVERRIDE
         return {}
 
     def setUp(self):
         super().setUp()
 
-        # patch registry to simulate a ready environment
         self.patch(self.env.registry, "ready", True)
         self.flush_tracking()
 
     def test_assert_initial_values(self):
-        """Test initial values to ease understanding of results and notifications"""
         for move in self.test_account_moves:
             with self.subTest(move=move):
                 self.assertEqual(
@@ -178,7 +172,6 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
     @warmup
     @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.models.unlink")
     def test_move_composer_multi(self):
-        """Test with multi mode"""
         test_moves = self.test_account_moves.with_env(self.env)
         test_customers = self.test_customers.with_env(self.env)
         move_template = self.move_template.with_env(self.env)
@@ -193,7 +186,6 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
                 mail_template=move_template,
             )
 
-        # check results: emails (mailing mode when being in multi)
         self.assertEqual(
             len(self._mails),
             20,
@@ -216,7 +208,7 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
                 self.assertMailMail(
                     customer,
                     "sent",
-                    author=self.user_account_other.partner_id,  # author: synchronized with email_from of template
+                    author=self.user_account_other.partner_id,
                     content=_exp_body_tip,
                     email_values={
                         "attachments_info": [
@@ -245,7 +237,7 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
                     fields_values={
                         "auto_delete": True,
                         "email_from": self.user_account_other.email_formatted,
-                        "is_notification": True,  # should keep logs by default
+                        "is_notification": True,
                         "mail_server_id": self.mail_server_default,
                         "subject": _exp_subject,
                         "reply_to": formataddr(
@@ -257,7 +249,6 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
                     },
                 )
 
-        # invoice update
         for test_move in test_moves:
             self.assertTrue(test_move.is_move_sent)
 
@@ -265,7 +256,6 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
     @warmup
     @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.models.unlink")
     def test_move_composer_single(self):
-        """Test single mode"""
         test_move = self.test_account_moves[0].with_env(self.env)
         test_customer = self.test_customers[0].with_env(self.env)
         move_template = self.move_template.with_env(self.env)
@@ -283,7 +273,7 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
 
         with self.mock_mail_gateway(mail_unlink_sent=False), self.mock_mail_app():
             composer.action_send_and_print(allow_fallback_pdf=True)
-            self.env.cr.flush()  # force tracking message
+            self.env.cr.flush()
 
         new_account_msgs = self._new_msgs.filtered(
             lambda msg: (msg.model or "").startswith("account")
@@ -303,7 +293,6 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
             ],
         )
 
-        # print: template-based message
         self.assertEqual(len(print_msg.attachment_ids), 3)
         self.assertNotIn(
             self.attachments,
@@ -328,11 +317,10 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
             print_msg.subject,
             f"{self.env.user.company_id.name} Invoice (Ref {test_move.name})",
         )
-        # sent email
         self.assertMailMail(
             test_customer,
             "sent",
-            author=self.user_account_other.partner_id,  # author: synchronized with email_from of template
+            author=self.user_account_other.partner_id,
             content=f"TemplateBody for {test_move.name}",
             email_values={
                 "attachments_info": [
@@ -361,7 +349,7 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
             fields_values={
                 "auto_delete": True,
                 "email_from": self.user_account_other.email_formatted,
-                "is_notification": True,  # should keep logs by default
+                "is_notification": True,
                 "mail_server_id": self.mail_server_default,
                 "subject": f"{self.env.user.company_id.name} Invoice (Ref {test_move.name})",
                 "reply_to": formataddr(
@@ -373,7 +361,6 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
             },
         )
 
-        # composer configuration
         self.assertIn(f"TemplateBody for {test_move.name}", composer.body)
         self.assertEqual(composer.move_id, test_move)
         self.assertTrue("email" in composer.sending_methods)
@@ -383,14 +370,12 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
         )
         self.assertEqual(composer.template_id, move_template)
 
-        # invoice update
         self.assertTrue(test_move.is_move_sent)
 
     @users("user_account")
     @warmup
     @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.models.unlink")
     def test_move_composer_single_lang(self):
-        """Test single with another language"""
         test_move = self.test_account_moves[1].with_env(self.env)
         test_customer = self.test_customers[1].with_env(self.env)
         move_template = self.move_template.with_env(self.env)
@@ -408,7 +393,7 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
 
         with self.mock_mail_gateway(mail_unlink_sent=False), self.mock_mail_app():
             composer.action_send_and_print()
-            self.env.cr.flush()  # force tracking message
+            self.env.cr.flush()
 
         new_account_msgs = self._new_msgs.filtered(
             lambda msg: (msg.model or "").startswith("account")
@@ -428,7 +413,6 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
             ],
         )
 
-        # print: template-based message
         self.assertEqual(len(print_msg.attachment_ids), 3)
         self.assertNotIn(
             self.attachments,
@@ -450,12 +434,11 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
             test_customer + self.user_accountman.partner_id,
         )
         self.assertEqual(print_msg.subject, f"SpanishSubject for {test_move.name}")
-        # sent email
         self.assertMailMail(
             test_customer,
             "sent",
-            author=self.user_account_other.partner_id,  # author: synchronized with email_from of template
-            content=f"SpanishBody for {test_move.name}",  # translated version
+            author=self.user_account_other.partner_id,
+            content=f"SpanishBody for {test_move.name}",
             email_values={
                 "attachments_info": [
                     {
@@ -470,9 +453,9 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
                     },
                     {"name": f"{test_move.name}.pdf", "type": "application/pdf"},
                 ],
-                "body_content": f"SpanishBody for {test_move.name}",  # translated version
+                "body_content": f"SpanishBody for {test_move.name}",
                 "email_from": self.user_account_other.email_formatted,
-                "subject": f"SpanishSubject for {test_move.name}",  # translated version
+                "subject": f"SpanishSubject for {test_move.name}",
                 "reply_to": formataddr(
                     (
                         self.user_account_other.name,
@@ -483,9 +466,9 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
             fields_values={
                 "auto_delete": True,
                 "email_from": self.user_account_other.email_formatted,
-                "is_notification": True,  # should keep logs by default
+                "is_notification": True,
                 "mail_server_id": self.mail_server_default,
-                "subject": f"SpanishSubject for {test_move.name}",  # translated version
+                "subject": f"SpanishSubject for {test_move.name}",
                 "reply_to": formataddr(
                     (
                         self.user_account_other.name,
@@ -495,7 +478,6 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
             },
         )
 
-        # composer configuration
         self.assertIn(
             f"SpanishBody for {test_move.name}",
             composer.body,
@@ -510,14 +492,12 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
         )
         self.assertEqual(composer.template_id, move_template)
 
-        # invoice update
         self.assertTrue(test_move.is_move_sent)
 
     @users("user_account")
     @warmup
     @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.models.unlink")
     def test_move_composer_with_dynamic_reports(self):
-        """Test extra dynamic reports of the template are sent along the invoice PDF and manual attachments."""
         test_move = self.test_account_moves[0].with_env(self.env)
         test_customer = self.test_customers[0].with_env(self.env)
         move_template = self.move_template.with_env(self.env)
@@ -540,12 +520,12 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
 
         with self.mock_mail_gateway(mail_unlink_sent=False), self.mock_mail_app():
             composer.action_send_and_print()
-            self.env.cr.flush()  # force tracking message
+            self.env.cr.flush()
 
         self.assertMailMail(
             test_customer,
             "sent",
-            author=self.user_account_other.partner_id,  # author: synchronized with email_from of template
+            author=self.user_account_other.partner_id,
             content=f"TemplateBody for {test_move.name}",
             email_values={
                 "attachments_info": [
@@ -578,7 +558,7 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
             fields_values={
                 "auto_delete": True,
                 "email_from": self.user_account_other.email_formatted,
-                "is_notification": True,  # should keep logs by default
+                "is_notification": True,
                 "mail_server_id": self.mail_server_default,
                 "subject": f"{self.env.user.company_id.name} Invoice (Ref {test_move.name})",
                 "reply_to": formataddr(
@@ -591,8 +571,6 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
         )
 
     def test_invoice_sent_to_additional_partner(self):
-        """Test an additional recipient, not the invoiced customer, gets an access token link."""
-        # The access token lets them open the invoice without logging in.
         test_move = self.test_account_moves[1].with_env(self.env)
         move_template = self.move_template.with_env(self.env)
 
@@ -657,9 +635,6 @@ class TestAccountMoveSendCommon(AccountTestInvoicingCommon):
         invoices.action_send_and_print()
         if len(invoices) == 1:
             if not default and not kwargs.get("sending_methods"):
-                # In most cases, for testing purpose you only want to try to generate the document, no need to send it.
-                # Therefore by default we deactivate sending methods, unless default parameter is set to True,
-                # or they are explicitly given.
                 kwargs["sending_methods"] = []
             return self._create_account_move_send_wizard_single(invoices, **kwargs)
         else:
@@ -731,12 +706,10 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             ],
         )
 
-        # Process.
         results = wizard.action_send_and_print()
         self.assertEqual(results["type"], "ir.actions.act_url")
         self.assertFalse(invoice.sending_data)
 
-        # The PDF has been successfully generated.
         pdf_report = invoice.invoice_pdf_report_id
         self.assertTrue(pdf_report)
         invoice_attachments = self.env["ir.attachment"].search(
@@ -749,7 +722,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         self.assertEqual(len(invoice_attachments), 1)
         self.assertTrue(self._get_mail_message(invoice))
 
-        # Send it again. The PDF must not be created again.
         wizard = self.create_send_and_print(
             invoice, sending_methods=["email", "manual"]
         )
@@ -771,7 +743,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         self.assertEqual(len(invoice_attachments), 1)
         self.assertTrue(self._get_mail_message(invoice))
 
-        # Only one PDF linked to the invoice.
         invoice_attachments = self.env["ir.attachment"].search(
             [
                 ("name", "=", pdf_report.name),
@@ -804,20 +775,17 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             },
         )
 
-        # Process.
         results = wizard.action_send_and_print()
         self.assertEqual(results["type"], "ir.actions.client")
         self.assertEqual(
             results["params"]["next"]["type"], "ir.actions.act_window_close"
         )
 
-        # Awaiting the CRON.
         self.assertFalse(invoice1.invoice_pdf_report_id)
         self.assertFalse(invoice2.invoice_pdf_report_id)
         self.assertTrue(invoice1.is_being_sent)
         self.assertTrue(invoice2.is_being_sent)
 
-        # Run the CRON.
         with self.enter_registry_test_mode():
             self.env.ref("account.ir_cron_account_move_send").method_direct_trigger()
         self.assertTrue(invoice1.invoice_pdf_report_id)
@@ -842,7 +810,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         self.assertFalse(invoice1.is_being_sent)
         self.assertFalse(invoice2.is_being_sent)
 
-        # Mix already sent invoice with a new one.
         invoice3 = self.init_invoice(
             "out_invoice", partner=self.partner_b, amounts=[1000], post=True
         )
@@ -928,7 +895,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
                 "email": {
                     "count": 1,
                     "label": "by Email",
-                },  # Only one will be actually sent by email
+                },
             },
         )
         self.assertTrue("account_missing_email" in wizard.alerts)
@@ -936,7 +903,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         wizard.action_send_and_print()
         with self.enter_registry_test_mode():
             self.env.ref("account.ir_cron_account_move_send").method_direct_trigger()
-        # invoices are generated, but only partner_b got an email, without raising any errors
         self.assertTrue(invoice1.invoice_pdf_report_id)
         self.assertFalse(self._get_mail_message(invoice1, limit=None).partner_ids)
         self.assertTrue(invoice2.invoice_pdf_report_id)
@@ -986,7 +952,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             )
 
     def test_invoice_multi_child_contact(self):
-        """Test bulk invoice sending will retrieve info from the main partner."""
         self.partner_a.write({"invoice_sending_method": "manual"})
         partner = self.env["res.partner"].create(
             {
@@ -1009,7 +974,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
     def test_invoice_mail_attachments_widget(self):
         invoice = self.init_invoice("out_invoice", amounts=[1000], post=True)
 
-        # Add a new attachment on the mail_template.
         template = invoice._get_mail_template()
         extra_attachment = self.env["ir.attachment"].create(
             {"name": "extra_attachment", "raw": b"bar"}
@@ -1034,7 +998,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             wizard, [pdf_report_values, extra_attachment_values]
         )
 
-        # Add a new attachment manually.
         manual_attachment = self.env["ir.attachment"].create(
             {"name": "manual_attachment", "raw": b"foo"}
         )
@@ -1047,7 +1010,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         }
         wizard.mail_attachments_widget += [manual_attachment_values]
 
-        # Add an attachment to a new mail_template and change it.
         new_mail_template = wizard.template_id.copy()
         extra_attachment2 = self.env["ir.attachment"].create(
             {"name": "extra_attachment2", "raw": b"bar"}
@@ -1070,7 +1032,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             ],
         )
 
-        # Send.
         wizard.action_send_and_print()
         message = self._get_mail_message(invoice)
         self.assertRecordValues(
@@ -1091,7 +1052,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             ],
         )
 
-        # Resend.
         wizard = self.create_send_and_print(invoice, sending_methods=["email"])
         pdf_report_values["id"] = invoice.invoice_pdf_report_id.id
         self._assert_mail_attachments_widget(
@@ -1102,7 +1062,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             ],
         )
 
-        # Switch the template.
         wizard.template_id = new_mail_template
         self._assert_mail_attachments_widget(
             wizard,
@@ -1112,7 +1071,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             ],
         )
 
-        # Send.
         wizard.action_send_and_print()
         message = self._get_mail_message(invoice)
         self.assertRecordValues(
@@ -1129,7 +1087,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             ],
         )
 
-        # Manually remove the attachment and check the mail's attachments are not removed.
         invoice_pdf_report_name = invoice.invoice_pdf_report_id.name
         invoice_pdf_report_datas = invoice.invoice_pdf_report_id.datas
         invoice.invoice_pdf_report_id.unlink()
@@ -1148,7 +1105,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         )
 
     def test_invoice_web_service_after_pdf_rendering(self):
-        """Test the PDF ir.attachment is not kept when the web service called after the PDF render fails."""
         invoice = self.init_invoice("out_invoice", amounts=[1000], post=True)
         wizard = self.create_send_and_print(invoice)
 
@@ -1160,12 +1116,9 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             "odoo.addons.account.models.mixin_account_move_send.MixinAccountMoveSend._call_web_service_after_invoice_pdf_render",
             call_web_service_after_invoice_pdf_render,
         ):
-            # Prevent a rollback in case of UserError because we can't commit in this test.
-            # Instead, ignore the raised error.
             with contextlib.suppress(UserError):
                 wizard.action_send_and_print(allow_fallback_pdf=False)
 
-        # The PDF is not generated in case of error.
         self.assertFalse(invoice.invoice_pdf_report_id)
 
     def test_proforma_pdf(self):
@@ -1177,7 +1130,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         ):
             invoice_data["error"] = {"error_title": "test_proforma_pdf"}
 
-        # Process.
         with patch(
             "odoo.addons.account.models.mixin_account_move_send.MixinAccountMoveSend._hook_invoice_document_before_pdf_report_render",
             _hook_invoice_document_before_pdf_report_render,
@@ -1187,7 +1139,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         self.assertEqual(results["type"], "ir.actions.act_window_close")
         self.assertFalse(invoice.sending_data)
 
-        # The PDF is not generated but a proforma.
         self.assertFalse(invoice.invoice_pdf_report_id)
         self.assertEqual(
             invoice.message_main_attachment_id.name, "INV_2019_00001_proforma.pdf"
@@ -1203,7 +1154,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             invoice_data["error"] = {"error_title": "prout"}
             invoice_data["error_but_continue"] = True
 
-        # Process.
         with patch(
             "odoo.addons.account.models.mixin_account_move_send.MixinAccountMoveSend._hook_invoice_document_before_pdf_report_render",
             _hook_invoice_document_before_pdf_report_render,
@@ -1213,14 +1163,12 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         self.assertEqual(results["type"], "ir.actions.act_window_close")
         self.assertFalse(invoice.sending_data)
 
-        # A proforma PDF is generated even in case of error, but invoice_pdf_report_id is not set
         self.assertFalse(invoice.invoice_pdf_report_id)
         self.assertEqual(
             invoice.message_main_attachment_id.name, "INV_2019_00001_proforma.pdf"
         )
 
     def test_with_empty_mail_template_single(self):
-        """Test you can use the send & print wizard without any mail template if and only if you are in single mode."""
         invoice = self.init_invoice("out_invoice", amounts=[1000], post=True)
 
         custom_subject = "turlututu"
@@ -1233,7 +1181,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         self.assertRecordValues(message, [{"subject": custom_subject}])
 
     def test_with_empty_mail_template_multi(self):
-        """Test shouldn't be able to send email without mail template in multi mode."""
         invoice_1 = self.init_invoice(
             "out_invoice", amounts=[1000], partner=self.partner_a, post=True
         )
@@ -1254,12 +1201,10 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         wizard.action_send_and_print()
         with self.enter_registry_test_mode():
             self.env.ref("account.ir_cron_account_move_send").method_direct_trigger()
-        # generation defaulted on the generic mail_template and processed successfully
         self.assertTrue(invoice_1.invoice_pdf_report_id)
         self.assertTrue(invoice_2.invoice_pdf_report_id)
 
     def test_with_draft_invoices(self):
-        """Use Send & Print wizard on draft invoice(s) should raise an error."""
         invoice_posted = self.init_invoice("out_invoice", amounts=[1000], post=True)
         invoice_draft = self.init_invoice("out_invoice", amounts=[1000], post=False)
 
@@ -1276,16 +1221,13 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             for move_data in invoices_data.values():
                 move_data["error"] = {"error_title": "service_failed_after"}
 
-        # Process.
         with patch(
             "odoo.addons.account.models.mixin_account_move_send.MixinAccountMoveSend._call_web_service_after_invoice_pdf_render",
             _call_web_service_after_invoice_pdf_render,
         ):
             wizard.action_send_and_print(allow_fallback_pdf=True)
 
-        # The PDF is generated and linked
         self.assertTrue(invoice.invoice_pdf_report_id)
-        # Not a proforma
         self.assertFalse(
             self.env["ir.attachment"]
             .sudo()
@@ -1304,14 +1246,12 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             for move_data in invoices_data.values():
                 move_data["error"] = {"error_title": "service_failed_before"}
 
-        # Process.
         with patch(
             "odoo.addons.account.models.mixin_account_move_send.MixinAccountMoveSend._call_web_service_before_invoice_pdf_render",
             _call_web_service_before_invoice_pdf_render,
         ):
             wizard.action_send_and_print(allow_fallback_pdf=True)
 
-        # The PDF is not generated but a proforma.
         self.assertFalse(invoice.invoice_pdf_report_id)
         self.assertTrue(
             self.env["ir.attachment"]
@@ -1324,7 +1264,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         )
 
     def test_send_and_print_cron(self):
-        """Test the cron generating the documents of the moves queued for asynchronous sending."""
         invoice_1_1 = self.init_invoice(
             "out_invoice",
             amounts=[1000],
@@ -1338,7 +1277,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             company=self.company_data["company"],
         )
         wizard = self.create_send_and_print(invoice_1_1 + invoice_1_2)
-        wizard.action_send_and_print()  # saves value on moves to be sent asynchronously
+        wizard.action_send_and_print()
 
         invoice_2_1 = self.init_invoice(
             "out_invoice",
@@ -1356,7 +1295,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         wizard_2.action_send_and_print()
 
         invoices = invoice_1_1 + invoice_1_2 + invoice_2_1 + invoice_2_2
-        invoices = invoices.sudo()  # keep access after flush of the cron
+        invoices = invoices.sudo()
         self.assertFalse(invoices.invoice_pdf_report_id)
         self.assertTrue(all(invoice.sending_data for invoice in invoices))
         with self.enter_registry_test_mode():
@@ -1365,9 +1304,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         self.assertTrue(all(not invoice.sending_data for invoice in invoices))
 
     def test_cron_send_isolates_failing_move(self):
-        """Test a move failing to send during the cron does not roll back the rest of the batch."""
-        # Without the isolation, the failing move would poison the run and the
-        # same batch would be re-fetched and re-failed forever.
         invoice_ok = self.init_invoice(
             "out_invoice",
             amounts=[1000],
@@ -1394,19 +1330,24 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
                 raise ValueError("boom")
             return real_send_mail(self, move, *args, **kwargs)
 
+        # From the cron the failure is swallowed and logged rather than raised, so
+        # one bad move cannot abort the batch. Assert the log instead of letting
+        # the traceback escape into the suite's output as unattributed noise.
         with (
             self.enter_registry_test_mode(),
             patch.object(MixinAccountMoveSend, "_send_mail", _send_mail_maybe_fail),
+            self.assertLogs(_SEND_LOGGER, "ERROR") as logs,
         ):
             self.env.ref("account.ir_cron_account_move_send").method_direct_trigger()
 
-        # Batch was not rolled back: both moves were processed to completion
-        # (PDF generated and sending_data cleared), despite one send failing.
+        self.assertEqual(len(logs.output), 1, "only the failing move is logged")
+        self.assertIn(
+            f"Failed sending the email for move {invoice_ko.id}", logs.output[0]
+        )
         self.assertTrue(invoice_ok.invoice_pdf_report_id)
         self.assertTrue(invoice_ko.invoice_pdf_report_id)
         self.assertFalse(invoice_ok.sending_data)
         self.assertFalse(invoice_ko.sending_data)
-        # The failing move is flagged for manual follow-up on its chatter.
         self.assertTrue(
             invoice_ko.message_ids.filtered(
                 lambda m: "resend it manually" in (m.body or "")
@@ -1454,7 +1395,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             )
         )
 
-        # reset bus
         self.env.cr.precommit.run()
         self.env["bus.bus"].sudo().search([]).unlink()
 
@@ -1466,7 +1406,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             self.enter_registry_test_mode(),
         ):
             self.env.ref("account.ir_cron_account_move_send").method_direct_trigger()
-            self.env.cr.precommit.run()  # trigger the creation of bus.bus records
+            self.env.cr.precommit.run()
 
         bus_1 = (
             self.env["bus.bus"]
@@ -1499,17 +1439,13 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         )
 
     def test_is_move_sent_state(self):
-        # Post a move, nothing sent yet
         invoice = self.init_invoice("out_invoice", amounts=[1000], post=True)
         self.assertFalse(invoice.is_move_sent)
-        # Send via send & print
         wizard = self.create_send_and_print(invoice)
         wizard.action_send_and_print()
         self.assertTrue(invoice.is_move_sent)
-        # Revert move to draft
         invoice.action_draft()
         self.assertTrue(invoice.is_move_sent)
-        # Unlink PDF
         pdf_report = invoice.invoice_pdf_report_id
         self.assertTrue(pdf_report)
         invoice.invoice_pdf_report_id.unlink()
@@ -1553,11 +1489,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         self.assertDictEqual(results, expected_results)
 
     def test_pdf_report_id(self):
-        """Test 'pdf_report_id' of 'account.move.send.wizard' and '_get_default_pdf_report_id'."""
-        # Resolution order: report set on the partner, else the one set on the
-        # journal, else the standard 'account.account_invoices' report.
-
-        # Test with only 1 report
         invoice = self.init_invoice(
             "out_invoice", partner=self.partner_a, amounts=[300], post=True
         )
@@ -1565,7 +1496,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         wizard = self.create_send_and_print(invoice)
         self.assertEqual(default_report, wizard.pdf_report_id)
 
-        # Test with 2 reports and second one is the default for the partner
         second_report = self.env["ir.actions.report"].create(
             {
                 "name": "Second report",
@@ -1574,15 +1504,12 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
                 "is_invoice_report": True,
             }
         )
-        # before default assignment, we still get the first report
         wizard = self.create_send_and_print(invoice)
         self.assertEqual(default_report, wizard.pdf_report_id)
-        # after default assignment, we get the assigned report
         self.partner_a.invoice_template_pdf_report_id = second_report
         wizard = self.create_send_and_print(invoice)
         self.assertEqual(second_report, wizard.pdf_report_id)
 
-        # Test with 3 reports, and third one is default for journal
         third_report = self.env["ir.actions.report"].create(
             {
                 "name": "Third report",
@@ -1600,7 +1527,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         wizard = self.create_send_and_print(invoice2)
         self.assertEqual(third_report, wizard.pdf_report_id)
 
-        # Test with 3 reports, the second one is default for partner and the third one is default for journal
         invoice3 = self.init_invoice(
             "out_invoice", partner=self.partner_a, post=True, amounts=[300]
         )
@@ -1608,7 +1534,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         self.assertEqual(second_report, wizard.pdf_report_id)
 
     def test_invoice_email_subtitle(self):
-        """Test email notification subtitle for Invoice with and without partner name."""
         partner = self.env["res.partner"].create(
             {"type": "invoice", "parent_id": self.partner_a.id}
         )
@@ -1634,7 +1559,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
                 "print_report_name": "('CustomName_%s' % (object._get_report_base_filename()))",
             }
         )
-        # Test: filename when no template is set.
         move = self.init_invoice(
             "out_invoice", amounts=[1000], partner=self.partner_a, post=True
         )
@@ -1645,7 +1569,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             f"{move._get_report_base_filename().replace('/', '_')}.pdf",
         )
 
-        # Test: filename when template is set.
         self.partner_a.invoice_template_pdf_report_id = mock_template.id
         move2 = self.init_invoice(
             "out_invoice", amounts=[1000], partner=self.partner_a, post=True
@@ -1672,7 +1595,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         ) as patched_send_mail:
             wizard.action_send_and_print()
 
-        # we send an email for every recipient individually (for separate unsubscribe links)
         self.assertEqual(patched_send_mail.call_count, 2)
 
         for call in patched_send_mail.call_args_list:
@@ -1692,7 +1614,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             )
 
     def test_check_move_constraints_reports_every_violation(self):
-        """A batch with several invalid moves must report all of them, not just the first."""
         draft_move_a = self.init_invoice("out_invoice", post=False)
         draft_move_b = self.init_invoice("out_invoice", post=False)
         with self.assertRaises(UserError) as capture:

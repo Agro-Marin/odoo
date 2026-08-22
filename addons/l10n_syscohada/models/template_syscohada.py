@@ -8,6 +8,7 @@ class AccountChartTemplate(models.AbstractModel):
     @template('syscohada')
     def _get_syscohada_template_data(self):
         return {
+            'visible': False,
             'property_account_receivable_id': 'pcg_4111',
             'property_account_payable_id': 'pcg_4011',
             'name': 'SYSCOHADA - Revised',

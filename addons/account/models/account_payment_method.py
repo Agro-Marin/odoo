@@ -7,7 +7,7 @@ class AccountPaymentMethod(models.Model):
     _description = "Payment Methods"
 
     name = fields.Char(required=True, translate=True)
-    code = fields.Char(required=True)  # For internal identification
+    code = fields.Char(required=True)
     payment_type = fields.Selection(
         selection=[("inbound", "Inbound"), ("outbound", "Outbound")], required=True
     )
@@ -24,8 +24,6 @@ class AccountPaymentMethod(models.Model):
         return self._auto_link_payment_methods(payment_methods, methods_info)
 
     def _auto_link_payment_methods(self, payment_methods, methods_info):
-        # This method was extracted from create so it can be overriden in the upgrade script.
-        # In said script we can then allow for a custom behavior for the payment.method.line on the journals.
         for method in payment_methods:
             information = methods_info.get(method.code, {})
             if information.get("mode") == "multi":
@@ -45,12 +43,6 @@ class AccountPaymentMethod(models.Model):
 
     @api.model
     def _get_payment_method_domain(self, code, with_currency=True, with_country=True):
-        """
-        :param code: string of the payment method line code to check.
-        :param with_currency: if False (default True), ignore the currency_id domain if it exists.
-        :param with_country: if False (default True), ignore the country_id domain if it exists.
-        :return: The domain specifying which journal can accommodate this payment method.
-        """
         if not code:
             return Domain.TRUE
         information = self._get_payment_method_information().get(code)
@@ -70,25 +62,12 @@ class AccountPaymentMethod(models.Model):
 
     @api.model
     def _get_payment_method_information(self):
-        """
-        Contains details about how to initialize a payment method with the code x.
-        The contained info are:
-
-        - ``mode``: One of the following:
-          "unique" if the method cannot be used twice on the same company,
-          "electronic" if the method cannot be used twice on the same company for the same 'payment_provider_id',
-          "multi" if the method can be duplicated on the same journal.
-        - ``type``: Tuple containing one or more of these items: "bank", "cash" and "credit".
-        - ``currency_ids``: The ids of the currency necessary on the journal (or company) for it to be eligible.
-        - ``country_id``: The id of the country needed on the company for it to be eligible.
-        """
         return {
             "manual": {"mode": "multi", "type": ("bank", "cash", "credit")},
         }
 
     @api.model
     def _get_sdd_payment_method_code(self):
-        """Return the list of SDD payment method codes (override hook)."""
         return []
 
     def unlink(self):
@@ -104,7 +83,6 @@ class AccountPaymentMethodLine(models.Model):
     _order = "sequence, id"
     _check_company_domain = models.check_company_domain_parent_of
 
-    # == Business fields ==
     name = fields.Char(compute="_compute_name", readonly=False, store=True)
     sequence = fields.Integer(default=10)
     payment_method_id = fields.Many2one(
@@ -127,7 +105,6 @@ class AccountPaymentMethodLine(models.Model):
     )
     default_account_id = fields.Many2one(related="journal_id.default_account_id")
 
-    # == Display purpose fields ==
     code = fields.Char(related="payment_method_id.code")
     payment_type = fields.Selection(related="payment_method_id.payment_type")
     company_id = fields.Many2one(related="journal_id.company_id")
@@ -155,7 +132,6 @@ class AccountPaymentMethodLine(models.Model):
         self.journal_id._check_payment_method_line_ids_multiplicity()
 
     def unlink(self):
-        """Unlink payment method lines, breaking only the journal link for those still used in a payment."""
         unused_payment_method_lines = self
         for line in self:
             payment_count = (

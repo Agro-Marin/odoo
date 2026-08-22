@@ -206,11 +206,11 @@ class AccountMove(models.Model):
                 action = self.env.ref('account.action_account_journal_form')
                 raise RedirectWarning(msg, action.id, _('Go to Journals'))
 
-    def _compute_l10n_latam_document_type(self):
+    def _compute_l10n_latam_document_type_id(self):
         """We correct the default document type in vendor bills in case the partner is foreign (code 8)
         so that it is always 'Foreign invoices and receipts'.
         """
-        super()._compute_l10n_latam_document_type()
+        super()._compute_l10n_latam_document_type_id()
         foreign_vendor_bills = self.filtered(lambda x: (
             x.company_id.account_fiscal_country_id.code == "AR"
             and x.state == 'draft'

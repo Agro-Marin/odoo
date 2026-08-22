@@ -1462,7 +1462,7 @@ class AccountMove(models.Model):
         # Download invoices
         invoices_data = {}
         try:
-            invoices_data = proxy_user._make_request(
+            invoices_data = proxy_user._prepare_request(
                 f"{server_url}/api/l10n_it_edi/1/in/RicezioneInvoice",
                 params={
                     "recipient_codice_fiscale": proxy_user.company_id.l10n_it_codice_fiscale
@@ -1476,7 +1476,7 @@ class AccountMove(models.Model):
         processed = self._l10n_it_edi_process_downloads(invoices_data, proxy_user)
         if processed["proxy_acks"]:
             try:
-                proxy_user._make_request(
+                proxy_user._prepare_request(
                     f"{server_url}/api/l10n_it_edi/1/ack",
                     params={"transaction_ids": processed["proxy_acks"]},
                 )
@@ -1739,7 +1739,7 @@ class AccountMove(models.Model):
                     Markup("%s<br/>%s")
                     % (
                         _("Withholding tax not found"),
-                        self.env["account.move"]._compose_info_message(body_tree, "."),
+                        self.env["account.move"]._prepare_info_message(body_tree, "."),
                     )
                 )
         extra_info["withholding_taxes"] = withholding_taxes
@@ -1772,7 +1772,7 @@ class AccountMove(models.Model):
                     Markup("%s<br/>%s")
                     % (
                         _("Pension Fund tax not found"),
-                        self.env["account.move"]._compose_info_message(body_tree, "."),
+                        self.env["account.move"]._prepare_info_message(body_tree, "."),
                     )
                 )
         extra_info["pension_fund_taxes"] = pension_fund_taxes
@@ -1905,7 +1905,7 @@ class AccountMove(models.Model):
                 message = Markup("<br/>").join(
                     (
                         _("Partner not found, useful informations from XML file:"),
-                        self._compose_info_message(tree, partner_info["section_xpath"]),
+                        self._prepare_info_message(tree, partner_info["section_xpath"]),
                     )
                 )
                 message_to_log.append(message)
@@ -1960,7 +1960,7 @@ class AccountMove(models.Model):
                     message = Markup("{} {}<br/>{}").format(
                         document_type,
                         _("from XML file:"),
-                        self._compose_info_message(element, "."),
+                        self._prepare_info_message(element, "."),
                     )
                     message_to_log.append(message)
 
@@ -1969,7 +1969,7 @@ class AccountMove(models.Model):
                 message = Markup("<br/>").join(
                     (
                         _("Transport informations from XML file:"),
-                        self._compose_info_message(tree, ".//DatiGenerali/DatiDDT"),
+                        self._prepare_info_message(tree, ".//DatiGenerali/DatiDDT"),
                     )
                 )
                 message_to_log.append(message)
@@ -2046,7 +2046,7 @@ class AccountMove(models.Model):
                                 _(
                                     "Bank account not found, useful informations from XML file:"
                                 ),
-                                self._compose_info_message(
+                                self._prepare_info_message(
                                     tree,
                                     [
                                         ".//DatiPagamento//Beneficiario",
@@ -2065,7 +2065,7 @@ class AccountMove(models.Model):
                 message = Markup("<br/>").join(
                     (
                         _("Bank account not found, useful informations from XML file:"),
-                        self._compose_info_message(tree, ".//DatiPagamento"),
+                        self._prepare_info_message(tree, ".//DatiPagamento"),
                     )
                 )
                 message_to_log.append(message)
@@ -2284,7 +2284,7 @@ class AccountMove(models.Model):
                             "Tax not found for line with description '%s'",
                             move_line.name,
                         ),
-                        self._compose_info_message(element, "."),
+                        self._prepare_info_message(element, "."),
                     )
                 )
                 message_to_log.append(message)
@@ -2337,7 +2337,7 @@ class AccountMove(models.Model):
                             expected_total=expected_total,
                             move_name=move_line.name,
                         ),
-                        self._compose_info_message(element, "."),
+                        self._prepare_info_message(element, "."),
                     )
                 )
                 message_to_log.append(message)
@@ -2397,7 +2397,7 @@ class AccountMove(models.Model):
                                 "Enasarco tax not found for line with description '%s'",
                                 move_line.name,
                             ),
-                            self.env["account.move"]._compose_info_message(
+                            self.env["account.move"]._prepare_info_message(
                                 other_data_element, "."
                             ),
                         )
@@ -2413,7 +2413,7 @@ class AccountMove(models.Model):
             ),
         )
 
-    def _compose_info_message(self, tree, tags):
+    def _prepare_info_message(self, tree, tags):
         result = ""
         for tag in tags if isinstance(tags, list) else [tags]:
             for el in tree.xpath(tag):
@@ -2833,7 +2833,7 @@ class AccountMove(models.Model):
         if proxy_user.edi_mode == "demo":
             return {"id_transaction": "demo"}
         server_url = proxy_user._get_server_url()
-        return proxy_user._make_request(
+        return proxy_user._prepare_request(
             f"{server_url}/api/l10n_it_edi/2/out/SdiRiceviFile", params={"file": file}
         )
 
@@ -2876,7 +2876,7 @@ class AccountMove(models.Model):
 
         server_url = proxy_user._get_server_url()
         try:
-            notifications = proxy_user._make_request(
+            notifications = proxy_user._prepare_request(
                 f"{server_url}/api/l10n_it_edi/1/in/TrasmissioneFatture",
                 params={"ids_transaction": self.mapped("l10n_it_edi_transaction")},
             )
@@ -2922,7 +2922,7 @@ class AccountMove(models.Model):
             transaction_ids = acks["transaction_ids"]
             states = acks["states"]
             try:
-                proxy_user._make_request(
+                proxy_user._prepare_request(
                     f"{server_url}/api/l10n_it_edi/1/ack",
                     params={"transaction_ids": transaction_ids, "states": states},
                 )

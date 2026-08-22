@@ -5,7 +5,6 @@ from odoo.tests import HttpCase, tagged
 @tagged("-at_install", "post_install")
 class TestAccountMoveAttachment(HttpCase):
     def test_preserving_manually_added_attachments(self):
-        """Preserve attachments manually added (not coming from emails) to an invoice"""
         self.authenticate("admin", "admin")
 
         invoice = self.env["account.move"].create(

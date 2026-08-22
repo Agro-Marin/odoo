@@ -8,12 +8,6 @@ class AccountChartTemplate(models.AbstractModel):
 
     @template("generic_coa")
     def _get_generic_coa_template_data(self):
-        """Return the data necessary for the chart template.
-
-        :return: values not stored on records but used to instantiate the chart
-                 of accounts (e.g. property_* account references, code_digits)
-        :rtype: dict
-        """
         return {
             "name": _("Generic Chart of Accounts"),
             "country": None,
@@ -23,11 +17,6 @@ class AccountChartTemplate(models.AbstractModel):
 
     @template("generic_coa", "res.company")
     def _get_generic_coa_res_company(self):
-        """Return the data to be written on the company.
-
-        :return: mapping of XMLID or record id to its create/write values
-        :rtype: dict[(str, int), dict]
-        """
         return {
             self.env.company.id: {
                 "anglo_saxon_accounting": True,

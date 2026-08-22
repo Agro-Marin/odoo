@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 import base64
 import copy
 import difflib
@@ -27,8 +26,6 @@ _logger = logging.getLogger(__name__)
 
 
 def skip_unless_external(func):
-    """Skip a test unless it is run in external mode."""
-
     @wraps(func)
     def wrapper(*args, **kwargs):
         if "EXTERNAL_MODE" in (config["test_tags"] or {}):
@@ -40,7 +37,6 @@ def skip_unless_external(func):
 
 
 class AccountTestInvoicingCommon(ProductCommon):
-    # to override by the helper methods setup_country and setup_chart_template to adapt to a localization
     chart_template = False
     country_code = False
     extra_tags = (
@@ -55,7 +51,6 @@ class AccountTestInvoicingCommon(ProductCommon):
 
     @staticmethod
     def setup_country(country_code):
-
         def _decorator(function):
             @wraps(function)
             def wrapper(self):
@@ -96,7 +91,6 @@ class AccountTestInvoicingCommon(ProductCommon):
         )
         cls.tax_number = 0
 
-        # ==== Taxes ====
         cls.tax_sale_a = cls.company_data["default_tax_sale"]
         cls.tax_sale_b = (
             cls.company_data["default_tax_sale"]
@@ -109,7 +103,6 @@ class AccountTestInvoicingCommon(ProductCommon):
         )
         cls.tax_armageddon = cls.setup_armageddon_tax("complex_tax", cls.company_data)
 
-        # ==== Products ====
         cls.product_a = cls._create_product(
             name="product_a",
             lst_price=1000.0,
@@ -133,7 +126,6 @@ class AccountTestInvoicingCommon(ProductCommon):
             ],
         )
 
-        # ==== Fiscal positions ====
         cls.fiscal_pos_a = cls.env["account.fiscal.position"].create(
             {
                 "name": "fiscal_pos_a",
@@ -166,7 +158,6 @@ class AccountTestInvoicingCommon(ProductCommon):
             cls.tax_purchase_b.fiscal_position_ids = cls.fiscal_pos_a.ids
             cls.tax_purchase_b.original_tax_ids = cls.tax_purchase_a
 
-        # ==== Payment terms ====
         cls.pay_terms_a = cls.env.ref("account.account_payment_term_immediate")
         cls.pay_terms_b = cls.env["account.payment.term"].create(
             {
@@ -196,7 +187,6 @@ class AccountTestInvoicingCommon(ProductCommon):
             }
         )
 
-        # ==== Partners ====
         cls.partner_a = cls.env["res.partner"].create(
             {
                 "name": "partner_a",
@@ -235,7 +225,6 @@ class AccountTestInvoicingCommon(ProductCommon):
             }
         )
 
-        # ==== Cash rounding ====
         cls.cash_rounding_a = cls.env["account.cash.rounding"].create(
             {
                 "name": "add_invoice_line",
@@ -259,7 +248,6 @@ class AccountTestInvoicingCommon(ProductCommon):
             }
         )
 
-        # ==== Payment methods ====
         bank_journal = cls.company_data["default_journal_bank"]
         in_outstanding_account = cls.env["account.chart.template"].ref(
             "account_journal_payment_debit_account_id", raise_if_not_found=False
@@ -279,14 +267,12 @@ class AccountTestInvoicingCommon(ProductCommon):
                 out_outstanding_account
             )
 
-        # user with restricted groups
         cls.simple_accountman = cls.env["res.users"].create(
             {
                 "name": "simple accountman",
                 "login": "simple_accountman",
                 "password": "simple_accountman",
                 "group_ids": [
-                    # the `account` manager/user groups from get_default_groups()
                     Command.link(cls.env.ref("account.group_account_manager").id),
                     Command.link(cls.env.ref("account.group_account_user").id),
                 ],
@@ -305,7 +291,6 @@ class AccountTestInvoicingCommon(ProductCommon):
 
     @classmethod
     def setup_other_company(cls, **kwargs):
-        # OVERRIDE
         company = cls._create_company(**{"name": "company_2"} | kwargs)
         data = cls.collect_company_accounting_data(company)
         cls.product_category.with_company(company).write(
@@ -319,7 +304,6 @@ class AccountTestInvoicingCommon(ProductCommon):
     @classmethod
     def setup_independent_company(cls, **kwargs):
         if cls.env.registry.loaded:
-            # Only create a new company for post-install tests
             return cls._create_company(name="company_1_data", **kwargs)
         else:
             cls.env["account.tax.group"].create(
@@ -357,14 +341,12 @@ class AccountTestInvoicingCommon(ProductCommon):
                 create_values["currency_id"] = country.currency_id.id
         company = super()._create_company(**create_values)
         cls._use_chart_template(company, cls.chart_template)
-        # if the currency_id was defined explicitly (or via the country), it should override the one from the coa
         if create_values.get("currency_id"):
             company.currency_id = create_values["currency_id"]
         return company
 
     @classmethod
     def _create_product(cls, **create_values):
-        # OVERRIDE
         create_values.setdefault(
             "property_account_income_id", cls.company_data["default_account_revenue"]
         )
@@ -373,8 +355,6 @@ class AccountTestInvoicingCommon(ProductCommon):
         )
         create_values.setdefault("taxes_id", cls.tax_sale_a)
 
-        # QoL: allow passing record immediately instead of getting the id / creating [Command.set(...)] everytime
-        # QoL: delete all keys with None value from create_values
         cls._prepare_record_kwargs("product.product", create_values)
         return super()._create_product(**create_values)
 
@@ -389,7 +369,7 @@ class AccountTestInvoicingCommon(ProductCommon):
             | cls.quick_ref("account.group_account_manager")
             | cls.quick_ref("account.group_account_user")
             | cls.quick_ref("account.group_validate_bank_account")
-            | cls.quick_ref("base.group_system")  # company creation during setups
+            | cls.quick_ref("base.group_system")
         )
 
     @classmethod
@@ -416,7 +396,6 @@ class AccountTestInvoicingCommon(ProductCommon):
         ]
         cls.ensure_installed(template_vals["module"])
 
-        # Install the chart template
         cls.env["account.chart.template"].try_loading(
             chart_template_ref, company=company, install_demo=False
         )
@@ -425,7 +404,6 @@ class AccountTestInvoicingCommon(ProductCommon):
 
     @classmethod
     def collect_company_accounting_data(cls, company):
-        # Need to have the right company when searching accounts with limit=1, since the ordering depends on the account code.
         AccountAccount = cls.env["account.account"].with_company(company)
         account_company_domain = cls.env["account.account"]._check_company_domain(
             company
@@ -546,9 +524,6 @@ class AccountTestInvoicingCommon(ProductCommon):
                 f"Module required for the test is not installed ({module_name})"
             )
 
-    # -------------------------------------------------------------------------
-    # Helper: Generation of Tax / Invoice / Sale Order / etc.
-    # -------------------------------------------------------------------------
 
     def group_of_taxes(self, taxes, **kwargs):
         self.tax_number += 1
@@ -661,7 +636,6 @@ class AccountTestInvoicingCommon(ProductCommon):
                                     {
                                         "factor_percent": 60,
                                         "repartition_type": "tax",
-                                        # /!\ No account set.
                                     },
                                 ),
                             ],
@@ -690,7 +664,6 @@ class AccountTestInvoicingCommon(ProductCommon):
                                     {
                                         "factor_percent": 60,
                                         "repartition_type": "tax",
-                                        # /!\ No account set.
                                     },
                                 ),
                             ],
@@ -770,7 +743,6 @@ class AccountTestInvoicingCommon(ProductCommon):
         currency=None,
         journal=None,
     ):
-        """This method is deprecated. Please call ``_create_invoice`` instead."""
         products = [] if products is None else products
         amounts = [] if amounts is None else amounts
         move_form = Form(
@@ -779,15 +751,9 @@ class AccountTestInvoicingCommon(ProductCommon):
             .with_context(default_move_type=move_type)
         )
         move_form.invoice_date = invoice_date or fields.Date.from_string("2019-01-01")
-        # According to the state or type of the invoice, the date field is sometimes visible or not
-        # Besides, the date field can be put multiple times in the view; only the one in the form
-        # view carries an `invisible` modifier:
-        # invisible="move_type in ('out_invoice', 'out_refund', 'out_receipt') and not quick_edit_mode and not (state == 'posted' and date != invoice_date)"
-        # :TestAccountMoveOutInvoiceOnchanges, :TestAccountMoveOutRefundOnchanges, .test_00_debit_note_out_invoice, :TestAccountEdi
         if not move_form._get_modifier("date", "invisible"):
             move_form.date = move_form.invoice_date
         move_form.partner_id = partner or cls.partner_a
-        # The journal_id field is invisible when there is only one available journal for the move type.
         if journal and not move_form._get_modifier("journal_id", "invisible"):
             move_form.journal_id = journal
         if currency:
@@ -977,13 +943,6 @@ class AccountTestInvoicingCommon(ProductCommon):
         post=False,
         **invoice_args,
     ):
-        """Generate an ``account.move`` record with quality of life helpers.
-
-        :param post: if True, the invoice will be posted
-        :param invoice_args: additional overrides on the `account.move` `create` call
-        :return: the created ``account.move`` record
-        """
-        # QoL: if `invoice_date`/`date` is filled but not the other, autofill the other date fields
         if move_type in cls.env["account.move"].get_invoice_types():
             if invoice_date and not date:
                 date = invoice_date
@@ -994,8 +953,6 @@ class AccountTestInvoicingCommon(ProductCommon):
 
         invoice_args |= {"date": date, "invoice_date": invoice_date}
 
-        # QoL: allow passing record immediately instead of getting the id / creating [Command.set(...)] everytime
-        # QoL: delete all keys with None value from invoice_args
         cls._prepare_record_kwargs("account.move", invoice_args)
 
         invoice = cls.env["account.move"].create(
@@ -1003,7 +960,7 @@ class AccountTestInvoicingCommon(ProductCommon):
                 {
                     "move_type": move_type,
                     "partner_id": cls.partner_a.id,
-                    "invoice_line_ids": [  # default invoice_line_ids
+                    "invoice_line_ids": [
                         cls._prepare_invoice_line(product_id=cls.product_a),
                         cls._prepare_invoice_line(product_id=cls.product_b),
                     ],
@@ -1216,17 +1173,6 @@ class AccountTestInvoicingCommon(ProductCommon):
     def _create_down_payment_invoice(
         cls, sale_order, amount_type: str, amount: float, post=False
     ):
-        """Invoice a down payment on the given sale order.
-
-        :param sale_order:      The SO as a sale.order record.
-        :param amount_type:     The type of the down payment: ('percent'/'percentage'), 'fixed', or 'delivered'.
-        :param amount:          The amount to consider.
-                                For 'percent', it should be a percentage [0-100].
-                                For 'fixed', any amount.
-                                For 'delivered', this value is not used.
-        :param post:            If True, the generated invoice will be posted.
-        :return: the created ``account.move`` record
-        """
         cls.ensure_installed("sale")
 
         if amount_type in ("percent", "percentage"):
@@ -1239,7 +1185,7 @@ class AccountTestInvoicingCommon(ProductCommon):
                 "advance_payment_method": "fixed",
                 "fixed_amount": amount,
             }
-        else:  # amount_type == 'delivered'
+        else:
             create_values = {
                 "advance_payment_method": "delivered",
             }
@@ -1265,15 +1211,6 @@ class AccountTestInvoicingCommon(ProductCommon):
 
     @classmethod
     def _apply_sale_order_discount(cls, sale_order, amount_type: str, amount: float):
-        """Apply a global discount on the given sale order.
-
-        :param sale_order:      The SO as a sale.order record.
-        :param amount_type:     The type of the global discount: 'percent', 'all' (also percentage), or 'fixed'.
-        :param amount:          The amount to consider.
-                                For 'percent' and 'all', it should be a percentage [0-100].
-                                For 'fixed', any amount.
-        :return: the ``sale.order.discount`` wizard record
-        """
         cls.ensure_installed("sale")
 
         if amount_type in ("percent", "all"):
@@ -1282,7 +1219,7 @@ class AccountTestInvoicingCommon(ProductCommon):
             )
             discount_percentage = amount / 100.0
             discount_amount = None
-        else:  # amount_type == 'fixed'
+        else:
             discount_type = "amount"
             discount_percentage = None
             discount_amount = amount
@@ -1303,14 +1240,8 @@ class AccountTestInvoicingCommon(ProductCommon):
         discount_wizard.action_apply_discount()
         return discount_wizard
 
-    # -------------------------------------------------------------------------
-    # Assertions
-    # -------------------------------------------------------------------------
 
     def replace_ignore(self, to_compare):
-        """Replace every ``___ignore___`` marker by unittest's ``ANY`` sentinel."""
-        # JSON expectations live in separate files, where `ANY` cannot be spelled out;
-        # apply this on the dicts to be compared before calling assertDictEqual.
         if isinstance(to_compare, dict):
             return {k: self.replace_ignore(v) for k, v in to_compare.items()}
         if isinstance(to_compare, list):
@@ -1338,10 +1269,6 @@ class AccountTestInvoicingCommon(ProductCommon):
         )
 
     def assert_invoice_outstanding_to_reconcile_widget(self, invoice, expected_amounts):
-        """Check the outstanding widget before the reconciliation.
-        :param invoice:             An invoice.
-        :param expected_amounts:    A map <move_id> -> <amount>
-        """
         invoice.invalidate_recordset(["invoice_outstanding_credits_debits_widget"])
         widget_vals = invoice.invoice_outstanding_credits_debits_widget
 
@@ -1354,10 +1281,6 @@ class AccountTestInvoicingCommon(ProductCommon):
         self.assertDictEqual(current_amounts, expected_amounts)
 
     def assert_invoice_outstanding_reconciled_widget(self, invoice, expected_amounts):
-        """Check the outstanding widget after the reconciliation.
-        :param invoice:             An invoice.
-        :param expected_amounts:    A map <move_id> -> <amount>
-        """
         invoice.invalidate_recordset(["invoice_payments_widget"])
         widget_vals = invoice.invoice_payments_widget
 
@@ -1372,12 +1295,6 @@ class AccountTestInvoicingCommon(ProductCommon):
     def _assert_tax_totals_summary(
         self, tax_totals, expected_results, soft_checking=False
     ):
-        """Assert the tax totals.
-        :param tax_totals:          The tax totals computed from _get_tax_totals_summary in account.tax.
-        :param expected_results:    The expected values.
-        :param soft_checking:       Limit the asserted values to the ones in 'expected_results' and don't go deeper inside the dictionary.
-        """
-
         def fix_monetary_value(current_values, expected_values, monetary_fields):
             for key, current_value in current_values.items():
                 if not isinstance(expected_values.get(key), float):
@@ -1470,9 +1387,6 @@ class AccountTestInvoicingCommon(ProductCommon):
                 )
                 self.assertDictEqual(current_tax_group, expected_tax_group)
 
-    ####################################################
-    # Xml / JSON Comparison
-    ####################################################
 
     @classmethod
     def _get_ignore_schema(
@@ -1499,14 +1413,6 @@ class AccountTestInvoicingCommon(ProductCommon):
 
     @classmethod
     def _get_xml_ignore_schema(cls, subfolder: str) -> etree._Element | None:
-        """Return the closest `ignore_schema.xml` as an XML element.
-
-        The lookup walks up from `<test_module>/tests/test_files/<subfolder>` to
-        `<test_module>/tests/test_files` and stops on the first existing file.
-
-        :param subfolder: the subfolder of the path of XML file to save/assert. (e.g. "folder_1", "folder_outer/folder_inner")
-        :return: an _Element object, or None if no `ignore_schema.xml` file is found.
-        """
         if ignore_schema_bytes := cls._get_ignore_schema(
             subfolder, "ignore_schema.xml"
         ):
@@ -1523,7 +1429,6 @@ class AccountTestInvoicingCommon(ProductCommon):
 
     @classmethod
     def _clear_xml_content(cls, xml_element: etree._Element, clean_namespaces=True):
-        """Clear an _Element object by removing its children, attributes and namespaces."""
         for child in xml_element:
             xml_element.remove(child)
 
@@ -1541,14 +1446,6 @@ class AccountTestInvoicingCommon(ProductCommon):
         overwrite_on_conflict=True,
         add_on_absent=True,
     ):
-        """Merge the content of `secondary_xml` into `primary_xml`, recursively.
-
-        :param primary_xml: The primary _Element object to be written on to.
-        :param secondary_xml: The second _Element object in which content is used as reference.
-        :param overwrite_on_conflict: If True and matching attribute/child element is found, the original content is overwritten.
-        :param add_on_absent: If True and matching attribute/child element is not found, it will be added on the primary_xml.
-        """
-        # Both elements must share the same tag, otherwise there is nothing to merge.
         if primary_xml.tag != secondary_xml.tag:
             return
 
@@ -1581,13 +1478,7 @@ class AccountTestInvoicingCommon(ProductCommon):
 
     @classmethod
     def _prepare_xml_ignore_schema(cls, xml_schema: etree._Element):
-        """Resolve the `___inherit___` attribute of an ignore schema before it is applied.
-
-        The resolved `xml_schema` ends up containing the schema of its parent schema(s) too.
-        """
-        # TO EXTEND
         if "___inherit___" in xml_schema.attrib:
-            # Merge current XML schema with the parent(s)
             next_inherit = xml_schema.attrib["___inherit___"]
 
             while next_inherit:
@@ -1603,12 +1494,10 @@ class AccountTestInvoicingCommon(ProductCommon):
     def _rebuild_xml_with_sorted_namespaces(
         cls, root: etree._Element
     ) -> etree._Element:
-        # Collect all namespaces and prefixes
         all_nsmap = {
             prefix: uri for elem in root.iter() for prefix, uri in elem.nsmap.items()
         }
 
-        # Sort all namespaces
         nsmap_str_keys = [key for key in all_nsmap if isinstance(key, str)]
         sorted_nsmap_keys = [
             *((None,) if None in all_nsmap else ()),
@@ -1618,7 +1507,6 @@ class AccountTestInvoicingCommon(ProductCommon):
             nsmap_key: all_nsmap[nsmap_key] for nsmap_key in sorted_nsmap_keys
         }
 
-        # Build a new root element with the sorted namespaces and all original root attrib & children
         new_root = etree.Element(root.tag, nsmap=sorted_nsmap)
         new_root.text = root.text
         for attrib_key, attrib_val in root.attrib.items():
@@ -1647,15 +1535,13 @@ class AccountTestInvoicingCommon(ProductCommon):
                         data[schema_key] = "___ignore___"
                     elif data[
                         schema_key
-                    ]:  # schema_value is a dict or a list, and the corresponding value is not None
+                    ]:
                         cls._apply_json_ignore_schema(data[schema_key], schema_value)
         elif isinstance(ignore_schema, list):
             if len(ignore_schema) == 1:
-                # if there's only one dictionary, apply it to every item in the `data` list
                 for data_child in data:
                     cls._apply_json_ignore_schema(data_child, ignore_schema[0])
             else:
-                # otherwise, the length of the schema must match the data, and go through them as pairs
                 assert len(ignore_schema) == len(data), (
                     "Length of list of ignore_schema and data must match"
                 )
@@ -1663,17 +1549,7 @@ class AccountTestInvoicingCommon(ProductCommon):
                     cls._apply_json_ignore_schema(data[i], ignore_schema[i])
 
     def assert_json(self, content_to_assert: dict | list, test_name: str, subfolder=""):
-        """Assert a dictionary against a JSON file in the module `test_files`, or save it.
-
-        Save mode is triggered by the `SAVE_JSON` test tag; it writes `content_to_assert`
-        into the test file instead of asserting.
-
-        :param content_to_assert: dictionary | list to save or assert to the corresponding test file
-        :param test_name: the test file name
-        :param subfolder: the test file subfolder(s), separated by `/` if there is more than one
-        """
         json_path = self._get_test_file_path(f"{test_name}.json", subfolder=subfolder)
-        # Round-trip through JSON so the content matches the saved format (tuples become lists, ...)
         content_to_assert = json.loads(json.dumps(content_to_assert))
         if json_ignore_schema := self._get_json_ignore_schema(subfolder):
             self._apply_json_ignore_schema(content_to_assert, json_ignore_schema)
@@ -1693,15 +1569,6 @@ class AccountTestInvoicingCommon(ProductCommon):
         test_name: str,
         subfolder="",
     ):
-        """Assert an XML element/string/bytes against an XML test file, or save it.
-
-        Save mode is triggered by the `SAVE_XML` test tag; it reindents, patches with
-        `___ignore___` values, canonicalizes and writes the element instead of asserting.
-
-        :param xml_element: the _Element/str/bytes content to be saved or asserted
-        :param test_name: the test file name
-        :param subfolder: the test file subfolder(s), separated by `/` if there is more than one
-        """
         file_name = f"{test_name}.xml"
         test_file_path = self._get_test_file_path(file_name, subfolder=subfolder)
         if isinstance(xml_element, str):
@@ -1710,7 +1577,6 @@ class AccountTestInvoicingCommon(ProductCommon):
             xml_element = etree.fromstring(xml_element)
 
         if "SAVE_XML" in config["test_tags"]:
-            # Save the XML to tmp folder before modifying some elements with `___ignore___`
             etree.indent(xml_element, space="\t")
             with patch.object(re, "fullmatch", lambda _arg1, _arg2: True):
                 save_test_file(
@@ -1723,7 +1589,6 @@ class AccountTestInvoicingCommon(ProductCommon):
                     document_type="Invoice XML",
                     date_format="",
                 )
-            # Search for closest `ignore_schema.xml` from the file path and apply the change to xml_element
             xml_ignore_schema = self._get_xml_ignore_schema(subfolder)
             if xml_ignore_schema is not None:
                 self._prepare_xml_ignore_schema(xml_ignore_schema)
@@ -1735,12 +1600,10 @@ class AccountTestInvoicingCommon(ProductCommon):
                 )
                 etree.indent(xml_element, space="\t")
 
-            # Canonicalize & re-sort the namespaces
             canonicalized_xml_str = etree.canonicalize(xml_element)
             xml_element = etree.fromstring(canonicalized_xml_str)
             xml_element = self._rebuild_xml_with_sorted_namespaces(xml_element)
 
-            # Save the xml_element content
             with file_open(test_file_path, "wb") as f:
                 f.write(
                     etree.tostring(xml_element, pretty_print=True, encoding="UTF-8")
@@ -1755,11 +1618,6 @@ class AccountTestInvoicingCommon(ProductCommon):
 
     @classmethod
     def _turn_node_as_dict_hierarchy(cls, node, path=""):
-        """Turn the node as a python dictionary to be compared later with another one.
-        :param node:    A node inside an xml tree.
-        :param path:    The optional path of tags for recursive call.
-        :return:        A python dictionary.
-        """
         tag_split = node.tag.split("}")
         tag_wo_ns = tag_split[-1]
         full_path = f"{path}/{tag_wo_ns}"
@@ -1777,22 +1635,11 @@ class AccountTestInvoicingCommon(ProductCommon):
         }
 
     def assertXmlTreeEqual(self, xml_tree, expected_xml_tree):
-        """Compare two lxml.etree.
-        :param xml_tree:            The current tree.
-        :param expected_xml_tree:   The expected tree.
-        """
-
         def assertNodeDictEqual(node_dict, expected_node_dict):
-            """Compare nodes created by the `_turn_node_as_dict_hierarchy` method.
-            :param node_dict:           The node to compare with.
-            :param expected_node_dict:  The expected node.
-            """
             if expected_node_dict["text"] == "___ignore___":
                 return
-            # Check tag.
             self.assertEqual(node_dict["tag"], expected_node_dict["tag"])
 
-            # Check attributes.
             for k, v in expected_node_dict["attrib"].items():
                 if v == "___ignore___":
                     node_dict["attrib"][k] = "___ignore___"
@@ -1803,7 +1650,6 @@ class AccountTestInvoicingCommon(ProductCommon):
                 f"Element attributes are different for node {node_dict['full_path']}",
             )
 
-            # Check text.
             if expected_node_dict["text"] != "___ignore___":
                 self.assertEqual(
                     node_dict["text"],
@@ -1811,7 +1657,6 @@ class AccountTestInvoicingCommon(ProductCommon):
                     f"Element text are different for node {node_dict['full_path']}",
                 )
 
-            # Check children.
             children = [child["tag"] for child in node_dict["children"]]
             expected_children = [
                 child["tag"] for child in expected_node_dict["children"]
@@ -1848,30 +1693,17 @@ class AccountTestInvoicingCommon(ProductCommon):
 
     @classmethod
     def with_applied_xpath(cls, xml_tree, xpath):
-        """Applies the xpath to the xml_tree passed as parameter.
-        :param xml_tree:    An instance of etree.
-        :param xpath:       The xpath to apply as a string.
-        :return:            The resulting etree after applying the xpaths.
-        """
         diff_xml_tree = etree.fromstring("<data>%s</data>" % xpath)
         return cls.env["ir.ui.view"].apply_inheritance_specs(xml_tree, diff_xml_tree)
 
     @classmethod
     def get_xml_tree_from_attachment(cls, attachment):
-        """Extract an instance of etree from an ir.attachment.
-        :param attachment:  An ir.attachment.
-        :return:            An instance of etree.
-        """
         return etree.fromstring(
             base64.b64decode(attachment.with_context(bin_size=False).datas)
         )
 
     @classmethod
     def get_xml_tree_from_string(cls, xml_tree_str):
-        """Convert the string passed as parameter to an instance of etree.
-        :param xml_tree_str:    A string representing an xml.
-        :return:                An instance of etree.
-        """
         return etree.fromstring(xml_tree_str)
 
 
@@ -2060,7 +1892,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
             "sign": line["sign"],
             "special_mode": line["special_mode"],
             "special_type": line["special_type"],
-            # Not implemented:
             "partner_id": None,
         }
 
@@ -2147,9 +1978,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
             count(1), self.js_tests, results
         ):
             with self.subTest(test=js_test["test"], index=index):
-                # The JS harness reports a thrown case as {'error', 'error_stack'}
-                # instead of the expected result; fail with that diagnostic rather
-                # than letting the missing keys surface as an opaque error below.
                 if isinstance(r, dict) and r.get("error"):
                     self.fail(
                         f"JS test '{js_test['test']}' (index={index}) raised: "
@@ -2158,9 +1986,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
                 js_test.update(r)
                 assert_function(js_test, expected_values)
 
-    # -------------------------------------------------------------------------
-    # Multi-lines document creation
-    # -------------------------------------------------------------------------
 
     def init_document(self, lines, currency=None, rate=None, cash_rounding=None):
         return {
@@ -2193,12 +2018,8 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
             "lines": base_lines,
         }
 
-    # -------------------------------------------------------------------------
-    # taxes_computation
-    # -------------------------------------------------------------------------
 
     def _assert_sub_test_taxes_computation(self, results, expected_values):
-
         def compare_taxes_computation_values(sub_results, rounding):
             self.assertEqual(
                 float_round(sub_results["total_included"], precision_rounding=rounding),
@@ -2232,9 +2053,7 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
         rounding = 0.000001 if is_round_globally else 0.01
         compare_taxes_computation_values(results["results"], rounding)
 
-        # Check the special modes in case of round_globally.
         if is_round_globally:
-            # special_mode == 'total_excluded'.
             if "total_excluded" not in excluded_special_modes:
                 compare_taxes_computation_values(
                     results["total_excluded_results"], rounding
@@ -2254,7 +2073,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
                     float_round(results["price_unit"], precision_rounding=rounding),
                 )
 
-            # special_mode == 'total_included'.
             if "total_included" not in excluded_special_modes:
                 compare_taxes_computation_values(
                     results["total_included_results"], rounding
@@ -2368,9 +2186,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
             extra_function=extra_function,
         )
 
-    # -------------------------------------------------------------------------
-    # adapt_price_unit_to_another_taxes
-    # -------------------------------------------------------------------------
 
     def _assert_sub_test_adapt_price_unit_to_another_taxes(
         self, results, expected_price_unit
@@ -2425,9 +2240,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
             product_uom_id,
         )
 
-    # -------------------------------------------------------------------------
-    # base_lines_tax_details
-    # -------------------------------------------------------------------------
 
     def _extract_base_lines_details(self, document):
         return [
@@ -2497,9 +2309,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
             document,
         )
 
-    # -------------------------------------------------------------------------
-    # tax_totals_summary
-    # -------------------------------------------------------------------------
 
     def _assert_sub_test_tax_totals_summary(self, results, expected_results):
         self._assert_tax_totals_summary(
@@ -2562,9 +2371,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
         )
         self._assert_sub_test_tax_totals_summary(results, expected_values)
 
-    # -------------------------------------------------------------------------
-    # global_discount
-    # -------------------------------------------------------------------------
 
     def _assert_sub_test_global_discount(self, results, expected_results):
         self._assert_tax_totals_summary(
@@ -2624,9 +2430,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
             soft_checking,
         )
 
-    # -------------------------------------------------------------------------
-    # down_payment
-    # -------------------------------------------------------------------------
 
     def _assert_sub_test_down_payment(self, results, expected_results):
         self._assert_tax_totals_summary(
@@ -2693,9 +2496,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
             soft_checking,
         )
 
-    # -------------------------------------------------------------------------
-    # invoice tax_totals_summary
-    # -------------------------------------------------------------------------
 
     def assert_invoice_totals(self, invoice, expected_values):
         cash_rounding_base_amount_currency = invoice.tax_totals.get(
@@ -2727,8 +2527,6 @@ class TestAccountMergeCommon(AccountTestInvoicingCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # this field is added to account.journal because there are no many2many fields referencing account.account
-        # the many2many field is needed in `_create_references_to_account` function below
         cls.env["ir.model.fields"].create(
             {
                 "ttype": "many2many",
@@ -2739,7 +2537,6 @@ class TestAccountMergeCommon(AccountTestInvoicingCommon):
         )
 
     def _create_account_merge_wizard(self, accounts):
-        """Open an account.merge.wizard with the given accounts."""
         return (
             self.env["account.merge.wizard"]
             .with_context(
@@ -2753,12 +2550,6 @@ class TestAccountMergeCommon(AccountTestInvoicingCommon):
         )
 
     def _create_references_to_account(self, account):
-        """Create records referencing the given account through every reference field type.
-
-        :return: a dict {record: account_field} of all created records and the
-                 field names on the records that reference the account.
-        """
-        # Many2one
         move = self.env["account.move"].create(
             {
                 "journal_id": self.env["account.journal"]
@@ -2786,7 +2577,6 @@ class TestAccountMergeCommon(AccountTestInvoicingCommon):
             }
         )
 
-        # Many2many
         journal = self.env["account.journal"].create(
             {
                 "name": f"For account {account.id}",
@@ -2797,8 +2587,6 @@ class TestAccountMergeCommon(AccountTestInvoicingCommon):
             }
         )
 
-        # Company-dependent Many2one.
-        # We must set (and check) the 'property_account_receivable_id' on the right company.
         partner = (
             self.env["res.partner"]
             .with_company(account.company_ids)
@@ -2810,7 +2598,6 @@ class TestAccountMergeCommon(AccountTestInvoicingCommon):
             )
         )
 
-        # Many2oneReference
         attachment = self.env["ir.attachment"].create(
             {
                 "res_model": "account.account",
@@ -2829,36 +2616,20 @@ class TestAccountMergeCommon(AccountTestInvoicingCommon):
 
 
 class PatchRequestsMixin(TestCase):
-    """Mock external HTTP requests made through the `requests` library."""
-
-    # Set to True to let the requests through (live test), or to 'warn' to let them
-    # through while logging any divergence from the expected requests / responses.
     external_mode = False
 
     @contextmanager
     def assertRequests(
         self, expected_requests_and_responses: list[tuple[dict, requests.Response]]
     ):
-        """Assert expected requests and provide mocked responses in a record/replay fashion.
-
-        :param expected_requests_and_responses: A list of tuples, each containing
-                                                an expected request and a mocked response.
-                                                The expected request is a dictionary of arguments
-                                                passed to `requests.Session.request`,
-                                                and the mocked response is an object that supports
-                                                the `requests.Response` interface.
-        """
         if self.external_mode is True:
-            yield  # Full external mode: don't patch `requests.Session.request` at all
+            yield
         elif self.external_mode == "warn":
-            # External mode with warnings
             yield from self.patch_requests_warn(expected_requests_and_responses)
         else:
-            # Mocked mode
             yield from self.assertMockRequests(expected_requests_and_responses)
 
     def assertMockRequests(self, expected_requests_and_responses):
-        """Mock requests, assert that the requests are as expected and serve a mocked response."""
         expected_requests_and_responses_iter = iter(expected_requests_and_responses)
 
         def mock_request(session, method, url, **kwargs):
@@ -2888,9 +2659,6 @@ class PatchRequestsMixin(TestCase):
             self.fail("Expected request not made: %s" % next_expected_request)
 
     def patch_requests_warn(self, expected_requests_and_responses):
-        """Let requests pass through but warn if the request or the response differ from
-        what is expected.
-        """
         expected_requests_and_responses_iter = iter(expected_requests_and_responses)
         original_request_method = requests.Session.request
 
@@ -2934,15 +2702,9 @@ class PatchRequestsMixin(TestCase):
             _logger.warning("Expected request not made: %s", expected_request)
 
     def assertRequestsEqual(self, actual_request, expected_request):
-        """Validate that the actual request is identical to the expected one; override to customize."""
         return self.assertEqual(actual_request, expected_request)
 
     def difference_between_responses(self, actual_response, expected_response):
-        """Return a diff between the actual and the mocked response, or None if they match.
-
-        Used by `patch_requests_warn` when live-testing; override to customize this behaviour.
-        """
-
         def generate_diff(d1, d2):
             return "\n".join(
                 difflib.ndiff(

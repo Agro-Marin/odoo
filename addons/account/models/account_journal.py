@@ -9,7 +9,6 @@ from odoo.tools.misc import hash_sign
 
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
-# Default code prefix handed out per journal type (see ``_get_next_journal_default_code``).
 JOURNAL_CODE_PREFIXES = {
     "sale": "INV",
     "purchase": "BILL",
@@ -18,7 +17,6 @@ JOURNAL_CODE_PREFIXES = {
     "credit": "CCD",
     "general": "MISC",
 }
-# account_type (or SQL LIKE pattern) expected for a journal type's default account.
 DEFAULT_ACCOUNT_TYPE_BY_JOURNAL = {
     "bank": "asset_cash",
     "cash": "asset_cash",
@@ -26,7 +24,6 @@ DEFAULT_ACCOUNT_TYPE_BY_JOURNAL = {
     "purchase": "expense%",
     "credit": "liability_credit_card",
 }
-# move_type stamped on the alias defaults so mail-created moves land in the right journal.
 ALIAS_MOVE_TYPE_BY_JOURNAL = {
     "purchase": "in_invoice",
     "sale": "out_invoice",
@@ -75,10 +72,6 @@ class AccountJournal(models.Model):
     _rec_names_search = ["name", "code"]
 
     def _default_display_invoice_template_pdf_report_id(self):
-        """Show PDF template selection if there is more than 1 template available for invoices."""
-        # Defaults run on an empty recordset, so the available_invoice_template_pdf_report_ids
-        # compute (a "for journal in self" loop) would leave the field empty and the check would
-        # always be False; read the underlying report list directly instead.
         reports = self.env[
             "account.move"
         ]._get_available_invoice_template_pdf_report_ids()
@@ -94,7 +87,6 @@ class AccountJournal(models.Model):
         return [("undefined", _("Undefined Yet"))]
 
     def _default_invoice_reference_model(self):
-        """Get the invoice reference model according to the company's country."""
         country_code = self.env.company.country_id.code
         country_code = country_code and country_code.lower()
         if country_code:
@@ -103,7 +95,7 @@ class AccountJournal(models.Model):
                     return model
         return "odoo"
 
-    def _get_default_account_domain(self):
+    def _domain_default_account_id(self):
         return """[
             ('account_type', 'in', ('asset_cash', 'liability_credit_card') if type == 'bank'
                                    else ('liability_credit_card',) if type == 'credit'
@@ -165,7 +157,7 @@ class AccountJournal(models.Model):
         copy=False,
         ondelete="restrict",
         string="Default Account",
-        domain=_get_default_account_domain,
+        domain=_domain_default_account_id,
     )
     suspense_account_id = fields.Many2one(
         comodel_name="account.account",
@@ -312,7 +304,6 @@ class AccountJournal(models.Model):
         domain="[('account_type', '=', 'expense')]",
     )
 
-    # Bank journals fields
     company_partner_id = fields.Many2one(
         "res.partner",
         related="company_id.partner_id",
@@ -340,7 +331,6 @@ class AccountJournal(models.Model):
         "res.bank", related="bank_account_id.bank_id", readonly=False
     )
 
-    # alias configuration for journals
     alias_name = fields.Char(
         help="Send one separate email for each invoice.\n"
         "Any file extension will be accepted.\n"
@@ -356,7 +346,6 @@ class AccountJournal(models.Model):
         compute="_compute_available_payment_method_ids",
     )
 
-    # used to hide or show payment method options if needed
     selected_payment_method_codes = fields.Char(
         compute="_compute_selected_payment_method_codes",
     )
@@ -373,7 +362,7 @@ class AccountJournal(models.Model):
         compute="_compute_show_refresh_out_einvoices_status_button",
     )
 
-    incoming_einvoice_notification_email = fields.Char(  # no longer incoming-specific, rename in master
+    incoming_einvoice_notification_email = fields.Char(
         string="Send Copy To",
         help="Email addresses that will receive copy for sent and received invoices. Separate entries with ';'.",
     )
@@ -406,11 +395,7 @@ class AccountJournal(models.Model):
 
     @api.depends("type", "company_id")
     def _compute_code(self):
-        # Fetch each company's existing codes once and reuse the set across the whole
-        # recordset (chart-template install / import create many journals at once),
-        # instead of querying per record. New codes are added back so siblings in the
-        # same batch never collide.
-        used_by_company = {}  # company id -> codes already taken (DB + this batch)
+        used_by_company = {}
         for record in self:
             if record.code or not record.type:
                 continue
@@ -440,7 +425,6 @@ class AccountJournal(models.Model):
             "payment_provider_id" in self.env["account.payment.method.line"]._fields
         )
 
-        # Split the payment method information per id.
         method_information_mapping = {}
         for pay_method in pay_methods:
             code = pay_method.code
@@ -455,7 +439,6 @@ class AccountJournal(models.Model):
                 unique_electronic_ids.add(pay_method.id)
                 electronic_names.add(pay_method.code)
 
-        # Load the provider to manage 'electronic' payment methods.
         providers_per_code = {}
         if manage_providers:
             providers = (
@@ -475,7 +458,6 @@ class AccountJournal(models.Model):
                     provider._get_code(), set()
                 ).add(provider.id)
 
-        # Collect the existing unique/electronic payment method lines.
         if unique_electronic_ids:
             fnames = ["payment_method_id", "journal_id"]
             if manage_providers:
@@ -522,7 +504,6 @@ class AccountJournal(models.Model):
 
     @api.depends("outbound_payment_method_line_ids", "inbound_payment_method_line_ids")
     def _compute_available_payment_method_ids(self):
-        """Compute the available payment methods, respecting each method's multiplicity mode."""
         results = self._get_journals_payment_method_information()
         pay_methods = results["pay_methods"]
         manage_providers = results["manage_providers"]
@@ -535,12 +516,10 @@ class AccountJournal(models.Model):
         journal_other = self - journal_bank_cash
         journal_other.available_payment_method_ids = False
 
-        # Compute the candidates for each bank/cash journal.
         for journal in journal_bank_cash:
             commands = [Command.clear()]
             company = journal.company_id
 
-            # Exclude the 'unique' / 'electronic' values that are already set on the journal.
             protected_provider_ids = set()
             protected_payment_method_ids = set()
             for payment_type in ("inbound", "outbound"):
@@ -558,7 +537,6 @@ class AccountJournal(models.Model):
                             protected_provider_ids.add(line.payment_provider_id.id)
 
             for pay_method in pay_methods:
-                # Check the partial domain of the payment method to make sure the type matches the current journal
                 if not journal._is_payment_method_available(
                     pay_method.code, complete_domain=False
                 ):
@@ -567,7 +545,6 @@ class AccountJournal(models.Model):
                 values = method_information_mapping[pay_method.id]
 
                 if values["mode"] == "unique":
-                    # 'unique' are linked to a single journal per company.
                     already_linked_journal_ids = set(
                         values["company_journals"].get(company.id, [])
                     ) - {journal._origin.id}
@@ -577,7 +554,6 @@ class AccountJournal(models.Model):
                     ):
                         commands.append(Command.link(pay_method.id))
                 elif manage_providers and values["mode"] == "electronic":
-                    # 'electronic' are linked to a single journal per company per provider.
                     for provider_id in providers_per_code.get(company.id, {}).get(
                         pay_method.code, set()
                     ):
@@ -592,7 +568,6 @@ class AccountJournal(models.Model):
                         ):
                             commands.append(Command.link(pay_method.id))
                 elif values["mode"] == "multi":
-                    # 'multi' are unlimited.
                     commands.append(Command.link(pay_method.id))
 
             journal.available_payment_method_ids = commands
@@ -613,8 +588,6 @@ class AccountJournal(models.Model):
         self._compute_payment_method_line_ids("outbound")
 
     def _compute_payment_method_line_ids(self, payment_type):
-        """Recompute the default (in|out)bound payment method lines for liquidity
-        journals, reusing the payment account already set for a given method."""
         field_name = f"{payment_type}_payment_method_line_ids"
         for journal in self:
             commands = [Command.clear()]
@@ -648,9 +621,6 @@ class AccountJournal(models.Model):
 
     @api.depends("outbound_payment_method_line_ids", "inbound_payment_method_line_ids")
     def _compute_selected_payment_method_codes(self):
-        """Build the journal's payment method codes as a comma-separated, comma-wrapped string."""
-        # The leading/trailing commas let the view test for a given code with a simple
-        # ",code," containment check, to show or hide payment-method-specific fields.
         for journal in self:
             codes = [
                 line.code
@@ -666,8 +636,6 @@ class AccountJournal(models.Model):
             if journal.type not in ("bank", "cash", "credit"):
                 journal.suspense_account_id = False
             elif not journal.suspense_account_id:
-                # Only fall back to the company default when unset; never
-                # overwrite a suspense account the user already chose.
                 journal.suspense_account_id = (
                     journal.company_id.account_journal_suspense_account_id or False
                 )
@@ -683,12 +651,10 @@ class AccountJournal(models.Model):
 
     @api.depends("type")
     def _compute_show_fetch_in_einvoices_button(self):
-        # TO OVERRIDE
         self.show_fetch_in_einvoices_button = False
 
     @api.depends("type")
     def _compute_show_refresh_out_einvoices_status_button(self):
-        # TO OVERRIDE
         self.show_refresh_out_einvoices_status_button = False
 
     @api.onchange("type")
@@ -725,8 +691,6 @@ class AccountJournal(models.Model):
                         company.default_cash_difference_expense_account_id
                     )
 
-        # codes are reset and recomputed whenever the
-        # journal type changes through the form view
         self._compute_code()
 
     @api.depends("type")
@@ -763,8 +727,6 @@ class AccountJournal(models.Model):
                             journal.company_id.name,
                         )
                     )
-                # A bank account can belong to a customer/supplier, in which case their partner_id is the customer/supplier.
-                # Or they are part of a bank journal and their partner_id must be the company's partner_id.
                 if journal.bank_account_id.partner_id != journal.company_id.partner_id:
                     raise ValidationError(
                         _(
@@ -810,7 +772,6 @@ class AccountJournal(models.Model):
         "inbound_payment_method_line_ids", "outbound_payment_method_line_ids"
     )
     def _check_payment_method_line_ids_multiplicity(self):
-        """Check and ensure that the payment method lines multiplicity is respected."""
         results = self._get_journals_payment_method_information()
         pay_methods = results["pay_methods"]
         manage_providers = results["manage_providers"]
@@ -821,8 +782,6 @@ class AccountJournal(models.Model):
         for journal in self:
             company = journal.company_id
 
-            # Ensure you don't have the same payment_method/name combination twice on
-            # the same journal.
             for payment_type in ("inbound", "outbound"):
                 counter = {}
                 for line in journal[f"{payment_type}_payment_method_line_ids"]:
@@ -848,14 +807,12 @@ class AccountJournal(models.Model):
                 values = method_information_mapping[pay_method.id]
 
                 if values["mode"] == "unique":
-                    # 'unique' are linked to a single journal per company.
                     already_linked_journal_ids = values["company_journals"].get(
                         company.id, []
                     )
                     if len(already_linked_journal_ids) > 1:
                         failing_unicity_payment_methods |= pay_method
                 elif manage_providers and values["mode"] == "electronic":
-                    # 'electronic' are linked to a single journal per company per provider.
                     for provider_id in providers_per_code.get(company.id, {}).get(
                         pay_method.code, set()
                     ):
@@ -877,7 +834,6 @@ class AccountJournal(models.Model):
 
     @api.constrains("active")
     def _check_auto_post_draft_entries(self):
-        # constraint should be tested just after archiving a journal, but shouldn't be raised when unarchiving a journal containing draft entries
         for journal in self.filtered(lambda j: not j.active):
             pending_moves = self.env["account.move"].search(
                 [("journal_id", "=", journal.id), ("state", "=", "draft")], limit=1
@@ -918,9 +874,6 @@ class AccountJournal(models.Model):
             ]._get_available_invoice_template_pdf_report_ids()
 
     def unlink(self):
-        # A bank account can be deleted together with the journals only if every
-        # journal still referencing it is part of this deletion. Resolve that in a
-        # single grouped query instead of one search per bank account.
         used_bank_accounts = self.bank_account_id
         bank_accounts = self.env["res.partner.bank"]
         if used_bank_accounts:
@@ -942,10 +895,7 @@ class AccountJournal(models.Model):
     def copy_data(self, default=None):
         default = dict(default or {})
         vals_list = super().copy_data(default)
-        # Fetch each company's codes once, then add every code we hand out back to the
-        # set so that copying several journals that share a prefix in one call can
-        # neither collide with an existing code nor with a sibling copy.
-        used_by_company = {}  # company id -> codes already taken (DB + this batch)
+        used_by_company = {}
         for journal, vals in zip(self, vals_list, strict=True):
             company = self.env["res.company"].browse(vals["company_id"])
             used = used_by_company.get(company.id)
@@ -961,9 +911,6 @@ class AccountJournal(models.Model):
         return vals_list
 
     def copy_translations(self, new, excluded=()):
-        # ``copy_data`` renames ``name`` in the duplicating user's language
-        # only; without this the copy would keep the source record's exact
-        # ``name`` in every other language.
         super().copy_translations(new, excluded=(*excluded, "name"))
         self._copy_translations_of_renamed_field(
             new,
@@ -972,18 +919,6 @@ class AccountJournal(models.Model):
         )
 
     def write(self, vals):
-        # `_onchange_type` resets default_account_id/profit_account_id/
-        # loss_account_id when `type` changes through the form UI, but that
-        # onchange never fires on write()/import/cron: a journal's `type`
-        # could change via API while silently keeping the previous type's
-        # now-stale accounts. Snapshot which journals are actually changing
-        # type here (before super().write() applies it); the reset itself
-        # runs after, once type/company_id are already committed, so the
-        # account fields being written are checked against the journal's
-        # FINAL company (avoids a check_company false trip if company_id is
-        # also changing in the same call). Skipped when the caller
-        # explicitly sets the account fields in the same write -- that's an
-        # intentional override, not a stale leftover to clean up.
         journals_changing_type = (
             self.filtered(lambda j: j.type != vals["type"])
             if "type" in vals
@@ -995,9 +930,7 @@ class AccountJournal(models.Model):
             else self.browse()
         )
 
-        # for journals, force a readable name instead of a sanitized name e.g. non ascii in journal names
         if vals.get("alias_name") and "type" not in vals:
-            # will raise if writing name on more than 1 record, using self[0] is safe
             if not is_encodable(
                 vals["alias_name"]
             ) or not self.env["mail.alias"]._sanitize_alias_name(vals["alias_name"]):
@@ -1061,7 +994,6 @@ class AccountJournal(models.Model):
                     )
         result = super().write(vals)
 
-        # Ensure alias coherency when changing type
         if "type" in vals and not self.env.context.get(
             "account_journal_skip_alias_sync"
         ):
@@ -1073,9 +1005,6 @@ class AccountJournal(models.Model):
                 }
                 journal.update(alias_vals)
 
-        # See the comment above `journals_changing_type` (top of this
-        # method): reset the type-dependent default accounts now that
-        # `type`/`company_id` are committed, mirroring `_onchange_type`.
         for journal in journals_changing_type:
             company = journal.company_id
             if "default_account_id" not in vals:
@@ -1099,14 +1028,12 @@ class AccountJournal(models.Model):
                 journal.profit_account_id = profit_account_id
                 journal.loss_account_id = loss_account_id
 
-        # Ensure the liquidity accounts are sharing the same foreign currency.
         if "currency_id" in vals:
             for journal in self.filtered(
                 lambda journal: journal.type in ("bank", "cash", "credit")
             ):
                 journal.default_account_id.currency_id = journal.currency_id
 
-        # Create the bank_account_id if necessary and (re)trust it for payments.
         if "bank_acc_number" in vals or "bank_account_id" in vals:
             acc_number = (
                 vals.get("bank_acc_number") if "bank_acc_number" in vals else None
@@ -1130,8 +1057,6 @@ class AccountJournal(models.Model):
 
     @api.model
     def _alias_prepare_alias_name(self, alias_name, name, code, jtype, company):
-        """Tool method generating standard journal alias, to ensure uniqueness
-        and readability;  reset for other journals than purchase / sale"""
         if jtype not in ("purchase", "sale"):
             return False
 
@@ -1159,10 +1084,6 @@ class AccountJournal(models.Model):
 
     @api.model
     def _ensure_unique_alias(self, vals, company):
-        """Check uniqueness of the alias name within the given alias domain.
-        :param vals: the values of the journal.
-        :return: a unique alias name.
-        """
         alias_name = vals["alias_name"]
         alias_domain_name = company.alias_domain_id.name
 
@@ -1185,8 +1106,6 @@ class AccountJournal(models.Model):
 
     @api.model
     def _get_company_journal_codes(self, company):
-        """Return the set of every journal code already used in ``company``
-        (archived included), in a single grouped query."""
         groups = (
             self.env["account.journal"]
             .with_context(active_test=False)
@@ -1201,21 +1120,11 @@ class AccountJournal(models.Model):
     def _get_next_available_code(
         self, prefix, company, codes_to_avoid=(), used_codes=None
     ):
-        """Return the first free ``<prefix><n>`` journal code (n starting at 1) for ``company``."""
         size = self._fields["code"].size
-        # used_codes lets a caller pass the company's existing codes once for a whole
-        # batch (see _compute_code / copy_data), avoiding the per-record query; they
-        # are fetched here when omitted.
         if used_codes is None:
             used_codes = self._get_company_journal_codes(company)
-        # Skip both the company's used codes and any codes_to_avoid reserved by sibling
-        # records in the same batch.
         used = used_codes | set(codes_to_avoid)
-        # Digits belong to the numeric suffix; keep only the alphabetic stem.
         prefix = re.sub(r"\d+", "", prefix or "").strip() or "J"
-        # The code field is size-limited, so the prefix is shortened as the number grows
-        # to never exceed that size (e.g. BILL becomes BIL10 at 10 rather than overflowing
-        # to BILL10, which the ORM would silently truncate back to BILL1 and collide).
         for num in range(1, 10**size):
             suffix = str(num)
             candidate = f"{prefix[: size - len(suffix)]}{suffix}"
@@ -1233,8 +1142,6 @@ class AccountJournal(models.Model):
     def _get_next_journal_default_code(
         self, journal_type, company, codes_to_avoid=None, used_codes=None
     ):
-        """Return the first free ``<PREFIX><n>`` code for a journal of the given
-        type in ``company`` (see :meth:`_get_next_available_code`)."""
         journal_code_base = JOURNAL_CODE_PREFIXES.get(journal_type)
         if not journal_code_base:
             raise UserError(
@@ -1267,7 +1174,6 @@ class AccountJournal(models.Model):
 
     @api.model
     def _create_default_account(self, company, journal_type, vals):
-        # Don't get the digits on 'chart_template' since the chart template could be a custom one.
         random_account = (
             self.env["account.account"]
             .with_company(company)
@@ -1327,11 +1233,9 @@ class AccountJournal(models.Model):
         if is_import and not journal_type:
             vals["type"] = journal_type = "general"
 
-        # 'type' field is required.
         if not journal_type:
             return
 
-        # === Fill missing company ===
         company = (
             self.env["res.company"].browse(vals["company_id"])
             if vals.get("company_id")
@@ -1345,14 +1249,12 @@ class AccountJournal(models.Model):
             has_profit_account = vals.get("profit_account_id")
             has_loss_account = vals.get("loss_account_id")
 
-            # === Fill missing name ===
             vals["name"] = (
                 vals.get("name")
                 or vals.get("bank_acc_number")
                 or vals.get("name_placeholder")
             )
 
-            # === Fill missing accounts ===
             if not has_liquidity_accounts:
                 vals["default_account_id"] = self._create_default_account(
                     company, journal_type, vals
@@ -1397,9 +1299,6 @@ class AccountJournal(models.Model):
                 vals["default_account_id"] = default_account_id
 
         if is_import and not vals.get("code"):
-            # `name` may still be unset here (e.g. a 'general' row with no name
-            # column): derive from it when present, otherwise fall back to a
-            # generated code instead of crashing.
             code = (vals.get("name") or "")[:5].strip()
             if not code or (protected_codes and code in protected_codes):
                 code = self._get_next_journal_default_code(
@@ -1407,7 +1306,6 @@ class AccountJournal(models.Model):
                 )
             vals["code"] = code
 
-        # === Fill missing alias name for sale / purchase, to force alias creation ===
         if journal_type in {"sale", "purchase"}:
             if "alias_name" not in vals:
                 vals["alias_name"] = self._alias_prepare_alias_name(
@@ -1420,10 +1318,6 @@ class AccountJournal(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        # When importing, keep a running list of the codes already taken in this
-        # batch so rows that would derive the same code from their name (or need a
-        # generated one) don't collide. `_fill_missing_values` may add `code` to
-        # `vals`; later rows must see it, hence we extend the list as we go.
         is_import = "import_file" in self.env.context
         protected_codes = (
             [vals["code"] for vals in vals_list if "code" in vals]
@@ -1440,7 +1334,6 @@ class AccountJournal(models.Model):
         ).create(vals_list)
 
         for journal, vals in zip(journals, vals_list, strict=True):
-            # Create the bank_account_id if necessary and trust it for payments.
             journal._ensure_bank_account(
                 vals.get("bank_acc_number"), vals.get("bank_id")
             )
@@ -1448,9 +1341,6 @@ class AccountJournal(models.Model):
         return journals
 
     def _ensure_bank_account(self, acc_number=None, bank_id=None):
-        """For a bank journal, create its bank account from ``acc_number`` when none
-        is set yet, then allow outgoing payments on it if it can be trusted."""
-        # Shared post-write step for create and write; a no-op for non-bank journals.
         self.ensure_one()
         if self.type != "bank":
             return
@@ -1460,11 +1350,10 @@ class AccountJournal(models.Model):
             self.bank_account_id.allow_out_payment = True
 
     def set_bank_account(self, acc_number, bank_id=None):
-        """Create a res.partner.bank (if not exists) and set it as value of the field bank_account_id"""
         self.ensure_one()
         self.bank_account_id = self.env[
             "res.partner.bank"
-        ]._find_or_create_bank_account(
+        ]._get_or_create_bank_account(
             account_number=acc_number,
             partner=self.company_id.partner_id,
             allow_company_account_creation=True,
@@ -1488,9 +1377,6 @@ class AccountJournal(models.Model):
             journal.display_name = name
 
     def action_configure_bank_journal(self):
-        """Open the bank-account setup action."""
-        # Triggered by the "configure" button on bank journals, shown on the dashboard
-        # when no bank statement source has been defined yet.
         return (
             self.env["res.company"]
             .with_context(default_linked_journal_id=self.id)
@@ -1498,7 +1384,6 @@ class AccountJournal(models.Model):
         )
 
     def _create_document_from_attachment(self, attachment_ids):
-        """Create the invoices from files."""
         if not self:
             self = self.env["account.journal"].browse(
                 self.env.context.get("default_journal_id")
@@ -1533,12 +1418,11 @@ class AccountJournal(models.Model):
 
         if not self:
             raise UserError(
-                self.env["account.journal"]._build_no_journal_error_msg(
+                self.env["account.journal"]._prepare_no_journal_error_msg(
                     self.env.company.display_name, [journal_type]
                 )
             )
 
-        # Create one invoice per group.
         invoices = (
             self.env["account.move"]
             .with_context(
@@ -1554,9 +1438,6 @@ class AccountJournal(models.Model):
         return invoices
 
     def create_document_from_attachment(self, attachment_ids):
-        """Create the invoices from files.
-        :return: A action redirecting to account.move list/form view.
-        """
         invoices = self._create_document_from_attachment(attachment_ids)
         action_vals = {
             "name": _("Generated Documents"),
@@ -1582,21 +1463,9 @@ class AccountJournal(models.Model):
             )
         return action_vals
 
-    # -------------------------------------------------------------------------
-    # REPORTING METHODS
-    # -------------------------------------------------------------------------
 
-    # TODO move to `account_reports` in master (simple read_group)
     def _get_journal_bank_account_balance(self, domain=None):
-        """Get the bank balance of the current journal by filtering the journal items using the journal's accounts.
-
-        :param domain:  An additional domain to be applied on the account.move.line model.
-        :return:        Tuple having balance expressed in journal's currency
-                        along with the total number of move lines having the same account as of the journal's default account.
-        """
         self.ensure_one()
-        # The current journal itself is deliberately not part of the domain: the balance
-        # is computed purely from the journal's accounts.
         nb_lines, balance, amount_currency = self.env["account.move.line"]._read_group(
             domain=(
                 [
@@ -1622,27 +1491,14 @@ class AccountJournal(models.Model):
         return amount_currency if journal_currency else balance, nb_lines
 
     def _get_journal_inbound_outstanding_payment_accounts(self):
-        """
-        :return: A recordset with all the account.account used by this journal for inbound transactions.
-        """
         self.ensure_one()
         return self.inbound_payment_method_line_ids.payment_account_id
 
     def _get_journal_outbound_outstanding_payment_accounts(self):
-        """
-        :return: A recordset with all the account.account used by this journal for outbound transactions.
-        """
         self.ensure_one()
         return self.outbound_payment_method_line_ids.payment_account_id
 
     def _get_available_payment_method_lines(self, payment_type):
-        """Return the inbound or outbound payment method lines of this journal.
-
-        :param payment_type: either inbound or outbound, used to know which lines to return
-        :return: Either the inbound or outbound payment method lines
-        """
-        # Hook that lets other modules filter the payment method lines (e.g. the payment
-        # module filters out lines from inactive providers); not a general getter.
         if not self:
             return self.env["account.payment.method.line"]
         self.ensure_one()
@@ -1652,7 +1508,6 @@ class AccountJournal(models.Model):
             return self.outbound_payment_method_line_ids
 
     def _is_payment_method_available(self, payment_method_code, complete_domain=True):
-        """Check if the payment method is available on this journal."""
         self.ensure_one()
         method_domain = self.env["account.payment.method"]._get_payment_method_domain(
             code=payment_method_code,
@@ -1662,14 +1517,9 @@ class AccountJournal(models.Model):
         return self.filtered_domain(method_domain)
 
     def _process_reference_for_sale_order(self, order_reference):
-        """Return the order reference to be used for the payment."""
-        # Hook to be overridden; see l10n_ch for an example.
         self.ensure_one()
         return order_reference
 
-    # -------------------------------------------------------------------------
-    # Notifications & E-Invoice Related Methods
-    # -------------------------------------------------------------------------
 
     def _get_journal_notification_unsubscribe_scope(self):
         return "account_journal_notification_unsubscribe"
@@ -1688,12 +1538,10 @@ class AccountJournal(models.Model):
 
     def _notify_einvoices_received(self, moves):
         self.ensure_one()
-        # legacy if module was not upgraded
         new_mail_template = self.env.ref(
             "account.mail_template_invoice_subscriber", raise_if_not_found=False
         )
         if new_mail_template:
-            # if module was upgraded, this is handled in _notify_invoice_subscribers
             return
 
         emails = set(
@@ -1726,7 +1574,6 @@ class AccountJournal(models.Model):
                 "account.mail_template_invoice_subscriber", raise_if_not_found=False
             )
         ):
-            # we add the template in stable, thus this might happen if the module was not upgraded
             self._notify_einvoices_received(invoice)
             return
 
@@ -1755,17 +1602,7 @@ class AccountJournal(models.Model):
             )
 
     def button_fetch_in_einvoices(self):
-        # TO OVERRIDE
-        """
-        Abstract method to fetch e-invoices.
-        Should fetch vendor bill invoices synchronously and doesn't return anything.
-        """
         pass
 
     def button_refresh_out_einvoices_status(self):
-        # TO OVERRIDE
-        """
-        Abstract method to fetch e-invoice statuses.
-        Should fetch customer invoices statuses synchronously and doesn't return anything.
-        """
         pass

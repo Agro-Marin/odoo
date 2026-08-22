@@ -23,14 +23,14 @@ class TestAccountUblCii(AccountTestInvoicingCommon):
         partner.country_id = self.env.ref('base.ba')
         self.assertEqual((partner.peppol_eas, partner.peppol_endpoint), expected)
 
-    def _build_error_peppol_endpoint(self, eas, endpoint):
-        """ Mock _build_error_peppol_endpoint"""
+    def _prepare_error_peppol_endpoint(self, eas, endpoint):
+        """ Mock _prepare_error_peppol_endpoint"""
         if eas == "0184" and endpoint != "12345674":
             return f"(0184, {endpoint}) is not a valid peppol couple."
 
     @patch(
-        'odoo.addons.account_edi_ubl_cii.models.res_partner.ResPartner._build_error_peppol_endpoint',
-        _build_error_peppol_endpoint,
+        'odoo.addons.account_edi_ubl_cii.models.res_partner.ResPartner._prepare_error_peppol_endpoint',
+        _prepare_error_peppol_endpoint,
     )
     @patch.dict(EAS_MAPPING, {'BA': {'0184': 'company_registry', '0198': 'vat'}})
     def test_peppol_eas_endpoint(self):

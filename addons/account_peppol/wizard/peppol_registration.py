@@ -249,7 +249,7 @@ class PeppolRegistration(models.TransientModel):
         if self.company_id.account_peppol_proxy_state != 'not_registered':
             raise ValidationError(_("Cannot register a user with a %s application", self.account_peppol_proxy_state))
 
-    def _action_open_peppol_form(self, reopen=True):
+    def _action_view_peppol_form(self, reopen=True):
         view = self.env.ref('account_peppol.peppol_registration_form').sudo()
         # TODO remove in master this hack to get the itsme button up
         if 'itsme' not in view.arch_db:

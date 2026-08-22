@@ -16,7 +16,6 @@ class AccountChartTemplate(models.AbstractModel):
 
     @api.model
     def _get_demo_data(self, company=False):
-        """Generate the demo data related to accounting."""
         return {
             **self._get_demo_data_products(company),
             "account.move": self._get_demo_data_move(company),
@@ -34,15 +33,12 @@ class AccountChartTemplate(models.AbstractModel):
         }
 
     def _get_demo_exception_product_template_xml_ids(self):
-        """Return demo product template xml ids to not put taxes on"""
         return []
 
     def _get_demo_exception_product_variant_xml_ids(self):
-        """Return demo product variant xml ids to not put taxes on"""
         return ["product.office_combo"]
 
     def _get_demo_data_products(self, company):
-        # Only needed for the first company
         if company != self.env.ref("base.main_company", raise_if_not_found=False):
             return {}
 
@@ -158,7 +154,6 @@ class AccountChartTemplate(models.AbstractModel):
     @api.model
     def _get_demo_data_journal(self, company=False):
         if company.partner_id.bank_ids:
-            # if a bank is created in xml, link it to the journal
             return {
                 "bank": {
                     "bank_account_id": company.partner_id.bank_ids[0].id,
@@ -881,13 +876,6 @@ class AccountChartTemplate(models.AbstractModel):
 
     @api.model
     def _get_demo_account(self, xml_id, account_type, company):
-        """Find the most appropriate account possible for demo data creation.
-
-        :param str xml_id: the xml_id of the account template in the generic coa
-        :param str account_type: the ``account_type`` selection value wanted
-        :param company: the company for which we search the account
-        :return: the most appropriate ``account.account`` record found
-        """
         return (
             self.env["account.account"].browse(
                 self.env["ir.model.data"]

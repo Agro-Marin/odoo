@@ -205,10 +205,10 @@ class PaymentProvider(models.Model):
 
     # === REQUEST HELPERS === #
 
-    def _build_request_url(self, endpoint, **kwargs):
+    def _prepare_request_url(self, endpoint, **kwargs):
         """Override of `payment` to build the request URL."""
         if self.code != 'paymob':
-            return super()._build_request_url(endpoint, **kwargs)
+            return super()._prepare_request_url(endpoint, **kwargs)
         return f'{self._paymob_get_api_url()}{endpoint}'
 
     def _paymob_get_api_url(self):
@@ -224,12 +224,12 @@ class PaymentProvider(models.Model):
         url = f'https://{api_prefix}.paymob.com'
         return url
 
-    def _build_request_headers(
+    def _prepare_request_headers(
         self, *args, is_refresh_token_request=False, is_client_request=False, **kwargs
     ):
         """Override of `payment` to build the request headers."""
         if self.code != 'paymob':
-            return super()._build_request_headers(*args, **kwargs)
+            return super()._prepare_request_headers(*args, **kwargs)
         auth = ''
         if not is_refresh_token_request and is_client_request:
             auth = self.paymob_secret_key

@@ -15,9 +15,9 @@ class ResCompany(models.Model):
         default='sandbox', copy=False)
 
     l10n_sa_edi_building_number = fields.Char(compute='_compute_address',
-                                              inverse='_l10n_sa_edi_inverse_building_number')
+                                              inverse='_inverse_l10n_sa_edi_building_number')
     l10n_sa_edi_plot_identification = fields.Char(compute='_compute_address',
-                                                  inverse='_l10n_sa_edi_inverse_plot_identification')
+                                                  inverse='_inverse_l10n_sa_edi_plot_identification')
 
     l10n_sa_edi_additional_identification_scheme = fields.Selection(
         related='partner_id.l10n_sa_edi_additional_identification_scheme', readonly=False)
@@ -46,11 +46,11 @@ class ResCompany(models.Model):
         return super()._get_company_address_field_names() + \
             ['l10n_sa_edi_building_number', 'l10n_sa_edi_plot_identification']
 
-    def _l10n_sa_edi_inverse_building_number(self):
+    def _inverse_l10n_sa_edi_building_number(self):
         for company in self:
             company.partner_id.l10n_sa_edi_building_number = company.l10n_sa_edi_building_number
 
-    def _l10n_sa_edi_inverse_plot_identification(self):
+    def _inverse_l10n_sa_edi_plot_identification(self):
         for company in self:
             company.partner_id.l10n_sa_edi_plot_identification = company.l10n_sa_edi_plot_identification
 

@@ -481,7 +481,7 @@ class MyInvoisDocument(models.Model):
             portal_url = "preprod.myinvois.hasil.gov.my"
 
         try:
-            qr_code = self.env['ir.actions.report'].barcode(
+            qr_code = self.env['ir.actions.report'].prepare_barcode(
                 barcode_type='QR',
                 width=128,
                 height=128,
@@ -873,17 +873,17 @@ class MyInvoisDocument(models.Model):
             if with_commit and self._can_commit():
                 self.env.cr.commit()
 
-    def _validate_taxes(self):
+    def _check_taxes(self):
         """ Makes use of account.edi.xml.ubl_myinvois_my to validate the taxes for the records in self."""
         if self.invoice_ids:
-            self.env["account.edi.xml.ubl_myinvois_my"]._validate_taxes(self.invoice_ids.invoice_line_ids.tax_ids)
+            self.env["account.edi.xml.ubl_myinvois_my"]._check_taxes(self.invoice_ids.invoice_line_ids.tax_ids)
 
     def _myinvois_generate_xml_file(self):
         """ Generate the xml file representing this record(s) attached to this document. """
         self.ensure_one()
         builder = self.env['account.edi.xml.ubl_myinvois_my']
         # 1. Validate the structure of the taxes
-        self._validate_taxes()
+        self._check_taxes()
         # 2. Export the file data
         vals = {'myinvois_document': self.with_context(lang=self.env.company.partner_id.lang)}
         document_node = builder._get_myinvois_document_node(vals)

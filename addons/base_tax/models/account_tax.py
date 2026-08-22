@@ -309,7 +309,7 @@ class AccountTax(models.Model):
                 )
 
     @api.constrains("tax_group_id")
-    def _validate_tax_group_id(self):
+    def _check_tax_group_id(self):
         for record in self:
             if (
                 record.tax_group_id.country_id
@@ -326,7 +326,7 @@ class AccountTax(models.Model):
         "refund_repartition_line_ids",
         "repartition_line_ids",
     )
-    def _validate_repartition_lines(self):
+    def _check_repartition_line_ids(self):
         for record in self:
             # if the tax is an aggregation of its sub-taxes (group) it can have no repartition lines
             if (

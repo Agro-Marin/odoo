@@ -30,10 +30,6 @@ class TestTaxesTaxTotalsSummary(TestTaxCommon):
         yield
 
     def _test_taxes_l10n_in(self):
-        """Test suite for the complex GST taxes in l10n_in."""
-        # tax1/tax2 share the same percentage and include_base_amount, but tax2 is not
-        # is_base_affected, so both amounts must always be the same; tax3 is a plain
-        # percentage tax.
         tax1 = self.percent_tax(6, include_base_amount=True)
         tax2 = self.percent_tax(6, include_base_amount=True, is_base_affected=False)
         tax3 = self.percent_tax(3)
@@ -412,9 +408,6 @@ class TestTaxesTaxTotalsSummary(TestTaxCommon):
                 self.assert_invoice_tax_totals_summary(invoice, expected_values)
 
     def _test_taxes_l10n_br(self):
-        """Test suite for the complex division taxes in l10n_br."""
-        # The 5 division taxes have to be computed all together since they are computed as
-        # part of the price_unit.
         tax1 = self.division_tax(5)
         tax2 = self.division_tax(3)
         tax3 = self.division_tax(0.65)
@@ -866,8 +859,6 @@ class TestTaxesTaxTotalsSummary(TestTaxCommon):
                 self.assert_invoice_tax_totals_summary(invoice, expected_values)
 
     def _test_taxes_l10n_be(self):
-        """Test suite for the mixing of fixed and percentage taxes in l10n_be."""
-        # The fixed tax affects the base of the percentage tax coming after it.
         tax1 = self.fixed_tax(1, include_base_amount=True)
         tax2 = self.percent_tax(21)
         taxes = tax1 + tax2
@@ -1726,8 +1717,6 @@ class TestTaxesTaxTotalsSummary(TestTaxCommon):
                 self.assert_invoice_tax_totals_summary(invoice, expected_values)
 
     def test_cash_rounding_with_excluded_tax_groups(self):
-        # Excluded tax groups are not managed js-side nor on invoices. However, they are used
-        # in some localizations to build another tax totals aside.
         tax1 = self.division_tax(5, tax_group_id=self.tax_groups[0].id)
         tax2 = self.division_tax(3, tax_group_id=self.tax_groups[1].id)
         tax3 = self.division_tax(0.65, tax_group_id=self.tax_groups[2].id)
@@ -2017,12 +2006,12 @@ class TestTaxesTaxTotalsSummary(TestTaxCommon):
 
         self.tax_groups[
             3
-        ].preceding_subtotal = "PRE GROUP 1"  # same as tax_groups[1], on purpose
-        tax_10.tax_group_id = self.tax_groups[3]  # preceding_subtotal == "PRE GROUP 1"
-        tax_42.tax_group_id = self.tax_groups[1]  # preceding_subtotal == "PRE GROUP 1"
+        ].preceding_subtotal = "PRE GROUP 1"
+        tax_10.tax_group_id = self.tax_groups[3]
+        tax_42.tax_group_id = self.tax_groups[1]
         tax_minus_25 = self.percent_tax(
             -25.0, tax_group_id=self.tax_groups[2].id
-        )  # preceding_subtotal == "PRE GROUP 2"
+        )
         tax_30 = self.percent_tax(30.0, tax_group_id=self.tax_groups[0].id)
 
         document = self.populate_document(
@@ -2467,12 +2456,6 @@ class TestTaxesTaxTotalsSummary(TestTaxCommon):
                 )
 
     def _test_price_included_division_tax_with_other_group(self):
-        # A price-included division tax sharing a line with a tax from another group.
-        # The division group's displayed base must be its own tax-inclusive base
-        # (100), NOT inflated by the other group's tax amount. Regression guard for
-        # the JS get_tax_totals_summary division add-back, which was missing the
-        # `amount_type == "division"` filter and therefore added every tax on the
-        # line back into the division group's displayed base (would give 111.85).
         div = self.division_tax(
             21.0,
             price_include_override="tax_included",

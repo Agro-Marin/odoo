@@ -14,13 +14,7 @@ class AccountBankStatementLine(models.Model):
     _order = "internal_index desc"
     _check_company_auto = True
 
-    # FIXME: Field having the same name in both tables are confusing (partner_id). We don't change it because:
-    # - It's a mess to track/fix.
-    # - Some fields here could be simplified when the onchanges will be gone in account.move.
-    # Should be improved in the future.
-    # - there should be a better way for syncing account_moves with bank transactions, payments, invoices, etc.
 
-    # == Business fields ==
     move_id = fields.Many2one(
         comodel_name="account.move",
         bypass_search_access=True,
@@ -38,7 +32,7 @@ class AccountBankStatementLine(models.Model):
         store=True,
         readonly=False,
         precompute=True,
-        index=False,  # covered by account_bank_statement_line_main_idx
+        index=False,
         required=True,
     )
     company_id = fields.Many2one(
@@ -48,7 +42,7 @@ class AccountBankStatementLine(models.Model):
         store=True,
         readonly=False,
         precompute=True,
-        index=False,  # covered by account_bank_statement_line_main_idx
+        index=False,
         required=True,
     )
     statement_id = fields.Many2one(
@@ -57,14 +51,12 @@ class AccountBankStatementLine(models.Model):
         index=True,
     )
 
-    # Payments generated during the reconciliation of this bank statement lines.
     payment_ids = fields.Many2many(
         comodel_name="account.payment",
         relation="account_payment_account_bank_statement_line_rel",
         string="Auto-generated Payments",
     )
 
-    # This sequence is working reversed because the default order is reversed, more info in _compute_internal_index
     sequence = fields.Integer(default=1)
     partner_id = fields.Many2one(
         comodel_name="res.partner",
@@ -74,14 +66,10 @@ class AccountBankStatementLine(models.Model):
         check_company=True,
     )
 
-    # Technical field used to store the bank account number before its creation, upon the line's processing
     account_number = fields.Char(string="Bank Account Number")
 
-    # This field is used to record the third party name when importing bank statement in electronic format,
-    # when the partner doesn't exist yet in the database (or cannot be found).
     partner_name = fields.Char(index="btree_not_null")
 
-    # Transaction type is used in electronic format, when the type of transaction is available in the imported file.
     transaction_type = fields.Char()
     payment_ref = fields.Char(string="Label", index="trigram")
     currency_id = fields.Many2one(
@@ -92,9 +80,6 @@ class AccountBankStatementLine(models.Model):
     )
     amount = fields.Monetary()
 
-    # Note the values of this field does not necessarily correspond to the cumulated balance in the account move line.
-    # here these values correspond to occurrence order (the reality) and they should match the bank report but in
-    # the move lines, it corresponds to the recognition order. Also, the statements act as checkpoints on this field
     running_balance = fields.Monetary(compute="_compute_running_balance")
     foreign_currency_id = fields.Many2one(
         comodel_name="res.currency",
@@ -110,37 +95,22 @@ class AccountBankStatementLine(models.Model):
         help="The amount expressed in an optional other currency if it is a multi-currency entry.",
     )
 
-    # == Technical fields ==
-    # The amount left to be reconciled on this statement line (signed according to its move lines' balance),
-    # expressed in its currency. This is a technical field use to speed up the application of reconciliation models.
     amount_residual = fields.Float(
         string="Residual Amount",
-        compute="_compute_is_reconciled",
+        compute="_compute_reconciliation",
         store=True,
     )
     country_code = fields.Char(related="company_id.account_fiscal_country_id.code")
 
-    # Technical field used to store the internal reference of the statement line for fast indexing and easier comparing
-    # of statement lines. It holds the combination of the date, sequence and id of each line. Without this field,
-    # the search/sorting lines would be very slow. The date field is related and stored in the account.move model,
-    # so it is not possible to have an index on it (unless we use a sql view which is too complicated).
-    # Using this prevents us having a compound index, and extensive `where` clauses.
-    # Without this finding lines before current line (which we need e.g. for calculating the running balance)
-    # would need a query like this:
-    #   date < current date OR (date = current date AND sequence > current date) or (
-    #   date = current date AND sequence = current sequence AND id < current id)
-    # which needs to be repeated all over the code.
-    # This would be simply "internal index < current internal index" using this field.
     internal_index = fields.Char(
         string="Internal Reference",
         compute="_compute_internal_index",
         store=True,
     )
 
-    # Technical field indicating if the statement line is already reconciled.
     is_reconciled = fields.Boolean(
         string="Is Reconciled",
-        compute="_compute_is_reconciled",
+        compute="_compute_reconciliation",
         store=True,
     )
     statement_complete = fields.Boolean(
@@ -157,7 +127,6 @@ class AccountBankStatementLine(models.Model):
         related="statement_id.name",
     )
 
-    # Technical field to store details about the bank statement line
     transaction_details = fields.Json(readonly=True)
 
     _unreconciled_idx = models.Index(
@@ -168,9 +137,6 @@ class AccountBankStatementLine(models.Model):
     )
     _main_idx = models.Index("(journal_id, company_id, internal_index)")
 
-    # -------------------------------------------------------------------------
-    # COMPUTE METHODS
-    # -------------------------------------------------------------------------
 
     @api.depends("foreign_currency_id", "date", "amount", "company_id")
     def _compute_amount_currency(self):
@@ -178,7 +144,6 @@ class AccountBankStatementLine(models.Model):
             if not st_line.foreign_currency_id:
                 st_line.amount_currency = False
             elif st_line.date and not st_line.amount_currency:
-                # only convert if it hasn't been set already
                 st_line.amount_currency = st_line.currency_id._convert(
                     from_amount=st_line.amount,
                     to_currency=st_line.foreign_currency_id,
@@ -194,23 +159,11 @@ class AccountBankStatementLine(models.Model):
             )
 
     def _compute_running_balance(self):
-        # It looks back to find the latest statement and uses its balance_start as an anchor point for calculation, so
-        # that the running balance is always relative to the latest statement. In this way we do not need to calculate
-        # the running balance for all statement lines every time.
-        # If there are statements inside the computed range, their balance_start has priority over calculated balance.
-        # we have to compute running balance for draft lines because they are visible and also
-        # the user can split on that lines, but their balance should be the same as previous posted line
-        # we do the same for the canceled lines, in order to keep using them as anchor points
-
         record_by_id = {x.id: x for x in self}
         company2children = {
             company: self.env["res.company"].search([("id", "child_of", company.id)])
             for company in self.journal_id.company_id
         }
-        # Flush once, up front: the loop body below only runs raw SQL reads and
-        # assigns the non-stored `running_balance` in memory, so nothing dirties
-        # these fields between iterations. Flushing inside the per-journal loop
-        # just repeated the same work for every distinct journal.
         self.flush_model(
             ["amount", "move_id", "statement_id", "journal_id", "internal_index"]
         )
@@ -226,7 +179,6 @@ class AccountBankStatementLine(models.Model):
             )
             min_index, max_index = journal_lines_indexes[0], journal_lines_indexes[-1]
 
-            # Find the oldest index for each journal.
             self.env.cr.execute(
                 """
                     SELECT first_line_index, COALESCE(balance_start, 0.0)
@@ -286,19 +238,11 @@ class AccountBankStatementLine(models.Model):
                 if record_by_id.get(st_line_id):
                     record_by_id[st_line_id].running_balance = current_running_balance
                     pending_items -= record_by_id[st_line_id]
-            # Lines manually deleted from the form view still require to have a value set here, as the field is computed and non-stored.
             for item in pending_items:
                 item.running_balance = item.running_balance
 
     @api.depends("date", "sequence")
     def _compute_internal_index(self):
-        """Compute the internal index from the date, reversed sequence and record id."""
-        # Rationale for this field (compound-index avoidance, running-balance lookups) lives in the
-        # internal_index field definition above.
-        # ensure we are using correct value for reversing sequence in the index (2147483647)
-        # NOTE: assert self._fields['sequence'].column_type[1] == 'int4'
-        # if for any reason it changes (how unlikely), we need to update this code
-
         for st_line in self.filtered(lambda line: line._origin.id):
             st_line.internal_index = (
                 f"{st_line.date.strftime('%Y%m%d')}"
@@ -320,9 +264,7 @@ class AccountBankStatementLine(models.Model):
         "move_id.line_ids.matched_debit_ids",
         "move_id.line_ids.matched_credit_ids",
     )
-    def _compute_is_reconciled(self):
-        """Compute whether the statement lines are reconciled and their residual amount."""
-        # is_reconciled drives display logic (e.g. showing the 'cancel' button on the statement lines).
+    def _compute_reconciliation(self):
         for st_line in self:
             _liquidity_lines, suspense_lines, _other_lines = st_line._seek_for_lines()
 
@@ -340,30 +282,21 @@ class AccountBankStatementLine(models.Model):
                 st_line.amount_residual = sum(suspense_lines.mapped("amount_currency"))
 
             if not st_line.id:
-                # New record: The journal items are not yet there.
                 st_line.is_reconciled = False
             elif suspense_lines:
-                # Zero residual on the suspense lines means they've been fully matched.
                 st_line.is_reconciled = suspense_lines.currency_id.is_zero(
                     st_line.amount_residual
                 )
             elif st_line.currency_id.is_zero(st_line.amount):
                 st_line.is_reconciled = True
             else:
-                # No suspense lines left and a non-zero amount: the full amount was
-                # already allocated to real accounts, so the line counts as reconciled.
                 st_line.is_reconciled = True
 
-    # -------------------------------------------------------------------------
-    # CONSTRAINT METHODS
-    # -------------------------------------------------------------------------
 
     @api.constrains(
         "amount", "amount_currency", "currency_id", "foreign_currency_id", "journal_id"
     )
     def _check_amounts_currencies(self):
-        """Ensure the consistency the specified amounts and the currencies."""
-
         for st_line in self:
             if st_line.foreign_currency_id == st_line.currency_id:
                 raise ValidationError(
@@ -387,9 +320,6 @@ class AccountBankStatementLine(models.Model):
                     )
                 )
 
-    # -------------------------------------------------------------------------
-    # LOW-LEVEL METHODS
-    # -------------------------------------------------------------------------
 
     @api.model
     def default_get(self, fields):
@@ -401,10 +331,6 @@ class AccountBankStatementLine(models.Model):
             )
 
         if "date" in fields and not defaults.get("date") and "journal_id" in defaults:
-            # copy the date and statement from the latest transaction of the same journal to help the user
-            # to enter the next transaction, they do not have to enter the date and the statement every time until the
-            # statement is completed. It is only possible if we know the journal that is used, so it can only be done
-            # in a view in which the journal is already set and so is single journal view.
             last_line = self.search(
                 [
                     ("journal_id", "=", defaults["journal_id"]),
@@ -427,7 +353,6 @@ class AccountBankStatementLine(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        # OVERRIDE
         counterpart_account_ids = []
 
         for vals in vals_list:
@@ -435,14 +360,9 @@ class AccountBankStatementLine(models.Model):
                 statement = self.env["account.bank.statement"].browse(
                     vals["statement_id"]
                 )
-                # Ensure the journal is the same as the statement one.
-                # journal_id is a required field in the view, so it should be always available if the user
-                # is creating the record, however, if a sync/import modules tries to add a line to an existing
-                # statement they can omit the journal field because it can be obtained from the statement
                 if statement.journal_id:
                     vals["journal_id"] = statement.journal_id.id
 
-            # Avoid having the same foreign_currency_id as currency_id.
             if vals.get("journal_id") and vals.get("foreign_currency_id"):
                 journal = self.env["account.journal"].browse(vals["journal_id"])
                 journal_currency = journal.currency_id or journal.company_id.currency_id
@@ -450,13 +370,10 @@ class AccountBankStatementLine(models.Model):
                     vals["foreign_currency_id"] = None
                     vals["amount_currency"] = 0.0
 
-            # Force the move_type to avoid inconsistency with residual 'default_move_type' inside the context.
             vals["move_type"] = "entry"
 
-            # Hack to force different account instead of the suspense account.
             counterpart_account_ids.append(vals.pop("counterpart_account_id", None))
 
-            # Set the amount to 0 if it's not specified.
             if "amount" not in vals:
                 vals["amount"] = 0
 
@@ -496,18 +413,14 @@ class AccountBankStatementLine(models.Model):
             self.env["account.move"]._fields["name"], st_lines.move_id
         )
 
-        # Otherwise field narration will be recomputed silently (at next flush) when writing on partner_id
         self.env.remove_to_compute(
             self.env["account.move"]._fields["narration"], st_lines.move_id
         )
 
-        # No need for the user to manage their status (from 'Draft' to 'Posted')
         st_lines.move_id.action_post()
-        return st_lines.with_env(self.env)  # clear the context
+        return st_lines.with_env(self.env)
 
     def write(self, vals):
-        # OVERRIDE
-
         res = super(
             AccountBankStatementLine, self.with_context(skip_readonly_check=True)
         ).write(vals)
@@ -515,7 +428,6 @@ class AccountBankStatementLine(models.Model):
         return res
 
     def unlink(self):
-        # OVERRIDE to unlink the inherited account.move (move_id field) as well.
         tracked_lines = self.filtered(
             lambda stl: stl.company_id.restrictive_audit_trail
         )
@@ -536,7 +448,6 @@ class AccountBankStatementLine(models.Model):
         limit=None,
         order=None,
     ) -> list[dict]:
-        # Add latest running_balance in the formatted_read_group
         result = super().formatted_read_group(
             domain,
             groupby,
@@ -547,7 +458,6 @@ class AccountBankStatementLine(models.Model):
             order=order,
         )
         show_running_balance = False
-        # We loop over the content of groupby because the groupby date is in the form of "date:granularity"
         for el in groupby:
             if (
                 el in {"statement_id", "journal_id"} or el.startswith("date")
@@ -555,10 +465,6 @@ class AccountBankStatementLine(models.Model):
                 show_running_balance = True
                 break
         if show_running_balance:
-            # `running_balance` is a non-stored compute that loops per journal,
-            # so computing it once over all group anchors together is far cheaper
-            # than a separate compute per group. Collect the per-group anchor
-            # lines first, prime the batched compute, then read from cache.
             group_anchors = []
             all_anchors = self.env["account.bank.statement.line"]
             for group_line in result:
@@ -570,14 +476,8 @@ class AccountBankStatementLine(models.Model):
                 group_line["running_balance"] = anchor.running_balance or 0.0
         return result
 
-    # -------------------------------------------------------------------------
-    # ACTION METHODS
-    # -------------------------------------------------------------------------
 
     def action_undo_reconciliation(self):
-        """Undo the reconciliation made on the statement line and reset their journal items
-        to their original states.
-        """
         self.line_ids.remove_move_reconcile()
         self.payment_ids.unlink()
 
@@ -593,9 +493,6 @@ class AccountBankStatementLine(models.Model):
                 }
             )
 
-    # -------------------------------------------------------------------------
-    # HELPERS
-    # -------------------------------------------------------------------------
 
     @api.ondelete(at_uninstall=False)
     def _check_allow_unlink(self):
@@ -607,7 +504,7 @@ class AccountBankStatementLine(models.Model):
                 )
             )
 
-    def _find_or_create_bank_account(self):
+    def _get_or_create_bank_account(self):
         self.ensure_one()
         if not self.partner_id:
             return self.env["res.partner.bank"]
@@ -624,7 +521,7 @@ class AccountBankStatementLine(models.Model):
                 ],
                 limit=1,
             )
-        return self.env["res.partner.bank"]._find_or_create_bank_account(
+        return self.env["res.partner.bank"]._get_or_create_bank_account(
             account_number=self.account_number,
             partner=self.partner_id,
             company=self.company_id,
@@ -645,8 +542,6 @@ class AccountBankStatementLine(models.Model):
         )
         state_domain = [("parent_state", "=", "posted")]
         if allow_draft:
-            # Set if bank recon will display draft invoices/bills that have a partner.
-            # Usually not applied when used by bank recon models (no suggestions & auto matching for draft entries)
             partnered_drafts_domain = [
                 ("parent_state", "=", "draft"),
                 ("partner_id", "!=", False),
@@ -655,7 +550,6 @@ class AccountBankStatementLine(models.Model):
         return (
             state_domain
             + [
-                # Base domain.
                 (
                     "display_type",
                     "not in",
@@ -667,12 +561,9 @@ class AccountBankStatementLine(models.Model):
                     self.env["res.company"]
                     .search([("id", "child_of", self.company_id.id)])
                     .ids,
-                ),  # allow to match invoices from same or children companies to be consistant with what's shown in the interface
-                # Reconciliation domain.
+                ),
                 ("reconciled", "=", False),
-                # Domain to use the account_move_line__unreconciled_index
                 ("account_id", "in", all_reconcilable_account_ids),
-                # Special domain for payments.
                 "|",
                 (
                     "account_id.account_type",
@@ -680,7 +571,6 @@ class AccountBankStatementLine(models.Model):
                     ("asset_receivable", "liability_payable"),
                 ),
                 ("payment_id", "=", False),
-                # Special domain for statement lines.
                 ("statement_line_id", "!=", self.id),
             ]
         )
@@ -697,23 +587,12 @@ class AccountBankStatementLine(models.Model):
         )
 
     def _get_accounting_amounts_and_currencies(self):
-        """Retrieve the transaction amount, journal amount and the company amount with their corresponding currencies
-        from the journal entry linked to the statement line.
-        All returned amounts will be positive for an inbound transaction, negative for an outbound one.
-
-        :return: (
-            transaction_amount, transaction_currency,
-            journal_amount, journal_currency,
-            company_amount, company_currency,
-        )
-        """
         self.ensure_one()
         liquidity_line, suspense_line, other_lines = self._seek_for_lines()
         if suspense_line and not other_lines:
             transaction_amount = -suspense_line.amount_currency
             transaction_currency = suspense_line.currency_id
         else:
-            # In case of to_check or partial reconciliation, we can't trust the suspense line.
             transaction_amount = (
                 self.amount_currency if self.foreign_currency_id else self.amount
             )
@@ -732,19 +611,6 @@ class AccountBankStatementLine(models.Model):
     def _prepare_counterpart_amounts_using_st_line_rate(
         self, currency, balance, amount_currency
     ):
-        """Convert the amounts passed as parameters to the statement line currency using the rates provided by the
-        bank. The computed amounts are the one that could be set on the statement line as a counterpart journal item
-        to fully paid the provided amounts as parameters.
-
-        :param currency:        The currency in which is expressed 'amount_currency'.
-        :param balance:         The amount expressed in company currency. Only needed when the currency passed as
-                                parameter is neither the statement line's foreign currency, neither the journal's
-                                currency.
-        :param amount_currency: The amount expressed in the 'currency' passed as parameter.
-        :return:                A python dictionary containing:
-            * balance:          The amount to consider expressed in company's currency.
-            * amount_currency:  The amount to consider expressed in statement line's foreign currency.
-        """
         self.ensure_one()
 
         (
@@ -802,10 +668,6 @@ class AccountBankStatementLine(models.Model):
         }
 
     def _prepare_move_line_default_vals(self, counterpart_account_id=None):
-        """Prepare the dictionary to create the default account.move.lines for the current account.bank.statement.line
-        record.
-        :return: A list of python dictionary to be passed to the account.move.line's 'create' method.
-        """
         self.ensure_one()
 
         if not counterpart_account_id:
@@ -850,7 +712,6 @@ class AccountBankStatementLine(models.Model):
             "credit": (company_amount < 0 and -company_amount) or 0.0,
         }
 
-        # Create the counterpart line values.
         counterpart_line_vals = {
             "name": self.payment_ref,
             "account_id": counterpart_account_id,
@@ -864,12 +725,6 @@ class AccountBankStatementLine(models.Model):
         return [liquidity_line_vals, counterpart_line_vals]
 
     def _seek_for_lines(self):
-        """Dispatch the journal items between:
-        - The lines using the liquidity account.
-        - The lines using the suspense account.
-        - The lines being not in one of the two previous categories.
-        :return: (liquidity_lines, suspense_lines, other_lines)
-        """
         liquidity_lines = self.env["account.move.line"]
         suspense_lines = self.env["account.move.line"]
         other_lines = self.env["account.move.line"]
@@ -890,14 +745,8 @@ class AccountBankStatementLine(models.Model):
             other_lines -= liquidity_lines
         return liquidity_lines, suspense_lines, other_lines
 
-    # SYNCHRONIZATION account.bank.statement.line <-> account.move
-    # -------------------------------------------------------------------------
 
     def _synchronize_from_moves(self, changed_fields):
-        """Update the account.bank.statement.line regarding its related account.move.
-        Also, check both models are still consistent.
-        :param changed_fields: A set containing all modified fields on account.move.
-        """
         if self.env.context.get("skip_account_move_synchronization"):
             return
 
@@ -932,7 +781,6 @@ class AccountBankStatementLine(models.Model):
                     }
                 )
 
-                # Update 'amount' according to the liquidity line.
 
                 if journal_currency:
                     st_line_vals_to_write.update(
@@ -960,32 +808,23 @@ class AccountBankStatementLine(models.Model):
                         journal_currency
                         and suspense_lines.currency_id == journal_currency
                     ):
-                        # The suspense line is expressed in the journal's currency meaning the foreign currency
-                        # set on the statement line is no longer needed.
-
                         st_line_vals_to_write.update(
                             {
                                 "amount_currency": 0.0,
                                 "foreign_currency_id": False,
                             }
                         )
-
                     elif (
                         not journal_currency
                         and suspense_lines.currency_id == company_currency
                     ):
-                        # Don't set a specific foreign currency on the statement line.
-
                         st_line_vals_to_write.update(
                             {
                                 "amount_currency": 0.0,
                                 "foreign_currency_id": False,
                             }
                         )
-
                     elif not other_lines:
-                        # Update the statement line regarding the foreign currency of the suspense line.
-
                         st_line_vals_to_write.update(
                             {
                                 "amount_currency": -suspense_lines.amount_currency,
@@ -1012,9 +851,6 @@ class AccountBankStatementLine(models.Model):
             )
 
     def _synchronize_to_moves(self, changed_fields):
-        """Update the account.move regarding the modified account.bank.statement.line.
-        :param changed_fields: A set containing all modified fields on account.bank.statement.line.
-        """
         if self.env.context.get("skip_account_move_synchronization"):
             return
 
@@ -1034,7 +870,6 @@ class AccountBankStatementLine(models.Model):
         for st_line in self.with_context(skip_account_move_synchronization=True):
             liquidity_lines, suspense_lines, other_lines = st_line._seek_for_lines()
             journal = st_line.journal_id
-            # bypassing access rights restrictions for branch-specific users in a branch company environment.
             company_currency = journal.company_id.sudo().currency_id
             journal_currency = (
                 journal.currency_id
@@ -1065,7 +900,6 @@ class AccountBankStatementLine(models.Model):
             st_line.move_id.with_context(skip_readonly_check=True).write(st_line_vals)
 
 
-# Declaring the reverse relation of the _inherits m2o here saves a lot of SQL queries.
 class AccountMove(models.Model):
     _inherit = "account.move"
 

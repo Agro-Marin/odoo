@@ -7,6 +7,7 @@ import { CharField } from "@web/fields/basic/char/char_field";
 import { ListTextField, TextField } from "@web/fields/basic/text/text_field";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
 import { standardFieldProps } from "@web/fields/standard_field_props";
+import { listId } from "@web/model/relational_model";
 import { ListRenderer } from "@web/views/list";
 
 import {
@@ -245,11 +246,7 @@ export class SectionAndNoteListRenderer extends ListRenderer {
             const commands = [];
             const sectionRecords = getSectionRecords(this.props.list, record);
             for (const sectionRecord of sectionRecords) {
-                commands.push(
-                    x2ManyCommands[method](
-                        sectionRecord.resId || sectionRecord._virtualId,
-                    ),
-                );
+                commands.push(x2ManyCommands[method](listId(sectionRecord)));
             }
             await this.props.list.applyCommands(commands);
         }
@@ -517,14 +514,14 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         let sequence = sectionRecords1[0].data[this.props.list.handleField];
         for (const record of sectionRecords2) {
             commands.push(
-                x2ManyCommands.update(record.resId || record._virtualId, {
+                x2ManyCommands.update(listId(record), {
                     [this.props.list.handleField]: sequence++,
                 }),
             );
         }
         for (const record of sectionRecords1) {
             commands.push(
-                x2ManyCommands.update(record.resId || record._virtualId, {
+                x2ManyCommands.update(listId(record), {
                     [this.props.list.handleField]: sequence++,
                 }),
             );
@@ -547,7 +544,7 @@ export class SectionAndNoteListRenderer extends ListRenderer {
 
         if (this.resetOnResequence(record, parentSection)) {
             commands.push(
-                x2ManyCommands.update(record.resId || record._virtualId, {
+                x2ManyCommands.update(listId(record), {
                     ...this.fieldsToReset(),
                 }),
             );

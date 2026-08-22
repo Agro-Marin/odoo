@@ -22,7 +22,6 @@ class TestTax(TestTaxCommon):
             self.assertEqual(round(values["amount"], 6), tax_expected_values[1])
 
     def test_forced_price_include_context_key(self):
-        """Test the 'force_price_include' context key that force all taxes to act as price included taxes."""
         taxes = (self.percent_tax(10.0) + self.percent_tax(10.0)).with_context(
             {"force_price_include": True}
         )
@@ -32,8 +31,6 @@ class TestTax(TestTaxCommon):
                 "total_included": 100.0,
                 "total_excluded": 83.33,
                 "taxes": (
-                    # per-tax base is currency-rounded since the fork made
-                    # round_base default to True in compute_all
                     (83.33, 8.33),
                     (83.33, 8.33),
                 ),
@@ -42,7 +39,6 @@ class TestTax(TestTaxCommon):
         )
 
     def test_forced_price_exclude_context_key(self):
-        """Test the 'force_price_include' context key that force all taxes to act as price excluded taxes."""
         taxes = (
             self.percent_tax(10.0, price_include_override="tax_included")
             + self.percent_tax(10.0, price_include_override="tax_included")

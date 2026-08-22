@@ -1,8 +1,13 @@
-"""Negative tests for the ``account.tax`` constraints shipped by ``base_tax``.
+"""Tests for the ``account.tax`` constraints shipped by ``base_tax``.
 
 Every ``@api.constrains`` raise-branch of the model gets its discriminating
 case: name uniqueness, tax-group country consistency, repartition-line
 structure, and children-taxes topology.
+
+A rejection on its own is not discriminating: it is satisfied by a constraint
+that refuses everything. Where a raise-branch has a deliberate way past it, the
+acceptance is asserted beside the rejection -- and the pair is checked by
+mutating the constraint both ways, not by a green run.
 """
 
 from odoo import Command
@@ -30,7 +35,7 @@ class TestAccountTaxConstraints(BaseTaxCommon):
         self.assertEqual(tax.name, "BT none-type tax")
 
     # ------------------------------------------------------------------
-    # _validate_tax_group_id
+    # _check_tax_group_id
     # ------------------------------------------------------------------
     def test_tax_group_country_mismatch_rejected(self):
         """A tax cannot use a group pinned to a different country."""
@@ -47,8 +52,42 @@ class TestAccountTaxConstraints(BaseTaxCommon):
         with self.assertRaises(ValidationError):
             self._tax(10.0, tax_group_id=foreign_group.id)
 
+    def test_tax_group_country_match_accepted(self):
+        """The mirror of the rejection above: a matching country is allowed.
+
+        Without this, `test_tax_group_country_mismatch_rejected` is satisfied by
+        a constraint that refuses EVERY group -- verified by replacing the body
+        with an unconditional raise, against which it was the only test in this
+        class still to pass.
+        """
+        matching_group = self.env["account.tax.group"].create(
+            {
+                "name": "BT matching group",
+                "company_id": self.company.id,
+                "country_id": self.country.id,
+            }
+        )
+        tax = self._tax(10.0, tax_group_id=matching_group.id)
+        self.assertEqual(tax.tax_group_id, matching_group)
+
+    def test_tax_group_without_country_accepted(self):
+        """A group pinned to no country is deliberately allowed on any tax.
+
+        The constraint reads `if group.country_id and group.country_id != ...`,
+        so a country-less group short-circuits out of the check. That escape
+        hatch is the half a suite of rejections cannot see, and it is the half a
+        future "tighten the constraint" change would silently remove.
+        """
+        countryless_group = self.env["account.tax.group"].create(
+            {"name": "BT country-less group", "company_id": self.company.id}
+        )
+        countryless_group.country_id = False
+        self.assertFalse(countryless_group.country_id)
+        tax = self._tax(10.0, tax_group_id=countryless_group.id)
+        self.assertEqual(tax.tax_group_id, countryless_group)
+
     # ------------------------------------------------------------------
-    # _validate_repartition_lines / _check_repartition_lines
+    # _check_repartition_line_ids / _check_repartition_lines
     # ------------------------------------------------------------------
     def test_repartition_line_count_mismatch_rejected(self):
         """Invoice and refund distributions must have the same number of lines."""

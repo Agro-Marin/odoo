@@ -149,13 +149,13 @@ class PaymentProvider(models.Model):
 
     # === REQUEST HELPERS === #
 
-    def _build_request_url(self, endpoint, *, endpoint_param=None, **kwargs):
+    def _prepare_request_url(self, endpoint, *, endpoint_param=None, **kwargs):
         """Override of `payment` to build the request URL based on the API URL prefix.
 
         The final URL follows the pattern `<_base>/V<_version>/<_endpoint>`.
         """
         if self.code != 'adyen':
-            return super()._build_request_url(endpoint, endpoint_param=endpoint_param, **kwargs)
+            return super()._prepare_request_url(endpoint, endpoint_param=endpoint_param, **kwargs)
 
         version = const.API_ENDPOINT_VERSIONS[endpoint]
         endpoint = endpoint if not endpoint_param else endpoint.format(endpoint_param)
@@ -165,10 +165,10 @@ class PaymentProvider(models.Model):
         prefix_ = f'{prefix_}.adyen' if test_mode_ else f'{prefix_}-checkout-live.adyenpayments'
         return f'https://{prefix_}.com/checkout/V{version}/{endpoint}'
 
-    def _build_request_headers(self, method, *args, idempotency_key=None, **kwargs):
+    def _prepare_request_headers(self, method, *args, idempotency_key=None, **kwargs):
         """Override of `payment` to include the API key and idempotency key in the headers."""
         if self.code != 'adyen':
-            return super()._build_request_headers(
+            return super()._prepare_request_headers(
                 method, *args, idempotency_key=idempotency_key, **kwargs
             )
 

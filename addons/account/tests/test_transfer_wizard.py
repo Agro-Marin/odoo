@@ -22,7 +22,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
         )
         cls.journal = cls.company_data["default_journal_misc"]
 
-        # Set rate for base currency to 1
         cls.env["res.currency.rate"].search(
             [
                 ("company_id", "=", cls.company.id),
@@ -30,7 +29,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
             ]
         ).write({"rate": 1})
 
-        # Create test currencies
         cls.test_currency_1 = cls.env["res.currency"].create(
             {
                 "name": "PMK",
@@ -52,7 +50,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
             }
         )
 
-        # Create test rates
         cls.env["res.currency.rate"].create(
             {
                 "name": time.strftime("%Y") + "-" + "01" + "-01",
@@ -80,7 +77,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
             }
         )
 
-        # Create an account using a foreign currency
         cls.test_currency_account = cls.env["account.account"].create(
             {
                 "name": "test destination account",
@@ -90,7 +86,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
             }
         )
 
-        # Create test account.move
         cls.move_1 = cls.env["account.move"].create(
             {
                 "journal_id": cls.journal.id,
@@ -314,7 +309,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
 
     @freeze_time("2024-03-13")
     def test_transfer_default_tax(self):
-        """Make sure default taxes on accounts are not computed on transfer moves"""
         account_with_tax = self.env["account.account"].create(
             {
                 "name": "Auto Taxed",
@@ -360,9 +354,7 @@ class TestTransferWizard(AccountTestInvoicingCommon):
             ],
         )
 
-        # Open the transfer wizard
 
-        # Use a Form so default_get fills move_line_ids from the context, as in the UI
         context = {
             "active_model": "account.move.line",
             "active_ids": move_with_tax.line_ids[0].ids,
@@ -376,10 +368,8 @@ class TestTransferWizard(AccountTestInvoicingCommon):
             wizard_form.expense_accrual_account = expense_accrual_account
         wizard = wizard_form.save()
 
-        # Create the adjustment moves.
         wizard_res = wizard.do_action()
 
-        # Check that the adjustment moves only contain the expense account and not the linked taxes.
         created_moves = self.env["account.move"].browse(wizard_res["domain"][0][2])
 
         self.assertRecordValues(
@@ -398,7 +388,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
         )
 
     def test_transfer_wizard_reconcile(self):
-        """Tests reconciliation when doing a transfer with the wizard"""
         active_move_lines = (
             (self.move_1 + self.move_2)
             .mapped("line_ids")
@@ -410,7 +399,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
             )
         )
 
-        # Use a Form so default_get fills move_line_ids from the context, as in the UI
         context = {
             "active_model": "account.move.line",
             "active_ids": active_move_lines.ids,
@@ -471,7 +459,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
         )
 
     def test_transfer_wizard_grouping(self):
-        """Tests grouping (by account and partner) when doing a transfer with the wizard"""
         active_move_lines = (
             (self.move_1 + self.move_2)
             .mapped("line_ids")
@@ -492,7 +479,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
             )
         )
 
-        # Use a Form so default_get fills move_line_ids from the context, as in the UI
         context = {
             "active_model": "account.move.line",
             "active_ids": active_move_lines.ids,
@@ -557,12 +543,10 @@ class TestTransferWizard(AccountTestInvoicingCommon):
         )
 
     def test_transfer_wizard_currency_conversion(self):
-        """Tests the conversion done when the destination account has a currency_id set."""
         active_move_lines = self.move_1.mapped("line_ids").filtered(
             lambda x: x.name in ("test1_6", "test1_9")
         )
 
-        # Use a Form so default_get fills move_line_ids from the context, as in the UI
         context = {
             "active_model": "account.move.line",
             "active_ids": active_move_lines.ids,
@@ -594,12 +578,10 @@ class TestTransferWizard(AccountTestInvoicingCommon):
         )
 
     def test_transfer_wizard_no_currency_conversion(self):
-        """Tests that each currency gets its own line when the destination account has no currency."""
         active_move_lines = self.move_2.mapped("line_ids").filtered(
             lambda x: x.name in ("test2_9", "test2_6", "test2_8")
         )
 
-        # Use a Form so default_get fills move_line_ids from the context, as in the UI
         context = {
             "active_model": "account.move.line",
             "active_ids": active_move_lines.ids,
@@ -639,8 +621,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
         )
 
     def test_period_change_lock_date(self):
-        """Tests that the adjustment entry is created on the first end of month after the lock date."""
-        # Set up accrual accounts
         self.company_data["company"].expense_accrual_account_id = self.env[
             "account.account"
         ].create(
@@ -671,7 +651,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
             }
         )
 
-        # Create a move before the lock date
         move = self.env["account.move"].create(
             {
                 "journal_id": self.company_data["default_journal_sale"].id,
@@ -684,8 +663,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
         )
         move.action_post()
 
-        # Set the lock date
-        # (Purchase Lock Date not tested)
         move.company_id.write(
             {
                 "hard_lock_date": "2019-02-28",
@@ -695,7 +672,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
             }
         )
 
-        # Open the transfer wizard at a date after the lock date
         wizard = (
             self.env["account.automatic.entry.wizard"]
             .with_context(
@@ -710,7 +686,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
             )
         )
 
-        # Check that the 'The date is being set prior to ...' message appears.
         self.assertRecordValues(
             wizard,
             [
@@ -721,26 +696,22 @@ class TestTransferWizard(AccountTestInvoicingCommon):
             ],
         )
 
-        # Create the adjustment move.
         wizard_res = wizard.do_action()
 
-        # Check that the adjustment move was created on the first end of month after the lock date.
         created_moves = self.env["account.move"].browse(wizard_res["domain"][0][2])
         adjustment_move = created_moves[
             1
-        ]  # There are 2 created moves; the adjustment move is the second one.
+        ]
         self.assertRecordValues(
             adjustment_move, [{"date": fields.Date.to_date("2019-03-31")}]
         )
 
     def test_period_change_tax_lock_date(self):
-        """If there is only a tax lock date, we should be able to proceed with the flow"""
         move = self.env["account.move"].create(
             {
                 "journal_id": self.company_data["default_journal_sale"].id,
                 "date": "2019-01-01",
                 "line_ids": [
-                    # Base Tax line
                     Command.create(
                         {
                             "debit": 0.0,
@@ -751,7 +722,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
                             "tax_ids": [(6, 0, self.tax_sale_a.ids)],
                         }
                     ),
-                    # Tax line
                     Command.create(
                         {
                             "debit": 0.0,
@@ -759,7 +729,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
                             "account_id": self.accounts[0].id,
                         }
                     ),
-                    # Receivable line
                     Command.create(
                         {
                             "debit": 115,
@@ -772,10 +741,8 @@ class TestTransferWizard(AccountTestInvoicingCommon):
         )
         move.action_post()
 
-        # Set the tax lock date
         move.company_id.write({"tax_lock_date": "2019-02-28"})
 
-        # Open the transfer wizard at a date after the lock date
         wizard = (
             self.env["account.automatic.entry.wizard"]
             .with_context(
@@ -790,7 +757,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
             )
         )
 
-        # Check that there is no lock message
         self.assertRecordValues(
             wizard,
             [
@@ -801,7 +767,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
         )
 
     def test_transfer_wizard_amount_currency_is_zero(self):
-        """Tests that the transfer wizard creates a transfer move when the amount_currency is zero."""
         move = self.env["account.move"].create(
             {
                 "journal_id": self.company_data["default_journal_misc"].id,
@@ -877,7 +842,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
         )
 
     def test_transfer_wizard_analytic(self):
-        """Tests that the analytic distribution is transmitted when doing a transfer with the wizard"""
         invoice = self.env["account.move"].create(
             [
                 {
@@ -970,7 +934,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
         )
 
     def test_non_manager_cannot_change_company_accrual_defaults(self):
-        """A non-manager using the wizard must not silently rewrite the company's accrual/journal defaults."""
         accrual_account = self.env["account.account"].create(
             {
                 "name": "Accrual Expense Account",

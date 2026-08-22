@@ -184,16 +184,8 @@ class TestAccountMovePaymentsWidget(AccountTestInvoicingCommon):
         )
         cls.payment_2017_curr_3.action_post()
 
-    # -------------------------------------------------------------------------
-    # TESTS
-    # -------------------------------------------------------------------------
 
     def test_outstanding_payments_single_currency(self):
-        """Test the outstanding payments widget on invoices having the same currency
-        as the company one.
-        """
-
-        # Customer invoice of 2500.0 in curr_1.
         out_invoice = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -206,7 +198,6 @@ class TestAccountMovePaymentsWidget(AccountTestInvoicingCommon):
         )
         out_invoice.action_post()
 
-        # Vendor bill of 2500.0 in curr_1.
         in_invoice = self.env["account.move"].create(
             {
                 "move_type": "in_invoice",
@@ -235,9 +226,6 @@ class TestAccountMovePaymentsWidget(AccountTestInvoicingCommon):
         )
 
     def test_outstanding_payments_foreign_currency(self):
-        """Test the outstanding payments widget on invoices having a foreign currency."""
-
-        # Customer invoice of 7500.0 in curr_2.
         out_invoice = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -250,7 +238,6 @@ class TestAccountMovePaymentsWidget(AccountTestInvoicingCommon):
         )
         out_invoice.action_post()
 
-        # Vendor bill of 7500.0 in curr_2.
         in_invoice = self.env["account.move"].create(
             {
                 "move_type": "in_invoice",
@@ -279,11 +266,6 @@ class TestAccountMovePaymentsWidget(AccountTestInvoicingCommon):
         )
 
     def test_payments_with_exchange_difference_payment(self):
-        """Test the payments widget on invoices having a foreign currency that
-        triggers an exchange difference on the payment.
-        """
-
-        # Customer invoice of 300 curr_2 at exchange rate 3:1. 300 curr_2 -> 100 curr_1
         out_invoice = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -304,7 +286,6 @@ class TestAccountMovePaymentsWidget(AccountTestInvoicingCommon):
         )
         out_invoice.action_post()
 
-        # Payment at exchange rate 2:1. 300 curr_2 -> 150 curr_1
         payment = (
             self.env["account.payment.register"]
             .with_context(active_model="account.move", active_ids=out_invoice.ids)
@@ -313,7 +294,6 @@ class TestAccountMovePaymentsWidget(AccountTestInvoicingCommon):
         )
 
         expected_amounts = {payment.move_id.id: 300.0}
-        # Get the exchange difference move.
         for ln in out_invoice.line_ids:
             if ln.matched_credit_ids.exchange_move_id:
                 expected_amounts[ln.matched_credit_ids.exchange_move_id.id] = 50.0
@@ -321,11 +301,6 @@ class TestAccountMovePaymentsWidget(AccountTestInvoicingCommon):
         self.assert_invoice_outstanding_reconciled_widget(out_invoice, expected_amounts)
 
     def test_payments_with_exchange_difference_invoice(self):
-        """Test the payments widget on invoices having a foreign currency that
-        triggers an exchange difference on the invoice.
-        """
-
-        # Customer invoice of 300 curr_2 at exchange rate 2:1. 300 curr_2 -> 150 curr_1
         out_invoice = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -346,7 +321,6 @@ class TestAccountMovePaymentsWidget(AccountTestInvoicingCommon):
         )
         out_invoice.action_post()
 
-        # Payment at exchange rate 3:1. 300 curr_2 -> 100 curr_1
         payment = (
             self.env["account.payment.register"]
             .with_context(active_model="account.move", active_ids=out_invoice.ids)
@@ -355,7 +329,6 @@ class TestAccountMovePaymentsWidget(AccountTestInvoicingCommon):
         )
 
         expected_amounts = {payment.move_id.id: 300.0}
-        # Get the exchange difference move.
         for ln in out_invoice.line_ids:
             if ln.matched_credit_ids.exchange_move_id:
                 expected_amounts[ln.matched_credit_ids.exchange_move_id.id] = 50.0

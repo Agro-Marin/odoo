@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { SelectMenu } from "@web/components/select_menu/select_menu";
+import { SelectMenu } from "@web/components/select_menu";
 import { SelectionField, selectionField } from "@web/fields/selection/selection/selection_field";
 
 class NonFocusableSelectMenu extends SelectMenu {

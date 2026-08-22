@@ -28,8 +28,6 @@ export class ActionableErrors extends Component {
         } else {
             let action = errorData.action;
             if (action?.view_mode) {
-                // view_mode is not handled JS side; translate it to `views` on a
-                // copy rather than mutating the reactive errorData in place.
                 action = {
                     ...action,
                     views: action.view_mode.split(",").map((mode) => [false, mode]),
@@ -40,14 +38,21 @@ export class ActionableErrors extends Component {
         }
     }
 
+    /**
+     * @param {Object} error
+     * @returns {number}
+     */
+    getLevelRank(error) {
+        const rank = WARNING_TYPE_ORDER.indexOf(error.level || "warning");
+        return rank === -1 ? WARNING_TYPE_ORDER.length : rank;
+    }
+
     get sortedActionableErrors() {
         return (
             this.errorData &&
             Object.fromEntries(
                 Object.entries(this.errorData).sort(
-                    (a, b) =>
-                        WARNING_TYPE_ORDER.indexOf(a[1]["level"] || "warning") -
-                        WARNING_TYPE_ORDER.indexOf(b[1]["level"] || "warning"),
+                    ([, a], [, b]) => this.getLevelRank(a) - this.getLevelRank(b),
                 ),
             )
         );

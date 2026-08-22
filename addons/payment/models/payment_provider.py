@@ -880,10 +880,10 @@ class PaymentProvider(models.Model):
         self.ensure_one()
 
         # Build the request.
-        url = self._build_request_url(endpoint, **kwargs)
+        url = self._prepare_request_url(endpoint, **kwargs)
         payload = params or data or json
-        headers = self._build_request_headers(method, endpoint, payload, **kwargs)
-        auth = self._build_request_auth(**kwargs)
+        headers = self._prepare_request_headers(method, endpoint, payload, **kwargs)
+        auth = self._prepare_request_auth(**kwargs)
 
         # Log the request.
         self._log_request(method, url, payload, reference=reference)
@@ -921,7 +921,7 @@ class PaymentProvider(models.Model):
             ) from None
         return self._parse_response_content(response, **kwargs)
 
-    def _build_request_url(self, endpoint, **kwargs):
+    def _prepare_request_url(self, endpoint, **kwargs):
         """Build the URL of the request.
 
         This method serves as a hook to allow providers to build the request URL.
@@ -933,7 +933,7 @@ class PaymentProvider(models.Model):
         """
         return ""
 
-    def _build_request_headers(self, method, endpoint, payload, **kwargs):
+    def _prepare_request_headers(self, method, endpoint, payload, **kwargs):
         """Build the headers of the request.
 
         This method serves as a hook to allow providers to build the request headers.
@@ -947,7 +947,7 @@ class PaymentProvider(models.Model):
         """
         return {}
 
-    def _build_request_auth(self, **kwargs):
+    def _prepare_request_auth(self, **kwargs):
         """Set the basic HTTP Auth of the request
 
         This method serves as a hook to allow providers to build the request's basic HTTP Auth.

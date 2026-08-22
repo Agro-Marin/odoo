@@ -8,16 +8,10 @@ from odoo.tools import SQL, Query
 
 
 class AccountAccount(models.Model):
-    """Accounting extensions to the base chart of accounts."""
-
     _name = "account.account"
     _inherit = ["account.account", "mixin.mail.thread", "mixin.mail.activity"]
 
-    # ------------------------------------------------------------------
-    # Additional fields (accounting-specific)
-    # ------------------------------------------------------------------
 
-    # Re-declare with tracking (base_account defines without tracking)
     name = fields.Char(tracking=True)
     currency_id = fields.Many2one(tracking=True)
     active = fields.Boolean(tracking=True)
@@ -40,26 +34,26 @@ class AccountAccount(models.Model):
     )
     group_id = fields.Many2one(
         "account.group",
-        compute="_compute_account_group",
+        compute="_compute_group_id",
         help="Account prefixes can determine account groups.",
     )
     used = fields.Boolean(compute="_compute_used", search="_search_used")
     opening_debit = fields.Monetary(
         string="Opening Debit",
         compute="_compute_opening_debit_credit",
-        inverse="_set_opening_debit",
+        inverse="_inverse_opening_debit",
         currency_field="company_currency_id",
     )
     opening_credit = fields.Monetary(
         string="Opening Credit",
         compute="_compute_opening_debit_credit",
-        inverse="_set_opening_credit",
+        inverse="_inverse_opening_credit",
         currency_field="company_currency_id",
     )
     opening_balance = fields.Monetary(
         string="Opening Balance",
         compute="_compute_opening_debit_credit",
-        inverse="_set_opening_balance",
+        inverse="_inverse_opening_balance",
         currency_field="company_currency_id",
     )
     current_balance = fields.Float(compute="_compute_current_balance")
@@ -67,9 +61,6 @@ class AccountAccount(models.Model):
         compute="_compute_related_taxes_amount",
     )
 
-    # ------------------------------------------------------------------
-    # Constraints (accounting-specific)
-    # ------------------------------------------------------------------
 
     @api.constrains("reconcile", "account_type", "tax_ids")
     def _constrains_reconcile(self):
@@ -86,7 +77,6 @@ class AccountAccount(models.Model):
 
     @api.constrains("currency_id")
     def _check_journal_consistency(self):
-        """Ensure the currency on the journal matches the account currency."""
         if not self:
             return
 
@@ -152,7 +142,6 @@ class AccountAccount(models.Model):
 
     @api.constrains("company_ids")
     def _check_company_move_line_consistency(self):
-        """Prevent removing a company that has journal items."""
         self.invalidate_recordset(fnames=["company_ids"])
         for companies, accounts in self.grouped(
             lambda a: a.company_ids,
@@ -243,9 +232,6 @@ class AccountAccount(models.Model):
                 )
             )
 
-    # ------------------------------------------------------------------
-    # Computed fields (accounting-specific)
-    # ------------------------------------------------------------------
 
     @api.depends_context("company")
     def _compute_company_fiscal_country_code(self):
@@ -255,7 +241,7 @@ class AccountAccount(models.Model):
 
     @api.depends_context("company")
     @api.depends("code")
-    def _compute_account_group(self):
+    def _compute_group_id(self):
         accounts_with_code = self.filtered(lambda a: a.code)
 
         (self - accounts_with_code).group_id = False
@@ -297,12 +283,6 @@ class AccountAccount(models.Model):
             account.group_id = group_by_code[account.code]
 
     def _get_used_account_ids(self, account_ids=None):
-        """Return ids of accounts that carry at least one journal item.
-
-        :param account_ids: restrict the scan to these accounts (the compute
-            path); when omitted, every account is considered (the search path,
-            which is global by nature).
-        """
         rows = self.env.execute_query(
             SQL(
                 """
@@ -322,9 +302,6 @@ class AccountAccount(models.Model):
         return [r[0] for r in rows]
 
     def _search_used(self, operator, value):
-        # ``used`` is a boolean; the ORM normalises every realistic domain to
-        # ``in [True]`` / ``not in [True]``, so the operator alone carries the
-        # meaning and ``value`` needs no further inspection.
         if operator not in ("in", "not in"):
             return NotImplemented
         return [("id", operator, self._get_used_account_ids())]
@@ -353,9 +330,6 @@ class AccountAccount(models.Model):
 
     @api.depends_context("company")
     def _compute_related_taxes_amount(self):
-        # One grouped query for the whole recordset instead of a search_count
-        # per record. A tax is counted once even if several of its repartition
-        # lines target the same account.
         counts = dict(
             self.env["account.tax.repartition.line"]._read_group(
                 domain=[
@@ -406,10 +380,9 @@ class AccountAccount(models.Model):
             record.opening_credit = res["credit"]
             record.opening_balance = res["balance"]
 
-    @api.depends_context("company", "formatted_display_name")
+    @api.depends_context("company", "formatted_display_name", "uid")
     @api.depends("code")
     def _compute_display_name(self):
-        """Override base_account's display_name to add accounting features."""
         formatted_display_name = self.env.context.get(
             "formatted_display_name",
         )
@@ -456,28 +429,22 @@ class AccountAccount(models.Model):
                     else account.name
                 )
 
-    # ------------------------------------------------------------------
-    # Onchange (accounting-specific)
-    # ------------------------------------------------------------------
 
     @api.onchange("account_type")
     def _onchange_account_type(self):
         if self.account_type == "off_balance":
             self.tax_ids = False
 
-    # ------------------------------------------------------------------
-    # Opening balance helpers
-    # ------------------------------------------------------------------
 
-    def _set_opening_debit(self):
+    def _inverse_opening_debit(self):
         for record in self:
             record._set_opening_debit_credit(record.opening_debit, "debit")
 
-    def _set_opening_credit(self):
+    def _inverse_opening_credit(self):
         for record in self:
             record._set_opening_debit_credit(record.opening_credit, "credit")
 
-    def _set_opening_balance(self):
+    def _inverse_opening_balance(self):
         for account in self:
             balance = account.opening_balance
             account._set_opening_debit_credit(
@@ -490,7 +457,6 @@ class AccountAccount(models.Model):
             )
 
     def _set_opening_debit_credit(self, amount, field):
-        """Set opening debit/credit, batched via precommit callback."""
         self.ensure_one()
         if "import_account_opening_balance" not in self.env.cr.precommit.data:
             data = self.env.cr.precommit.data["import_account_opening_balance"] = {}
@@ -508,7 +474,6 @@ class AccountAccount(models.Model):
 
     @api.model
     def _load_precommit_update_opening_move(self):
-        """Precommit callback to batch-update opening move balances."""
         data = self.env.cr.precommit.data.pop(
             "import_account_opening_balance",
             {},
@@ -524,12 +489,8 @@ class AccountAccount(models.Model):
 
         self.env.flush_all()
 
-    # ------------------------------------------------------------------
-    # Reconcile toggle
-    # ------------------------------------------------------------------
 
     def _toggle_reconcile_to_true(self):
-        """Toggle reconcile from False to True."""
         if not self.ids:
             return
         self.env["account.move.line"].invalidate_model(
@@ -551,7 +512,6 @@ class AccountAccount(models.Model):
         self.env.cr.execute(query, [list(self.ids)])
 
     def _toggle_reconcile_to_false(self):
-        """Toggle reconcile from True to False."""
         if not self.ids:
             return
         partial_lines_count = self.env["account.move.line"].search_count(
@@ -585,9 +545,6 @@ class AccountAccount(models.Model):
         """
         self.env.cr.execute(query, [list(self.ids)])
 
-    # ------------------------------------------------------------------
-    # Name search / ordering (accounting-specific)
-    # ------------------------------------------------------------------
 
     @api.model
     def _get_most_frequent_accounts_for_partner(
@@ -598,7 +555,6 @@ class AccountAccount(models.Model):
         filter_never_used_accounts=False,
         limit=None,
     ):
-        """Return account IDs ordered by usage frequency for a partner."""
         domain = [
             *self.env["account.move.line"]._check_company_domain(company_id),
             ("partner_id", "=", partner_id),
@@ -626,10 +582,6 @@ class AccountAccount(models.Model):
             bypass_access=True,
         )
         if not filter_never_used_accounts:
-            # Promote the account join to a RIGHT JOIN so accounts that were
-            # never used still show up (with a zero count). This reaches into
-            # the Query's private join map; keep in sync with the ORM's join
-            # key format ("<table>__<field>").
             _kind, rhs_table, condition = query._joins["account_move_line__account_id"]
             query._joins["account_move_line__account_id"] = (
                 SQL("RIGHT JOIN"),
@@ -672,7 +624,6 @@ class AccountAccount(models.Model):
         partner_id,
         move_type=None,
     ):
-
         cache = self.env.cr.cache.setdefault("most_frequent_accounts_for_partner", {})
         key = (company_id, partner_id, move_type)
 
@@ -769,9 +720,6 @@ class AccountAccount(models.Model):
         )
 
         if not name and suggested_accounts:
-            # Honour the caller-supplied domain and access rules even without a
-            # search term, while preserving the by-frequency ordering of the
-            # survivors.
             display_by_id = {
                 record.id: record.display_name
                 for record in self.search_fetch(
@@ -804,9 +752,6 @@ class AccountAccount(models.Model):
         ).search_fetch(domain, ["display_name"], limit=limit)
         return [(record.id, record.display_name) for record in records]
 
-    # ------------------------------------------------------------------
-    # CRUD overrides (accounting-specific)
-    # ------------------------------------------------------------------
 
     def write(self, vals):
         if "reconcile" in vals:
@@ -851,9 +796,6 @@ class AccountAccount(models.Model):
 
         return super().write(vals)
 
-    # ------------------------------------------------------------------
-    # Delete guards (accounting-specific)
-    # ------------------------------------------------------------------
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_contains_journal_items(self):
@@ -904,9 +846,6 @@ class AccountAccount(models.Model):
                 )
             )
 
-    # ------------------------------------------------------------------
-    # Actions
-    # ------------------------------------------------------------------
 
     def action_open_related_taxes(self):
         related_taxes_ids = (
@@ -938,12 +877,8 @@ class AccountAccount(models.Model):
     def _merge_method(self, destination, source):
         raise UserError(_("You cannot merge accounts."))
 
-    # ------------------------------------------------------------------
-    # Unmerge
-    # ------------------------------------------------------------------
 
     def action_unmerge(self):
-        """Split the account into one per company."""
         self._check_action_unmerge_possible()
         self._action_unmerge_get_user_confirmation()
 
@@ -959,7 +894,6 @@ class AccountAccount(models.Model):
         return {"type": "ir.actions.client", "tag": "soft_reload"}
 
     def _check_action_unmerge_possible(self):
-        """Raise an error if the recordset cannot be unmerged."""
         self.check_access("write")
 
         if forbidden_companies := (self.sudo().company_ids - self.env.user.company_ids):
@@ -982,11 +916,10 @@ class AccountAccount(models.Model):
                 )
 
     def _action_unmerge_get_user_confirmation(self):
-        """Open a RedirectWarning asking user confirmation."""
         if self.env.context.get("account_unmerge_confirm"):
             return
 
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "account.action_unmerge_accounts",
         )
         msg = _("Are you sure? This will perform the following operations:\n")
@@ -1012,13 +945,10 @@ class AccountAccount(models.Model):
         )
 
     def _action_unmerge(self):
-        """Unmerge ``self`` into one account per company."""
         self.ensure_one()
 
-        # Step 1: Check access rights.
         self._check_action_unmerge_possible()
 
-        # Step 2: Create one new account per non-base company.
         base_company = (
             self.env.company
             if self.env.company in self.company_ids
@@ -1029,9 +959,7 @@ class AccountAccount(models.Model):
             *new_account_by_company.values(),
         )
 
-        # Step 3: Repoint foreign keys in the DB from self to the new accounts.
         self.env.invalidate_all()
-        # {company_id (as text): new_account_id}, matching the on-disk jsonb keys.
         new_account_id_by_company_id = {
             str(company.id): new_account.id
             for company, new_account in new_account_by_company.items()
@@ -1049,22 +977,18 @@ class AccountAccount(models.Model):
         self.env.registry.clear_cache()
         self.env.invalidate_all()
 
-        # Step 4: Reassign the original account to the base company only.
         self._unmerge_reassign_company_fields(base_company)
 
-        # Step 5: Log in chatter.
         self._unmerge_log_split(new_accounts, base_company)
 
         return new_accounts
 
     def _unmerge_company_id_subquery(self, model):
-        """Build a ``(id, company_id)`` subquery for *model*, or None."""
         if model == "res.company":
             company_id_field = "id"
         elif "company_id" in self.env[model]:
             company_id_field = "company_id"
         else:
-            # No usable company column: signal the caller to skip this model.
             return None
         with contextlib.suppress(ValueError):
             query = Query(
@@ -1072,8 +996,6 @@ class AccountAccount(models.Model):
                 self.env[model]._table,
                 self.env[model]._table_sql,
             )
-            # Alias the columns id/company_id so the remap UPDATEs below can
-            # reference them by name.
             return query.select(
                 SQL(
                     "%s AS id",
@@ -1090,9 +1012,6 @@ class AccountAccount(models.Model):
             )
 
     def _unmerge_create_accounts(self, base_company):
-        """Step 2: copy ``self`` once per non-base company, returning
-        ``{company: new_account}``.
-        """
         companies_to_update = self.company_ids - base_company
         check_company_fields = {
             fname
@@ -1104,8 +1023,6 @@ class AccountAccount(models.Model):
                 default={
                     "name": self.name,
                     "company_ids": [Command.set(company.ids)],
-                    # Keep only the check_company relational values that belong
-                    # to this company.
                     **{
                         fname: self[fname].filtered(
                             lambda record, company=company: (
@@ -1120,8 +1037,6 @@ class AccountAccount(models.Model):
         }
 
     def _unmerge_remap_many2x_fields(self, new_account_id_by_company_id):
-        """Step 3.1: repoint stored many2one/many2many FKs and m2o
-        company-dependent fields that point at ``self``."""
         new_account_id_by_company_id_json = json.dumps(new_account_id_by_company_id)
         many2x_fields = self.env["ir.model.fields"].search(
             [
@@ -1198,7 +1113,6 @@ class AccountAccount(models.Model):
             )
 
     def _unmerge_remap_reference_fields(self, new_account_id_by_company_id):
-        """Step 3.2: repoint stored Reference fields (``account.account,<id>``)."""
         new_account_id_by_company_id_json = json.dumps(new_account_id_by_company_id)
         reference_fields = self.env["ir.model.fields"].search(
             [
@@ -1237,7 +1151,6 @@ class AccountAccount(models.Model):
             )
 
     def _unmerge_remap_many2one_reference_fields(self, new_account_id_by_company_id):
-        """Step 3.3: repoint stored Many2oneReference fields to ``account.account``."""
         new_account_id_by_company_id_json = json.dumps(new_account_id_by_company_id)
         many2one_reference_fields = self.env["ir.model.fields"].search(
             [
@@ -1290,8 +1203,6 @@ class AccountAccount(models.Model):
     def _unmerge_migrate_company_dependent_fields(
         self, new_accounts, new_account_id_by_company_id
     ):
-        """Step 3.4: move each company's slice of company_dependent jsonb values
-        onto the new account, then strip those slices from the original."""
         new_account_id_by_company_id_json = json.dumps(new_account_id_by_company_id)
         self.env.cr.execute(
             SQL(
@@ -1328,7 +1239,6 @@ class AccountAccount(models.Model):
                 new_ids=tuple(new_accounts.ids),
             )
         )
-        # Remove values for other companies on original account
         self.env.cr.execute(
             SQL(
                 "UPDATE %(table)s SET %(fields_drop)s WHERE id = %(id)s",
@@ -1348,7 +1258,6 @@ class AccountAccount(models.Model):
         )
 
     def _unmerge_split_xmlids(self, base_company, new_account_id_by_company_id):
-        """Step 3.5: hand each company-prefixed xmlid to its unmerged account."""
         self.env["ir.model.data"].invalidate_model()
         account_id_by_company_id_json = json.dumps(
             {
@@ -1376,8 +1285,6 @@ class AccountAccount(models.Model):
         )
 
     def _unmerge_reassign_company_fields(self, base_company):
-        """Step 4: pin the original account to ``base_company`` and keep only the
-        check_company relational values that belong to it."""
         write_vals = {"company_ids": [Command.set(base_company.ids)]}
         check_company_fields = {
             field
@@ -1397,7 +1304,6 @@ class AccountAccount(models.Model):
         self.write(write_vals)
 
     def _unmerge_log_split(self, new_accounts, base_company):
-        """Step 5: note the split in each new account's chatter."""
         msg_body = _(
             "This account was split off from %(account_name)s (%(company_name)s).",
             account_name=self._get_html_link(title=self.display_name),
@@ -1521,7 +1427,6 @@ class AccountGroup(models.Model):
             )
 
     def _sanitize_vals(self, vals):
-        # Return a sanitized copy; never mutate the caller's dict in place.
         vals = dict(vals)
         if (
             vals.get("code_prefix_start")
@@ -1557,8 +1462,6 @@ class AccountGroup(models.Model):
         return res
 
     def unlink(self):
-        # Reparent every child onto its grandparent with a single search and
-        # one write per distinct parent, instead of a search+write per record.
         children = self.env["account.group"].search(
             [("parent_id", "in", self.ids)],
         )
@@ -1567,7 +1470,6 @@ class AccountGroup(models.Model):
         return super().unlink()
 
     def _adapt_parent_account_group(self, company=None):
-        """Ensure consistency of the hierarchy of account groups."""
         if self.env.context.get("delay_account_group_sync"):
             return
 

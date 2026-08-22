@@ -1,6 +1,6 @@
 {
     "name": "Invoicing",
-    "version": "1.4",
+    "version": "1.5",
     "summary": "Invoices & Payments",
     "description": """
 Invoicing & Payments
@@ -104,13 +104,9 @@ You could use this simplified accounting in case you work with an (external) acc
             "account/static/src/scss/account_journal_dashboard.scss",
             "account/static/src/scss/account_searchpanel.scss",
             "account/static/src/scss/account_payment_term.scss",
-            "account/static/src/scss/account_reconcile_model.scss",
             "account/static/src/scss/account_multi_ledger.scss",
             "account/static/src/scss/account_move_send_wizard.scss",
             "account/static/src/components/**/*",
-            # tests_shared_js_python is a JS/Python tax-parity test harness, not product
-            # UI. The glob above would ship it to every backend user; it is loaded where
-            # it is actually needed via web.assets_frontend below.
             ("remove", "account/static/src/components/tests_shared_js_python/**/*"),
             "account/static/src/services/*.js",
             "account/static/src/views/**/*",
@@ -118,8 +114,8 @@ You could use this simplified accounting in case you work with an (external) acc
             "account/static/src/js/search/search_bar/search_bar.js",
             "account/static/src/helpers/*.js",
         ],
-        # Unit test files
         "web.assets_unit_tests": [
+            "account/static/src/interactions/**/*",
             "account/static/tests/**/*",
             ("remove", "account/static/tests/tours/**/*"),
         ],
@@ -129,14 +125,6 @@ You could use this simplified accounting in case you work with an (external) acc
             "account/static/src/helpers/*.js",
         ],
         "web.assets_tests": [
-            # These two live in the backend bundle but are also imported by
-            # test tours here and in sale/purchase/l10n_dk_nemhandel (and
-            # enterprise accountant). Under native ESM those imports are eager,
-            # so they must be resolvable when assets_tests loads on a frontend
-            # page (which has no backend bundle) — otherwise EVERY tour on the
-            # page dies at pre-boot ("Failed to resolve module specifier").
-            # The secondary import-map merge is first-wins, so on backend pages
-            # the parent bundle's copies keep singleton identity.
             "account/static/src/js/tours/tour_utils.js",
             "account/static/src/js/tours/account.js",
             "account/static/tests/tours/**/*",

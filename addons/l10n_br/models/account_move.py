@@ -5,15 +5,15 @@ from odoo import models
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-    def _compute_l10n_latam_document_type(self):
+    def _compute_l10n_latam_document_type_id(self):
         """ Override for debit notes. This sets the same document type as the one on the origin. Cannot
          override the defaults in the account.move.debit wizard because l10n_latam_invoice_document explicitly
-         calls _compute_l10n_latam_document_type() after the debit note is created. """
+         calls _compute_l10n_latam_document_type_id() after the debit note is created. """
         br_debit_notes = self.filtered(lambda m: m.state == "draft" and m.country_code == "BR" and m.debit_origin_id.l10n_latam_document_type_id)
         for move in br_debit_notes:
             move.l10n_latam_document_type_id = move.debit_origin_id.l10n_latam_document_type_id
 
-        return super(AccountMove, self - br_debit_notes)._compute_l10n_latam_document_type()
+        return super(AccountMove, self - br_debit_notes)._compute_l10n_latam_document_type_id()
 
     def _get_last_sequence_domain(self, relaxed=False):
         """ Override to give sequence names in the same journal their own, independent numbering. """

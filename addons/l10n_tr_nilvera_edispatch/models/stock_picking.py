@@ -317,7 +317,7 @@ class StockPicking(models.Model):
         partner = self.env['res.partner'].with_context(no_vat_validation=True).create(partner_vals)
         return partner.id
 
-    def _find_or_create_products_from_xml(self, receipt_lines):
+    def _get_or_create_products_from_xml(self, receipt_lines):
         product_names = [
             self._get_tag_text('./cac:Item/cbc:Name', receipt) for receipt in receipt_lines
         ]
@@ -347,7 +347,7 @@ class StockPicking(models.Model):
         if not receipt_lines:
             return []
 
-        products_dict = self._find_or_create_products_from_xml(receipt_lines)
+        products_dict = self._get_or_create_products_from_xml(receipt_lines)
         source_location = self.picking_type_id.default_location_src_id
 
         values = []

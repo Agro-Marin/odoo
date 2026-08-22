@@ -1,4 +1,3 @@
-# pylint: disable=bad-whitespace
 from collections import defaultdict
 
 from odoo import Command, fields
@@ -191,8 +190,6 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
     def test_out_refund_line_onchange_business_fields_1(self):
         move_form = Form(self.invoice)
         with move_form.invoice_line_ids.edit(0) as line_form:
-            # Current price_unit is 1000.
-            # We set quantity = 4, discount = 50%, price_unit = 500. The debit/credit fields don't change because (4 * 500) * 0.5 = 1000.
             line_form.quantity = 4
             line_form.discount = 50
             line_form.price_unit = 500
@@ -217,7 +214,6 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
 
         move_form = Form(self.invoice)
         with move_form.invoice_line_ids.edit(0) as line_form:
-            # Reset field except the discount that becomes 100%.
             line_form.quantity = 1
             line_form.discount = 100
             line_form.price_unit = 1000
@@ -308,7 +304,6 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
             },
         )
 
-        # Remove lines and recreate them to apply the fiscal position.
         move_form = Form(self.invoice)
         move_form.invoice_line_ids.remove(0)
         move_form.invoice_line_ids.remove(0)
@@ -463,15 +458,11 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
         )
 
     def test_out_refund_line_onchange_cash_rounding_1(self):
-        # Required for `invoice_cash_rounding_id` to be visible in the view
         self.env.user.group_ids += self.env.ref("account.group_cash_rounding")
-        # Test 'add_invoice_line' rounding
         move_form = Form(self.invoice)
-        # Add a cash rounding having 'add_invoice_line'.
         move_form.invoice_cash_rounding_id = self.cash_rounding_a
         move_form.save()
 
-        # The cash rounding does nothing as the total is already rounded.
         self.assertInvoiceValues(
             self.invoice,
             [
@@ -527,11 +518,9 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
             self.move_vals,
         )
 
-        # Test 'biggest_tax' rounding
 
         self.company_data["company"].country_id = self.env.ref("base.us")
 
-        # Add a tag to product_a's default tax
         tax_line_tag = self.env["account.account.tag"].create(
             {
                 "name": "Tax tag",
@@ -545,7 +534,6 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
         )
         repartition_line.write({"tag_ids": [(4, tax_line_tag.id, 0)]})
 
-        # Create the invoice
         biggest_tax_invoice = self.env["account.move"].create(
             {
                 "move_type": "out_refund",
@@ -692,7 +680,6 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
             },
         )
 
-        # Change the date to get another rate: 1/3 instead of 1/2.
         with Form(self.invoice) as move_form:
             move_form.invoice_date = fields.Date.from_string("2016-01-01")
 
@@ -740,8 +727,6 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
 
         move_form = Form(self.invoice)
         with move_form.invoice_line_ids.edit(0) as line_form:
-            # 0.045 * 0.1 = 0.0045. As the foreign currency has a 0.001 rounding,
-            # the result should be 0.005 after rounding.
             line_form.quantity = 0.1
             line_form.price_unit = 0.045
         move_form.save()
@@ -795,7 +780,6 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
             },
         )
 
-        # Exit the multi-currencies.
         move_form = Form(self.invoice)
         move_form.currency_id = self.company_data["currency"]
         move_form.save()
@@ -837,7 +821,6 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
         )
 
     def test_out_refund_create_1(self):
-        # Test creating an account_move with the least information.
         move = self.env["account.move"].create(
             {
                 "move_type": "out_refund",
@@ -915,7 +898,6 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
         )
 
     def test_out_refund_write_1(self):
-        # Test creating an account_move with the least information.
         move = self.env["account.move"].create(
             {
                 "move_type": "out_refund",
@@ -999,8 +981,6 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
         )
 
     def test_out_refund_create_storno(self):
-        # Test creating an account_move refund (credit note)
-        # with multiple lines while in Storno accounting
         self.env.company.account_storno = True
 
         move = self.env["account.move"].create(
@@ -1174,7 +1154,6 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
                 ],
             }
         )
-        # create refund
         move_form = Form(
             self.env["account.move"].with_context(default_move_type="out_refund")
         )
@@ -1186,7 +1165,6 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
             line_form.tax_ids.add(tax)
         invoice = move_form.save()
         invoice.action_post()
-        # make payment
         self.env["account.payment.register"].with_context(
             active_model="account.move", active_ids=invoice.ids
         ).create(
@@ -1194,7 +1172,6 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
                 "payment_date": invoice.date,
             }
         )._create_payments()
-        # check caba move
         partial_rec = invoice.mapped("line_ids.matched_debit_ids")
         caba_move = self.env["account.move"].search(
             [("tax_cash_basis_rec_id", "=", partial_rec.id)]
@@ -1240,10 +1217,8 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
             },
         ]
         self.assertRecordValues(caba_move.line_ids, expected_values)
-        # unreconcile
         credit_aml = invoice.line_ids.filtered("credit")
         credit_aml.remove_move_reconcile()
-        # check caba move reverse is same as caba move with only debit/credit inverted
         reversed_caba_move = self.env["account.move"].search(
             [("reversed_entry_id", "=", caba_move.id)]
         )
@@ -1333,8 +1308,6 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
                 ],
             }
         )
-        # create refund
-        # one downpayment on default account and one product line on not default account, both with the caba tax
         invoice = self.env["account.move"].create(
             {
                 "move_type": "out_refund",
@@ -1360,7 +1333,6 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
             }
         )
         invoice.action_post()
-        # make payment
         self.env["account.payment.register"].with_context(
             active_model="account.move", active_ids=invoice.ids
         ).create(
@@ -1368,7 +1340,6 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
                 "payment_date": invoice.date,
             }
         )._create_payments()
-        # check caba move
         partial_rec = invoice.mapped("line_ids.matched_debit_ids")
         caba_move = self.env["account.move"].search(
             [("tax_cash_basis_rec_id", "=", partial_rec.id)]

@@ -87,10 +87,12 @@ test("component rendering: more than 3 records on field", async () => {
 });
 
 test("edit record and check if edits get discarded when click on one of the buttons and redirects to proper record", async () => {
-    onRpc("account.move", "action_open_business_doc", ({ args }) => {
-        expect.step("action_open_business_doc");
+    onRpc("account.move", "action_view_business_doc", ({ args }) => {
+        expect.step("action_view_business_doc");
         expect(args.length).toBe(1);
-        expect(args[0]).toBe(2);
+        // A recordset, not a bare id: the widget goes through the button
+        // protocol now, which is what `ensure_one()` on the other side expects.
+        expect(args[0]).toEqual([2]);
         return {
             res_model: "account.move",
             res_id: 2,
@@ -108,7 +110,7 @@ test("edit record and check if edits get discarded when click on one of the butt
     expect("[name='ref'] input").toHaveValue("new ref");
     await contains(".o_field_x2many_buttons button").click();
     expect("[name='ref'] input").toHaveValue("b1");
-    expect.verifySteps(["action_open_business_doc"]);
+    expect.verifySteps(["action_view_business_doc"]);
 });
 
 test("redirect to list view and discards edits when clicking on last button with more than 3 records on field", async () => {

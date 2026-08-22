@@ -47,16 +47,16 @@ class PaymentProvider(models.Model):
 
     # === REQUEST HELPERS === #
 
-    def _build_request_url(self, endpoint, **kwargs):
+    def _prepare_request_url(self, endpoint, **kwargs):
         """Override of `payment` to build the request URL."""
         if self.code != 'mollie':
-            return super()._build_request_url(endpoint, **kwargs)
+            return super()._prepare_request_url(endpoint, **kwargs)
         return urls.urljoin('https://api.mollie.com/v2/', endpoint.strip('/'))
 
-    def _build_request_headers(self, *args, **kwargs):
+    def _prepare_request_headers(self, *args, **kwargs):
         """Override of `payment` to build the request headers."""
         if self.code != 'mollie':
-            return super()._build_request_headers(*args, **kwargs)
+            return super()._prepare_request_headers(*args, **kwargs)
 
         odoo_version = service.common.exp_version()['server_version']
         module_version = self.env.ref('base.module_payment_mollie').manifest_version

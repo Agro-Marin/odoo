@@ -50,7 +50,7 @@ class ResCompany(models.Model):
         store=True,
         readonly=False,
         comodel_name='certificate.certificate',
-        compute="_compute_l10n_es_tbai_certificate",
+        compute="_compute_l10n_es_tbai_certificate_id",
     )
     l10n_es_tbai_certificate_ids = fields.One2many(
         comodel_name='certificate.certificate',
@@ -94,7 +94,7 @@ class ResCompany(models.Model):
             company.l10n_es_tbai_is_enabled = company.country_code == 'ES' and company.l10n_es_tbai_tax_agency
 
     @api.depends('country_id', 'l10n_es_tbai_certificate_ids')
-    def _compute_l10n_es_tbai_certificate(self):
+    def _compute_l10n_es_tbai_certificate_id(self):
         for company in self:
             if company.country_code == 'ES':
                 company.l10n_es_tbai_certificate_id = self.env['certificate.certificate'].search(

@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, onWillUnmount } from "@odoo/owl";
-import { FileInput } from "@web/components/file_input/file_input";
+import { FileInput } from "@web/components/file_input";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";

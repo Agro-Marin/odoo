@@ -1,11 +1,16 @@
 /** @odoo-module native */
-import { Component, useState } from "@odoo/owl";
-import { _t } from "@web/core/translation";
+import { Component } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+
+import { sendFilesToUploadInput } from "../document_file_uploader/upload_input.js";
 
 export class UploadDropZone extends Component {
     static template = "account.UploadDropZone";
     static props = {
+        // A drag is in progress somewhere the owner cares about, so every zone it
+        // owns offers itself as a target.
+        dragging: { type: Boolean, optional: true },
+        // The pointer is over THIS zone: it is the one a drop would land in.
         visible: { type: Boolean, optional: true },
         hideZone: { type: Function, optional: true },
         dragIcon: { type: String, optional: true },
@@ -22,24 +27,16 @@ export class UploadDropZone extends Component {
 
     setup() {
         this.notificationService = useService("notification");
-        this.dashboardState = useState(this.env.dashboardState || {});
     }
 
     onDrop(ev) {
-        const selector = ".document_file_uploader.o_input_file";
-        // look for the closest uploader Input as it may have a context
-        const uploadInput =
-            ev.target.closest(".o_drop_area").parentElement.querySelector(selector) ||
-            document.querySelector(selector);
-        const files = ev.dataTransfer ? ev.dataTransfer.files : false;
-        if (uploadInput && !!files) {
-            uploadInput.files = ev.dataTransfer.files;
-            uploadInput.dispatchEvent(new Event("change"));
-        } else {
-            this.notificationService.add(_t("Could not upload files"), {
-                type: "danger",
-            });
-        }
+        sendFilesToUploadInput(ev.dataTransfer, {
+            // The input beside the zone dropped on carries that card's context;
+            // fall back to any in the page. `closest` is optional-chained because
+            // a drop can land on a child of the zone.
+            scopeEl: ev.target.closest(".o_drop_area")?.parentElement,
+            notification: this.notificationService,
+        });
         this.props.hideZone();
     }
 }

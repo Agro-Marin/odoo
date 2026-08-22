@@ -26,10 +26,10 @@ class AccountAnalyticApplicability(models.Model):
         compute="_compute_display_account_prefix",
         help="Defines if the field account prefix should be displayed",
     )
-    account_prefix_placeholder = fields.Char(compute="_compute_prefix_placeholder")
+    account_prefix_placeholder = fields.Char(compute="_compute_account_prefix_placeholder")
 
     @api.depends("account_prefix", "business_domain")
-    def _compute_prefix_placeholder(self):
+    def _compute_account_prefix_placeholder(self):
         account_expense = self.env["account.account"].search(
             [
                 *self.env["account.account"]._check_company_domain(self.env.company),
@@ -56,12 +56,10 @@ class AccountAnalyticApplicability(models.Model):
             if account and account.code:
                 prefix_base = account.code[:2]
                 try:
-                    # Convert prefix_base to an integer for numerical manipulation
                     prefix_num = int(prefix_base)
                     account_prefixes = (
                         f"{prefix_num}, {prefix_num + 1}, {prefix_num + 2}"
                     )
-
                 except ValueError:
                     pass
 

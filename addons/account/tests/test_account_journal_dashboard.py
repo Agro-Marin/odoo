@@ -14,7 +14,6 @@ from odoo.addons.account.tests.test_account_journal_dashboard_common import (
 class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
     @freeze_time("2019-01-22")
     def test_customer_invoice_dashboard(self):
-        # This test is defined in the account_3way_match module with different values, so we skip it when the module is installed
         if (
             self.env["ir.module.module"]
             .search([("name", "=", "account_3way_match")])
@@ -71,7 +70,6 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
             }
         )
 
-        # Check Draft
         dashboard_data = journal._get_journal_dashboard_data_batched()[journal.id]
 
         self.assertEqual(dashboard_data["number_draft"], 2)
@@ -80,7 +78,6 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         self.assertEqual(dashboard_data["number_waiting"], 0)
         self.assertIn("0.00", dashboard_data["sum_waiting"])
 
-        # Check Both
         invoice.action_post()
 
         dashboard_data = journal._get_journal_dashboard_data_batched()[journal.id]
@@ -92,7 +89,6 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         self.assertEqual(dashboard_data["number_waiting"], 1)
         self.assertIn("81.72", dashboard_data["sum_waiting"])
 
-        # Check partial on invoice
         partial_payment = self.env["account.payment"].create(
             {
                 "amount": 13.3,
@@ -114,7 +110,6 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         self.assertEqual(dashboard_data["number_waiting"], 1)
         self.assertIn("68.42", dashboard_data["sum_waiting"])
 
-        # Check waiting payment
         refund.action_post()
 
         dashboard_data = journal._get_journal_dashboard_data_batched()[journal.id]
@@ -124,7 +119,6 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         self.assertEqual(dashboard_data["number_waiting"], 2)
         self.assertIn("55.12", dashboard_data["sum_waiting"])
 
-        # Check partial on refund
         payment = self.env["account.payment"].create(
             {
                 "amount": 10.0,
@@ -151,8 +145,6 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         self.assertIn("65.12", dashboard_data["sum_late"])
 
     def test_sale_purchase_journal_for_purchase(self):
-        """Test purchase journal dashboard amounts with and without multicurrency."""
-        # This test is defined in the account_3way_match module with different values, so we skip it when the module is installed
         if (
             self.env["ir.module.module"]
             .search([("name", "=", "account_3way_match")])
@@ -164,12 +156,6 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         foreign_currency = self.other_currency
         company_currency = self.company_data["currency"]
 
-        # The dashboard uses the journal currency when set, else the company one:
-        #   1) journal with no currency, foreign bills -> company currency
-        #   2) journal in foreign currency, foreign bills -> foreign currency
-        #   3) journal in foreign currency, company bills -> foreign currency
-        #   4) journal in company currency, company bills -> company currency
-        #   5) journal in company currency, foreign bills -> company currency
         setup_values = [
             [self.company_data["default_journal_purchase"], foreign_currency],
             [
@@ -219,7 +205,6 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         ]
 
         expected_vals_list = [
-            # number_draft, sum_draft, number_waiting, sum_waiting, number_late, sum_late, currency
             [1, 100, 1, 55, 1, 55, company_currency],
             [1, 200, 1, 110, 1, 110, foreign_currency],
             [1, 400, 1, 220, 1, 220, foreign_currency],
@@ -268,7 +253,6 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
                 self.assertDashboardPurchaseSaleData(purchase_journal, *expected_vals)
 
     def test_sale_purchase_journal_for_multi_currency_sale(self):
-        # This test is defined in the account_3way_match module with different values, so we skip it when the module is installed
         if (
             self.env["ir.module.module"]
             .search([("name", "=", "account_3way_match")])
@@ -321,7 +305,6 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
 
     @freeze_time("2023-03-15")
     def test_purchase_journal_numbers_and_sums(self):
-        # This test is defined in the account_3way_match module with different values, so we skip it when the module is installed
         if (
             self.env["ir.module.module"]
             .search([("name", "=", "account_3way_match")])
@@ -335,8 +318,6 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
 
         self._create_test_vendor_bills(journal)
         dashboard_data = journal._get_journal_dashboard_data_batched()[journal.id]
-        # Expected behavior is to have three moves waiting for payment for a total amount of 4440$ one of which would be late
-        # for a total amount of 40$ (second move has one of two lines late but that's not enough to make the move late)
         self.assertEqual(3, dashboard_data["number_waiting"])
         self.assertEqual(
             format_amount(self.env, 4440, company_currency),
@@ -349,7 +330,7 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
 
     def test_gap_in_sequence_warning(self):
         journal = self.company_data["default_journal_sale"]
-        self.assertFalse(journal._query_has_sequence_holes())  # No moves so no gap
+        self.assertFalse(journal._query_has_sequence_holes())
         moves = (
             self.env["account.move"]
             .create(
@@ -379,19 +360,19 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         )
         gap_date = moves[3].date
 
-        moves[:8].action_post()  # Only post 8 moves and keep 2 draft moves
+        moves[:8].action_post()
         self.assertFalse(
             journal._query_has_sequence_holes()
-        )  # no gap, no gap warning, and draft moves shouldn't trigger the warning
+        )
 
         moves[2:4].action_draft()
         self.assertTrue(
             journal._query_has_sequence_holes()
-        )  # gap due to draft moves using sequence numbers, gap warning
+        )
         moves[3].unlink()
         self.assertTrue(
             journal._query_has_sequence_holes()
-        )  # gap due to missing sequence, gap warning
+        )
 
         moves[2].action_post()
         self.company_data["company"].write(
@@ -399,19 +380,15 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         )
         self.assertFalse(
             journal._query_has_sequence_holes()
-        )  # gap but prior to lock-date, no gap warning
+        )
 
         moves[6].action_draft()
         moves[6].action_cancel()
         self.assertTrue(
             journal._query_has_sequence_holes()
-        )  # gap due to canceled move using a sequence, gap warning
+        )
 
     def test_bank_journal_with_default_account_as_outstanding_account_payments(self):
-        """Test that payments are excluded from the miscellaneous operations but
-        counted in the balance when the journal default account is also its
-        outstanding account.
-        """
         bank_journal = self.company_data["default_journal_bank"].copy()
         bank_journal.outbound_payment_method_line_ids[
             0
@@ -439,7 +416,6 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         )
 
     def test_outstanding_payments_count_is_per_payment_not_per_currency(self):
-        """Test that the outstanding-payments KPI counts payments, not currencies."""
         bank_journal = self.company_data["default_journal_bank"]
         for amount in (10.0, 20.0, 30.0):
             payment = self.env["account.payment"].create(
@@ -455,8 +431,6 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         dashboard_data = bank_journal._get_journal_dashboard_data_batched()[
             bank_journal.id
         ]
-        # The SQL aggregates GROUP BY currency, so without an explicit COUNT(*) the
-        # count collapsed to 1 per currency (3 same-currency payments -> 1).
         self.assertEqual(
             dashboard_data["nb_lines_outstanding_pay_account_balance"],
             3,
@@ -464,8 +438,6 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         )
 
     def test_bank_journal_different_currency(self):
-        """Test that the misc operations amount on the dashboard is correct
-        for a bank account in another currency."""
         foreign_currency = self.other_currency
         bank_journal = self.company_data["default_journal_bank"].copy(
             {"currency_id": foreign_currency.id}
@@ -508,7 +480,7 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
             foreign_currency.format(100),
         )
 
-        bank_journal.default_account_id.currency_id = False  # not a normal case
+        bank_journal.default_account_id.currency_id = False
         company_currency_move = self.env["account.move"].create(
             {
                 "journal_id": self.company_data["default_journal_misc"].id,
@@ -539,7 +511,6 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         self.assertEqual(dashboard_data.get("misc_class", ""), "text-warning")
 
     def test_to_check_posted(self):
-        """Test that the to-check information only covers posted moves."""
         journal = self.env["account.journal"].create(
             {
                 "name": "Test Foreign Currency Journal",
@@ -582,10 +553,6 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         )
 
     def test_to_check_amount_different_currency(self):
-        """Test that the to_check amount is displayed in the journal currency."""
-        # Company currency = $, journal currency = €
-        # Inv01 of 100 EUR (rate 2 €/1 $) -> 100 €; Inv02 of 100 CHF (rate 4 CHF/1 $)
-        # -> 50 €, hence 150 € to check.
         self.env.ref("base.CHF").write({"active": True})
         self.env["res.currency.rate"].create(
             {
@@ -642,16 +609,12 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
 
     @freeze_time("2023-06-15")
     def test_misc_operations_shared_default_account_windows(self):
-        """Test that bank journals sharing a default account but having different
-        misc windows do not read each other's lines.
-        """
         windowed = self.company_data["default_journal_bank"]
         shared_account = windowed.default_account_id
         open_journal = windowed.copy({"name": "Shared-Account Bank", "code": "SHBNK"})
         open_journal.default_account_id = shared_account
         self.assertEqual(open_journal.default_account_id, shared_account)
 
-        # give `windowed` a last statement -> misc window becomes date > 2023-05-01
         self.env["account.bank.statement"].create(
             {
                 "name": "Seed statement",
@@ -670,7 +633,6 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         self.assertEqual(windowed.last_statement_id.date.isoformat(), "2023-05-01")
         self.assertFalse(open_journal.last_statement_id)
 
-        # a misc line on the shared account, dated before `windowed`'s window
         self.env["account.move"].create(
             {
                 "move_type": "entry",
@@ -700,9 +662,5 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         ).action_post()
 
         data = (windowed | open_journal)._get_journal_dashboard_data_batched()
-        # Before the fix, grouping the misc totals by account alone merged both
-        # windows and leaked the line into `windowed` too.
-        # `windowed` excludes the 2023-03-15 line (outside its window)...
         self.assertEqual(data[windowed.id]["nb_misc_operations"], 0)
-        # ...while `open_journal` sees it, with no cross-contamination.
         self.assertEqual(data[open_journal.id]["nb_misc_operations"], 1)

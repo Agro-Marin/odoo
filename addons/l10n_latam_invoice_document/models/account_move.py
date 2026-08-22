@@ -26,16 +26,16 @@ class AccountMove(models.Model):
     def _auto_init(self):
         # Skip the computation of the field `l10n_latam_document_type_id` at the module installation
         # Without this, at the module installation,
-        # it would call `_compute_l10n_latam_document_type` on all existing records
+        # it would call `_compute_l10n_latam_document_type_id` on all existing records
         # which can take quite a while if you already have a lot of moves. It can even fail with a MemoryError.
-        # In addition, it sets `_compute_l10n_latam_document_type = False` on all records
+        # In addition, it sets `_compute_l10n_latam_document_type_id = False` on all records
         # because this field depends on the many2many `l10n_latam_available_document_type_ids`,
         # which relies on having records for the model `l10n_latam.document.type`
         # which only happens once the according localization module is loaded.
         # The localization module is loaded afterwards, because the localization module depends on this module,
         # (e.g. `l10n_cl` depends on `l10n_latam_invoice_document`, and therefore `l10n_cl` is loaded after)
         # and therefore there are no records for the model `l10n_latam.document.type` at the time this fields
-        # gets computed on installation. Hence, all records' `_compute_l10n_latam_document_type` are set to `False`.
+        # gets computed on installation. Hence, all records' `_compute_l10n_latam_document_type_id` are set to `False`.
         # In addition, multiple localization module depends on this module (e.g. `l10n_cl`, `l10n_ar`)
         # So, imagine `l10n_cl` gets installed first, and then `l10n_ar` is installed next,
         # if `l10n_latam_document_type_id` needed to be computed on install,
@@ -69,7 +69,7 @@ class AccountMove(models.Model):
         readonly=False,
         bypass_search_access=True,
         index="btree_not_null",
-        compute="_compute_l10n_latam_document_type",
+        compute="_compute_l10n_latam_document_type_id",
         store=True,
     )
     l10n_latam_document_number = fields.Char(
@@ -322,7 +322,7 @@ class AccountMove(models.Model):
             ].search(rec._get_l10n_latam_documents_domain())
 
     @api.depends("l10n_latam_available_document_type_ids")
-    def _compute_l10n_latam_document_type(self):
+    def _compute_l10n_latam_document_type_id(self):
         for rec in self.filtered(
             lambda x: (
                 x.state == "draft"

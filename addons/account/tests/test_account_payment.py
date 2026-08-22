@@ -133,19 +133,14 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             ],
         )
 
-        # Cancel the move.
         payment.move_id.action_cancel()
         self.assertRecordValues(payment, [{"state": "canceled"}])
 
     def test_payment_move_sync_update_journal_custom_accounts(self):
-        """Check the payment lines use the outstanding account of its own journal."""
-
-        # Create two different inbound accounts
         outstanding_payment_A = self.inbound_payment_method_line.payment_account_id
         outstanding_payment_B = (
             self.inbound_payment_method_line.payment_account_id.copy()
         )
-        # Create two different journals with a different account
         journal_A = self.company_data["default_journal_bank"]
         journal_A.inbound_payment_method_line_ids.payment_account_id = (
             outstanding_payment_A
@@ -155,7 +150,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             outstanding_payment_B
         )
 
-        # Fill the form payment
         pay_form = Form(
             self.env["account.payment"].with_context(
                 default_journal_id=self.company_data["default_journal_bank"].id
@@ -165,11 +159,9 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         pay_form.payment_type = "inbound"
         pay_form.partner_id = self.partner_a
         pay_form.journal_id = journal_A
-        # Save the form (the move and its lines are only generated on post)
         payment = pay_form.save()
         payment.action_post()
 
-        # Check the payment
         self.assertRecordValues(
             payment,
             [
@@ -216,12 +208,9 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
 
     def test_payment_move_sync_onchange(self):
-
         pay_form = Form(
             self.env["account.payment"].with_context(
                 default_journal_id=self.company_data["default_journal_bank"].id,
-                # The `partner_type` is set through the window action context in the web client
-                # the field is otherwise invisible in the form.
                 default_partner_type="customer",
             )
         )
@@ -271,11 +260,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             ],
         )
 
-        # ==== Check editing the account.payment ====
-        # `partner_type` on payment is always invisible. It's supposed to be set through a context `default_` key
-        # In this case the goal of the test is to take an existing customer payment and change it to a supplier payment,
-        # which is not supposed to be possible through the web interface.
-        # So, change the payment partner_type beforehand rather than in the form view.
         payment.action_draft()
         payment.partner_type = "supplier"
         payment.date = "2024-01-01"
@@ -328,7 +312,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
 
     def test_payment_journal_onchange(self):
-        # Create a new payment form
         pay_form = Form(
             self.env["account.payment"].with_context(
                 default_journal_id=self.company_data["default_journal_bank"].id,
@@ -344,7 +327,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             pay_form.journal_id = self.env["account.journal"]
             payment = pay_form.save()
 
-        # Check the values of the payment record after the onchange method
         self.assertRecordValues(
             payment,
             [
@@ -399,7 +381,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             self.assertTrue(p._get_mail_thread_data_attachments()[p.id])
 
     def test_compute_currency_id(self):
-        """Check a payment created without a currency falls back to the journal currency."""
         self.company_data["default_journal_bank"].currency_id = self.other_currency
         self.company_data[
             "default_journal_bank"
@@ -524,7 +505,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             }
         )
 
-        # Reconcile without the bank reconciliation widget since the widget is in enterprise.
         _st_liquidity_lines, st_suspense_lines, _st_other_lines = (
             statement_line.with_context(
                 skip_account_move_synchronization=True
@@ -544,14 +524,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
 
     def test_invoice_payment_state_follows_counterpart_payment_matching(self):
-        """An invoice must leave the in-payment state when its payment is matched.
-
-        End-to-end cover for the chain `_compute_payment_state` relies on: it
-        reads `account_payment.is_matched` in SQL, and the invoice has to pick the
-        change up on its own once the payment is reconciled against its bank
-        statement line -- no manual invalidation anywhere.
-        """
-
         def in_payment(self):
             return "in_payment"
 
@@ -596,8 +568,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             (st_suspense_lines + liquidity_lines).reconcile()
 
             self.assertTrue(payment.is_matched)
-            # No manual invalidation here on purpose: the dependency has to carry
-            # the change from the payment all the way to the invoice.
             self.assertEqual(invoice.payment_state, "paid")
 
     def test_reconciliation_payment_states_reverse_payment_move(self):
@@ -620,7 +590,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         self.assertTrue(invoice.payment_state in ("paid", "in_payment"))
         self.assertRecordValues(payment, [{"reconciled_invoice_ids": invoice.ids}])
 
-        # Reverse the payment move
         reversal_wizard = (
             self.env["account.move.reversal"]
             .with_context(active_model="account.move", active_ids=payment.move_id.ids)
@@ -631,7 +600,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         self.assertRecordValues(payment.move_id.line_ids, [{"reconciled": True}] * 2)
 
     def test_payment_without_default_company_account(self):
-        """Check switching an inbound payment to outbound when the outstanding accounts (payments and receipts) are set on the journal but not on the company."""
         bank_journal = self.company_data["default_journal_bank"]
 
         bank_journal.outbound_payment_method_line_ids.payment_account_id = (
@@ -683,10 +651,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
 
     def test_suggested_default_partner_bank(self):
-        """Ensure the 'partner_bank_id' is well computed on payments. When the payment is inbound, the money must be
-        received by a bank account linked to the company. In case of outbound payment, the bank account must be found
-        on the partner.
-        """
         payment = self.env["account.payment"].create(
             {
                 "journal_id": self.bank_journal_1.id,
@@ -718,7 +682,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
 
         self.bank_journal_2.bank_account_id = self.comp_bank_account2
-        # A sequence is automatically added on the first move. We need to clean it before changing the journal.
         payment.name = False
         payment.journal_id = self.bank_journal_2
         self.assertRecordValues(
@@ -732,7 +695,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
 
     def test_reconciliation_with_old_oustanding_account(self):
-        """Reconcile an invoice with a payment after changing the outstanding account of the journal."""
         outstanding_account_2 = (
             self.inbound_payment_method_line.payment_account_id.copy()
         )
@@ -774,8 +736,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         self.assertTrue(invoice.state == "draft", "Invoice should be draft")
 
     def test_journal_onchange(self):
-        """Ensure that the payment method line is recomputed when switching journal in form view."""
-
         context = {
             "payment_type": "inbound",
             "partner_type": "customer",
@@ -803,20 +763,15 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             )
 
     def test_journal_change_and_change_names(self):
-        """Test that changing the journal on a payment updates the journal entry name correctly."""
-
         initial_journal = self.company_data["default_journal_bank"]
         new_journal = self.company_data["default_journal_cash"]
 
-        # Use the existing payment method line from the initial journal
         payment_method_line = initial_journal.inbound_payment_method_line_ids[0]
 
-        # Give the new journal's payment method line an outstanding account
         new_journal.inbound_payment_method_line_ids[
             0
         ].payment_account_id = self.payment_debit_account_id
 
-        # Create the payment with the initial journal and post it
         payment = self.env["account.payment"].create(
             {
                 "amount": 50.0,
@@ -829,13 +784,11 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
         payment.action_post()
 
-        # Reset the payment to draft, change the journal, and post again
         payment.action_draft()
         payment.journal_id = new_journal
         payment.payment_method_line_id = new_journal.inbound_payment_method_line_ids[0]
         payment.action_post()
 
-        # Verify the journal entry name now uses the new journal code
         self.assertRegex(payment.move_id.name, rf"^P{new_journal.code}/")
 
     def test_payments_copy_data(self):
@@ -860,7 +813,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         self.assertEqual(duplicate_payment_2.amount, payment_2.amount)
 
     def test_payments_epd_eligible_on_move_with_payment(self):
-        """Ensures that even if a move has a payment registered, the epd will still be eligible if no outstanding account is set on the payment method"""
         invoice1 = self.env["account.move"].create(
             [
                 {
@@ -881,7 +833,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             ]
         )
         invoice1.action_post()
-        # By default, an outstanding account is set on the bank journal, which will result in a journal entry generation
         self.env["account.payment.register"].with_context(
             active_model="account.move", active_ids=invoice1.ids
         ).create({})._create_payments()
@@ -890,7 +841,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
                 invoice1.currency_id, invoice1.invoice_date
             )
         )
-        # Remove the outstanding account on the payment method line to avoid generating a journal entry on the payment
         self.company_data[
             "default_journal_bank"
         ].inbound_payment_method_line_ids.payment_account_id = self.env[
@@ -902,8 +852,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             active_model="account.move", active_ids=invoice2.ids
         ).create({})._create_payments()
 
-        # In the community edition, a journal entry is created for a payment regardless of whether an outstanding account is set.
-        # This removes the eligibility for early payment discount.
         is_accounting_installed = (
             invoice1._get_invoice_in_payment_state() == "in_payment"
         )
@@ -916,9 +864,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
 
     def test_payments_invoice_payment_state_without_outstanding_accounts(self):
-        """Ensures that, without outstanding accounts set on the bank journal payment method,
-        the payment of the invoice still gets a journal entry in community edition"""
-
         def register_payment_and_assert_state(move, amount, is_community):
             def patched_get_invoice_in_payment_state(self):
                 return "paid" if is_community else "in_payment"
@@ -939,7 +884,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
                     payment.state, "paid" if is_community else "in_process"
                 )
 
-        # Remove the outstanding account on the payment method line to avoid generating a journal entry on the payment
         self.company_data[
             "default_journal_bank"
         ].inbound_payment_method_line_ids.payment_account_id = self.env[
@@ -974,11 +918,8 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         self.assertFalse(invoice_2.reconciled_payment_ids.move_id)
 
     def test_payment_confirmation_with_bank_outstanding_account(self):
-        """Ensures that when the outstanding account of the payment method is set to a bank,
-        the validation process of a payment is skipped therefore reaching paid status after confirmation of payment."""
         bank_journal = self.company_data["default_journal_bank"]
         outstanding_account = bank_journal.default_account_id
-        # Sets the outstanding account to a bank
         bank_journal.inbound_payment_method_line_ids.payment_account_id = (
             outstanding_account
         )
@@ -995,9 +936,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         self.assertEqual(payment.state, "paid")
 
     def test_payment_memo_account_move_ref_inverse(self):
-        """Ensure that when the account payment's memo is updated,
-        the related account move's ref is also updated.
-        """
         bank_journal = self.company_data["default_journal_bank"]
         bank_journal.inbound_payment_method_line_ids.payment_account_id = (
             self.inbound_payment_method_line.payment_account_id
@@ -1095,7 +1033,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
                 yield mock_hook
                 valid_calls = [
                     call for call in mock_hook.call_args_list if call.args[0]
-                ]  # ignore when called on empty recordset
+                ]
                 self.assertEqual(
                     len(valid_calls), 1, "invoice paid hook should be called once"
                 )
@@ -1119,7 +1057,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
 
         with assert_paid_hook_call("with oustanding"):
-            # test 'in_payment' to 'paid' transition (with outstanding account)
             invoice = self.init_invoice(
                 "out_invoice", post=True, amounts=[1000.0], taxes=[]
             )
@@ -1132,8 +1069,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             if self.env["account.move"]._get_invoice_in_payment_state() != "in_payment":
                 self.skipTest(
                     "Accounting not installed"
-                )  # there is an implicit outstanding account in this case
-            # Test 'in_payment' to 'paid' transition (without outstanding account)
+                )
             invoice = self.init_invoice(
                 "out_invoice", post=True, amounts=[1000.0], taxes=[]
             )
@@ -1143,7 +1079,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             )
 
         with assert_paid_hook_call("without payment"):
-            # test direct reconciliation without payment
             invoice = self.init_invoice(
                 "out_invoice", post=True, amounts=[1000.0], taxes=[]
             )
@@ -1155,8 +1090,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             if self.env["account.move"]._get_invoice_in_payment_state() != "in_payment":
                 self.skipTest(
                     "Accounting not installed"
-                )  # there is an implicit outstanding account in this case
-            # Test with half payment with and half without outstanding account
+                )
             invoice = self.init_invoice(
                 "out_invoice", post=True, amounts=[1000.0], taxes=[]
             )
@@ -1174,7 +1108,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             )
 
     def test_resequence_change_payment_name(self):
-        """Check the payment is renamed when its journal entry is resequenced."""
         invoice = self.env["account.move"].create(
             [
                 {

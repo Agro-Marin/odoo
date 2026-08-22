@@ -43,7 +43,7 @@ class AccountEdiProxyClientUser(models.Model):
 
         params = params or {}
         try:
-            response = self._make_request(
+            response = self._prepare_request(
                 f"{self._get_server_url()}{endpoint}",
                 params=params,
             )
@@ -114,7 +114,7 @@ class AccountEdiProxyClientUser(models.Model):
         else:
             try:
                 # b64encode returns a bytestring, we need it as a string
-                response = self._make_request(self._get_server_url(proxy_type, edi_mode) + '/api/nemhandel/1/connect', params={
+                response = self._prepare_request(self._get_server_url(proxy_type, edi_mode) + '/api/nemhandel/1/connect', params={
                     'dbuuid': company.env['ir.config_parameter'].get_param('database.uuid'),
                     'company_id': company.id,
                     'nemhandel_identifier': nemhandel_identifier,

@@ -32,7 +32,7 @@ class L10n_LatamCheck(models.Model):
     )
     current_journal_id = fields.Many2one(
         comodel_name="account.journal",
-        compute="_compute_current_journal",
+        compute="_compute_current_journal_id",
         store=True,
     )
     name = fields.Char(string="Number")
@@ -148,7 +148,7 @@ class L10n_LatamCheck(models.Model):
         )
 
     @api.depends("payment_id.state", "operation_ids.state")
-    def _compute_current_journal(self):
+    def _compute_current_journal_id(self):
         for rec in self:
             last_operation = rec._get_last_operation()
             if not last_operation:

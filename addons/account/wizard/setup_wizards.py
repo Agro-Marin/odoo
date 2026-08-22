@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from datetime import date, timedelta
 
 from odoo import _, api, fields, models
@@ -41,9 +39,6 @@ class AccountFinancialYearOp(models.TransientModel):
 
     @api.constrains("fiscalyear_last_day", "fiscalyear_last_month")
     def _check_fiscalyear(self):
-        # We try if the date exists in 2020, which is a leap year.
-        # We do not define the constrain on res.company, since the recomputation of the related
-        # fields is done one field at a time.
         for wiz in self:
             try:
                 date(2020, int(wiz.fiscalyear_last_month), wiz.fiscalyear_last_day)
@@ -62,10 +57,6 @@ class AccountFinancialYearOp(models.TransientModel):
 
     @api.model
     def _update_company(self, company_id, vals):
-        # Amazing workaround: non-stored related fields on company are a BAD idea since the 3 fields
-        # must follow the constraint '_check_fiscalyear_last_day'. The thing is, in case of related
-        # fields, the inverse write is done one value at a time, and thus the constraint is verified
-        # one value at a time... so it is likely to fail.
         company_fields_to_update = {k: k for k in self._company_fields_to_update()}
         company_fields_to_update["opening_date"] = "account_opening_date"
         company_id.write(
@@ -91,7 +82,6 @@ class AccountFinancialYearOp(models.TransientModel):
                 company = self.env["res.company"].browse(vals["company_id"])
                 self._update_company(company, vals)
 
-                # we need to keep opening_date in vals since it's a required field otherwise the wizard fails to be created
                 for key in self._company_fields_to_update() - {"opening_date"}:
                     vals.pop(key, None)
 
@@ -112,7 +102,6 @@ class AccountFinancialYearOp(models.TransientModel):
             .with_company(self.company_id)
             .action_validate_step("account.onboarding_onboarding_step_fiscal_year")
         )
-        # move the state to DONE to avoid an update in the web_read
         if step_state == "JUST_DONE":
             self.env.ref(
                 "account.onboarding_onboarding_account_dashboard"
@@ -169,13 +158,10 @@ class AccountSetupBankManualConfig(models.TransientModel):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Inject the active company's partner when creating the wizard record."""
-        # This wizard only sets up an account for the current active company.
         for vals in vals_list:
             vals["partner_id"] = self.env.company.partner_id.id
             vals["new_journal_name"] = vals["acc_number"]
 
-            # If no bank has been selected, but we have a bic, we are using it to find or create the bank
             if not vals.get("bank_id") and vals.get("bank_bic"):
                 vals["bank_id"] = (
                     self.env["res.bank"]
@@ -196,7 +182,7 @@ class AccountSetupBankManualConfig(models.TransientModel):
 
     @api.depends(
         "journal_id"
-    )  # Despite its name, journal_id is actually a One2many field
+    )
     def _compute_linked_journal_id(self):
         journal_type = self.env.context.get("journal_type", "bank")
         for record in self:
@@ -231,7 +217,6 @@ class AccountSetupBankManualConfig(models.TransientModel):
         )
 
     def set_linked_journal_id(self):
-        """Called when saving the wizard."""
         journal_type = self.env.context.get("journal_type", "bank")
         for record in self:
             selected_journal = record.linked_journal_id
@@ -255,8 +240,6 @@ class AccountSetupBankManualConfig(models.TransientModel):
                 selected_journal.name = record.new_journal_name
 
     def validate(self):
-        """Called by the validation button of this wizard."""
-        # Extension hook overridden in account_bank_statement_import.
         return {"type": "ir.actions.client", "tag": "soft_reload"}
 
     def _compute_company_id(self):

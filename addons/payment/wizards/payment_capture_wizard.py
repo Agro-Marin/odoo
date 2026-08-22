@@ -180,4 +180,4 @@ class PaymentCaptureWizard(models.TransientModel):
             elif not remaining_amount_to_capture and not self.void_remaining_amount:
                 # The amount to capture has been completely captured.
                 break  # Skip the remaining transactions.
-        return processed_txs_sudo._build_action_feedback_notification()
+        return processed_txs_sudo._prepare_action_feedback_notification()

@@ -19,8 +19,6 @@ class AccountBankStatement(models.Model):
         copy=False,
     )
 
-    # Used to hold the reference of the external mean that created this statement (name of imported file,
-    # reference of online synchronization...)
     reference = fields.Char(
         string="External Reference",
         copy=False,
@@ -33,9 +31,6 @@ class AccountBankStatement(models.Model):
         readonly=False,
     )
 
-    # The internal index of the first line of a statement, it is used for sorting the statements
-    # The date field cannot be used as there might be more than one statement in one day.
-    # keeping this order is important because the validity of the statements are based on their order
     first_line_index = fields.Char(
         comodel_name="account.bank.statement.line",
         compute="_compute_first_line_index",
@@ -49,7 +44,6 @@ class AccountBankStatement(models.Model):
         readonly=False,
     )
 
-    # Balance end is calculated based on the statement line amounts and the starting balance.
     balance_end = fields.Monetary(
         string="Computed Balance",
         compute="_compute_balance_end",
@@ -88,19 +82,11 @@ class AccountBankStatement(models.Model):
         string="Statement lines",
     )
 
-    # A statement assumed to be complete when the sum of encoded lines is equal to the difference between start and
-    # end balances.
     is_complete = fields.Boolean(
         compute="_compute_is_complete",
         store=True,
     )
 
-    # A statement is considered valid when the starting balance matches the ending balance of the previous statement.
-    # The lines without statements are neglected because, either the user is using statements regularly, so they can
-    # assume every line without statement is problematic, or they don't use them regularly, in that case statements are
-    # working as checkpoints only and their validity is not important.
-    # The first statement of a journal is always considered valid. The validity of the statement is based on other
-    # statements, so one can say this is external integrity check were as is_complete is the internal integrity.
     is_valid = fields.Boolean(
         compute="_compute_is_valid",
         search="_search_is_valid",
@@ -123,9 +109,6 @@ class AccountBankStatement(models.Model):
     _journal_id_date_desc_id_desc_idx = models.Index("(journal_id, date DESC, id DESC)")
     _first_line_index_idx = models.Index("(journal_id, first_line_index)")
 
-    # -------------------------------------------------------------------------
-    # COMPUTE METHODS
-    # -------------------------------------------------------------------------
 
     @api.depends("create_date")
     def _compute_name(self):
@@ -141,7 +124,6 @@ class AccountBankStatement(models.Model):
     @api.depends("line_ids.internal_index", "line_ids.state")
     def _compute_first_line_index(self):
         for stmt in self:
-            # When we create lines manually from the form view, they don't have any `internal_index` set yet.
             sorted_lines = stmt.line_ids.filtered("internal_index").sorted(
                 "internal_index"
             )
@@ -150,7 +132,6 @@ class AccountBankStatement(models.Model):
     @api.depends("line_ids.internal_index", "line_ids.state")
     def _compute_date(self):
         for statement in self:
-            # When we create lines manually from the form view, they don't have any `internal_index` set yet.
             sorted_lines = statement.line_ids.filtered("internal_index").sorted(
                 "internal_index"
             )
@@ -184,16 +165,12 @@ class AccountBankStatement(models.Model):
                 lines_in_between_domain.append(
                     ("internal_index", ">", previous_line_with_statement.internal_index)
                 )
-                # remove lines from previous statement (when multi-editing a line already in another statement)
                 previous_st_lines = previous_line_with_statement.statement_id.line_ids
                 lines_in_common = previous_st_lines.filtered(
                     lambda l, stmt=stmt: l.id in stmt.line_ids._origin.ids
                 )
                 balance_start -= sum(lines_in_common.mapped("amount"))
 
-            # Sum in SQL rather than loading every in-between line into memory:
-            # on a busy journal there can be thousands of lines between two
-            # statements, and we only need their total.
             [(amount_in_between,)] = self.env[
                 "account.bank.statement.line"
             ]._read_group(lines_in_between_domain, aggregates=["amount:sum"])
@@ -227,8 +204,6 @@ class AccountBankStatement(models.Model):
     @api.depends("balance_end", "balance_end_real", "line_ids.amount", "line_ids.state")
     def _compute_is_complete(self):
         for stmt in self:
-            # `and` short-circuits to the empty recordset when there are no
-            # posted lines; coerce to a real bool for this Boolean field.
             stmt.is_complete = bool(
                 stmt.line_ids.filtered(lambda l: l.state == "posted")
                 and stmt.currency_id.compare_amounts(
@@ -239,10 +214,6 @@ class AccountBankStatement(models.Model):
 
     @api.depends("balance_end", "balance_end_real")
     def _compute_is_valid(self):
-        # we extract the invalid statements, the statements with no lines and the first statement are not in the query
-        # because they don't have a previous statement, so they are excluded from the join, and we consider them valid.
-        # if we have extracted the valid ones, we would have to mark above-mentioned statements valid manually
-        # For new statements, a sql query can't be used
         if len(self) == 1:
             self.is_valid = self._get_statement_validity()
         else:
@@ -275,11 +246,7 @@ class AccountBankStatement(models.Model):
         invalid_ids = self._get_invalid_statement_ids(all_statements=True)
         return [("id", "not in", invalid_ids)]
 
-    # -------------------------------------------------------------------------
-    # BUSINESS METHODS
-    # -------------------------------------------------------------------------
     def _get_statement_validity(self):
-        """Compares the balance_start to the previous statements balance_end_real"""
         self.ensure_one()
         previous = self.env["account.bank.statement"].search(
             [
@@ -299,8 +266,6 @@ class AccountBankStatement(models.Model):
         )
 
     def _get_invalid_statement_ids(self, all_statements=None):
-        """Returns the statements that are invalid for _compute and _search methods."""
-
         self.env["account.bank.statement.line"].flush_model(
             ["statement_id", "internal_index"]
         )
@@ -341,13 +306,9 @@ class AccountBankStatement(models.Model):
         res = self.env.cr.fetchall()
         return [r[0] for r in res]
 
-    # -------------------------------------------------------------------------
-    # LOW-LEVEL METHODS
-    # -------------------------------------------------------------------------
 
     @api.model
     def default_get(self, fields):
-        # EXTENDS base
         defaults = super().default_get(fields)
 
         if "line_ids" not in fields:
@@ -357,7 +318,6 @@ class AccountBankStatement(models.Model):
         context_split_line_id = self.env.context.get("split_line_id")
         context_st_line_id = self.env.context.get("st_line_id")
         lines = None
-        # creating statements with split button
         if context_split_line_id:
             current_st_line = self.env["account.bank.statement.line"].browse(
                 context_split_line_id
@@ -380,17 +340,14 @@ class AccountBankStatement(models.Model):
                 ],
                 order="internal_index desc",
             )
-        # single line edit
         elif context_st_line_id and len(active_ids) <= 1:
             lines = self.env["account.bank.statement.line"].browse(context_st_line_id)
-        # multi edit
         elif context_st_line_id and len(active_ids) > 1:
             lines = self.env["account.bank.statement.line"].browse(active_ids).sorted()
             if len(lines.journal_id) > 1:
                 raise UserError(
                     _("A statement should only contain lines from the same journal.")
                 )
-            # Check that the selected lines are contiguous (there might be canceled lines between the indexes and these should be ignored from the check)
             indexes = lines.mapped("internal_index")
             lines_between = self.env["account.bank.statement.line"].search(
                 [

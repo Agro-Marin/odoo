@@ -13,7 +13,6 @@ class TestAccountMoveImportTemplate(TransactionCase):
         ).get_import_templates()
 
     def test_import_template(self):
-
         def test_template(move_type, file_name):
             template = self.fetch_template_for_type(move_type)
             self.assertEqual(len(template), 1)

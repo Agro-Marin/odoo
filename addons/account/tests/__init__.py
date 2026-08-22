@@ -1,4 +1,5 @@
 from . import test_account_move_reconcile
+from . import test_marin_account_account_fixes
 from . import test_marin_account_move_line_fixes
 from . import test_account_move_payments_widget
 from . import test_account_move_out_invoice
@@ -62,6 +63,10 @@ from . import test_account_partner
 from . import test_setup_wizard
 from . import test_account_cash_rounding
 from . import test_product
+from . import test_marin_account_move_fixes
+from . import test_marin_outstanding_widget_guards
+from . import test_marin_payment_receipt_report
+from . import test_marin_taxes_country_constraint
 from . import test_unexpected_invoice
 from . import test_mail_tracking_value
 from . import test_res_partner_merge

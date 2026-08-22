@@ -12,7 +12,6 @@ class AccountInvoiceReport(models.Model):
     _rec_name = "invoice_date"
     _order = "invoice_date desc"
 
-    # ==== Invoice fields ====
     move_id = fields.Many2one("account.move", readonly=True)
     journal_id = fields.Many2one("account.journal", string="Journal", readonly=True)
     company_id = fields.Many2one("res.company", string="Company", readonly=True)
@@ -45,7 +44,6 @@ class AccountInvoiceReport(models.Model):
     )
     invoice_date = fields.Date(readonly=True, string="Invoice Date")
 
-    # ==== Invoice line fields ====
     quantity = fields.Float(string="Product Quantity", readonly=True)
     product_id = fields.Many2one("product.product", string="Product", readonly=True)
     product_uom_id = fields.Many2one("uom.uom", string="Unit", readonly=True)
@@ -194,7 +192,6 @@ class AccountInvoiceReport(models.Model):
         )
 
     def _read_group_select(self, aggregate_spec: str, query: Query) -> SQL:
-        """Aggregate ``price_average`` as SUM(price_subtotal) / SUM(quantity)."""
         if aggregate_spec != "price_average:avg":
             return super()._read_group_select(aggregate_spec, query)
         return SQL(

@@ -38,7 +38,7 @@ class TestTokenSyncResolution(TransactionCase):
         self.assertFalse(self.user.is_token_out_of_sync)
 
         with patch(
-            'odoo.addons.account_edi_proxy_client.models.account_edi_proxy_user.Account_Edi_Proxy_ClientUser._make_request',
+            'odoo.addons.account_edi_proxy_client.models.account_edi_proxy_user.Account_Edi_Proxy_ClientUser._prepare_request',
             side_effect=fake_call
         ), self.assertRaises(UserError) as e:
             settings = self.env['res.config.settings'].create({})

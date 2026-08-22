@@ -34,7 +34,6 @@ export class ReceiptSelector extends RadioField {
     }
 
     /**
-     * Remove the unwanted options and relabel the remaining ones.
      * @override
      */
     get items() {
@@ -66,18 +65,6 @@ export class ReceiptSelector extends RadioField {
             });
         }
         return items;
-    }
-
-    get string() {
-        if (this.type === "selection") {
-            // Use the original labels and not the modified ones
-            return this.value !== false
-                ? (this.props.record.fields[this.props.name].selection.find(
-                      (i) => i[0] === this.value,
-                  )?.[1] ?? "")
-                : "";
-        }
-        return "";
     }
 }
 

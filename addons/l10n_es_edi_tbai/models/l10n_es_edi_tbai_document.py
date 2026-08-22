@@ -485,7 +485,7 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
                 base_line['gross_price_unit'] = 0.0
 
     @api.model
-    def _build_tax_details_info(self, values_list):
+    def _prepare_tax_details_info(self, values_list):
         sujeta_no_sujeta = {}
         sujeto = []
         sujeto_isp = []
@@ -574,7 +574,7 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
         base_lines_aggregated_values = AccountTax._aggregate_base_lines_tax_details(base_lines, tax_details_info_grouping_function)
         values_per_grouping_key = AccountTax._aggregate_base_lines_aggregated_values(base_lines_aggregated_values)
 
-        tax_details_info = self._build_tax_details_info(values_per_grouping_key.values())
+        tax_details_info = self._prepare_tax_details_info(values_per_grouping_key.values())
         invoice_info = {
             'DesgloseFactura': {
                 **tax_details_info['sujeta_no_sujeta'],
@@ -641,7 +641,7 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
                 if values['grouping_key'] and values['grouping_key']['tax_scope'] == scope
             ]
             if service_values_list:
-                tax_details_info = self._build_tax_details_info(service_values_list)
+                tax_details_info = self._prepare_tax_details_info(service_values_list)
                 invoice_info.setdefault('DesgloseTipoOperacion', {})[target_key] = {
                     **tax_details_info['sujeta_no_sujeta'],
                     'S1': tax_details_info['sujeto'],

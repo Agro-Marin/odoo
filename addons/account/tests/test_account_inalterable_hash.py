@@ -26,7 +26,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
                 journal=val.get("journal"),
                 post=False,
             )
-            if secure_sequence:  # Simulate old behavior (pre hash v4)
+            if secure_sequence:
                 move.secure_sequence_number = secure_sequence.next_by_id()
             if hash_version:
                 move = move.with_context(hash_version=hash_version)
@@ -49,9 +49,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         return reversal
 
     def _get_secure_sequence(self):
-        """Create the sequence that hashed journals had before hash v4."""
-        # It was removed starting v4, but the pre-v4 behavior has to be mocked
-        # to test the previous hash versions.
         return self.env["ir.sequence"].create(
             {
                 "name": "SECURE_SEQUENCE",
@@ -85,7 +82,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             self.assertEqual(integrity_check["last_move_name"], expected_last_move.name)
 
     def test_account_move_inalterable_hash(self):
-        """Test that we cannot alter a field used for the computation of the inalterable hash"""
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
         self.company_data["default_journal_purchase"].restrict_mode_hash_table = True
         move = self._init_and_post(
@@ -94,7 +90,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         in_invoice = self.init_invoice(
             "in_invoice", self.partner_a, "2023-01-01", amounts=[1000], post=True
         )
-        # in_invoice and out_invoice should both be hashed on post
         self.assertNotEqual(move.inalterable_hash, False)
         self.assertNotEqual(in_invoice.inalterable_hash, False)
 
@@ -125,12 +120,10 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         ):
             move.line_ids[0].partner_id = 666
 
-        # The following fields are not part of the hash so they can be modified
         move.ref = "bla"
         move.line_ids[0].date_maturity = fields.Date.from_string("2023-01-02")
 
     def test_account_move_hash_integrity_report(self):
-        """Test the hash integrity report"""
         moves = self._init_and_post(
             [
                 {
@@ -146,14 +139,11 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             ]
         )
 
-        # No records to be hashed because the restrict mode is not activated yet
         for result in moves.company_id._check_hash_integrity()["results"]:
             self.assertEqual(result["status"], "no_data")
 
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
 
-        # Everything should be correctly hashed and verified
-        # First sequence
         first_chain_moves = (
             moves
             | self._init_and_post(
@@ -172,7 +162,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
                         "partner": self.partner_a,
                         "date": "2023-01-04",
                         "amounts": [1000, 2000],
-                    },  # We don't care about the date order, just the sequence_prefix and sequence_number
+                    },
                     {
                         "partner": self.partner_b,
                         "date": "2023-01-06",
@@ -191,7 +181,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             moves, "Entries are correctly hashed", moves[0], moves[-1]
         )
 
-        # Second sequence
         second_chain_moves_first_move = self.init_invoice(
             "out_invoice", self.partner_a, "2023-01-08", amounts=[1000, 2000]
         )
@@ -222,7 +211,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             ]
         )
 
-        # First sequence again
         first_chain_moves_new_move = self.init_invoice(
             "out_invoice", self.partner_a, "2023-01-08", amounts=[1000, 2000]
         )
@@ -232,7 +220,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         first_chain_moves_new_move.action_post()
         first_chain_moves |= first_chain_moves_new_move
 
-        # Verification of the two chains.
         moves = first_chain_moves | second_chain_moves
         self._verify_integrity(
             moves,
@@ -249,8 +236,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             "XYZ/",
         )
 
-        # Let's change one of the fields used by the hash. It should be detected by the integrity report.
-        # We need to bypass the write method of account.move to do so.
         date_hashed = first_chain_moves[3].date
         Model.write(
             first_chain_moves[3], {"date": fields.Date.from_string("2023-02-07")}
@@ -260,7 +245,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             f"Corrupted data on journal entry with id {first_chain_moves[3].id}.*",
         )
 
-        # Revert the previous change
         Model.write(first_chain_moves[3], {"date": date_hashed})
         self._verify_integrity(
             moves,
@@ -270,7 +254,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             "INV/",
         )
 
-        # Let's try with one of the subfields
         Model.write(
             second_chain_moves[-1].line_ids[0], {"partner_id": self.partner_b.id}
         )
@@ -280,10 +263,9 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             prefix="XYZ/",
         )
 
-        # Let's try with the inalterable_hash field itself
         Model.write(
             first_chain_moves[-1].line_ids[0], {"partner_id": self.partner_a.id}
-        )  # Revert the previous change
+        )
         Model.write(first_chain_moves[-1], {"inalterable_hash": "fake_hash"})
         self._verify_integrity(
             moves,
@@ -292,7 +274,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_account_move_hash_versioning_1(self):
-        """Test the integrity report when every move uses the v1 hash algorithm."""
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
         secure_sequence = self._get_secure_sequence()
         moves = self._init_and_post(
@@ -325,9 +306,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             prefix=moves[0].sequence_prefix,
         )
 
-        # Let's change one of the fields used by the hash. It should be detected by the integrity report
-        # independently of the hash version used. I.e. we first try the v1 hash, then the v2 hash and neither should work.
-        # We need to bypass the write method of account.move to do so.
         Model.write(moves[1], {"date": fields.Date.from_string("2023-01-07")})
         self._verify_integrity(
             moves,
@@ -336,7 +314,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_account_move_hash_versioning_2(self):
-        """Test the integrity report when every move uses the v2 hash algorithm."""
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
         secure_sequence = self._get_secure_sequence()
         moves = self._init_and_post(
@@ -369,9 +346,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             prefix=moves[0].sequence_prefix,
         )
 
-        # Let's change one of the fields used by the hash. It should be detected by the integrity report
-        # independently of the hash version used. I.e. we first try the v1 hash, then the v2 hash and neither should work.
-        # We need to bypass the write method of account.move to do so.
         Model.write(moves[1], {"date": fields.Date.from_string("2023-01-07")})
         self._verify_integrity(
             moves,
@@ -380,7 +354,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_account_move_hash_versioning_v1_to_v2(self):
-        """Test the integrity report when moves use both the v1 and v2 hash algorithms."""
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
         secure_sequence = self._get_secure_sequence()
         moves_v1 = self._init_and_post(
@@ -405,7 +378,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             secure_sequence=secure_sequence,
         )
 
-        fields_v1 = moves_v1.with_context(hash_version=1)._get_integrity_hash_fields()
+        fields_v1 = moves_v1.with_context(hash_version=1)._get_fields_integrity_hash()
         moves_v2 = self._init_and_post(
             [
                 {
@@ -428,10 +401,10 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             secure_sequence=secure_sequence,
         )
 
-        fields_v2 = moves_v2._get_integrity_hash_fields()
+        fields_v2 = moves_v2._get_fields_integrity_hash()
         self.assertNotEqual(
             fields_v1, fields_v2
-        )  # Make sure two different hash algorithms were used
+        )
 
         moves = moves_v1 | moves_v2
         self._verify_integrity(
@@ -442,9 +415,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             prefix=moves[0].sequence_prefix,
         )
 
-        # Let's change one of the fields used by the hash. It should be detected by the integrity report
-        # independently of the hash version used. I.e. we first try the v1 hash, then the v2 hash and neither should work.
-        # We need to bypass the write method of account.move to do so.
         date_hashed = moves[4].date
         Model.write(moves[4], {"date": fields.Date.from_string("2023-01-07")})
         self._verify_integrity(
@@ -453,10 +423,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             prefix=moves[0].sequence_prefix,
         )
 
-        # Let's revert the change and make sure that we cannot use the v1 after the v2.
-        # This means we don't simply check whether the move is correctly hashed with either algorithms,
-        # but that we can only use v2 after v1 and not go back to v1 afterwards.
-        Model.write(moves[4], {"date": date_hashed})  # Revert the previous change
+        Model.write(moves[4], {"date": date_hashed})
         moves_v1_bis = self._init_and_post(
             [
                 {
@@ -485,10 +452,8 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_account_move_hash_versioning_3(self):
-        """Test that hash version 3 covers floating point representation issues."""
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
         secure_sequence = self._get_secure_sequence()
-        # Version 2 does not take these into account, hence the 30 * 0.17 amount
         moves = self._init_and_post(
             [
                 {
@@ -511,7 +476,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             secure_sequence=secure_sequence,
         )
 
-        # invalidate cache
         moves[0].line_ids[0].invalidate_recordset()
 
         self._verify_integrity(
@@ -523,7 +487,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_account_move_hash_versioning_v2_to_v3(self):
-        """Test the integrity report when moves use both the v2 and v3 hash algorithms."""
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
         secure_sequence = self._get_secure_sequence()
         moves_v2 = self._init_and_post(
@@ -587,22 +550,17 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_account_move_hash_with_cash_rounding(self):
-        # Enable inalterable hash
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
-        # Required for `invoice_cash_rounding_id` to be visible in the view
         self.env.user.group_ids += self.env.ref("account.group_cash_rounding")
-        # Test 'add_invoice_line' rounding
         invoice = self.init_invoice(
             "out_invoice", products=self.product_a + self.product_b
         )
         move_form = Form(invoice)
-        # Add a cash rounding having 'add_invoice_line'.
         move_form.invoice_cash_rounding_id = self.cash_rounding_a
         with move_form.invoice_line_ids.edit(0) as line_form:
             line_form.price_unit = 999.99
         move_form.save()
 
-        # Should not raise
         invoice.action_post()
         invoice._generate_and_send(allow_fallback_pdf=False)
 
@@ -613,7 +571,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         self.assertEqual(len(invoice.line_ids), 6)
 
     def test_retroactive_hashing(self):
-        """The hash should be retroactive even to moves that were created before the restrict mode was activated."""
         move1 = self.init_invoice(
             "out_invoice", self.partner_a, "2024-01-01", amounts=[1000], post=True
         )
@@ -632,21 +589,18 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_retroactive_hashing_backwards_compatibility(self):
-        """Test that moves left unhashed by an old non-retroactive version stay unhashed."""
         move1 = self.init_invoice(
             "out_invoice", self.partner_a, "2024-01-01", amounts=[1000], post=True
         )
 
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
 
-        # Posting a new move also hashes the previous move (move1)
         self.init_invoice(
             "out_invoice", self.partner_a, "2024-01-02", amounts=[1000], post=True
         )
 
         Model.write(move1, {"inalterable_hash": False, "secure_sequence_number": 0})
 
-        # The following should only compute the hash for move3, not move1 (move2 is already hashed)
         move3 = self.init_invoice(
             "out_invoice", self.partner_a, "2024-01-02", amounts=[1000], post=True
         )
@@ -655,7 +609,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         self.assertFalse(move1.inalterable_hash)
 
     def test_no_hash_if_hole_in_sequence(self):
-        """If there is a hole in the sequence, we should not hash the moves"""
         move1 = self.init_invoice(
             "out_invoice", self.partner_a, "2024-01-01", amounts=[1000], post=True
         )
@@ -666,7 +619,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             "out_invoice", self.partner_a, "2024-01-02", amounts=[1000], post=True
         )
 
-        move2.action_draft()  # Create hole in the middle of unhashed chain [move1, move2, move3]
+        move2.action_draft()
 
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
 
@@ -676,7 +629,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         ):
             move3.button_hash()
 
-        move1.button_hash()  # Afterwards move2 is a hole at the beginning of the unhashed part of the chain [move1 (hashed), move2, move3]
+        move1.button_hash()
         with self.assertRaisesRegex(
             UserError,
             "An error occurred when computing the inalterability. A gap has been detected in the sequence.",
@@ -685,7 +638,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
 
         with self._skip_hash_moves():
             move2.action_post()
-        move3.button_hash()  # Shouldn't raise
+        move3.button_hash()
 
         for move in (move1, move2, move3):
             self.assertNotEqual(move.inalterable_hash, False)
@@ -705,10 +658,10 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         for move in (move4, move6, move7):
             self.assertFalse(move.inalterable_hash)
 
-        move7.button_hash()  # Shouldn't raise, no sequence hole if we have a mix of invoices and credit notes
+        move7.button_hash()
         self.assertFalse(
             move5.inalterable_hash
-        )  # move5 has another sequence_prefix, so not hashed here
+        )
         for move in (move4, move6, move7):
             self.assertNotEqual(move.inalterable_hash, False)
 
@@ -727,7 +680,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_retroactive_hash_vendor_bills(self):
-        """The hash should be retroactive even to vendor bills that were created before the restrict mode was activated."""
         move1 = self.init_invoice(
             "in_invoice", self.partner_a, "2024-01-01", amounts=[1000], post=True
         )
@@ -738,7 +690,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             "in_invoice", self.partner_a, "2024-01-02", amounts=[1000], post=True
         )
 
-        # We should hash vendor bills on post
         self.assertNotEqual(move1.inalterable_hash, False)
         self.assertNotEqual(move2.inalterable_hash, False)
         self._verify_integrity(
@@ -746,8 +697,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_retroactive_hash_multiple_journals(self):
-        """If we have a recordset of moves in different journals, all of them should be hashed
-        in a way that respects the journal to which they belong"""
         journal_sale2 = self.env["account.journal"].create(
             {
                 "name": "Sale Journal 2",
@@ -836,7 +785,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_hash_multiyear(self):
-        """Test that we can hash entries from different fiscal years"""
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
         move1 = self.init_invoice(
             "out_invoice", self.partner_a, "2023-01-01", amounts=[1000], post=True
@@ -878,7 +826,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_hash_on_lock_date(self):
-        """Test that the lock date and hashing do not interfere with each other."""
         for lock_date_field in [
             "hard_lock_date",
             "fiscalyear_lock_date",
@@ -927,14 +874,11 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
                 for move in (move1, move2, move3, move4, move5):
                     self.assertFalse(move.inalterable_hash)
 
-                # Shouldn't raise (case no moves have ever been hashed)
                 self.company_data["company"][lock_date_field] = fields.Date.to_date(
                     "2024-01-31"
                 )
 
-                # Let's revert the lock date and hash just one move
                 if lock_date_field == "hard_lock_date":
-
                     def _validate_locks(*args, **kwargs):
                         pass
 
@@ -947,7 +891,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
                     self.company_data["company"][lock_date_field] = False
                 move1.button_hash()
 
-                # We should be able to set the lock date (case there are hashed moves)
                 self.company_data["company"][lock_date_field] = fields.Date.to_date(
                     "2024-01-31"
                 )
@@ -955,19 +898,17 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
                 for move in (move2, move3, move4, move5):
                     self.assertFalse(move.inalterable_hash)
 
-                # We should be able to hash the moves despite the lock date
                 move5.button_hash()
                 for move in (move1, move2, move3, move4, move5):
                     self.assertNotEqual(move.inalterable_hash, False)
                 self.company_data[
                     "default_journal_sale"
-                ].restrict_mode_hash_table = True  # to run integrity check
+                ].restrict_mode_hash_table = True
                 self._verify_integrity(
                     move5, "Entries are correctly hashed", move1, move5
                 )
 
     def test_retroactive_hashing_before_current(self):
-        """Test that we hash entries before the current recordset of moves, not the ones after"""
         move1 = self.init_invoice(
             "out_invoice", self.partner_a, "2024-01-01", amounts=[1000], post=True
         )
@@ -1001,9 +942,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         self._verify_integrity(move1, "Entries are correctly hashed", move1, move6)
 
     def test_account_move_hash_versioning_v3_to_v4(self):
-        """Test the integrity report when moves use both the v3 and v4 hash algorithms."""
-        # Let's simulate v3 where the hash was on post and not retroactive
-        # First let's create some moves that shouldn't be hashed (before restrict mode)
         secure_sequence = self._get_secure_sequence()
         moves_v3_pre_restrict_mode = self.env["account.move"]
         for _ in range(3):
@@ -1017,7 +955,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
 
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
 
-        # Now create some moves in v3 that should be hashed on post and have a secure_sequence_number
         moves_v3_post_restrict_mode = self.env["account.move"]
         last_hash = ""
         for _ in range(3):
@@ -1039,7 +976,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
 
         moves_v3 = moves_v3_pre_restrict_mode | moves_v3_post_restrict_mode
 
-        # Use v4 now
         moves_v4 = self._init_and_post(
             [
                 {
@@ -1058,12 +994,11 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
                     "amounts": [1000, 2000],
                 },
             ]
-        )  # Default hash version is 4
+        )
 
-        # Don't ever allow to hash moves_v3_pre_restrict_mode
         moves_v3_pre_restrict_mode[-1]._hash_moves(
             raise_if_no_document=False
-        )  # Shouldn't raise
+        )
         self.assertFalse(moves_v3_pre_restrict_mode[-1].inalterable_hash)
 
         with self.assertRaisesRegex(
@@ -1071,35 +1006,17 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         ):
             moves_v3_pre_restrict_mode.button_hash()
 
-        # Test that we allow holes that are not in the moves to hash
-        moves_v3_pre_restrict_mode[2].action_draft()  # Create hole in sequence
+        moves_v3_pre_restrict_mode[2].action_draft()
         moves_v4 |= self.init_invoice(
             "out_invoice", self.partner_a, "2024-01-01", amounts=[1000, 2000], post=True
         )
         with self._skip_hash_moves():
-            moves_v3_pre_restrict_mode[2].action_post()  # Revert
+            moves_v3_pre_restrict_mode[2].action_post()
 
-        # Check lock date, shouldn't raise even if there are no documents to hash
         self.company_data["company"].fiscalyear_lock_date = fields.Date.to_date(
             "2024-01-31"
         )
 
-        # We should have something like (mix of v3 and v4):
-        # Name          | Secure Sequence Number    | Inalterable Hash
-        # --------------|---------------------------|------------------
-        # ### V3: Restricted mode not activated yet
-        # INV/2024/1    |           0               | False
-        # INV/2024/2    |           0               | False
-        # INV/2024/3    |           0               | False
-        # ### V3: Restricted mode activated + hash on post
-        # INV/2024/4    |           1               | 87ba4c8...
-        # INV/2024/5    |           2               | 09al8if...
-        # INV/2024/6    |           3               | 0a9f8a9...
-        # ### V4: No secure_sequence_number, hash retroactively on send&print (17.2 to 17.4) or post (17.5+)
-        # INV/2024/7    |           0               | $4$aj98na1...
-        # INV/2024/8    |           0               | $4$9177iai...
-        # INV/2024/9    |           0               | $4$nwy7ao9
-        # ### INV/2024/1, INV/2024/2, INV/2024/3 should not be hashed
 
         for move in moves_v3_pre_restrict_mode:
             self.assertFalse(move.inalterable_hash)
@@ -1134,8 +1051,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_inalterable_hash_verification_by_batches(self):
-        """Test that the integrity report can handle a large amount of entries by
-        verifying the integrity by batches."""
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
         moves = self.env["account.move"]
         for _ in range(10):
@@ -1187,7 +1102,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             )
 
     def test_error_on_unreconciled_bank_statement_lines(self):
-        """Test that hashing entries with unreconciled bank statement lines raises."""
         unreconciled_bank_statement_line = self.env[
             "account.bank.statement.line"
         ].create(
@@ -1207,16 +1121,11 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             unreconciled_move.button_hash()
 
     def test_account_move_unhashed_entries(self):
-        """Test that ``_get_chain_info`` with ``early_stop=True`` reports whether unhashed documents exist."""
-        # The early-stop path must not raise: it is used to check whether a
-        # journal has unhashed entries.
         sales_journal = self.company_data["default_journal_sale"]
-        # Create a move before the journal is set to 'Hash on post', allowing to test if the journal has unhashed entries.
         self._init_and_post(
             [{"partner": self.partner_a, "date": "2023-01-01", "amounts": [1000]}]
         )
         sales_journal.restrict_mode_hash_table = True
-        # There should be unhashed entries in the sales journal until another move is posted
         self.assertTrue(
             sales_journal._get_moves_to_hash(
                 include_pre_last_hash=False, early_stop=True
@@ -1225,7 +1134,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         self._init_and_post(
             [{"partner": self.partner_a, "date": "2023-01-01", "amounts": [1000]}]
         )
-        # After posting one entry, sales journal shouldn't have unhashed entries
         self.assertFalse(
             sales_journal._get_moves_to_hash(
                 include_pre_last_hash=False, early_stop=True
@@ -1233,10 +1141,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_account_group_account_secured(self):
-        """Test that the account secured group requires securing entries from a journal without 'Hash on Post'."""
-        # Securing entries from a journal with 'Hash on Post' is not enough.
         group_account_secured = self.env.ref("account.group_account_secured")
-        # `group_account_secured` can be by default in user groups (e.g. l10n_de)
         group_account_secured_in_user_groups = (
             group_account_secured in self.env.user.group_ids.all_implied_ids
         )
@@ -1245,14 +1150,11 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             [{"partner": self.partner_a, "date": "2023-01-01", "amounts": [1000]}]
         )
         self.assertNotEqual(move.inalterable_hash, False)
-        # Unless `group_account_secured` was by default in user groups, user shouldn't be granted access rights since
-        # only moves from a journal with 'Hash on Post' have been secured
         if not group_account_secured_in_user_groups:
             self.assertFalse(
                 group_account_secured in self.env.user.group_ids.all_implied_ids
             )
 
-        # Once moves from a journal without 'Hash on Post' is secured, user should be granted secured group access rights
         in_invoice = self.init_invoice(
             "in_invoice", self.partner_a, "2023-01-01", amounts=[1000], post=True
         )
@@ -1266,7 +1168,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_wizard_hashes_all_journals(self):
-        """Test that the wizard hashes all journals, whatever the lock date or ``restrict_mode_hash_table``."""
         moves = self.env["account.move"].create(
             [
                 {
@@ -1307,9 +1208,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         self.assertTrue(False not in moves.mapped("inalterable_hash"))
 
     def test_wizard_ignores_sequence_prefixes_with_unreconciled_entries(self):
-        """Test that the wizard skips sequence prefixes containing unreconciled bank statement lines."""
-        # The remaining sequence prefixes of the same journal must still be hashed.
-        # Create 2 reconciled moves from different sequences
         reconciled_bank_statement_line_2016 = self.env[
             "account.bank.statement.line"
         ].create(
@@ -1317,7 +1215,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
                 "journal_id": self.company_data["default_journal_bank"].id,
                 "date": "2016-01-01",
                 "payment_ref": "2016_reconciled",
-                "amount": 0.0,  # reconciled
+                "amount": 0.0,
             }
         )
         reconciled_bank_statement_line_2017 = self.env[
@@ -1327,7 +1225,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
                 "journal_id": self.company_data["default_journal_bank"].id,
                 "date": "2017-01-01",
                 "payment_ref": "2017_reconciled",
-                "amount": 0.0,  # reconciled
+                "amount": 0.0,
             }
         )
 
@@ -1342,7 +1240,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             wizard.move_to_hash_ids, reconciled_bank_statement_lines.move_id
         )
 
-        # Create an unreconciled move for the 2017 prefix
         unreconciled_bank_statement_line_2017 = self.env[
             "account.bank.statement.line"
         ].create(
@@ -1366,12 +1263,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_wizard_backwards_compatibility(self):
-        """Test that the wizard leaves moves before the start of the hash sequence unhashed."""
-        # The wizard was introduced in odoo 17.5, when the hash version was 4. It
-        # also reports the date of the first unhashed move, excluding moves before
-        # the hard lock date.
-        # Let's simulate v3 where the hash was on post and not retroactive
-        # First let's create some moves that shouldn't be hashed (before restrict mode)
         secure_sequence = self._get_secure_sequence()
         moves_v3_pre_restrict_mode = self.env["account.move"]
         for _ in range(3):
@@ -1385,7 +1276,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
 
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
 
-        # Now create some moves in v3 that should be hashed on post and have a secure_sequence_number
         moves_v3_post_restrict_mode = self.env["account.move"]
         last_hash = ""
         for _ in range(3):
@@ -1420,7 +1310,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         for move in moves_v3_pre_restrict_mode | moves_v4:
             self.assertFalse(move.inalterable_hash)
 
-        # We cannot hash the moves_v3_pre_restrict_mode because the moves_v3_post_restrict_mode are hashed
         wizard = self.env["account.secure.entries.wizard"].create(
             {"hash_date": "2024-01-03"}
         )
@@ -1429,7 +1318,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
         self.assertEqual(wizard.move_to_hash_ids, moves_v4)
 
-        # We can still hash the remaining moves
         with (
             self.subTest(msg="Hash the remaining moves"),
             closing(self.env.cr.savepoint()),
@@ -1440,10 +1328,8 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             for move in moves_v4:
                 self.assertNotEqual(move.inalterable_hash, False)
 
-        # We can ignore the moves by setting the hard lock date:
         self.assertEqual(wizard.max_hash_date, fields.Date.from_string("2023-12-31"))
         self.company_data["company"].hard_lock_date = "2024-01-01"
-        # There is no unhashable move blocking the hash date anymore
         wizard = self.env["account.secure.entries.wizard"].create(
             {"hash_date": "2024-01-03"}
         )

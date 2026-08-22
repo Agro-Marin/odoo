@@ -1,11 +1,3 @@
-"""Dynamic-lines synchronization engine for account.move."""
-
-# tax / payment-term / rounding / balancing / early-payment-discount lines are
-# (re)computed here whenever a move changes. The planning core is a pure function
-# in account/tools/dynamic_lines.py (Tier-1 tested); this file holds the ORM
-# orchestration. No method of this cluster is overridden by any inheriting module
-# except _get_sync_stack (l10n_in), which extends through super().
-
 from collections import Counter, defaultdict
 from contextlib import ExitStack, contextmanager
 
@@ -21,21 +13,10 @@ class AccountMove(models.Model):
     _inherit = "account.move"
 
     def _recompute_cash_rounding_lines(self):
-        """Handle the cash rounding feature on invoices."""
         self.ensure_one()
 
-        # In some countries the smallest coins do not exist (e.g. Switzerland has
-        # no 0.01 CHF coin, the smallest being 0.05 CHF), so cash-paid invoices
-        # are rounded to the smallest existing coin. Two strategies: (1) add a
-        # dedicated rounding line on the invoice, or (2) add the rounding to the
-        # tax line having the biggest balance.
 
         def _compute_cash_rounding(self, total_amount_currency):
-            """Compute the amount differences due to the cash rounding.
-            :param self:                    The current account.move record.
-            :param total_amount_currency:   The invoice's total in invoice's currency.
-            :return:                        The amount differences both in company's currency & invoice's currency.
-            """
             difference = self.invoice_cash_rounding_id.compute_difference(
                 self.currency_id, total_amount_currency
             )
@@ -54,13 +35,6 @@ class AccountMove(models.Model):
         def _apply_cash_rounding(
             self, diff_balance, diff_amount_currency, cash_rounding_line
         ):
-            """Apply the cash rounding.
-            :param self:                    The current account.move record.
-            :param diff_balance:            The computed balance to set on the new rounding line.
-            :param diff_amount_currency:    The computed amount in invoice's currency to set on the new rounding line.
-            :param cash_rounding_line:      The existing cash rounding line.
-            :return:                        The newly created rounding line.
-            """
             rounding_line_vals = {
                 "balance": diff_balance,
                 "amount_currency": diff_amount_currency,
@@ -80,7 +54,6 @@ class AccountMove(models.Model):
                     ):
                         biggest_tax_line = tax_line
 
-                # No tax found.
                 if not biggest_tax_line:
                     return
 
@@ -95,7 +68,6 @@ class AccountMove(models.Model):
                         "tax_ids": [Command.set(biggest_tax_line.tax_ids.ids)],
                     }
                 )
-
             elif self.invoice_cash_rounding_id.strategy == "add_invoice_line":
                 if diff_balance > 0.0 and self.invoice_cash_rounding_id.loss_account_id:
                     account_id = self.invoice_cash_rounding_id.loss_account_id.id
@@ -120,13 +92,10 @@ class AccountMove(models.Model):
             lambda line: line.display_type == "rounding"
         )
 
-        # The cash rounding has been removed.
         if not self.invoice_cash_rounding_id:
             existing_cash_rounding_line.unlink()
-            # self.line_ids -= existing_cash_rounding_line
             return
 
-        # The cash rounding strategy has changed.
         if self.invoice_cash_rounding_id and existing_cash_rounding_line:
             strategy = self.invoice_cash_rounding_id.strategy
             old_strategy = (
@@ -135,7 +104,6 @@ class AccountMove(models.Model):
                 else "add_invoice_line"
             )
             if strategy != old_strategy:
-                # self.line_ids -= existing_cash_rounding_line
                 existing_cash_rounding_line.unlink()
                 existing_cash_rounding_line = self.env["account.move.line"]
 
@@ -152,17 +120,12 @@ class AccountMove(models.Model):
             self, total_amount_currency
         )
 
-        # The invoice is already rounded. `diff_balance` is a company-currency
-        # amount: compare it with the company currency's precision — using the
-        # (possibly much coarser) invoice currency would keep stale amounts.
         if self.company_currency_id.is_zero(diff_balance) and self.currency_id.is_zero(
             diff_amount_currency
         ):
             existing_cash_rounding_line.unlink()
-            # self.line_ids -= existing_cash_rounding_line
             return
 
-        # No update needed
         if (
             existing_cash_rounding_line
             and float_compare(
@@ -185,7 +148,6 @@ class AccountMove(models.Model):
         )
 
     def _get_automatic_balancing_account(self):
-        """Return the account to use when auto-balancing a move."""
         self.ensure_one()
         if self.journal_id.default_account_id:
             return self.journal_id.default_account_id.id
@@ -199,23 +161,15 @@ class AccountMove(models.Model):
         move_had_tax = {move: has_tax(move) for move in container["records"]}
         yield  # noqa: RUF075 - deliberate: on exception the transaction aborts/rolls back, so skipping this sync's post-yield step changes nothing that would otherwise persist
         balance_name = _("Automatic Balancing Line")
-        # Only draft moves: posted ones are immutable and cancelled ones are
-        # dead documents that must not grow balancing lines.
         balancing_line_by_move = {}
         for move in (x for x in container["records"] if x.state == "draft"):
             if not has_tax(move) and not move_had_tax.get(move):
-                continue  # only manage automatically unbalanced when taxes are involved
+                continue
             if move_had_tax.get(move) and not has_tax(move):
-                # taxes have been removed, the tax sync is deactivated so we need to clear everything here
                 move.line_ids.filtered("tax_line_id").unlink()
                 move.line_ids.tax_tag_ids = [Command.set([])]
 
-            # Set the balancing line's balance and amount_currency to zero,
-            # so that it does not interfere with _get_unbalanced_moves() below.
             existing_balancing_line = move.line_ids.filtered(
-                # The name match keeps recognizing lines created before the
-                # dedicated display_type existed; the name alone is unreliable
-                # (it is translated, so a language switch orphans the line).
                 lambda line: (
                     line.display_type == "balancing" or line.name == balance_name
                 )
@@ -229,8 +183,6 @@ class AccountMove(models.Model):
         if not balancing_line_by_move:
             return
 
-        # One batched unbalance query for all managed moves: per-move calls
-        # issued one flush + one aggregate query per misc entry per write.
         unbalanced_by_move_id = {
             move_id: (debit, credit)
             for move_id, debit, credit in (
@@ -241,9 +193,6 @@ class AccountMove(models.Model):
             )
         }
 
-        # Create an automatic balancing line to make sure the entry can be
-        # saved/posted. If such a line already exists, we simply update its
-        # amounts.
         for move, existing_balancing_line in balancing_line_by_move.items():
             unbalanced = unbalanced_by_move_id.get(move.id)
             if unbalanced:
@@ -253,11 +202,6 @@ class AccountMove(models.Model):
                     existing_balancing_line.write(
                         {
                             "balance": balance,
-                            # _compute_amount_currency only recomputes from the
-                            # balance while the cache holds False: after the
-                            # zeroing above it would keep 0.0 on foreign-currency
-                            # entries, leaving balance and amount_currency
-                            # inconsistent.
                             "amount_currency": existing_balancing_line.currency_id.round(
                                 balance * existing_balancing_line.currency_rate
                             ),
@@ -272,13 +216,10 @@ class AccountMove(models.Model):
                             "move_id": move.id,
                             "account_id": move._get_automatic_balancing_account(),
                             "currency_id": move.currency_id.id,
-                            # A balancing line should never have default taxes applied to it, it doesn't work well and wouldn't make much sense.
                             "tax_ids": False,
                         }
                     )
             elif existing_balancing_line:
-                # The move became balanced on its own: drop the zeroed leftover
-                # instead of keeping a permanent 0.00 line on the entry.
                 existing_balancing_line.unlink()
 
     @contextmanager
@@ -295,7 +236,7 @@ class AccountMove(models.Model):
         merged_keys = set()
         for computed_needed in values_list:
             if computed_needed is False:
-                continue  # there was an invalidation, let's hope nothing needed to be changed...
+                continue
             for key, values in computed_needed.items():
                 if key not in res:
                     res[key] = dict(values)
@@ -305,7 +246,6 @@ class AccountMove(models.Model):
                         if line_fields[fname].type == "monetary":
                             res[key][fname] += values[fname]
 
-        # Convert float values to their "ORM cache" one to prevent different rounding calculations
         for key, values in res.items():
             move_id = key.get("move_id")
             if not move_id:
@@ -316,10 +256,6 @@ class AccountMove(models.Model):
                 if isinstance(current_value, float):
                     values[fname] = field.convert_to_cache(current_value, record)
 
-        # Merged entries whose monetary amounts cancelled out are not needed.
-        # This is decided on the cache-converted (currency-rounded) values: raw
-        # float truthiness kept keys alive on 1e-13 leftovers, creating
-        # 0.00-amount lines.
         for key in merged_keys:
             values = res[key]
             if not any(
@@ -393,10 +329,6 @@ class AccountMove(models.Model):
                 for fname in values
             )
 
-        # Snapshot every move, whatever its state: a move that is posted here
-        # and draft after yield (reset to draft) would otherwise be diffed
-        # against an empty snapshot — every field reads as "changed", forcing
-        # a full tax recompute that wipes manually adjusted tax amounts.
         moves_values_before = {
             move: {
                 field: get_value(move, field)
@@ -447,23 +379,19 @@ class AccountMove(models.Model):
                 field_has_changed(moves_values_before, move, "currency_id")
                 or field_has_changed(moves_values_before, move, "move_type")
             ):
-                # Changing the type of an invoice using 'switch to refund' feature or just changing the currency.
                 round_from_tax_lines = False
             elif any(
                 line not in base_lines
                 for line, values in move_base_lines_values_before.items()
                 if values["tax_ids"]
             ):
-                # Removed a base line affecting the taxes.
                 round_from_tax_lines = any_field_has_changed(
                     move_tax_lines_values_before, tax_lines
                 )
             elif changed_lines := list(
                 get_changed_lines(move_base_lines_values_before, base_lines)
             ):
-                # A base line has been modified.
                 round_from_tax_lines = (
-                    # The changed lines don't affect the taxes.
                     all(
                         not line.tax_ids
                         and not move_base_lines_values_before.get(line, {}).get(
@@ -471,7 +399,6 @@ class AccountMove(models.Model):
                         )
                         for line in changed_lines
                     )
-                    # Keep the tax lines amounts if an amount has been manually computed.
                     or (
                         list(move_tax_lines_values_before) != list(tax_lines)
                         or any(
@@ -482,8 +409,6 @@ class AccountMove(models.Model):
                     )
                 )
 
-                # If the move has been created with all lines including the tax ones and the balance/amount_currency are provided on
-                # base lines, we don't need to recompute anything.
                 if round_from_tax_lines and any(
                     line[field]
                     for line in changed_lines
@@ -491,7 +416,6 @@ class AccountMove(models.Model):
                 ):
                     continue
             elif field_has_changed(moves_values_before, move, "invoice_currency_rate"):
-                # Changing the rate should preserve the tax amounts in foreign currency but reapply the currency rate.
                 round_from_tax_lines = "reapply_currency_rate"
             else:
                 continue
@@ -520,7 +444,6 @@ class AccountMove(models.Model):
 
             if not non_deductible_lines_values and non_deductible_tax_line:
                 to_delete.append(non_deductible_tax_line.id)
-
             elif non_deductible_lines_values:
                 non_deductible_tax_values = {
                     "tax_amount": 0.0,
@@ -538,7 +461,6 @@ class AccountMove(models.Model):
                         - line_values["tax_details"]["total_excluded_currency"]
                     )
 
-                # Update the non-deductible tax lines values
                 non_deductable_tax_line_values = {
                     "move_id": move.id,
                     "account_id": (
@@ -550,10 +472,6 @@ class AccountMove(models.Model):
                     "name": _("private part (taxes)"),
                     "balance": non_deductible_tax_values["tax_amount"],
                     "amount_currency": non_deductible_tax_values["tax_amount_currency"],
-                    # Anchored on the non-deductible block it belongs to, not on
-                    # the whole entry: the maximum over every line lands after the
-                    # tax (10000) and payment-term (12000) lines whenever this
-                    # line is (re)created on an already-synced move.
                     "sequence": max(
                         move.line_ids.filtered(
                             lambda line: (
@@ -616,7 +534,6 @@ class AccountMove(models.Model):
                     )
 
         if grouped_update:
-            # Need to use currency_id as a key to avoid writing with multiple currencies
             for (_currency_id, values), lines in grouped_update.items():
                 self.env["account.move.line"].browse(lines).write(dict(values))
         if to_delete:
@@ -642,7 +559,6 @@ class AccountMove(models.Model):
                 )
             )
 
-        # Collect data to avoid recomputing value unecessarily
         product_lines_before = {
             move: Counter(
                 (
@@ -680,7 +596,6 @@ class AccountMove(models.Model):
                 or product_lines_now - product_lines_before.get(move, Counter())
             )
             if not has_changed_product_lines:
-                # No difference between before and now, then nothing to do
                 continue
 
             non_deductible_base_lines = move.line_ids.filtered(
@@ -703,11 +618,6 @@ class AccountMove(models.Model):
             product_lines = move.line_ids.filtered(
                 lambda line: line.display_type == "product"
             )
-            # Anchor the block on the product lines only. Taking the maximum over
-            # every line put the total after the tax and payment-term lines
-            # (sequence 10000/12000) on any resync, so the same document ordered
-            # its "private part" differently depending on whether the lines were
-            # built by create() or by a later write().
             total_sequence = max(product_lines.mapped("sequence")) + 1
 
             for line in product_lines:
@@ -715,10 +625,6 @@ class AccountMove(models.Model):
                     continue
 
                 percentage = 1 - line.deductible_amount / 100
-                # `price_subtotal` is expressed in the document (foreign) currency,
-                # like `amount_currency`; the company-currency figure (`balance`) is
-                # obtained by dividing by the invoice rate. Keeping the two clearly
-                # named avoids writing one into the field meant for the other.
                 non_deductible_subtotal = line.currency_id.round(
                     line.price_subtotal * percentage
                 )
@@ -738,8 +644,6 @@ class AccountMove(models.Model):
                 to_create.append(
                     {
                         "move_id": move.id,
-                        # `_compute_partner_id` deliberately does NOT depend on
-                        # `move_id`, so the partner has to be pinned explicitly.
                         "partner_id": move.commercial_partner_id.id,
                         "account_id": line.account_id.id,
                         "display_type": "non_deductible_product",
@@ -760,7 +664,6 @@ class AccountMove(models.Model):
             to_create.append(
                 {
                     "move_id": move.id,
-                    # See the note above: `partner_id` does not follow `move_id`.
                     "partner_id": move.commercial_partner_id.id,
                     "account_id": (
                         move.journal_id.non_deductible_account_id
@@ -775,13 +678,6 @@ class AccountMove(models.Model):
                 }
             )
 
-        # Never rewrite a deleted line into a created one. Both lists span every
-        # move of the batch, so pairing them positionally moved live lines to
-        # another journal entry, carrying over every field absent from the values
-        # above -- measured: analytic_distribution, date_maturity, discount,
-        # price_unit. A leaked analytic_distribution is the damaging one: posting
-        # then books analytic entries derived from the other document.
-        # Cf _sync_dynamic_line, which dropped the same recycling.
         if to_delete:
             self.env["account.move.line"].browse(to_delete).with_context(
                 dynamic_unlink=True
@@ -800,8 +696,6 @@ class AccountMove(models.Model):
     ):
         def existing():
             if line_type == "epd":
-                # Keep keyless EPD lines in the sync map so they can be cleaned/rebuilt
-                # when invoice lines/taxes are overwritten (e.g. PO auto-complete on OCR bills).
                 return {
                     line: (
                         line[existing_key_fname] or frozendict({"epd_line_id": line.id})
@@ -837,12 +731,11 @@ class AccountMove(models.Model):
         dirty_recs_before[dirty_fname] = False
         yield  # noqa: RUF075 - deliberate: on exception the transaction aborts/rolls back, so skipping this sync's post-yield step changes nothing that would otherwise persist
         dirty_recs_after, dirty_fname = dirty()
-        if not dirty_recs_after:  # TODO improve filter
+        if not dirty_recs_after:
             return
         inv_existing_after = existing()
         needed_after = needed()
 
-        # Filter out deleted lines from `needed_before` to not recompute lines if not necessary or wanted
         line_ids = set(
             self.env["account.move.line"]
             .browse(k["id"] for k in needed_before if "id" in k)
@@ -862,9 +755,6 @@ class AccountMove(models.Model):
                 for fname in values
             )
 
-        # The decision logic is a pure function (Tier-1 tested in
-        # account/tools/tests/test_dynamic_lines.py); this method only feeds
-        # it ORM snapshots and applies the resulting plan.
         plan = plan_dynamic_line_sync(
             inv_existing_before,
             inv_existing_after,
@@ -873,15 +763,10 @@ class AccountMove(models.Model):
             values_differ,
         )
         if plan is None:
-            return  # do not modify user input
+            return
         to_delete, to_create, to_write = plan
 
-        # No recycling of deleted lines into created ones: reusing a line for
-        # another key could migrate it to a different move and leaked every
-        # field not present in the needed values (partner, analytic, ...).
         if to_delete:
-            # .exists(): a line deleted during yield can still appear here
-            # through its before-key.
             self.env["account.move.line"].browse(
                 [line.id for line in to_delete]
             ).exists().with_context(dynamic_unlink=True).unlink()
@@ -929,7 +814,6 @@ class AccountMove(models.Model):
         tax_container, invoice_container, misc_container = ({} for _ in range(3))
 
         def update_containers():
-            # Only invoice-like and journal entries in "auto tax mode" are synced
             tax_container["records"] = container["records"].filtered(
                 lambda m: (
                     m.is_invoice(True)
@@ -990,7 +874,7 @@ class AccountMove(models.Model):
 
     @contextmanager
     def _sync_dynamic_lines(self, container):
-        with self._disable_recursion(container, "skip_invoice_sync") as disabled:
+        with self._disable_recursion("skip_invoice_sync") as disabled:
             if disabled:
                 yield
                 return
@@ -1002,10 +886,6 @@ class AccountMove(models.Model):
                 for _seq, contextmgr in stack_list:
                     stack.enter_context(contextmgr)
 
-                # Use the container's records, not `self`: in write() the
-                # container also carries stolen moves whose lines must be
-                # mirrored too, and in create() `self` is empty (the records
-                # only exist after yield).
                 line_container = {"records": container["records"].line_ids}
                 with container["records"].line_ids._sync_invoice(line_container):
                     yield  # noqa: RUF075 - deliberate: on exception the transaction aborts/rolls back, so skipping this sync's post-yield step changes nothing that would otherwise persist

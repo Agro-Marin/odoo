@@ -12,8 +12,6 @@ class TestTaxesBaseLinesTaxDetails(TestTaxCommon):
         cls.env.company.tax_calculation_rounding_method = "round_globally"
 
     def test_dispatch_delta_on_base_lines(self):
-        """Check that the base line delta is dispatched evenly on base lines."""
-        # Even dispatching is required by BIS3 rule PEPPOL-EN16931-R120.
         tax_21 = self.percent_tax(21.0)
         document = self.populate_document(
             self.init_document(
@@ -105,8 +103,6 @@ class TestTaxesBaseLinesTaxDetails(TestTaxCommon):
         self._run_js_tests()
 
     def test_dispatch_delta_on_net_zero_tax(self):
-        """Check that the base line delta still is dispatched if net tax is zero."""
-
         def get_expected_values(base_values, tax):
             expected_tax_total = sum(values[2] for values in base_expected_values)
             self.assertTrue(
@@ -152,7 +148,6 @@ class TestTaxesBaseLinesTaxDetails(TestTaxCommon):
             document = self.populate_document(self.init_document(lines_vals))
 
             base_expected_values = [
-                #   (total_excluded, total_included, tax_amount),
                 (19.99, 23.99, 4.0),
                 (19.99, 23.99, 4.0),
                 (-39.98, -47.97, -8.0),
@@ -174,11 +169,10 @@ class TestTaxesBaseLinesTaxDetails(TestTaxCommon):
             ]
             lines_vals.append(
                 {"price_unit": -4096.4, "tax_ids": tax_7}
-            )  # 100% discount
+            )
             document = self.populate_document(self.init_document(lines_vals))
 
             base_expected_values = [
-                #   (total_excluded, total_included, tax_amount),
                 (2990.4, 3199.73, 209.33),
                 (128.8, 137.82000000000002, 9.02),
                 (128.8, 137.82000000000002, 9.02),

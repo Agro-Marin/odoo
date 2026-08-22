@@ -1,6 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
-
 from odoo import Command
 from odoo.tests import Form, users
 from odoo.tests.common import tagged
@@ -13,11 +10,9 @@ from odoo.addons.mail.tests.common import MailCase
 class TestTracking(AccountTestInvoicingCommon, MailCase):
     @classmethod
     def default_env_context(cls):
-        # OVERRIDE
         return {}
 
     def test_aml_change_tracking(self):
-        """tests that the field_groups is correctly set"""
         account_move = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -39,7 +34,6 @@ class TestTracking(AccountTestInvoicingCommon, MailCase):
         new_value = account_move.invoice_line_ids.account_id
 
         self.flush_tracking()
-        # Isolate the tracked value for the invoice line because changing the account has recomputed the taxes.
         tracking_value = account_move.message_ids.sudo().tracking_value_ids.filtered(
             lambda t: (
                 t.field_id.name == "account_id" and t.old_value_integer == old_value.id
@@ -63,7 +57,6 @@ class TestTracking(AccountTestInvoicingCommon, MailCase):
 
     @users("admin")
     def test_invite_follower_account_moves(self):
-        """Test that the mail_followers_edit wizard works on both single and multiple account.move records"""
         user_admin = self.env.ref("base.user_admin")
         user_admin.write(
             {

@@ -116,21 +116,17 @@ class TestAccountMergeWizard(TestAccountMergeCommon):
         hashed_move.button_hash()
 
     def test_merge(self):
-        """Check that you can merge accounts."""
-        # 1. Set-up various fields pointing to the accounts to merge
         referencing_records = {
             account: self._create_references_to_account(account)
             for account in self.accounts
         }
 
-        # Also set up different names for the accounts in various languages
         self.env["res.lang"]._activate_lang("fr_FR")
         self.env["res.lang"]._activate_lang("nl_NL")
         self.accounts[0].with_context({"lang": "fr_FR"}).name = "Mon premier compte"
         self.accounts[2].with_context({"lang": "fr_FR"}).name = "Mon troisième compte"
         self.accounts[2].with_context({"lang": "nl_NL"}).name = "Mijn derde conto"
 
-        # 2. Check that the merge wizard groups accounts 1 and 3 together, and accounts 2 and 4 together.
         wizard = self._create_account_merge_wizard(self.accounts)
         expected_wizard_line_vals = [
             {
@@ -167,13 +163,10 @@ class TestAccountMergeWizard(TestAccountMergeCommon):
 
         self.assertRecordValues(wizard.wizard_line_ids, expected_wizard_line_vals)
 
-        # 3. Perform the merge
         wizard.action_merge()
 
-        # 4. Check that the accounts other than the ones to merge into are deleted.
         self.assertFalse(self.accounts[2:].exists())
 
-        # 5. Check that the company_ids and codes are correctly merged.
         self.assertRecordValues(
             self.accounts[:2],
             [
@@ -210,7 +203,6 @@ class TestAccountMergeWizard(TestAccountMergeCommon):
             [{"code": "100236"}, {"code": "100237"}],
         )
 
-        # 6. Check that references to the accounts are merged correctly
         merged_account_by_account = {
             self.accounts[0]: self.accounts[0],
             self.accounts[1]: self.accounts[1],
@@ -229,7 +221,6 @@ class TestAccountMergeWizard(TestAccountMergeCommon):
                     referencing_record, [{fname: expected_field_value}]
                 )
 
-        # 7. Check that the xmlids are preserved
         self.assertEqual(
             self.env["account.chart.template"].ref("test_account_1"), self.accounts[0]
         )
@@ -249,7 +240,6 @@ class TestAccountMergeWizard(TestAccountMergeCommon):
             self.accounts[1],
         )
 
-        # 8. Check that the name translations are merged correctly
         self.assertRecordValues(
             self.accounts[0].with_context({"lang": "fr_FR"}),
             [{"name": "Mon premier compte"}],
@@ -260,7 +250,6 @@ class TestAccountMergeWizard(TestAccountMergeCommon):
         )
 
     def test_cannot_merge_same_company(self):
-        """Check that you cannot merge two accounts belonging to the same company."""
         self.accounts[1].account_type = "asset_receivable"
 
         wizard = self._create_account_merge_wizard(self.accounts[:2])
@@ -286,9 +275,6 @@ class TestAccountMergeWizard(TestAccountMergeCommon):
         self.assertRecordValues(wizard.wizard_line_ids, expected_wizard_line_vals)
 
     def test_can_merge_accounts_if_one_is_hashed(self):
-        """Check that you can merge two accounts if only one is hashed, but that the hashed account's ID is preserved."""
-
-        # 1. Create hashed move and check that the wizard has no errors
         self._create_hashed_move(self.accounts[2], self.company_data_2)
         wizard = self._create_account_merge_wizard(self.accounts[0] | self.accounts[2])
 
@@ -312,14 +298,11 @@ class TestAccountMergeWizard(TestAccountMergeCommon):
 
         self.assertRecordValues(wizard.wizard_line_ids, expected_wizard_line_vals)
 
-        # 2. Perform the merge
         wizard.action_merge()
 
-        # 3. Check that the non-hashed account is deleted.
         self.assertFalse(self.accounts[0].exists())
 
     def test_cannot_merge_two_hashed_accounts(self):
-        """Check that you cannot merge two accounts if both are hashed."""
         self._create_hashed_move(self.accounts[0], self.company_data)
         self._create_hashed_move(self.accounts[2], self.company_data_2)
 

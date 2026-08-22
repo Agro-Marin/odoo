@@ -28,8 +28,8 @@ class TestAnalyticPlanOperations(TransactionCase):
         other_plan = self.env["account.analytic.plan"].create(
             {"name": "Other Plan", "parent_id": parent.id}
         )
-        self.assertFalse(plan._find_plan_column("account.analytic.line"))
-        related_field = plan._find_related_field("account.analytic.line")
+        self.assertFalse(plan._get_plan_column("account.analytic.line"))
+        related_field = plan._get_related_field("account.analytic.line")
         self.assertTrue(related_field.exists())
         other_plan.unlink()
         self.assertTrue(related_field.exists())
@@ -38,7 +38,7 @@ class TestAnalyticPlanOperations(TransactionCase):
 
     def test_rename_plan(self):
         plan = self.env["account.analytic.plan"].create({"name": "Test Plan"})
-        column = plan._find_plan_column("account.analytic.line")
+        column = plan._get_plan_column("account.analytic.line")
         plan.name = "New name"
         self.assertEqual(column.field_description, "New name")
 
@@ -47,20 +47,20 @@ class TestAnalyticPlanOperations(TransactionCase):
         plan = self.env["account.analytic.plan"].create(
             {"name": "Test Plan", "parent_id": parent.id}
         )
-        self.assertFalse(plan._find_plan_column("account.analytic.line"))
-        self.assertTrue(plan._find_related_field("account.analytic.line"))
+        self.assertFalse(plan._get_plan_column("account.analytic.line"))
+        self.assertTrue(plan._get_related_field("account.analytic.line"))
         plan.parent_id = False
-        self.assertTrue(plan._find_plan_column("account.analytic.line"))
-        self.assertFalse(plan._find_related_field("account.analytic.line"))
+        self.assertTrue(plan._get_plan_column("account.analytic.line"))
+        self.assertFalse(plan._get_related_field("account.analytic.line"))
 
     def test_demote_plan(self):
         parent = self.env["account.analytic.plan"].create({"name": "Parent Plan"})
         plan = self.env["account.analytic.plan"].create({"name": "Test Plan"})
-        self.assertTrue(plan._find_plan_column("account.analytic.line"))
-        self.assertFalse(plan._find_related_field("account.analytic.line"))
+        self.assertTrue(plan._get_plan_column("account.analytic.line"))
+        self.assertFalse(plan._get_related_field("account.analytic.line"))
         plan.parent_id = parent
-        self.assertFalse(plan._find_plan_column("account.analytic.line"))
-        self.assertTrue(plan._find_related_field("account.analytic.line"))
+        self.assertFalse(plan._get_plan_column("account.analytic.line"))
+        self.assertTrue(plan._get_related_field("account.analytic.line"))
 
     def test_project_plan_cannot_be_reparented(self):
         # `_onchange_parent_id` only guards the form UI; a direct write (RPC,

@@ -4,18 +4,6 @@ from odoo.tests import tagged
 
 @tagged("-at_install", "post_install")
 class TestPortalInvoicePageViewParams(AccountTestInvoicingHttpCommon):
-    """A query param must not collide with the invoice page-view arguments.
-
-    ``/my/invoices/<id>`` forwards its leftover query string as ``**kw`` into
-    ``_invoice_get_page_view_values(invoice, access_token, **kw)`` and on into
-    ``portal``'s ``_get_page_view_values(document, access_token, values,
-    session_history, no_breadcrumbs, **kwargs)``. Every one of those names was
-    rebindable from the URL, producing ``TypeError: ... got multiple values for
-    argument ...`` -- HTTP 500 on a route declared ``auth="public"``.
-
-    They are positional-only now, so the same query param is simply ignored.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -46,15 +34,12 @@ class TestPortalInvoicePageViewParams(AccountTestInvoicingHttpCommon):
         self.assertEqual(self.url_open(url).status_code, 200, "baseline must render")
 
         for param in (
-            # portal._get_page_view_values
             "document",
             "access_token_unused",
             "values",
             "session_history",
             "no_breadcrumbs",
-            # account._invoice_get_page_view_values
             "invoice",
-            # account_payment._invoice_get_page_view_values
             "payment",
             "amount",
         ):

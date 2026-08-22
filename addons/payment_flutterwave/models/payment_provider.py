@@ -87,16 +87,16 @@ class PaymentProvider(models.Model):
 
     # === REQUEST HELPERS === #
 
-    def _build_request_url(self, endpoint, **kwargs):
+    def _prepare_request_url(self, endpoint, **kwargs):
         """Override of `payment` to build the request URL."""
         if self.code != 'flutterwave':
-            return super()._build_request_url(endpoint, **kwargs)
+            return super()._prepare_request_url(endpoint, **kwargs)
         return url_join('https://api.flutterwave.com/v3/', endpoint)
 
-    def _build_request_headers(self, *args, **kwargs):
+    def _prepare_request_headers(self, *args, **kwargs):
         """Override of `payment` to build the request headers."""
         if self.code != 'flutterwave':
-            return super()._build_request_headers(*args, **kwargs)
+            return super()._prepare_request_headers(*args, **kwargs)
         return {'Authorization': f'Bearer {self.flutterwave_secret_key}'}
 
     def _parse_response_error(self, response):

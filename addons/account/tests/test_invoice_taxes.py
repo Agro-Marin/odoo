@@ -1,4 +1,3 @@
-# pylint: disable=C0326
 from odoo import Command
 from odoo.tests import Form, tagged
 
@@ -119,10 +118,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         currency_id=False,
         invoice_payment_term_id=False,
     ):
-        """Create an invoice on the fly.
-
-        :param taxes_per_line: A list of tuple (price_unit, account.tax recordset)
-        """
         vals = {
             "move_type": inv_type,
             "partner_id": self.partner_a.id,
@@ -147,15 +142,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         return self.env["account.move"].create(vals)
 
     def test_setting_tax_separately(self):
-        """Test:
-        price_unit | Taxes
-        ------------------
-        100        | 21%
-        Expected:
-        Tax         | Taxes     | Base      | Amount
-        --------------------------------------------
-        21%         | /         | 100       | 21
-        """
         invoice = self._create_invoice([(100, self.env["account.tax"])])
         invoice.invoice_line_ids[0].tax_ids = self.percent_tax_1
         self.assertRecordValues(
@@ -171,20 +157,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         )
 
     def test_one_tax_per_line(self):
-        """Test:
-        price_unit | Taxes
-        ------------------
-        100        | 21%
-        121        | 21% incl
-        100        | 12%
-
-        Expected:
-        Tax         | Taxes     | Base      | Amount
-        --------------------------------------------
-        21%         | /         | 100       | 21
-        21% incl    | /         | 100       | 21
-        12%         | /         | 100       | 12
-        """
         invoice = self._create_invoice(
             [
                 (100, self.percent_tax_1),
@@ -218,18 +190,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         )
 
     def test_affecting_base_amount(self):
-        """Test:
-        price_unit | Taxes
-        ------------------
-        121        | 21% incl, 12%
-        100        | 12%
-
-        Expected:
-        Tax         | Taxes     | Base      | Amount
-        --------------------------------------------
-        21% incl    | 12%       | 100       | 21
-        12%         | /         | 221       | 26.52
-        """
         invoice = self._create_invoice(
             [
                 (121, self.percent_tax_1_incl + self.percent_tax_2),
@@ -256,19 +216,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         )
 
     def test_group_of_taxes(self):
-        """Test:
-        price_unit | Taxes
-        ------------------
-        121        | 21% incl + 12%
-        100        | 12%
-
-        Expected:
-        Tax         | Taxes     | Base      | Amount
-        --------------------------------------------
-        21% incl    | 12%       | 100       | 21
-        12%         | /         | 121       | 14.52
-        12%         | /         | 100       | 12
-        """
         invoice = self._create_invoice(
             [
                 (121, self.group_tax),
@@ -391,7 +338,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             }
         )
 
-        # Test invoice repartition
         invoice = self._create_invoice([(100, tax)], inv_type="out_invoice")
         invoice.action_post()
 
@@ -445,7 +391,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             "Tax line on account 2 should have 90% tag",
         )
 
-        # Test refund repartition
         refund = self._create_invoice([(100, tax)], inv_type="out_refund")
         refund.action_post()
 
@@ -495,7 +440,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         )
 
     def test_division_tax(self):
-        """Test a price_unit change is reflected on the whole move for a 100% division tax."""
         sale_tax = self.env["account.tax"].create(
             {
                 "name": "tax",
@@ -517,7 +461,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
                 }
             ],
         )
-        # change price unit, everything should change as well
         with Form(invoice) as invoice_form:
             with invoice_form.invoice_line_ids.edit(0) as line_edit:
                 line_edit.price_unit = 200
@@ -586,12 +529,10 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             lambda x: x.repartition_type == "tax"
         )
 
-        # === Tax in debit ===
 
         move_form = Form(self.env["account.move"], view="account.view_move_form")
         move_form.ref = "azerty"
 
-        # Debit base tax line.
         with move_form.line_ids.new() as credit_line:
             credit_line.name = "debit_line_1"
             credit_line.account_id = self.company_data["default_account_revenue"]
@@ -599,7 +540,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             credit_line.tax_ids.clear()
             credit_line.tax_ids.add(sale_tax)
 
-        # Balance the journal entry.
         with move_form.line_ids.new() as credit_line:
             credit_line.name = "balance"
             credit_line.account_id = self.company_data["default_account_revenue"]
@@ -634,12 +574,10 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             ],
         )
 
-        # === Tax in credit ===
 
         move_form = Form(self.env["account.move"], view="account.view_move_form")
         move_form.ref = "azerty"
 
-        # Credit base tax line.
         with move_form.line_ids.new() as credit_line:
             credit_line.name = "debit_line_1"
             credit_line.account_id = self.company_data["default_account_revenue"]
@@ -647,7 +585,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             credit_line.tax_ids.clear()
             credit_line.tax_ids.add(sale_tax)
 
-        # Balance the journal entry.
         with move_form.line_ids.new() as debit_line:
             debit_line.name = "balance"
             debit_line.account_id = self.company_data["default_account_revenue"]
@@ -735,12 +672,10 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             lambda x: x.repartition_type == "tax"
         )
 
-        # === Tax in debit ===
 
         move_form = Form(self.env["account.move"])
         move_form.ref = "azerty"
 
-        # Debit base tax line.
         with move_form.line_ids.new() as credit_line:
             credit_line.name = "debit_line_1"
             credit_line.account_id = self.company_data["default_account_revenue"]
@@ -748,7 +683,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             credit_line.tax_ids.clear()
             credit_line.tax_ids.add(purch_tax)
 
-        # Balance the journal entry.
         with move_form.line_ids.new() as credit_line:
             credit_line.name = "balance"
             credit_line.account_id = self.company_data["default_account_revenue"]
@@ -783,12 +717,10 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             ],
         )
 
-        # === Tax in credit ===
 
         move_form = Form(self.env["account.move"])
         move_form.ref = "azerty"
 
-        # Credit base tax line.
         with move_form.line_ids.new() as credit_line:
             credit_line.name = "debit_line_1"
             credit_line.account_id = self.company_data["default_account_revenue"]
@@ -796,7 +728,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             credit_line.tax_ids.clear()
             credit_line.tax_ids.add(purch_tax)
 
-        # Balance the journal entry.
         with move_form.line_ids.new() as debit_line:
             debit_line.name = "balance"
             debit_line.account_id = self.company_data["default_account_revenue"]
@@ -832,12 +763,7 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         )
 
     def test_misc_entry_tax_group_signs(self):
-        """Tests sign inversion of the tags on misc operations made with tax
-        groups.
-        """
-
         def _create_group_of_taxes(tax_type):
-            # We use asymmetric tags between the child taxes to avoid shadowing errors
             child1_sale_tax = self.env["account.tax"].create(
                 {
                     "sequence": 1,
@@ -935,7 +861,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         sale_group = _create_group_of_taxes("sale")
         purchase_group = _create_group_of_taxes("purchase")
 
-        # Sale tax on debit: use refund repartition
         debit_sale_move = _create_misc_operation(sale_group, "debit")
         self.assertRecordValues(
             debit_sale_move.line_ids.sorted("balance"),
@@ -967,7 +892,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             ],
         )
 
-        # Sale tax on credit: use invoice repartition
         credit_sale_move = _create_misc_operation(sale_group, "credit")
         self.assertRecordValues(
             credit_sale_move.line_ids.sorted("balance"),
@@ -999,7 +923,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             ],
         )
 
-        # Purchase tax on debit: use invoice repartition
         debit_purchase_move = _create_misc_operation(purchase_group, "debit")
         self.assertRecordValues(
             debit_purchase_move.line_ids.sorted("balance"),
@@ -1031,7 +954,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             ],
         )
 
-        # Purchase tax on credit: use refund repartition
         credit_purchase_move = _create_misc_operation(purchase_group, "credit")
         self.assertRecordValues(
             credit_purchase_move.line_ids.sorted("balance"),
@@ -1064,12 +986,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         )
 
     def test_tax_calculation_foreign_currency_large_quantity(self):
-        """Test:
-        Foreign currency with rate of 1.1726 and tax of 21%
-        price_unit | Quantity  | Taxes
-        ------------------
-        2.82       | 20000     | 21% not incl
-        """
         self.env["res.currency.rate"].create(
             {
                 "name": "2018-01-01",
@@ -1106,14 +1022,13 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             invoice.line_ids.filtered("tax_line_id"),
             [
                 {
-                    "tax_base_amount": -48098.24,  # 20000 * 2.82 / 1.1726
-                    "credit": 10100.63,  # tax_base_amount * 0.21
+                    "tax_base_amount": -48098.24,
+                    "credit": 10100.63,
                 }
             ],
         )
 
     def test_ensure_no_unbalanced_entry(self):
-        """Ensure to not create an unbalanced journal entry when saving."""
         self.env["res.currency.rate"].create(
             {
                 "name": "2018-01-01",
@@ -1172,8 +1087,8 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             invoice.line_ids.filtered("tax_line_id"),
             [
                 {
-                    "tax_base_amount": -567.38,  # 155.32 * 1 / 0.273748
-                    "balance": -119.15,  # tax_base_amount * 0.21
+                    "tax_base_amount": -567.38,
+                    "balance": -119.15,
                 }
             ],
         )
@@ -1245,10 +1160,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         )
 
     def test_tax_repartition_lines_dispatch_amount_1(self):
-        """Ensure the tax amount is dispatched to the repartition lines without rounding drift."""
-        # The 5% tax is applied on 1 so the total tax amount should be 0.05. However, the 10
-        # tax repartition lines get 0.05 * 0.1 = 0.005 each, rounded to 0.01: the total must
-        # not become 10 * 0.01 = 0.1 instead of 0.05.
         base_tax_rep = Command.create(
             {"repartition_type": "base", "factor_percent": 100.0}
         )
@@ -1281,11 +1192,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         )
 
     def test_tax_repartition_lines_dispatch_amount_2(self):
-        """Ensure a distribution summing to 0% dispatches to a zero tax amount despite rounding."""
-        # The 5% tax is applied on 1 so the total tax amount should be 0.05, but the
-        # distribution is 100 - 100 = 0%, so the final tax amount is 0. The 10 positive
-        # repartition lines get 0.05 * 0.1 = 0.005 each, rounded to 0.01, while the negative
-        # ones of 50% and 2 * 25% give respectively 0.025 ~= 0.03 and 0.0125 ~= 0.01.
         base_tax_rep = Command.create(
             {"repartition_type": "base", "factor_percent": 100.0}
         )
@@ -1369,7 +1275,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             ],
         )
 
-        # Modify the tax lines
         tax_lines = move.line_ids.filtered(
             lambda line: line.display_type == "tax"
         ).sorted("amount_currency")
@@ -1381,7 +1286,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             ],
         )
         tax_lines[0].amount_currency = -180.03
-        # The following line should not cause the move to become unbalanced; i.e. there should be no error
         tax_lines[1].amount_currency = -29.99
 
         self.assertRecordValues(
@@ -1492,7 +1396,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         )
 
     def test_fiscal_position_tax_mapping_with_inactive_tax(self):
-        """Test that inactive taxes are not mapped by fiscal positions"""
         fp = self.env["account.fiscal.position"].create({"name": "FP"})
         src_tax = self.company_data["default_tax_sale"]
         active_tax = self.percent_tax_1.copy(
@@ -1521,17 +1424,9 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         )
 
     def test_multiple_onchange_product_and_price(self):
-        """Test the totals when an onchange is executed with "price_unit" before "product_id"."""
         invoice = self.init_invoice("out_invoice", products=self.product_a)
         self.assertEqual(invoice.tax_totals["base_amount"], 1000.0)
         self.assertEqual(invoice.tax_totals["total_amount"], 1150.0)
-        # Covers a UI issue where the totals were not updated when the price was changed, then
-        # the product and finally the price again. It only occurred between the change of value
-        # and the next save, hence calling onchange directly instead of using a Form.
-        # The onchange is executed directly to simulate the following flow:
-        # 1) unit price is changed to any value
-        # 2) product is changed to "Product B"
-        # 3) unit price is changed to 2000.0
         results = invoice.onchange(
             {
                 "invoice_line_ids": [

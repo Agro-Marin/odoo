@@ -20,10 +20,14 @@ import { standardFieldProps } from "@web/fields/standard_field_props";
  **/
 class TaxGroupComponent extends Component {
     static props = {
-        totals: { optional: true },
-        subtotal: { optional: true },
-        taxGroup: { optional: true },
-        onChangeTaxGroup: { optional: true },
+        // Its own row, and the subtotal that row belongs to. Both are passed
+        // back untouched when the amount changes: the owner of the totals tree
+        // applies the change, this component only reports it.
+        taxGroup: { type: Object },
+        subtotal: { type: Object },
+        currencyId: { type: Number, optional: true },
+        currencyPd: { type: Number, optional: true },
+        onChangeTaxGroup: { type: Function },
         isReadonly: Boolean,
     };
     static template = "account.TaxGroupComponent";
@@ -33,11 +37,9 @@ class TaxGroupComponent extends Component {
         this.state = useState({ value: "readonly" });
         onPatched(() => {
             if (this.state.value === "edit") {
-                const { taxGroup } = this.props;
-                const newVal = formatFloat(taxGroup.tax_amount_currency, {
-                    digits: this.props.totals.currency_pd,
-                });
-                this.inputTax.el.value = newVal;
+                this.inputTax.el.value = this.formatAmount(
+                    this.props.taxGroup.tax_amount_currency,
+                );
                 this.inputTax.el.focus();
             }
         });
@@ -48,7 +50,12 @@ class TaxGroupComponent extends Component {
     }
 
     formatMonetary(value) {
-        return formatMonetary(value, { currencyId: this.props.totals.currency_id });
+        return formatMonetary(value, { currencyId: this.props.currencyId });
+    }
+
+    /** @returns {string} the amount as the input shows it while editing */
+    formatAmount(value) {
+        return formatFloat(value, { digits: this.props.currencyPd });
     }
 
     /**
@@ -66,36 +73,29 @@ class TaxGroupComponent extends Component {
     }
 
     /**
-     * Applies the tax amount typed in the input: parses it, adds the delta to
-     * the tax group, its subtotal and the totals, then notifies the parent.
-     * The input is disabled meanwhile. Ignored if the new value is unchanged
-     * or 0.
+     * Report the amount typed in the input to the owner of the totals. The
+     * input is disabled meanwhile, and an unparseable value is put back the way
+     * it was displayed rather than as a raw float.
      */
-    _onChangeTaxValue() {
+    onChangeTaxValue() {
         this.setState("disable");
         const oldValue = this.props.taxGroup.tax_amount_currency;
         let newValue;
         try {
             newValue = parseFloat(this.inputTax.el.value);
         } catch {
-            this.inputTax.el.value = oldValue;
+            this.inputTax.el.value = this.formatAmount(oldValue);
             this.setState("edit");
             return;
         }
-        if (newValue === oldValue || newValue === 0) {
+        if (newValue === oldValue) {
             this.setState("readonly");
             return;
         }
-        const deltaValue = newValue - oldValue;
-        this.props.taxGroup.tax_amount_currency += deltaValue;
-        this.props.subtotal.tax_amount_currency += deltaValue;
-        this.props.totals.tax_amount_currency += deltaValue;
-        this.props.totals.total_amount_currency += deltaValue;
-
         this.props.onChangeTaxGroup({
-            oldValue,
-            newValue: newValue,
-            taxGroupId: this.props.taxGroup.id,
+            subtotal: this.props.subtotal,
+            taxGroup: this.props.taxGroup,
+            amount: newValue,
         });
     }
 }
@@ -127,16 +127,32 @@ export class TaxTotalsComponent extends Component {
     }
 
     /**
-     * Handler given to TaxGroupComponent: writes the locally patched totals
-     * back to the record when a tax group amount changed.
+     * Apply a tax group's new amount to the totals this component owns, then
+     * persist them.
+     *
+     * The arithmetic lives here because the tree does: a tax group's amount is
+     * carried by its group, its subtotal and the grand total at once, and a
+     * child reaching up to update all three left the data flowing through a
+     * shared mutable object rather than through props and a callback.
+     *
+     * @param {{subtotal: Object, taxGroup: Object, amount: number}} change
      */
-    _onChangeTaxValueByTaxGroup({ oldValue, newValue }) {
-        if (oldValue === newValue) {
+    onTaxGroupAmountChanged({ subtotal, taxGroup, amount }) {
+        const delta = amount - taxGroup.tax_amount_currency;
+        if (!delta) {
             return;
         }
-        // Server-derived key: drop it before persisting so it is never written back.
-        delete this.totals.cash_rounding_base_amount_currency;
-        this.props.record.update({ [this.props.name]: this.totals });
+        taxGroup.tax_amount_currency += delta;
+        subtotal.tax_amount_currency += delta;
+        this.totals.tax_amount_currency += delta;
+        this.totals.total_amount_currency += delta;
+
+        const changes = JSON.parse(JSON.stringify(this.totals));
+        // Server-derived: drop it from what is written, but not from what is on
+        // screen — deleting it in place made the Rounding row vanish until the
+        // server answered.
+        delete changes.cash_rounding_base_amount_currency;
+        this.props.record.update({ [this.props.name]: changes });
     }
 
     formatData(props) {

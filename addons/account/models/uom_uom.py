@@ -45,8 +45,6 @@ class UomUom(models.Model):
             )
 
     def _get_unece_code(self):
-        """Return the UNECE code for international trading corresponding to this UoM."""
-        # Codes per https://unece.org/fileadmin/DAM/cefact/recommendations/rec20/rec20_rev3_Annex2e.pdf
         xml_ids = self._get_external_ids().get(self.id, [])
         matches = list(set(xml_ids) & set(UOM_TO_UNECE_CODE.keys()))
         return (matches and UOM_TO_UNECE_CODE[matches[0]]) or "C62"

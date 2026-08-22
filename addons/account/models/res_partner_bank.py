@@ -11,8 +11,6 @@ from odoo.tools.image import image_data_uri
 
 from odoo.addons.base.models.res_bank import sanitize_account_number
 
-# Belgian (NBB) bank codes — IBAN positions 5-7 — that identify money-transfer
-# services rather than real banks. Used to flag phishing risk on payments.
 MONEY_TRANSFER_SERVICES = {
     "967": "Wise",
     "977": "Paynovate",
@@ -44,12 +42,11 @@ class ResPartnerBank(models.Model):
         help="Technical field used to display a warning if the account is a transfer service account.",
         store=True,
     )
-    money_transfer_service = fields.Char(compute="_compute_money_transfer_service_name")
+    money_transfer_service = fields.Char(compute="_compute_money_transfer_service")
     partner_supplier_rank = fields.Integer(related="partner_id.supplier_rank")
     partner_customer_rank = fields.Integer(related="partner_id.customer_rank")
     related_moves = fields.One2many("account.move", inverse_name="partner_bank_id")
 
-    # Add tracking to the base fields
     bank_id = fields.Many2one(tracking=True)
     active = fields.Boolean(tracking=True)
     acc_number = fields.Char(tracking=True)
@@ -80,11 +77,6 @@ class ResPartnerBank(models.Model):
                 )
 
     def _check_allow_out_payment(self):
-        """Reject a trusted account the current user has no right to trust."""
-        # Changing the flag in either direction is already blocked up-front in
-        # write(); this constraint only needs to guard the enabled state (e.g. left
-        # True after a permitted change). A False value is always acceptable here
-        # (fresh accounts are created False).
         for bank in self:
             if bank.allow_out_payment and not bank._user_can_trust():
                 raise ValidationError(
@@ -120,8 +112,6 @@ class ResPartnerBank(models.Model):
             )
         )
         for bank in self:
-            # The SQL guarantees non-NULL partner_ids (WHERE other.partner_id IS NOT
-            # NULL + required FK), so the aggregated array never needs filtering.
             duplicate_record = id2duplicates.get(bank._origin.id) or []
             bank.duplicate_bank_partner_ids = (
                 self.env["res.partner"].browse(duplicate_record)
@@ -150,25 +140,18 @@ class ResPartnerBank(models.Model):
             bank.has_money_transfer_warning = bool(bank._get_money_transfer_service())
 
     @api.depends("sanitized_acc_number")
-    def _compute_money_transfer_service_name(self):
+    def _compute_money_transfer_service(self):
         for bank in self:
             bank.money_transfer_service = bank._get_money_transfer_service() or False
 
     def _get_money_transfer_service(self):
-        """Name of the money-transfer service backing this account's IBAN, or None."""
         self.ensure_one()
         sanitized = self.sanitized_acc_number
-        # The institution codes are Belgian (NBB) bank codes at IBAN positions 5-7,
-        # so detection is restricted to Belgian IBANs — otherwise a foreign IBAN
-        # whose national bank code happens to collide (e.g. a French code banque of
-        # "967") would be mislabelled as a money-transfer service.
         if not sanitized or sanitized[:2] != "BE":
             return None
         return self._get_money_transfer_services().get(sanitized[4:7])
 
     def _get_money_transfer_services(self):
-        """Hook: IBAN institution codes (positions 5-7) that are money-transfer
-        services rather than banks. Override to extend."""
         return MONEY_TRANSFER_SERVICES
 
     @api.depends("acc_number")
@@ -179,11 +162,10 @@ class ResPartnerBank(models.Model):
 
     @api.depends("allow_out_payment")
     def _compute_lock_trust_fields(self):
-        # Only persisted (has _origin), trusted accounts lock their key fields.
         for bank in self:
             bank.lock_trust_fields = bool(bank._origin) and bool(bank.allow_out_payment)
 
-    def _build_qr_code_vals(
+    def _prepare_qr_code_vals(
         self,
         amount,
         free_communication,
@@ -193,17 +175,6 @@ class ResPartnerBank(models.Model):
         qr_method=None,
         silent_errors=True,
     ):
-        """Returns the QR-code vals needed to generate the QR-code report link to pay this account with the given parameters,
-        or None if no QR-code could be generated.
-
-        :param amount: The amount to be paid
-        :param free_communication: Free communication to add to the payment when generating one with the QR-code
-        :param structured_communication: Structured communication to add to the payment when generating one with the QR-code
-        :param currency: The currency in which amount is expressed
-        :param debtor_partner: The partner to which this QR-code is aimed (so the one who will have to pay)
-        :param qr_method: The QR generation method to be used to make the QR-code. If None, the first one giving a result will be used.
-        :param silent_errors: If true, forbids errors to be raised if some tested QR-code format can't be generated because of incorrect data.
-        """
         if not self:
             return None
 
@@ -255,7 +226,7 @@ class ResPartnerBank(models.Model):
 
         return None
 
-    def build_qr_code_url(
+    def prepare_qr_code_url(
         self,
         amount,
         free_communication,
@@ -265,7 +236,7 @@ class ResPartnerBank(models.Model):
         qr_method=None,
         silent_errors=True,
     ):
-        vals = self._build_qr_code_vals(
+        vals = self._prepare_qr_code_vals(
             amount,
             free_communication,
             structured_communication,
@@ -288,7 +259,7 @@ class ResPartnerBank(models.Model):
         qr_method=None,
         silent_errors=True,
     ):
-        vals = self._build_qr_code_vals(
+        vals = self._prepare_qr_code_vals(
             amount,
             free_communication,
             structured_communication,
@@ -332,18 +303,6 @@ class ResPartnerBank(models.Model):
         free_communication,
         structured_communication,
     ):
-        """Hook for extension, to support the different QR generation methods.
-        This function uses the provided qr_method to try generation a QR-code for
-        the given data. It it succeeds, it returns the report URL to make this
-        QR-code; else None.
-
-        :param qr_method: The QR generation method to be used to make the QR-code.
-        :param amount: The amount to be paid
-        :param currency: The currency in which amount is expressed
-        :param debtor_partner: The partner to which this QR-code is aimed (so the one who will have to pay)
-        :param free_communication: Free communication to add to the payment when generating one with the QR-code
-        :param structured_communication: Structured communication to add to the payment when generating one with the QR-code
-        """
         params = self._get_qr_code_generation_params(
             qr_method,
             amount,
@@ -363,17 +322,6 @@ class ResPartnerBank(models.Model):
         free_communication,
         structured_communication,
     ):
-        """Hook for extension, to support the different QR generation methods.
-        This function uses the provided qr_method to try generation a QR-code for
-        the given data. It it succeeds, it returns QR code in base64 url; else None.
-
-        :param qr_method: The QR generation method to be used to make the QR-code.
-        :param amount: The amount to be paid
-        :param currency: The currency in which amount is expressed
-        :param debtor_partner: The partner to which this QR-code is aimed (so the one who will have to pay)
-        :param free_communication: Free communication to add to the payment when generating one with the QR-code
-        :param structured_communication: Structured communication to add to the payment when generating one with the QR-code
-        """
         params = self._get_qr_code_generation_params(
             qr_method,
             amount,
@@ -384,7 +332,7 @@ class ResPartnerBank(models.Model):
         )
         if params:
             try:
-                barcode = self.env["ir.actions.report"].barcode(**params)
+                barcode = self.env["ir.actions.report"].prepare_barcode(**params)
             except ValueError, AttributeError:
                 raise werkzeug.exceptions.HTTPException(
                     description="Cannot convert into barcode."
@@ -394,33 +342,15 @@ class ResPartnerBank(models.Model):
 
     @api.model
     def _get_available_qr_methods(self):
-        """Returns the QR-code generation methods that are available on this db,
-        in the form of a list of (code, name, sequence) elements, where
-        'code' is a unique string identifier, 'name' the name to display
-        to the user to designate the method, and 'sequence' is a positive integer
-        indicating the order in which those mehtods need to be checked, to avoid
-        shadowing between them (lower sequence means more prioritary).
-        """
         return []
 
     @api.model
     def get_available_qr_methods_in_sequence(self):
-        """Same as _get_available_qr_methods but without returning the sequence,
-        and using it directly to order the returned list.
-        """
         all_available = self._get_available_qr_methods()
         all_available.sort(key=lambda x: x[2])
         return [(code, name) for (code, name, sequence) in all_available]
 
     def _get_error_messages_for_qr(self, qr_method, debtor_partner, currency):
-        """Tells whether or not the criteria to apply QR-generation
-        method qr_method are met for a payment on this account, in the
-        given currency, by debtor_partner. This does not impeach generation errors,
-        it only checks that this type of QR-code *should be* possible to generate.
-        If not, returns an adequate error message to be displayed to the user if need be.
-        Consistency of the required field needs then to be checked by _check_for_qr_code_errors().
-        :returns:  None if the qr method is eligible, or the error message
-        """
         return
 
     def _check_for_qr_code_errors(
@@ -432,12 +362,6 @@ class ResPartnerBank(models.Model):
         free_communication,
         structured_communication,
     ):
-        """Checks the data before generating a QR-code for the specified qr_method
-        (this method must have been checked for eligbility by _get_error_messages_for_qr() first).
-
-        Returns None if no error was found, or a string describing the first error encountered
-        so that it can be reported to the user.
-        """
         return
 
     def _user_can_trust(self):
@@ -449,7 +373,6 @@ class ResPartnerBank(models.Model):
                 or self.env.user.has_group("base.group_system")
             )
             and (
-                # Prevent crons from trusting bank accounts (OdooBot), except when loading demo data
                 self.env.user.id != SUPERUSER_ID
                 or self.env.context.get("install_mode")
                 or tools.config["test_enable"]
@@ -461,9 +384,6 @@ class ResPartnerBank(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        # EXTENDS base res.partner.bank
-        # An account is never trusted at creation; capture the intent, force it off,
-        # then re-apply below only if the user is actually allowed to trust.
         to_trust = []
         for vals in vals_list:
             to_trust.append(vals.get("allow_out_payment"))
@@ -483,8 +403,6 @@ class ResPartnerBank(models.Model):
         return accounts
 
     def _raise_if_archived_account_exists(self, vals_list):
-        """Reject creating an account whose (partner, number) already exists archived,
-        pointing the user to unarchive it. Batched into a single query for all vals."""
         pairs = [
             (vals["partner_id"], vals["acc_number"])
             for vals in vals_list
@@ -499,8 +417,6 @@ class ResPartnerBank(models.Model):
                 ("acc_number", "in", [acc for _partner_id, acc in pairs]),
             ]
         )
-        # Key on sanitized number so formatting differences (spaces/case) still match,
-        # mirroring the acc_number search override.
         archived_by_key = {
             (bank.partner_id.id, bank.sanitized_acc_number): bank for bank in archived
         }
@@ -520,12 +436,7 @@ class ResPartnerBank(models.Model):
                 )
 
     def write(self, vals):
-        # EXTENDS base res.partner.bank
-        # Track and log changes to partner_id, heavily inspired from account_move
         account_initial_values = defaultdict(dict)
-        # Get all tracked fields (excluding related fields — those are tracked on
-        # their own model). NB: `tracking` is only present on fields that opt into
-        # it, so it must be read defensively; `related` exists on every field.
         tracking_fields = [
             field_name
             for field_name in vals
@@ -534,21 +445,14 @@ class ResPartnerBank(models.Model):
         ]
         fields_definition = self.fields_get(tracking_fields)
 
-        # Get initial values for each account
         for account in self:
             for field in tracking_fields:
-                # Snapshot each account's initial values, keyed by the account record
                 account_initial_values[account][field] = account[field]
 
-        # Some fields should not be editable based on conditions. It is enforced in the view, but not in python which
-        # leaves them vulnerable to edits via the shell/... So we need to ensure that the user has the rights to edit
-        # these fields when writing too.
-        # While we do lock changes if the account is trusted, we still want to allow to change them if we go from not trusted -> trusted or from trusted -> not trusted.
         trusted_accounts = self.filtered(lambda x: x.lock_trust_fields)
         if not trusted_accounts:
-            should_allow_changes = True  # If we were on a non-trusted account, we will allow to change (setting/... one last time before trusting)
+            should_allow_changes = True
         else:
-            # If we were on a trusted account, we only allow changes if the account is moving to untrusted.
             should_allow_changes = self.env.su or (
                 "allow_out_payment" in vals and vals["allow_out_payment"] is False
             )
@@ -569,8 +473,6 @@ class ResPartnerBank(models.Model):
                 )
             )
 
-        # Changing the trust flag in EITHER direction requires the trust right; this
-        # is the primary guard (_check_allow_out_payment below is only a safety net).
         if "allow_out_payment" in vals and any(
             not bank._user_can_trust() for bank in self
         ):
@@ -580,11 +482,9 @@ class ResPartnerBank(models.Model):
 
         res = super().write(vals)
 
-        # Check
         if "allow_out_payment" in vals:
             self._check_allow_out_payment()
 
-        # Log each account's tracked field changes to its partner's chatter
         for account, initial_values in account_initial_values.items():
             tracking_value_ids = account._mail_track(fields_definition, initial_values)[
                 1
@@ -597,14 +497,13 @@ class ResPartnerBank(models.Model):
                 account.partner_id._message_log(
                     body=msg, tracking_value_ids=tracking_value_ids
                 )
-                if "partner_id" in initial_values:  # notify previous partner as well
+                if "partner_id" in initial_values:
                     initial_values["partner_id"]._message_log(
                         body=msg, tracking_value_ids=tracking_value_ids
                     )
         return res
 
     def unlink(self):
-        # EXTENDS base res.partner.bank
         for account in self:
             msg = self.env._(
                 "Bank Account %(link)s with number %(number)s archived",
@@ -619,9 +518,6 @@ class ResPartnerBank(models.Model):
         if "acc_number" not in fields:
             return super().default_get(fields)
 
-        # When create & edit, `name` could be used to pass (in the context) the
-        # value input by the user. However, we want to set the default value of
-        # `acc_number` variable instead.
         default_acc_number = self.env.context.get(
             "default_acc_number", False
         ) or self.env.context.get("default_name", False)
@@ -640,8 +536,6 @@ class ResPartnerBank(models.Model):
                     if acc.allow_out_payment
                     else self.env._("untrusted")
                 )
-                # acc_number is False on transient NewId/onchange records; fall back
-                # to "" so display_name never renders the literal "False".
                 acc_number = acc.acc_number or ""
                 if acc.bank_id:
                     name = f"{acc_number} - {acc.bank_id.name} ({trusted_label})"

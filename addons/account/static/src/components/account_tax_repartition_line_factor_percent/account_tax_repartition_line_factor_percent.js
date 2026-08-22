@@ -1,7 +1,11 @@
 /** @odoo-module native */
+import { localization } from "@web/core/l10n/localization";
 import { registry } from "@web/core/registry";
 import { roundPrecision } from "@web/core/utils/format/numbers";
 import { FloatField, floatField } from "@web/fields/basic/float/float_field";
+
+// Fewest decimals a percentage factor is shown with, e.g. "50.00".
+const MIN_DECIMALS = 2;
 
 export class AccountTaxRepartitionLineFactorPercent extends FloatField {
     static defaultProps = {
@@ -11,35 +15,28 @@ export class AccountTaxRepartitionLineFactorPercent extends FloatField {
 
     /**
      * @override
-     * Strip trailing zeros so values are not displayed with all 12 digits.
      */
     get formattedValue() {
         const value = super.formattedValue;
-        const trailingNumbersMatch = value.match(/(\d+)$/);
-        if (!trailingNumbersMatch) {
+        const { decimalPoint } = localization;
+        const separatorIndex = value.lastIndexOf(decimalPoint);
+        if (separatorIndex === -1) {
             return value;
         }
-        const trailingZeroMatch = trailingNumbersMatch[1].match(/(0+)$/);
-        if (!trailingZeroMatch) {
-            return value;
-        }
-        const nbTrailingZeroToRemove = Math.min(
-            trailingZeroMatch[1].length,
-            trailingNumbersMatch[1].length - 2,
-        );
-        return value.substring(0, value.length - nbTrailingZeroToRemove);
+        const integerPart = value.slice(0, separatorIndex);
+        const decimals = value
+            .slice(separatorIndex + decimalPoint.length)
+            .replace(/0+$/, "")
+            .padEnd(MIN_DECIMALS, "0");
+        return `${integerPart}${decimalPoint}${decimals}`;
     }
 
     /**
      * @override
-     * Round to the field precision so an expression like "= 2/3" saves the
-     * rounded value shown on screen, not the unrounded result.
      */
     parse(value) {
         const parsedValue = super.parse(value);
-        try {
-            Number(parsedValue);
-        } catch {
+        if (!Number.isFinite(parsedValue)) {
             return parsedValue;
         }
         const precisionRounding = Number(`1e-${this.props.digits[1]}`);

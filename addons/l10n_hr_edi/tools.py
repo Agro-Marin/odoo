@@ -36,7 +36,7 @@ def _get_server_url(company, edi_mode=None):
     return urls[edi_mode]
 
 
-def _make_request(company, endpoint_type, params=False):
+def _prepare_request(company, endpoint_type, params=False):
     """
     Returns:
         For multiple document endpoints (such as query*): list of dicts
@@ -120,7 +120,7 @@ def _call_mer_service(company, endpoint, params=None):
     for key in params_to_delete:
         params.pop(key)
     try:
-        response = _make_request(
+        response = _prepare_request(
             company,
             endpoint,
             params=params,

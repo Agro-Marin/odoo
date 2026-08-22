@@ -186,10 +186,14 @@ class AccountMove(models.Model):
                 ('country_id.code', '=', 'EC'),
             ])
             if document_types:
+                # = ANY over a list, not IN over a tuple: psycopg3 binds
+                # server-side, so the placeholder becomes $N and `IN $N` is not
+                # valid SQL for any value. The tuple adaptation this relied on
+                # was psycopg2's.
                 where_string += """
-                AND l10n_latam_document_type_id in %(l10n_latam_document_type_id)s
+                AND l10n_latam_document_type_id = ANY(%(l10n_latam_document_type_id)s)
                 """
-                param["l10n_latam_document_type_id"] = tuple(document_types.ids)
+                param["l10n_latam_document_type_id"] = document_types.ids
         return where_string, param
 
     def _skip_format_document_number(self):

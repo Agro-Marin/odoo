@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 import json
 from collections import defaultdict
 
@@ -15,7 +14,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
     _description = "Accrued Orders Wizard"
     _check_company_auto = True
 
-    def _get_default_company(self):
+    def _default_company_id(self):
         if not self.env.context.get("active_model"):
             return None
         orders = self.env[self.env.context["active_model"]].browse(
@@ -23,12 +22,12 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         )
         return orders and orders[0].company_id.id
 
-    def _get_default_date(self):
+    def _default_date(self):
         return date_utils.get_month(fields.Date.context_today(self))[0] - relativedelta(
             days=1
         )
 
-    company_id = fields.Many2one("res.company", default=_get_default_company)
+    company_id = fields.Many2one("res.company", default=_default_company_id)
     journal_id = fields.Many2one(
         comodel_name="account.journal",
         compute="_compute_journal_id",
@@ -40,7 +39,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         check_company=True,
         string="Journal",
     )
-    date = fields.Date(default=_get_default_date, required=True)
+    date = fields.Date(default=_default_date, required=True)
     reversal_date = fields.Date(
         compute="_compute_reversal_date",
         required=True,
@@ -237,14 +236,8 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                 )
                 order_lines = lines.with_context(
                     accrual_entry_date=accrual_entry_date,
-                    # Posting boundary: the at-date transferred qty feeds the
-                    # accrual amount, so escalate its lenient UoM conversion to
-                    # strict — never accrue on a silently unconverted quantity.
                     uom_reconcile_strict=True,
                 ).filtered(
-                    # We only want non-comment lines (no sections, notes, ...) and
-                    # exclude downpayment lines (present on both purchase and sale
-                    # order lines via the shared order-line mixin).
                     lambda l, order=order: (
                         not l.display_type
                         and not l.is_downpayment
@@ -267,7 +260,6 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                             order, order_line.product_id, is_purchase
                         )
                         if any(tax.price_include for tax in order_line.tax_ids):
-                            # As included taxes are not taken into account in the price_unit, we need to compute the price_subtotal
                             qty_to_invoice = (
                                 order_line.qty_transferred_at_date
                                 - order_line.qty_invoiced_at_date
@@ -342,7 +334,6 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                     total_balance += amount
 
         if not self.company_id.currency_id.is_zero(total_balance):
-            # globalized counterpart for the whole orders selection
             analytic_distribution = {}
             total = sum(order.amount_total for order in orders)
             for line in orders.line_ids:

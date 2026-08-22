@@ -16,6 +16,17 @@ class TestTaxRoundingFromTaxLines(BaseTaxCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        # Pin the rounding method, because it decides the expectations below and
+        # the default is not the same in every database. Standalone, the engine
+        # finds no `tax_calculation_rounding_method` on res.company and falls
+        # back to round_per_line; with `account` installed the field exists and
+        # defaults to round_globally. On this fixture the two disagree by a cent
+        # (7.48 against 7.47), so unpinned these assertions were really about
+        # which modules the database happened to carry -- green in base_tax's own
+        # lane and red the moment `account` was beside it.
+        # `test_round_globally_moves_the_total_by_a_cent` covers the other mode.
+        if cls.account_installed:
+            cls.company.tax_calculation_rounding_method = "round_per_line"
         cls.tax = cls._tax(21.0, price_include_override="tax_included")
         cls.tax_rep = cls.tax.invoice_repartition_line_ids.filtered(
             lambda rep: rep.repartition_type == "tax"
@@ -58,6 +69,21 @@ class TestTaxRoundingFromTaxLines(BaseTaxCommon):
             [17.79, 17.79],
         )
         self.assertEqual(self._total_tax(base_lines), 7.48)
+
+    def test_round_globally_moves_the_total_by_a_cent(self):
+        """The rounding method, not the tax lines, is what makes this 7.47.
+
+        Two lines of 21.53 at 21% included: rounded per line each is 21.53 -
+        17.79 = 3.74, so 7.48; rounded globally the untaxed total is
+        43.06 / 1.21 = 35.59 and the tax is the 7.47 left over. Asserting it
+        here is what keeps the class's other expectations honest -- they hold
+        because setUpClass pins the mode, not because 7.48 is the only answer.
+        """
+        if not self.account_installed:
+            self.skipTest("no company rounding-method field without account")
+        self.company.tax_calculation_rounding_method = "round_globally"
+        base_lines = self._rounded_lines()
+        self.assertAlmostEqual(self._total_tax(base_lines), 7.47, places=2)
 
     def test_tax_lines_agreeing_with_the_computation_change_nothing(self):
         """Tax lines that already match leave the amounts untouched."""

@@ -2,6 +2,16 @@
 import { _t } from "@web/core/translation";
 import { floatIsZero, roundPrecision } from "@web/core/utils/format/numbers";
 
+/** [!] Mirror of `_group_everything_together` in account_tax.py. */
+function group_everything_together(base_line, tax_data) {
+    return true;
+}
+
+/** [!] Mirror of `_group_by_tax` in account_tax.py. */
+function group_by_tax(base_line, tax_data) {
+    return tax_data ? tax_data.tax.id.toString() : null;
+}
+
 export const accountTaxHelpers = {
     // -------------------------------------------------------------------------
     // HELPERS IN BOTH PYTHON/JAVASCRIPT (account_tax.js / account_tax.py)
@@ -1909,18 +1919,18 @@ export const accountTaxHelpers = {
 
         const factors = this.normalize_target_factors(target_factors);
 
-        const new_taxes_data = [];
+        const new_taxes_data = new Array(factors.length);
 
-        // Distribution of raw amounts.
-        for (const index_factor of factors) {
-            const factor = index_factor[1];
-            new_taxes_data.push({
+        // Distribution of raw amounts, placed back at each factor's ORIGINAL index:
+        // `normalize_target_factors` sorts, and every caller indexes positionally.
+        for (const [index, factor] of factors) {
+            new_taxes_data[index] = {
                 ...tax_data,
                 raw_tax_amount_currency: factor * tax_data.raw_tax_amount_currency,
                 raw_tax_amount: factor * tax_data.raw_tax_amount,
                 raw_base_amount_currency: factor * tax_data.raw_base_amount_currency,
                 raw_base_amount: factor * tax_data.raw_base_amount,
-            });
+            };
         }
 
         // Distribution of rounded amounts.
@@ -1961,12 +1971,12 @@ export const accountTaxHelpers = {
 
         const factors = this.normalize_target_factors(target_factors);
 
-        const new_tax_details_list = [];
+        const new_tax_details_list = new Array(factors.length);
 
-        // Distribution of raw amounts.
-        for (const index_factor of factors) {
-            const factor = index_factor[1];
-            new_tax_details_list.push({
+        // Distribution of raw amounts, placed by original index -- see
+        // `split_tax_data`.
+        for (const [index, factor] of factors) {
+            new_tax_details_list[index] = {
                 raw_total_excluded_currency:
                     factor * tax_details.raw_total_excluded_currency,
                 raw_total_excluded: factor * tax_details.raw_total_excluded,
@@ -1976,7 +1986,7 @@ export const accountTaxHelpers = {
                 delta_total_excluded_currency: 0.0,
                 delta_total_excluded: 0.0,
                 taxes_data: [],
-            });
+            };
         }
 
         // Manage 'taxes_data'.
@@ -2055,20 +2065,15 @@ export const accountTaxHelpers = {
         );
 
         // Split 'base_line'.
-        const new_base_lines = factors.map((x) => null);
-        for (let i = 0; i < factors.length; i++) {
-            const index = factors[i][0];
-            const factor = factors[i][1];
-            const new_tax_details = new_tax_details_list[i];
-            const target_factor = target_factors[i];
-
+        const new_base_lines = new Array(factors.length);
+        for (const [index, factor] of factors) {
             const kwargs = {
                 price_unit: factor * base_line.price_unit,
-                tax_details: new_tax_details,
+                tax_details: new_tax_details_list[index],
             };
 
             if (populate_function) {
-                populate_function(base_line, target_factor, kwargs);
+                populate_function(base_line, target_factors[index], kwargs);
             }
 
             new_base_lines[index] = this.prepare_base_line_for_taxes_computation(
@@ -2377,52 +2382,11 @@ export const accountTaxHelpers = {
         const rate = base_lines[0].rate;
 
         // Compute the current total amount of the base lines.
-        function grouping_function_total(base_line, tax_data) {
-            return true;
-        }
-
-        let base_lines_aggregated_values = this.aggregate_base_lines_tax_details(
-            base_lines,
-            grouping_function_total,
-        );
-        let values_per_grouping_key = this.aggregate_base_lines_aggregated_values(
-            base_lines_aggregated_values,
-        );
-        const total_amount_currency = Object.values(values_per_grouping_key).reduce(
-            (acc, values) =>
-                acc + values.total_excluded_currency + values.tax_amount_currency,
-            0,
-        );
-        const total_amount = Object.values(values_per_grouping_key).reduce(
-            (acc, values) => acc + values.total_excluded + values.tax_amount,
-            0,
-        );
+        const [total_amount_currency, total_amount] =
+            this.measure_base_lines_total(base_lines);
 
         // Compute the current total tax amount per tax.
-        function grouping_function_tax(base_line, tax_data) {
-            return tax_data ? tax_data.tax.id.toString() : null;
-        }
-
-        base_lines_aggregated_values = this.aggregate_base_lines_tax_details(
-            base_lines,
-            grouping_function_tax,
-        );
-        values_per_grouping_key = this.aggregate_base_lines_aggregated_values(
-            base_lines_aggregated_values,
-        );
-        const tax_amounts_per_tax = {};
-        for (const [grouping_key, values] of Object.entries(values_per_grouping_key)) {
-            if (!grouping_key) {
-                continue;
-            }
-
-            tax_amounts_per_tax[grouping_key] = {
-                tax_amount_currency: values.tax_amount_currency,
-                tax_amount: values.tax_amount,
-                base_amount_currency: values.base_amount_currency,
-                base_amount: values.base_amount,
-            };
-        }
+        const tax_amounts_per_tax = this.measure_tax_amounts_per_tax(base_lines);
 
         // Turn the 'amount_type' / 'amount' into a percentage and the total amounts to be reached
         // from the base lines.
@@ -2530,25 +2494,8 @@ export const accountTaxHelpers = {
                 return key_1[1] - key_2[1];
             },
         );
-        base_lines_aggregated_values = this.aggregate_base_lines_tax_details(
-            new_base_lines,
-            grouping_function_tax,
-        );
-        values_per_grouping_key = this.aggregate_base_lines_aggregated_values(
-            base_lines_aggregated_values,
-        );
-        const current_tax_amounts_per_tax = {};
-        for (const [grouping_key, values] of Object.entries(values_per_grouping_key)) {
-            if (!grouping_key) {
-                continue;
-            }
-            current_tax_amounts_per_tax[grouping_key] = {
-                tax_amount_currency: values.tax_amount_currency,
-                tax_amount: values.tax_amount,
-                base_amount_currency: values.base_amount_currency,
-                base_amount: values.base_amount,
-            };
-        }
+        const current_tax_amounts_per_tax =
+            this.measure_tax_amounts_per_tax(new_base_lines);
         for (const [tax_id_str, tax_amounts] of Object.entries(
             current_tax_amounts_per_tax,
         )) {
@@ -2642,12 +2589,84 @@ export const accountTaxHelpers = {
             }
         }
 
-        base_lines_aggregated_values = this.aggregate_base_lines_tax_details(
+        this.spread_delta_on_base_amount(
             new_base_lines,
-            grouping_function_total,
+            sorted_base_lines,
+            company,
+            currency,
+            expected_base_amount_currency,
+            expected_base_amount,
         );
-        values_per_grouping_key = this.aggregate_base_lines_aggregated_values(
-            base_lines_aggregated_values,
+        return new_base_lines;
+    },
+
+    /**
+     * Total of the base lines, taxes included, in both currencies.
+     * [!] Mirror of the same method in account_tax.py.
+     * PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
+     */
+    measure_base_lines_total(base_lines) {
+        const values_per_grouping_key = this.aggregate_base_lines_aggregated_values(
+            this.aggregate_base_lines_tax_details(
+                base_lines,
+                group_everything_together,
+            ),
+        );
+        return [
+            Object.values(values_per_grouping_key).reduce(
+                (acc, values) =>
+                    acc + values.total_excluded_currency + values.tax_amount_currency,
+                0,
+            ),
+            Object.values(values_per_grouping_key).reduce(
+                (acc, values) => acc + values.total_excluded + values.tax_amount,
+                0,
+            ),
+        ];
+    },
+
+    /**
+     * The base and tax amounts carried by each tax across the base lines.
+     * [!] Mirror of the same method in account_tax.py.
+     * PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
+     */
+    measure_tax_amounts_per_tax(base_lines) {
+        const values_per_grouping_key = this.aggregate_base_lines_aggregated_values(
+            this.aggregate_base_lines_tax_details(base_lines, group_by_tax),
+        );
+        const tax_amounts_per_tax = {};
+        for (const [grouping_key, values] of Object.entries(values_per_grouping_key)) {
+            if (!grouping_key) {
+                continue;
+            }
+            tax_amounts_per_tax[grouping_key] = {
+                tax_amount_currency: values.tax_amount_currency,
+                tax_amount: values.tax_amount,
+                base_amount_currency: values.base_amount_currency,
+                base_amount: values.base_amount,
+            };
+        }
+        return tax_amounts_per_tax;
+    },
+
+    /**
+     * Move the base lines' excluded amounts onto the expected total.
+     * [!] Mirror of the same method in account_tax.py.
+     * PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
+     */
+    spread_delta_on_base_amount(
+        new_base_lines,
+        sorted_base_lines,
+        company,
+        currency,
+        expected_base_amount_currency,
+        expected_base_amount,
+    ) {
+        const values_per_grouping_key = this.aggregate_base_lines_aggregated_values(
+            this.aggregate_base_lines_tax_details(
+                new_base_lines,
+                group_everything_together,
+            ),
         );
         const current_base_amount_currency = Object.values(
             values_per_grouping_key,
@@ -2681,16 +2700,13 @@ export const accountTaxHelpers = {
             );
             for (const [i, target_factor] of target_factors.entries()) {
                 const base_line = target_factor.base_line;
-                const amount_to_distribute = amounts_to_distribute[i];
-                const tax_details = base_line.tax_details;
-                tax_details[`delta_total_excluded${delta_suffix}`] +=
-                    amount_to_distribute;
+                base_line.tax_details[`delta_total_excluded${delta_suffix}`] +=
+                    amounts_to_distribute[i];
                 if (delta_suffix === "_currency") {
-                    base_line.price_unit += amount_to_distribute;
+                    base_line.price_unit += amounts_to_distribute[i];
                 }
             }
         }
-        return new_base_lines;
     },
 
     /**
@@ -2896,23 +2912,21 @@ export const accountTaxHelpers = {
                 delta_total_excluded: tax_details.delta_total_excluded,
                 taxes_data: common_taxes_data,
             };
-            first_tax_details.raw_total_included_currency =
-                first_tax_details.raw_total_excluded_currency +
-                common_taxes_data.reduce(
-                    (sum, t) => sum + t.raw_tax_amount_currency,
-                    0,
-                );
-            first_tax_details.total_included_currency =
-                first_tax_details.total_excluded_currency +
-                first_tax_details.delta_total_excluded_currency +
-                common_taxes_data.reduce((sum, t) => sum + t.tax_amount_currency, 0);
-            first_tax_details.raw_total_included =
-                first_tax_details.raw_total_excluded +
-                common_taxes_data.reduce((sum, t) => sum + t.raw_tax_amount, 0);
-            first_tax_details.total_included =
-                first_tax_details.total_excluded +
-                first_tax_details.delta_total_excluded +
-                common_taxes_data.reduce((sum, t) => sum + t.tax_amount, 0);
+            for (const suffix of ["_currency", ""]) {
+                first_tax_details[`raw_total_included${suffix}`] =
+                    first_tax_details[`raw_total_excluded${suffix}`] +
+                    common_taxes_data.reduce(
+                        (sum, t) => sum + t[`raw_tax_amount${suffix}`],
+                        0,
+                    );
+                first_tax_details[`total_included${suffix}`] =
+                    first_tax_details[`total_excluded${suffix}`] +
+                    first_tax_details[`delta_total_excluded${suffix}`] +
+                    common_taxes_data.reduce(
+                        (sum, t) => sum + t[`tax_amount${suffix}`],
+                        0,
+                    );
+            }
 
             const second_tax_details = {
                 raw_total_excluded_currency: tax_data_to_remove.raw_tax_amount_currency,
@@ -2951,25 +2965,16 @@ export const accountTaxHelpers = {
                     first_tax_data = new_remaining_taxes_data[0];
 
                     second_tax_details.taxes_data.push(new_remaining_taxes_data[1]);
-                    second_tax_details.raw_total_included_currency +=
-                        new_remaining_taxes_data[1].raw_tax_amount_currency;
-                    second_tax_details.raw_total_included +=
-                        new_remaining_taxes_data[1].raw_tax_amount;
-                    second_tax_details.total_included_currency +=
-                        new_remaining_taxes_data[1].tax_amount_currency;
-                    second_tax_details.total_included +=
-                        new_remaining_taxes_data[1].tax_amount;
+                    this.add_tax_data_to_included_totals(
+                        second_tax_details,
+                        new_remaining_taxes_data[1],
+                    );
                 } else {
                     first_tax_data = remaining_tax_data;
                 }
 
                 first_tax_details.taxes_data.push(first_tax_data);
-                first_tax_details.raw_total_included_currency +=
-                    first_tax_data.raw_tax_amount_currency;
-                first_tax_details.raw_total_included += first_tax_data.raw_tax_amount;
-                first_tax_details.total_included_currency +=
-                    first_tax_data.tax_amount_currency;
-                first_tax_details.total_included += first_tax_data.tax_amount;
+                this.add_tax_data_to_included_totals(first_tax_details, first_tax_data);
             }
 
             // Split 'base_line'.
@@ -3017,6 +3022,18 @@ export const accountTaxHelpers = {
             final_base_lines.push(new_base_lines[0]);
         });
         return final_base_lines;
+    },
+
+    /**
+     * Add one tax's amounts to a tax details' 'total_included' figures.
+     * [!] Mirror of the same method in account_tax.py.
+     */
+    add_tax_data_to_included_totals(tax_details, tax_data) {
+        for (const suffix of ["_currency", ""]) {
+            tax_details[`raw_total_included${suffix}`] +=
+                tax_data[`raw_tax_amount${suffix}`];
+            tax_details[`total_included${suffix}`] += tax_data[`tax_amount${suffix}`];
+        }
     },
 
     /**

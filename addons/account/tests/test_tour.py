@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import odoo.tests
 from odoo import Command, fields
 
@@ -16,23 +14,17 @@ class TestUi(AccountTestInvoicingHttpCommon):
         all_moves = all_moves.filtered(
             lambda m: not m.inalterable_hash and m.state in ("posted", "cancel")
         )
-        # This field is only present in account_accountant
         if "deferred_move_ids" in all_moves._fields:
             all_moves = all_moves.filtered(lambda m: not m.deferred_move_ids)
         all_moves.action_draft()
         all_moves.with_context(force_delete=True).unlink()
 
-        # In case of latam impacting multiple countries, disable the required fields manually.
         if "l10n_latam_use_documents" in cls.env["account.journal"]._fields:
             cls.env["account.journal"].search(
                 [("company_id", "=", cls.env.company.id), ("type", "=", "purchase")]
             ).write({"l10n_latam_use_documents": False})
 
     def test_01_account_tour(self):
-        # Reset country and fiscal country, so that fields added by localizations are
-        # hidden and non-required, and don't make the tour crash.
-        # Also remove default taxes from the company and its accounts, to avoid inconsistencies
-        # with empty fiscal country.
         self.env.ref("base.user_admin").write(
             {
                 "company_id": self.env.company.id,
@@ -42,7 +34,7 @@ class TestUi(AccountTestInvoicingHttpCommon):
         )
         self.env.company.write(
             {
-                "country_id": None,  # Also resets account_fiscal_country_id
+                "country_id": None,
                 "account_sale_tax_id": None,
                 "account_purchase_tax_id": None,
                 "external_report_layout_id": self.env.ref(
@@ -60,7 +52,6 @@ class TestUi(AccountTestInvoicingHttpCommon):
             }
         )
 
-        # Remove all posted invoices to enable 'create first invoice' button
         invoices = self.env["account.move"].search(
             [
                 ("company_id", "=", self.env.company.id),
@@ -72,7 +63,6 @@ class TestUi(AccountTestInvoicingHttpCommon):
                 invoice.action_draft()
         invoices.unlink()
 
-        # remove all entries in the miscellaneous journal to test the onboarding
         self.env["account.move"].search(
             [
                 ("journal_id.type", "=", "general"),

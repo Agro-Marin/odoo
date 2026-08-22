@@ -1,9 +1,18 @@
 /** @odoo-module native */
 import { useSubEnv } from "@odoo/owl";
-import { ProductCatalogKanbanRecord } from "@product/product_catalog/kanban_record";
+import {
+    ProductCatalogKanbanRecord,
+    productCatalogOrderLines,
+} from "@product/product_catalog/kanban_record";
 import { patch } from "@web/core/utils/patch";
 
 import { ProductCatalogAccountMoveLine } from "./account_move_line.js";
+
+// Declared rather than tested for: account shares the catalog view with sale and
+// purchase, so it cannot own a Record subclass the way a module with its own
+// view does. Registering keeps the lookup O(1) and off every other module's
+// `super` chain.
+productCatalogOrderLines.add("account.move", ProductCatalogAccountMoveLine);
 
 patch(ProductCatalogKanbanRecord.prototype, {
     setup() {
@@ -13,13 +22,6 @@ patch(ProductCatalogKanbanRecord.prototype, {
         useSubEnv({
             selectedSectionId: this.env.searchModel.selectedSection.sectionId,
         });
-    },
-
-    get orderLineComponent() {
-        if (this.env.orderResModel === "account.move") {
-            return ProductCatalogAccountMoveLine;
-        }
-        return super.orderLineComponent;
     },
 
     _getUpdateQuantityAndGetPriceParams() {

@@ -18,9 +18,6 @@ class TestTaxesDownPayment(TestTaxCommon):
         )
 
     def _test_taxes_l10n_in(self):
-        """Test the down payment of the GST taxes of l10n_in: three percentage taxes."""
-        # tax1 and tax2 share the same percentage, so their amounts must always be equal;
-        # the setup is tricky because of the usage of include_base_amount / is_base_affected.
         tax1 = self.percent_tax(
             6, include_base_amount=True, tax_group_id=self.tax_groups[0].id
         )
@@ -96,7 +93,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 },
             )
 
-            # Down Payment 2%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -163,7 +159,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 3-6%
             for percent in range(3, 7):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -179,7 +174,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                     expected_values,
                 )
 
-            # Down Payment 7%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -246,7 +240,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 8-17%
             for percent in range(8, 18):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -262,7 +255,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                     expected_values,
                 )
 
-            # Down Payment 18%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -329,7 +321,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 19-20%
             for percent in range(19, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -400,7 +391,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 },
             )
 
-            # Down Payment 2%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -467,7 +457,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 3-6%
             for percent in range(3, 7):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -483,7 +472,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                     expected_values,
                 )
 
-            # Down Payment 7%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -550,7 +538,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 8-17%
             for percent in range(8, 18):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -566,7 +553,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                     expected_values,
                 )
 
-            # Down Payment 18%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -633,7 +619,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 19-20%
             for percent in range(19, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -715,7 +700,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 },
             )
 
-            # Down Payment 2%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -782,7 +766,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 3-6%
             for percent in range(3, 7):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -798,7 +781,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                     expected_values,
                 )
 
-            # Down Payment 7%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -865,7 +847,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 8-17%
             for percent in range(8, 18):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -881,7 +862,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                     expected_values,
                 )
 
-            # Down Payment 18%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -948,7 +928,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 19-20%
             for percent in range(19, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -1019,7 +998,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 },
             )
 
-            # Down Payment 2%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -1086,7 +1064,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 3-6%
             for percent in range(3, 7):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -1102,7 +1079,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                     expected_values,
                 )
 
-            # Down Payment 7%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -1219,7 +1195,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 8-17%
             for percent in range(8, 18):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -1235,7 +1210,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                     expected_values,
                 )
 
-            # Down Payment 18%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -1302,7 +1276,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 19-20%
             for percent in range(19, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -1338,8 +1311,6 @@ class TestTaxesDownPayment(TestTaxCommon):
         self._run_js_tests()
 
     def _test_taxes_l10n_br(self):
-        """Test the down payment of the division taxes of l10n_br: five division taxes."""
-        # Division taxes have to be computed all together, as part of the price_unit.
         tax1 = self.division_tax(5, tax_group_id=self.tax_groups[0].id)
         tax2 = self.division_tax(3, tax_group_id=self.tax_groups[1].id)
         tax3 = self.division_tax(0.65, tax_group_id=self.tax_groups[2].id)
@@ -1428,7 +1399,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 },
             )
 
-            # Down Payment 2%
             expected_values = {
                 "same_tax_base": True,
                 "currency_id": self.foreign_currency.id,
@@ -1505,7 +1475,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 3-20%
             for percent in range(3, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -1594,7 +1563,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 },
             )
 
-            # Down Payment 2%
             expected_values = {
                 "same_tax_base": True,
                 "currency_id": self.foreign_currency.id,
@@ -1671,7 +1639,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 3-20%
             for percent in range(3, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -1770,7 +1737,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 },
             )
 
-            # Down Payment 2%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -1847,7 +1813,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 3-20%
             for percent in range(3, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -1936,7 +1901,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 },
             )
 
-            # Down Payment 2%
             expected_values = {
                 "same_tax_base": False,
                 "currency_id": self.foreign_currency.id,
@@ -2013,7 +1977,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 3-20%
             for percent in range(3, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -2049,9 +2012,6 @@ class TestTaxesDownPayment(TestTaxCommon):
         self._run_js_tests()
 
     def _test_taxes_l10n_be(self):
-        """Test the down payment of mixed fixed and percentage taxes of l10n_be."""
-        # The fixed tax comes first and affects the base of the following percentage tax;
-        # the reversed order is covered by _test_taxes_fixed_tax_last_position.
         tax1 = self.fixed_tax(
             1, include_base_amount=True, tax_group_id=self.tax_groups[0].id
         )
@@ -2112,7 +2072,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 },
             )
 
-            # Down payment 2%
             expected_values = {
                 "same_tax_base": True,
                 "currency_id": self.foreign_currency.id,
@@ -2153,7 +2112,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 3-20%
             for percent in range(3, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -2215,7 +2173,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 },
             )
 
-            # Down payment 2%
             expected_values = {
                 "same_tax_base": True,
                 "currency_id": self.foreign_currency.id,
@@ -2256,7 +2213,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 3-20%
             for percent in range(3, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -2328,7 +2284,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 },
             )
 
-            # Down payment 2%
             expected_values = {
                 "same_tax_base": True,
                 "currency_id": self.foreign_currency.id,
@@ -2369,7 +2324,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 3-20%
             for percent in range(3, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(
@@ -2431,7 +2385,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 },
             )
 
-            # Down payment 2%
             expected_values = {
                 "same_tax_base": True,
                 "currency_id": self.foreign_currency.id,
@@ -2472,7 +2425,6 @@ class TestTaxesDownPayment(TestTaxCommon):
                 expected_values,
             )
 
-            # Down Payment 3-20%
             for percent in range(3, 21):
                 expected_values = {
                     "total_amount_currency": self.foreign_currency.round(

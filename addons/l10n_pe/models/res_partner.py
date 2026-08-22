@@ -25,8 +25,8 @@ class ResPartner(models.Model):
         """Returns the list of address fields usable to format addresses."""
         return super()._formatting_address_fields() + ['l10n_pe_district_name']
 
-    def _get_frontend_writable_fields(self):
-        frontend_writable_fields = super()._get_frontend_writable_fields()
+    def _get_fields_frontend_writable(self):
+        frontend_writable_fields = super()._get_fields_frontend_writable()
         frontend_writable_fields.update({'city_id', 'l10n_pe_district'})
 
         return frontend_writable_fields

@@ -21,7 +21,7 @@ class AccountMove(models.Model):
         """
         self.ensure_one()
         p3 = str(self.partner_id.id)
-        return self._build_invoice_reference(p3)
+        return self._prepare_invoice_reference(p3)
 
     def _get_invoice_reference_si_invoice(self):
         """
@@ -38,9 +38,9 @@ class AccountMove(models.Model):
         self.ensure_one()
         match = re.search(r'(\d+)$', self.name or '')
         p3 = str(int(match.group(1))) if match else '0'
-        return self._build_invoice_reference(p3)
+        return self._prepare_invoice_reference(p3)
 
-    def _build_invoice_reference(self, p3):
+    def _prepare_invoice_reference(self, p3):
         """Builds the reference using a shared structure for both methods."""
         p1 = str(self.journal_id.id)
         p2 = str(self.invoice_date.year)[-2:]

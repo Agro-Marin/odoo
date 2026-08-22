@@ -115,14 +115,11 @@ class TestAccountPaymentMethodLine(AccountTestInvoicingCommon):
         )
 
     def test_move_register_payment_wizard(self):
-        """Check the payment method line of the register payment wizard."""
-        # The preferred payment method will be the one set on the partner
         self.assertRegisterPayment(
             self.bank_journal_1,
             self.inbound_payment_method_line_1,
             self.move_partner_a,
         )
-        # We then modify it from the move and check if that still works
         self.assertRegisterPayment(
             self.bank_journal_1,
             self.inbound_payment_method_line_2,
@@ -137,8 +134,6 @@ class TestAccountPaymentMethodLine(AccountTestInvoicingCommon):
         )
 
     def test_multiple_moves_register_payment(self):
-        """Check the payment method lines of the register payment wizard on several moves."""
-        # Test with two moves with same payment method lines and same partners
         move_partner_a_copy = self.move_partner_a.copy()
         move_partner_a_copy.action_post()
         self.assertRegisterPayment(
@@ -147,7 +142,6 @@ class TestAccountPaymentMethodLine(AccountTestInvoicingCommon):
             self.move_partner_a + move_partner_a_copy,
         )
 
-        # Test with two moves with same payment method lines but different partners
         self.partner_d = self.partner_a.copy()
         move_partner_d = self.init_invoice(
             move_type="out_invoice",
@@ -161,15 +155,13 @@ class TestAccountPaymentMethodLine(AccountTestInvoicingCommon):
             self.move_partner_a + move_partner_d,
         )
 
-        # Test with two moves with different partners and different payment method lines
         self.assertRegisterPayment(
             self.bank_journal_1,
-            None,  # We will get in the assertRegisterPayment the first payment method line of the journal
+            None,
             self.move_partner_a + self.move_partner_b,
         )
 
     def test_move_register_payment_view(self):
-        """Check the payment method line of a payment from the account payment view."""
         with Form(
             self.env["account.payment"].with_context(default_partner_id=self.partner_a)
         ) as pay_form:
@@ -179,14 +171,12 @@ class TestAccountPaymentMethodLine(AccountTestInvoicingCommon):
                 self.inbound_payment_method_line_1.id,
             )
 
-            # Setting a partner switches the payment method line to the partner's one
             pay_form.partner_id = self.partner_b
             self.assertEqual(
                 pay_form.payment_method_line_id.id,
                 self.inbound_payment_method_line_2.id,
             )
 
-            # The journal switches too when that line belongs to another journal
             pay_form.partner_id = self.partner_c
             self.assertEqual(pay_form.journal_id.id, self.bank_journal_2.id)
             self.assertEqual(

@@ -201,8 +201,8 @@ class ResPartner(models.Model):
         # extends account_edi_ubl_cii
         return super()._peppol_eas_endpoint_depends() + ['l10n_it_codice_fiscale']
 
-    def _get_frontend_writable_fields(self):
-        frontend_writable_fields = super()._get_frontend_writable_fields()
+    def _get_fields_frontend_writable(self):
+        frontend_writable_fields = super()._get_fields_frontend_writable()
         frontend_writable_fields.update({'l10n_it_codice_fiscale', 'l10n_it_pa_index'})
 
         return frontend_writable_fields
