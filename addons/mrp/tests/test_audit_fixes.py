@@ -1250,3 +1250,96 @@ class TestMrpAuditFixes(TestMrpCommon):
             "the kit's quantity is its components': elevating the BoM lookup "
             "must not elevate the components' quant reads",
         )
+
+    def _audit_cancel_fixture(self, consumption="flexible", with_byproduct=False):
+        unit = self.env.ref("uom.product_uom_unit")
+        finished = self.env["product.product"].create(
+            {"name": "Audit cancel finished", "is_storable": True}
+        )
+        component = self.env["product.product"].create(
+            {"name": "Audit cancel component", "is_storable": True}
+        )
+        byproduct = self.env["product.product"].create(
+            {"name": "Audit cancel byproduct", "is_storable": True}
+        )
+        bom_vals = {
+            "product_tmpl_id": finished.product_tmpl_id.id,
+            "product_qty": 1.0,
+            "product_uom_id": unit.id,
+            "type": "normal",
+            "consumption": consumption,
+            "bom_line_ids": [
+                Command.create({"product_id": component.id, "product_qty": 1.0})
+            ],
+        }
+        if with_byproduct:
+            bom_vals["byproduct_ids"] = [
+                Command.create(
+                    {
+                        "product_id": byproduct.id,
+                        "product_qty": 1.0,
+                        "product_uom_id": unit.id,
+                    }
+                )
+            ]
+        bom = self.env["mrp.bom"].create(bom_vals)
+        location = self.env["stock.warehouse"].search([], limit=1).lot_stock_id
+        self.env["stock.quant"]._update_available_quantity(component, location, 100)
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "product_qty": 2.0, "bom_id": bom.id}
+        )
+        production.action_confirm()
+        production.action_assign()
+        production.qty_producing = 1
+        production._set_qty_producing()
+        return production
+
+    def test_cancelling_a_part_consumed_order_lands_on_cancel(self):
+        production = self._audit_cancel_fixture()
+        production.move_raw_ids.picked = True
+        production.move_raw_ids._action_done()
+        self.assertEqual(production.state, "progress")
+
+        production.action_cancel()
+        production.invalidate_recordset()
+        self.assertEqual(
+            production.state,
+            "cancel",
+            "every finished move is cancelled, so _compute_state decides cancel; "
+            "_action_cancel used to write 'done' here and the write never ran",
+        )
+
+    def test_cancelling_leaves_a_produced_byproduct_order_done(self):
+        production = self._audit_cancel_fixture(with_byproduct=True)
+        byproduct_move = production.move_byproduct_ids
+        byproduct_move.quantity = 1
+        byproduct_move.picked = True
+        byproduct_move._action_done()
+        production.move_raw_ids.picked = True
+        production.move_raw_ids._action_done()
+
+        production.action_cancel()
+        production.invalidate_recordset()
+        self.assertEqual(
+            production.state,
+            "done",
+            "not every finished move is cancelled, so _compute_state reaches its "
+            "own done branch on its own -- this is the outcome the deleted block "
+            "claimed to produce",
+        )
+
+    def test_cancelling_does_not_depend_on_the_boms_consumption(self):
+        states = {}
+        for consumption in ("flexible", "strict"):
+            production = self._audit_cancel_fixture(consumption=consumption)
+            production.move_raw_ids.picked = True
+            production.move_raw_ids._action_done()
+            production.action_cancel()
+            production.invalidate_recordset()
+            states[consumption] = production.state
+        self.assertEqual(
+            states["flexible"],
+            states["strict"],
+            "the deleted block only fired for flexible BoMs; if consumption ever "
+            "changes the cancel outcome, it is a new rule and needs its own home",
+        )

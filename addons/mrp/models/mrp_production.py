@@ -2831,14 +2831,6 @@ class MrpProduction(models.Model):
                 filtered_documents[(parent, responsible)] = rendering_context
             production._log_manufacture_exception(filtered_documents, cancel=True)
 
-        mos_to_mark_as_done = self.filtered(
-            lambda p: (
-                p.state not in ["done", "cancel"] and p.bom_id.consumption == "flexible"
-            )
-        )
-        if mos_to_mark_as_done:
-            mos_to_mark_as_done.write({"state": "done"})
-
         return True
 
     def _get_document_iterate_key(self, move_raw_id):
