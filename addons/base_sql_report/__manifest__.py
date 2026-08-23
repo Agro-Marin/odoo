@@ -1,8 +1,8 @@
 {
     "name": "Base SQL Report",
-    "version": "19.0.3.0.0",
+    "version": "19.0.4.0.0",
     "category": "Hidden",
-    "summary": "SQL report construction and materialized view mixins",
+    "summary": "SQL report construction, materialized view and rolling report mixins",
     "description": """
 Base SQL Report
 ===============
@@ -40,6 +40,25 @@ Safe (re)creation and refresh of PostgreSQL materialized views.
 * ``with_data=True`` by default — PG18 raises ``ObjectNotInPrerequisiteState``
   on SELECT from unpopulated MVs, so the previous default would break queries
   until the first cron tick.
+
+``mixin.rolling.report``
+------------------------
+A report whose grain is a closed period -- a day, a week -- where only the
+newest period can still change.  Stores the report in a real table and rewrites
+a trailing window per tick (``DELETE`` then ``INSERT``) instead of re-deriving
+every row, which ``REFRESH MATERIALIZED VIEW`` has no way to avoid.
+
+Two rules make the window agree with a full rebuild rather than merely
+resemble it, and the mixin's docstring carries the measurements behind both:
+
+* the scan must re-admit each window-function partition's last row from before
+  the cutoff, or that partition's first in-window row computes without a
+  predecessor;
+* the cutoff must land on a grain boundary, or the period it falls inside is
+  deleted and re-inserted truncated.
+
+``refresh(full=True)`` rebuilds everything, and ``_rolling_mark_stale()`` is how
+a setting that rewrites history asks for that on the next tick.
 
 Composition
 -----------

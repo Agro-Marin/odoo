@@ -10,8 +10,10 @@ from odoo.libs.sql import SQL
 _logger = logging.getLogger(__name__)
 
 # Marker prefix for the definition hash stored as the COMMENT of every
-# materialized view managed by this mixin (see _mv_definition_hash).
+# relation managed by this mixin (see _mv_definition_hash).
 _MV_COMMENT_PREFIX = "odoo-mv:v1:"
+
+_RELKIND_LABELS = {"v": "view", "m": "materialized view", "r": "table"}
 
 
 # Transient Postgres errors that are safe to surface as "retry on next cron".
@@ -50,6 +52,13 @@ class MixinMaterializedView(models.AbstractModel):
     # concrete model may override this attribute instead of writing its own
     # ``init()``.
     _mv_index_field = "id"
+
+    # pg_class.relkind this model owns at self._table.  'm' (materialized view)
+    # here; mixin.rolling.report sets 'r' because a rolling window has to
+    # DELETE and INSERT rows, which REFRESH MATERIALIZED VIEW cannot express.
+    # Everything below introspects and drops through this attribute so the two
+    # storage kinds share one implementation instead of two parallel ones.
+    _relation_kind = "m"
 
     # ------------------------------------------------------------------
     # QUERY ACCESSOR
@@ -91,9 +100,10 @@ class MixinMaterializedView(models.AbstractModel):
             SQL(
                 "SELECT 1 FROM pg_class "
                 "WHERE relname = %s "
-                "AND relkind = 'm' "
+                "AND relkind = %s "
                 "AND relnamespace = current_schema::regnamespace",
                 table,
+                self._relation_kind,
             )
         )
         return bool(self.env.cr.fetchone())
@@ -194,6 +204,9 @@ class MixinMaterializedView(models.AbstractModel):
                 exc,
             )
             return False
+        # Every row was just replaced behind the ORM. Anything this transaction
+        # had already read stays in cache otherwise, reading as current.
+        self.invalidate_model()
         return True
 
     def _cron_refresh_materialized_view(self) -> bool:
@@ -283,9 +296,10 @@ class MixinMaterializedView(models.AbstractModel):
         self.env.cr.execute(
             SQL(
                 "SELECT obj_description(c.oid, 'pg_class') FROM pg_class c "
-                "WHERE c.relname = %s AND c.relkind = 'm' "
+                "WHERE c.relname = %s AND c.relkind = %s "
                 "AND c.relnamespace = current_schema::regnamespace",
                 self._table,
+                self._relation_kind,
             )
         )
         row = self.env.cr.fetchone()
@@ -298,7 +312,7 @@ class MixinMaterializedView(models.AbstractModel):
         created before hashes were stamped, and plain views pending migration),
         or when the MV is unpopulated while ``with_data`` is requested.
         """
-        if self._relkind(self._table) != "m":
+        if self._relkind(self._table) != self._relation_kind:
             return True
         query_sql = self._query()
         index_cols = self._mv_index_cols()
@@ -384,31 +398,28 @@ class MixinMaterializedView(models.AbstractModel):
         )
 
     def _drop_existing_relation(self, table_name_sql):
-        """Drop an existing view / materialized view safely.
+        """Drop the relation currently sitting at ``self._table``, safely.
 
         Warns loudly when dependent objects would be CASCADE-dropped; refuses
-        to proceed when the name is used by a regular table (data-loss risk).
+        to proceed when the name is used by a regular table this model does not
+        own (data-loss risk).  A model whose ``_relation_kind`` *is* ``'r'``
+        owns its table and may replace it -- that is how a rolling report
+        rebuilds, and how one migrates from a materialized view to a table.
         """
         kind = self._relkind(self._table)
         if kind is None:
             return
-        if kind in ("r", "p"):
+        droppable = {"v", "m", self._relation_kind}
+        if kind not in droppable:
             raise UserError(
                 _(
-                    "Cannot create materialized view %(table)r: a regular "
-                    "table with that name already exists (relkind=%(kind)r). "
-                    "Drop or rename it manually before upgrading the module.",
+                    "Cannot (re)create %(table)r: the name is taken by a "
+                    "relation of kind %(kind)r, which this model does not own "
+                    "(it owns %(owned)r). Drop or rename it manually before "
+                    "upgrading the module.",
                     table=self._table,
                     kind=kind,
-                )
-            )
-        if kind not in ("v", "m"):
-            raise UserError(
-                _(
-                    "Cannot (re)create materialized view %(table)r: "
-                    "unexpected pg_class relkind %(kind)r.  Investigate manually.",
-                    table=self._table,
-                    kind=kind,
+                    owned=self._relation_kind,
                 )
             )
 
@@ -422,13 +433,21 @@ class MixinMaterializedView(models.AbstractModel):
                 [f"{name} (kind={relkind})" for name, relkind in dependents],
             )
 
+        _logger.info(
+            "Dropping %s at %s (relkind %r) to recreate it as %r",
+            _RELKIND_LABELS[kind],
+            self._table,
+            kind,
+            self._relation_kind,
+        )
+        # Literal statements per branch rather than a table of them: the SQL
+        # checker reads the first argument of SQL() and cannot see through a
+        # lookup, and three short branches are clearer than earning a waiver.
         if kind == "v":
-            _logger.info(
-                "Dropping regular view %s (migration to materialized)", self._table
-            )
             self.env.cr.execute(SQL("DROP VIEW IF EXISTS %s CASCADE", table_name_sql))
-        else:
-            _logger.info("Dropping materialized view %s", self._table)
+        elif kind == "m":
             self.env.cr.execute(
                 SQL("DROP MATERIALIZED VIEW IF EXISTS %s CASCADE", table_name_sql),
             )
+        else:
+            self.env.cr.execute(SQL("DROP TABLE IF EXISTS %s CASCADE", table_name_sql))
