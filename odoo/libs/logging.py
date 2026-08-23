@@ -6,6 +6,8 @@ if TYPE_CHECKING:
     import types
     from collections.abc import Callable
 
+__all__ = ["lower_logging", "mute_logger", "unquote"]
+
 
 class unquote(str):
     __slots__ = ()

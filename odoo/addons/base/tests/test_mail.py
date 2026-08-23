@@ -542,6 +542,14 @@ class TestHtmlTools(BaseCase):
             self.assertEqual(text, expected, "html_html_to_inner_content is broken")
 
     def test_append_to_html(self):
+        # The mixed-case samples below used to come back lowercased: the old
+        # implementation rewrote every tag in the caller's document so that a
+        # literal find("</body>") would work.  That mangled attribute-bearing
+        # tags (`<A HREF=...>` -> `<a HREF=...>`, name lowered and attribute
+        # not) and still missed `</body >`, because the literal has no room for
+        # the space the lowercasing left behind.  The closing tag is now located
+        # with a case-insensitive search and the document is passed through as
+        # authored -- so these expectations keep the case they were written in.
         test_samples = [
             (
                 '<!DOCTYPE...><HTML encoding="blah">some <b>content</b></HtMl>',
@@ -549,7 +557,7 @@ class TestHtmlTools(BaseCase):
                 True,
                 True,
                 False,
-                '<!DOCTYPE...><html encoding="blah">some <b>content</b>\n<pre>--\nYours truly</pre>\n</html>',
+                '<!DOCTYPE...><HTML encoding="blah">some <b>content</b>\n<pre>--\nYours truly</pre>\n</HtMl>',
             ),
             (
                 '<!DOCTYPE...><HTML encoding="blah">some <b>content</b></HtMl>',
@@ -557,7 +565,7 @@ class TestHtmlTools(BaseCase):
                 True,
                 False,
                 False,
-                '<!DOCTYPE...><html encoding="blah">some <b>content</b>\n<p>--<br/>Yours truly</p>\n</html>',
+                '<!DOCTYPE...><HTML encoding="blah">some <b>content</b>\n<p>--<br/>Yours truly</p>\n</HtMl>',
             ),
             (
                 "<html><body>some <b>content</b></body></html>",

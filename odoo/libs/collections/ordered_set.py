@@ -1,7 +1,16 @@
 __all__ = ["LastOrderedSet", "OrderedSet"]
 
 import itertools
-from collections.abc import Callable, Iterable, Iterator, MutableSet
+from collections.abc import (
+    Callable,
+    Iterable,
+    Iterator,
+    Mapping,
+    MutableSet,
+)
+from collections.abc import (
+    Set as AbstractSet,
+)
 from functools import reduce
 from typing import Self, cast
 
@@ -37,6 +46,20 @@ class OrderedSet[T](MutableSet[T]):
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({list(self)!r})"
+
+    def __and__(self, other: Iterable[T]) -> OrderedSet[T]:  # type: ignore[override]
+        """Intersect, in *this* set's order.
+
+        ``MutableSet.__and__`` iterates the argument, so
+        ``OrderedSet([1, 2, 3, 4]) & [4, 3]`` came back ``[4, 3]`` -- the order
+        of whatever was passed in, on a type whose whole purpose is order.
+        """
+        if not isinstance(other, Iterable):
+            return NotImplemented
+        members = other if isinstance(other, (AbstractSet, Mapping)) else set(other)
+        return type(self)(elem for elem in self if elem in members)
+
+    __rand__ = __and__
 
     def intersection(self, *others: Iterable[T]) -> OrderedSet[T]:
         if not others:

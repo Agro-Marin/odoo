@@ -53,8 +53,11 @@ def content_hasher() -> Any:
 
 
 def content_hash(data: bytes) -> str:
+    # `data or b""` on the sha1 branch alone made the function's tolerance of a
+    # falsy argument depend on whether blake3 happens to be installed.
+    data = data or b""
     if not HAS_BLAKE3:
-        return hashlib.sha1(data or b"", usedforsecurity=False).hexdigest()
+        return hashlib.sha1(data, usedforsecurity=False).hexdigest()
     hasher = _new(mt=len(data) >= _MT_MIN_BYTES)
     hasher.update(data)
     return hasher.hexdigest()

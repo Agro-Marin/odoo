@@ -164,6 +164,50 @@ def test_leaf_imports_through_accidental_surface_are_pinned():
     )
 
 
+def _loose_modules() -> list[pathlib.Path]:
+    """The top-level ``.py`` files in libs/ -- everything that is not an area."""
+    return sorted(
+        p
+        for p in _LIBS.glob("*.py")
+        if p.stem != "__init__" and not p.stem.startswith("_")
+    )
+
+
+def test_every_loose_top_level_module_declares_all():
+    """The area rules above reach packages only.
+
+    ``libs/`` is 18 area packages plus 16 loose modules, and the loose half is
+    governed by nothing: ``libs_facade_check`` scans importers, the checks above
+    iterate ``_areas()``.  Four of them -- logging, set_expression, utils,
+    worker_thread -- carried no ``__all__`` at all while every one of the 18
+    areas did, so "what does this module publish" had two different answers
+    depending on which half of the directory you landed in.
+    """
+    missing = [
+        p.name
+        for p in _loose_modules()
+        if "__all__"
+        not in {
+            t.id
+            for node in ast.walk(ast.parse(p.read_text()))
+            if isinstance(node, ast.Assign)
+            for t in node.targets
+            if isinstance(t, ast.Name)
+        }
+    ]
+    assert missing == [], (
+        f"loose top-level modules in libs/ with no __all__: {missing}. "
+        f"Every area package declares one; a module that does not publishes its "
+        f"entire namespace by accident, including its imports."
+    )
+
+
+def test_the_loose_module_scan_is_not_vacuous():
+    names = {p.name for p in _loose_modules()}
+    assert len(names) >= 10, f"only found {len(names)} loose modules: {names}"
+    assert "lru.py" in names and "facade.py" in names
+
+
 def test_the_scan_is_not_vacuous():
     assert len(_areas()) >= 15
     assert _leaf_imports_via_area(), "found no leaf-via-area imports at all"

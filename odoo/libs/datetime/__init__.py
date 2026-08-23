@@ -24,7 +24,6 @@ from .date_utils import (
 
 from .tz import (
     timezone,
-    localize as tz_localize,
     localize_standard,
     all_timezones,
     country_timezones,
@@ -54,7 +53,6 @@ __all__ = [
     "time_to_float",
     "timezone",
     "to_timezone",
-    "tz_localize",
     "utc",
     "weekend",
     "weeknumber",

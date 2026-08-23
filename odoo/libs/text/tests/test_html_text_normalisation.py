@@ -38,27 +38,28 @@ class TestHtml2PlaintextEntities(unittest.TestCase):
         self.assertEqual(html2plaintext("<p>&amp;lt; &lt; &gt;</p>"), "&lt; < >")
 
 
-class TestHtml2PlaintextWhitespace(unittest.TestCase):
-    """Runs collapse to one, not to half.
+class TestHtml2PlaintextKeepsStructure(unittest.TestCase):
+    """Runs of breaks are halved, not collapsed -- and that is deliberate.
 
-    `str.replace(" " * 2, " ")` is a single pass, so four spaces became two.
-    `html_to_inner_content` twelve lines away already did this correctly.
+    This was very nearly "fixed" to collapse runs to one, on the grounds that
+    `html_to_inner_content` twelve lines away already used a regex for it.  The
+    two are not doing the same job: `html_to_inner_content` emits a single line
+    and has no structure to lose, while this function emits structured plain
+    text where a run of breaks is a paragraph gap.  Collapsing removed the
+    blank lines that a `<br/>` or a table boundary produces.
     """
 
-    def test_long_space_runs_collapse_to_one(self):
-        self.assertEqual(html2plaintext("<p>a    b</p>"), "a b")
+    def test_a_break_between_blocks_still_makes_a_blank_line(self):
+        self.assertEqual(
+            html2plaintext("<h2>A</h2>\n<br/>\n<h3>B</h3>"), "**A**\n\n*B*"
+        )
 
-    def test_matches_html_to_inner_content(self):
-        for source in ("<p>a  b</p>", "<p>a    b</p>", "<p>a       b</p>"):
-            self.assertEqual(
-                html2plaintext(source), html_to_inner_content(source), source
-            )
-
-    def test_long_newline_runs_collapse_to_one(self):
-        self.assertEqual(html2plaintext("<p>a</p><br><br><br><br><p>b</p>"), "a\nb")
-
-    def test_paragraphs_are_still_one_newline_apart(self):
+    def test_adjacent_blocks_stay_one_line_apart(self):
         self.assertEqual(html2plaintext("<p>one</p><p>two</p>"), "one\ntwo")
+
+    def test_html_to_inner_content_collapses_because_it_has_no_structure(self):
+        self.assertEqual(html_to_inner_content("<p>a    b</p>"), "a b")
+        self.assertEqual(html_to_inner_content("<p>a</p><br><br><p>b</p>"), "a b")
 
 
 class TestAppendContentToHtml(unittest.TestCase):

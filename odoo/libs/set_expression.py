@@ -6,6 +6,11 @@ if TYPE_CHECKING:
     from collections.abc import Collection, Iterable
 
 
+__all__ = ["SetDefinitions", "SetExpressionError"]
+"""Only these two leave the module.  `SetExpression`, `SetDefinition`,
+`UnknownId`, the EMPTY_*/UNIVERSAL_* singletons and `MAX_INTERSECTION_TERMS`
+are the vocabulary `SetDefinitions` is built from, not its surface."""
+
 MAX_INTERSECTION_TERMS = 100_000
 
 

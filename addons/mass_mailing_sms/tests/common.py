@@ -2,7 +2,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import random
-import re
 from urllib.parse import urlsplit
 
 from odoo.tools import mail
@@ -232,7 +231,7 @@ class MassSMSCase(SMSCase, MockLinkTracker):
         """ When clicking on a link in a SMS we actually don't have any
         easy information in body, only body. We currently click on all found
         shortened links. """
-        for url in re.findall(mail.TEXT_URL_REGEX, body):
+        for url in mail.TEXT_URL_REGEX.findall(body):
             if '/r/' in url:  # shortened link, like 'http://localhost:8069/r/LBG/s/53'
                 parsed_url = urlsplit(url)
                 path_items = parsed_url.path.split('/')

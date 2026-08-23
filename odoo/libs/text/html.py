@@ -614,16 +614,24 @@ def html_sanitize(
     return markupsafe.Markup(sanitized)
 
 
-#: A fragment, interpolated into the two patterns below -- not a pattern itself.
+#: A *fragment*, interpolated into the patterns below and into
+#: ``link_tracker``'s own ``skip_regex``.  The only one of these that is not a
+#: pattern, and the reason the set cannot simply all be compiled.
 URL_SKIP_PROTOCOL_REGEX = r"mailto:|tel:|sms:"
-URL_REGEX = rf"""(\bhref=['"](?!{URL_SKIP_PROTOCOL_REGEX})([^'"]+)['"])"""
-TEXT_URL_REGEX = r"https?://[\w@:%.+&~#=/-]+(?:\?\S+)?"
-HTML_TAG_URL_REGEX = URL_REGEX + r"([^<>]*>([^<>]+)<\/)?"
+
+_HREF_URL_SOURCE = rf"""(\bhref=['"](?!{URL_SKIP_PROTOCOL_REGEX})([^'"]+)['"])"""
+
+#: Compiled: callers match with these, they never build strings out of them.
+#: They shipped as `str` beside `HTML_TAGS_REGEX` and `HTML_NEWLINES_REGEX`,
+#: which shipped compiled -- so a caller could not tell from the name which it
+#: had, and the `str` ones were recompiled at every call, some inside loops.
+URL_REGEX = re.compile(_HREF_URL_SOURCE)
+TEXT_URL_REGEX = re.compile(r"https?://[\w@:%.+&~#=/-]+(?:\?\S+)?")
+HTML_TAG_URL_REGEX = re.compile(_HREF_URL_SOURCE + r"([^<>]*>([^<>]+)<\/)?")
 HTML_TAGS_REGEX = re.compile(r"<[^>]*>")
 HTML_NEWLINES_REGEX = re.compile(r"<(div|p|br|tr)[^>]*>|\n")
 
-_RUNS_OF_SPACE_RE = re.compile(r" {2,}")
-_RUNS_OF_NEWLINE_RE = re.compile(r"\n{2,}")
+_RUNS_OF_SPACE_OR_TAB_RE = re.compile(r" {2,}|\t")
 _CLOSING_BODY_RE = re.compile(r"</body\s*>", re.IGNORECASE)
 _CLOSING_HTML_RE = re.compile(r"</html\s*>", re.IGNORECASE)
 
@@ -677,14 +685,17 @@ def html_keep_url(text: str | Markup) -> Markup:
     return Markup("").join(parts)
 
 
-def html_to_inner_content(html: str | markupsafe.Markup | None) -> str:
-    if is_html_empty(html):
+def html_to_inner_content(source: str | markupsafe.Markup | None) -> str:
+    # Not named `html`: this module already binds `html` to lxml.html and
+    # `htmllib` to the stdlib, and a third meaning inside one function is a
+    # trap for whoever next reaches for `html.fromstring` in here.
+    if is_html_empty(source):
         return ""
-    if not isinstance(html, markupsafe.Markup):
-        html = html_sanitize(html) or ""
-    processed = re.sub(HTML_NEWLINES_REGEX, " ", html)
-    processed = re.sub(HTML_TAGS_REGEX, "", processed)
-    processed = re.sub(r" {2,}|\t", " ", processed)
+    if not isinstance(source, markupsafe.Markup):
+        source = html_sanitize(source) or ""
+    processed = HTML_NEWLINES_REGEX.sub(" ", source)
+    processed = HTML_TAGS_REGEX.sub("", processed)
+    processed = _RUNS_OF_SPACE_OR_TAB_RE.sub(" ", processed)
     processed = processed.replace("\xa0", " ")
     processed = htmllib.unescape(processed)
     return processed.strip()
@@ -763,7 +774,12 @@ def html2plaintext(
     html_str = re.sub(r"</p\s*>", "\n", html_str)
     html_str = re.sub(r"<br\s*/?>", "\n", html_str)
     html_str = re.sub(r"<[^>]*>", " ", html_str)
-    html_str = _RUNS_OF_SPACE_RE.sub(" ", html_str)
+    # Halving, not collapsing, and the same below for newlines: this function
+    # emits structured plain text, where a run of breaks is a paragraph gap and
+    # a single one is a line break.  `html_to_inner_content` collapses runs to
+    # one because it emits a single line and has no structure to keep -- the two
+    # look like the same normalisation and are not.
+    html_str = html_str.replace(" " * 2, " ")
     # lxml has already decoded every entity in the source; serialising re-escapes
     # exactly these three, so this list is the whole of what can be here.  A
     # `&nbsp;` substitution used to follow, and could only ever fire on text the
@@ -775,7 +791,7 @@ def html2plaintext(
     html_str = html_str.replace("&amp;", "&")
 
     html_str = "\n".join([x.strip() for x in html_str.splitlines()])
-    html_str = _RUNS_OF_NEWLINE_RE.sub("\n", html_str)
+    html_str = html_str.replace("\n" * 2, "\n")
 
     if url_index:
         html_str += "\n\n"

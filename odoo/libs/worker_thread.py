@@ -3,6 +3,8 @@ from __future__ import annotations
 import threading
 from typing import Protocol, cast
 
+__all__ = ["WorkerThread", "as_worker_thread", "current_worker_thread"]
+
 
 class WorkerThread(Protocol):
     dbname: str

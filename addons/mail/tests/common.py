@@ -4,7 +4,6 @@ import email
 import email.policy
 import json
 import logging
-import re
 import time
 from contextlib import contextmanager
 from datetime import UTC, timedelta
@@ -1571,8 +1570,8 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
             mail_body = mail_by_email[partner.email_normalized]["body"]
             unfollow_urls = [
                 link_url
-                for _, link_url, _, _ in re.findall(
-                    tools.mail.HTML_TAG_URL_REGEX, mail_body
+                for _, link_url, _, _ in tools.mail.HTML_TAG_URL_REGEX.findall(
+                    mail_body
                 )
                 if "/mail/unfollow" in link_url
             ]

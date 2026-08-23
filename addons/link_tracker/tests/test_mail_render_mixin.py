@@ -206,7 +206,7 @@ And a last, more complex: <a href="{self.base_url}/r/(\w+)">There!</a>
     def test_shorten_links_html_skip_shorts(self):
         old_content = self.env["mixin.mail.render"]._shorten_links(
             'This is a link: <a href="https://test_542152qsdqsd.com">old</a>', {})
-        created_short_url_match = re.search(TEXT_URL_REGEX, old_content)
+        created_short_url_match = TEXT_URL_REGEX.search(old_content)
         self.assertIsNotNone(created_short_url_match)
         created_short_url = created_short_url_match[0]
         self.assertRegex(created_short_url, f"{self.base_url}/r/[\\w]+")
@@ -247,7 +247,7 @@ And a last, with question mark: {self.base_url}/r/(\w+)"""
     def test_shorten_links_text_skip_shorts(self):
         old_content = self.env["mixin.mail.render"]._shorten_links_text(
             'This is a link: https://test_542152qsdqsd.com', {})
-        created_short_url_match = re.search(TEXT_URL_REGEX, old_content)
+        created_short_url_match = TEXT_URL_REGEX.search(old_content)
         self.assertIsNotNone(created_short_url_match)
         created_short_url = created_short_url_match[0]
         self.assertRegex(created_short_url, rf"{self.base_url}/r/\w+")

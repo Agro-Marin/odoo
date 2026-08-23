@@ -14,6 +14,7 @@ from odoo.libs.datetime.tz import ZoneInfoNotFoundError, timezone
 from odoo.libs.email.parsing import formataddr
 from odoo.libs.filesystem.mimetypes import guess_mimetype
 from odoo.libs.filesystem.osutil import zip_dir
+from odoo.libs.hashing import CONTENT_DIGEST_LEN, content_hash
 from odoo.libs.image.utils import (
     IMAGE_MAX_RESOLUTION,
     ImageProcess,
@@ -480,3 +481,54 @@ class TestFreehashOnlyCatchesUnhashability:
     def test_mapping_and_iterable_fallbacks_still_work(self):
         assert freehash({"a": [1, 2]}) == freehash({"a": [1, 2]})
         assert freehash([1, 2, 3]) == freehash([1, 2, 3])
+
+
+class TestOrderedSetIntersectionFollowsItsOwnOrder:
+    """An ordered set's intersection must be ordered by the set, not the argument.
+
+    ``MutableSet.__and__`` builds its result by iterating *other*, so the one
+    type in the package whose entire purpose is remembering insertion order
+    handed that order over to whatever was passed in.
+    """
+
+    def test_order_comes_from_self_not_the_argument(self):
+        s = OrderedSet([1, 2, 3, 4])
+        assert list(s & [4, 3]) == [3, 4]
+        assert list(s.intersection([4, 3])) == [3, 4]
+
+    def test_reversed_operand_agrees(self):
+        s = OrderedSet([1, 2, 3, 4])
+        assert list([4, 3] & s) == [3, 4]
+
+    def test_argument_order_is_irrelevant(self):
+        s = OrderedSet(["c", "a", "b"])
+        assert list(s & ["a", "b", "c"]) == list(s & ["c", "b", "a"]) == ["c", "a", "b"]
+
+    def test_membership_is_unchanged(self):
+        s = OrderedSet([1, 2, 3, 4])
+        assert set(s & [4, 3]) == {3, 4}
+        assert list(s.intersection()) == [1, 2, 3, 4]
+        assert list(s.intersection([2, 3, 4], [3, 4, 5])) == [3, 4]
+
+    def test_result_is_still_an_ordered_set(self):
+        assert isinstance(OrderedSet([1, 2]) & [2], OrderedSet)
+        assert isinstance(LastOrderedSet([1, 2]) & [2], LastOrderedSet)
+
+
+class TestContentHashToleranceDoesNotDependOnBlake3:
+    """The falsy-input guard lived on one of the two branches.
+
+    ``data or b""`` was written on the sha1 path only, so whether
+    ``content_hash(None)`` returned the empty digest or raised TypeError
+    depended on whether an optional dependency happened to be installed.
+    """
+
+    def test_empty_and_falsy_inputs_agree(self):
+        assert content_hash(b"") == content_hash(None)  # type: ignore[arg-type]
+
+    def test_it_is_the_digest_of_the_empty_input(self):
+        assert content_hash(None) == content_hash(b"")  # type: ignore[arg-type]
+        assert len(content_hash(b"")) == CONTENT_DIGEST_LEN
+
+    def test_real_content_is_unaffected(self):
+        assert content_hash(b"x") != content_hash(b"")

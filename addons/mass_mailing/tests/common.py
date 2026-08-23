@@ -2,7 +2,6 @@
 
 import datetime
 import random
-import re
 from unittest.mock import patch
 from urllib.parse import urlsplit
 
@@ -333,8 +332,8 @@ class MassMailCase(MailCase, MockLinkTracker):
 
         email = self._find_sent_email_wemail(record_email)
         self.assertTrue(bool(email))
-        for _url_href, link_url, _dummy, label in re.findall(
-            mail.HTML_TAG_URL_REGEX, email["body"]
+        for _url_href, link_url, _dummy, label in mail.HTML_TAG_URL_REGEX.findall(
+            email["body"]
         ):
             if (
                 label == click_label and "/r/" in link_url

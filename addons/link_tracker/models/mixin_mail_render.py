@@ -72,7 +72,7 @@ class MixinMailRender(models.AbstractModel):
         base_url = base_url or self.env['ir.config_parameter'].sudo().get_param('web.base.url')
         shortened_schema = base_url + '/r/'
         unsubscribe_schema = base_url + '/sms/'
-        for original_url in set(re.findall(TEXT_URL_REGEX, content)):
+        for original_url in set(TEXT_URL_REGEX.findall(content)):
             # don't shorten already-shortened links or links towards unsubscribe page
             if original_url.startswith((shortened_schema, unsubscribe_schema)):
                 continue

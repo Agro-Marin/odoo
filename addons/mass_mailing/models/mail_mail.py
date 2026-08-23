@@ -1,6 +1,5 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import re
 from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
@@ -38,7 +37,7 @@ class MailMail(models.Model):
 
         if body and self.mailing_id and self.mailing_trace_ids:
             Wrapper = body.__class__
-            for match in set(re.findall(tools.mail.URL_REGEX, body)):
+            for match in set(tools.mail.URL_REGEX.findall(body)):
                 href = match[0]
                 url = match[1]
 
