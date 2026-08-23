@@ -13,7 +13,7 @@
                 <filter string="Blocked" name="blocked" domain="[('state','=','blocked')]"/>
                 <filter string="In Progress" name="progress" domain="[('state','=','progress')]"/>
                 <filter string="Done" name="done" domain="[('state','=', 'done')]"/>
-                <filter string="Late" name="late" domain="['&amp;', ('state', 'in', ('blocked', 'ready')), ('date_start', '&lt;', 'now')]"/>
+                <filter string="Late" name="late" domain="[('is_late', '=', True)]"/>
                 <separator/>
                 <filter string="Start Date" name="date_start_filter" date="date_start"/>
                 <group>
@@ -293,7 +293,7 @@
                 <filter string="Finished" name="finish" domain="[('state', '=', 'done')]"/>
                 <filter string="Cancelled" name="cancel" domain="[('state', '=', 'cancel')]"/>
                 <separator/>
-                <filter string="Late" name="late" domain="['&amp;', ('state', 'in', ('blocked', 'ready')), ('date_start', '&lt;', 'now')]"
+                <filter string="Late" name="late" domain="[('is_late', '=', True)]"
                     help="Should have started already"/>
                 <group>
                     <filter string="Work Center" name="work_center" domain="[]" context="{'group_by': 'workcenter_id'}"/>

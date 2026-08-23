@@ -19,12 +19,28 @@ class MrpWorkorder(models.Model):
     _order = "sequence, date_start, id"
 
     OPEN_STATES = ("blocked", "ready", "progress")
+    LATE_STATES = ("blocked", "ready")
 
     @api.model
     def _late_domain(self):
-        return Domain("state", "in", ("blocked", "ready")) & Domain(
+        return Domain("state", "in", self.LATE_STATES) & Domain(
             "date_start", "<", fields.Datetime.now()
         )
+
+    def _search_is_late(self, operator, value):
+        if operator not in ("in", "not in"):
+            return NotImplemented
+        return [("id", operator, self._late_domain())]
+
+    @api.depends("state", "date_start")
+    def _compute_is_late(self):
+        now = fields.Datetime.now()
+        for workorder in self:
+            workorder.is_late = bool(
+                workorder.state in self.LATE_STATES
+                and workorder.date_start
+                and workorder.date_start < now
+            )
 
     def _default_sequence(self):
         return self.operation_id.sequence or 100
@@ -38,6 +54,12 @@ class MrpWorkorder(models.Model):
             )
         return workcenters.browse(workcenter_ids)
 
+    is_late = fields.Boolean(
+        "Late",
+        compute="_compute_is_late",
+        search="_search_is_late",
+        help="Should have started already.",
+    )
     name = fields.Char("Work Order", required=True)
     sequence = fields.Integer("Sequence", default=_default_sequence)
     barcode = fields.Char(compute="_compute_barcode", store=True)

@@ -349,6 +349,40 @@ class TestWorkcenterLate(common.TestMrpCommon):
         self.workcenter.invalidate_recordset()
         self.assertEqual(len(listed), self.workcenter.workorder_late_count)
 
+    @freeze_time("2026-08-22 23:00:00")
+    def test_the_search_view_filter_asks_the_same_question(self):
+        Workorder = self.env["mrp.workorder"]
+        by_field = Workorder.search(
+            [("id", "in", self.workorders.ids), ("is_late", "=", True)]
+        )
+        by_domain = Workorder.search(
+            Domain("id", "in", self.workorders.ids) & Workorder._late_domain()
+        )
+        self.assertEqual(
+            by_field,
+            by_domain,
+            "the field the views filter on and the domain the badge counts "
+            "must be one predicate",
+        )
+        self.assertEqual(
+            by_field.mapped("is_late"),
+            [True] * len(by_field),
+            "and reading the field must agree with searching it",
+        )
+        self.assertFalse(
+            (self.workorders - by_field).filtered("is_late"),
+            "nothing outside the search reads as late",
+        )
+        not_late = Workorder.search(
+            [("id", "in", self.workorders.ids), ("is_late", "=", False)]
+        )
+        self.assertEqual(
+            not_late,
+            self.workorders - by_field,
+            "searching the negative must be the complement, not the same set: "
+            "'= False' on a boolean reaches the search method as 'not in [True]'",
+        )
+
 
 @tagged("-at_install", "post_install")
 class TestWorkcenterCapacity(common.TestMrpCommon):
@@ -378,3 +412,91 @@ class TestWorkcenterCapacity(common.TestMrpCommon):
             {"workcenter_id": workcenter.id, "product_id": product.id, "capacity": 2}
         )
         self.assertEqual((capacity.time_start, capacity.time_stop), (7.0, 9.0))
+
+
+@tagged("-at_install", "post_install")
+class TestWorkcenterCapacityLookup(common.TestMrpCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.workcenter = cls.workcenter_3
+        cls.workcenter.write({"time_start": 3.0, "time_stop": 4.0})
+        cls.workcenter.capacity_ids.unlink()
+        cls.units = cls.env.ref("uom.product_uom_unit")
+        cls.dozens = cls.env.ref("uom.product_uom_dozen")
+        cls.product = cls.env["product.product"].create(
+            {"name": "Ranked", "uom_id": cls.units.id}
+        )
+        cls.other = cls.env["product.product"].create(
+            {"name": "Other ranked", "uom_id": cls.units.id}
+        )
+
+    def _capacity(self, product, unit, capacity, time_start):
+        return self.env["mrp.workcenter.capacity"].create(
+            {
+                "workcenter_id": self.workcenter.id,
+                "product_id": product.id,
+                "product_uom_id": unit.id,
+                "capacity": capacity,
+                "time_start": time_start,
+                "time_stop": 0.0,
+            }
+        )
+
+    def test_no_line_falls_back_to_the_workcenter(self):
+        self.assertEqual(
+            self.workcenter._get_capacity(self.product, self.units, 7),
+            (7, 3.0, 4.0),
+            "with nothing configured the work center's own times apply",
+        )
+
+    def test_another_products_line_is_not_used(self):
+        self._capacity(self.other, self.units, 5, 11.0)
+        self.assertEqual(
+            self.workcenter._get_capacity(self.product, self.units, 7), (7, 3.0, 4.0)
+        )
+
+    def test_the_products_own_line_outranks_the_generic_one(self):
+        self._capacity(self.env["product.product"], self.units, 5, 11.0)
+        self._capacity(self.product, self.units, 9, 22.0)
+        self.assertEqual(
+            self.workcenter._get_capacity(self.product, self.units, 7),
+            (9, 22.0, 0.0),
+        )
+
+    def test_the_generic_line_applies_to_any_product(self):
+        self._capacity(self.env["product.product"], self.units, 5, 11.0)
+        self.assertEqual(
+            self.workcenter._get_capacity(self.product, self.units, 7),
+            (5, 11.0, 0.0),
+        )
+
+    def test_a_generic_line_in_the_asked_unit_outranks_one_in_the_products_unit(self):
+        self._capacity(self.env["product.product"], self.units, 5, 11.0)
+        self._capacity(self.env["product.product"], self.dozens, 2, 22.0)
+        self.assertEqual(
+            self.workcenter._get_capacity(self.product, self.dozens, 7)[1],
+            22.0,
+            "the line stated in the unit the caller asked for wins",
+        )
+
+    def test_the_capacity_is_converted_into_the_asked_unit(self):
+        self._capacity(self.product, self.units, 24, 11.0)
+        capacity, _setup, _cleanup = self.workcenter._get_capacity(
+            self.product, self.dozens, 7
+        )
+        self.assertEqual(capacity, 2, "24 units is 2 dozen")
+
+    def test_a_zero_capacity_means_fall_back_but_keep_the_times(self):
+        self._capacity(self.product, self.units, 0, 11.0)
+        self.assertEqual(
+            self.workcenter._get_capacity(self.product, self.units, 7),
+            (7, 11.0, 0.0),
+            "zero is 'unset': the default quantity applies, the line's times still do",
+        )
+
+    def test_it_refuses_a_multi_record_set(self):
+        with self.assertRaises(ValueError):
+            (self.workcenter | self.workcenter_1)._get_capacity(
+                self.product, self.units
+            )
