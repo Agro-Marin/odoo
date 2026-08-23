@@ -2106,16 +2106,14 @@ class MrpProduction(models.Model):
         byproduct_id=False,
         cost_share=0,
     ):
-        group_orders = self.reference_ids.production_ids.production_group_id.production_ids.filtered(
-            lambda p: (
-                p.production_group_id.parent_ids == self.production_group_id.parent_ids
-            )
+        # only the order's own finished move carries the destinations, and
+        # resolving them walks references -> orders -> groups -> orders; a
+        # byproduct used to pay for that walk and then discard it
+        move_dest_ids = (
+            self.env["stock.move"]
+            if byproduct_id
+            else self._get_finished_move_dest_ids()
         )
-        move_dest_ids = self.move_dest_ids
-        if not move_dest_ids:
-            move_dest_ids = group_orders.move_finished_ids.filtered(
-                lambda m: m.product_id == self.product_id
-            ).move_dest_ids
         return {
             "product_id": product_id,
             "product_uom_qty": product_uom_qty,
@@ -2139,6 +2137,28 @@ class MrpProduction(models.Model):
             "cost_share": cost_share,
             "production_group_id": self.production_group_id.id,
         }
+
+    def _get_finished_move_dest_ids(self):
+        """Where this order's finished product is headed.
+
+        Its own `move_dest_ids` when it has them, otherwise the ones carried by
+        the orders it shares a reference and a parent group with -- a backorder
+        inherits the destinations of the order it was split from.
+        """
+        self.ensure_one()
+        if self.move_dest_ids:
+            return self.move_dest_ids
+        group_orders = (
+            self.reference_ids.production_ids.production_group_id.production_ids
+        ).filtered(
+            lambda production: (
+                production.production_group_id.parent_ids
+                == self.production_group_id.parent_ids
+            )
+        )
+        return group_orders.move_finished_ids.filtered(
+            lambda move: move.product_id == self.product_id
+        ).move_dest_ids
 
     def _get_moves_finished_values(self):
         moves = []
@@ -2660,12 +2680,8 @@ class MrpProduction(models.Model):
         final_workorders = self.workorder_ids.filtered(
             lambda wo: not wo.needed_by_workorder_ids
         )
-        # One memo for the whole pass, not one per final work order: two
-        # final work orders that share a predecessor would otherwise each plan
-        # that shared subtree, and under `replan` each planning moves it.
-        planned = set()
         for workorder in final_workorders:
-            workorder._plan_workorder(replan, planned)
+            workorder._plan_workorder(replan)
 
         workorders = self.workorder_ids.filtered(
             lambda w: w.state not in ["done", "cancel"]
@@ -3175,59 +3191,13 @@ class MrpProduction(models.Model):
             )
 
         for initial_move, split_backorder_moves in move_to_backorder_moves.items():
-            product_uom_id = initial_move.product_id.uom_id
-            ml_by_move = []
-            if not initial_move.picked:
-                for move_line in initial_move.move_line_ids:
-                    available_qty = move_line.product_uom_id._compute_quantity(
-                        move_line.quantity, product_uom_id, rounding_method="HALF-UP"
-                    )
-                    if product_uom_id.compare(available_qty, 0) <= 0:
-                        continue
-                    ml_by_move.append(
-                        (available_qty, move_line, move_line.copy_data()[0])
-                    )
-
-            moves = list(initial_move | split_backorder_moves)
-            move = moves and moves.pop(0)
-            move_qty_to_reserve = move.product_qty
-
-            for index, (quantity, move_line, ml_vals) in enumerate(ml_by_move):
-                taken_qty = min(quantity, move_qty_to_reserve)
-                taken_qty_uom = product_uom_id._compute_quantity(
-                    taken_qty, move_line.product_uom_id, rounding_method="HALF-UP"
-                )
-                if move_line.product_uom_id.is_zero(taken_qty_uom):
-                    continue
-                move_line.write({"quantity": taken_qty_uom, "move_id": move.id})
-                move_qty_to_reserve -= taken_qty
-                ml_by_move[index] = (quantity - taken_qty, move_line, ml_vals)
-                if move.product_uom_id.compare(move_qty_to_reserve, 0) <= 0:
-                    assigned_moves.add(move.id)
-                    move = moves and moves.pop(0)
-                    move_qty_to_reserve = (move and move.product_qty) or 0
-
-            for quantity, move_line, ml_vals in ml_by_move:
-                while product_uom_id.compare(quantity, 0) > 0 and move:
-                    taken_qty = min(move_qty_to_reserve, quantity)
-                    taken_qty_uom = product_uom_id._compute_quantity(
-                        taken_qty, move_line.product_uom_id, rounding_method="HALF-UP"
-                    )
-                    if move == initial_move:
-                        move_line.quantity += taken_qty_uom
-                    elif not move_line.product_uom_id.is_zero(taken_qty_uom):
-                        move_lines_vals.append(
-                            dict(ml_vals, quantity=taken_qty_uom, move_id=move.id)
-                        )
-                    quantity -= taken_qty
-                    move_qty_to_reserve -= taken_qty
-                    if move.product_uom_id.compare(move_qty_to_reserve, 0) <= 0:
-                        assigned_moves.add(move.id)
-                        move = moves and moves.pop(0)
-                        move_qty_to_reserve = (move and move.product_qty) or 0
-
-            if move and move_qty_to_reserve != move.product_qty:
-                partially_assigned_moves.add(move.id)
+            self._spread_reservation_over_split_moves(
+                initial_move,
+                split_backorder_moves,
+                move_lines_vals,
+                assigned_moves,
+                partially_assigned_moves,
+            )
             move_lines_to_unlink.update(
                 initial_move.move_line_ids.filtered(lambda ml: not ml.quantity).ids
             )
@@ -3243,6 +3213,77 @@ class MrpProduction(models.Model):
         emptied_lines.write({"move_id": False})
         emptied_lines.unlink()
         moves_to_consume.write({"picked": True})
+
+    def _spread_reservation_over_split_moves(
+        self,
+        initial_move,
+        split_backorder_moves,
+        move_lines_vals,
+        assigned_moves,
+        partially_assigned_moves,
+    ):
+        """Hand the initial move's reservation to the moves it was split into.
+
+        Walks the split moves in order, filling each to its own demand before
+        moving on: existing move lines are re-pointed while they last, and what
+        is left over becomes new lines on the backorder moves.
+        """
+        product_uom_id = initial_move.product_id.uom_id
+        ml_by_move = []
+        if not initial_move.picked:
+            for move_line in initial_move.move_line_ids:
+                available_qty = move_line.product_uom_id._compute_quantity(
+                    move_line.quantity, product_uom_id, rounding_method="HALF-UP"
+                )
+                if product_uom_id.compare(available_qty, 0) <= 0:
+                    continue
+                ml_by_move.append((available_qty, move_line, move_line.copy_data()[0]))
+
+        # `move` stays a stock.move throughout -- an exhausted cursor is the
+        # empty recordset, not a bare list, so every read below is one type
+        remaining = list(initial_move | split_backorder_moves)
+        move = remaining.pop(0)
+        move_qty_to_reserve = move.product_qty
+
+        def next_move():
+            return remaining.pop(0) if remaining else self.env["stock.move"]
+
+        for index, (quantity, move_line, ml_vals) in enumerate(ml_by_move):
+            taken_qty = min(quantity, move_qty_to_reserve)
+            taken_qty_uom = product_uom_id._compute_quantity(
+                taken_qty, move_line.product_uom_id, rounding_method="HALF-UP"
+            )
+            if move_line.product_uom_id.is_zero(taken_qty_uom):
+                continue
+            move_line.write({"quantity": taken_qty_uom, "move_id": move.id})
+            move_qty_to_reserve -= taken_qty
+            ml_by_move[index] = (quantity - taken_qty, move_line, ml_vals)
+            if move.product_uom_id.compare(move_qty_to_reserve, 0) <= 0:
+                assigned_moves.add(move.id)
+                move = next_move()
+                move_qty_to_reserve = move.product_qty if move else 0
+
+        for quantity, move_line, ml_vals in ml_by_move:
+            while product_uom_id.compare(quantity, 0) > 0 and move:
+                taken_qty = min(move_qty_to_reserve, quantity)
+                taken_qty_uom = product_uom_id._compute_quantity(
+                    taken_qty, move_line.product_uom_id, rounding_method="HALF-UP"
+                )
+                if move == initial_move:
+                    move_line.quantity += taken_qty_uom
+                elif not move_line.product_uom_id.is_zero(taken_qty_uom):
+                    move_lines_vals.append(
+                        dict(ml_vals, quantity=taken_qty_uom, move_id=move.id)
+                    )
+                quantity -= taken_qty
+                move_qty_to_reserve -= taken_qty
+                if move.product_uom_id.compare(move_qty_to_reserve, 0) <= 0:
+                    assigned_moves.add(move.id)
+                    move = next_move()
+                    move_qty_to_reserve = move.product_qty if move else 0
+
+        if move and move_qty_to_reserve != move.product_qty:
+            partially_assigned_moves.add(move.id)
 
     def _get_split_moves_to_consume(
         self,
@@ -3375,6 +3416,16 @@ class MrpProduction(models.Model):
         for backorder in backorders_to_assign:
             backorder.action_assign()
 
+        return self._get_mark_done_action(backorders)
+
+    def _get_mark_done_action(self, backorders):
+        """What the client is handed once the orders are closed.
+
+        Three things can want the return value -- the autoprint reports, a
+        redirection to the backorder that was just created, and the reception
+        report -- and only the first of them can travel with either of the
+        others, so it wraps whatever the other two decided.
+        """
         report_actions = self._get_autoprint_done_report_actions()
         if self.env.context.get("skip_redirection"):
             if report_actions:
@@ -3382,77 +3433,15 @@ class MrpProduction(models.Model):
                     "type": "ir.actions.client",
                     "tag": "do_multi_print",
                     "context": {},
-                    "params": {
-                        "reports": report_actions,
-                    },
+                    "params": {"reports": report_actions},
                 }
             return True
-        another_action = False
-        if not backorders:
-            if self.env.context.get("from_workorder"):
-                another_action = {
-                    "type": "ir.actions.act_window",
-                    "res_model": "mrp.production",
-                    "views": [
-                        [self.env.ref("mrp.mrp_production_form_view").id, "form"]
-                    ],
-                    "res_id": self.id,
-                    "target": "main",
-                }
-            elif self.env.user.has_group("mrp.group_mrp_reception_report"):
-                mos_to_show = self.filtered(
-                    lambda mo: mo.picking_type_id.auto_show_reception_report
-                )
-                lines = mos_to_show.move_finished_ids.filtered(
-                    lambda m: (
-                        m.product_id.is_storable
-                        and m.state != "cancel"
-                        and m.picked
-                        and not m.move_dest_ids
-                    )
-                )
-                if lines:
-                    if any(mo.show_allocation for mo in mos_to_show):
-                        another_action = mos_to_show.action_view_reception_report()
-            if report_actions:
-                return {
-                    "type": "ir.actions.client",
-                    "tag": "do_multi_print",
-                    "params": {
-                        "reports": report_actions,
-                        "anotherAction": another_action,
-                    },
-                }
-            if another_action:
-                return another_action
-            return True
-        context = {
-            k: False if k.startswith("skip_") else v
-            for k, v in self.env.context.items()
-            if not k.startswith("default_")
-        }
-        another_action = {
-            "res_model": "mrp.production",
-            "type": "ir.actions.act_window",
-            "context": dict(context, mo_ids_to_backorder=None),
-        }
-        if len(backorders) == 1:
-            another_action.update(
-                {
-                    "views": [[False, "form"]],
-                    "view_mode": "form",
-                    "res_id": backorders[0].id,
-                }
-            )
-        else:
-            another_action.update(
-                {
-                    "name": _("Backorder MO"),
-                    "domain": [("id", "in", backorders.ids)],
-                    "views": [[False, "list"], [False, "form"]],
-                    "view_mode": "list,form",
-                }
-            )
+
+        another_action = (
+            self._get_backorder_redirect_action(backorders)
+            if backorders
+            else self._get_closed_redirect_action()
+        )
         if report_actions:
             return {
                 "type": "ir.actions.client",
@@ -3462,7 +3451,65 @@ class MrpProduction(models.Model):
                     "anotherAction": another_action,
                 },
             }
-        return another_action
+        return another_action or True
+
+    def _get_closed_redirect_action(self):
+        """Where to send the user when nothing was backordered."""
+        if self.env.context.get("from_workorder"):
+            return {
+                "type": "ir.actions.act_window",
+                "res_model": "mrp.production",
+                "views": [[self.env.ref("mrp.mrp_production_form_view").id, "form"]],
+                "res_id": self.id,
+                "target": "main",
+            }
+        if not self.env.user.has_group("mrp.group_mrp_reception_report"):
+            return False
+        mos_to_show = self.filtered(
+            lambda mo: mo.picking_type_id.auto_show_reception_report
+        )
+        lines = mos_to_show.move_finished_ids.filtered(
+            lambda m: (
+                m.product_id.is_storable
+                and m.state != "cancel"
+                and m.picked
+                and not m.move_dest_ids
+            )
+        )
+        if lines and any(mo.show_allocation for mo in mos_to_show):
+            return mos_to_show.action_view_reception_report()
+        return False
+
+    def _get_backorder_redirect_action(self, backorders):
+        """Open the backorders the close has just created."""
+        context = {
+            k: False if k.startswith("skip_") else v
+            for k, v in self.env.context.items()
+            if not k.startswith("default_")
+        }
+        action = {
+            "res_model": "mrp.production",
+            "type": "ir.actions.act_window",
+            "context": dict(context, mo_ids_to_backorder=None),
+        }
+        if len(backorders) == 1:
+            action.update(
+                {
+                    "views": [[False, "form"]],
+                    "view_mode": "form",
+                    "res_id": backorders[0].id,
+                }
+            )
+        else:
+            action.update(
+                {
+                    "name": _("Backorder MO"),
+                    "domain": [("id", "in", backorders.ids)],
+                    "views": [[False, "list"], [False, "form"]],
+                    "view_mode": "list,form",
+                }
+            )
+        return action
 
     def pre_button_mark_done(self):
         self._button_mark_done_sanity_checks()
@@ -3907,21 +3954,11 @@ class MrpProduction(models.Model):
                     workorder.name = operation.name
             elif workorder.operation_id:
                 workorders_to_unlink |= workorder
-        # `sequence` explicitly: `_default_sequence` reads it off the operation
-        # only when the work order is built through the `workorder_ids` compute,
-        # which evaluates defaults against a record that already carries one.
-        # Creating from a vals dict -- this path, reached from Update BOM --
-        # leaves `self` empty in the default, so the work order lands on 100 and
-        # sorts after everything already there whatever the routing says: a
-        # routing reading `Prep, Op0, Op1, Op2` produced `Op0, Op1, Op2, Prep`,
-        # and `_link_workorders_and_moves` then built the dependency chain in
-        # that order, so the preparation step waited on what it prepares for.
         self.workorder_ids += self.env["mrp.workorder"].create(
             [
                 {
                     "name": operation.name,
                     "operation_id": operation.id,
-                    "sequence": operation.sequence,
                     "product_uom_id": self.product_uom_id.id,
                     "production_id": self.id,
                     "state": "blocked",
@@ -4083,6 +4120,17 @@ class MrpProduction(models.Model):
                     )
                 )
 
+        self._check_consumed_serials_are_not_reused()
+
+    def _check_consumed_serials_are_not_reused(self):
+        """Refuse a component serial this order is consuming for a second time.
+
+        Two ways it can already be spent: another line of this same order is
+        holding it, which is decided in memory, or a past order consumed it into
+        a production location and nothing gave it back -- an unbuild, or a
+        cancel that returned it -- which is the two grouped reads below.
+        """
+        self.ensure_one()
         consumed_sn_ids = []
         sn_error_msg = {}
         for move in self.move_raw_ids:
@@ -4103,9 +4151,8 @@ class MrpProduction(models.Model):
                 )
                 consumed_sn_ids.append(sml_sn.id)
                 sn_error_msg[sml_sn.id] = message
-                co_prod_move_lines = self.move_raw_ids.move_line_ids
                 duplicates = (
-                    co_prod_move_lines.filtered(
+                    self.move_raw_ids.move_line_ids.filtered(
                         lambda ml, sml_sn=sml_sn: ml.quantity and ml.lot_id == sml_sn
                     )
                     - move_line
@@ -4116,46 +4163,44 @@ class MrpProduction(models.Model):
         if not consumed_sn_ids:
             return
 
-        consumed_sml_groups = self.env["stock.move.line"]._read_group(
-            [
-                ("lot_id", "in", consumed_sn_ids),
-                ("quantity", "=", 1),
-                ("state", "=", "done"),
-                ("location_dest_id.usage", "=", "production"),
-                ("production_id", "!=", False),
-            ],
-            ["lot_id"],
-            ["quantity:sum"],
+        consumed_qties = dict(
+            self.env["stock.move.line"]._read_group(
+                [
+                    ("lot_id", "in", consumed_sn_ids),
+                    ("quantity", "=", 1),
+                    ("state", "=", "done"),
+                    ("location_dest_id.usage", "=", "production"),
+                    ("production_id", "!=", False),
+                ],
+                ["lot_id"],
+                ["quantity:sum"],
+            )
         )
-        consumed_qties = {lot.id: qty for lot, qty in consumed_sml_groups}
-        problematic_sn_ids = list(consumed_qties.keys())
-        if not problematic_sn_ids:
+        if not consumed_qties:
             return
 
-        cancelled_sml_groups = self.env["stock.move.line"]._read_group(
-            [
-                ("lot_id", "in", problematic_sn_ids),
-                ("quantity", "=", 1),
-                ("state", "=", "done"),
-                ("location_id.usage", "=", "production"),
-                "|",
-                ("move_id.production_id", "=", False),
-                "&",
-                ("move_id.production_id", "!=", False),
-                ("move_id.production_id.product_id", "=", self.product_id.id),
-            ],
-            ["lot_id"],
-            ["quantity:sum"],
-        )
-        cancelled_qties = defaultdict(
-            float, {lot.id: qty for lot, qty in cancelled_sml_groups}
+        returned_qties = defaultdict(
+            float,
+            self.env["stock.move.line"]._read_group(
+                [
+                    ("lot_id", "in", [lot.id for lot in consumed_qties]),
+                    ("quantity", "=", 1),
+                    ("state", "=", "done"),
+                    ("location_id.usage", "=", "production"),
+                    "|",
+                    ("move_id.production_id", "=", False),
+                    "&",
+                    ("move_id.production_id", "!=", False),
+                    ("move_id.production_id.product_id", "=", self.product_id.id),
+                ],
+                ["lot_id"],
+                ["quantity:sum"],
+            ),
         )
 
-        for sn_id in problematic_sn_ids:
-            consumed_qty = consumed_qties[sn_id]
-            cancelled_qty = cancelled_qties[sn_id]
-            if consumed_qty - cancelled_qty > 0:
-                raise UserError(sn_error_msg[sn_id])
+        for lot, consumed_qty in consumed_qties.items():
+            if consumed_qty - returned_qties[lot] > 0:
+                raise UserError(sn_error_msg[lot.id])
 
     def _serials_produced_into_a_production_location(self, lots):
         """The subset of `lots` that `_are_finished_serials_already_produced` has

@@ -1971,3 +1971,37 @@ class TestMrpAuditFixes(TestMrpCommon):
             "one click closes one batch, so it ends at one instant; the loop used "
             "to call fields.Datetime.now() once per order",
         )
+
+    def test_byproduct_finished_moves_carry_no_destinations(self):
+        finished, byproduct, bom, unit = self._audit_byproduct_fixture()
+        bom.write(
+            {
+                "byproduct_ids": [
+                    Command.create(
+                        {
+                            "product_id": byproduct.id,
+                            "product_qty": 1.0,
+                            "product_uom_id": unit.id,
+                        }
+                    )
+                ]
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "product_qty": 1.0, "bom_id": bom.id}
+        )
+
+        byproduct_move = production.move_byproduct_ids
+        self.assertTrue(byproduct_move, "the fixture must produce a byproduct move")
+        self.assertFalse(
+            byproduct_move.move_dest_ids,
+            "only the order's own finished product carries the destinations; "
+            "resolving them walks references -> orders -> groups -> orders, and "
+            "a byproduct used to pay for that walk and then discard it",
+        )
+        self.assertEqual(
+            production._get_move_finished_values(
+                byproduct.id, 1.0, unit.id, byproduct_id=bom.byproduct_ids[0].id
+            )["move_dest_ids"],
+            [],
+        )
