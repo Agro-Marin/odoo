@@ -515,30 +515,33 @@ class ResCompany(models.Model):
 
     def _set_category_defaults(self, changed_fields=None):
         super()._set_category_defaults(changed_fields)
+        # sudo: as in the base method, the company-wide ir.default needs
+        # group_system while creating or writing the company does not
+        IrDefault = self.env["ir.default"].sudo()
         for company in self:
             if changed_fields is None or "inventory_valuation" in changed_fields:
-                self.env["ir.default"].set(
+                IrDefault.set(
                     "product.category",
                     "property_valuation",
                     company.inventory_valuation,
                     company_id=company.id,
                 )
             if changed_fields is None or "cost_method" in changed_fields:
-                self.env["ir.default"].set(
+                IrDefault.set(
                     "product.category",
                     "property_cost_method",
                     company.cost_method,
                     company_id=company.id,
                 )
             if changed_fields is None or "account_stock_journal_id" in changed_fields:
-                self.env["ir.default"].set(
+                IrDefault.set(
                     "product.category",
                     "property_stock_journal",
                     company.account_stock_journal_id.id,
                     company_id=company.id,
                 )
             if changed_fields is None or "account_stock_valuation_id" in changed_fields:
-                self.env["ir.default"].set(
+                IrDefault.set(
                     "product.category",
                     "property_stock_valuation_account_id",
                     company.account_stock_valuation_id.id,

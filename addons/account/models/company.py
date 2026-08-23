@@ -1461,16 +1461,19 @@ class ResCompany(models.Model):
             )
 
     def _set_category_defaults(self, changed_fields=None):
+        # sudo: creating or writing a company needs group_erp_manager, but the
+        # company-wide ir.default written here needs group_system
+        IrDefault = self.env["ir.default"].sudo()
         for company in self:
             if changed_fields is None or "expense_account_id" in changed_fields:
-                self.env["ir.default"].set(
+                IrDefault.set(
                     "product.category",
                     "property_account_expense_categ_id",
                     company.expense_account_id.id,
                     company_id=company.id,
                 )
             if changed_fields is None or "income_account_id" in changed_fields:
-                self.env["ir.default"].set(
+                IrDefault.set(
                     "product.category",
                     "property_account_income_categ_id",
                     company.income_account_id.id,

@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
 from odoo import Command
-from odoo.tests import common, tagged
+from odoo.tests import common, new_test_user, tagged
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
@@ -266,4 +266,32 @@ class TestUpdateOpeningMove(AccountTestInvoicingCommon):
         self.assertEqual(sum(move.line_ids.mapped("balance")), 0.0)
         self.assertEqual(
             move.line_ids.filtered(lambda ln: ln.account_id == revenue).balance, 500.0
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestResCompanyCategoryDefaults(common.TransactionCase):
+    def test_create_by_erp_manager_without_group_system(self):
+        user = new_test_user(
+            self.env,
+            login="erp_manager_no_settings",
+            groups="base.group_user,base.group_erp_manager,base.group_partner_manager",
+        )
+        company = (
+            self.env["res.company"].with_user(user).create({"name": "Category Defaults Co"})
+        )
+
+        defaults = self.env["ir.default"].sudo().search([("company_id", "=", company.id)])
+        self.assertEqual(
+            defaults.field_id.mapped("name"),
+            [
+                "property_account_expense_categ_id",
+                "property_account_income_categ_id",
+            ],
+            "creating a company must set both product.category defaults",
+        )
+        self.assertFalse(
+            any(defaults.mapped("user_id")),
+            "the defaults are company-wide, which is what needs more rights than "
+            "creating the company does",
         )
