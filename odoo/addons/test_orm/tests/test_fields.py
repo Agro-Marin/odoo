@@ -4557,8 +4557,12 @@ class TestMany2oneReference(TransactionExpressionCase):
         )
         reference.res_model = record._name
 
+        # `reference.id`, not `record.id`: the dirty set of a field on
+        # test_orm.model_many2one_reference holds that model's ids. The
+        # assertion named the wrong record and passed only while the two id
+        # sequences happened to line up on a fresh database.
         self.assertIn(
-            record.id,
+            reference.id,
             self.env._core.get_dirty(reference._fields["res_model"]) or (),
         )
 

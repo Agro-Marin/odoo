@@ -25,6 +25,7 @@ from . import (
     test_many2many_operations,
     test_onchange,
     test_one2many,
+    test_one2many_read_grouping,
     test_orm_audit_fixes,
     test_primitives,
     test_properties,

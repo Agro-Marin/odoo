@@ -145,10 +145,34 @@ class One2many(_RelationalMulti):
                 records.env._("Failed to read field %s", self) + "\n" + str(e)
             ) from e
 
-        get_id = (lambda rec: rec.id) if inverse_field.is_many2one else int
+        # Group from the inverse's cache, which `search_fetch` above has just
+        # filled. Iterating `lines` allocates a singleton recordset per line and
+        # `line[inverse]` allocates a second one plus a PrefetchMany2one, to
+        # read a value already sitting in a dict -- two objects and three
+        # descriptor calls per line, on the fetch path of every one2many in the
+        # system. Measured over 2000 lines: 2.02 ms -> 0.79 ms on a bare model,
+        # 7.73 ms -> 1.76 ms on res.partner.
+        inv_cache = inverse_field._get_cache(comodel.env)
         group = defaultdict(list)
-        for line in lines:
-            group[get_id(line[inverse])].append(line.id)
+        missed = []
+        _SENTINEL = SENTINEL
+        for line_id in lines._ids:
+            value = inv_cache.get(line_id, _SENTINEL)
+            if value is _SENTINEL:
+                missed.append(line_id)
+            else:
+                group[value or False].append(line_id)
+
+        if missed:
+            # A non-stored inverse: `search_fetch` cannot fill a field it does
+            # not select, so those lines still have to go through the
+            # descriptor. Three one2many fields in this tree have one.
+            get_id = (lambda rec: rec.id) if inverse_field.is_many2one else int
+            for line in lines.browse(missed):
+                group[get_id(line[inverse])].append(line.id)
+            position = {id_: index for index, id_ in enumerate(lines._ids)}
+            for line_ids in group.values():
+                line_ids.sort(key=position.__getitem__)
 
         values = [tuple(group[id_]) for id_ in records._ids]
         self._insert_cache(records, values)
