@@ -38,19 +38,6 @@ class ProjectProject(models.Model):
     _rating_satisfaction_days = 30  # takes 30 days by default
     _track_duration_field = "phase_id"
 
-    # Explicit override: both mixin.rating.parent and mixin.mail.thread (via rating
-    # module) define rating_ids.  The mixin.mail.thread version uses res_id/res_model
-    # (ratings OF this record), but projects need the parent version that uses
-    # parent_res_id/parent_res_model (ratings OF tasks BELONGING to this project).
-    rating_ids = fields.One2many(
-        "rating.rating",
-        "parent_res_id",
-        string="Ratings",
-        bypass_search_access=True,
-        domain=lambda self: [("parent_res_model", "=", self._name)],
-        groups="base.group_user",
-    )
-
     def __compute_task_count(
         self,
         count_field: str = "task_count",
@@ -2637,7 +2624,7 @@ class ProjectProject(models.Model):
             ("parent_res_model", "=", "project.project"),
             ("parent_res_id", "=", self.id),
         ]
-        if self.rating_count == 1:
+        if self.rating_child_count == 1:
             action.update(
                 {
                     "view_mode": "form",
@@ -2646,9 +2633,7 @@ class ProjectProject(models.Model):
                         for view_id, view_type in action["views"]
                         if view_type == "form"
                     ],
-                    "res_id": self.rating_ids[
-                        0
-                    ].id,  # [0] since rating_ids might be > then rating_count
+                    "res_id": self.rating_child_ids[0].id,
                 }
             )
         return dict(action, context=action_context)
@@ -2840,10 +2825,10 @@ class ProjectProject(models.Model):
                 "sequence": 1,
             }
         ]
-        if self.rating_count != 0:
-            if self.rating_avg >= rating_data.RATING_AVG_TOP:
+        if self.rating_child_count != 0:
+            if self.rating_child_avg >= rating_data.RATING_AVG_TOP:
                 icon = "smile-o text-success"
-            elif self.rating_avg >= rating_data.RATING_AVG_OK:
+            elif self.rating_child_avg >= rating_data.RATING_AVG_OK:
                 icon = "meh-o text-warning"
             else:
                 icon = "frown-o text-danger"
@@ -2851,7 +2836,7 @@ class ProjectProject(models.Model):
                 {
                     "icon": icon,
                     "text": self.env._("Average Rating"),
-                    "number": f"{int(self.rating_avg) if self.rating_avg.is_integer() else round(self.rating_avg, 1)} / 5",
+                    "number": f"{int(self.rating_child_avg) if self.rating_child_avg.is_integer() else round(self.rating_child_avg, 1)} / 5",
                     "action_type": "object",
                     "action": "action_view_all_rating",
                     "show": self.show_ratings,

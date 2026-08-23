@@ -411,7 +411,12 @@ class TestProjectBase(TestProjectCommon):
         )
 
     def test_add_customer_rating_project(self) -> None:
-        """Tests that the rating_ids field contains a rating once created"""
+        """A rating of a task reaches the project through the CHILD relation.
+
+        The rating below names the task as `res_id` and the project as
+        `parent_res_id`, so the project sees it as `rating_child_ids`. Its own
+        `rating_ids` -- ratings of the project itself -- stays empty.
+        """
         rate = self.env["rating.rating"].create(
             {
                 "res_id": self.task_1.id,
@@ -424,11 +429,15 @@ class TestProjectBase(TestProjectCommon):
 
         self.task_1.rating_apply(rating, token=rate.access_token)
 
-        self.project_pigs.invalidate_recordset(["rating_ids"])
+        self.project_pigs.invalidate_recordset(["rating_child_ids", "rating_ids"])
         self.assertEqual(
-            len(self.project_pigs.rating_ids),
+            len(self.project_pigs.rating_child_ids),
             1,
-            "There should be 1 rating linked to the project",
+            "There should be 1 rating linked to the project through its tasks",
+        )
+        self.assertFalse(
+            self.project_pigs.rating_ids,
+            "the project itself was not rated, only its task",
         )
 
     def test_planned_dates_consistency_for_project(self) -> None:

@@ -462,7 +462,7 @@
                     default_order="is_favorite desc, sequence, name, id"
                 >
                     <field name="allow_milestones"/>
-                    <field name="rating_count" />
+                    <field name="rating_child_count" />
                     <field name="show_ratings"/>
                     <field name="privacy_visibility"/>
                     <field name="last_update_color"/>
@@ -540,17 +540,17 @@
                                     <div t-if="record.alias_email.value" class="text-muted text-truncate" t-att-title="record.alias_email.value">
                                         <span class="fa-regular fa-envelope me-2" aria-label="Domain Alias" title="Domain Alias"></span><field name="alias_email"/>
                                     </div>
-                                    <div t-if="record.show_ratings.raw_value and record.rating_count.raw_value &gt; 0" class="d-flex text-muted">
+                                    <div t-if="record.show_ratings.raw_value and record.rating_child_count.raw_value &gt; 0" class="d-flex text-muted">
                                         <b class="me-1">
-                                            <span class="fa-regular fa-face-smile mt4 fw-bolder text-success" t-if="record.rating_avg.raw_value &gt;= 3.66" title="Average Rating: Happy" role="img" aria-label="Happy face"/>
-                                            <span class="fa-regular fa-face-meh mt4 fw-bolder text-warning" t-elif="record.rating_avg.raw_value &gt;= 2.33" title="Average Rating: Neutral" role="img" aria-label="Neutral face"/>
+                                            <span class="fa-regular fa-face-smile mt4 fw-bolder text-success" t-if="record.rating_child_avg.raw_value &gt;= 3.66" title="Average Rating: Happy" role="img" aria-label="Happy face"/>
+                                            <span class="fa-regular fa-face-meh mt4 fw-bolder text-warning" t-elif="record.rating_child_avg.raw_value &gt;= 2.33" title="Average Rating: Neutral" role="img" aria-label="Neutral face"/>
                                             <span class="fa-regular fa-face-frown mt4 fw-bolder text-danger" t-else="" title="Average Rating: Unhappy" role="img" aria-label="Unhappy face"/>
                                         </b>
-                                        <t t-if="record.rating_avg.raw_value % 1 == 0">
-                                            <field name="rating_avg" nolabel="1" widget="float" digits="[1, 0]"/>
+                                        <t t-if="record.rating_child_avg.raw_value % 1 == 0">
+                                            <field name="rating_child_avg" nolabel="1" widget="float" digits="[1, 0]"/>
                                         </t>
                                         <t t-else="">
-                                            <field name="rating_avg" nolabel="1" widget="float" digits="[1, 1]"/>
+                                            <field name="rating_child_avg" nolabel="1" widget="float" digits="[1, 1]"/>
                                         </t> / 5
                                     </div>
                                     <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>

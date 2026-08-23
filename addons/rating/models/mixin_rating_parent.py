@@ -15,27 +15,33 @@ class MixinRatingParent(models.AbstractModel):
     _description = "Rating Parent Mixin"
     _rating_satisfaction_days = False  # Number of last days used to compute parent satisfaction. Set to False to include all existing rating.
 
-    rating_ids = fields.One2many(
+    # Every name here says `child`, and that is the whole point: `mixin.rating`
+    # answers "how is THIS record rated" off `res_id`, and this mixin answers
+    # "how are the records BELOW it rated" off `parent_res_id`. They used to
+    # spell four of those answers identically, so a model carrying both got one
+    # mixin's question and the other's answer -- silently, since nothing about
+    # `rating_avg` said which one it was. Renaming is what stops that being
+    # possible rather than merely unlikely; the mapping is mechanical, a leading
+    # `rating_` becoming `rating_child_`.
+    rating_child_ids = fields.One2many(
         'rating.rating', 'parent_res_id', string='Ratings',
         bypass_search_access=True, groups='base.group_user',
         domain=lambda self: [('parent_res_model', '=', self._name)])
-    rating_percentage_satisfaction = fields.Integer(
+    rating_child_percentage_satisfaction = fields.Integer(
         "Rating Satisfaction",
-        compute="_compute_rating_percentage_satisfaction", compute_sudo=True,
+        compute="_compute_rating_child_stats", compute_sudo=True,
         store=False, help="Percentage of happy ratings")
-    rating_count = fields.Integer(string='# Ratings', compute="_compute_rating_percentage_satisfaction", compute_sudo=True)
-    rating_avg = fields.Float('Average Rating', groups='base.group_user',
-        compute='_compute_rating_percentage_satisfaction', compute_sudo=True, search='_search_rating_avg')
-    rating_avg_percentage = fields.Float('Average Rating (%)', groups='base.group_user',
-        compute='_compute_rating_avg_percentage', compute_sudo=True)
+    rating_child_count = fields.Integer(string='# Ratings', compute="_compute_rating_child_stats", compute_sudo=True)
+    rating_child_avg = fields.Float('Average Rating', groups='base.group_user',
+        compute='_compute_rating_child_stats', compute_sudo=True, search='_search_rating_child_avg')
+    rating_child_avg_percentage = fields.Float('Average Rating (%)', groups='base.group_user',
+        compute='_compute_rating_child_avg_percentage', compute_sudo=True)
 
     def write(self, vals):
         result = super().write(vals)
         # parent_res_name is stored and depends only on (parent_res_model,
         # parent_res_id), so renaming the parent left every child rating
-        # carrying the old name. Searched rather than read off rating_ids: a
-        # model carrying both rating mixins resolves that field to the other
-        # one, whose inverse is res_id.
+        # carrying the old name.
         if not self._display_name_field_names().isdisjoint(vals):
             ratings = self.env['rating.rating'].sudo().search([
                 ('parent_res_model', '=', self._name),
@@ -47,8 +53,8 @@ class MixinRatingParent(models.AbstractModel):
                 )
         return result
 
-    @api.depends('rating_ids.rating', 'rating_ids.consumed')
-    def _compute_rating_percentage_satisfaction(self):
+    @api.depends('rating_child_ids.rating', 'rating_child_ids.consumed')
+    def _compute_rating_child_stats(self):
         # build domain and fetch data
         domain = [('parent_res_model', '=', self._name), ('parent_res_id', 'in', self.ids), ('rating', '>=', rating_data.RATING_LIMIT_MIN), ('consumed', '=', True)]
         if self._rating_satisfaction_days:
@@ -68,21 +74,16 @@ class MixinRatingParent(models.AbstractModel):
         for record in self:
             repartition = grades_per_parent.get(record.id, default_grades)
             rating_count = sum(repartition.values())
-            record.rating_count = rating_count
-            record.rating_percentage_satisfaction = repartition['great'] * 100 / rating_count if rating_count else -1
-            record.rating_avg = rating_scores_per_parent[record.id] / rating_count if rating_count else 0
+            record.rating_child_count = rating_count
+            record.rating_child_percentage_satisfaction = repartition['great'] * 100 / rating_count if rating_count else -1
+            record.rating_child_avg = rating_scores_per_parent[record.id] / rating_count if rating_count else 0
 
-    @api.depends('rating_avg')
-    def _compute_rating_avg_percentage(self):
-        # Derived from rating_avg rather than assigned alongside it. A model
-        # inheriting this mixin AND mixin.rating resolves rating_avg to the
-        # other one -- ratings *on* the record rather than on its children --
-        # and a shared compute would then silently overwrite it while answering
-        # for this field.
+    @api.depends('rating_child_avg')
+    def _compute_rating_child_avg_percentage(self):
         for record in self:
-            record.rating_avg_percentage = record.rating_avg / 5
+            record.rating_child_avg_percentage = record.rating_child_avg / 5
 
-    def _search_rating_avg(self, operator, value):
+    def _search_rating_child_avg(self, operator, value):
         op = rating_data.OPERATOR_MAPPING.get(operator)
         if not op:
             return NotImplemented

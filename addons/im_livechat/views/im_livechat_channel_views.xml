@@ -24,7 +24,7 @@
  <field name="arch" type="xml">
  <kanban js_class="im_livechat.livechat_channel_kanban" action="im_livechat.discuss_channel_action_from_livechat_channel" type="action">
  <field name="are_you_inside"/>
- <field name="rating_count"/>
+ <field name="rating_child_count"/>
  <templates>
  <t t-name="menu">
  <a type="open" class="dropdown-item" role="menuitem">
@@ -46,8 +46,8 @@
  </div>
  <footer class="pt-0">
  <field name="available_operator_ids" widget="many2many_avatar_user" readonly="True"/>
- <a t-if="record.rating_count.raw_value > 0" name="action_view_rating" class="ms-auto fs-6" type="object" tabindex="10">
- <i class="fa-regular fa-face-smile text-success" title="Percentage of happy ratings" role="img" aria-label="Happy face"/> <field name="rating_percentage_satisfaction"/>%
+ <a t-if="record.rating_child_count.raw_value > 0" name="action_view_rating" class="ms-auto fs-6" type="object" tabindex="10">
+ <i class="fa-regular fa-face-smile text-success" title="Percentage of happy ratings" role="img" aria-label="Happy face"/> <field name="rating_child_percentage_satisfaction"/>%
  </a>
  </footer>
  </main>
@@ -68,7 +68,7 @@
  <field name="are_you_inside" invisible="1"/>
  </header>
  <sheet>
- <field name="rating_count" invisible="1"/>
+ <field name="rating_child_count" invisible="1"/>
  <div class="oe_button_box" name="button_box">
  <button class="oe_stat_button" type="object" name="action_view_chatbot_scripts" icon="fa-android"
  invisible="chatbot_script_count == 0" groups="im_livechat.im_livechat_group_manager">
@@ -80,8 +80,8 @@
  <span class="o_stat_value"><field name="nbr_channel"/></span>
  <span class="o_stat_text">Sessions</span>
  </div>
- <div class="o_stat_info flex-row-reverse align-items-baseline gap-1 me-1" invisible="rating_count == 0">
- <span class="o_stat_value"><field name="rating_percentage_satisfaction"/>%</span>
+ <div class="o_stat_info flex-row-reverse align-items-baseline gap-1 me-1" invisible="rating_child_count == 0">
+ <span class="o_stat_value"><field name="rating_child_percentage_satisfaction"/>%</span>
  <span class="o_stat_text">Happy</span>
  </div>
  </div>

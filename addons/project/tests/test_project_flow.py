@@ -229,17 +229,17 @@ class TestProjectFlow(TestProjectCommon, MailCase):
         )
         self.assertEqual(rating_good.parent_res_id, self.project_pigs.id)
 
-        self.assertEqual(self.project_goats.rating_percentage_satisfaction, -1)
+        self.assertEqual(self.project_goats.rating_child_percentage_satisfaction, -1)
         self.assertEqual(
-            self.project_goats.rating_avg,
+            self.project_goats.rating_child_avg,
             0,
             "Since there is no rating in this project, the Average Rating should be equal to 0.",
         )
         self.assertEqual(
-            self.project_pigs.rating_percentage_satisfaction, 0
+            self.project_pigs.rating_child_percentage_satisfaction, 0
         )  # There is a rating but not a "great" on, just an "okay".
         self.assertEqual(
-            self.project_pigs.rating_avg,
+            self.project_pigs.rating_child_avg,
             rating_bad.rating,
             "Since there is only one rating the Average Rating should be equal to the rating value of this one.",
         )
@@ -259,10 +259,10 @@ class TestProjectFlow(TestProjectCommon, MailCase):
         )
         self.assertEqual(first_task.rating_avg_text, "top")
         self.assertEqual(rating_good.parent_res_id, self.project_pigs.id)
-        self.assertEqual(self.project_goats.rating_percentage_satisfaction, -1)
-        self.assertEqual(self.project_pigs.rating_percentage_satisfaction, 50)
-        self.assertEqual(self.project_pigs.rating_avg, rating_avg)
-        self.assertEqual(self.project_pigs.rating_avg_percentage, rating_avg / 5)
+        self.assertEqual(self.project_goats.rating_child_percentage_satisfaction, -1)
+        self.assertEqual(self.project_pigs.rating_child_percentage_satisfaction, 50)
+        self.assertEqual(self.project_pigs.rating_child_avg, rating_avg)
+        self.assertEqual(self.project_pigs.rating_child_avg_percentage, rating_avg / 5)
 
         # We change the task from project_pigs to project_goats, ratings should be associated with the new project
         first_task.project_id = self.project_goats.id
@@ -272,10 +272,10 @@ class TestProjectFlow(TestProjectCommon, MailCase):
         self.env.invalidate_all()
 
         self.assertEqual(rating_good.parent_res_id, self.project_goats.id)
-        self.assertEqual(self.project_goats.rating_percentage_satisfaction, 50)
-        self.assertEqual(self.project_goats.rating_avg, rating_avg)
-        self.assertEqual(self.project_pigs.rating_percentage_satisfaction, -1)
-        self.assertEqual(self.project_pigs.rating_avg, 0)
+        self.assertEqual(self.project_goats.rating_child_percentage_satisfaction, 50)
+        self.assertEqual(self.project_goats.rating_child_avg, rating_avg)
+        self.assertEqual(self.project_pigs.rating_child_percentage_satisfaction, -1)
+        self.assertEqual(self.project_pigs.rating_child_avg, 0)
 
     def test_task_with_no_project(self) -> None:
         """With this test, we want to make sure the fact that a task has no project doesn't affect the entire

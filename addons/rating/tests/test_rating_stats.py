@@ -91,30 +91,30 @@ class TestRatingStats(TransactionCase):
         self._rate(5)
         self._rate(1)
         self.project.invalidate_recordset(
-            ["rating_count", "rating_avg", "rating_percentage_satisfaction"],
+            ["rating_child_count", "rating_child_avg", "rating_child_percentage_satisfaction"],
         )
-        self.assertEqual(self.project.rating_count, 3)
-        self.assertAlmostEqual(self.project.rating_avg, 11 / 3, places=2)
+        self.assertEqual(self.project.rating_child_count, 3)
+        self.assertAlmostEqual(self.project.rating_child_avg, 11 / 3, places=2)
         # integer field: 200/3 truncates to 66
-        self.assertEqual(self.project.rating_percentage_satisfaction, 66)
+        self.assertEqual(self.project.rating_child_percentage_satisfaction, 66)
         self.assertAlmostEqual(
-            self.project.rating_avg_percentage,
+            self.project.rating_child_avg_percentage,
             11 / 15,
             places=2,
         )
 
     def test_parent_without_ratings_uses_sentinel(self):
         """A project without ratings reports the -1 sentinel (boundary)."""
-        self.project.invalidate_recordset(["rating_percentage_satisfaction"])
-        self.assertEqual(self.project.rating_percentage_satisfaction, -1)
+        self.project.invalidate_recordset(["rating_child_percentage_satisfaction"])
+        self.assertEqual(self.project.rating_child_percentage_satisfaction, -1)
 
     def test_search_projects_by_average_rating(self):
         """Projects are searchable by their aggregated average rating."""
         self._rate(5)
         self._rate(4)
-        matches = self.env["project.project"].search([("rating_avg", ">=", 4)])
+        matches = self.env["project.project"].search([("rating_child_avg", ">=", 4)])
         self.assertIn(self.project, matches)
-        empty = self.env["project.project"].search([("rating_avg", ">=", 4.6)])
+        empty = self.env["project.project"].search([("rating_child_avg", ">=", 4.6)])
         self.assertNotIn(self.project, empty)
 
 
