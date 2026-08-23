@@ -37,7 +37,7 @@ class TestMrpQuant(TestMrpCommon):
             }
         )
 
-        product_kit._compute_is_kits()
+        product_kit._compute_is_kit()
         delivery.move_ids.quantity = 1
         product_normal = self.env["product.product"].create(
             {"name": "Normal Product Test", "type": "consu", "is_storable": True}

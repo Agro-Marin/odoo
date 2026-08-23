@@ -7,7 +7,7 @@ class StockQuant(models.Model):
 
     @api.constrains("product_id")
     def _check_kits(self):
-        if self.sudo().product_id.filtered("is_kits"):
+        if self.sudo().product_id.filtered("is_kit"):
             raise UserError(
                 _(
                     "You should update the components quantity instead of directly updating the quantity of the kit product."
@@ -25,4 +25,4 @@ class StockQuant(models.Model):
     ):
         return super()._should_bypass_product(
             product, location, reserved_quantity, lot_id, package_id, owner_id
-        ) or (product and product.is_kits)
+        ) or (product and product.is_kit)

@@ -103,7 +103,7 @@ class ProductProduct(models.Model):
         Exclude kit products from inventory valuation to avoid double counting.
         Only non-kit products are valuated; kits are set to zero value.
         """
-        non_kit_products = self.filtered(lambda product: not product.is_kits)
+        non_kit_products = self.filtered(lambda product: not product.is_kit)
         super(ProductProduct, non_kit_products)._compute_value()
         kit_products = self - non_kit_products
         for kit_product in kit_products:

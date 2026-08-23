@@ -80,7 +80,7 @@ class TestMrpRepairFlow(TestMrpCommon):
         self.assertEqual(repair.state, 'confirmed')
         self.assertEqual(len(repair.move_ids), 0)
         # Ensure the product is a kit
-        self.assertTrue(self.product_5.is_kits)
+        self.assertTrue(self.product_5.is_kit)
         # Add the kit to the repair order
         self.env['stock.move'].create({
             'repair_id': repair.id,

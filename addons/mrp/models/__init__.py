@@ -8,7 +8,9 @@ from . import mrp_production
 from . import stock_traceability
 from . import mrp_unbuild
 from . import mrp_workorder
-from . import product
+from . import mixin_mrp_product
+from . import product_template
+from . import product_product
 from . import res_company
 from . import stock_move
 from . import stock_move_line

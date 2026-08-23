@@ -5971,7 +5971,7 @@ class TestMrpOrder(TestMrpCommon):
 
     def test_update_mo_from_bom_with_kit(self):
         kit_bom_line = self.bom_3.bom_line_ids.filtered(
-            lambda line: line.product_id.is_kits
+            lambda line: line.product_id.is_kit
         )
         self.assertEqual(len(kit_bom_line), 1)
         kit_bom = kit_bom_line.product_id.bom_ids

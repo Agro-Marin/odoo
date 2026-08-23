@@ -708,7 +708,7 @@ class TestBoM(TestMrpCommon):
             "-384.00000",
         )
 
-    def test_19_bom_kit_field_is_kits_bom_with_product_id(self):
+    def test_19_bom_kit_field_is_kit_bom_with_product_id(self):
         kit_products = self.env["product.product"].create(
             {
                 "name": "No Kit",
@@ -739,8 +739,8 @@ class TestBoM(TestMrpCommon):
                 ],
             }
         )
-        self.assertTrue(kit_products.is_kits)
-        self.assertTrue(kit_products.product_tmpl_id.is_kits)
+        self.assertTrue(kit_products.is_kit)
+        self.assertTrue(kit_products.product_tmpl_id.is_kit)
 
         no_kit_products = self.env["product.product"].create(
             {
@@ -749,12 +749,12 @@ class TestBoM(TestMrpCommon):
                 "uom_id": self.uom_unit.id,
             }
         )
-        self.assertFalse(no_kit_products.is_kits)
-        self.assertFalse(no_kit_products.product_tmpl_id.is_kits)
+        self.assertFalse(no_kit_products.is_kit)
+        self.assertFalse(no_kit_products.product_tmpl_id.is_kit)
 
-        product_with_kit = self.env["product.product"].search([("is_kits", "=", True)])
+        product_with_kit = self.env["product.product"].search([("is_kit", "=", True)])
         product_tmpl_with_kit = self.env["product.template"].search(
-            [("is_kits", "=", True)]
+            [("is_kit", "=", True)]
         )
         self.assertIn(kit_products, product_with_kit)
         self.assertIn(kit_products.product_tmpl_id, product_tmpl_with_kit)
@@ -762,17 +762,17 @@ class TestBoM(TestMrpCommon):
         self.assertNotIn(no_kit_products.product_tmpl_id, product_tmpl_with_kit)
 
         product_without_kit = self.env["product.product"].search(
-            [("is_kits", "=", False)]
+            [("is_kit", "=", False)]
         )
         product_tmpl_without_kit = self.env["product.template"].search(
-            [("is_kits", "=", False)]
+            [("is_kit", "=", False)]
         )
         self.assertIn(no_kit_products, product_without_kit)
         self.assertIn(no_kit_products.product_tmpl_id, product_tmpl_without_kit)
         self.assertNotIn(kit_products, product_without_kit)
         self.assertNotIn(kit_products.product_tmpl_id, product_tmpl_without_kit)
 
-    def test_19_bom_kit_field_is_kits_bom_without_product_id(self):
+    def test_19_bom_kit_field_is_kit_bom_without_product_id(self):
         kit_products = self.env["product.product"].create(
             {
                 "name": "No Kit",
@@ -802,8 +802,8 @@ class TestBoM(TestMrpCommon):
                 ],
             }
         )
-        self.assertTrue(kit_products.is_kits)
-        self.assertTrue(kit_products.product_tmpl_id.is_kits)
+        self.assertTrue(kit_products.is_kit)
+        self.assertTrue(kit_products.product_tmpl_id.is_kit)
 
         no_kit_products = self.env["product.product"].create(
             {
@@ -812,12 +812,12 @@ class TestBoM(TestMrpCommon):
                 "uom_id": self.uom_unit.id,
             }
         )
-        self.assertFalse(no_kit_products.is_kits)
-        self.assertFalse(no_kit_products.product_tmpl_id.is_kits)
+        self.assertFalse(no_kit_products.is_kit)
+        self.assertFalse(no_kit_products.product_tmpl_id.is_kit)
 
-        product_with_kit = self.env["product.product"].search([("is_kits", "=", True)])
+        product_with_kit = self.env["product.product"].search([("is_kit", "=", True)])
         product_tmpl_with_kit = self.env["product.template"].search(
-            [("is_kits", "=", True)]
+            [("is_kit", "=", True)]
         )
         self.assertIn(kit_products, product_with_kit)
         self.assertIn(kit_products.product_tmpl_id, product_tmpl_with_kit)
@@ -825,10 +825,10 @@ class TestBoM(TestMrpCommon):
         self.assertNotIn(no_kit_products.product_tmpl_id, product_tmpl_with_kit)
 
         product_without_kit = self.env["product.product"].search(
-            [("is_kits", "=", False)]
+            [("is_kit", "=", False)]
         )
         product_tmpl_without_kit = self.env["product.template"].search(
-            [("is_kits", "=", False)]
+            [("is_kit", "=", False)]
         )
         self.assertIn(no_kit_products, product_without_kit)
         self.assertIn(no_kit_products.product_tmpl_id, product_tmpl_without_kit)

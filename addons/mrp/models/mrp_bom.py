@@ -538,6 +538,39 @@ class MrpBom(models.Model):
             )
 
     @api.model
+    def _get_kit_domain(self, company=None):
+        """Kit BoMs a company explodes -- the active one unless told otherwise.
+
+        One definition for the three places that ask "is this product a kit":
+        ``product.(template|product)._compute_is_kit`` and their ``search``
+        counterparts. The three used to scope differently -- the compute to
+        ``env.company``, the search to ``env.companies``, the quantity path to
+        no company at all -- so the same product answered kit, not-a-kit and
+        kit-with-no-BoM depending on which one you asked. ``env.company`` is
+        the answer the field is documented to give
+        (``@api.depends_context("company")``, and
+        ``test_multicompany.test_is_kit_in_multi_company_env`` pins it), so it
+        is the one the others adopt. ``company`` is for the callers that carry
+        one of their own rather than reading the environment --
+        ``stock.warehouse.orderpoint``'s kit constraint is scoped to the
+        orderpoint's company, and spelled this domain a fourth time to say so.
+
+        ``active`` is stated rather than left to ``active_test``, for the same
+        reason ``_bom_find_domain`` states it: an archived BoM does not explode,
+        so a caller reading these fields under ``active_test=False`` -- an
+        archived-records view, or any code that set it -- must not be told the
+        product is a kit. Measured before it was stated: under
+        ``active_test=False`` the *search* returned a product whose only phantom
+        BoM was archived, while the field and ``_bom_find`` both said no.
+        """
+        companies = company if company is not None else self.env.company
+        return (
+            Domain("type", "=", "phantom")
+            & Domain("active", "=", True)
+            & Domain("company_id", "in", [False, *companies.ids])
+        )
+
+    @api.model
     def _bom_find_domain(
         self, products, picking_type=None, company_id=False, bom_type=False
     ):
@@ -1291,6 +1324,56 @@ class MrpBomLine(models.Model):
         return {
             "quantity": 0,
         }
+
+    def _get_still_used_notification(self):
+        """Warn that the products just archived remain components of a live BoM.
+
+        ``product.template`` and ``product.product`` archive the same way and
+        differ only in how they select these lines, so the notification --
+        including the sentence a translator keeps in sync -- is built once,
+        here, where the lines live.
+
+        Returns ``None`` when there is nothing to warn about, so the caller
+        keeps whatever ``action_archive`` returned.
+        """
+        products = self.product_id
+        if not products:
+            return None
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": self.env._(
+                    "Note that product(s): '%s' is/are still linked to active Bill of "
+                    "Materials, which means that the product can still be used on "
+                    "it/them.",
+                    products.mapped("display_name"),
+                ),
+                "type": "warning",
+                "sticky": True,
+                "next": {"type": "ir.actions.act_window_close"},
+            },
+        }
+
+    def _get_exploded_kit_quantity(self, bom, line_quantity, ancestors):
+        """How much of `bom` this line calls for, in `bom`'s own unit.
+
+        Also the point at which a kit that contains itself is caught: the
+        explosion reaches it at run time, where the constraint that should have
+        refused it cannot.
+        """
+        self.ensure_one()
+        if self.product_id.id in ancestors:
+            raise ValidationError(
+                _(
+                    "The current configuration is incorrect because it would "
+                    "create a cycle between these products: %s.",
+                    self.product_id.display_name,
+                )
+            )
+        return self.product_uom_id._compute_quantity(
+            line_quantity / bom.product_qty, bom.product_uom_id, round=False
+        )
 
     def _prepare_bom_done_values(self, quantity, product, original_quantity, boms_done):
         return {

@@ -639,7 +639,7 @@ class StockMove(models.Model):
 
     def _action_done(self, cancel_backorder=False):
         moves_to_explode = self.filtered(
-            lambda m: m.product_id.is_kits and m.state not in ("cancel", "done")
+            lambda m: m.product_id.is_kit and m.state not in ("cancel", "done")
         )
         exploded_moves = moves_to_explode.action_explode()
         moves = (self - moves_to_explode) | exploded_moves
@@ -648,7 +648,7 @@ class StockMove(models.Model):
     def _should_bypass_reservation(self, forced_location=False):
         return (
             super()._should_bypass_reservation(forced_location)
-            or self.product_id.with_company(self.company_id).is_kits
+            or self.product_id.with_company(self.company_id).is_kit
         )
 
     def _is_explodable(self):

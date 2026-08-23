@@ -236,22 +236,22 @@ class TestMrpMulticompany(common.TransactionCase):
         self.assertFalse(
             product1.with_context(
                 allowed_company_ids=[self.company_b.id, self.company_a.id]
-            ).is_kits
+            ).is_kit
         )
         self.assertFalse(
             template1.with_context(
                 allowed_company_ids=[self.company_b.id, self.company_a.id]
-            ).is_kits
+            ).is_kit
         )
-        self.assertTrue(product1.with_company(self.company_a).is_kits)
-        self.assertTrue(template1.with_company(self.company_a).is_kits)
-        self.assertFalse(product1.with_company(self.company_b).is_kits)
-        self.assertFalse(template1.with_company(self.company_b).is_kits)
+        self.assertTrue(product1.with_company(self.company_a).is_kit)
+        self.assertTrue(template1.with_company(self.company_a).is_kit)
+        self.assertFalse(product1.with_company(self.company_b).is_kit)
+        self.assertFalse(template1.with_company(self.company_b).is_kit)
 
-        self.assertTrue(product2.with_company(self.company_a).is_kits)
-        self.assertTrue(template2.with_company(self.company_a).is_kits)
-        self.assertTrue(product2.with_company(self.company_b).is_kits)
-        self.assertTrue(template2.with_company(self.company_b).is_kits)
+        self.assertTrue(product2.with_company(self.company_a).is_kit)
+        self.assertTrue(template2.with_company(self.company_a).is_kit)
+        self.assertTrue(product2.with_company(self.company_b).is_kit)
+        self.assertTrue(template2.with_company(self.company_b).is_kit)
 
     def test_partner_1(self):
         shared_product = self.env["product.product"].create(

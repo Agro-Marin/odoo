@@ -13,7 +13,7 @@ class StockScrap(models.Model):
     workorder_id = fields.Many2one(
         "mrp.workorder", "Work Order", index="btree_not_null", check_company=True
     )
-    product_is_kit = fields.Boolean(related="product_id.is_kits")
+    product_is_kit = fields.Boolean(related="product_id.is_kit")
     product_template = fields.Many2one(related="product_id.product_tmpl_id")
     bom_id = fields.Many2one(
         "mrp.bom",
@@ -104,7 +104,7 @@ class StockScrap(models.Model):
 
     def _create_scrap_move(self):
         move = super()._create_scrap_move()
-        if self.product_id.is_kits:
+        if self.product_id.is_kit:
             move = move.with_context(is_scrap=True).action_explode()
         return move
 
