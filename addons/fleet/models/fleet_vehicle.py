@@ -146,8 +146,11 @@ class FleetVehicle(models.Model):
     @api.depends('log_services')
     def _compute_service_activity(self):
         for vehicle in self:
-            activities_state = set(state for state in vehicle.log_services.mapped('activity_state') if state and state != 'planned')
-            vehicle.service_activity = sorted(activities_state)[0] if activities_state else 'none'
+            vehicle.service_activity = self._most_urgent_activity_state(
+                vehicle.log_services.mapped('activity_state'),
+                among=('overdue', 'today'),
+                fallback='none',
+            )
 
     def _load_fields_from_model(self, fields_to_load):
         '''

@@ -1,6 +1,6 @@
 import logging
 import typing
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from datetime import UTC, date, datetime
 from types import NotImplementedType
 from typing import Any, Literal
@@ -100,6 +100,30 @@ class MixinMailActivity(models.AbstractModel):
         compute="_compute_activity_exception_type",
         groups="base.group_user",
     )
+
+    # Most urgent first. `activity_state`'s own selection happens to be in this
+    # order and sorting it alphabetically happens to agree, which is how one
+    # consumer came to rely on `sorted(states)[0]` -- true only for as long as
+    # "overdue" keeps sorting before "today".
+    ACTIVITY_STATE_URGENCY = ("overdue", "today", "planned")
+
+    @api.model
+    def _most_urgent_activity_state(
+        self,
+        states: Iterable[str | Literal[False]],
+        among: Sequence[str] | None = None,
+        fallback: Any = False,
+    ) -> Any:
+        """Reduce a set of child activity states to the one that should show.
+
+        A parent record summarising its children's activities wants the most
+        urgent of them. `among` narrows the answer to the values the caller's
+        own field can hold -- a field offering only overdue/today must not be
+        handed "planned".
+        """
+        present = {state for state in states if state}
+        order = among if among is not None else self.ACTIVITY_STATE_URGENCY
+        return next((state for state in order if state in present), fallback)
 
     def _open_activities(self) -> MailActivity:
         activities = self.activity_ids
