@@ -1,4 +1,4 @@
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 from odoo.fields import Domain
 
 
@@ -81,3 +81,28 @@ class StockPicking(models.Model):
     def _action_done(self):
         self.purchase_id.sudo().action_acknowledge()
         return super()._action_done()
+
+    def action_purchase_matching(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Purchase Matching"),
+            "res_model": "purchase.receipt.line.match",
+            "views": [
+                (
+                    self.env.ref("purchase_stock.purchase_receipt_line_match_list").id,
+                    "list",
+                ),
+            ],
+            "domain": [
+                ("company_id", "in", self.env.companies.ids),
+                (
+                    "partner_id",
+                    "in",
+                    (self.partner_id | self.partner_id.commercial_partner_id).ids,
+                ),
+                "|",
+                ("picking_id", "=", self.id),
+                ("picking_id", "=", False),
+            ],
+        }

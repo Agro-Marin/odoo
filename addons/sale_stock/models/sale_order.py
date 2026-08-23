@@ -509,3 +509,30 @@ class SaleOrder(models.Model):
         # Not hoisted into mixin.order.stock: that mixin sits below
         # stock.product_catalog_mixin in the MRO, so its answer never wins.
         return True
+
+    def action_delivery_matching(self):
+        self.ensure_one()
+        return {
+            "name": _("Delivery Matching"),
+            "type": "ir.actions.act_window",
+            "res_model": "sale.delivery.line.match",
+            "views": [
+                (
+                    self.env.ref("sale_stock.sale_delivery_line_match_list").id,
+                    "list",
+                ),
+            ],
+            "domain": [
+                ("company_id", "in", self.env.company.ids),
+                (
+                    "partner_id",
+                    "in",
+                    (self.partner_id | self.partner_id.commercial_partner_id).ids,
+                ),
+                "|",
+                ("order_id", "=", self.id),
+                "&",
+                ("order_id", "=", False),
+                ("product_id", "in", self.line_ids.product_id.ids),
+            ],
+        }

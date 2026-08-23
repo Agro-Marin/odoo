@@ -1,4 +1,4 @@
-from odoo import Command, api, fields, models
+from odoo import Command, _, api, fields, models
 from odoo.db.schema import column_exists, create_column
 from odoo.fields import Domain
 
@@ -220,3 +220,25 @@ class StockPicking(models.Model):
     def _can_return(self):
         self.ensure_one()
         return super()._can_return() or self.sale_id
+
+    def action_sale_matching(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Sales Matching"),
+            "res_model": "sale.delivery.line.match",
+            "views": [
+                (self.env.ref("sale_stock.sale_delivery_line_match_list").id, "list"),
+            ],
+            "domain": [
+                ("company_id", "in", self.env.companies.ids),
+                (
+                    "partner_id",
+                    "in",
+                    (self.partner_id | self.partner_id.commercial_partner_id).ids,
+                ),
+                "|",
+                ("picking_id", "=", self.id),
+                ("picking_id", "=", False),
+            ],
+        }

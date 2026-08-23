@@ -1,12 +1,13 @@
 {
     "name": "Purchase Stock",
-    "version": "1.2",
+    "version": "1.3",
     "category": "Supply Chain/Purchase",
     "sequence": 60,
     "summary": "Purchase Orders, Receipts, Vendor Bills for Stock",
     "depends": ["stock_account", "purchase", "base_order_stock"],
     "data": [
         "security/ir.model.access.csv",
+        "report/purchase_receipt_line_match_views.xml",
         "data/purchase_stock_data.xml",
         "data/mail_templates.xml",
         "report/vendor_delay_report.xml",

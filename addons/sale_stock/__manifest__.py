@@ -1,6 +1,6 @@
 {
     "name": "Sales Stock",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Sales/Sales",
     "summary": "Quotation, Sales Orders, Delivery & Invoicing Control",
     "description": """
@@ -20,6 +20,7 @@ Preferences
     "data": [
         "security/sale_stock_security.xml",
         "security/ir.model.access.csv",
+        "report/sale_delivery_line_match_views.xml",
         "data/mail_templates.xml",
         "data/sale_stock_data.xml",
         "report/customer_delay_report.xml",

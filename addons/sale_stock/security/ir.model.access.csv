@@ -17,3 +17,5 @@ access_stock_rule,stock.rule.flow,stock.model_stock_rule,sales_team.group_sale_s
 access_stock_package_type_salesman,stock_package_type salesman,stock.model_stock_package_type,sales_team.group_sale_salesman,1,0,0,0
 access_customer_delay_report_manager,customer.delay.report,model_customer_delay_report,sales_team.group_sale_manager,1,0,0,0
 access_customer_delay_report_user,customer.delay.report user,model_customer_delay_report,sales_team.group_sale_salesman,1,0,0,0
+access_sale_delivery_line_match,sale.delivery.line.match user,model_sale_delivery_line_match,sales_team.group_sale_salesman,1,1,0,0
+access_sale_delivery_line_match_stock,sale.delivery.line.match stock,model_sale_delivery_line_match,stock.group_stock_user,1,1,0,0

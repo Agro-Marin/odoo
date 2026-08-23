@@ -11,6 +11,10 @@
                     string="Receive" class="oe_highlight" type="object"
                     invisible="is_shipped or state != 'done' or count_transfer_incoming == 0"
                     data-hotkey="y" groups="stock.group_stock_user" />
+                <button name="action_receipt_matching"
+                    string="Match Receipts" type="object"
+                    invisible="state != 'done' or transfer_state in ('no', 'done')"
+                    groups="stock.group_stock_user" />
             </xpath>
             <button name="action_view_invoice" position="before">
                 <button type="object"
