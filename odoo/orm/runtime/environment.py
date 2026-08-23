@@ -200,6 +200,13 @@ class Environment(Mapping[str, "BaseModel"]):
     def __len__(self):
         return len(self.registry)
 
+    # Identity, and load-bearing. `Mapping` supplies an `__eq__` that compares
+    # `dict(self) == dict(other)`, and `dict(env)` instantiates every model in
+    # the registry -- so without these three, `env1 == env2` would build two
+    # full recordset sets to answer a question about object identity.
+    # `__hash__` has to come with them: defining `__eq__` would otherwise set it
+    # to None and make an Environment unhashable, which `_EnvironmentSet`
+    # depends on.
     def __eq__(self, other):
         return self is other
 

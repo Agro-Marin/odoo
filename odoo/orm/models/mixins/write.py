@@ -304,11 +304,11 @@ class WriteMixin(_ModelStubs):
         return values
 
     def _update_assignments_sql(
-        self, fnames: tuple[str, ...], value_sql: Callable[[str, SQL, SQL], SQL]
+        self, fnames: tuple[str, ...], value_sql: Callable[[int, str, SQL, SQL], SQL]
     ) -> tuple[list[SQL], list[SQL]]:
         columns = []
         assignments = []
-        for fname in fnames:
+        for index, fname in enumerate(fnames):
             field = self._fields[fname]
             column_type = field.column_type
             if not field.is_column or column_type is None:
@@ -317,7 +317,7 @@ class WriteMixin(_ModelStubs):
                 )
             column = SQL.identifier(fname)
             cast = SQL(column_type[1])
-            expr = value_sql(fname, column, cast)
+            expr = value_sql(index, fname, column, cast)
             if field.translate is True:
                 expr = SQL(
                     """CASE WHEN %(expr)s IS NULL THEN NULL ELSE
@@ -352,7 +352,7 @@ class WriteMixin(_ModelStubs):
     ) -> None:
         columns, assignments = self._update_assignments_sql(
             fnames,
-            lambda fname, column, cast: SQL('"__tmp".%s::%s', column, cast),
+            lambda _index, _fname, column, cast: SQL('"__tmp".%s::%s', column, cast),
         )
         self.env.cr.execute(
             SQL(
@@ -371,11 +371,19 @@ class WriteMixin(_ModelStubs):
     def _update_rows_uniform_sql(
         self, fnames: tuple[str, ...], ids: list[int], values: tuple
     ) -> None:
+        """One statement for every id sharing one value tuple.
+
+        The whole group in one statement instead of ``ceil(n / 100)`` of them,
+        each carrying the value once rather than once per row, and with a query
+        string that does not vary with the row count.
+        """
+        # `values[index]`, not `values[fnames.index(fname)]`: the loop that
+        # calls this already knows the position, and searching for it made the
+        # assignment build O(len(fnames)^2) -- with a wrong answer waiting for
+        # the day two columns share a name.
         _columns, assignments = self._update_assignments_sql(
             fnames,
-            lambda fname, column, cast: SQL(
-                "%s::%s", values[fnames.index(fname)], cast
-            ),
+            lambda index, _fname, _column, cast: SQL("%s::%s", values[index], cast),
         )
         self.env.cr.execute(
             SQL(

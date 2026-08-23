@@ -45,10 +45,7 @@ class CreateAccessBatchingCase(TransactionCase):
         self.env.invalidate_all()
         before = self.env.cr.sql_log_count
         holder.create(
-            [
-                {"name": f"h{i}", fname: self.targets[i].id}
-                for i in range(count)
-            ]
+            [{"name": f"h{i}", fname: self.targets[i].id} for i in range(count)]
         )
         self.env.flush_all()
         return self.env.cr.sql_log_count - before

@@ -4449,7 +4449,10 @@ class PropertiesDefinitionRoundTripCase(TestPropertiesMixin):
         for missing in ("name", "type"):
             entry = self._definition_entry()
             del entry[0][missing]
-            with self.subTest(missing=missing), self.assertRaises(ValueError) as capture:
+            with (
+                self.subTest(missing=missing),
+                self.assertRaises(ValueError) as capture,
+            ):
                 self.discussion_1.attributes_definition = entry
                 self.env.flush_all()
             self.assertIn(missing, str(capture.exception))

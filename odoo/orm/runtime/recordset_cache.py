@@ -79,22 +79,22 @@ class Cache:
                 }
         return repr(data)
 
-    def _get_field_cache(
-        self, model: BaseModel, field: Field
-    ) -> typing.Mapping[IdType, typing.Any]:
-        return self._set_field_cache(model, field)
+    def _field_cache(self, model: BaseModel, field: Field) -> dict[IdType, typing.Any]:
+        """The dict this field's values live in, for ``model``'s environment.
 
-    def _set_field_cache(
-        self, model: BaseModel, field: Field
-    ) -> dict[IdType, typing.Any]:
+        Was two methods, ``_get_field_cache`` and ``_set_field_cache``, with
+        the first implemented as ``return self._set_field_cache(...)``: one
+        behaviour, two names, two return annotations, and nine call sites
+        below choosing between them by no rule anyone could state.
+        """
         return field._get_cache(model.env)
 
     def contains(self, record: BaseModel, field: Field) -> bool:
-        return record.id in self._get_field_cache(record, field)
+        return record.id in self._field_cache(record, field)
 
     def get(self, record: BaseModel, field: Field, default=SENTINEL):
         try:
-            field_cache = self._get_field_cache(record, field)
+            field_cache = self._field_cache(record, field)
             return field_cache[record._ids[0]]
         except KeyError, IndexError:
             if default is SENTINEL:
@@ -142,7 +142,7 @@ class Cache:
                 field,
                 overlap[:10],
             )
-        field_cache = self._set_field_cache(records, field)
+        field_cache = self._field_cache(records, field)
         field_cache.update(zip(records._ids, values, strict=False))
         if field.is_column and dirty:
             self.transaction.core.mark_dirty(
@@ -156,20 +156,20 @@ class Cache:
                 f"{field!r} on record {record}: pending write would be lost"
             )
         try:
-            field_cache = self._set_field_cache(record, field)
+            field_cache = self._field_cache(record, field)
             del field_cache[record._ids[0]]
         except KeyError:
             pass
 
     def get_values(self, records: BaseModel, field: Field) -> Iterator[typing.Any]:
-        field_cache = self._get_field_cache(records, field)
+        field_cache = self._field_cache(records, field)
         for record_id in records._ids:
             with contextlib.suppress(KeyError):
                 yield field_cache[record_id]
 
     def get_fields(self, record: BaseModel) -> Iterator[Field]:
         for name, field in record._fields.items():
-            if name != "id" and record.id in self._get_field_cache(record, field):
+            if name != "id" and record.id in self._field_cache(record, field):
                 yield field
 
     def get_records(
@@ -181,7 +181,7 @@ class Cache:
                 self.transaction.core.all_cached_ids(field, context_dependent=True)
             )
         else:
-            ids = self._get_field_cache(model, field)
+            ids = self._field_cache(model, field)
         return model.browse(ids)
 
     def get_missing_ids(self, records: BaseModel, field: Field) -> Iterator[IdType]:

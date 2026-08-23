@@ -277,11 +277,17 @@ class One2many(_RelationalMulti):
                         case Command.CLEAR | Command.SET:
                             line_ids = command[2] if command[0] == Command.SET else []
                             if not allow_full_delete:
+                                # No `allow_full_delete = False` here: the flag
+                                # is set once from `not create` and this branch
+                                # has already tested that it is False, so the
+                                # assignment that used to sit below could not
+                                # change anything. Mutation-tested: the
+                                # CLEAR/SET/CREATE/UNLINK sequence produces the
+                                # same lines with and without it.
                                 if line_ids:
                                     if line_ids.__class__ is int:
                                         line_ids = [line_ids]
                                     to_link[recs[-1]].update(line_ids)
-                                    allow_full_delete = False
                                 continue
                             flush()
                             lines = comodel.browse(line_ids)
