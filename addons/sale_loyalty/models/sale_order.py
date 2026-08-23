@@ -713,8 +713,7 @@ class SaleOrder(models.Model):
         # No other way than to test all programs to the order
         programs = self.env['loyalty.program'].search(domain)
         all_status = self._program_check_compute_points(programs)
-        program_points = {p: status['points'][0] for p, status in all_status.items() if 'points' in status}
-        return program_points
+        return {p: status['points'][0] for p, status in all_status.items() if 'points' in status}
 
     def _get_points_programs(self):
         """
@@ -784,8 +783,7 @@ class SaleOrder(models.Model):
                 points += self.coupon_point_ids.filtered(lambda p: p.coupon_id == coupon).points
             # Points already used by rewards
             points -= sum(self.line_ids.filtered(lambda l: l.coupon_id == coupon).mapped('points_cost'))
-        points = coupon.currency_id.round(points)
-        return points
+        return coupon.currency_id.round(points)
 
     def _add_points_for_coupon(self, coupon_points):
         """
@@ -828,6 +826,7 @@ class SaleOrder(models.Model):
             return self._get_reward_values_discount(reward, coupon, **kwargs)
         elif reward.reward_type == 'product':
             return self._get_reward_values_product(reward, coupon, **kwargs)
+        return None
 
     def _write_vals_from_reward_vals(self, reward_vals, old_lines, delete=True):
         """
@@ -837,7 +836,7 @@ class SaleOrder(models.Model):
         """
         self.ensure_one()
         command_list = []
-        for vals, line in zip(reward_vals, old_lines):
+        for vals, line in zip(reward_vals, old_lines, strict=False):
             if vals['product_id'] == line.product_id.id:
                 vals['name'] = line.name  # Preserve custom description
             command_list.append((Command.UPDATE, line.id, vals))
@@ -921,6 +920,7 @@ class SaleOrder(models.Model):
             )
         elif reward.discount_mode == 'percent':
             return discountable * (reward.discount / 100)
+        return None
 
     def _apply_program_reward(self, reward, coupon, **kwargs):
         """
@@ -1118,7 +1118,7 @@ class SaleOrder(models.Model):
                 all_point_changes = [p for p in status['points'] if p]
                 if not all_point_changes and program.is_nominative:
                     all_point_changes = [0]
-                for pe, points in zip(program_point_entries.sudo(), all_point_changes):
+                for pe, points in zip(program_point_entries.sudo(), all_point_changes, strict=False):
                     pe.points = points
                 if len(program_point_entries) < len(all_point_changes):
                     new_coupon_points = all_point_changes[len(program_point_entries):]
@@ -1131,7 +1131,7 @@ class SaleOrder(models.Model):
                         'points': 0,
                         'order_id': self.id,
                     } for _ in new_coupon_points])
-                    self._add_points_for_coupon({coupon: x for coupon, x in zip(new_coupons, new_coupon_points)})
+                    self._add_points_for_coupon(dict(zip(new_coupons, new_coupon_points, strict=True)))
                 elif len(program_point_entries) > len(all_point_changes):
                     point_ids_to_unlink = program_point_entries[len(all_point_changes):]
                     all_coupons -= point_ids_to_unlink.coupon_id
@@ -1267,7 +1267,7 @@ class SaleOrder(models.Model):
             # Some rules may split their points per unit / money spent
             #  (i.e. gift cards 2x50$ must result in two 50$ codes)
             rule_points = []
-            program_result = result.setdefault(program, dict())
+            program_result = result.setdefault(program, {})
             for rule in program.rule_ids:
                 # prevent bottomless ewallet spending
                 if program.program_type == 'ewallet' and not program.trigger_product_ids:
@@ -1278,7 +1278,7 @@ class SaleOrder(models.Model):
                 rule_amount = rule._compute_amount(self.currency_id)
                 untaxed_amount = sum(lines_per_rule[rule].mapped('price_subtotal'))
                 tax_amount = sum(lines_per_rule[rule].mapped('price_tax'))
-                if rule_amount > (rule.minimum_amount_tax_mode == 'incl' and (untaxed_amount + tax_amount) or untaxed_amount):
+                if rule_amount > ((rule.minimum_amount_tax_mode == 'incl' and (untaxed_amount + tax_amount)) or untaxed_amount):
                     continue
                 minimum_amount_matched = True
                 if not products_per_rule.get(rule):
@@ -1310,30 +1310,29 @@ class SaleOrder(models.Model):
                             if not points_per_unit:
                                 continue
                             rule_points.extend([points_per_unit] * int(line.product_qty))
-                else:
-                    # All checks have been passed we can now compute the points to give
-                    if rule.reward_point_mode == 'order':
-                        points += rule.reward_point_amount
-                    elif rule.reward_point_mode == 'money':
-                        # Compute amount paid for rule
-                        # NOTE: this accounts for discounts -> 1 point per $ * (100$ - 30%) will
-                        # result in 70 points
-                        amount_paid = 0.0
-                        rule_products = so_products_per_rule.get(rule, [])
-                        for line in self.line_ids - self._get_no_effect_on_threshold_lines():
-                            if line.combo_item_id or line.reward_id.program_id.program_type in [
-                                'ewallet', 'gift_card', program.program_type
-                            ]:
-                                continue
-                            line_price_total = self._get_order_line_price(line, 'price_total')
-                            amount_paid += (
-                                line_price_total if line.product_id in rule_products
-                                else 0.0
-                            )
+                # All checks have been passed we can now compute the points to give
+                elif rule.reward_point_mode == 'order':
+                    points += rule.reward_point_amount
+                elif rule.reward_point_mode == 'money':
+                    # Compute amount paid for rule
+                    # NOTE: this accounts for discounts -> 1 point per $ * (100$ - 30%) will
+                    # result in 70 points
+                    amount_paid = 0.0
+                    rule_products = so_products_per_rule.get(rule, [])
+                    for line in self.line_ids - self._get_no_effect_on_threshold_lines():
+                        if line.combo_item_id or line.reward_id.program_id.program_type in [
+                            'ewallet', 'gift_card', program.program_type
+                        ]:
+                            continue
+                        line_price_total = self._get_order_line_price(line, 'price_total')
+                        amount_paid += (
+                            line_price_total if line.product_id in rule_products
+                            else 0.0
+                        )
 
-                        points += float_round(rule.reward_point_amount * amount_paid, precision_digits=2, rounding_method='DOWN')
-                    elif rule.reward_point_mode == 'unit':
-                        points += rule.reward_point_amount * ordered_rule_products_qty
+                    points += float_round(rule.reward_point_amount * amount_paid, precision_digits=2, rounding_method='DOWN')
+                elif rule.reward_point_mode == 'unit':
+                    points += rule.reward_point_amount * ordered_rule_products_qty
             # NOTE: for programs that are nominative we always allow the program to be 'applied' on the order
             #  with 0 points so that `_get_claimable_rewards` returns the rewards associated with those programs
             if not program.is_nominative:
@@ -1385,7 +1384,7 @@ class SaleOrder(models.Model):
                     'points': 0,
                     'order_id': self.id,
                 } for _ in all_points])
-                self._add_points_for_coupon({coupon: x for coupon, x in zip(coupons, all_points)})
+                self._add_points_for_coupon(dict(zip(coupons, all_points, strict=True)))
         return {'coupon': coupons}
 
     def _try_apply_program(self, program, coupon=None):

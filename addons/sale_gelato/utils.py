@@ -7,7 +7,6 @@ import requests
 from odoo import _
 from odoo.exceptions import UserError
 
-
 _logger = logging.getLogger(__name__)
 
 
@@ -39,10 +38,10 @@ def make_request(api_key, subdomain, version, endpoint, payload=None, method='PO
         response_content = response.json()
         try:
             response.raise_for_status()
-        except requests.exceptions.HTTPError:
+        except requests.exceptions.HTTPError as error:
             _logger.exception("Invalid API request at %s with data %s", url, payload)
-            raise UserError(response_content.get('message', ''))
-    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            raise UserError(response_content.get('message', '')) from error
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as error:
         _logger.exception("Unable to reach endpoint at %s", url)
-        raise UserError(_("Could not establish the connection to the Gelato API."))
+        raise UserError(_("Could not establish the connection to the Gelato API.")) from error
     return response.json()

@@ -41,7 +41,7 @@ class ProjectTask(models.Model):
         #      in the task From View.
         timesheets = self.timesheet_ids.filtered(lambda t: t.task_id.sale_line_id in (t.so_line, t._origin.so_line) and t.so_line.remaining_hours_available)
 
-        mapped_remaining_hours = {task._origin.id: task.sale_line_id and task.sale_line_id.remaining_hours or 0.0 for task in self}
+        mapped_remaining_hours = {task._origin.id: (task.sale_line_id and task.sale_line_id.remaining_hours) or 0.0 for task in self}
         uom_hour = self.env.ref('uom.product_uom_hour')
         for timesheet in timesheets:
             delta = 0
@@ -60,7 +60,7 @@ class ProjectTask(models.Model):
         return [('sale_line_id.remaining_hours', operator, value)]
 
     def _compute_last_sol_of_customer(self):
-        sol_per_domain = dict()
+        sol_per_domain = {}
         for task in self:
             domain = tuple(task._get_last_sol_of_customer_domain())
             if not domain:

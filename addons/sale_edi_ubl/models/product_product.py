@@ -17,11 +17,13 @@ class ProductProduct(models.Model):
             return {
                 "criteria": [{"domain": [("default_code", "=", variant_default_code)]}]
             }
+        return None
 
     def _import_retrieve_product_from_variant_barcode(self, product_values):
         """Retrieve a product variant from its own ``barcode`` (UBL ExtendedID)."""
         if variant_barcode := product_values.get("variant_barcode"):
             return {"criteria": [{"domain": [("barcode", "=", variant_barcode)]}]}
+        return None
 
     def _get_retrieval_product_search_plan(self):
         """Override of `account` to look up product variants by their own

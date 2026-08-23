@@ -1,5 +1,5 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from datetime import date, timedelta
+from datetime import timedelta
 
 from odoo import Command
 from odoo.exceptions import AccessError, UserError, ValidationError
@@ -7,7 +7,6 @@ from odoo.fields import Date
 from odoo.tests import Form, new_test_user, tagged
 from odoo.tools import float_is_zero
 
-from odoo.addons.hr_timesheet.tests.test_timesheet import TestCommonTimesheet
 from odoo.addons.sale_timesheet.tests.common import TestCommonSaleTimesheet
 
 
@@ -419,7 +418,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             'partner_shipping_id': self.partner_a.id,
         })
         # Section Line
-        so_line_ordered_project_only = self.env['sale.order.line'].create({
+        self.env['sale.order.line'].create({
             'name': "Section Name",
             'order_id': sale_order.id,
             'display_type': 'line_section',
@@ -444,7 +443,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         sale_order.action_confirm()
         task_serv1 = self.env['project.task'].search([('sale_line_id', '=', so_line_deliver_global_project.id)])
         task_serv2 = self.env['project.task'].search([('sale_line_id', '=', so_line_deliver_task_project.id)])
-        project_serv2 = self.env['project.project'].search([('sale_line_id', '=', so_line_deliver_task_project.id)])
 
         timesheet1 = self.env['account.analytic.line'].create({
             'name': 'Test Line',
@@ -487,7 +485,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         # invalidate cache to make sure the SOL set on the timesheet is not in the cache since the user
         # should not be able to access on the SOL.
         self.env['sale.order.line'].invalidate_model()
-        timesheet5 = self.env['account.analytic.line'].with_user(self.user_employee_without_sales_access).create({
+        self.env['account.analytic.line'].with_user(self.user_employee_without_sales_access).create({
             'name': 'Test Line 5',
             'project_id': task_serv2.project_id.id,
             'task_id': task_serv2.id,
@@ -1295,7 +1293,7 @@ class TestSaleTimesheetAnalyticPlan(TestCommonSaleTimesheet):
         self.assertEqual(timesheet[other_analytic_plan3._column_name()], analytic_account3)
 
     def test_timesheet_get_accounts_from_sol_fallback_on_project(self):
-        _project_analytic_plan, other_plans = self.env['account.analytic.plan']._get_all_plans()
+        _project_analytic_plan, _other_plans = self.env['account.analytic.plan']._get_all_plans()
         other_analytic_plan2 = self.plan_b
         analytic_account2 = self.env['account.analytic.account'].create({
             'name': 'Analytic Account 2',

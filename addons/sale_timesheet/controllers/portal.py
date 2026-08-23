@@ -2,7 +2,7 @@
 
 from werkzeug.exceptions import NotFound
 
-from odoo import http, _
+from odoo import _, http
 from odoo.exceptions import AccessError, MissingError
 from odoo.fields import Domain
 from odoo.http import request

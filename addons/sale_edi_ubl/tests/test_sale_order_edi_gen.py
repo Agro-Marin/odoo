@@ -1,12 +1,14 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from datetime import datetime
+
+from lxml import etree
+
 from odoo import Command
-from odoo.addons.sale.tests.common import TestSaleCommon
 from odoo.tests import tagged
 from odoo.tools import file_open
 
-from lxml import etree
-from datetime import datetime
+from odoo.addons.sale.tests.common import TestSaleCommon
 
 
 @tagged('post_install', '-at_install')

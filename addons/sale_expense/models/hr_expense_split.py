@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import fields, models, api
+from odoo import api, fields, models
 
 
 class HrExpenseSplit(models.TransientModel):
@@ -11,7 +11,7 @@ class HrExpenseSplit(models.TransientModel):
 
     def _get_values(self):
         self.ensure_one()
-        vals = super(HrExpenseSplit, self)._get_values()
+        vals = super()._get_values()
         vals['sale_order_id'] = self.sale_order_id.id
         return vals
 

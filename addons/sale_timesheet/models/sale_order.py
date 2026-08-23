@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import float_compare
@@ -50,7 +50,8 @@ class SaleOrder(models.Model):
 
     def _compute_field_value(self, field):
         if field.name != 'invoice_state' or self.env.context.get('mail_activity_automation_skip'):
-            return super()._compute_field_value(field)
+            super()._compute_field_value(field)
+            return
 
         # Get SOs which their state is not equal to upselling and if at least a SOL has warning prepaid service upsell set to True and the warning has not already been displayed
         upsellable_orders = self.filtered(lambda so:
@@ -71,7 +72,7 @@ class SaleOrder(models.Model):
     def _compute_show_hours_recorded_button(self):
         show_button_ids = self._get_order_with_valid_service_product()
         for order in self:
-            order.show_hours_recorded_button = order.timesheet_count or order.project_count and order.id in show_button_ids
+            order.show_hours_recorded_button = order.timesheet_count or (order.project_count and order.id in show_button_ids)
 
     @api.model_create_multi
     def create(self, vals_list):

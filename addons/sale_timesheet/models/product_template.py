@@ -1,8 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import threading
-
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
 
@@ -33,9 +31,8 @@ class ProductTemplate(models.Model):
                product_uom_hour.factor == record.uom_id.factor:
                 record.service_upsell_threshold_ratio = False
                 continue
-            else:
-                timesheet_encode_uom = record.company_id.timesheet_encode_uom_id or company_uom
-                record.service_upsell_threshold_ratio = f'(1 {record.uom_id.name} = {timesheet_encode_uom.factor / product_uom_hour.factor:.2f} {timesheet_encode_uom.name})'
+            timesheet_encode_uom = record.company_id.timesheet_encode_uom_id or company_uom
+            record.service_upsell_threshold_ratio = f'(1 {record.uom_id.name} = {timesheet_encode_uom.factor / product_uom_hour.factor:.2f} {timesheet_encode_uom.name})'
 
     def _compute_visible_expense_policy(self):
         visibility = self.env.user.has_group('project.group_project_user')
@@ -95,7 +92,7 @@ class ProductTemplate(models.Model):
 
     def write(self, vals):
         # timesheet product can't be deleted, archived or linked to a company
-        if ('active' in vals and not vals['active']) or ('company_id' in vals and vals['company_id']):
+        if ('active' in vals and not vals['active']) or (vals.get('company_id')):
             time_product = self.env.ref('sale_timesheet.time_product')
             if time_product.product_tmpl_id in self:
                 raise ValidationError(_('The %s product is required by the Timesheets app and cannot be archived, deleted nor linked to a company.', time_product.name))

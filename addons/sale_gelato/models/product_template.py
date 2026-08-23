@@ -96,7 +96,7 @@ class ProductTemplate(models.Model):
 
     def _create_attributes_from_gelato_info(self, template_info):
         """ Create attributes for the current product template.
-        
+
         :param dict template_info: The template information fetched from Gelato.
         :return: None
         """

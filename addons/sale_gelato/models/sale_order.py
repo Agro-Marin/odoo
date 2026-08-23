@@ -9,7 +9,6 @@ from odoo.exceptions import UserError, ValidationError
 
 from odoo.addons.sale_gelato import const, utils
 
-
 _logger = logging.getLogger(__name__)
 
 
@@ -97,6 +96,7 @@ class SaleOrder(models.Model):
                 "The following required address fields are missing: %s",
                 ", ".join(translated_field_names),
             )
+        return None
 
     def _create_order_on_gelato(self):
         """ Send the order creation request to Gelato and log the request result on the chatter.
@@ -129,7 +129,7 @@ class SaleOrder(models.Model):
                 "Reason: %(error_message)s",
                 order_reference=self.display_name,
                 error_message=str(e),
-            ))
+            )) from e
 
         _logger.info("Notification received from Gelato with data:\n%s", pprint.pformat(data))
         self.message_post(

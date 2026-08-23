@@ -1,8 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import threading
-
-from odoo import api, models, tools, _
+from odoo import _, api, models
 from odoo.exceptions import ValidationError
 
 
@@ -43,7 +41,7 @@ class ProductProduct(models.Model):
 
     def write(self, vals):
         # timesheet product can't be deleted, archived or linked to a company
-        if ('active' in vals and not vals['active']) or ('company_id' in vals and vals['company_id']):
+        if ('active' in vals and not vals['active']) or (vals.get('company_id')):
             time_product = self.env.ref('sale_timesheet.time_product')
             if time_product in self:
                 raise ValidationError(_('The %s product is required by the Timesheets app and cannot be archived, deleted nor linked to a company.', time_product.name))

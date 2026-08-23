@@ -9,7 +9,6 @@ from werkzeug.exceptions import Forbidden
 from odoo import SUPERUSER_ID, _
 from odoo.http import Controller, request, route
 
-
 _logger = logging.getLogger(__name__)
 
 
@@ -59,7 +58,7 @@ class GelatoController(Controller):
                 # to ensure the values are saved in the correct format. However, the currency cannot
                 # be read directly during the flush due to access rights, necessitating manual
                 # caching.
-                order_sudo.line_ids.currency_id
+                order_sudo.line_ids.currency_id  # noqa: B018
 
                 # Log a message on the order.
                 log_message = _(
@@ -109,11 +108,11 @@ class GelatoController(Controller):
                 "gelato_webhook_secret not set for this company %s (id: %s)",
                 company_sudo.name, company_sudo.id
             )
-            raise Forbidden()
+            raise Forbidden
 
         if not hmac.compare_digest(received_signature, expected_signature):
             _logger.warning("Received notification with invalid signature.")
-            raise Forbidden()
+            raise Forbidden
 
     @staticmethod
     def _extract_tracking_data(item_data):

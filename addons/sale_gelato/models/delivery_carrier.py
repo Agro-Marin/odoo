@@ -31,7 +31,7 @@ class ProviderGelato(models.Model):
         """
         is_gelato_order = any(order.line_ids.product_id.mapped('gelato_product_uid'))
         is_gelato_delivery = self.delivery_type == 'gelato'
-        if is_gelato_order and not is_gelato_delivery or not is_gelato_order and is_gelato_delivery:
+        if (is_gelato_order and not is_gelato_delivery) or (not is_gelato_order and is_gelato_delivery):
             return False
         return super()._is_available_for_order(order)
 

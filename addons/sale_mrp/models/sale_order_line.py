@@ -215,7 +215,7 @@ class SaleOrderLine(models.Model):
             product = line.product_id.id
             uom = line.product_uom_id
             qty = line_data['qty']
-            if components.get(product, False):
+            if components.get(product):
                 if uom.id != components[product]['uom']:
                     from_uom = uom
                     to_uom = self.env['uom.uom'].browse(components[product]['uom'])

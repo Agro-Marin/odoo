@@ -3,7 +3,7 @@
 import json
 
 from odoo import api, fields, models
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.tools import SQL
 from odoo.tools.translate import _

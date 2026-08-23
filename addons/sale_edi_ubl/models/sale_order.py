@@ -1,4 +1,4 @@
-from odoo import _, api, models, Command
+from odoo import Command, _, api, models
 
 
 class SaleOrder(models.Model):

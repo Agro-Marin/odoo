@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 
-from odoo.addons.crm.tests import common as crm_common
 from odoo.tests.common import tagged, users
+
+from odoo.addons.crm.tests import common as crm_common
 
 
 @tagged('lead_manage')
@@ -11,7 +11,7 @@ class TestLeadConvertToTicket(crm_common.TestCrmCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestLeadConvertToTicket, cls).setUpClass()
+        super().setUpClass()
         cls.lead_1.write({
             'user_id': cls.user_sales_salesman.id,
         })

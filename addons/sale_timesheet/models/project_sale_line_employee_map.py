@@ -10,14 +10,13 @@ class ProjectSaleLineEmployeeMap(models.Model):
     _description = 'Project Sales line, employee mapping'
 
     def _domain_sale_line_id(self):
-        domain = Domain.AND([
+        return Domain.AND([
             self.env['sale.order.line']._get_lines_sellable_domain(),
             self.env['sale.order.line']._domain_sale_line_service(),
             [
                 ('partner_id', '=?', unquote('partner_id')),
             ],
         ])
-        return domain
 
     project_id = fields.Many2one('project.project', "Project", domain=[('is_template', '=', False)], required=True, index=True)
     employee_id = fields.Many2one('hr.employee', "Employee", required=True, domain="[('id', 'not in', existing_employee_ids)]")

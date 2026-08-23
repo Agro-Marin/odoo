@@ -93,8 +93,7 @@ class SaleOrder(models.Model):
                         """
                         if len(order_lines) > 1:
                             raise ValidationError(_("You cannot change the quantity of a product present in multiple sale lines."))
-                        else:
-                            order_lines[0].product_qty = qty
+                        order_lines[0].product_qty = qty
                             # If we want to support multiple lines edition:
                             # removal of other lines.
                             # For now, an error is raised instead
@@ -116,7 +115,7 @@ class SaleOrder(models.Model):
                     ))
             if new_lines:
                 # Add new SO lines
-                self.update(dict(line_ids=new_lines))
+                self.update({'line_ids': new_lines})
 
     def _get_matrix(self, product_template):
         """Return the matrix of the given product, updated with current SOLines quantities.
@@ -139,13 +138,13 @@ class SaleOrder(models.Model):
         if self.line_ids:
             lines = matrix['matrix']
             order_lines = self.line_ids.filtered(lambda line: line.product_template_id == product_template)
-            for line in lines:
-                for cell in line:
+            for row in lines:
+                for cell in row:
                     if not cell.get('name', False):
-                        line = order_lines.filtered(lambda line: has_ptavs(line, cell['ptav_ids']))
-                        if line and not line.combo_item_id:
+                        matching_lines = order_lines.filtered(lambda l: has_ptavs(l, cell['ptav_ids']))
+                        if matching_lines and not matching_lines.combo_item_id:
                             cell.update({
-                                'qty': sum(line.mapped('product_qty'))
+                                'qty': sum(matching_lines.mapped('product_qty'))
                             })
         return matrix
 
@@ -161,10 +160,9 @@ class SaleOrder(models.Model):
             for template in grid_configured_templates:
                 if len(self.line_ids.filtered(lambda line: line.product_template_id == template)) > 1:
                     matrix = self._get_matrix(template)
-                    matrix_data = []
-                    for row in matrix['matrix']:
-                        if any(column['qty'] != 0 for column in row[1:]):
-                            matrix_data.append(row)
-                    matrix['matrix'] = matrix_data
+                    matrix['matrix'] = [
+                        row for row in matrix['matrix']
+                        if any(column['qty'] != 0 for column in row[1:])
+                    ]
                     matrixes.append(matrix)
         return matrixes

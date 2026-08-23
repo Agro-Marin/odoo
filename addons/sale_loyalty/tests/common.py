@@ -214,6 +214,7 @@ class TestSaleCouponCommon(SaleCommon):
                 raise ValidationError(status['error'])
         elif len(coupons) == 1 and len(rewards) > 1:
             return rewards
+        return None
 
     def _claim_reward(self, order, program, coupon=False):
         if len(program.reward_ids) != 1:

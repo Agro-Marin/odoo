@@ -33,7 +33,7 @@ class SaleLoyaltyRewardWizard(models.TransientModel):
     @api.depends('reward_product_ids')
     def _compute_selected_product_id(self):
         for wizard in self:
-            if not wizard.selected_reward_id.reward_type == 'product':
+            if wizard.selected_reward_id.reward_type != 'product':
                 wizard.selected_product_id = False
             else:
                 wizard.selected_product_id = wizard.reward_product_ids[:1]

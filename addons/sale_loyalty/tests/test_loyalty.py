@@ -4,8 +4,8 @@ from freezegun import freeze_time
 
 from odoo.exceptions import ValidationError
 from odoo.fields import Command
-from odoo.tests import new_test_user, tagged
 from odoo.libs.numbers import float_compare
+from odoo.tests import new_test_user, tagged
 
 from odoo.addons.sale_loyalty.tests.common import TestSaleCouponCommon
 
@@ -709,8 +709,10 @@ class TestLoyalty(TestSaleCouponCommon):
         ]})
 
         applied_message = "The promo offer should have been applied."
-        not_applied_message = "The promo offer should not have been applied because the order's " \
-                              "pricelist is not eligible to this promotion."
+        not_applied_message = (
+            "The promo offer should not have been applied because the order's "
+            "pricelist is not eligible to this promotion."
+        )
 
         order.pricelist_id = self.env['product.pricelist']
         order._update_programs_and_rewards()
@@ -777,8 +779,10 @@ class TestLoyalty(TestSaleCouponCommon):
         order_pricelist_2.pricelist_id = pricelist_2
 
         applied_message = "The coupon code should have been applied."
-        not_applied_message = "The coupon code should not have been applied because the order's " \
-                              "pricelist is not eligible to this promotion."
+        not_applied_message = (
+            "The coupon code should not have been applied because the order's "
+            "pricelist is not eligible to this promotion."
+        )
 
         order_0 = order_no_pricelist.copy()
         self._apply_promo_code(order_0, coupons[0].code)

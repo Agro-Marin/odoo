@@ -1,5 +1,6 @@
-from odoo.addons.crm.tests.common import TestCrmCommon
 from odoo.tests import tagged, users
+
+from odoo.addons.crm.tests.common import TestCrmCommon
 
 
 @tagged('res_partner', 'post_install', '-at_install')

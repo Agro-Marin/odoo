@@ -607,7 +607,7 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
             'advance_payment_method': 'fixed',
             'fixed_amount': 115,
         })
-        down_payment_invoiced = 2 * down_payment_invoiced
+        down_payment_invoiced *= 2
         downpayment.create_invoices()
         self.sale_order.invoice_ids[3].action_post()
         # Ensures the 2 down payments are correctly computed for the project profitability.

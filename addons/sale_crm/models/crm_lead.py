@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.fields import Domain
 
 
@@ -94,7 +94,7 @@ class CrmLead(models.Model):
         return quotation_context
 
     def _merge_get_fields_specific(self):
-        fields_info = super(CrmLead, self)._merge_get_fields_specific()
+        fields_info = super()._merge_get_fields_specific()
         # add all the orders from all lead to merge
         fields_info['order_ids'] = lambda fname, leads: [(4, order.id) for order in leads.order_ids]
         return fields_info

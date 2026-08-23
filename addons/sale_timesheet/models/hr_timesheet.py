@@ -1,8 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
-
-from odoo import api, fields, models, _
 from odoo.fields import Domain
 from odoo.tools.misc import unquote
 
@@ -67,14 +66,13 @@ class AccountAnalyticLine(models.Model):
                     elif timesheet.so_line.product_id.invoice_policy == 'ordered':
                         invoice_type = 'billable_fixed'
                 timesheet.timesheet_invoice_type = invoice_type
-            else:
-                if timesheet.amount >= 0 and timesheet.unit_amount >= 0:
-                    if timesheet.so_line and timesheet.so_line.product_id.type == 'service':
-                        timesheet.timesheet_invoice_type = 'service_revenues'
-                    else:
-                        timesheet.timesheet_invoice_type = 'other_revenues'
+            elif timesheet.amount >= 0 and timesheet.unit_amount >= 0:
+                if timesheet.so_line and timesheet.so_line.product_id.type == 'service':
+                    timesheet.timesheet_invoice_type = 'service_revenues'
                 else:
-                    timesheet.timesheet_invoice_type = 'other_costs'
+                    timesheet.timesheet_invoice_type = 'other_revenues'
+            else:
+                timesheet.timesheet_invoice_type = 'other_costs'
 
     @api.depends('task_id.sale_line_id', 'project_id.sale_line_id', 'employee_id', 'project_id.allow_billable')
     def _compute_so_line(self):

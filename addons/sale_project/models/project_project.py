@@ -475,7 +475,7 @@ class ProjectProject(models.Model):
         )
         display_load_more = False
         if len(all_sols) > limit:
-            all_sols = all_sols - all_sols[limit]
+            all_sols -= all_sols[limit]
             display_load_more = True
 
         # filter to only get the action for the SOLs that the user can read
