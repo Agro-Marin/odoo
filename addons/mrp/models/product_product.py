@@ -169,7 +169,7 @@ class ProductProduct(models.Model):
         )[self]
         if not bom_kit:
             return super()._get_components()
-        __, bom_sub_lines = bom_kit.explode(self, 1)
+        __, bom_sub_lines = bom_kit._explode(self, 1)
         return self.browse().union(
             *(
                 bom_line.product_id
@@ -230,7 +230,7 @@ class ProductProduct(models.Model):
         qties = self.env.context.get("mrp_compute_quantities", {})
         qties.update(res)
         exploded = {
-            product: bom_kits[product].explode(product, 1)[1] for product in kits
+            product: bom_kits[product]._explode(product, 1)[1] for product in kits
         }
         # Resolve every component of every kit in ONE call, and resolve it with
         # the caller's own `filters` and `location_domains`. Reading
@@ -261,7 +261,7 @@ class ProductProduct(models.Model):
     def _prepare_kit_quantities_vals(self, bom_kit, bom_sub_lines, qties):
         """How many whole kits the scarcest component allows, per quantity field.
 
-        ``bom_sub_lines`` is ``bom_kit.explode(self, 1)[1]``, so every quantity
+        ``bom_sub_lines`` is ``bom_kit._explode(self, 1)[1]``, so every quantity
         in it is what *one BoM* consumes, and one BoM yields
         ``bom_kit.product_qty`` kits. ``qties`` already holds every component's
         quantities, resolved in one batch by ``_prepare_quantities_vals``.
@@ -341,7 +341,7 @@ class ProductProduct(models.Model):
         )
         components = self - self.browse().union(*bom_kits)
         for product, bom_kit in bom_kits.items():
-            __, bom_sub_lines = bom_kit.explode(product, 1)
+            __, bom_sub_lines = bom_kit._explode(product, 1)
             components |= self.browse().union(
                 *(bom_line.product_id for bom_line, __ in bom_sub_lines)
             )

@@ -112,7 +112,7 @@ class PurchaseOrderLine(models.Model):
             # Was a kit sold?
             bom_kit = bom.get(sale_line_product)
             if bom_kit:
-                _dummy, bom_sub_lines = bom_kit.explode(sale_line_product, self.sale_line_id.product_uom_qty)
+                _dummy, bom_sub_lines = bom_kit._explode(sale_line_product, self.sale_line_id.product_uom_qty)
                 bom_kit_component = {line['product_id'].id: line.id for line, _ in bom_sub_lines}
                 # Find the sml for the kit component
                 for vals in res:

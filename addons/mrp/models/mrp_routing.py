@@ -6,7 +6,7 @@ from odoo.tools import float_is_zero, float_round
 class MrpRoutingWorkcenter(models.Model):
     _name = "mrp.routing.workcenter"
     _description = "Work Center Usage"
-    _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity", "mixin.bom.variant.line"]
 
     _order = "bom_id, sequence, id"
     _check_company_auto = True
@@ -26,15 +26,13 @@ class MrpRoutingWorkcenter(models.Model):
         default=100,
         help="Gives the sequence order when displaying a list of routing Work Centers.",
     )
-    bom_id = fields.Many2one(
-        "mrp.bom",
-        "Bill of Material",
-        index=True,
-        ondelete="cascade",
-        required=True,
-        check_company=True,
-    )
+    bom_id = fields.Many2one("mrp.bom", "Bill of Material", check_company=True)
     company_id = fields.Many2one("res.company", "Company", related="bom_id.company_id")
+    archived_with_bom = fields.Boolean(
+        help="Technical: this operation was archived because its BoM was, so "
+        "unarchiving the BoM brings it back. An operation retired on its own "
+        "does not carry the flag and stays retired.",
+    )
     time_mode = fields.Selection(
         [("manual", "Fixed"), ("auto", "Computed")],
         string="Duration Computation",
@@ -59,16 +57,6 @@ class MrpRoutingWorkcenter(models.Model):
     )
     workorder_ids = fields.One2many(
         "mrp.workorder", "operation_id", string="Work Orders"
-    )
-    possible_bom_product_template_attribute_value_ids = fields.Many2many(
-        related="bom_id.possible_product_template_attribute_value_ids"
-    )
-    bom_product_template_attribute_value_ids = fields.Many2many(
-        "product.template.attribute.value",
-        string="Apply on Variants",
-        ondelete="restrict",
-        domain="[('id', 'in', possible_bom_product_template_attribute_value_ids)]",
-        help="BOM Product Variants needed to apply this line.",
     )
     allow_operation_dependencies = fields.Boolean(
         related="bom_id.allow_operation_dependencies"
@@ -228,13 +216,13 @@ class MrpRoutingWorkcenter(models.Model):
         res = super().create(vals_list)
         res.bom_id.with_context(
             skip_bom_outdated_unmark=True
-        )._set_outdated_bom_in_productions()
+        )._update_outdated_bom_in_productions()
         return res
 
     def write(self, vals):
         self.bom_id.with_context(
             skip_bom_outdated_unmark=True
-        )._set_outdated_bom_in_productions()
+        )._update_outdated_bom_in_productions()
         if "bom_id" in vals:
             for op in self:
                 op.bom_id.bom_line_ids.filtered(
@@ -258,14 +246,14 @@ class MrpRoutingWorkcenter(models.Model):
         byproduct_lines.write({"operation_id": False})
         self.bom_id.with_context(
             skip_bom_outdated_unmark=True
-        )._set_outdated_bom_in_productions()
+        )._update_outdated_bom_in_productions()
         return res
 
     def action_unarchive(self):
         res = super().action_unarchive()
         self.bom_id.with_context(
             skip_bom_outdated_unmark=True
-        )._set_outdated_bom_in_productions()
+        )._update_outdated_bom_in_productions()
         return res
 
     def copy_to_bom(self):
@@ -295,18 +283,13 @@ class MrpRoutingWorkcenter(models.Model):
             },
         }
 
-    def _skip_operation_line(self, product, never_attribute_values=False):
+    def _skip_bom_line(self, product, never_attribute_values=False):
+        # An operation that is not active applies to nothing, which is the one
+        # clause an operation adds to the shared variant rule.
         self.ensure_one()
         if not self.active:
             return True
-        if not product or product._name == "product.template":
-            return False
-
-        return self.env["mrp.bom"]._skip_for_no_variant(
-            product,
-            self.bom_product_template_attribute_value_ids,
-            never_attribute_values,
-        )
+        return super()._skip_bom_line(product, never_attribute_values)
 
     def action_open_operation_form(self):
         return {

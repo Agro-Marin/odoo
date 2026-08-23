@@ -196,7 +196,7 @@ class SaleOrderLine(models.Model):
 
     def _get_bom_component_qty(self, bom):
         bom_quantity = self.product_id.uom_id._compute_quantity(1, bom.product_uom_id, rounding_method='HALF-UP')
-        _boms, lines = bom.explode(self.product_id, bom_quantity)
+        _boms, lines = bom._explode(self.product_id, bom_quantity)
         components = {}
         for line, line_data in lines:
             product = line.product_id.id

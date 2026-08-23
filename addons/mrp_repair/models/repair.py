@@ -36,7 +36,7 @@ class RepairOrder(models.Model):
             if not bom:
                 continue
             factor = op.product_uom_id._compute_quantity(op.product_uom_qty, bom.product_uom_id) / bom.product_qty
-            _boms, lines = bom.sudo().explode(op.product_id, factor, picking_type=bom.picking_type_id)
+            _boms, lines = bom.sudo()._explode(op.product_id, factor, picking_type=bom.picking_type_id)
             for bom_line, line_data in lines:
                 if bom_line.product_id.type != 'service':
                     line_vals_list.append(op._prepare_phantom_line_vals(bom_line, line_data['qty']))

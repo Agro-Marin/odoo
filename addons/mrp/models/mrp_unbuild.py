@@ -410,7 +410,7 @@ class MrpUnbuild(models.Model):
                     unbuild.product_id, unbuild.product_uom_id, unbuild.product_qty
                 )
                 for byproduct in unbuild.bom_id.byproduct_ids:
-                    if byproduct._skip_byproduct_line(unbuild.product_id):
+                    if byproduct._skip_bom_line(unbuild.product_id):
                         continue
                     quantity = byproduct.product_qty * factor
                     moves += unbuild._generate_move_from_bom_line(
@@ -437,7 +437,7 @@ class MrpUnbuild(models.Model):
                         unbuild.location_dest_id,
                     )
             else:
-                _boms, lines = unbuild.bom_id.explode(
+                _boms, lines = unbuild.bom_id._explode(
                     unbuild.product_id,
                     factor,
                     picking_type=unbuild.bom_id.picking_type_id,

@@ -738,7 +738,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         company = bom.company_id or self.env.company
         byproduct_index = 0
         for byproduct in bom.byproduct_ids:
-            if byproduct._skip_byproduct_line(product):
+            if byproduct._skip_bom_line(product):
                 continue
             line_quantity = (
                 bom_quantity / (bom.product_qty or 1.0)
@@ -816,7 +816,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 bom_report_line["max_component_delay"] = max_component_delay
         operation_index = 0
         for operation in bom.operation_ids:
-            if not product or operation._skip_operation_line(product):
+            if not product or operation._skip_bom_line(product):
                 continue
             op = operation.with_context(product=product, quantity=qty)
             duration_expected = op.time_total
@@ -1301,7 +1301,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 lambda o: not o.needed_by_operation_ids
             )
             for operation in final_operations:
-                if operation._skip_operation_line(product):
+                if operation._skip_bom_line(product):
                     continue
                 self._simulate_operation_planning(
                     operation,
@@ -1313,7 +1313,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 )
         else:
             for operation in bom.operation_ids:
-                if operation._skip_operation_line(product):
+                if operation._skip_bom_line(product):
                     continue
                 self._simulate_operation_planning(
                     operation,
@@ -1342,7 +1342,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             simulated_leaves_per_workcenter = defaultdict(list)
         date_start = max(start_date, datetime.now())
         for op in operation.blocked_by_operation_ids:
-            if op._skip_operation_line(product):
+            if op._skip_bom_line(product):
                 continue
             if op not in planning_per_operation:
                 self._simulate_operation_planning(

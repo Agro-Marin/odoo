@@ -24,7 +24,7 @@ class SaleOrder(models.Model):
         if product.is_kit:
             # Explode the kit to fetch the set of relevant components to track.
             kit_bom = self.env['mrp.bom'].sudo()._bom_find(product, company_id=self.company_id.id, bom_type='phantom')[product]
-            _, bom_sub_lines = kit_bom.explode(product, quantity=1.0)
+            _, bom_sub_lines = kit_bom._explode(product, quantity=1.0)
             unavailable_component_qties = {}
             qty_per_kit = defaultdict(float)
             for bom_line, bom_line_data in bom_sub_lines:

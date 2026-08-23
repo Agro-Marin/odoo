@@ -289,7 +289,7 @@ class StockWarehouseOrderpoint(models.Model):
             StockWarehouseOrderpoint, orderpoints_without_kit
         )._quantity_in_progress()
         for orderpoint, bom_kit in bom_kit_orderpoints.items():
-            _dummy, bom_sub_lines = bom_kit.explode(orderpoint.product_id, 1)
+            _dummy, bom_sub_lines = bom_kit._explode(orderpoint.product_id, 1)
             ratios_qty_available = []
             ratios_total = []
             for bom_line, bom_line_data in bom_sub_lines:

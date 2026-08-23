@@ -261,7 +261,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.env["mrp.bom"].invalidate_model()
         self.env["mrp.bom.line"].invalidate_model()
         with self.assertRaises(ValidationError):
-            bom_a.explode(prod_a, 1.0)
+            bom_a._explode(prod_a, 1.0)
 
     def test_bom_rejects_product_uom_of_another_category(self):
         kgm = self.env.ref("uom.product_uom_kgm")

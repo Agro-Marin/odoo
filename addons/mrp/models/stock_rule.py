@@ -76,7 +76,7 @@ class StockRule(models.Model):
                     procurement.product_qty, bom_kit.product_uom_id, round=False
                 )
                 qty_to_produce = order_qty / bom_kit.product_qty
-                _dummy, bom_sub_lines = bom_kit.explode(
+                _dummy, bom_sub_lines = bom_kit._explode(
                     procurement.product_id,
                     qty_to_produce,
                     never_attribute_values=procurement.values.get(

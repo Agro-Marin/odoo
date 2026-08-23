@@ -32,7 +32,7 @@ class StockMove(models.Model):
 
     def _get_kit_price_unit(self, product, kit_bom, valuated_quantity):
         """ Override the value for kit products """
-        _dummy, exploded_lines = kit_bom.explode(product, valuated_quantity)
+        _dummy, exploded_lines = kit_bom._explode(product, valuated_quantity)
         total_price_unit = 0
         component_qty_per_kit = defaultdict(float)
         for line in exploded_lines:

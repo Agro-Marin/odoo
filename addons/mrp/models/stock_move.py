@@ -714,7 +714,7 @@ class StockMove(models.Model):
                 move.product_uom_id._compute_quantity(quantity, bom.product_uom_id)
                 / bom.product_qty
             )
-            _dummy, lines = bom.sudo().explode(
+            _dummy, lines = bom.sudo()._explode(
                 move.product_id,
                 factor,
                 picking_type=bom.picking_type_id,
@@ -957,7 +957,7 @@ class StockMove(models.Model):
     def _get_kit_quantity(self, product_id, kit_qty, kit_bom, filters):
         qty_ratios = []
         kit_qty /= kit_bom.product_qty
-        _boms, bom_sub_lines = kit_bom.explode(product_id, kit_qty)
+        _boms, bom_sub_lines = kit_bom._explode(product_id, kit_qty)
 
         def get_qty(move):
             if move.picked:

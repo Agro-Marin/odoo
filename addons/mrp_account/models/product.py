@@ -68,7 +68,7 @@ class ProductProduct(models.Model):
             boms_to_recompute = []
         total = 0
         for opt in bom.operation_ids:
-            if opt._skip_operation_line(self):
+            if opt._skip_bom_line(self):
                 continue
 
             total += opt.cost

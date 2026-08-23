@@ -1083,7 +1083,7 @@ class MrpProduction(models.Model):
             ]
             relevant_boms = [
                 exploded_boms[0]
-                for exploded_boms in production.bom_id.explode(
+                for exploded_boms in production.bom_id._explode(
                     production.product_id,
                     1.0,
                     picking_type=production.bom_id.picking_type_id,
@@ -1120,7 +1120,7 @@ class MrpProduction(models.Model):
                 product_qty = production.product_uom_id._compute_quantity(
                     production.product_qty, production.bom_id.product_uom_id
                 )
-                exploded_boms, _dummy = production.bom_id.explode(
+                exploded_boms, _dummy = production.bom_id._explode(
                     production.product_id,
                     product_qty / production.bom_id.product_qty,
                     picking_type=production.bom_id.picking_type_id,
@@ -1138,7 +1138,7 @@ class MrpProduction(models.Model):
                     ):
                         continue
                     for operation in bom.operation_ids:
-                        if operation._skip_operation_line(
+                        if operation._skip_bom_line(
                             bom_data["product"]
                             if not bom_data["parent_line"]
                             else bom_data["parent_line"]["product_id"],
@@ -2180,7 +2180,7 @@ class MrpProduction(models.Model):
             finished_move_values["location_final_id"] = production.location_final_id.id
             moves.append(finished_move_values)
             for byproduct in production.bom_id.byproduct_ids:
-                if byproduct._skip_byproduct_line(
+                if byproduct._skip_bom_line(
                     production.product_id,
                     production.never_product_template_attribute_value_ids,
                 ):
@@ -2245,7 +2245,7 @@ class MrpProduction(models.Model):
                 )
                 / production.bom_id.product_qty
             )
-            _boms, lines = production.bom_id.explode(
+            _boms, lines = production.bom_id._explode(
                 production.product_id,
                 factor,
                 picking_type=production.bom_id.picking_type_id,
@@ -3921,7 +3921,7 @@ class MrpProduction(models.Model):
 
     def _get_bom_lines_to_link(self, bom):
         self.ensure_one()
-        _dummy, bom_lines = bom.explode(self.product_id, bom.product_qty)
+        _dummy, bom_lines = bom._explode(self.product_id, bom.product_qty)
         bom_lines_by_id = defaultdict(lambda: [None, 0])
         for line, exploded_values in bom_lines:
             if not self._is_bom_record_applicable(line, exploded_values["product"]):
