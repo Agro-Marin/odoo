@@ -19,6 +19,8 @@ from datetime import UTC, datetime
 from itertools import batched
 from pathlib import Path
 from tokenize import DEDENT, INDENT, NEWLINE, STRING, generate_tokens
+from types import FrameType
+from typing import IO
 
 import polib
 from babel.messages import extract
@@ -37,6 +39,10 @@ from .files import file_open, file_path
 from .i18n import format_list
 from .locale_utils import get_iso_codes
 from .misc import SKIPPED_ELEMENT_TYPES
+
+if typing.TYPE_CHECKING:
+    from odoo.api import Environment
+    from odoo.db import BaseCursor
 
 __all__ = [
     "LazyTranslate",
@@ -165,7 +171,9 @@ space_pattern = re.compile(r"[\s\uFEFF]*")
 FORMAT_REGEX = re.compile(r"(?:#\{(.+?)\})|(?:\{\{(.+?)\}\})")
 
 
-def translate_format_string_expression(term: str, callback: object) -> str | None:
+def translate_format_string_expression(
+    term: str, callback: Callable[[str], str | None]
+) -> str | None:
     expressions = {}
 
     def add(exp_py):
@@ -580,7 +588,7 @@ def _probe(obj: object, name: str) -> object:
         return None
 
 
-def _get_cr(frame: object) -> object:
+def _get_cr(frame: FrameType) -> BaseCursor | None:
     if "cr" in frame.f_locals:
         return frame.f_locals["cr"]
     if "cursor" in frame.f_locals:
@@ -596,7 +604,7 @@ def _get_cr(frame: object) -> object:
     return None
 
 
-def _get_uid(frame: object) -> int | None:
+def _get_uid(frame: FrameType) -> int | None:
     if "uid" in frame.f_locals:
         return frame.f_locals["uid"]
     if "user" in frame.f_locals:
@@ -614,7 +622,7 @@ def _get_uid(frame: object) -> int | None:
 _LANG_FRAME_SEARCH_DEPTH = 10
 
 
-def _lang_search_frames(frame: object) -> list[object]:
+def _lang_search_frames(frame: FrameType | None) -> list[FrameType]:
     frames = []
     for _depth in range(_LANG_FRAME_SEARCH_DEPTH):
         if frame is None:
@@ -631,7 +639,7 @@ def _mapping_lang(candidate: object) -> str:
     return lang if isinstance(lang, str) else ""
 
 
-def _get_frame_context_lang(frame: object) -> str:
+def _get_frame_context_lang(frame: FrameType) -> str:
     f_locals = frame.f_locals
     if lang := _mapping_lang(f_locals.get("context")):
         return lang
@@ -640,7 +648,7 @@ def _get_frame_context_lang(frame: object) -> str:
     return ""
 
 
-def _get_lang(frame: object, default_lang: str = "") -> str:
+def _get_lang(frame: FrameType | None, default_lang: str = "") -> str:
     frames = _lang_search_frames(frame)
     found_env = False
     for candidate in frames:
@@ -789,7 +797,7 @@ def parse_xmlid(xmlid: str, default_module: str) -> tuple[str, str]:
 
 
 def translation_file_reader(
-    source: object, fileformat: str = "po", module: str | None = None
+    source: IO[bytes] | IO[str], fileformat: str = "po", module: str | None = None
 ) -> object:
     if fileformat == "csv":
         if module is not None:
@@ -805,7 +813,7 @@ def translation_file_reader(
 
 
 class CSVFileReader:
-    def __init__(self, source: object) -> None:
+    def __init__(self, source: IO[bytes] | IO[str]) -> None:
         _reader = codecs.getreader("utf-8")
         self.source = csv.DictReader(_reader(source), quotechar='"', delimiter=",")
         self.prev_code_src = ""
@@ -829,7 +837,7 @@ class CSVFileReader:
 
 
 class CSVDataFileReader:
-    def __init__(self, source: object, module: str) -> None:
+    def __init__(self, source: IO[bytes] | IO[str], module: str) -> None:
         _reader = codecs.getreader("utf-8")
         self.module = module
         self.model = Path(source.name).stem.split("-")[0]
@@ -861,7 +869,7 @@ class CSVDataFileReader:
 
 
 class XMLDataFileReader:
-    def __init__(self, source: object, module: str) -> None:
+    def __init__(self, source: IO[bytes] | IO[str], module: str) -> None:
         try:
             tree = etree.parse(source)
         except etree.LxmlSyntaxError:
@@ -975,7 +983,7 @@ class PoFileReader:
 
 
 def TranslationFileWriter(
-    target: object, fileformat: str = "po", lang: str | None = None
+    target: IO[bytes] | IO[str], fileformat: str = "po", lang: str | None = None
 ) -> object:
     if fileformat == "csv":
         return CSVFileWriter(target)
@@ -1007,7 +1015,7 @@ class _UnixDialect(csv.excel):
 
 
 class CSVFileWriter:
-    def __init__(self, target: object) -> None:
+    def __init__(self, target: IO[bytes] | IO[str]) -> None:
         self.writer = csv.writer(_writer(target), dialect=_UnixDialect)
         self.writer.writerow(
             ("module", "type", "name", "res_id", "src", "value", "comments")
@@ -1020,7 +1028,7 @@ class CSVFileWriter:
 
 
 class PoFileWriter:
-    def __init__(self, target: object, lang: str | None) -> None:
+    def __init__(self, target: IO[bytes] | IO[str], lang: str | None) -> None:
         self.buffer = target
         self.lang = lang
         self.po = polib.POFile()
@@ -1106,7 +1114,7 @@ class PoFileWriter:
 
 
 class TarFileWriter:
-    def __init__(self, target: object, lang: str | None) -> None:
+    def __init__(self, target: IO[bytes] | IO[str], lang: str | None) -> None:
         self.tar = tarfile.open(fileobj=target, mode="w|gz")  # noqa: SIM115  instance-owned, closed in write_rows
         self.lang = lang
 
@@ -1134,7 +1142,7 @@ class TarFileWriter:
 
 
 def trans_export(
-    lang: str, modules: list[str], buffer: object, format: str, env: object
+    lang: str, modules: list[str], buffer: IO[bytes], format: str, env: Environment
 ) -> bool:
     reader = TranslationModuleReader(env.cr, modules=modules, lang=lang)
     if not reader:
@@ -1145,7 +1153,12 @@ def trans_export(
 
 
 def trans_export_records(
-    lang: str, model_name: str, ids: list[int], buffer: object, format: str, env: object
+    lang: str,
+    model_name: str,
+    ids: list[int],
+    buffer: IO[bytes],
+    format: str,
+    env: Environment,
 ) -> bool:
     reader = TranslationRecordReader(env.cr, model_name, ids, lang=lang)
     if not reader:
@@ -1155,13 +1168,17 @@ def trans_export_records(
     return True
 
 
-def _push(callback: object, term: str | None, source_line: int) -> None:
+def _push(
+    callback: Callable[[str, int], None], term: str | None, source_line: int
+) -> None:
     term = (term or "").strip()
     if any(x.isalpha() for x in term):
         callback(term, source_line)
 
 
-def _extract_translatable_qweb_terms(element: etree._Element, callback: object) -> None:
+def _extract_translatable_qweb_terms(
+    element: etree._Element, callback: Callable[[str, int], None]
+) -> None:
     for el in element:
         if isinstance(el, SKIPPED_ELEMENT_TYPES):
             continue
@@ -1189,7 +1206,7 @@ def _extract_translatable_qweb_terms(element: etree._Element, callback: object) 
 
 
 def babel_extract_qweb(
-    fileobj: object, keywords: list, comment_tags: list, options: dict
+    fileobj: IO[bytes], keywords: list, comment_tags: list, options: dict
 ) -> list[tuple]:
     result = []
 
@@ -1216,7 +1233,7 @@ def extract_formula_terms(formula: str) -> Iterator[str]:
 
 
 def extract_spreadsheet_terms(
-    fileobj: object, keywords: list, comment_tags: list, options: dict
+    fileobj: IO[bytes], keywords: list, comment_tags: list, options: dict
 ) -> Iterator[tuple]:
     terms = set()
     data = json.load(fileobj)
@@ -1259,7 +1276,7 @@ class ImdInfo(typing.NamedTuple):
 
 
 class TranslationReader:
-    def __init__(self, cr: object, lang: str | None = None) -> None:
+    def __init__(self, cr: BaseCursor, lang: str | None = None) -> None:
         self._cr = cr
         self._lang = lang or "en_US"
         from odoo import api
@@ -1665,7 +1682,7 @@ def DeepDefaultDict() -> defaultdict:
 
 
 class TranslationImporter:
-    def __init__(self, cr: object, verbose: bool = True) -> None:
+    def __init__(self, cr: BaseCursor, verbose: bool = True) -> None:
         self.cr = cr
         self.verbose = verbose
         from odoo import api
@@ -1966,7 +1983,7 @@ def resetlocale() -> str | None:
     return None
 
 
-def load_language(cr: object, lang: str) -> None:
+def load_language(cr: BaseCursor, lang: str) -> None:
     from odoo import api
 
     env = api.Environment(cr, api.SUPERUSER_ID, {})

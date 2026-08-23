@@ -46,7 +46,8 @@ python -m pytest tooling/architecture/ -q
 for gate in layer_check mixin_coupling_check subsystem_map_check \
             package_index_check env_surface_check pool_surface_check \
             env_model_surface_check worker_thread_surface_check \
-            libs_facade_check mail_hook_keyword_check py_cycle_check \
+            libs_facade_check facade_surface_check \
+            mail_hook_keyword_check py_cycle_check \
             js_layer_check js_cycle_check \
             js_deployment_layers named_export_coherence js_suite_parity \
             js_layer_cohesion js_import_resolution js_self_bridge \

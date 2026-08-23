@@ -1156,6 +1156,10 @@ class TestReferencedArtifacts(unittest.TestCase):
             self.skipTest("no sibling checkout beside this one")
 
     def test_ratchet_baselines_match_documented_gates(self) -> None:
+        # [\w-]+, not \w+: NUMBER_WORDS spans 4..99 and every count above twenty
+        # is hyphenated, so the bare \w+ stopped matching the moment a
+        # twenty-first baseline landed -- and reported it as "the ratchet gate
+        # list is no longer stated", which points at the page rather than here.
         match = re.search(
             r"turns ([\w-]+) tool\s+counts into one-way contracts: "
             r"\*\*([^*]+)\*\*",

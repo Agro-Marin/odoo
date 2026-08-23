@@ -44,6 +44,10 @@ on:
       - 'odoo/http/**/*.py'
       - 'odoo/service/**/*.py'
       - 'odoo/modules/**/*.py'
+      # The seventh scope, checked by its own step against its own floor. A
+      # gate whose paths do not name the tree it measures is a gate that does
+      # not run on the change most likely to move it.
+      - 'odoo/tools/**/*.py'
       - 'mypy.ini'
       - 'requirements*.txt'
       - 'tooling/ratchet/**'
@@ -127,6 +131,33 @@ jobs:
           python tooling/ratchet/ratchet.py mypy \
             --count "${{ steps.mypy.outputs.error_count }}" --json | tee /tmp/verdict.json
           python tooling/ratchet/ratchet.py mypy --count "${{ steps.mypy.outputs.error_count }}"
+
+      - name: Run mypy (odoo.tools)
+        id: mypy_tools
+        # A SEPARATE SCOPE, AND A SEPARATE FLOOR. odoo.tools is not folded into
+        # the six-package count above: one integer over seven packages would
+        # make every future move ambiguous between the two scopes, the way
+        # c901 and c901_addons are kept apart for exactly that reason.
+        #
+        # The package was annotated everywhere and checked by nothing, so the
+        # annotations asserted nothing -- 69 of them said `: object` for what is
+        # an Environment, a FrameType, a Callable or an IO stream. Three defects
+        # found in the audit that opened this floor were visible to a type
+        # checker and to nothing else in CI: `parse_config` annotated `-> None`
+        # and returning a value, a token field holding bytes and then int, and
+        # `translate_xml_node` taking a `parse` argument it never read.
+        run: |
+          set +e
+          python -m mypy --no-incremental --config-file mypy.ini \
+            -p odoo.tools 2>&1 | tee /tmp/mypy_tools.log
+          set -e
+          ERR_COUNT=$(grep -cE ": error:" /tmp/mypy_tools.log || true)
+          echo "error_count=${ERR_COUNT}" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce ratchet (odoo.tools)
+        run: |
+          python tooling/ratchet/ratchet.py mypy_tools --count "${{ steps.mypy_tools.outputs.error_count }}" --json | tee /tmp/verdict_tools.json
+          python tooling/ratchet/ratchet.py mypy_tools --count "${{ steps.mypy_tools.outputs.error_count }}"
 
       - name: Enforce per-file locks
         id: scope
