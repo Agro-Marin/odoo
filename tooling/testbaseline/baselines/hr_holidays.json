@@ -1,0 +1,12 @@
+{
+  "expected": {
+    "hr_holidays/Subtest TestHolidaysCalendar.test_hours_time_off_request_calendar_view (login='enguerran')": "FAIL",
+    "hr_holidays/TestHrLeaveTypeTour.test_hr_leave_type_tour": "FAIL",
+    "hr_holidays/TestPartner.test_res_partner_to_store": "FAIL"
+  },
+  "note": "First floor, 3 of 302. Recorded because this change set touches hr_holidays production SQL -- _get_on_leave_ids joined RIGHT JOIN hr_leave_type, which keeps every leave-type row and returned one NULL per unmatched type: measured 74 NULLs beside a single real id, exactly count(*) from hr_leave_type. Both consumers ask 'id in ids', so a NULL never matched and the wrong query answered correctly forever. Changed to an inner JOIN; probed with a positive control, the same single real id is returned and the NULLs are gone. All three failures below reproduce with that change reverted at 0c2942d409b, so they are standing debt and not its doing: TestHolidaysCalendar.test_hours_time_off_request_calendar_view, TestHrLeaveTypeTour.test_hr_leave_type_tour (a browser tour) and TestPartner.test_res_partner_to_store -- the last one routes through the changed method, which is why it was worth a control rather than an assumption. None is root-caused. Measured at 0c2942d409b in a detached worktree carrying only this change set, node_modules symlinked.",
+  "run_spec": "-i hr_holidays --test-enable --test-tags '/hr_holidays'",
+  "suite": "/hr_holidays",
+  "tests_total": 302,
+  "verified_at": "0c2942d409b"
+}

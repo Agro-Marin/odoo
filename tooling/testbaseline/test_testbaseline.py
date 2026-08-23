@@ -119,6 +119,37 @@ class ScanLogTests(unittest.TestCase):
         scan = self.scan(failure("l10n_ch", "TestSwissQR.test_iban", flavour="ERROR"))
         self.assertEqual(scan.failures["l10n_ch/TestSwissQR.test_iban"], "ERROR")
 
+    def test_one_name_failing_twice_keeps_both_occurrences(self):
+        # test_mail_full's TestRatingPerformance.test_rating_last_value_perfs
+        # carries two assertQueryCount blocks and logs a FAIL for each, with
+        # identical subtest params. Collapsing them made `sound` read 4 against
+        # the server's 6 and the suite could not be baselined at all.
+        text = (
+            failure("test_mail_full", "Subtest TestRating.test_perfs (login='e')")
+            + failure("test_mail_full", "Subtest TestRating.test_perfs (login='e')")
+            + summary(2, 0, 5)
+        )
+        scan = self.scan(text)
+        self.assertEqual(
+            sorted(scan.failures),
+            [
+                "test_mail_full/Subtest TestRating.test_perfs (login='e')",
+                "test_mail_full/Subtest TestRating.test_perfs (login='e') #2",
+            ],
+        )
+        self.assertTrue(scan.sound)
+
+    def test_fixing_one_of_two_blocks_reads_as_newly_passing(self):
+        baseline = Baseline(
+            suite="/test_mail_full",
+            expected={"m/Subtest T.t": "FAIL", "m/Subtest T.t #2": "FAIL"},
+            tests_total=5,
+        )
+        scan = self.scan(failure("m", "Subtest T.t") + summary(1, 0, 5))
+        verdict = evaluate("/test_mail_full", scan, baseline)
+        self.assertEqual(verdict.fixed, ("m/Subtest T.t #2",))
+        self.assertEqual(verdict.new, ())
+
     def test_phase_banners_are_not_counted_as_tests(self):
         text = record("INFO", "odoo.service.server", "Starting post tests")
         self.assertEqual(self.scan(text).started_count, 0)

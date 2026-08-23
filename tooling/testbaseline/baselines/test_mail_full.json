@@ -1,0 +1,15 @@
+{
+  "expected": {
+    "test_mail_full/Subtest TestPortalFormatPerformance.test_portal_message_format_monorecord (login='employee')": "FAIL",
+    "test_mail_full/Subtest TestRatingPerformance.test_rating_last_value_perfs (login='employee')": "FAIL",
+    "test_mail_full/Subtest TestRatingPerformance.test_rating_last_value_perfs (login='employee') #2": "FAIL",
+    "test_mail_full/Subtest TestRatingPerformance.test_rating_last_value_perfs_with_rating_mixin (login='employee')": "FAIL",
+    "test_mail_full/Subtest TestRatingPerformance.test_rating_last_value_perfs_with_rating_mixin (login='employee') #2": "FAIL",
+    "test_mail_full/TestUIPortal.test_message_actions_without_login": "FAIL"
+  },
+  "note": "First floor, and the suite only became measurable with this change set. Before it the run reported '0 failed of 20 tests' and was RED, not green: test_mass_mailing's _get_bundles_to_pregenerate put the CSS-only bundle mass_mailing.assets_iframe_style into the JS pregeneration set, js_pipeline raised ModuleSyntaxInLegacyBundleError on html_editor's ESM sources, and lifecycle.py aborted the post_install phase before it ran. Fixing that took the suite from 20 executed tests to 69, and the six failures below are what it was hiding. Five are assertQueryCount blocks in tests/test_mail_performance.py, the family test_mail's baseline describes. NOTE THE ' #2' KEYS: test_rating_last_value_perfs and test_rating_last_value_perfs_with_rating_mixin each carry two failing assertQueryCount blocks and log a FAIL per block with identical subtest params, so each occurrence keeps its own key -- fixing one block of a pair reports one newly-passing rather than reading as unchanged. Recording this suite is what forced that: a plain name-keyed dict tallied 4 against the server's 6 and the tool soundly refused a verdict. The sixth, TestUIPortal.test_message_actions_without_login, is a browser tour FLAKY IN ITS STEP NUMBER -- seen failing at 13/14 once and 9/14 twice, always on a button[title='Edit'] lookup -- so a changed step number is the same known failure, not a new one. Measured at 0c2942d409b in a detached worktree carrying only this change set, node_modules symlinked.",
+  "run_spec": "-i test_mail_full --test-enable --test-tags '/test_mail_full'",
+  "suite": "/test_mail_full",
+  "tests_total": 69,
+  "verified_at": "0c2942d409b"
+}

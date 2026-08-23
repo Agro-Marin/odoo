@@ -587,7 +587,7 @@ class ResUsers(models.Model):
             },
         )
 
-    def _get_store_avatar_card_fields(
+    def _get_fields_store_avatar_card(
         self, target: Store.Target
     ) -> list[StoreFieldSpec]:
         return [

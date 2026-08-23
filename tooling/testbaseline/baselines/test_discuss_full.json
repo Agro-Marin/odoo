@@ -1,0 +1,14 @@
+{
+  "expected": {
+    "test_discuss_full/Subtest TestDiscussFullPerformance.test_10_init_store_data (login='emp')": "FAIL",
+    "test_discuss_full/Subtest TestDiscussFullPerformance.test_20_init_messaging (login='emp')": "FAIL",
+    "test_discuss_full/Subtest TestDiscussFullPerformance.test_30_discuss_channels (login='emp')": "FAIL",
+    "test_discuss_full/TestImLivechatPortal.test_chatbot_redirect_to_portal": "FAIL",
+    "test_discuss_full/TestLivechatHrHolidays.test_operator_available_on_leave": "FAIL"
+  },
+  "note": "First floor. Five of eleven, down from eight: this change set fixed the three TestAvatarCardTour subtests, which were not tour flakiness but a 500 on every avatar card -- mail/controllers/webclient.py accepts both res.users and res.partner and called record._get_fields_store_avatar_card on either, while res.users spelled the same method _get_store_avatar_card_fields, the pre-standardisation word order, with zero callers. _absorbing_failure swallowed the AttributeError so /mail/data still answered 200 and only the tour noticed. Of the five left, three are assertQueryCount blocks in tests/test_performance.py, the family test_mail's baseline describes. TestLivechatHrHolidays.test_operator_available_on_leave is NOT a leave-logic bug and re-deriving that is wasted work: _get_on_leave_ids returns the user correctly, but res.users.im_status is a non-stored compute whose base declares @api.depends('manual_im_status', 'presence_ids.status') and whose hr_holidays override also reads hr.leave without widening that -- so a leave created in the same transaction leaves a stale cached 'online'. Probed: invalidate_recordset(['im_status']) alone turns it into 'leave_online'. The sibling test_operator_limit_on_leave passes only because its JSON-RPC call forces a fresh env. Closing it needs a way to express the dependency; hr.leave is not reachable by a field path from res.users, so it wants a decision, not a drive-by. TestImLivechatPortal.test_chatbot_redirect_to_portal fails on a browser TypeError in thread.fetchThread and is unexplained. Measured at 0c2942d409b in a detached worktree carrying only this change set, node_modules symlinked.",
+  "run_spec": "-i test_discuss_full --test-enable --test-tags '/test_discuss_full'",
+  "suite": "/test_discuss_full",
+  "tests_total": 11,
+  "verified_at": "0c2942d409b"
+}

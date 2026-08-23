@@ -1,0 +1,14 @@
+{
+  "expected": {
+    "test_mail_sms/Subtest TestSMSMassPerformance.test_sms_composer_mass (login='employee')": "FAIL",
+    "test_mail_sms/Subtest TestSMSMassPerformance.test_sms_composer_mass_w_log (login='employee')": "FAIL",
+    "test_mail_sms/Subtest TestSMSPerformance.test_message_sms_record_10_partners (login='employee')": "FAIL",
+    "test_mail_sms/Subtest TestSMSPerformance.test_message_sms_record_1_partner (login='employee')": "FAIL",
+    "test_mail_sms/Subtest TestSMSPerformance.test_message_sms_record_default (login='employee')": "FAIL"
+  },
+  "note": "First floor. All five are assertQueryCount blocks in tests/test_sms_performance.py, the same family test_mail's baseline describes: floors that d350dad426d deliberately left because their surplus was not attributed. Closing one means accounting for that block's whole surplus, not raising the number. Measured at 0c2942d409b in a detached worktree carrying only this change set, with node_modules symlinked so the tours run; the shared checkout was dirty with another session's account/ work at the time. Two failures that were here before are now fixed and must NOT come back: TestSMSPost.test_sms_send_batch_size_out_of_range errored because _process_queue -> ir.cron._commit_progress commits a test cursor (stubbed per the auth_signup/base_automation/documents idiom), and test_message_sms_marks_only_the_addressed_partners keyed an assertion on a follower under mail.mt_note, which reaches no follower at all, so the key could never exist.",
+  "run_spec": "-i test_mail_sms --test-enable --test-tags '/test_mail_sms'",
+  "suite": "/test_mail_sms",
+  "tests_total": 119,
+  "verified_at": "0c2942d409b"
+}

@@ -35,6 +35,7 @@ import argparse
 import json
 import re
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -126,6 +127,27 @@ class Scan:
         return self.complete and self.reported_failed == len(self.failures)
 
 
+def disambiguate(key: str, seen: Mapping[str, str]) -> str:
+    """Return `key`, suffixed if this name has already failed in this run.
+
+    One test can fail more than once under one name: a method carrying several
+    `assertQueryCount` blocks logs a FAIL record per failing block, with the
+    same `Class.method` and the same subtest params. Keying a plain dict on the
+    name would collapse the pair, which loses two things at once -- the parse
+    tally stops matching the server's summary, so `sound` refuses a verdict and
+    the suite cannot be baselined at all; and if one of the two blocks were
+    later fixed, the surviving name would still read as "expected" and the
+    improvement would go unreported. Both are the failure this tool exists to
+    prevent, so each occurrence keeps its own key.
+    """
+    if key not in seen:
+        return key
+    n = 2
+    while f"{key} #{n}" in seen:
+        n += 1
+    return f"{key} #{n}"
+
+
 def scan_log(path: Path) -> Scan:
     failures: dict[str, str] = {}
     started: set[str] = set()
@@ -133,7 +155,7 @@ def scan_log(path: Path) -> Scan:
     with path.open(encoding="utf-8", errors="replace") as handle:
         for line in handle:
             if (record := RECORD.match(line)) and record["level"] == "ERROR":
-                key = qualify(record["logger"], record["desc"])
+                key = disambiguate(qualify(record["logger"], record["desc"]), failures)
                 failures[key] = record["flavour"]
             elif start := STARTING.match(line):
                 started.add(qualify(start["logger"], start["desc"]))

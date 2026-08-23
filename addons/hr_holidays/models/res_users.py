@@ -40,7 +40,7 @@ class ResUsers(models.Model):
                             AND hr_leave.state = 'validate'
                             AND res_users.active = 't'
                             AND hr_leave.date_from <= %%s AND hr_leave.date_to >= %%s
-                            RIGHT JOIN hr_leave_type ON hr_leave.holiday_status_id = hr_leave_type.id
+                            JOIN hr_leave_type ON hr_leave.holiday_status_id = hr_leave_type.id
                             AND hr_leave_type.time_type = 'leave';''' % field, (now, now))
         return [r[0] for r in self.env.cr.fetchall()]
 

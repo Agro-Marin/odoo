@@ -96,6 +96,7 @@
             "web/static/lib/bootstrap/scss/_maps.scss",
             "web/static/lib/bootstrap/scss/_alert.scss",
             ("include", "web._assets_bootstrap_frontend"),
+            "web/static/src/scss/tokens.scss",
             # useful scss from /html_editor web.assets_frontend
             # TODO EGGMAIL: could improve load time by splitting scss from JS files
             ("include", "html_editor.assets_media_dialog"),

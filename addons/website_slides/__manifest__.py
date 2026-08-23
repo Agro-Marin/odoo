@@ -108,6 +108,7 @@ Featuring
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
             "web/static/lib/bootstrap/scss/_maps.scss",
             ("include", "web._assets_bootstrap_frontend"),
+            "web/static/src/scss/tokens.scss",
             "web/static/src/libs/fontawesome7/css/fontawesome.css",
             "web/static/src/libs/fontawesome7/css/solid.css",
             "web/static/src/libs/fontawesome7/css/regular.css",

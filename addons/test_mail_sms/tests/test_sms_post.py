@@ -70,7 +70,10 @@ class TestSMSPost(SMSCommon, TestSMSRecipients, CronMixinCase):
         test_record = self.env['mail.test.sms'].browse(self.test_record.id)
         test_record.message_subscribe(partner_ids=self.partner_2.ids)
         self.env.flush_all()
-        subtype_id = self.env.ref('mail.mt_note').id
+        # mt_comment, not mt_note: a note is internal and reaches no follower at
+        # all, so under it the follower assertion below has no key to read and
+        # the override's behaviour is never exercised.
+        subtype_id = self.env.ref('mail.mt_comment').id
 
         addressed = Followers._get_recipient_data(
             test_record, 'sms', subtype_id, self.partner_1.ids)[test_record.id]

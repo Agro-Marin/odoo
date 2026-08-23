@@ -70,7 +70,14 @@ class TestSMSPost(SMSCommon, MockLinkTracker):
         self.assertEqual(self.count, 1, 'and the whole batch still goes out, in one piece')
 
         ICP.set_param('sms.session.batch.size', '-3')
-        with patch.object(SmsModel, '_send', autospec=True, side_effect=_send):
+        # _commit_progress calls cr.commit(), forbidden on a test cursor:
+        # stub the cron bookkeeping, the behavior under test is the batch size.
+        with (
+            patch.object(SmsModel, '_send', autospec=True, side_effect=_send),
+            patch.object(
+                type(self.env['ir.cron']), '_commit_progress', return_value=float('inf')
+            ),
+        ):
             # the cron path: this is the one that reached SQL
             self.env['sms.sms']._process_queue()
 

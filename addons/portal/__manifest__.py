@@ -87,6 +87,7 @@ capabilities so portal pages can be rendered without the ``website`` module.
             "web/static/src/scss/pre_variables.scss",
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
+            "web/static/lib/bootstrap/scss/_maps.scss",
             "web/static/src/scss/tokens.scss",
             ("include", "html_editor._assets_editor"),
             ("include", "portal.assets_chatter_helpers"),
