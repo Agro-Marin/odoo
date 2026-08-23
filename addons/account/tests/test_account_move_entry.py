@@ -1547,6 +1547,236 @@ class TestAccountMove(AccountTestInvoicingCommon):
                     cumulated_balance, read_result["cumulated_balance"]
                 )
 
+    def test_cumulated_balance_obeys_record_rules(self):
+        other = self.setup_other_company(name="cumulated_balance_other_co")
+        other_company = other["company"]
+
+        def post_entry(company, amount, ref):
+            data = self.company_data if company == self.env.company else other
+            move = self.env["account.move"].with_company(company).create({
+                "move_type": "entry",
+                "journal_id": data["default_journal_misc"].id,
+                "date": "2026-02-01",
+                "ref": ref,
+                "line_ids": [
+                    Command.create({
+                        "account_id": data["default_account_receivable"].id,
+                        "balance": amount,
+                        "name": ref,
+                    }),
+                    Command.create({
+                        "account_id": data["default_account_expense"].id,
+                        "balance": -amount,
+                        "name": ref,
+                    }),
+                ],
+            })
+            move.action_post()
+            return move.line_ids.filtered(lambda line: line.balance > 0)
+
+        own_line = post_entry(self.env.company, 100.0, "cb_own")
+        foreign_line = post_entry(other_company, 777.0, "cb_foreign")
+        domain = [("id", "in", (own_line + foreign_line).ids)]
+
+        restricted = self.env["res.users"].create({
+            "name": "cumulated balance, one company",
+            "login": "cumulated_balance_one_company",
+            "company_id": self.env.company.id,
+            "company_ids": [Command.set(self.env.company.ids)],
+            "group_ids": [Command.set(self.env.ref("account.group_account_readonly").ids)],
+        })
+        self.assertFalse(
+            self.env["account.move.line"].with_user(restricted).browse(foreign_line.id)._filtered_access("read"),
+            "fixture is wrong: the restricted user must not be able to read the other company's line",
+        )
+
+        def cumulated(user, companies):
+            rows = (
+                self.env["account.move.line"]
+                .with_user(user)
+                .with_context(allowed_company_ids=companies.ids)
+                .search_read(domain, ["balance", "cumulated_balance"], order="id asc")
+            )
+            return {row["id"]: row["cumulated_balance"] for row in rows}
+
+        restricted_view = cumulated(restricted, self.env.company)
+        self.assertEqual(
+            restricted_view,
+            {own_line.id: 100.0},
+            "cumulated_balance must sum only the lines the user is allowed to read",
+        )
+
+        wide = self.env["res.users"].create({
+            "name": "cumulated balance, both companies",
+            "login": "cumulated_balance_both_companies",
+            "company_id": self.env.company.id,
+            "company_ids": [Command.set((self.env.company + other_company).ids)],
+            "group_ids": [Command.set(self.env.ref("account.group_account_readonly").ids)],
+        })
+        self.assertEqual(
+            cumulated(wide, self.env.company + other_company),
+            {own_line.id: 877.0, foreign_line.id: 777.0},
+            "a user allowed both companies must still see the combined running total, "
+            "and must not be served the narrower user's cached value",
+        )
+        self.assertEqual(
+            cumulated(restricted, self.env.company),
+            {own_line.id: 100.0},
+            "widening then narrowing must not leak the wider total back through the cache",
+        )
+
+    def test_tracked_line_changes_are_logged_on_create_and_delete(self):
+        journal = self.company_data["default_journal_misc"]
+        debit = self.company_data["default_account_receivable"]
+        credit = self.company_data["default_account_expense"]
+        move = self.env["account.move"].create({
+            "move_type": "entry",
+            "journal_id": journal.id,
+            "date": "2026-02-01",
+            "line_ids": [
+                Command.create(
+                    {"account_id": debit.id, "balance": 50.0, "name": "tracked"}
+                ),
+                Command.create(
+                    {"account_id": credit.id, "balance": -50.0, "name": "other"}
+                ),
+            ],
+        })
+        move.action_post()
+        move.action_draft()
+        self.assertTrue(move.posted_before)
+
+        def new_messages(before):
+            return move.message_ids - before
+
+        before = move.message_ids
+        added = self.env["account.move.line"].create({
+            "move_id": move.id,
+            "account_id": debit.id,
+            "balance": 0.0,
+            "name": "added later",
+        })
+        created_logs = new_messages(before)
+        self.assertTrue(
+            created_logs.tracking_value_ids,
+            "creating a line on a posted-before move must log its tracked values",
+        )
+        self.assertIn(
+            "added later",
+            created_logs.tracking_value_ids.mapped("new_value_char"),
+            "the log must carry the value the line was created with",
+        )
+
+        before = move.message_ids
+        added.write({"name": "renamed later"})
+        updated_logs = new_messages(before)
+        self.assertTrue(
+            updated_logs.tracking_value_ids,
+            "updating a tracked field must log the change",
+        )
+        self.assertEqual(
+            updated_logs.tracking_value_ids.mapped("old_value_char"),
+            ["added later"],
+            "the update log must carry the value from BEFORE the write",
+        )
+        self.assertEqual(
+            updated_logs.tracking_value_ids.mapped("new_value_char"),
+            ["renamed later"],
+        )
+
+        before = move.message_ids
+        added.write({"name": "renamed later"})
+        self.assertFalse(
+            new_messages(before).tracking_value_ids,
+            "an unchanged value must not log anything",
+        )
+
+        before = move.message_ids
+        added.with_context(dynamic_unlink=True, force_delete=True).unlink()
+        deleted_logs = new_messages(before)
+        self.assertTrue(
+            deleted_logs.tracking_value_ids,
+            "deleting a tracked line must log what it held -- the blank record is the "
+            "one mail compares, but the lines it iterates are the real ones",
+        )
+        self.assertIn(
+            "renamed later",
+            deleted_logs.tracking_value_ids.mapped("old_value_char"),
+            "the delete log must carry the value the line used to hold",
+        )
+
+    def test_payment_date_compute_search_and_sql_agree(self):
+        # payment_date is spelled three times -- _compute_payment_date (Python),
+        # _search_payment_date (a domain) and _field_to_sql (a CASE). Nothing makes
+        # them agree, so this pins them to each other.
+        journal = self.company_data["default_journal_misc"]
+        receivable = self.company_data["default_account_receivable"]
+        expense = self.company_data["default_account_expense"]
+        today = fields.Date.context_today(self.env["account.move.line"])
+        day = relativedelta(days=1)
+        cases = {
+            "discount today": (today, today + 30 * day),
+            "discount ahead": (today + 10 * day, today + 30 * day),
+            "discount past": (today - 10 * day, today + 30 * day),
+            "no discount": (False, today + 30 * day),
+            "no maturity": (today + 10 * day, False),
+            "neither": (False, False),
+        }
+        lines = {}
+        for label, (discount_date, date_maturity) in cases.items():
+            move = self.env["account.move"].create({
+                "move_type": "entry",
+                "journal_id": journal.id,
+                "date": today,
+                "line_ids": [
+                    Command.create({
+                        "account_id": receivable.id,
+                        "balance": 10.0,
+                        "name": label,
+                        "date_maturity": date_maturity or False,
+                    }),
+                    Command.create({"account_id": expense.id, "balance": -10.0}),
+                ],
+            })
+            line = move.line_ids.filtered(lambda x, label=label: x.name == label)
+            if discount_date:
+                self.env.cr.execute(
+                    "UPDATE account_move_line SET discount_date = %s WHERE id = %s",
+                    (discount_date, line.id),
+                )
+            lines[label] = line
+        self.env.invalidate_all()
+
+        AccountMoveLine = self.env["account.move.line"]
+        cutoff = today + 15 * day
+        all_ids = [line.id for line in lines.values()]
+        matched = set(
+            AccountMoveLine.search(
+                [("id", "in", all_ids), ("payment_date", "<=", cutoff)]
+            ).ids
+        )
+        for label, line in lines.items():
+            self.env.cr.execute(
+                """
+                SELECT CASE WHEN discount_date >= %s THEN discount_date
+                            ELSE date_maturity END
+                  FROM account_move_line WHERE id = %s
+                """,
+                (today, line.id),
+            )
+            sql_value = self.env.cr.fetchone()[0]
+            computed = line.payment_date
+            self.assertEqual(
+                computed or None,
+                sql_value,
+                "_compute_payment_date and _field_to_sql disagree for %s" % label,
+            )
+            self.assertEqual(
+                line.id in matched,
+                bool(computed and computed <= cutoff),
+                "_search_payment_date disagrees with the computed value for %s" % label,
+            )
+
     def test_move_line_rounding(self):
         move = self.env["account.move"].create(
             {

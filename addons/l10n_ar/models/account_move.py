@@ -1,11 +1,16 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from odoo import models, fields, api, _
-from odoo.exceptions import UserError, RedirectWarning, ValidationError
-from odoo.fields import Domain
-from odoo.tools.misc import formatLang
-from dateutil.relativedelta import relativedelta
 import copy
 import logging
+
+from dateutil.relativedelta import relativedelta
+
+from odoo import _, api, fields, models
+from odoo.exceptions import RedirectWarning, UserError, ValidationError
+from odoo.fields import Domain
+from odoo.tools.misc import formatLang
+
+from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
+
 _logger = logging.getLogger(__name__)
 
 
@@ -87,7 +92,7 @@ class AccountMove(models.Model):
     def _get_concept(self):
         """ Method to get the concept of the invoice considering the type of the products on the invoice """
         self.ensure_one()
-        invoice_lines = self.invoice_line_ids.filtered(lambda x: x.display_type not in ('line_section', 'line_subsection', 'line_note'))
+        invoice_lines = self.invoice_line_ids.filtered(lambda x: x.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES)
         product_types = set([x.product_id.type for x in invoice_lines if x.product_id])
         consumable = {'consu'}
         service = set(['service'])
@@ -145,7 +150,7 @@ class AccountMove(models.Model):
             # we require a single vat on each invoice line except from some purchase documents
             if inv.move_type in ['in_invoice', 'in_refund'] and inv.l10n_latam_document_type_id.purchase_aliquots == 'zero':
                 purchase_aliquots = 'zero'
-            for line in inv.mapped('invoice_line_ids').filtered(lambda x: x.display_type not in ('line_section', 'line_subsection', 'line_note')):
+            for line in inv.mapped('invoice_line_ids').filtered(lambda x: x.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES):
                 vat_taxes = line.tax_ids.filtered(lambda x: x.tax_group_id.l10n_ar_vat_afip_code)
                 if len(vat_taxes) != 1:
                     raise UserError(_("There should be a single tax from the “VAT“ tax group per line, but this is not the case for line “%s”. Please add a tax to this line or check the tax configuration's advanced options for the corresponding field “Tax Group”.", line.name))

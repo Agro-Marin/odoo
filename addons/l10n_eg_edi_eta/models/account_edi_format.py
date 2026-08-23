@@ -5,14 +5,17 @@
 import base64
 import json
 import logging
-import requests
-from urllib.parse import quote
 from base64 import b64encode
 from json import JSONDecodeError
-from odoo.addons.account.tools import LegacyHTTPAdapter
+from urllib.parse import quote
 
-from odoo import api, models, _
+import requests
+
+from odoo import _, api, models
 from odoo.libs.numbers import json_float_round
+
+from odoo.addons.account.tools import LegacyHTTPAdapter
+from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 
 _logger = logging.getLogger(__name__)
 
@@ -426,11 +429,11 @@ class AccountEdiFormat(models.Model):
             errors.append(_("Please add all the required fields in the branch details"))
         if not self._l10n_eg_validate_info_address(invoice.partner_id, invoice=invoice):
             errors.append(_("Please add all the required fields in the customer details"))
-        if not all(aml.product_uom_id.l10n_eg_unit_code_id.code for aml in invoice.invoice_line_ids.filtered(lambda x: x.display_type not in ('line_section', 'line_subsection', 'line_note'))):
+        if not all(aml.product_uom_id.l10n_eg_unit_code_id.code for aml in invoice.invoice_line_ids.filtered(lambda x: x.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES)):
             errors.append(_("Please make sure the invoice lines UoM codes are all set up correctly"))
-        if not all(tax.l10n_eg_eta_code for tax in invoice.invoice_line_ids.filtered(lambda x: x.display_type not in ('line_section', 'line_subsection', 'line_note')).tax_ids):
+        if not all(tax.l10n_eg_eta_code for tax in invoice.invoice_line_ids.filtered(lambda x: x.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES).tax_ids):
             errors.append(_("Please make sure the invoice lines taxes all have the correct ETA tax code"))
-        if not all(aml.product_id.l10n_eg_eta_code or aml.product_id.barcode for aml in invoice.invoice_line_ids.filtered(lambda x: x.display_type not in ('line_section', 'line_subsection', 'line_note'))):
+        if not all(aml.product_id.l10n_eg_eta_code or aml.product_id.barcode for aml in invoice.invoice_line_ids.filtered(lambda x: x.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES)):
             errors.append(_("Please make sure the EGS/GS1 Barcode is set correctly on all products"))
         return errors
 

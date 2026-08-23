@@ -6,9 +6,10 @@ import requests
 import zeep
 
 from odoo import _, fields, models
-from odoo.tools import html_escape
 from odoo.libs.numbers import float_round
+from odoo.tools import html_escape
 
+from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 from odoo.addons.certificate.tools import CertificateAdapter
 
 # Custom patches to perform the WSDL requests.
@@ -604,7 +605,7 @@ class AccountEdiFormat(models.Model):
         if not move.company_id.vat:
             res.append(_("VAT number is missing on company %s", move.company_id.display_name))
         total_taxes = self.env['account.tax']
-        for line in move.invoice_line_ids.filtered(lambda line: line.display_type not in ('line_section', 'line_subsection', 'line_note')):
+        for line in move.invoice_line_ids.filtered(lambda line: line.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES):
             taxes = line.tax_ids.flatten_taxes_hierarchy()
             total_taxes |= taxes
             recargo_count = taxes.mapped('l10n_es_type').count('recargo')

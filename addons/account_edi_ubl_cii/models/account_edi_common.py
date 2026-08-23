@@ -1,13 +1,16 @@
+from datetime import datetime
+
 from markupsafe import Markup
 
 from odoo import _, api, models
-from odoo.addons.base.models.res_bank import sanitize_account_number
 from odoo.exceptions import UserError, ValidationError
-from odoo.tools import float_is_zero, float_repr
 from odoo.libs.numbers import float_round
+from odoo.tools import float_is_zero, float_repr
 from odoo.tools.misc import clean_context, formatLang, html_escape
 from odoo.tools.xml_utils import find_xml_value
-from datetime import datetime
+
+from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
+from odoo.addons.base.models.res_bank import sanitize_account_number
 
 # -------------------------------------------------------------------------
 # UNIT OF MEASURE
@@ -453,7 +456,7 @@ class AccountEdiCommon(models.AbstractModel):
 
     def _invoice_constraints_common(self, invoice):
         # check that there is a tax on each line
-        for line in invoice.invoice_line_ids.filtered(lambda x: x.display_type not in ('line_section', 'line_subsection', 'line_note') and x._check_edi_line_tax_required()):
+        for line in invoice.invoice_line_ids.filtered(lambda x: x.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES and x._check_edi_line_tax_required()):
             if not line.tax_ids:
                 return {'tax_on_line': _("Each invoice line should have at least one tax.")}
         return {}

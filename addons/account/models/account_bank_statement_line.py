@@ -6,6 +6,8 @@ from odoo.fields import Command, Domain
 from odoo.tools import SQL
 from odoo.tools.misc import str2bool
 
+from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
+
 
 class AccountBankStatementLine(models.Model):
     _name = "account.bank.statement.line"
@@ -553,7 +555,7 @@ class AccountBankStatementLine(models.Model):
                 (
                     "display_type",
                     "not in",
-                    ("line_section", "line_subsection", "line_note"),
+                    NON_ACCOUNTABLE_DISPLAY_TYPES,
                 ),
                 (
                     "company_id",

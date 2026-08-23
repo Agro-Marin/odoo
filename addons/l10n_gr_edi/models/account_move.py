@@ -7,6 +7,7 @@ from odoo.db.schema import column_exists, create_column
 from odoo.exceptions import UserError
 from odoo.tools import cleanup_xml_node
 
+from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 from odoo.addons.l10n_gr_edi.models.l10n_gr_edi_document import _make_mydata_request
 from odoo.addons.l10n_gr_edi.models.preferred_classification import (
     CLASSIFICATION_CATEGORY_EXPENSE,
@@ -813,7 +814,7 @@ class AccountMove(models.Model):
         )
 
         for line_no, line in enumerate(self.invoice_line_ids, start=1):
-            if line.display_type in ("line_section", "line_subsection", "line_note"):
+            if line.display_type in NON_ACCOUNTABLE_DISPLAY_TYPES:
                 continue
             if move_disallow_classification and line.l10n_gr_edi_cls_category:
                 errors[f"l10n_gr_edi_{line_no}_forbidden_classification"] = {

@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import models, api, fields, _
+from odoo import _, api, fields, models
 from odoo.libs.numbers import float_compare
+
+from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 
 
 class AccountMove(models.Model):
@@ -45,7 +47,7 @@ class AccountMove(models.Model):
             return {}
         line_count = 0
         invoice_line_pickings = {}
-        for line in self.invoice_line_ids.filtered(lambda l: l.display_type not in ('line_section', 'line_subsection', 'line_note')):
+        for line in self.invoice_line_ids.filtered(lambda l: l.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES):
             line_count += 1
             done_moves_related = line.sale_line_ids.mapped('move_ids').filtered(
                 lambda m: m.state == 'done' and m.location_dest_id.usage == 'customer' and m.picking_type_id.code == 'outgoing')

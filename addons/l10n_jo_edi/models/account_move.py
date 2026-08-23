@@ -1,10 +1,13 @@
 import base64
-import requests
 import uuid
 from urllib.parse import urlencode
 
+import requests
+
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+
+from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 
 JOFOTARA_URL = "https://backend.jofotara.gov.jo/core/invoices/"
 
@@ -285,13 +288,13 @@ class AccountMove(models.Model):
                 error_msgs.append(_('Please make sure the "Customer Reference" contains the reason for the return'))
 
         if any(
-            line.display_type not in ('line_section', 'line_subsection', 'line_note')
+            line.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES
             and (line.quantity < 0 or line.price_unit < 0)
             for line in self.invoice_line_ids
         ):
             error_msgs.append(_("JoFotara portal cannot process negative quantity nor negative price on invoice lines"))
 
-        for line in self.invoice_line_ids.filtered(lambda line: line.display_type not in ('line_section', 'line_subsection', 'line_note')):
+        for line in self.invoice_line_ids.filtered(lambda line: line.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES):
             if self.company_id.l10n_jo_edi_taxpayer_type == 'income' and len(line.tax_ids) != 0:
                 error_msgs.append(_("No taxes are allowed on invoice lines for taxpayers unregistered in the sales tax"))
             elif self.company_id.l10n_jo_edi_taxpayer_type == 'sales' and len(line.tax_ids) != 1:

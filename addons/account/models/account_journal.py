@@ -7,6 +7,7 @@ from odoo.libs.web import urls
 from odoo.tools import email_normalize, email_normalize_all, groupby, is_encodable
 from odoo.tools.misc import hash_sign
 
+from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 JOURNAL_CODE_PREFIXES = {
@@ -1056,6 +1057,13 @@ class AccountJournal(models.Model):
         return values
 
     @api.model
+    def _get_selectable_domain(self):
+        # Extension point for restricting which journals a user may pick on a move.
+        # It stays a DOMAIN rather than a record rule because the journals a user may
+        # *select* are a narrower set than the ones they may *read* on existing entries.
+        return []
+
+    @api.model
     def _alias_prepare_alias_name(self, alias_name, name, code, jtype, company):
         if jtype not in ("purchase", "sale"):
             return False
@@ -1473,7 +1481,7 @@ class AccountJournal(models.Model):
                     (
                         "display_type",
                         "not in",
-                        ("line_section", "line_subsection", "line_note"),
+                        NON_ACCOUNTABLE_DISPLAY_TYPES,
                     ),
                     ("parent_state", "!=", "cancel"),
                 ]

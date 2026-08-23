@@ -2,6 +2,8 @@
 
 from odoo import Command, _, api, fields, models
 
+from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
+
 
 class PurchaseRequisitionCreateAlternative(models.TransientModel):
     _name = "purchase.requisition.create.alternative"
@@ -144,7 +146,7 @@ class PurchaseRequisitionCreateAlternative(models.TransientModel):
             **(
                 {"name": order_line.name}
                 if order_line.display_type
-                in ("line_section", "line_subsection", "line_note")
+                in NON_ACCOUNTABLE_DISPLAY_TYPES
                 or not has_product_description
                 else {}
             ),

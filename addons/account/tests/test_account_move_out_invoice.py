@@ -5151,7 +5151,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
 
         with self.assertRaisesRegex(
             UserError,
-            "The account selected on your journal entry forces to provide a secondary currency",
+            r"is restricted to .*, but this journal item is in ",
         ):
             move.currency_id = self.company_data["currency"]
 

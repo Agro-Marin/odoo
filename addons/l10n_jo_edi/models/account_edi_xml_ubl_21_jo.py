@@ -3,7 +3,9 @@ import re
 from types import SimpleNamespace
 
 from odoo import models
-from odoo.tools import float_round, float_is_zero
+from odoo.tools import float_is_zero, float_round
+
+from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 from odoo.addons.account_edi_ubl_cii.models.account_edi_common import FloatFmt
 
 JO_MAX_DP = 9
@@ -371,7 +373,7 @@ class AccountEdiXmlUBL21JO(models.AbstractModel):
 
         refund_move = line.move_id
         invoice_move = refund_move.reversed_entry_id
-        invoice_lines = invoice_move.invoice_line_ids.filtered(lambda line: line.display_type not in ('line_section', 'line_subsection', 'line_note'))
+        invoice_lines = invoice_move.invoice_line_ids.filtered(lambda line: line.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES)
         n = len(invoice_lines)
 
         line_id = -1

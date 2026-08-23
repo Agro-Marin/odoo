@@ -2,6 +2,8 @@ from odoo import Command, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools.translate import _
 
+from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
+
 
 class AccountMoveReversal(models.TransientModel):
     _name = "account.move.reversal"
@@ -207,7 +209,7 @@ class AccountMoveReversal(models.TransientModel):
                         line
                         for line in data["line_ids"]
                         if line[2]["display_type"]
-                        in ("product", "line_section", "line_subsection", "line_note")
+                        in ("product", *NON_ACCOUNTABLE_DISPLAY_TYPES)
                     ]
                     moves_vals_list.append(data)
                 new_moves = self.env["account.move"].create(moves_vals_list)

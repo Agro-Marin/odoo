@@ -315,6 +315,132 @@ class TestAccountJournal(AccountTestInvoicingCommon, HttpCase):
         )
 
 
+@tagged("post_install", "-at_install")
+class TestAccountJournalSelectableDomain(AccountTestInvoicingCommon):
+    def _domain_for(self, move_type="out_invoice"):
+        move = self.env["account.move"].new(
+            {"move_type": move_type, "company_id": self.env.company.id}
+        )
+        return move.journal_id_domain
+
+    def test_domain_is_computed_not_a_static_string(self):
+        field = self.env["account.move"]._fields["journal_id"]
+        self.assertEqual(
+            field.domain,
+            "journal_id_domain",
+            "journal_id must read its domain from the computed field, so that an "
+            "extension can narrow the selection without patching the view",
+        )
+
+    def test_domain_offers_every_suitable_journal_by_default(self):
+        domain = self._domain_for()
+        selectable = self.env["account.journal"].search(domain)
+        suitable = self.env["account.move"]._get_suitable_journal_ids("out_invoice")
+        self.assertEqual(
+            selectable,
+            suitable,
+            "with no extension in play the domain must not narrow anything",
+        )
+
+    def test_domain_still_honours_move_type_suitability(self):
+        purchase_journal = self.env["account.journal"].create(
+            {"name": "Selectable purchases", "code": "SELP", "type": "purchase"}
+        )
+        selectable = self.env["account.journal"].search(self._domain_for())
+        self.assertNotIn(
+            purchase_journal,
+            selectable,
+            "a purchase journal is never selectable on a customer invoice",
+        )
+
+    def _with_narrowed_selection(self, excluded):
+        AccountJournal = type(self.env["account.journal"])
+        original = AccountJournal._get_selectable_domain
+
+        def narrowed(journal_self):
+            return [*original(journal_self), ("id", "!=", excluded.id)]
+
+        AccountJournal._get_selectable_domain = narrowed
+        self.env["account.move"].invalidate_model(["journal_id_domain"])
+        self.addCleanup(setattr, AccountJournal, "_get_selectable_domain", original)
+
+    def test_a_narrowed_journal_is_refused_on_write(self):
+        journals = self.env["account.journal"].search(
+            [("type", "=", "sale"), *self.env["account.journal"]._check_company_domain(
+                self.env.company)]
+        )
+        if len(journals) < 2:
+            journals |= self.env["account.journal"].create(
+                {"name": "Selectable second sale", "code": "SEL2", "type": "sale"}
+            )
+        allowed, excluded = journals[0], journals[1]
+        move = self.env["account.move"].create({
+            "move_type": "out_invoice",
+            "partner_id": self.partner_a.id,
+            "invoice_date": "2026-03-01",
+            "journal_id": allowed.id,
+        })
+        self._with_narrowed_selection(excluded)
+        with self.assertRaises(ValidationError, msg=(
+            "a domain is only a UI filter -- the narrowing has to be enforced by a "
+            "constraint or a plain write walks straight past it"
+        )):
+            move.write({"journal_id": excluded.id})
+
+    def test_a_narrowed_journal_is_refused_on_create(self):
+        journals = self.env["account.journal"].search(
+            [("type", "=", "sale"), *self.env["account.journal"]._check_company_domain(
+                self.env.company)]
+        )
+        if len(journals) < 2:
+            journals |= self.env["account.journal"].create(
+                {"name": "Selectable third sale", "code": "SEL3", "type": "sale"}
+            )
+        excluded = journals[1]
+        self._with_narrowed_selection(excluded)
+        with self.assertRaises(ValidationError):
+            self.env["account.move"].create({
+                "move_type": "out_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-03-01",
+                "journal_id": excluded.id,
+            })
+
+    def test_core_narrows_nothing_so_the_guard_stays_out_of_the_way(self):
+        self.assertEqual(
+            self.env["account.journal"]._get_selectable_domain(),
+            [],
+            "core must contribute no clause, so the constraint is a no-op until an "
+            "extension opts in",
+        )
+
+    def test_an_extension_can_narrow_the_selection(self):
+        excluded = self.env["account.journal"].create(
+            {"name": "Selectable excluded", "code": "SELX", "type": "sale"}
+        )
+        AccountJournal = type(self.env["account.journal"])
+        original = AccountJournal._get_selectable_domain
+
+        def narrowed(journal_self):
+            return [*original(journal_self), ("id", "!=", excluded.id)]
+
+        AccountJournal._get_selectable_domain = narrowed
+        try:
+            self.env["account.move"].invalidate_model(["journal_id_domain"])
+            selectable = self.env["account.journal"].search(self._domain_for())
+        finally:
+            AccountJournal._get_selectable_domain = original
+        self.assertNotIn(
+            excluded,
+            selectable,
+            "a clause returned by _get_selectable_domain must reach journal_id_domain",
+        )
+        self.assertTrue(
+            selectable,
+            "narrowing must remove one journal, not empty the selection",
+        )
+
+
 @tagged("post_install", "-at_install", "mail_alias")
 class TestAccountJournalAlias(AccountTestInvoicingCommon, MailCommon):
     @classmethod

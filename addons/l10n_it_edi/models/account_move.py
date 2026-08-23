@@ -21,6 +21,7 @@ from odoo.tools import (
     html2plaintext,
 )
 
+from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 from odoo.addons.account_edi_proxy_client.models.account_edi_proxy_user import (
     AccountEdiProxyError,
 )
@@ -1135,7 +1136,7 @@ class AccountMove(models.Model):
         scopes = []
         for line in self.invoice_line_ids.filtered(
             lambda l: (
-                l.display_type not in ("line_section", "line_subsection", "line_note")
+                l.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES
             )
         ):
             tax_ids_with_tax_scope = line.tax_ids.filtered(lambda x: x.tax_scope)
@@ -1218,7 +1219,7 @@ class AccountMove(models.Model):
         return any(
             professional_fee_tag.id in line.account_id.tag_ids.ids
             for line in self.invoice_line_ids
-            if line.display_type not in ("line_section", "line_subsection", "line_note")
+            if line.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES
         )
 
     def _l10n_it_edi_features_for_document_type_selection(self):

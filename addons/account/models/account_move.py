@@ -28,6 +28,8 @@ from odoo.tools.mail import is_html_empty
 from odoo.tools.misc import StackMap
 from odoo.tools.safe_eval import safe_eval
 
+from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
+
 _logger = logging.getLogger(__name__)
 
 
@@ -177,7 +179,7 @@ class AccountMove(models.Model):
         precompute=True,
         required=True,
         check_company=True,
-        domain="[('id', 'in', suitable_journal_ids)]",
+        domain="journal_id_domain",
     )
     journal_group_id = fields.Many2one(
         "account.journal.group",
@@ -335,6 +337,12 @@ class AccountMove(models.Model):
         "account.journal",
         compute="_compute_suitable_journal_ids",
     )
+    journal_id_domain = fields.Binary(
+        compute="_compute_journal_id_domain",
+        exportable=False,
+        help="Dynamic domain limiting journal selection to the journals suitable for "
+        "this move type that the user is allowed to access.",
+    )
     highest_name = fields.Char(compute="_compute_highest_name")
     made_sequence_gap = fields.Boolean()
     show_name_warning = fields.Boolean(store=False)
@@ -389,20 +397,18 @@ class AccountMove(models.Model):
     )
 
 
-    invoice_line_ids = (
-        fields.One2many(
-            "account.move.line",
-            "move_id",
-            string="Invoice lines",
-            copy=False,
-            domain=[
-                (
-                    "display_type",
-                    "in",
-                    ("product", "line_section", "line_subsection", "line_note"),
-                )
-            ],
-        )
+    invoice_line_ids = fields.One2many(
+        "account.move.line",
+        "move_id",
+        string="Invoice lines",
+        copy=False,
+        domain=[
+            (
+                "display_type",
+                "in",
+                ("product", *NON_ACCOUNTABLE_DISPLAY_TYPES),
+            )
+        ],
     )
 
     invoice_date = fields.Date(
@@ -1069,6 +1075,16 @@ class AccountMove(models.Model):
             m.suitable_journal_ids = self._get_suitable_journal_ids(
                 m.move_type, m.company_id
             )
+
+    @api.depends_context("uid")
+    @api.depends("suitable_journal_ids")
+    def _compute_journal_id_domain(self):
+        selectable = self.env["account.journal"]._get_selectable_domain()
+        for move in self:
+            move.journal_id_domain = [
+                ("id", "in", move.suitable_journal_ids.ids),
+                *selectable,
+            ]
 
     @api.depends(
         "posted_before", "state", "journal_id", "date", "move_type", "origin_payment_id"
@@ -3562,6 +3578,141 @@ class AccountMove(models.Model):
                     _("Cannot create a sale document in a non sale journal")
                 )
 
+    def _prepare_epd_needed_per_line(self):
+        self.ensure_one()
+        AccountTax = self.env["account.tax"]
+        company = self.company_id or self.env.company
+        currency = self.currency_id or company.currency_id
+        discount_percentage = self.invoice_payment_term_id.discount_percentage
+        percentage_name = f"{discount_percentage}%"
+        percentage = discount_percentage / 100
+        sign = self.direction_sign
+
+        values_per_grouping_key = AccountTax._aggregate_base_lines_aggregated_values(
+            AccountTax._aggregate_base_lines_tax_details(
+                self._prepare_discountable_base_lines_for_epd(company),
+                self.env["account.move.line"]._get_epd_grouping_function(),
+            )
+        )
+
+        result_per_invoice_line = {}
+        for grouping_key, values in values_per_grouping_key.items():
+            if not grouping_key:
+                continue
+            key_line = frozendict(
+                {"move_id": self.id, **grouping_key, "display_type": "epd"}
+            )
+            key_counterpart = frozendict(
+                {
+                    "move_id": self.id,
+                    "account_id": grouping_key["account_id"],
+                    "display_type": "epd",
+                }
+            )
+            aggregated_base_lines = [
+                base_line for base_line, _taxes_data in values["base_line_x_taxes_data"]
+            ]
+            for base_line in aggregated_base_lines:
+                result_per_invoice_line[base_line["_invoice_line"]] = {
+                    key_line: {
+                        "name": _("Early Payment Discount (%s)", percentage_name),
+                        "amount_currency": 0.0,
+                        "balance": 0.0,
+                    },
+                    key_counterpart: {
+                        "name": _("Early Payment Discount (%s)", percentage_name),
+                        "amount_currency": 0.0,
+                        "balance": 0.0,
+                        "tax_ids": [Command.clear()],
+                    },
+                }
+
+            self._spread_epd_over_base_lines(
+                result_per_invoice_line,
+                aggregated_base_lines,
+                key_line,
+                key_counterpart,
+                {
+                    "amount_currency": (
+                        currency.decimal_places,
+                        currency.round(
+                            sign * values["total_excluded_currency"] * percentage
+                        ),
+                    ),
+                    "balance": (
+                        company.currency_id.decimal_places,
+                        company.currency_id.round(
+                            sign * values["total_excluded"] * percentage
+                        ),
+                    ),
+                },
+            )
+
+        return result_per_invoice_line
+
+    def _prepare_discountable_base_lines_for_epd(self, company):
+        AccountTax = self.env["account.tax"]
+        base_lines = [
+            self._prepare_product_base_line_for_taxes_computation(line)
+            for line in self.invoice_line_ids.filtered(
+                lambda line: line.display_type == "product"
+            )
+        ]
+        AccountTax._add_tax_details_in_base_lines(base_lines, company)
+        AccountTax._round_base_lines_tax_details(base_lines, company)
+        for base_line in base_lines:
+            # _prepare_discountable_base_lines may split a base line in two; the copy
+            # carries this key, which is how a distributed amount finds its way back
+            # to the invoice line that has to hold it.
+            base_line["_invoice_line"] = base_line["record"]
+        return AccountTax._prepare_discountable_base_lines(base_lines, company)
+
+    def _spread_epd_over_base_lines(
+        self, result_per_invoice_line, base_lines, key_line, key_counterpart, deltas
+    ):
+        # The discount is one amount per grouping key, but it has to land on the
+        # invoice lines that produced it, in proportion and without losing a cent --
+        # hence the smooth distribution rather than a per-line percentage.
+        target_factors = [
+            {
+                "factor": base_line["tax_details"]["raw_total_excluded_currency"],
+                "base_line": base_line,
+            }
+            for base_line in base_lines
+        ]
+        for fname, (precision, delta) in deltas.items():
+            amounts = self.env["account.tax"]._distribute_delta_amount_smoothly(
+                precision_digits=precision,
+                delta_amount=delta,
+                target_factors=target_factors,
+            )
+            for target_factor, amount in zip(target_factors, amounts, strict=True):
+                epd_needed = result_per_invoice_line[
+                    target_factor["base_line"]["_invoice_line"]
+                ]
+                epd_needed[key_line][fname] -= amount
+                epd_needed[key_counterpart][fname] += amount
+
+    @api.constrains("journal_id")
+    def _check_journal_is_selectable(self):
+        # A field `domain=` is a UI filter and nothing more: measured on this fork,
+        # a write and a create both go through with a journal the domain excludes,
+        # and a record rule on account.journal does not stop them either. So every
+        # clause _get_selectable_domain() contributes is enforced here, or nowhere.
+        selectable_domain = self.env["account.journal"]._get_selectable_domain()
+        if not selectable_domain:
+            return
+        journals = self.journal_id
+        selectable = journals.filtered_domain(selectable_domain)
+        forbidden = journals - selectable
+        if forbidden:
+            raise ValidationError(
+                _(
+                    "You are not allowed to use the journal %(journals)s.",
+                    journals=", ".join(forbidden.mapped("display_name")),
+                )
+            )
+
     @api.constrains("line_ids", "fiscal_position_id", "company_id")
     def _check_taxes_country(self):
         self._compute_tax_country_id()
@@ -3943,7 +4094,7 @@ class AccountMove(models.Model):
                 super().write({"tax_totals": vals["tax_totals"]})
 
         if any(field in vals for field in ["journal_id", "currency_id"]):
-            self.line_ids._check_constrains_account_id_journal_id()
+            self.line_ids._check_account_is_usable()
 
         return res
 
@@ -5077,7 +5228,7 @@ class AccountMove(models.Model):
             if not move.line_ids.filtered(
                 lambda line: (
                     line.display_type
-                    not in ("line_section", "line_subsection", "line_note")
+                    not in NON_ACCOUNTABLE_DISPLAY_TYPES
                 )
             ):
                 validation_msgs.add(_("Even magicians can't post nothing!"))
@@ -5138,7 +5289,7 @@ class AccountMove(models.Model):
 
         self._post_validate_invoices(validation_msgs)
 
-        self.line_ids._check_constrains_account_id_journal_id()
+        self.line_ids._check_account_is_usable()
         self._post_validate_moves(validation_msgs, soft)
 
         if validation_msgs:
@@ -5274,8 +5425,7 @@ class AccountMove(models.Model):
             wrong_lines = invoice.line_ids.filtered(
                 lambda aml, invoice=invoice: (
                     aml.partner_id != invoice.commercial_partner_id
-                    and aml.display_type
-                    not in ("line_section", "line_subsection", "line_note")
+                    and aml.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES
                 )
             )
             if wrong_lines:
