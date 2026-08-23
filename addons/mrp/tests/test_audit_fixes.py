@@ -1750,3 +1750,114 @@ class TestMrpAuditFixes(TestMrpCommon):
             "the compute used to answer with the component's production location, "
             "which disagreed with everything that actually got saved",
         )
+
+    def _audit_confirmed_orders(self, count, tag):
+        unit = self.env.ref("uom.product_uom_unit")
+        location = self.env["stock.warehouse"].search([], limit=1).lot_stock_id
+        components = self.env["product.product"].create(
+            [
+                {"name": "Audit batch %s c%d" % (tag, i), "is_storable": True}
+                for i in range(count)
+            ]
+        )
+        finished = self.env["product.product"].create(
+            [
+                {"name": "Audit batch %s f%d" % (tag, i), "is_storable": True}
+                for i in range(count)
+            ]
+        )
+        for component in components:
+            self.env["stock.quant"]._update_available_quantity(
+                component, location, 1000
+            )
+        boms = self.env["mrp.bom"].create(
+            [
+                {
+                    "product_tmpl_id": product.product_tmpl_id.id,
+                    "product_qty": 1.0,
+                    "product_uom_id": unit.id,
+                    "type": "normal",
+                    "bom_line_ids": [
+                        Command.create({"product_id": component.id, "product_qty": 1.0})
+                    ],
+                }
+                for component, product in zip(components, finished, strict=True)
+            ]
+        )
+        productions = self.env["mrp.production"].create(
+            [
+                {"product_id": product.id, "product_qty": 1.0, "bom_id": bom.id}
+                for product, bom in zip(finished, boms, strict=True)
+            ]
+        )
+        productions.action_confirm()
+        self.env.flush_all()
+        return productions, unit
+
+    def _write_an_extra_component_cost(self, count, tag):
+        productions, unit = self._audit_confirmed_orders(count, tag)
+        extra = self.env["product.product"].create(
+            {"name": "Audit batch %s extra" % tag, "is_storable": True}
+        )
+        self.env.invalidate_all()
+        before = self.env.cr.sql_log_count
+        productions.write(
+            {
+                "move_raw_ids": [
+                    Command.create(
+                        {
+                            "product_id": extra.id,
+                            "product_uom_qty": 1.0,
+                            "product_uom_id": unit.id,
+                        }
+                    )
+                ]
+            }
+        )
+        self.env.flush_all()
+        queries = self.env.cr.sql_log_count - before
+        added = productions.move_raw_ids.filtered(lambda m: not m.bom_line_id)
+        self.assertEqual(len(added), count, "one move per order, whatever the batching")
+        return queries
+
+    def test_writing_moves_to_many_orders_costs_one_batch(self):
+        small = self._write_an_extra_component_cost(2, "small")
+        large = self._write_an_extra_component_cost(20, "large")
+        marginal = (large - small) / 18.0
+        self.assertLess(
+            marginal,
+            10,
+            "write() used to recurse once per record whenever a move key was in "
+            "vals, so each extra order cost a full write of its own (~18 queries). "
+            "N=2 cost %d, N=20 cost %d, marginal %.1f" % (small, large, marginal),
+        )
+
+    def test_writing_moves_still_splits_across_warehouses(self):
+        productions, unit = self._audit_confirmed_orders(2, "wh")
+        other_warehouse = self.env["stock.warehouse"].create(
+            {"name": "Audit second WH", "code": "AWH2"}
+        )
+        productions[1].location_src_id = other_warehouse.lot_stock_id
+        extra = self.env["product.product"].create(
+            {"name": "Audit wh extra", "is_storable": True}
+        )
+        productions.write(
+            {
+                "move_raw_ids": [
+                    Command.create(
+                        {
+                            "product_id": extra.id,
+                            "product_uom_qty": 1.0,
+                            "product_uom_id": unit.id,
+                        }
+                    )
+                ]
+            }
+        )
+        for production in productions:
+            added = production.move_raw_ids.filtered(lambda m: not m.bom_line_id)
+            self.assertEqual(
+                added.warehouse_id,
+                production.location_src_id.warehouse_id,
+                "the batch may only group orders that share a source warehouse",
+            )

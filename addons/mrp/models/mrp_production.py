@@ -1692,22 +1692,36 @@ class MrpProduction(models.Model):
         move_keys = [
             key for key in ("move_raw_ids", "move_finished_ids") if key in vals
         ]
-        if len(self) > 1 and move_keys:
-            result = True
-            for production in self:
-                result = production.write(vals) and result
-            return result
+        # the move commands are stamped with a warehouse, so a set spanning
+        # several of them has to be split -- but only that far, not per record
+        if len(self) > 1 and move_keys and not vals.get("location_src_id"):
+            by_warehouse = self.grouped(
+                lambda production: production.location_src_id.warehouse_id
+            )
+            if len(by_warehouse) > 1:
+                result = True
+                for group in by_warehouse.values():
+                    result = group.write(vals) and result
+                return result
 
+        self._check_write_preconditions(vals)
         production_to_replan = self.filtered(lambda p: p.is_planned)
         self._update_move_warehouse_vals(vals, move_keys)
         moves_to_reassign = self._update_write_picking_type(vals)
 
         res = super().write(vals)
 
-        for production in self:
-            production._post_write_one(vals, production_to_replan)
+        self._post_write(vals, production_to_replan)
         self._post_write_reassign(moves_to_reassign)
         return res
+
+    def _check_write_preconditions(self, vals):
+        if "date_start" not in vals or self.env.context.get("force_date", False):
+            return
+        if any(production.state in ("done", "cancel") for production in self):
+            raise UserError(
+                _("You cannot move a manufacturing order once it is cancelled or done.")
+            )
 
     def _get_normalized_write_vals(self, vals):
         return self._merge_byproduct_commands(vals, self._main_product_id_from(vals))
@@ -1801,33 +1815,34 @@ class MrpProduction(models.Model):
             moves_to_reassign |= production.move_raw_ids
         return moves_to_reassign
 
-    def _post_write_one(self, vals, production_to_replan):
-        self.ensure_one()
+    def _post_write(self, vals, production_to_replan):
+        """Everything the write implies, once for the whole set.
+
+        `super().write()` has just given every record in `self` the same
+        `date_start` and `date_end`, so the move updates they drive are one write
+        each rather than one per order.
+        """
         if "date_start" in vals and not self.env.context.get("force_date", False):
-            if self.state in ("done", "cancel"):
-                raise UserError(
-                    _(
-                        "You cannot move a manufacturing order once it is cancelled or done."
-                    )
-                )
-            if self.is_planned:
-                self.button_unplan()
+            production_to_replan.button_unplan()
         if vals.get("date_start"):
-            self.move_raw_ids.write(
-                {"date": self.date_start, "date_deadline": self.date_start}
-            )
+            date_start = self[:1].date_start
+            self.move_raw_ids.write({"date": date_start, "date_deadline": date_start})
         if vals.get("date_end"):
-            self.move_finished_ids.write({"date": self.date_end})
-        if (
-            any(
-                field in ("move_raw_ids", "move_finished_ids", "workorder_ids")
-                for field in vals
-            )
-            and self.state != "draft"
+            self.move_finished_ids.write({"date": self[:1].date_end})
+        if any(
+            field in ("move_raw_ids", "move_finished_ids", "workorder_ids")
+            for field in vals
         ):
-            self.with_context(no_procurement=True)._autoconfirm_production()
-            if self in production_to_replan:
-                self._plan_workorders()
+            open_orders = self.filtered(lambda p: p.state != "draft")
+            if open_orders:
+                open_orders.with_context(no_procurement=True)._autoconfirm_production()
+                for production in open_orders & production_to_replan:
+                    production._plan_workorders()
+        for production in self:
+            production._post_write_one(vals)
+
+    def _post_write_one(self, vals):
+        self.ensure_one()
         if self.state == "done" and "qty_producing" in vals:
             self.move_finished_ids.filtered(
                 lambda move: move.product_id == self.product_id and move.state == "done"
