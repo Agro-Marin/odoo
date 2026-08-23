@@ -375,6 +375,7 @@ class AccountMove(models.Model):
             base_lines = get_base_lines(move)
             move_tax_lines_values_before = tax_lines_values_before.get(move, {})
             move_base_lines_values_before = base_lines_values_before.get(move, {})
+            reapply_currency_rate = False
             if move.is_invoice(include_receipts=True) and (
                 field_has_changed(moves_values_before, move, "currency_id")
                 or field_has_changed(moves_values_before, move, "move_type")
@@ -416,12 +417,14 @@ class AccountMove(models.Model):
                 ):
                     continue
             elif field_has_changed(moves_values_before, move, "invoice_currency_rate"):
-                round_from_tax_lines = "reapply_currency_rate"
+                round_from_tax_lines = True
+                reapply_currency_rate = True
             else:
                 continue
 
             base_lines_values, tax_lines_values = move._get_rounded_base_and_tax_lines(
-                round_from_tax_lines=round_from_tax_lines
+                round_from_tax_lines=round_from_tax_lines,
+                reapply_currency_rate=reapply_currency_rate,
             )
             AccountTax._add_accounting_data_in_base_lines_tax_details(
                 base_lines_values,

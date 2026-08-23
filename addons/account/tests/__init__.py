@@ -63,6 +63,7 @@ from . import test_account_partner
 from . import test_setup_wizard
 from . import test_account_cash_rounding
 from . import test_product
+from . import test_marin_account_move_audit
 from . import test_marin_account_move_fixes
 from . import test_marin_outstanding_widget_guards
 from . import test_marin_payment_receipt_report
