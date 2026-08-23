@@ -829,3 +829,254 @@ class TestAccountJournalAlias(AccountTestInvoicingCommon, MailCommon):
                 for index, name in enumerate(outbound_method_lines_names)
             ],
         )
+
+
+@tagged("post_install", "-at_install")
+class TestAccountJournalTypeDefaults(AccountTestInvoicingCommon):
+    """Create, write and the form onchange must agree on what a journal type implies."""
+
+    def _create(self, journal_type, code, **vals):
+        return self.env["account.journal"].create(
+            {"name": f"T {code}", "type": journal_type, "code": code, **vals}
+        )
+
+    def _convert(self, journal_type, code):
+        journal = self._create("general", code)
+        self.env.flush_all()
+        journal.write({"type": journal_type})
+        return journal
+
+    def test_create_and_write_agree_on_the_default_account(self):
+        for journal_type, code_a, code_b in (
+            ("sale", "TDA1", "TDA2"),
+            ("purchase", "TDB1", "TDB2"),
+        ):
+            with self.subTest(journal_type=journal_type):
+                self.assertEqual(
+                    self._create(journal_type, code_a).default_account_id,
+                    self._convert(journal_type, code_b).default_account_id,
+                    "create() and write({'type': ...}) must pick the same account",
+                )
+
+    def test_the_default_account_comes_from_the_company(self):
+        other_income = self.env["account.account"].create(
+            {
+                "name": "Other income",
+                "code": "409999",
+                "account_type": "income_other",
+                "company_ids": [Command.link(self.env.company.id)],
+            }
+        )
+        self.env["ir.default"].set(
+            "product.category",
+            "property_account_income_categ_id",
+            other_income.id,
+            company_id=self.env.company.id,
+        )
+        self.env.registry.clear_cache()
+        self.assertEqual(
+            self._create("sale", "TDC1").default_account_id,
+            self.env.company.income_account_id,
+            "a product-category default must not outrank the company's income account",
+        )
+
+    def test_an_archived_account_is_never_defaulted_onto_a_journal(self):
+        self.env.company.income_account_id.active = False
+        self.env.flush_all()
+        self.env.registry.clear_cache()
+        self.assertFalse(self._create("sale", "TDD1").default_account_id)
+        self.assertFalse(self._convert("sale", "TDD2").default_account_id)
+
+    def test_converting_to_a_liquidity_type_provides_an_account(self):
+        for journal_type, code in (
+            ("bank", "TDE1"),
+            ("cash", "TDE2"),
+            ("credit", "TDE3"),
+        ):
+            with self.subTest(journal_type=journal_type):
+                self.assertTrue(
+                    self._convert(journal_type, code).default_account_id,
+                    "a liquidity journal without a default account cannot post",
+                )
+
+    def test_a_journal_created_without_a_name_gets_one(self):
+        for journal_type, code in (
+            ("bank", "TDF1"),
+            ("cash", "TDF2"),
+            ("credit", "TDF3"),
+            ("sale", "TDF4"),
+            ("general", "TDF5"),
+        ):
+            with self.subTest(journal_type=journal_type):
+                journal = self.env["account.journal"].create(
+                    {"type": journal_type, "code": code}
+                )
+                self.assertTrue(journal.name)
+                if journal_type in ("bank", "cash", "credit"):
+                    self.assertTrue(
+                        journal.default_account_id.name,
+                        "the account created alongside the journal needs a name too",
+                    )
+
+    def test_an_explicit_account_survives_a_type_change(self):
+        journal = self._create("sale", "TDG1")
+        expense = self.env.company.expense_account_id
+        journal.write({"type": "purchase", "default_account_id": expense.id})
+        self.assertEqual(journal.default_account_id, expense)
+
+    def test_a_stale_cash_difference_account_is_cleared(self):
+        journal = self._create("bank", "TDH1")
+        self.assertTrue(journal.profit_account_id)
+        journal.write(
+            {"type": "general", "profit_account_id": journal.profit_account_id.id}
+        )
+        self.assertFalse(
+            journal.loss_account_id,
+            "a cash-difference account must not survive onto a non-cash journal",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestAccountJournalCodeAndCopy(AccountTestInvoicingCommon):
+    def test_copy_honours_an_explicit_default(self):
+        journal = self.env["account.journal"].create(
+            {"name": "Original", "type": "sale", "code": "TCA1"}
+        )
+        copied = journal.copy(default={"code": "TCA9", "name": "Chosen name"})
+        self.assertEqual(copied.code, "TCA9")
+        self.assertEqual(copied.name, "Chosen name")
+
+    def test_copy_without_a_default_still_disambiguates(self):
+        journal = self.env["account.journal"].create(
+            {"name": "Original", "type": "sale", "code": "TCB1"}
+        )
+        copied = journal.copy()
+        self.assertNotEqual(copied.code, journal.code)
+        self.assertNotEqual(copied.name, journal.name)
+
+    def test_a_user_chosen_code_survives_a_type_change(self):
+        journal = self.env["account.journal"].create(
+            {"name": "Chosen", "type": "sale", "code": "ZS1"}
+        )
+        values = journal.onchange(
+            {"id": journal.id, "name": "Chosen", "type": "purchase", "code": "ZS1"},
+            ["type"],
+            {"type": {}, "code": {}, "name": {}},
+        ).get("value", {})
+        self.assertEqual(values.get("code", "ZS1"), "ZS1")
+
+    def test_a_generated_code_is_refreshed_on_a_type_change(self):
+        journal = self.env["account.journal"].create(
+            {"name": "Generated", "type": "sale", "code": "INV9"}
+        )
+        values = journal.onchange(
+            {"id": journal.id, "name": "Generated", "type": "purchase", "code": "INV9"},
+            ["type"],
+            {"type": {}, "code": {}, "name": {}},
+        ).get("value", {})
+        self.assertTrue(values.get("code", "").startswith("BILL"))
+
+    def test_writing_an_unusable_alias_on_several_journals(self):
+        journals = self.env["account.journal"].create(
+            [
+                {"name": "A", "type": "sale", "code": "TCC1"},
+                {"name": "B", "type": "sale", "code": "TCC2"},
+            ]
+        )
+        journals.write({"alias_name": "δοκιμή"})
+        self.assertEqual(len(set(journals.mapped("alias_name"))), 2)
+
+    def test_an_unknown_payment_type_is_refused(self):
+        journal = self.env["account.journal"].create(
+            {"name": "Bank", "type": "bank", "code": "TCD1"}
+        )
+        with self.assertRaises(ValueError):
+            journal._get_available_payment_method_lines("bogus")
+
+    def test_no_default_account_outside_the_liquidity_types(self):
+        with self.assertRaises(UserError):
+            self.env["account.journal"]._create_default_account(
+                self.env.company, "general", {"name": "x"}
+            )
+
+
+@tagged("post_install", "-at_install")
+class TestAccountJournalInvalidation(AccountTestInvoicingCommon):
+    def test_has_invalid_statements_follows_its_statements(self):
+        journal = self.company_data["default_journal_bank"]
+        statement = self.env["account.bank.statement"].create(
+            {
+                "name": "st",
+                "line_ids": [
+                    Command.create(
+                        {
+                            "journal_id": journal.id,
+                            "payment_ref": "line",
+                            "amount": 10.0,
+                            "date": fields.Date.today(),
+                        }
+                    )
+                ],
+            }
+        )
+        statement.balance_end_real = statement.balance_end + 100
+        self.env.flush_all()
+        self.assertTrue(journal.has_invalid_statements)
+
+        statement.balance_end_real = statement.balance_end
+        self.env.flush_all()
+        self.assertFalse(
+            journal.has_invalid_statements,
+            "the flag must not survive the statement becoming valid again",
+        )
+
+    def test_accounting_date_follows_the_lock_date(self):
+        journal = self.company_data["default_journal_misc"]
+        move_date = fields.Date.to_date("2026-03-15")
+        before = journal.with_context(move_date=move_date).accounting_date
+        self.env.company.fiscalyear_lock_date = fields.Date.to_date("2026-06-30")
+        self.env.flush_all()
+        self.assertNotEqual(
+            journal.with_context(move_date=move_date).accounting_date,
+            before,
+            "a lock-date change must invalidate the cached accounting date",
+        )
+
+    def test_an_archived_journal_keeps_its_bank_account(self):
+        first = self.env["account.journal"].create(
+            {
+                "name": "First",
+                "type": "bank",
+                "code": "TIA1",
+                "bank_acc_number": "TESTACC0001",
+            }
+        )
+        bank_account = first.bank_account_id
+        second = self.env["account.journal"].create(
+            {"name": "Second", "type": "bank", "code": "TIA2"}
+        )
+        second.write({"bank_account_id": bank_account.id})
+        second.write({"active": False})
+        self.env.flush_all()
+
+        first.unlink()
+        self.env.flush_all()
+        bank_account.invalidate_recordset()
+        self.assertTrue(
+            bank_account.active,
+            "a bank account still referenced by an archived journal must stay active",
+        )
+
+    def test_unsubscribing_keeps_the_remaining_addresses_in_order(self):
+        journal = self.env["account.journal"].create(
+            {
+                "name": "Notified",
+                "type": "sale",
+                "code": "TIB1",
+                "incoming_einvoice_notification_email": "a@x.com, b@x.com, c@x.com, d@x.com",
+            }
+        )
+        journal._unsubscribe_invoice_notification_email("b@x.com")
+        self.assertEqual(
+            journal.incoming_einvoice_notification_email, "a@x.com, c@x.com, d@x.com"
+        )

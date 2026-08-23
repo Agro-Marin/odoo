@@ -10,25 +10,59 @@ from odoo.tools.misc import hash_sign
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
-JOURNAL_CODE_PREFIXES = {
-    "sale": "INV",
-    "purchase": "BILL",
-    "cash": "CSH",
-    "bank": "BNK",
-    "credit": "CCD",
-    "general": "MISC",
+ANY_ACCOUNT_TYPES = (
+    "asset_receivable",
+    "asset_cash",
+    "asset_current",
+    "asset_non_current",
+    "asset_prepayments",
+    "asset_fixed",
+    "liability_payable",
+    "liability_credit_card",
+    "liability_current",
+    "liability_non_current",
+    "equity",
+    "equity_unaffected",
+    "income",
+    "income_other",
+    "expense",
+    "expense_depreciation",
+    "expense_direct_cost",
+    "off_balance",
+)
+
+JOURNAL_TYPES = {
+    "sale": {
+        "code_prefix": "INV",
+        "account_types": ("income", "income_other"),
+        "alias_move_type": "out_invoice",
+    },
+    "purchase": {
+        "code_prefix": "BILL",
+        "account_types": ("expense", "expense_depreciation", "expense_direct_cost"),
+        "alias_move_type": "in_invoice",
+    },
+    "cash": {
+        "code_prefix": "CSH",
+        "account_types": ("asset_cash",),
+    },
+    "bank": {
+        "code_prefix": "BNK",
+        "account_types": ("asset_cash", "liability_credit_card"),
+    },
+    "credit": {
+        "code_prefix": "CCD",
+        "account_types": ("liability_credit_card",),
+    },
+    "general": {
+        "code_prefix": "MISC",
+        "account_types": ANY_ACCOUNT_TYPES,
+    },
 }
-DEFAULT_ACCOUNT_TYPE_BY_JOURNAL = {
-    "bank": "asset_cash",
-    "cash": "asset_cash",
-    "sale": "income%",
-    "purchase": "expense%",
-    "credit": "liability_credit_card",
-}
-ALIAS_MOVE_TYPE_BY_JOURNAL = {
-    "purchase": "in_invoice",
-    "sale": "out_invoice",
-}
+
+LIQUIDITY_TYPES = ("bank", "cash", "credit")
+DOCUMENT_TYPES = ("sale", "purchase")
+CASH_DIFFERENCE_TYPES = ("bank", "cash")
 
 
 class AccountJournalGroup(models.Model):
@@ -97,18 +131,12 @@ class AccountJournal(models.Model):
         return "odoo"
 
     def _domain_default_account_id(self):
-        return """[
-            ('account_type', 'in', ('asset_cash', 'liability_credit_card') if type == 'bank'
-                                   else ('liability_credit_card',) if type == 'credit'
-                                   else ('asset_cash',) if type == 'cash'
-                                   else ('income', 'income_other') if type == 'sale'
-                                   else ('expense', 'expense_depreciation', 'expense_direct_cost') if type == 'purchase'
-                                   else ('asset_receivable', 'asset_cash', 'asset_current', 'asset_non_current',
-                                         'asset_prepayments', 'asset_fixed', 'liability_payable',
-                                         'liability_credit_card', 'liability_current', 'liability_non_current',
-                                         'equity', 'equity_unaffected', 'income', 'income_other', 'expense',
-                                         'expense_depreciation', 'expense_direct_cost', 'off_balance'))
-        ]"""
+        branches = "".join(
+            f"{spec['account_types']!r} if type == {journal_type!r} else "
+            for journal_type, spec in JOURNAL_TYPES.items()
+            if journal_type != "general"
+        )
+        return f"[('account_type', 'in', {branches}{ANY_ACCOUNT_TYPES!r})]"
 
     name = fields.Char(string="Journal Name", required=True, translate=True)
     name_placeholder = fields.Char(compute="_compute_name_placeholder")
@@ -148,9 +176,6 @@ class AccountJournal(models.Model):
         string="Self Billing",
         help="This journal is for self-billing invoices. "
         "Invoices will be created using a different sequence per partner.",
-    )
-    default_account_type = fields.Char(
-        string="Default Account Type", compute="_compute_default_account_type"
     )
     default_account_id = fields.Many2one(
         comodel_name="account.account",
@@ -352,6 +377,9 @@ class AccountJournal(models.Model):
     )
     accounting_date = fields.Date(compute="_compute_accounting_date")
     display_alias_fields = fields.Boolean(compute="_compute_display_alias_fields")
+    bank_statement_ids = fields.One2many(
+        comodel_name="account.bank.statement", inverse_name="journal_id"
+    )
     has_invalid_statements = fields.Boolean(compute="_compute_has_invalid_statements")
 
     show_fetch_in_einvoices_button = fields.Boolean(
@@ -373,6 +401,7 @@ class AccountJournal(models.Model):
         "Journal codes must be unique per company.",
     )
 
+    @api.depends("bank_statement_ids.is_valid", "bank_statement_ids.is_complete")
     def _compute_has_invalid_statements(self):
         journals_with_invalid_statements = (
             self.env["account.bank.statement"]
@@ -511,9 +540,7 @@ class AccountJournal(models.Model):
         method_information_mapping = results["method_information_mapping"]
         providers_per_code = results["providers_per_code"]
 
-        journal_bank_cash = self.filtered(
-            lambda j: j.type in ("bank", "cash", "credit")
-        )
+        journal_bank_cash = self.filtered(lambda j: j.type in LIQUIDITY_TYPES)
         journal_other = self - journal_bank_cash
         journal_other.available_payment_method_ids = False
 
@@ -573,13 +600,6 @@ class AccountJournal(models.Model):
 
             journal.available_payment_method_ids = commands
 
-    @api.depends("type")
-    def _compute_default_account_type(self):
-        for journal in self:
-            journal.default_account_type = DEFAULT_ACCOUNT_TYPE_BY_JOURNAL.get(
-                journal.type, "%"
-            )
-
     @api.depends("type", "currency_id")
     def _compute_inbound_payment_method_line_ids(self):
         self._compute_payment_method_line_ids("inbound")
@@ -592,7 +612,7 @@ class AccountJournal(models.Model):
         field_name = f"{payment_type}_payment_method_line_ids"
         for journal in self:
             commands = [Command.clear()]
-            if journal.type in ("bank", "cash", "credit"):
+            if journal.type in LIQUIDITY_TYPES:
                 existing_method_lines = journal[field_name]
                 default_methods = getattr(
                     journal, f"_default_{payment_type}_payment_methods"
@@ -634,14 +654,21 @@ class AccountJournal(models.Model):
     @api.depends("company_id", "type")
     def _compute_suspense_account_id(self):
         for journal in self:
-            if journal.type not in ("bank", "cash", "credit"):
+            if journal.type not in LIQUIDITY_TYPES:
                 journal.suspense_account_id = False
             elif not journal.suspense_account_id:
                 journal.suspense_account_id = (
                     journal.company_id.account_journal_suspense_account_id or False
                 )
 
-    @api.depends("company_id")
+    @api.depends(
+        "type",
+        "company_id.fiscalyear_lock_date",
+        "company_id.tax_lock_date",
+        "company_id.sale_lock_date",
+        "company_id.purchase_lock_date",
+        "company_id.hard_lock_date",
+    )
     @api.depends_context("move_date", "has_tax")
     def _compute_accounting_date(self):
         move_date = self.env.context.get("move_date") or fields.Date.context_today(self)
@@ -658,61 +685,81 @@ class AccountJournal(models.Model):
     def _compute_show_refresh_out_einvoices_status_button(self):
         self.show_refresh_out_einvoices_status_button = False
 
+    @api.model
+    def _is_generated_code(self, code):
+        if not code:
+            return True
+        prefixes = "|".join(
+            re.escape(spec["code_prefix"]) for spec in JOURNAL_TYPES.values()
+        )
+        return bool(re.fullmatch(rf"({prefixes})\d*", code))
+
+    @api.model
+    def _get_type_defaults(self, journal_type, company):
+        defaults = {
+            "default_account_id": False,
+            "profit_account_id": False,
+            "loss_account_id": False,
+        }
+        if journal_type == "sale" and company.income_account_id.active:
+            defaults["default_account_id"] = company.income_account_id.id
+        elif journal_type == "purchase" and company.expense_account_id.active:
+            defaults["default_account_id"] = company.expense_account_id.id
+        elif journal_type in CASH_DIFFERENCE_TYPES:
+            if company.default_cash_difference_income_account_id.active:
+                defaults["profit_account_id"] = (
+                    company.default_cash_difference_income_account_id.id
+                )
+            if company.default_cash_difference_expense_account_id.active:
+                defaults["loss_account_id"] = (
+                    company.default_cash_difference_expense_account_id.id
+                )
+        return defaults
+
     @api.onchange("type")
     def _onchange_type(self):
         self.filtered(
-            lambda journal: journal.type not in {"sale", "purchase"}
+            lambda journal: journal.type not in DOCUMENT_TYPES
         ).alias_name = False
         for journal in self.filtered(
-            lambda journal: (
-                not journal.alias_name and journal.type in {"sale", "purchase"}
-            )
+            lambda journal: not journal.alias_name and journal.type in DOCUMENT_TYPES
         ):
             journal.alias_name = self._alias_prepare_alias_name(
                 False, journal.name, journal.code, journal.type, journal.company_id
             )
 
         for journal in self:
-            journal.code = False
-            journal.default_account_id = False
-            journal.profit_account_id = False
-            journal.loss_account_id = False
-            company = journal.company_id
-            if journal.type == "sale" and company.income_account_id.active:
-                journal.default_account_id = company.income_account_id
-            elif journal.type == "purchase" and company.expense_account_id.active:
-                journal.default_account_id = company.expense_account_id
-            elif journal.type in ("cash", "bank"):
-                if company.default_cash_difference_income_account_id.active:
-                    journal.profit_account_id = (
-                        company.default_cash_difference_income_account_id
-                    )
-                if company.default_cash_difference_expense_account_id.active:
-                    journal.loss_account_id = (
-                        company.default_cash_difference_expense_account_id
-                    )
+            if self._is_generated_code(journal.code):
+                journal.code = False
+            journal.update(self._get_type_defaults(journal.type, journal.company_id))
 
         self._compute_code()
 
     @api.depends("type")
     def _compute_name_placeholder(self):
-        type_to_default_name = {
+        for journal in self:
+            journal.name_placeholder = (
+                self._get_default_name(journal.type, journal.code)
+                if journal.type
+                else _("Select a type")
+            )
+
+    @api.model
+    def _get_type_label(self, journal_type):
+        return {
             "sale": _("Customer Invoices"),
             "purchase": _("Vendor Bills"),
             "cash": _("Cash"),
             "bank": _("Bank"),
             "credit": _("Credit Card"),
             "general": _("Miscellaneous Operations"),
-        }
-        for journal in self:
-            if not journal.type:
-                journal.name_placeholder = _("Select a type")
-            else:
-                match = re.search(r"[0-9]+$", journal.code or "")
-                code_suffix = match.group() if match else "1"
-                journal.name_placeholder = (
-                    f"{type_to_default_name[journal.type]} ({code_suffix})"
-                )
+        }[journal_type]
+
+    @api.model
+    def _get_default_name(self, journal_type, code=None):
+        match = re.search(r"[0-9]+$", code or "")
+        suffix = match.group() if match else "1"
+        return f"{self._get_type_label(journal_type)} ({suffix})"
 
     @api.constrains("type", "bank_account_id")
     def _check_bank_account(self):
@@ -861,25 +908,25 @@ class AccountJournal(models.Model):
     @api.depends("type")
     def _compute_refund_sequence(self):
         for journal in self:
-            journal.refund_sequence = journal.type in ("sale", "purchase")
+            journal.refund_sequence = journal.type in DOCUMENT_TYPES
 
     @api.depends("type")
     def _compute_payment_sequence(self):
         for journal in self:
-            journal.payment_sequence = journal.type in ("bank", "cash", "credit")
+            journal.payment_sequence = journal.type in LIQUIDITY_TYPES
 
     def _compute_available_invoice_template_pdf_report_ids(self):
-        for journal in self:
-            journal.available_invoice_template_pdf_report_ids = self.env[
-                "account.move"
-            ]._get_available_invoice_template_pdf_report_ids()
+        self.available_invoice_template_pdf_report_ids = self.env[
+            "account.move"
+        ]._get_available_invoice_template_pdf_report_ids()
 
     def unlink(self):
         used_bank_accounts = self.bank_account_id
         bank_accounts = self.env["res.partner.bank"]
         if used_bank_accounts:
             self_ids = set(self.ids)
-            for bank_account, journal_ids in self.env["account.journal"]._read_group(
+            all_journals = self.with_context(active_test=False)
+            for bank_account, journal_ids in all_journals._read_group(
                 domain=[("bank_account_id", "in", used_bank_accounts.ids)],
                 groupby=["bank_account_id"],
                 aggregates=["id:array_agg"],
@@ -904,11 +951,13 @@ class AccountJournal(models.Model):
                 used = used_by_company[company.id] = self._get_company_journal_codes(
                     company
                 )
-            copy_code = self._get_next_available_code(
-                vals["code"], company, used_codes=used
-            )
-            used.add(copy_code)
-            vals.update(code=copy_code, name=_("%s (copy)", journal.name or ""))
+            if "code" not in default:
+                vals["code"] = self._get_next_available_code(
+                    vals["code"], company, used_codes=used
+                )
+            used.add(vals["code"])
+            if "name" not in default:
+                vals["name"] = _("%s (copy)", journal.name or "")
         return vals_list
 
     def copy_translations(self, new, excluded=()):
@@ -921,30 +970,75 @@ class AccountJournal(models.Model):
 
     def write(self, vals):
         journals_changing_type = (
-            self.filtered(lambda j: j.type != vals["type"])
+            self.filtered(lambda journal: journal.type != vals["type"])
             if "type" in vals
-            and (
-                "default_account_id" not in vals
-                or "profit_account_id" not in vals
-                or "loss_account_id" not in vals
-            )
             else self.browse()
         )
 
-        if vals.get("alias_name") and "type" not in vals:
-            if not is_encodable(
-                vals["alias_name"]
-            ) or not self.env["mail.alias"]._sanitize_alias_name(vals["alias_name"]):
-                vals["alias_name"] = self._alias_prepare_alias_name(
+        unusable_alias = bool(vals.get("alias_name")) and (
+            not is_encodable(vals["alias_name"])
+            or not self.env["mail.alias"]._sanitize_alias_name(vals["alias_name"])
+        )
+        alias_names = {}
+        if unusable_alias and "type" not in vals:
+            alias_names = {
+                journal.id: self._alias_prepare_alias_name(
                     False,
-                    vals.get("name", self.name),
-                    vals.get("code", self.code),
-                    self[0].type,
-                    self[0].company_id,
+                    vals.get("name", journal.name),
+                    vals.get("code", journal.code),
+                    journal.type,
+                    journal.company_id,
+                )
+                for journal in self
+            }
+            vals = {key: value for key, value in vals.items() if key != "alias_name"}
+
+        self._check_write_preconditions(vals)
+        self._sync_bank_account_before_write(vals)
+        result = super().write(vals)
+        for journal in self:
+            if journal.id in alias_names:
+                journal.alias_name = alias_names[journal.id]
+        self._sync_after_write(vals, journals_changing_type)
+        return result
+
+    def _check_write_preconditions(self, vals):
+        if vals.get("bank_account_id"):
+            bank_account = self.env["res.partner.bank"].browse(vals["bank_account_id"])
+            for journal in self:
+                company = (
+                    self.env["res.company"].browse(vals["company_id"])
+                    if "company_id" in vals
+                    else journal.company_id
+                )
+                if bank_account.partner_id != company.partner_id:
+                    raise UserError(
+                        _(
+                            "The partners of the journal's company and the related bank account mismatch."
+                        )
+                    )
+        if "restrict_mode_hash_table" in vals and not vals.get(
+            "restrict_mode_hash_table"
+        ):
+            domain = self.env["account.move"]._get_move_hash_domain(
+                common_domain=[
+                    ("journal_id", "in", self.ids),
+                    ("inalterable_hash", "!=", False),
+                ]
+            )
+            if self.env["account.move"].sudo().search_count(domain, limit=1):
+                field_string = self._fields["restrict_mode_hash_table"].get_description(
+                    self.env
+                )["string"]
+                raise UserError(
+                    _(
+                        "You cannot modify the field %s of a journal that already has accounting entries.",
+                        field_string,
+                    )
                 )
 
+    def _sync_bank_account_before_write(self, vals):
         for journal in self:
-            company = journal.company_id
             if "company_id" in vals and journal.company_id.id != vals["company_id"]:
                 company = self.env["res.company"].browse(vals["company_id"])
                 if (
@@ -957,81 +1051,35 @@ class AccountJournal(models.Model):
                             "partner_id": company.partner_id.id,
                         }
                     )
-            if "currency_id" in vals:
-                if journal.bank_account_id:
-                    journal.bank_account_id.currency_id = vals["currency_id"]
-            if "bank_account_id" in vals:
-                if vals.get("bank_account_id"):
-                    bank_account = self.env["res.partner.bank"].browse(
-                        vals["bank_account_id"]
-                    )
-                    if bank_account.partner_id != company.partner_id:
-                        raise UserError(
-                            _(
-                                "The partners of the journal's company and the related bank account mismatch."
-                            )
-                        )
-            if "restrict_mode_hash_table" in vals and not vals.get(
-                "restrict_mode_hash_table"
-            ):
-                domain = self.env["account.move"]._get_move_hash_domain(
-                    common_domain=[
-                        ("journal_id", "=", journal.id),
-                        ("inalterable_hash", "!=", False),
-                    ]
-                )
-                journal_entry = (
-                    self.env["account.move"].sudo().search_count(domain, limit=1)
-                )
-                if journal_entry:
-                    field_string = self._fields[
-                        "restrict_mode_hash_table"
-                    ].get_description(self.env)["string"]
-                    raise UserError(
-                        _(
-                            "You cannot modify the field %s of a journal that already has accounting entries.",
-                            field_string,
-                        )
-                    )
-        result = super().write(vals)
+            if "currency_id" in vals and journal.bank_account_id:
+                journal.bank_account_id.currency_id = vals["currency_id"]
 
+    def _sync_after_write(self, vals, journals_changing_type):
         if "type" in vals and not self.env.context.get(
             "account_journal_skip_alias_sync"
         ):
             for journal in self:
                 alias_vals = journal._alias_get_creation_values()
-                alias_vals = {
-                    "alias_defaults": alias_vals["alias_defaults"],
-                    "alias_name": alias_vals["alias_name"],
-                }
-                journal.update(alias_vals)
+                journal.update(
+                    {
+                        "alias_defaults": alias_vals["alias_defaults"],
+                        "alias_name": alias_vals["alias_name"],
+                    }
+                )
 
         for journal in journals_changing_type:
-            company = journal.company_id
-            if "default_account_id" not in vals:
-                default_account_id = False
-                if journal.type == "sale" and company.income_account_id.active:
-                    default_account_id = company.income_account_id.id
-                elif journal.type == "purchase" and company.expense_account_id.active:
-                    default_account_id = company.expense_account_id.id
-                journal.default_account_id = default_account_id
-            if "profit_account_id" not in vals and "loss_account_id" not in vals:
-                profit_account_id = loss_account_id = False
-                if journal.type in ("cash", "bank"):
-                    if company.default_cash_difference_income_account_id.active:
-                        profit_account_id = (
-                            company.default_cash_difference_income_account_id.id
-                        )
-                    if company.default_cash_difference_expense_account_id.active:
-                        loss_account_id = (
-                            company.default_cash_difference_expense_account_id.id
-                        )
-                journal.profit_account_id = profit_account_id
-                journal.loss_account_id = loss_account_id
+            defaults = self._get_type_defaults(journal.type, journal.company_id)
+            journal.update(
+                {fname: value for fname, value in defaults.items() if fname not in vals}
+            )
+            if journal.type in LIQUIDITY_TYPES and not journal.default_account_id:
+                journal.default_account_id = self._find_or_create_default_account(
+                    journal.company_id, journal.type, {"name": journal.name}
+                )
 
         if "currency_id" in vals:
             for journal in self.filtered(
-                lambda journal: journal.type in ("bank", "cash", "credit")
+                lambda journal: journal.type in LIQUIDITY_TYPES
             ):
                 journal.default_account_id.currency_id = journal.currency_id
 
@@ -1041,7 +1089,6 @@ class AccountJournal(models.Model):
             )
             for journal in self:
                 journal._ensure_bank_account(acc_number, vals.get("bank_id"))
-        return result
 
     def _alias_get_creation_values(self):
         values = super()._alias_get_creation_values()
@@ -1052,7 +1099,9 @@ class AccountJournal(models.Model):
             )
             values["alias_defaults"] = defaults = self._get_alias_defaults()
             defaults["company_id"] = self.company_id.id
-            defaults["move_type"] = ALIAS_MOVE_TYPE_BY_JOURNAL.get(self.type, "entry")
+            defaults["move_type"] = JOURNAL_TYPES.get(self.type, {}).get(
+                "alias_move_type", "entry"
+            )
             defaults["journal_id"] = self.id
         return values
 
@@ -1150,7 +1199,7 @@ class AccountJournal(models.Model):
     def _get_next_journal_default_code(
         self, journal_type, company, codes_to_avoid=None, used_codes=None
     ):
-        journal_code_base = JOURNAL_CODE_PREFIXES.get(journal_type)
+        journal_code_base = JOURNAL_TYPES.get(journal_type, {}).get("code_prefix")
         if not journal_code_base:
             raise UserError(
                 _(
@@ -1181,7 +1230,37 @@ class AccountJournal(models.Model):
         return self._prepare_account_vals(company, code, vals, "liability_credit_card")
 
     @api.model
+    @api.model
+    def _find_or_create_default_account(self, company, journal_type, vals):
+        if journal_type == "credit":
+            existing = (
+                self.env["account.account"]
+                .with_company(company)
+                .search(
+                    [
+                        *self.env["account.account"]._check_company_domain(company),
+                        (
+                            "account_type",
+                            "in",
+                            JOURNAL_TYPES[journal_type]["account_types"],
+                        ),
+                    ],
+                    limit=1,
+                )
+            )
+            if existing:
+                return existing.id
+        return self._create_default_account(company, journal_type, vals)
+
+    @api.model
     def _create_default_account(self, company, journal_type, vals):
+        if journal_type not in LIQUIDITY_TYPES:
+            raise UserError(
+                _(
+                    "No default account can be created for a journal of type %r.",
+                    journal_type,
+                )
+            )
         random_account = (
             self.env["account.account"]
             .with_company(company)
@@ -1192,16 +1271,14 @@ class AccountJournal(models.Model):
         )
         digits = len(random_account.code) if random_account else 6
 
-        if journal_type in ("bank", "credit"):
-            account_prefix = company.bank_account_code_prefix or ""
-        elif journal_type == "cash":
+        if journal_type == "cash":
             account_prefix = (
                 company.cash_account_code_prefix
                 or company.bank_account_code_prefix
                 or ""
             )
         else:
-            account_prefix = ""
+            account_prefix = company.bank_account_code_prefix or ""
 
         start_code = account_prefix.ljust(digits, "0")
         default_account_code = (
@@ -1210,16 +1287,14 @@ class AccountJournal(models.Model):
             ._search_new_account_code(start_code)
         )
 
-        if journal_type in ("bank", "cash"):
+        if journal_type in CASH_DIFFERENCE_TYPES:
             default_account_vals = self._prepare_liquidity_account_vals(
                 company, default_account_code, vals
             )
-        elif journal_type == "credit":
+        else:
             default_account_vals = self._prepare_credit_account_vals(
                 company, default_account_code, vals
             )
-        else:
-            default_account_vals = {}
 
         default_account = self.env["account.account"].create(default_account_vals)
         if default_account:
@@ -1251,60 +1326,25 @@ class AccountJournal(models.Model):
         )
         vals["company_id"] = company.id
 
-        ProductCategory = self.env["product.category"].with_company(company)
-        if journal_type in ("bank", "cash"):
-            has_liquidity_accounts = vals.get("default_account_id")
-            has_profit_account = vals.get("profit_account_id")
-            has_loss_account = vals.get("loss_account_id")
-
+        # Named before the account is built, because _prepare_account_vals copies this
+        # name onto it; the non-liquidity fallback stays at the end of this method so an
+        # import still derives its code from a name the caller supplied, not a default.
+        if journal_type in LIQUIDITY_TYPES:
             vals["name"] = (
                 vals.get("name")
                 or vals.get("bank_acc_number")
                 or vals.get("name_placeholder")
+                or self._get_default_name(journal_type, vals.get("code"))
             )
 
-            if not has_liquidity_accounts:
-                vals["default_account_id"] = self._create_default_account(
-                    company, journal_type, vals
-                )
-            if journal_type in ("cash", "bank") and not has_profit_account:
-                vals["profit_account_id"] = (
-                    company.default_cash_difference_income_account_id.id
-                )
-            if journal_type in ("cash", "bank") and not has_loss_account:
-                vals["loss_account_id"] = (
-                    company.default_cash_difference_expense_account_id.id
-                )
-        elif journal_type == "purchase":
-            if account := ProductCategory._fields[
-                "property_account_expense_categ_id"
-            ].get_company_dependent_fallback(ProductCategory):
-                vals.setdefault("default_account_id", account.id)
-        elif journal_type == "sale":
-            if account := ProductCategory._fields[
-                "property_account_income_categ_id"
-            ].get_company_dependent_fallback(ProductCategory):
-                vals.setdefault("default_account_id", account.id)
+        for fname, value in self._get_type_defaults(journal_type, company).items():
+            if value:
+                vals.setdefault(fname, value)
 
-        if journal_type == "credit":
-            if not vals.get("default_account_id"):
-                default_account_id = (
-                    self.env["account.account"]
-                    .with_company(company)
-                    .search(
-                        [
-                            *self.env["account.account"]._check_company_domain(company),
-                            ("account_type", "=", "liability_credit_card"),
-                        ],
-                        limit=1,
-                    )
-                    .id
-                )
-                if not default_account_id:
-                    default_account_id = self._create_default_account(
-                        company, journal_type, vals
-                    )
-                vals["default_account_id"] = default_account_id
+        if journal_type in LIQUIDITY_TYPES and not vals.get("default_account_id"):
+            vals["default_account_id"] = self._find_or_create_default_account(
+                company, journal_type, vals
+            )
 
         if is_import and not vals.get("code"):
             code = (vals.get("name") or "")[:5].strip()
@@ -1314,15 +1354,17 @@ class AccountJournal(models.Model):
                 )
             vals["code"] = code
 
-        if journal_type in {"sale", "purchase"}:
+        if journal_type in DOCUMENT_TYPES:
             if "alias_name" not in vals:
                 vals["alias_name"] = self._alias_prepare_alias_name(
                     False, vals.get("name"), vals.get("code"), journal_type, company
                 )
             vals["alias_name"] = self._ensure_unique_alias(vals, company)
 
-        if not vals.get("name") and vals.get("name_placeholder"):
-            vals["name"] = vals["name_placeholder"]
+        if not vals.get("name"):
+            vals["name"] = vals.get("name_placeholder") or self._get_default_name(
+                journal_type, vals.get("code")
+            )
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -1359,9 +1401,7 @@ class AccountJournal(models.Model):
 
     def set_bank_account(self, acc_number, bank_id=None):
         self.ensure_one()
-        self.bank_account_id = self.env[
-            "res.partner.bank"
-        ]._get_or_create_bank_account(
+        self.bank_account_id = self.env["res.partner.bank"]._get_or_create_bank_account(
             account_number=acc_number,
             partner=self.company_id.partner_id,
             allow_company_account_creation=True,
@@ -1466,11 +1506,10 @@ class AccountJournal(models.Model):
             action_vals.update(
                 {
                     "views": [[False, "list"], [False, "kanban"], [False, "form"]],
-                    "view_mode": "list, kanban, form",
+                    "view_mode": "list,kanban,form",
                 }
             )
         return action_vals
-
 
     def _get_journal_bank_account_balance(self, domain=None):
         self.ensure_one()
@@ -1510,10 +1549,9 @@ class AccountJournal(models.Model):
         if not self:
             return self.env["account.payment.method.line"]
         self.ensure_one()
-        if payment_type == "inbound":
-            return self.inbound_payment_method_line_ids
-        else:
-            return self.outbound_payment_method_line_ids
+        if payment_type not in ("inbound", "outbound"):
+            raise ValueError(f"Unknown payment type {payment_type!r}")
+        return self[f"{payment_type}_payment_method_line_ids"]
 
     def _is_payment_method_available(self, payment_method_code, complete_domain=True):
         self.ensure_one()
@@ -1528,7 +1566,6 @@ class AccountJournal(models.Model):
         self.ensure_one()
         return order_reference
 
-
     def _get_journal_notification_unsubscribe_scope(self):
         return "account_journal_notification_unsubscribe"
 
@@ -1541,7 +1578,7 @@ class AccountJournal(models.Model):
         if not normalized_to_remove or normalized_to_remove not in subscribed_emails:
             return False
         remaining = subscribed_emails - {normalized_to_remove}
-        self.incoming_einvoice_notification_email = ", ".join(remaining or [])
+        self.incoming_einvoice_notification_email = ", ".join(sorted(remaining))
         return True
 
     def _notify_einvoices_received(self, moves):

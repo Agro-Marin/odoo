@@ -61,7 +61,6 @@
                             <page name="bank_account" string="Journal Entries">
                                 <group>
                                     <group>
-                                        <field name="default_account_type" invisible="1"/>
                                         <label for="default_account_id" string="Bank Account"
                                                invisible="type != 'bank'" groups="account.group_account_readonly"/>
                                         <label for="default_account_id" string="Journal Account"
