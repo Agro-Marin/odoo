@@ -1750,6 +1750,17 @@ class AccountMoveLine(models.Model):
                     )
                 )
 
+            if not line.journal_id._is_account_allowed(account):
+                raise UserError(
+                    _(
+                        "Account %(name)s (%(code)s) is not one of the accounts "
+                        "allowed on journal %(journal)s.",
+                        name=account.name,
+                        code=account.code,
+                        journal=line.journal_id.display_name,
+                    )
+                )
+
             account_currency = account.currency_id
             if account_currency and account_currency not in (
                 line.company_currency_id,

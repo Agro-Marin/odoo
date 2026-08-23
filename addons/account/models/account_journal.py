@@ -405,6 +405,30 @@ class AccountJournal(models.Model):
         help="Email addresses that will receive copy for sent and received invoices. Separate entries with ';'.",
     )
 
+    allowed_account_ids = fields.Many2many(
+        comodel_name="account.account",
+        relation="account_journal_allowed_account_rel",
+        column1="journal_id",
+        column2="account_id",
+        string="Allowed Accounts",
+        check_company=True,
+        domain=[("account_type", "!=", "off_balance")],
+        help="Accounts a journal item in this journal may use. Leave empty to allow "
+        "any account. The journal's own accounts are always usable and need not be "
+        "listed.",
+    )
+    allowed_user_ids = fields.Many2many(
+        comodel_name="res.users",
+        relation="account_journal_allowed_user_rel",
+        column1="journal_id",
+        column2="user_id",
+        string="Allowed Users",
+        copy=False,
+        help="Users allowed to use this journal on a journal entry. Leave empty to "
+        "let everyone use it. This does not hide existing entries -- reading them is "
+        "governed by record rules.",
+    )
+
     _code_company_uniq = models.Constraint(
         "unique (company_id, code)",
         "Journal codes must be unique per company.",
@@ -816,6 +840,57 @@ class AccountJournal(models.Model):
                     )
                 )
 
+    def _get_structural_account_ids(self):
+        # A journal designates these itself, so a whitelist that omits them would
+        # make the journal unusable rather than controlled: measured on the shipped
+        # AgroMarin chart, 31 of 72 whitelists omit at least one.
+        self.ensure_one()
+        return (
+            self.default_account_id
+            | self.suspense_account_id
+            | self.non_deductible_account_id
+            | self.profit_account_id
+            | self.loss_account_id
+            | self.inbound_payment_method_line_ids.payment_account_id
+            | self.outbound_payment_method_line_ids.payment_account_id
+        )
+
+    def _is_account_allowed(self, account):
+        self.ensure_one()
+        return (
+            not self.allowed_account_ids
+            or account in self.allowed_account_ids
+            or account in self._get_structural_account_ids()
+        )
+
+    @api.constrains("allowed_account_ids")
+    def _check_allowed_accounts_cover_existing_items(self):
+        for journal in self.filtered("allowed_account_ids"):
+            permitted = (
+                journal.allowed_account_ids | journal._get_structural_account_ids()
+            )
+            offending = self.env["account.move.line"].search(
+                [
+                    ("journal_id", "=", journal.id),
+                    ("account_id", "not in", permitted.ids),
+                    (
+                        "display_type",
+                        "not in",
+                        self.env["account.move.line"]._NON_ACCOUNTABLE_DISPLAY_TYPES,
+                    ),
+                ],
+                limit=1,
+            )
+            if offending:
+                raise ValidationError(
+                    _(
+                        "Journal %(journal)s already has journal items on "
+                        "%(account)s, which this list of allowed accounts excludes.",
+                        journal=journal.display_name,
+                        account=offending.account_id.display_name,
+                    )
+                )
+
     @api.constrains("type", "default_account_id")
     def _check_type_default_account_id_type(self):
         for journal in self:
@@ -1121,7 +1196,13 @@ class AccountJournal(models.Model):
         # Extension point for restricting which journals a user may pick on a move.
         # It stays a DOMAIN rather than a record rule because the journals a user may
         # *select* are a narrower set than the ones they may *read* on existing entries.
-        return []
+        # account.move._check_journal_is_selectable turns this into a real refusal;
+        # on its own a domain only filters the dropdown.
+        return [
+            "|",
+            ("allowed_user_ids", "=", False),
+            ("allowed_user_ids", "in", [self.env.uid]),
+        ]
 
     @api.model
     def _alias_prepare_alias_name(self, alias_name, name, code, jtype, company):

@@ -177,6 +177,10 @@
                                                class="w-100"/>
                                     </group>
                                     <group name="group_edi_config" string="Electronic Data Interchange" invisible="1"/>
+                                    <group name="group_access_control" string="Access Control">
+                                        <field name="allowed_account_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                                        <field name="allowed_user_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                                    </group>
                                     <group string="Payment Communications" invisible="type != 'sale'">
                                         <field name="invoice_reference_type"/>
                                         <field name="invoice_reference_model" invisible="invoice_reference_type == 'none'"/>

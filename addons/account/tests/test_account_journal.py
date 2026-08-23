@@ -406,12 +406,16 @@ class TestAccountJournalSelectableDomain(AccountTestInvoicingCommon):
                 "journal_id": excluded.id,
             })
 
-    def test_core_narrows_nothing_so_the_guard_stays_out_of_the_way(self):
+    def test_core_narrows_only_by_the_allowed_user_list(self):
         self.assertEqual(
             self.env["account.journal"]._get_selectable_domain(),
-            [],
-            "core must contribute no clause, so the constraint is a no-op until an "
-            "extension opts in",
+            [
+                "|",
+                ("allowed_user_ids", "=", False),
+                ("allowed_user_ids", "in", [self.env.uid]),
+            ],
+            "the only clause core contributes is allowed_user_ids, which is "
+            "vacuous until a journal names its users",
         )
 
     def test_an_extension_can_narrow_the_selection(self):
@@ -439,6 +443,193 @@ class TestAccountJournalSelectableDomain(AccountTestInvoicingCommon):
             selectable,
             "narrowing must remove one journal, not empty the selection",
         )
+
+
+
+@tagged("post_install", "-at_install")
+class TestAccountJournalAllowedAccounts(AccountTestInvoicingCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.journal = cls.company_data["default_journal_sale"]
+        cls.income = cls.company_data["default_account_revenue"]
+        cls.receivable = cls.company_data["default_account_receivable"]
+        cls.outsider = cls.company_data["default_account_expense"]
+
+    def _invoice(self, account):
+        return self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-03-01",
+                "journal_id": self.journal.id,
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "line",
+                            "quantity": 1,
+                            "price_unit": 100.0,
+                            "account_id": account.id,
+                            "tax_ids": [],
+                        }
+                    )
+                ],
+            }
+        )
+
+    def test_an_empty_list_allows_every_account(self):
+        self.assertFalse(self.journal.allowed_account_ids)
+
+        self._invoice(self.outsider).action_post()
+
+    def test_a_listed_account_posts(self):
+        self.journal.allowed_account_ids = self.income | self.receivable
+
+        invoice = self._invoice(self.income)
+        invoice.action_post()
+
+        self.assertEqual(invoice.state, "posted")
+
+    def test_an_unlisted_account_is_refused_on_post(self):
+        self.journal.allowed_account_ids = self.income | self.receivable
+        invoice = self._invoice(self.outsider)
+
+        with self.assertRaises(UserError):
+            invoice.action_post()
+
+    def test_an_unlisted_account_is_refused_on_write(self):
+        self.journal.allowed_account_ids = self.income | self.receivable
+        invoice = self._invoice(self.income)
+
+        with self.assertRaises(UserError):
+            invoice.invoice_line_ids.write({"account_id": self.outsider.id})
+
+    def test_the_journal_own_accounts_never_need_listing(self):
+        # 31 of the 72 whitelists shipped by marin_data omit at least one of these,
+        # so a check without the exemption breaks those journals outright.
+        self.journal.default_account_id = self.income
+        self.journal.allowed_account_ids = self.receivable
+
+        self.assertTrue(self.journal._is_account_allowed(self.income))
+        self.assertFalse(self.journal._is_account_allowed(self.outsider))
+
+    def test_a_suspense_account_is_structural_too(self):
+        bank = self.company_data["default_journal_bank"]
+        bank.allowed_account_ids = self.receivable
+
+        self.assertTrue(bank._is_account_allowed(bank.suspense_account_id))
+
+    def test_narrowing_the_list_below_existing_items_is_refused(self):
+        self._invoice(self.outsider).action_post()
+
+        with self.assertRaises(ValidationError):
+            self.journal.allowed_account_ids = self.income | self.receivable
+
+    def test_narrowing_the_list_above_existing_items_is_accepted(self):
+        invoice = self._invoice(self.income)
+        invoice.action_post()
+
+        self.journal.allowed_account_ids = (
+            self.income | self.receivable | invoice.line_ids.account_id
+        )
+
+        self.assertTrue(self.journal.allowed_account_ids)
+
+
+@tagged("post_install", "-at_install")
+class TestAccountJournalUserAccess(AccountTestInvoicingCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.restricted_journal = cls.env["account.journal"].create(
+            {"name": "Restricted", "code": "RSTR", "type": "sale"}
+        )
+        cls.open_journal = cls.env["account.journal"].create(
+            {"name": "Open", "code": "OPEN", "type": "sale"}
+        )
+        cls.allowed_user = cls._create_accountant("journal_allowed")
+        cls.other_user = cls._create_accountant("journal_other")
+        cls.restricted_journal.allowed_user_ids = cls.allowed_user
+
+    @classmethod
+    def _create_accountant(cls, login):
+        return cls.env["res.users"].create(
+            {
+                "name": login,
+                "login": login,
+                "company_id": cls.env.company.id,
+                "company_ids": [(6, 0, cls.env.company.ids)],
+                "group_ids": [
+                    (
+                        6,
+                        0,
+                        [
+                            cls.env.ref("base.group_user").id,
+                            cls.env.ref("account.group_account_user").id,
+                        ],
+                    )
+                ],
+            }
+        )
+
+    def _journal_domain(self, user):
+        move = (
+            self.env["account.move"]
+            .with_user(user)
+            .new({"move_type": "out_invoice", "company_id": self.env.company.id})
+        )
+        return move.journal_id_domain
+
+    def _selectable(self, user):
+        return (
+            self.env["account.journal"]
+            .with_user(user)
+            .search(self._journal_domain(user))
+        )
+
+    def test_a_journal_without_a_list_is_open_to_everyone(self):
+        self.assertIn(self.open_journal, self._selectable(self.other_user))
+
+    def test_a_restricted_journal_is_hidden_from_other_users(self):
+        self.assertNotIn(self.restricted_journal, self._selectable(self.other_user))
+
+    def test_a_restricted_journal_is_offered_to_a_listed_user(self):
+        self.assertIn(self.restricted_journal, self._selectable(self.allowed_user))
+
+    def test_the_domain_still_honours_move_type_suitability(self):
+        purchase_journal = self.env["account.journal"].create(
+            {"name": "Purchases", "code": "PURJ", "type": "purchase"}
+        )
+
+        self.assertNotIn(purchase_journal, self._selectable(self.allowed_user))
+
+    def _create_invoice(self, user, journal):
+        return (
+            self.env["account.move"]
+            .with_user(user)
+            .create(
+                {
+                    "move_type": "out_invoice",
+                    "partner_id": self.partner_a.id,
+                    "invoice_date": "2026-03-01",
+                    "journal_id": journal.id,
+                }
+            )
+        )
+
+    def test_an_unlisted_user_is_refused_the_journal_not_merely_shown_less(self):
+        with self.assertRaises(ValidationError):
+            self._create_invoice(self.other_user, self.restricted_journal)
+
+    def test_a_listed_user_may_actually_post_to_the_journal(self):
+        invoice = self._create_invoice(self.allowed_user, self.restricted_journal)
+
+        self.assertEqual(invoice.journal_id, self.restricted_journal)
+
+    def test_a_journal_without_a_list_is_writable_by_anyone(self):
+        invoice = self._create_invoice(self.other_user, self.open_journal)
+
+        self.assertEqual(invoice.journal_id, self.open_journal)
 
 
 @tagged("post_install", "-at_install", "mail_alias")
