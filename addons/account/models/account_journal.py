@@ -1099,7 +1099,7 @@ class AccountJournal(models.Model):
                 vals.get("bank_acc_number") if "bank_acc_number" in vals else None
             )
             for journal in self:
-                journal._ensure_bank_account(acc_number, vals.get("bank_id"))
+                journal._link_bank_account(acc_number, vals.get("bank_id"))
 
     def _alias_get_creation_values(self):
         values = super()._alias_get_creation_values()
@@ -1151,7 +1151,7 @@ class AccountJournal(models.Model):
         return self.env["mail.alias"]._sanitize_alias_name(alias_name)
 
     @api.model
-    def _ensure_unique_alias(self, vals, company):
+    def _get_unique_alias_name(self, vals, company):
         alias_name = vals["alias_name"]
         alias_domain_name = company.alias_domain_id.name
 
@@ -1321,7 +1321,7 @@ class AccountJournal(models.Model):
         return default_account.id
 
     @api.model
-    def _fill_missing_values(self, vals, protected_codes=False):
+    def _update_missing_values(self, vals, protected_codes=False):
         journal_type = vals.get("type")
         is_import = "import_file" in self.env.context
         if is_import and not journal_type:
@@ -1370,7 +1370,7 @@ class AccountJournal(models.Model):
                 vals["alias_name"] = self._alias_prepare_alias_name(
                     False, vals.get("name"), vals.get("code"), journal_type, company
                 )
-            vals["alias_name"] = self._ensure_unique_alias(vals, company)
+            vals["alias_name"] = self._get_unique_alias_name(vals, company)
 
         if not vals.get("name"):
             vals["name"] = vals.get("name_placeholder") or self._get_default_name(
@@ -1386,7 +1386,7 @@ class AccountJournal(models.Model):
             else False
         )
         for vals in vals_list:
-            self._fill_missing_values(vals, protected_codes=protected_codes)
+            self._update_missing_values(vals, protected_codes=protected_codes)
             if is_import and vals.get("code"):
                 protected_codes.append(vals["code"])
 
@@ -1395,13 +1395,11 @@ class AccountJournal(models.Model):
         ).create(vals_list)
 
         for journal, vals in zip(journals, vals_list, strict=True):
-            journal._ensure_bank_account(
-                vals.get("bank_acc_number"), vals.get("bank_id")
-            )
+            journal._link_bank_account(vals.get("bank_acc_number"), vals.get("bank_id"))
 
         return journals
 
-    def _ensure_bank_account(self, acc_number=None, bank_id=None):
+    def _link_bank_account(self, acc_number=None, bank_id=None):
         self.ensure_one()
         if self.type != "bank":
             return
