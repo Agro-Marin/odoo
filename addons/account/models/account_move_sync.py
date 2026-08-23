@@ -575,7 +575,7 @@ class AccountMove(models.Model):
             lambda line: line.display_type == "product"
         )
         sign = move.direction_sign
-        rate = move.invoice_currency_rate
+        rate = move.invoice_currency_rate or 1.0
         amount_currency_total = 0.0
         balance_total = 0.0
         vals_list = []
@@ -588,10 +588,8 @@ class AccountMove(models.Model):
                 line.price_subtotal * percentage
             )
             amount_currency = line.currency_id.round(sign * non_deductible_subtotal)
-            balance = (
-                line.company_currency_id.round(sign * non_deductible_subtotal / rate)
-                if rate
-                else 0.0
+            balance = line.company_currency_id.round(
+                sign * non_deductible_subtotal / rate
             )
             amount_currency_total += amount_currency
             balance_total += balance

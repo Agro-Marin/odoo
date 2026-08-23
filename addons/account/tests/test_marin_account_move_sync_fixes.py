@@ -308,3 +308,112 @@ class TestMarinAccountMoveSyncFixes(AccountTestInvoicingCommon):
             unread,
             "_sync_tax_lines snapshots %s and never compares them" % unread,
         )
+
+    def test_zero_valued_needed_entries_are_treated_asymmetrically(self):
+        """A lone zero survives as a journal item; two that cancel do not.
+
+        `_sync_dynamic_line_needed_values` sweeps zero totals only for keys it
+        actually merged, so which of the two rules applies depends on how many
+        contributions happened to land on the key. Whether a 0% installment
+        deserves a schedule row is a product decision that has never been made;
+        this pins what the code does today so that making it is a visible change
+        rather than a silent one.
+        """
+        key = self._needed_values_key()
+        lone_zero = self.env["account.move"]._sync_dynamic_line_needed_values(
+            [{key: {"balance": 0.0, "amount_currency": 0.0}}]
+        )
+        self.assertIn(key, lone_zero, "a single zero contribution is kept")
+
+        cancelling = self.env["account.move"]._sync_dynamic_line_needed_values(
+            [
+                {key: {"balance": 10.0, "amount_currency": 10.0}},
+                {key: {"balance": -10.0, "amount_currency": -10.0}},
+            ]
+        )
+        self.assertNotIn(
+            key, cancelling, "two contributions cancelling to zero are dropped"
+        )
+
+    def test_a_zero_installment_reaches_the_move_as_a_journal_item(self):
+        term = self.env["account.payment.term"].create(
+            {
+                "name": "0 then 100",
+                "line_ids": [
+                    Command.create(
+                        {"value": "percent", "value_amount": 0.0, "nb_days": 0}
+                    ),
+                    Command.create(
+                        {"value": "percent", "value_amount": 100.0, "nb_days": 30}
+                    ),
+                ],
+            }
+        )
+        invoice = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-01-01",
+                "invoice_payment_term_id": term.id,
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "p",
+                            "quantity": 1,
+                            "price_unit": 100.0,
+                            "tax_ids": [Command.clear()],
+                        }
+                    )
+                ],
+            }
+        )
+        payment_terms = invoice.line_ids.filtered(
+            lambda line: line.display_type == "payment_term"
+        )
+        zero_rows = payment_terms.filtered(
+            lambda line: not line.balance and not line.amount_currency
+        )
+        self.assertEqual(
+            len(zero_rows),
+            1,
+            "the 0%% installment currently persists as a 0.00 journal item",
+        )
+
+    def test_non_deductible_lines_read_a_zero_rate_like_the_line_sync_does(self):
+        bill = self.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-01-01",
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "x",
+                            "quantity": 1,
+                            "price_unit": 100.0,
+                            "deductible_amount": 50,
+                            "tax_ids": [
+                                Command.set(
+                                    self.company_data["default_tax_purchase"].ids
+                                )
+                            ],
+                        }
+                    )
+                ],
+            }
+        )
+        bill.invoice_currency_rate = 0.0
+        self.assertEqual(bill.invoice_currency_rate, 0.0)
+        self.assertEqual(
+            set(bill.line_ids.mapped("currency_rate")),
+            {1.0},
+            "account.move.line reads a zero rate as 1.0",
+        )
+        for vals in bill._get_non_deductible_line_vals(bill):
+            self.assertEqual(
+                bool(vals["balance"]),
+                bool(vals["amount_currency"]),
+                "a zero rate must not produce a balance of 0 against a non-zero "
+                "amount_currency: the two readers of invoice_currency_rate have to "
+                "agree, or the line sync silently repairs what this builds",
+            )
