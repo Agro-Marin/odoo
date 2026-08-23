@@ -32,18 +32,26 @@ class PrettyXmlLinter(LintCase):
         )
 
 
-# 3744 -> 3660 on the rebase onto origin/19.0-marin. The two parents canonicalised
-# disjoint sets of files, so the composition keeps both and the arithmetic closes
-# exactly. Measured with the same code the gate runs, in detached worktrees:
+# 3660 -> 3658: every XML file in the modules this fork authored is canonical.
+# `base_account` 2, `project_hr` 2, `credential` 1, `test_base_order` 1 -- the
+# set found by taking the offender list and keeping the modules whose manifest
+# names AgroMarin as author. A module unit rather than a file count, the same
+# shape as the `addons/mail` sweep below: the debt is paid per owner, so what
+# the number bought can be stated.
 #
-#   merge-base                        3812
-#   origin/19.0-marin (-68, mail)     3744   (its committed floor reproduces)
-#   this branch, pre-rebase (-84)     3728
-#   merged (both)                     3660
+# THE 3660 THIS REPLACES WAS ARITHMETIC, NOT A MEASUREMENT, AND NEVER
+# REPRODUCED. It was predicted for a rebase composition as 3812 - 68 - 84 on the
+# claim that the two parents canonicalised disjoint sets. Re-measured with the
+# same code in detached worktrees, that claim is false:
 #
-#   3812 - 68 - 84 = 3660, with no file counted twice: origin's 68 are all
-#   `addons/mail`, which this branch did not touch, and this branch's 84 are
-#   elsewhere.
+#   876ba89f63b, the commit that banked 3660      3676
+#   4d5b31750f5, HEAD before this change          3664
+#   the same HEAD, six fork-authored files later  3658
+#
+# So the gate has been red on this test since the floor was written, by 16 and
+# then by 4 as the tree converged on its own. The floor now says what the tree
+# measures, and the six units are real debt paid rather than a number relaxed
+# to meet the tree.
 #
 #   python odoo/addons/test_lint/tests/_pretty_xml.py --count odoo/addons addons
 #
@@ -51,4 +59,4 @@ class PrettyXmlLinter(LintCase):
 # The tree held 3812 against the committed 3811 and had since before this
 # branch -- a clean worktree of 3921edc2844 measures 3812 too -- so this
 # gate was red for every commit in between.
-UNFORMATTED_FLOOR = 3660
+UNFORMATTED_FLOOR = 3658

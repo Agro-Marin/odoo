@@ -6,40 +6,66 @@
         <field name="model">account.account</field>
         <field name="arch" type="xml">
             <search string="Accounts">
-                <field name="name"
+                <field
+                    name="name"
                     filter_domain="['|', '|', ('name', 'ilike', self), ('code', '=ilike', self + '%'), ('description', 'ilike', self)]"
                     string="Account" />
-                <filter string="Receivable" name="receivableacc"
+                <filter
+                    string="Receivable"
+                    name="receivableacc"
                     domain="[('account_type','=','asset_receivable')]" />
-                <filter string="Payable" name="payableacc"
+                <filter
+                    string="Payable"
+                    name="payableacc"
                     domain="[('account_type','=','liability_payable')]" />
-                <filter string="Equity" name="equityacc"
+                <filter
+                    string="Equity"
+                    name="equityacc"
                     domain="[('internal_group','=', 'equity')]" />
-                <filter string="Assets" name="assetsacc"
+                <filter
+                    string="Assets"
+                    name="assetsacc"
                     domain="[('internal_group','=', 'asset')]" />
-                <filter string="Liability" name="liabilityacc"
+                <filter
+                    string="Liability"
+                    name="liabilityacc"
                     domain="[('internal_group','=', 'liability')]" />
-                <filter string="Income" name="incomeacc"
+                <filter
+                    string="Income"
+                    name="incomeacc"
                     domain="[('internal_group','=', 'income')]" />
-                <filter string="Expenses" name="expensesacc"
+                <filter
+                    string="Expenses"
+                    name="expensesacc"
                     domain="[('internal_group','=', 'expense')]" />
-                <filter string="Fixed Assets" name="type_asset_fixed"
+                <filter
+                    string="Fixed Assets"
+                    name="type_asset_fixed"
                     domain="[('account_type', '=', 'asset_fixed')]"
                     invisible="True" />
-                <filter string="Frequent Expenses" name="type_expense"
+                <filter
+                    string="Frequent Expenses"
+                    name="type_expense"
                     domain="[('account_type', '=', 'expense')]"
                     invisible="True" />
-                <filter string="Cost of revenue" name="type_expense_direct_cost"
+                <filter
+                    string="Cost of revenue"
+                    name="type_expense_direct_cost"
                     domain="[('account_type', '=', 'expense_direct_cost')]"
                     invisible="True" />
                 <separator />
-                <filter string="Inactive Accounts" name="inactiveacc"
+                <filter
+                    string="Inactive Accounts"
+                    name="inactiveacc"
                     domain="[('active', '=', False)]" />
                 <separator />
                 <field name="account_type" />
                 <group>
-                    <filter string="Account Type" name="accounttype"
-                        domain="" context="{'group_by':'account_type'}" />
+                    <filter
+                        string="Account Type"
+                        name="accounttype"
+                        domain=""
+                        context="{'group_by':'account_type'}" />
                 </group>
                 <searchpanel class="account_root w-auto">
                     <field name="root_id" icon="fa-filter" limit="false" />
@@ -56,26 +82,35 @@
                 <field name="placeholder_code" column_invisible="1" />
                 <field name="internal_group" column_invisible="True" />
 
-                <field name="code" string="Code" widget="char_with_placeholder_field"
+                <field
+                    name="code"
+                    string="Code"
+                    widget="char_with_placeholder_field"
                     options="{'placeholder_field': 'placeholder_code'}" />
                 <field name="name" />
                 <field name="account_type" widget="account_type_selection" />
-                <field name="reconcile" widget="boolean_toggle"
-                    invisible="account_type in ('asset_cash', 'liability_credit_card', 'off_balance')" />
-                <field name="active"
+                <field
+                    name="reconcile"
                     widget="boolean_toggle"
-                    optional="hide" />
-                <field name="non_trade"
+                    invisible="account_type in ('asset_cash', 'liability_credit_card', 'off_balance')" />
+                <field name="active" widget="boolean_toggle" optional="hide" />
+                <field
+                    name="non_trade"
                     widget="boolean_toggle"
                     invisible="account_type not in ('liability_payable', 'asset_receivable')"
                     optional="hide" />
-                <field name="tag_ids"
+                <field
+                    name="tag_ids"
                     domain="[('applicability', '=', 'accounts')]"
-                    optional="hide" widget="many2many_tags" />
-                <field name="currency_id"
+                    optional="hide"
+                    widget="many2many_tags" />
+                <field
+                    name="currency_id"
                     options="{'no_create': True}"
                     groups="base.group_multi_currency" />
-                <field name="company_ids" widget="many2many_tags"
+                <field
+                    name="company_ids"
+                    widget="many2many_tags"
                     readonly="True"
                     optional="show"
                     groups="base.group_multi_company" />
@@ -121,7 +156,8 @@
                                 <div class="col col-md-8">
                                     <label for="name" string="Account Name" />
                                     <div>
-                                        <field name="name"
+                                        <field
+                                            name="name"
                                             placeholder="e.g. Current Assets"
                                             style="width:80% !important;" />
                                     </div>
@@ -132,7 +168,9 @@
                                     <label for="code" string="Code" />
                                     <div>
                                         <field name="placeholder_code" invisible="1" />
-                                        <field name="code" placeholder="e.g. 101000"
+                                        <field
+                                            name="code"
+                                            placeholder="e.g. 101000"
                                             class="oe_inline"
                                             options="{'placeholder_field': 'placeholder_code'}" />
                                     </div>
@@ -144,19 +182,31 @@
                         <page name="accounting" string="Accounting">
                             <group>
                                 <group>
-                                    <field name="account_type" widget="account_type_selection" />
-                                    <field name="tag_ids" widget="many2many_tags"
+                                    <field
+                                        name="account_type"
+                                        widget="account_type_selection" />
+                                    <field
+                                        name="tag_ids"
+                                        widget="many2many_tags"
                                         domain="[('applicability', '=', 'accounts')]"
                                         context="{'default_applicability': 'accounts'}"
                                         options="{'no_create_edit': True}" />
                                 </group>
                                 <group>
-                                    <field name="internal_group" invisible="1" readonly="1" />
-                                    <field name="currency_id" options="{'no_create': True}"
+                                    <field
+                                        name="internal_group"
+                                        invisible="1"
+                                        readonly="1" />
+                                    <field
+                                        name="currency_id"
+                                        options="{'no_create': True}"
                                         groups="base.group_multi_currency"
-                                        string="Currency" placeholder="Any currency" />
+                                        string="Currency"
+                                        placeholder="Any currency" />
                                     <field name="active" widget="boolean_toggle" />
-                                    <field name="company_ids" widget="many2many_tags"
+                                    <field
+                                        name="company_ids"
+                                        widget="many2many_tags"
                                         options="{'no_create': True}"
                                         groups="base.group_multi_company" />
                                 </group>
@@ -165,7 +215,9 @@
                         <page name="Description">
                             <field name="description" />
                         </page>
-                        <page name="mapping" string="Mapping"
+                        <page
+                            name="mapping"
+                            string="Mapping"
                             groups="base.group_multi_company"
                             invisible="not display_mapping_tab">
                             <field name="code_mapping_ids" nolabel="1">

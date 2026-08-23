@@ -49,13 +49,10 @@ CONSUMER_ROOTS = (
 # against marin190 on 2026-08-22, with theme_common installed), so they are
 # dead files rather than a broken bundle. Accounted here rather than fixed:
 # the drift belongs to the vendored repo, not to this one.
-KNOWN_UNRESOLVED: frozenset[str] = frozenset(
-    {
-        "@web/core/l10n/translation",
-        "@web/legacy/js/core/dom",
-        "@web/legacy/js/public/public_widget",
-    }
-)
+#: Specifiers imported from outside `web` that resolved to no file. The gate
+#: only ever shrinks this set -- an entry that starts resolving is reported as a
+#: failure -- so empty is its finished state, not a missing one.
+KNOWN_UNRESOLVED: frozenset[str] = frozenset()
 
 
 def _named_roots(consumer_roots) -> list[tuple[str, Path]]:
