@@ -97,9 +97,6 @@ class ChangeProductionQty(models.TransientModel):
 
             for wo in production.workorder_ids:
                 operation = wo.operation_id
-                wo.duration_expected = wo._get_duration_expected(
-                    ratio=new_production_qty / old_production_qty
-                )
                 quantity = wo.qty_production - wo.qty_produced
                 if production.product_id.tracking == "serial":
                     quantity = (
@@ -117,6 +114,17 @@ class ChangeProductionQty(models.TransientModel):
                         else 0
                     )
                 wo._update_qty_producing(quantity)
+                # After `_update_qty_producing`, not before.  A work order that
+                # carries an operation derives its duration from the quantity,
+                # and asking for it first read the *old* `qty_producing`: a
+                # started work order taken from 5 to 20 kept the 50 minutes it
+                # was scheduled for, four times short, while the same call one
+                # line later returns 200.  `ratio` never reached that branch --
+                # it is read only by the operation-less one, which still needs
+                # it because it has no quantity-driven formula to fall back on.
+                wo.duration_expected = wo._get_duration_expected(
+                    ratio=new_production_qty / old_production_qty
+                )
                 if wo.qty_produced < wo.qty_production and wo.state == "done":
                     wo.state = "progress"
                 if wo.qty_produced == wo.qty_production and wo.state == "progress":

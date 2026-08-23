@@ -2660,8 +2660,12 @@ class MrpProduction(models.Model):
         final_workorders = self.workorder_ids.filtered(
             lambda wo: not wo.needed_by_workorder_ids
         )
+        # One memo for the whole pass, not one per final work order: two
+        # final work orders that share a predecessor would otherwise each plan
+        # that shared subtree, and under `replan` each planning moves it.
+        planned = set()
         for workorder in final_workorders:
-            workorder._plan_workorder(replan)
+            workorder._plan_workorder(replan, planned)
 
         workorders = self.workorder_ids.filtered(
             lambda w: w.state not in ["done", "cancel"]
@@ -3903,11 +3907,21 @@ class MrpProduction(models.Model):
                     workorder.name = operation.name
             elif workorder.operation_id:
                 workorders_to_unlink |= workorder
+        # `sequence` explicitly: `_default_sequence` reads it off the operation
+        # only when the work order is built through the `workorder_ids` compute,
+        # which evaluates defaults against a record that already carries one.
+        # Creating from a vals dict -- this path, reached from Update BOM --
+        # leaves `self` empty in the default, so the work order lands on 100 and
+        # sorts after everything already there whatever the routing says: a
+        # routing reading `Prep, Op0, Op1, Op2` produced `Op0, Op1, Op2, Prep`,
+        # and `_link_workorders_and_moves` then built the dependency chain in
+        # that order, so the preparation step waited on what it prepares for.
         self.workorder_ids += self.env["mrp.workorder"].create(
             [
                 {
                     "name": operation.name,
                     "operation_id": operation.id,
+                    "sequence": operation.sequence,
                     "product_uom_id": self.product_uom_id.id,
                     "production_id": self.id,
                     "state": "blocked",

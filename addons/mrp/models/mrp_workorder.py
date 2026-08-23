@@ -43,6 +43,16 @@ class MrpWorkorder(models.Model):
             )
 
     def _default_sequence(self):
+        """Inherit the operation's sequence, so the routing order is the default.
+
+        ``self`` carries the operation when the work order is being built
+        through ``mrp.production.workorder_ids`` -- the x2many compute
+        evaluates defaults against a record whose ``operation_id`` is already
+        in cache -- and is empty when one is created directly from a vals
+        dict, where a default cannot see the values it is created with.  That
+        second path therefore has to pass ``sequence`` itself; see
+        ``_link_bom_operations``.
+        """
         return self.operation_id.sequence or 100
 
     def _read_group_workcenter_id(self, workcenters, domain):
@@ -143,6 +153,11 @@ class MrpWorkorder(models.Model):
         default="ready",
         copy=False,
         index=True,
+        # `_compute_state` reads the state of the work orders this one waits
+        # on, and those read theirs: blocked propagates along the dependency
+        # chain, so the recompute has to iterate to a fixed point rather than
+        # run once.  `_check_no_cyclic_dependencies` is what bounds it.
+        recursive=True,
     )
     reservation_id = fields.Many2one(
         "resource.reservation",
@@ -289,7 +304,41 @@ class MrpWorkorder(models.Model):
         copy=False,
     )
 
-    @api.depends("qty_ready")
+    def _get_qty_ready(self):
+        """Quantity this work order may start on, ignoring its own lifecycle.
+
+        Shared by ``_compute_qty_ready`` and ``_compute_state`` so the two can
+        stop depending on each other.  ``state`` is derived from the ready
+        quantity, and the ready quantity used to be derived from ``state`` --
+        a self-cycle that only stayed latent because ``qty_ready`` never
+        declared the ``state`` it reads, which is also why cancelling a work
+        order left it reporting its full quantity until the cache was dropped.
+        Reading the same inputs from both computes breaks the loop without
+        losing either meaning.
+        """
+        self.ensure_one()
+        blockers = self.blocked_by_workorder_ids.filtered(
+            lambda wo: wo.state != "cancel"
+        )
+        if not blockers:
+            return self.qty_remaining
+        carried = self.qty_produced + self.qty_reported_from_previous_wo
+        available = self.qty_remaining + self.qty_produced
+        for blocker in blockers:
+            available = min(
+                available, blocker.qty_produced + blocker.qty_reported_from_previous_wo
+            )
+        return available - carried
+
+    @api.depends(
+        "product_uom_id",
+        "blocked_by_workorder_ids.qty_produced",
+        "blocked_by_workorder_ids.qty_reported_from_previous_wo",
+        "blocked_by_workorder_ids.state",
+        "qty_remaining",
+        "qty_produced",
+        "qty_reported_from_previous_wo",
+    )
     def _compute_state(self):
         for workorder in self:
             if not workorder.product_uom_id or workorder.state not in (
@@ -297,10 +346,33 @@ class MrpWorkorder(models.Model):
                 "ready",
             ):
                 continue
-            has_qty_ready = workorder.product_uom_id.compare(workorder.qty_ready, 0) > 0
+            has_qty_ready = (
+                workorder.product_uom_id.compare(workorder._get_qty_ready(), 0) > 0
+            )
             workorder.state = "ready" if has_qty_ready else "blocked"
 
+    #: Values of ``state`` the model derives and the user therefore cannot pick.
+    DERIVED_STATES = ("blocked",)
+
     def set_state(self, state):
+        """Move this set to ``state``, through the transition that state means.
+
+        ``blocked`` is refused.  It is *derived* -- ``_compute_state`` sets it
+        from the ready quantity and clears it again as soon as that quantity
+        arrives -- so writing it stuck only until the next change to any of
+        those inputs, and the list dropdown was offering the user a hold that
+        silently released itself.  ``ready`` stays available: for a cancelled
+        work order it is the release, and re-deriving it to ``blocked`` right
+        after is the correct answer when nothing is ready yet.
+        """
+        if state in self.DERIVED_STATES:
+            raise UserError(
+                _(
+                    "A work order is blocked when the work orders it waits on "
+                    "have not produced enough for it to start. It is not a "
+                    "status you can set."
+                )
+            )
         ids_to_update = []
         for wo in self:
             if wo.state == state or "done" in (wo.state, wo.production_state):
@@ -328,10 +400,30 @@ class MrpWorkorder(models.Model):
                 workorder.date_start or workorder.production_id.date_start
             )
 
-    @api.depends("production_state", "date_start", "date_end")
+    @api.depends(
+        "production_state",
+        "state",
+        "date_start",
+        "date_end",
+        "workcenter_id",
+        "reservation_ids.schedule_overlap_count",
+        "blocked_by_workorder_ids.date_start",
+        "blocked_by_workorder_ids.date_end",
+    )
     def _compute_json_popover(self):
+        conflicted_dict = {}
+        occupied_by_id = {}
         if self.ids:
             conflicted_dict = self._get_conflicted_workorder_ids()
+            # `_get_conflicted_workorder_ids` answers "is my plan clashing with
+            # another *plannable* work order", and deliberately says nothing
+            # about one already in progress.  The reservation ledger answers
+            # the other question -- "is this work centre free" -- and it is the
+            # one `_get_first_available_slot` enforces, so the two can disagree:
+            # measured, a work order planned onto a running one's slot showed no
+            # warning at all while the planner refused that slot outright.  Both
+            # are reported now; neither silently wins.
+            occupied_by_id = self._get_schedule_conflicts_batch()
         for wo in self:
             infos = []
             if not wo.date_start or not wo.date_end or not wo.ids:
@@ -399,6 +491,16 @@ class MrpWorkorder(models.Model):
                             ),
                         }
                     )
+                elif occupied_by_id.get(wo.id):
+                    infos.append(
+                        {
+                            "color": "text-danger",
+                            "msg": _(
+                                "%s is already booked for that time slot.",
+                                wo.workcenter_id.display_name,
+                            ),
+                        }
+                    )
             color_icon = (infos and infos[-1]["color"]) or False
             wo.show_json_popover = bool(color_icon)
             wo.json_popover = json.dumps(
@@ -428,7 +530,10 @@ class MrpWorkorder(models.Model):
                 workorder.production_id._inverse_qty_producing(False)
 
     @api.depends(
+        "state",
+        "blocked_by_workorder_ids",
         "blocked_by_workorder_ids.qty_produced",
+        "blocked_by_workorder_ids.qty_reported_from_previous_wo",
         "blocked_by_workorder_ids.state",
         "qty_remaining",
         "qty_produced",
@@ -438,24 +543,8 @@ class MrpWorkorder(models.Model):
         for workorder in self:
             if workorder.state in ("cancel", "done"):
                 workorder.qty_ready = 0
-                continue
-            if not workorder.blocked_by_workorder_ids or all(
-                wo.state == "cancel" for wo in workorder.blocked_by_workorder_ids
-            ):
-                workorder.qty_ready = workorder.qty_remaining
-                continue
-            workorder_qty_ready = workorder.qty_remaining + workorder.qty_produced
-            for wo in workorder.blocked_by_workorder_ids:
-                if wo.state != "cancel":
-                    workorder_qty_ready = min(
-                        workorder_qty_ready,
-                        wo.qty_produced + wo.qty_reported_from_previous_wo,
-                    )
-            workorder.qty_ready = (
-                workorder_qty_ready
-                - workorder.qty_produced
-                - workorder.qty_reported_from_previous_wo
-            )
+            else:
+                workorder.qty_ready = workorder._get_qty_ready()
 
     @api.depends("reservation_ids")
     def _compute_reservation_id(self):
@@ -563,7 +652,15 @@ class MrpWorkorder(models.Model):
     def _compute_duration(self):
         for order in self:
             order.duration = order.get_duration()
-            order.duration_unit = round(order.duration / max(order.qty_produced, 1), 2)
+            # `max(qty_produced, 1)` was guarding the division by zero and
+            # silently corrupting every sub-unit quantity with it: 60 minutes
+            # over half a unit reported 60 per unit instead of 120, and the
+            # field carries `aggregator="avg"`, so it feeds reporting.
+            order.duration_unit = (
+                round(order.duration / order.qty_produced, 2)
+                if order.qty_produced
+                else 0.0
+            )
             if order.duration_expected:
                 order.duration_percent = max(
                     -2147483648,
@@ -662,7 +759,19 @@ class MrpWorkorder(models.Model):
             else:
                 order.progress = 0
 
+    @api.depends("time_ids.date_end", "time_ids.user_id", "time_ids.loss_type")
+    @api.depends_context("uid")
     def _compute_working_users(self):
+        """Who is on this work order, and is that the caller.
+
+        This declared nothing at all, so the ORM cached the answer for the
+        whole transaction and never invalidated it -- `is_user_working` read
+        False straight after `button_start` -- and, being independent of the
+        environment as far as the cache was concerned, one user's answer was
+        served to the next: `with_user(other).is_user_working` returned True
+        for a timer `other` does not hold.  The field's own body reads
+        `self.env.user`, so it is per user by construction.
+        """
         for order in self:
             no_date_end_times = order.time_ids.filtered(
                 lambda time: not time.date_end
@@ -693,6 +802,7 @@ class MrpWorkorder(models.Model):
             else:
                 order.is_user_working = False
 
+    @api.depends("scrap_ids")
     def _compute_scrap_count(self):
         data = self.env["stock.scrap"]._read_group(
             [("workorder_id", "in", self.ids)], ["workorder_id"], ["__count"]
@@ -764,13 +874,13 @@ class MrpWorkorder(models.Model):
         values = dict(vals)
         self._check_write_qty_produced(values)
         self._check_write_production_id(values)
-        new_workcenter, workorders_with_new_workcenter = self._update_write_workcenter(
+        new_workcenter, previous_workcenter_by_id = self._update_write_workcenter(
             values
         )
         derived_vals = self._get_write_date_vals(values, new_workcenter)
         res = self._write_grouped_by_derived_vals(values, derived_vals)
         self._post_write_qty_produced(values)
-        self._post_write_workcenter(workorders_with_new_workcenter, new_workcenter)
+        self._post_write_workcenter(previous_workcenter_by_id, new_workcenter)
         return res
 
     def _check_write_qty_produced(self, values):
@@ -795,10 +905,21 @@ class MrpWorkorder(models.Model):
             )
 
     def _update_write_workcenter(self, values):
+        """Move the bookings, and remember what each record is moving *from*.
+
+        The previous work centre is returned per record because
+        ``_get_duration_expected`` needs it and cannot recover it: it runs
+        after ``super().write()``, where both ``workcenter_id`` and ``_origin``
+        already read as the new one.  That is why the efficiency conversion in
+        its operation-less branch used to cancel itself out -- it divided by
+        the same efficiency it had just multiplied by -- and moving such a work
+        order to a work centre twice as fast left its expected duration
+        untouched.
+        """
         if "workcenter_id" not in values:
-            return False, self.browse()
+            return False, {}
         new_workcenter = self.env["mrp.workcenter"].browse(values["workcenter_id"])
-        workorders_with_new_workcenter = self.browse()
+        previous_workcenter_by_id = {}
         for workorder in self:
             if workorder.workcenter_id.id == values["workcenter_id"]:
                 continue
@@ -808,8 +929,8 @@ class MrpWorkorder(models.Model):
                 )
             workorder.reservation_id.resource_id = new_workcenter.resource_id
             if workorder.state != "progress":
-                workorders_with_new_workcenter |= workorder
-        return new_workcenter, workorders_with_new_workcenter
+                previous_workcenter_by_id[workorder.id] = workorder.workcenter_id
+        return new_workcenter, previous_workcenter_by_id
 
     def _get_write_date_vals(self, values, new_workcenter):
         if "date_start" not in values and "date_end" not in values:
@@ -843,6 +964,17 @@ class MrpWorkorder(models.Model):
         ):
             return {}
         if values.get("date_start") and values.get("date_end"):
+            # Both endpoints given means *move me*, not *resize me*: the
+            # duration is preserved and the end re-derived from the new start
+            # through the work centre calendar, so a work order dragged out of
+            # a midday break keeps its length instead of absorbing the break.
+            # The end handed in is therefore discarded -- deliberately, and
+            # `mrp_workorder`'s `test_planning_8` pins it.
+            #
+            # To set an exact span instead, pass `duration_expected` with the
+            # dates (the guard above then leaves all three alone), which is
+            # what `_plan_workorder` does.  An audit read the discarded end as
+            # a defect; it is a documented rule that was merely undocumented.
             return {
                 "date_end": self._calculate_date_finished(
                     date_start=date_start, new_workcenter=new_workcenter
@@ -907,9 +1039,11 @@ class MrpWorkorder(models.Model):
                 ).qty_producing = min_workorder_qty
         self._inverse_qty_producing()
 
-    def _post_write_workcenter(self, workorders, new_workcenter):
-        for workorder in workorders:
-            workorder.duration_expected = workorder._get_duration_expected()
+    def _post_write_workcenter(self, previous_workcenter_by_id, new_workcenter):
+        for workorder in self.browse(previous_workcenter_by_id):
+            workorder.duration_expected = workorder._get_duration_expected(
+                previous_workcenter=previous_workcenter_by_id[workorder.id]
+            )
             if workorder.date_start:
                 workorder.date_end = workorder._calculate_date_finished(
                     new_workcenter=new_workcenter
@@ -917,6 +1051,27 @@ class MrpWorkorder(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        # A field default cannot see the values it is being created with, so
+        # the routing sequence is applied here as well as in
+        # `_default_sequence` (which serves the form, through the context).
+        # Without it every work order lands on the same sequence, which both
+        # forces `_resequence_workorders` to run on every multi-operation
+        # order and leaves one added later sorting after the rest.
+        operations = self.env["mrp.routing.workcenter"].browse(
+            {
+                values["operation_id"]
+                for values in vals_list
+                if values.get("operation_id") and not values.get("sequence")
+            }
+        )
+        sequence_by_operation = {
+            operation.id: operation.sequence for operation in operations
+        }
+        for values in vals_list:
+            sequence = sequence_by_operation.get(values.get("operation_id"))
+            if sequence:
+                values["sequence"] = sequence
+
         res = super().create(vals_list)
 
         for workorder in res:
@@ -948,20 +1103,42 @@ class MrpWorkorder(models.Model):
             )
         )
 
-    def _plan_workorder(self, replan=False):
+    def _plan_workorder(self, replan=False, planned=None):
+        """Plan this work order, and its predecessors ahead of it.
+
+        :param planned: ids already planned in this pass.  Threading it is what
+            keeps the walk linear: the recursion below descends into
+            ``blocked_by_workorder_ids`` *before* the already-planned early
+            return, so without a memo a work order reachable by k paths is
+            visited k times and the whole walk costs 2**n on a dependency graph
+            that merges.  Measured on a routing where each operation waits on
+            the two before it: 17 710 calls at n=20, and ``action_replan`` --
+            which has no early return to fall back on -- issued 113 114 queries
+            and took 92s.  With the memo each work order is planned once.
+
+            It is also the more correct reading of one click: a work order that
+            several successors depend on was being *re-planned once per
+            successor*, and every replan moves it (see the reservation note
+            below), so a diamond dependency walked its shared node forward
+            several times for one press of Replan.
+        """
         self.ensure_one()
-        date_start = max(self.production_id.date_start, fields.Datetime.now())
+        if planned is None:
+            planned = set()
+        elif self.id in planned:
+            return
+        planned.add(self.id)
+        date_start = fields.Datetime.now()
+        if self.production_id.date_start and self.production_id.date_start > date_start:
+            date_start = self.production_id.date_start
         for workorder in self.blocked_by_workorder_ids:
-            workorder._plan_workorder(replan)
+            workorder._plan_workorder(replan, planned)
             if workorder.date_end and workorder.date_end > date_start:
                 date_start = workorder.date_end
         if self.state not in ["blocked", "ready"]:
             return
-        if self.date_start:
-            if replan:
-                pass
-            else:
-                return
+        if self.date_start and not replan:
+            return
         workcenters = self.workcenter_id | self.workcenter_id.alternative_workcenter_ids
         best_date_finished = None
         vals = {}
@@ -977,7 +1154,17 @@ class MrpWorkorder(models.Model):
                     alternative_workcenter=workcenter
                 )
             from_date, to_date = workcenter._get_first_available_slot(
-                date_start, duration_expected
+                date_start,
+                duration_expected,
+                # Without this the work order collides with *itself*: its own
+                # booking is in the ledger `_get_first_available_slot` sweeps,
+                # so the search steps past the slot it already occupies and
+                # every press of Replan walked it forward by its own duration
+                # (06:00 -> 06:50 -> 07:40 -> 08:30 on an empty calendar).
+                # `_web_gantt_reschedule_compute_dates` in mrp_workorder has
+                # passed it since the ledger replaced calendar leaves; this
+                # path never did.
+                reservations_to_ignore=self.reservation_ids,
             )
             if not from_date:
                 continue
@@ -1017,7 +1204,7 @@ class MrpWorkorder(models.Model):
             )
         return total
 
-    def button_start(self, raise_on_invalid_state=False):
+    def button_start(self, skip_invalid_state=False):
         if any(wo.working_state == "blocked" for wo in self):
             raise UserError(
                 _("Please unblock the work center to start the work order.")
@@ -1031,7 +1218,12 @@ class MrpWorkorder(models.Model):
             ):
                 continue
             if wo.state in ("done", "cancel"):
-                if raise_on_invalid_state:
+                # Renamed from `raise_on_invalid_state`, which named the
+                # opposite of its effect: passing it True *suppressed* the
+                # raise.  Its only caller is the Start mass action, which
+                # passes it precisely because it wants finished and cancelled
+                # selections skipped rather than the whole batch refused.
+                if skip_invalid_state:
                     continue
                 raise UserError(
                     _("You cannot start a work order that is already done or cancelled")
@@ -1055,10 +1247,18 @@ class MrpWorkorder(models.Model):
                 "date_start": date_start,
             }
             if not wo.reservation_ids:
+                # `bypass_duration_calculation`, or `write` throws this away
+                # and re-derives the end from the work centre calendar -- and
+                # a work order started outside working hours then spans to the
+                # next open slot: 50 minutes of work booked as 1974, measured,
+                # with that span mirrored into `resource.reservation`, so one
+                # after-hours start took the work centre out of the planner's
+                # reach for a day and a half.  A running work order runs in
+                # wall-clock time; the calendar projection is for a plan.
                 vals["date_end"] = date_start + relativedelta(
                     minutes=wo.duration_expected
                 )
-                wo.write(vals)
+                wo.with_context(bypass_duration_calculation=True).write(vals)
             else:
                 if not wo.date_start or wo.date_start > date_start:
                     vals["date_end"] = wo._calculate_date_finished(date_start)
@@ -1110,12 +1310,21 @@ class MrpWorkorder(models.Model):
         return True
 
     def end_previous(self, doall=False):
+        """Close the running timers of this set: the caller's, or everyone's.
+
+        No ``limit``.  It used to search ``limit=1`` for the non-``doall``
+        case over a domain spanning the whole recordset, so one call closed a
+        single timer no matter how many work orders were selected -- and the
+        Pause mass action (``records.button_pending()``, bound to list and
+        kanban) is a multi-record entry point by construction.  Measured:
+        three started work orders, one press of Pause, two still running.
+        The limit was standing in for "one per work order per user", which
+        ``mrp.workcenter.productivity._check_open_time_ids`` already enforces.
+        """
         domain = [("workorder_id", "in", self.ids), ("date_end", "=", False)]
         if not doall:
             domain.append(("user_id", "=", self.env.user.id))
-        self.env["mrp.workcenter.productivity"].search(
-            domain, limit=None if doall else 1
-        )._close()
+        self.env["mrp.workcenter.productivity"].search(domain)._close()
         return True
 
     def end_all(self):
@@ -1199,7 +1408,26 @@ class MrpWorkorder(models.Model):
             else:
                 wo.qty_remaining = 0
 
-    def _get_duration_expected(self, alternative_workcenter=False, ratio=1):
+    def _get_duration_expected(
+        self, alternative_workcenter=False, ratio=1, previous_workcenter=False
+    ):
+        """Expected minutes for this work order at its (or another) work centre.
+
+        :param alternative_workcenter: cost the work order at that work centre
+            instead, without moving it -- used while planning to compare the
+            interchangeable ones.
+        :param ratio: scale factor for a work order that carries **no
+            operation**.  Such a work order has no ``time_cycle`` to derive
+            from, so its stored ``duration_expected`` is the only source of
+            truth and a quantity change has to be applied to it from outside.
+            A work order that *does* carry an operation derives its duration
+            from the quantity itself and ignores this -- which is why
+            ``change.production.qty`` now updates the quantity before it asks
+            for the duration, rather than after.
+        :param previous_workcenter: the work centre this work order is moving
+            *away* from, when the caller is reacting to a work centre change.
+            Its efficiency is what the stored duration was expressed in.
+        """
         self.ensure_one()
         if not self.workcenter_id:
             return self.duration_expected
@@ -1209,18 +1437,30 @@ class MrpWorkorder(models.Model):
             self.production_bom_id.product_qty or 1,
         )
         if not self.operation_id:
-            previous = self._origin if self._origin.workcenter_id else self
-            _capacity, old_setup, old_cleanup = previous.workcenter_id._get_capacity(
-                previous.product_id,
-                previous.product_uom_id,
-                previous.production_bom_id.product_qty or 1,
+            # Two different "previous" here, and conflating them is wrong: the
+            # setup and cleanup the stored duration already contains belong to
+            # the record as it was (its *product*, which an onchange may just
+            # have replaced), while the efficiency it is expressed in belongs
+            # to the work centre it was on.
+            previous_record = self._origin if self._origin.workcenter_id else self
+            previous = previous_workcenter or previous_record.workcenter_id
+            _capacity, old_setup, old_cleanup = previous._get_capacity(
+                previous_record.product_id,
+                previous_record.product_uom_id,
+                previous_record.production_bom_id.product_qty or 1,
             )
-            duration_expected_working = (
+            # Back out of the *old* work centre's efficiency, then apply the
+            # new one.  Both sides used to read `self.workcenter_id`, so the
+            # two factors cancelled exactly and the efficiency had no effect
+            # at all on a work order without an operation -- 50%, 100% and
+            # 200% all returned the same number, while the operation-backed
+            # branch below honoured it (100 -> 50 -> 25).
+            working_minutes = max(
                 (self.duration_expected - old_setup - old_cleanup)
-                * self.workcenter_id.time_efficiency
-                / 100.0
+                * previous.time_efficiency
+                / 100.0,
+                0,
             )
-            duration_expected_working = max(duration_expected_working, 0)
             if self.qty_producing not in (
                 0,
                 self.qty_production,
@@ -1234,7 +1474,7 @@ class MrpWorkorder(models.Model):
             return (
                 setup
                 + cleanup
-                + duration_expected_working
+                + working_minutes
                 * qty_ratio
                 * ratio
                 * 100.0

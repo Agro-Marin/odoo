@@ -499,7 +499,7 @@
         <field name="binding_model_id" ref="mrp.model_mrp_workorder"/>
         <field name="binding_view_types">list,kanban</field>
         <field name="state">code</field>
-        <field name="code">action = records.button_start(raise_on_invalid_state=True)</field>
+        <field name="code">action = records.button_start(skip_invalid_state=True)</field>
     </record>
 
     <record id="action_pause_workorders" model="ir.actions.server">
