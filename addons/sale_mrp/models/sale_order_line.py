@@ -59,6 +59,19 @@ class SaleOrderLine(models.Model):
                     line.display_qty_widget = True
 
     def _compute_qty_transferred(self):
+        """Delivered quantity of a kit line: the fewest whole kits its
+        components cover.
+
+        Every quantity below is `product_qty`, not `product_uom_qty`.  In this
+        fork `product_qty` is the quantity in the *line's* unit and
+        `product_uom_qty` is the same quantity converted to the product's
+        reference unit -- the reverse of the names' upstream meaning.  These
+        six reads were still spelled the upstream way, which is invisible while
+        a line is sold in the product's own unit and wrong the moment it is
+        not: the reference-unit number was fed to a conversion that declares it
+        to be in the line's unit, and to `qty_transferred`, which
+        `sale_stock` computes in the line's unit.
+        """
         lines_by_stock_move = self.filtered(
             lambda line: line.qty_transferred_method == "stock_move",
         )
@@ -99,7 +112,7 @@ class SaleOrderLine(models.Model):
                             for m in moves) or not moves:
                         line.qty_transferred = 0
                     else:
-                        line.qty_transferred = line.product_uom_qty
+                        line.qty_transferred = line.product_qty
 
                     continue
 
@@ -112,7 +125,7 @@ class SaleOrderLine(models.Model):
                     'outgoing_moves': lambda m:
                         m._is_incoming() and m.to_refund,
                 }
-                order_qty = line.product_uom_id._compute_quantity_reconcile(line.product_uom_qty, relevant_bom.product_uom_id)
+                order_qty = line.product_uom_id._compute_quantity_reconcile(line.product_qty, relevant_bom.product_uom_id)
                 qty_transferred = moves._get_kit_quantity(line.product_id, order_qty, relevant_bom, filters)
                 line.qty_transferred = relevant_bom.product_uom_id._compute_quantity_reconcile(qty_transferred, line.product_uom_id)
 
@@ -122,7 +135,7 @@ class SaleOrderLine(models.Model):
             elif boms:
                 # if the move is ingoing, the product **sold** has delivered qty 0
                 if all(m.state == 'done' and m.location_dest_id.usage == 'customer' for m in line.move_ids):
-                    line.qty_transferred = line.product_uom_qty
+                    line.qty_transferred = line.product_qty
                 else:
                     line.qty_transferred = 0.0
 
@@ -162,7 +175,7 @@ class SaleOrderLine(models.Model):
                                for m in moves) or not moves:
                             delivered_qties[order_line] = 0
                         else:
-                            delivered_qties[order_line] = order_line.product_uom_qty
+                            delivered_qties[order_line] = order_line.product_qty
                         continue
                     moves = order_line.move_ids.filtered(lambda m: m.state == 'done' and m.location_dest_usage != 'inventory')
                     filters = {
@@ -173,7 +186,7 @@ class SaleOrderLine(models.Model):
                         'outgoing_moves': lambda m:
                             m._is_incoming() and m.to_refund,
                     }
-                    order_qty = order_line.product_uom_id._compute_quantity_reconcile(order_line.product_uom_qty, relevant_bom.product_uom_id)
+                    order_qty = order_line.product_uom_id._compute_quantity_reconcile(order_line.product_qty, relevant_bom.product_uom_id)
                     qty_transferred = moves._get_kit_quantity(order_line.product_id, order_qty, relevant_bom, filters)
                     delivered_qties[order_line] += relevant_bom.product_uom_id._compute_quantity_reconcile(qty_transferred, order_line.product_uom_id)
 
@@ -183,7 +196,7 @@ class SaleOrderLine(models.Model):
                 elif boms:
                     # if the move is ingoing, the product **sold** has delivered qty 0
                     if all(m.state == 'done' and m.location_dest_id.usage == 'customer' for m in order_line.move_ids):
-                        delivered_qties[order_line] = order_line.product_uom_qty
+                        delivered_qties[order_line] = order_line.product_qty
                     else:
                         delivered_qties[order_line] = 0.0
         return delivered_qties

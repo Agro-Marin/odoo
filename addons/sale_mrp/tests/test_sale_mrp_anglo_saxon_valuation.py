@@ -90,7 +90,7 @@ class TestSaleMRPAngloSaxonValuation(TestSaleCommon, ValuationReconciliationTest
                 (0, 0, {
                     'name': self.kit_a.name,
                     'product_id': self.kit_a.id,
-                    'product_uom_qty': 0.5,
+                    'product_qty': 0.5,
                     'product_uom_id': pack_2.id,
                     'price_unit': 1,
                     'tax_ids': False,
@@ -179,7 +179,7 @@ class TestSaleMRPAngloSaxonValuation(TestSaleCommon, ValuationReconciliationTest
                 'line_ids': [(0, 0, {
                     'name': product.name,
                     'product_id': product.id,
-                    'product_uom_qty': 2,
+                    'product_qty': 2,
                     'price_unit': product.list_price
                 })],
                 'company_id': self.company_data['company'].id,
@@ -251,7 +251,7 @@ class TestSaleMRPAngloSaxonValuation(TestSaleCommon, ValuationReconciliationTest
                 (0, 0, {
                     'name': kit.name,
                     'product_id': kit.id,
-                    'product_uom_qty': 3.0,
+                    'product_qty': 3.0,
                     'price_unit': 100,
                     'tax_ids': False,
                 })],
@@ -352,7 +352,7 @@ class TestSaleMRPAngloSaxonValuation(TestSaleCommon, ValuationReconciliationTest
                 (0, 0, {
                     'name': kit.name,
                     'product_id': kit.id,
-                    'product_uom_qty': 3.0,
+                    'product_qty': 3.0,
                     'price_unit': 100,
                     'tax_ids': False,
                 })],
@@ -495,7 +495,7 @@ class TestSaleMRPAngloSaxonValuation(TestSaleCommon, ValuationReconciliationTest
                 (0, 0, {
                     'name': kit.name,
                     'product_id': kit.id,
-                    'product_uom_qty': 2.0,
+                    'product_qty': 2.0,
                     'price_unit': 5,
                     'tax_ids': False,
                 })],

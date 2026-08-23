@@ -108,7 +108,7 @@ class TestSaleMrpFlow(test_sale_mrp_flow.TestSaleMrpFlowCommon):
             'partner_id': self.partner_a.id,
             'line_ids': [Command.create({
                 'product_id': kit.id,
-                'product_uom_qty': 3,
+                'product_qty': 3,
                 'product_uom_id': self.uom_ten.id
             })]
         })

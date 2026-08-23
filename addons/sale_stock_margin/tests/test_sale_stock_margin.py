@@ -43,7 +43,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
             'order_id': sale_order.id,
             'price_unit': price_unit,
             'product_id': product.id,
-            'product_uom_qty': quantity,
+            'product_qty': quantity,
         })
 
     def _create_product(self):
@@ -479,7 +479,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
             'name': 'Sale order',
             'order_id': sale_order.id,
             'product_id': self.product_avco.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
             'product_uom_id': pack_of_6,
         })
         sale_order.action_confirm()
@@ -591,7 +591,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
             self._make_in_move(self.product_avco_auto, 2, 30)
             self.assertEqual(self.product_avco_auto.standard_price, 32.5, "standard_price for avco = (10 * 33 + 2 * 30) / 12 = 32.5: 10 remaining + 2 added to stock")
             freeze.tick(delta=datetime.timedelta(seconds=2))
-            sol.product_uom_qty = 0
+            sol.product_qty = 0
             self.assertEqual(sol.purchase_price, self.product_avco_auto.standard_price, "< 0 Delivered => default to standard price")
             self.assertEqual(sol.margin, -135, "margin = (sale price - purchase_price) * qty_delivered = (100 - 32.5) * -2 = -135")
 

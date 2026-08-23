@@ -254,7 +254,7 @@ class TestSaleMrpKitBom(BaseCommon):
                 (0, 0, {
                     'name': self.kit.name,
                     'product_id': self.kit.id,
-                    'product_uom_qty': 10.0,
+                    'product_qty': 10.0,
                     'price_unit': 1,
                     'tax_ids': False,
                 })],

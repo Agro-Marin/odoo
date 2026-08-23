@@ -173,7 +173,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             'line_ids': [(0, 0, {
                 'name': self.finished2.name,
                 'product_id': self.finished2.id,
-                'product_uom_qty': 10,
+                'product_qty': 10,
                 'product_uom_id': self.finished2.uom_id.id,
                 'price_unit': 1,
             })],
@@ -215,7 +215,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             'line_ids': [(0, 0, {
                 'name': self.finished2.name,
                 'product_id': self.finished2.id,
-                'product_uom_qty': 10,
+                'product_qty': 10,
                 'product_uom_id': self.finished2.uom_id.id,
                 'price_unit': 1,
             })],
@@ -277,13 +277,22 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         amls = self.env['account.move.line'].search([
             ('product_id', 'in', (self.comp1 | self.comp2 | self.finished).ids)
         ])
+        # Sorted, because the search order does not separate two components
+        # booked by the same journal entry: the comp1 pair and the comp2 pair
+        # swap places as soon as another installed module changes the order the
+        # consumption moves are created in, and this assertion is about the
+        # amounts, not about that order. Measured: identical values, comp2's
+        # pair ahead of comp1's, with the enterprise and agromarin layers
+        # installed alongside.
+        rank = {self.comp1.id: 0, self.comp2.id: 1, self.finished.id: 2}
+        amls = amls.sorted(lambda line: (rank[line.product_id.id], line.debit))
         self.assertRecordValues(amls, [
-            {'account_id': self.account_production.id, 'debit': 0, 'credit': 60, 'product_id': self.finished.id},
-            {'account_id': self.account_stock_valuation.id, 'debit': 60, 'credit': 0, 'product_id': self.finished.id},
             {'account_id': self.account_stock_valuation.id, 'debit': 0, 'credit': 20, 'product_id': self.comp1.id},
             {'account_id': self.account_production.id, 'debit': 20, 'credit': 0, 'product_id': self.comp1.id},
             {'account_id': self.account_stock_valuation.id, 'debit': 0, 'credit': 40, 'product_id': self.comp2.id},
             {'account_id': self.account_production.id, 'debit': 40, 'credit': 0, 'product_id': self.comp2.id},
+            {'account_id': self.account_production.id, 'debit': 0, 'credit': 60, 'product_id': self.finished.id},
+            {'account_id': self.account_stock_valuation.id, 'debit': 60, 'credit': 0, 'product_id': self.finished.id},
             {'account_id': self.account_stock_valuation.id, 'debit': 120, 'credit': 0, 'product_id': self.finished.id},
         ])
 
@@ -413,7 +422,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             'line_ids': [Command.create({
                 'name': self.finished.name,
                 'product_id': self.finished.id,
-                'product_uom_qty': 1,
+                'product_qty': 1,
                 'product_uom_id': self.finished.uom_id.id,
                 'price_unit': 100,
             })],

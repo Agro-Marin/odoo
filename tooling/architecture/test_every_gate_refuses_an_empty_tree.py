@@ -44,6 +44,10 @@ GATES = {
     "field_hook_naming": ["--count"],
     "field_hook_purity": ["--count"],
     "naming_vocabulary": ["--count"],
+    # And for the order-line quantity gate: 0 writes of `product_uom_qty` is
+    # what a tree that spells every ordered quantity `product_qty` looks like,
+    # so an emptied one must refuse. Its guard is on finding no Python at all.
+    "order_line_qty": ["--count"],
     # And for the catalogue gate: 0 unresolvable strings is what a tree whose
     # every `_()` was exported looks like, so an emptied one must refuse. Its
     # own guard is on finding no `.pot` at all rather than on the count.

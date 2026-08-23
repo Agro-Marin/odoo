@@ -70,6 +70,7 @@ py_x2many_count    py_x2many_count
 sql_in_placeholder sql_in_placeholder
 py_count_as_boolean py_count_as_boolean
 naming_vocabulary  naming
+order_line_qty     orderlineqty
 compute_context_deps computectx
 field_hook_naming  fieldhooks
 field_hook_purity  hookpurity

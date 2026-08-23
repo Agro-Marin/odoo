@@ -121,6 +121,7 @@ class TestEveryToolAgrees:
         ("architecture", "js_template_binding"): "ROOT",
         ("architecture", "js_vacuous_assertions"): "ROOT",
         ("architecture", "naming_vocabulary"): "ROOT",
+        ("architecture", "order_line_qty"): "ROOT",
         ("architecture", "translation_catalog"): "ROOT",
         ("architecture", "sql_placeholder"): "ROOT",
         ("architecture", "xml_reference_coherence"): "ROOT",
