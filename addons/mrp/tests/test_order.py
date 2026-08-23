@@ -5381,6 +5381,7 @@ class TestMrpOrder(TestMrpCommon):
                     "product_uom_id": self.product_1.uom_id.id,
                     "capacity": 1,
                     "time_start": 10,
+                    "time_stop": 0,
                 }
             )
         ]
@@ -5391,6 +5392,7 @@ class TestMrpOrder(TestMrpCommon):
                     "product_uom_id": self.product_1.uom_id.id,
                     "capacity": 1,
                     "time_start": 5,
+                    "time_stop": 0,
                 }
             )
         ]

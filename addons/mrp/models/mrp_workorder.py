@@ -6,6 +6,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.fields import Domain
 from odoo.libs.intervals import Intervals
 from odoo.tools import float_round, format_datetime
 from odoo.tools.date_utils import sum_intervals
@@ -16,6 +17,14 @@ class MrpWorkorder(models.Model):
     _description = "Work Order"
     _inherit = ["mixin.resource.scheduling"]
     _order = "sequence, date_start, id"
+
+    OPEN_STATES = ("blocked", "ready", "progress")
+
+    @api.model
+    def _late_domain(self):
+        return Domain("state", "in", ("blocked", "ready")) & Domain(
+            "date_start", "<", fields.Datetime.now()
+        )
 
     def _default_sequence(self):
         return self.operation_id.sequence or 100
@@ -1278,31 +1287,19 @@ class MrpWorkorder(models.Model):
         }
 
     def _prepare_timeline_vals(self, duration, date_start, date_end=False):
-        if not self.duration_expected or duration <= self.duration_expected:
-            loss_id = self.env["mrp.workcenter.productivity.loss"].search(
-                [("loss_type", "=", "productive")], limit=1
-            )
-            if not len(loss_id):
-                raise UserError(
-                    _(
-                        "You need to define at least one productivity loss in the category 'Productivity'. Create one from the Manufacturing app, menu: Configuration / Productivity Losses."
-                    )
-                )
-        else:
-            loss_id = self.env["mrp.workcenter.productivity.loss"].search(
-                [("loss_type", "=", "performance")], limit=1
-            )
-            if not len(loss_id):
-                raise UserError(
-                    _(
-                        "You need to define at least one productivity loss in the category 'Performance'. Create one from the Manufacturing app, menu: Configuration / Productivity Losses."
-                    )
-                )
+        loss_type = (
+            "productive"
+            if not self.duration_expected or duration <= self.duration_expected
+            else "performance"
+        )
+        loss_id = self.env["mrp.workcenter.productivity.loss"]._get_loss_of_type(
+            loss_type
+        )
         return {
             "workorder_id": self.id,
             "workcenter_id": self.workcenter_id.id,
             "description": _("Time Tracking: %(user)s", user=self.env.user.name),
-            "loss_id": loss_id[0].id,
+            "loss_id": loss_id.id,
             "date_start": date_start.replace(microsecond=0),
             "date_end": date_end.replace(microsecond=0) if date_end else date_end,
             "user_id": self.env.user.id,
@@ -1336,12 +1333,15 @@ class MrpWorkorder(models.Model):
     def _intervals_duration(self, intervals):
         if not intervals:
             return 0.0
-        duration = 0
-        for date_start, date_stop, timer in Intervals(intervals):
-            duration += timer.loss_id._convert_to_duration(
-                date_start, date_stop, timer.workcenter_id
+        spans = [
+            (timer.loss_id, timer.workcenter_id, date_start, date_stop)
+            for date_start, date_stop, timer in Intervals(intervals)
+        ]
+        return sum(
+            self.env["mrp.workcenter.productivity.loss"]._convert_to_duration_batch(
+                spans
             )
-        return duration
+        )
 
     def get_duration(self):
         self.ensure_one()

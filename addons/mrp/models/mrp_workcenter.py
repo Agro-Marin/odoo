@@ -1,13 +1,13 @@
 import json
 from collections import defaultdict
-from datetime import datetime, timedelta
-from functools import partial
+from datetime import timedelta
 
 from babel.dates import format_date
 from dateutil import relativedelta
 
-from odoo import _, api, exceptions, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.fields import Domain
 from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
 from odoo.libs.numbers import float_compare, float_is_zero, float_round
@@ -95,18 +95,20 @@ class MrpWorkcenter(models.Model):
     )
     blocked_time = fields.Float(
         "Blocked Time",
-        compute="_compute_blocked_time",
+        compute="_compute_effectiveness_times",
         help="Blocked hours over the last month",
         digits=(16, 2),
     )
     productive_time = fields.Float(
         "Productive Time",
-        compute="_compute_productive_time",
+        compute="_compute_effectiveness_times",
         help="Productive hours over the last month",
         digits=(16, 2),
     )
     oee = fields.Float(
-        compute="_compute_oee",
+        "OEE",
+        compute="_compute_effectiveness_times",
+        digits=(16, 2),
         help="Overall Equipment Effectiveness, based on the last month",
     )
     oee_target = fields.Float(
@@ -143,6 +145,8 @@ class MrpWorkcenter(models.Model):
     kanban_dashboard_graph = fields.Text(compute="_compute_kanban_dashboard_graph")
     resource_calendar_id = fields.Many2one(check_company=True)
 
+    @api.depends("working_state")
+    @api.depends_context("group_by", "show_workcenter_status")
     def _compute_display_name(self):
         super()._compute_display_name()
         for workcenter in self:
@@ -164,13 +168,10 @@ class MrpWorkcenter(models.Model):
                     )
                 )
 
+    @api.depends_context("lang", "uid")
     def _compute_kanban_dashboard_graph(self):
         week_range, date_start, date_stop = self._get_week_range_and_first_last_days()
-        has_workorder = bool(
-            self.env["mrp.workorder"].search_count(
-                [("workcenter_id", "in", self.ids)], limit=1
-            )
-        )
+        has_workorder = self._has_workorder()
         load_data = self._get_workcenter_load_per_week(
             week_range, date_start, date_stop, has_workorder=has_workorder
         )
@@ -183,7 +184,7 @@ class MrpWorkcenter(models.Model):
     def _get_week_range_and_first_last_days(self):
         week_range = {}
         locale = get_lang(self.env).code
-        today = datetime.today()
+        today = fields.Datetime.now()
         delta_from_monday_to_today = (today - start_of(today, "week")).days
         first_week_day = int(get_lang(self.env).week_start) - 1
         day_offset = ((7 - first_week_day) + delta_from_monday_to_today) % 7
@@ -207,16 +208,19 @@ class MrpWorkcenter(models.Model):
         )
         return week_range, date_start, date_stop
 
+    def _has_workorder(self):
+        return bool(
+            self.env["mrp.workorder"].search_count(
+                [("workcenter_id", "in", self.ids)], limit=1
+            )
+        )
+
     def _get_workcenter_load_per_week(
         self, week_range, date_start, date_stop, has_workorder=None
     ):
         load_data = {rec: {} for rec in self}
         if has_workorder is None:
-            has_workorder = bool(
-                self.env["mrp.workorder"].search_count(
-                    [("workcenter_id", "in", self.ids)], limit=1
-                )
-            )
+            has_workorder = self._has_workorder()
         if not has_workorder:
             for wc in self:
                 load_data[wc] = {
@@ -240,29 +244,20 @@ class MrpWorkcenter(models.Model):
             load_data[r[0]].update({r[1]: load_in_hours})
         return load_data
 
-    SAMPLE_WEEK_LOAD_LIMIT = 40
+    SAMPLE_WEEK_LOAD_SHAPE = (0.35, 0.8, 1.25, 0.6, 1.0)
 
     def _get_sample_week_load(self, week_index):
         self.ensure_one()
-        shape = (0.35, 0.8, 1.25, 0.6, 1.0)
-        return round(
-            self.SAMPLE_WEEK_LOAD_LIMIT
-            * shape[(week_index + (self.id or 0)) % len(shape)],
-            1,
-        )
+        shape = self.SAMPLE_WEEK_LOAD_SHAPE
+        capacity = self.resource_calendar_id.hours_per_week or 40.0
+        return round(capacity * shape[(week_index + (self.id or 0)) % len(shape)], 1)
 
     def _prepare_graph_data(self, load_data, week_range, has_workorder=None):
         graph_data = {wid: [] for wid in self._ids}
         if has_workorder is None:
-            has_workorder = bool(
-                self.env["mrp.workorder"].search_count(
-                    [("workcenter_id", "in", self.ids)], limit=1
-                )
-            )
+            has_workorder = self._has_workorder()
         for workcenter in self:
-            load_limit = sum(
-                workcenter.resource_calendar_id.attendance_ids.mapped("duration_hours")
-            )
+            load_limit = workcenter.resource_calendar_id.hours_per_week
             wc_data = {
                 "is_sample_data": not has_workorder,
                 "labels": list(week_range.values()),
@@ -295,172 +290,112 @@ class MrpWorkcenter(models.Model):
     )
     def _compute_workorder_count(self):
         MrpWorkorder = self.env["mrp.workorder"]
-        result = {wid: {} for wid in self._ids}
-        result_duration_expected = dict.fromkeys(self._ids, 0)
-        data = MrpWorkorder._read_group(
+        counts = {wid: {} for wid in self._ids}
+        load = dict.fromkeys(self._ids, 0)
+        for workcenter, state, duration_sum, count in MrpWorkorder._read_group(
             [
                 ("workcenter_id", "in", self.ids),
-                ("state", "in", ("blocked", "ready")),
-                ("date_start", "<", fields.Datetime.now().strftime("%Y-%m-%d")),
+                ("state", "in", MrpWorkorder.OPEN_STATES),
             ],
-            ["workcenter_id"],
-            ["__count"],
-        )
-        count_data = {workcenter.id: count for workcenter, count in data}
-        res = MrpWorkorder._read_group(
-            [("workcenter_id", "in", self.ids)],
             ["workcenter_id", "state"],
             ["duration_expected:sum", "__count"],
-        )
-        for workcenter, state, duration_sum, count in res:
-            result[workcenter.id][state] = count
-            if state in ("blocked", "ready", "progress"):
-                result_duration_expected[workcenter.id] += duration_sum
-        for workcenter in self:
-            workcenter.workorder_count = sum(
-                count
-                for state, count in result[workcenter.id].items()
-                if state not in ("done", "cancel")
+        ):
+            counts[workcenter.id][state] = count
+            load[workcenter.id] += duration_sum
+        late = dict(
+            MrpWorkorder._read_group(
+                Domain("workcenter_id", "in", self.ids) & MrpWorkorder._late_domain(),
+                ["workcenter_id"],
+                ["__count"],
             )
-            workcenter.workorder_blocked_count = result[workcenter.id].get("blocked", 0)
-            workcenter.workcenter_load = result_duration_expected[workcenter.id]
-            workcenter.workorder_ready_count = result[workcenter.id].get("ready", 0)
-            workcenter.workorder_progress_count = result[workcenter.id].get(
+        )
+        for workcenter in self:
+            workcenter.workorder_count = sum(counts[workcenter.id].values())
+            workcenter.workorder_blocked_count = counts[workcenter.id].get("blocked", 0)
+            workcenter.workcenter_load = load[workcenter.id]
+            workcenter.workorder_ready_count = counts[workcenter.id].get("ready", 0)
+            workcenter.workorder_progress_count = counts[workcenter.id].get(
                 "progress", 0
             )
-            workcenter.workorder_late_count = count_data.get(workcenter.id, 0)
+            workcenter.workorder_late_count = late.get(workcenter, 0)
 
     @api.depends("time_ids", "time_ids.date_end", "time_ids.loss_type")
     def _compute_working_state(self):
-        time_log_by_workcenter = {}
-        for time_log in self.env["mrp.workcenter.productivity"].search(
-            [
-                ("workcenter_id", "in", self.ids),
-                ("date_end", "=", False),
-            ]
+        wall_clock = self.env["mrp.workcenter.productivity.loss"].WALL_CLOCK_LOSS_TYPES
+        state_by_workcenter = {}
+        for workcenter, loss_type in self.env[
+            "mrp.workcenter.productivity"
+        ]._read_group(
+            [("workcenter_id", "in", self.ids), ("date_end", "=", False)],
+            ["workcenter_id", "loss_type"],
         ):
-            wc = time_log.workcenter_id
-            if wc not in time_log_by_workcenter:
-                time_log_by_workcenter[wc] = time_log
-
+            state = "done" if loss_type in wall_clock else "blocked"
+            if state_by_workcenter.get(workcenter) != "blocked":
+                state_by_workcenter[workcenter] = state
         for workcenter in self:
-            time_log = time_log_by_workcenter.get(workcenter._origin)
-            if not time_log:
-                workcenter.working_state = "normal"
-            elif time_log.loss_type in ("productive", "performance"):
-                workcenter.working_state = "done"
-            else:
-                workcenter.working_state = "blocked"
-
-    def _compute_blocked_time(self):
-        data = self.env["mrp.workcenter.productivity"]._read_group(
-            [
-                (
-                    "date_start",
-                    ">=",
-                    fields.Datetime.to_string(
-                        fields.Datetime.now() - relativedelta.relativedelta(months=1)
-                    ),
-                ),
-                ("workcenter_id", "in", self.ids),
-                ("date_end", "!=", False),
-                ("loss_type", "!=", "productive"),
-            ],
-            ["workcenter_id"],
-            ["duration:sum"],
-        )
-        count_data = {workcenter.id: duration for workcenter, duration in data}
-        for workcenter in self:
-            workcenter.blocked_time = count_data.get(workcenter.id, 0.0) / 60.0
-
-    def _compute_productive_time(self):
-        data = self.env["mrp.workcenter.productivity"]._read_group(
-            [
-                (
-                    "date_start",
-                    ">=",
-                    fields.Datetime.to_string(
-                        fields.Datetime.now() - relativedelta.relativedelta(months=1)
-                    ),
-                ),
-                ("workcenter_id", "in", self.ids),
-                ("date_end", "!=", False),
-                ("loss_type", "=", "productive"),
-            ],
-            ["workcenter_id"],
-            ["duration:sum"],
-        )
-        count_data = {workcenter.id: duration for workcenter, duration in data}
-        for workcenter in self:
-            workcenter.productive_time = count_data.get(workcenter.id, 0.0) / 60.0
-
-    @api.depends("blocked_time", "productive_time")
-    def _compute_oee(self):
-        time_data = self.env["mrp.workcenter.productivity"]._read_group(
-            domain=[
-                (
-                    "date_start",
-                    ">=",
-                    fields.Datetime.to_string(
-                        fields.Datetime.now() - relativedelta.relativedelta(months=1)
-                    ),
-                ),
-                ("workcenter_id", "in", self.ids),
-                ("date_end", "!=", False),
-            ],
-            groupby=["workcenter_id", "loss_type"],
-            aggregates=["duration:sum"],
-        )
-        time_by_workcenter = defaultdict(
-            lambda: {"productive_time": 0.0, "blocked_time": 0.0}
-        )
-        for data in time_data:
-            workcenter, loss_type, duration = data
-            time_to_update = (
-                "productive_time" if loss_type == "productive" else "blocked_time"
+            workcenter.working_state = state_by_workcenter.get(
+                workcenter._origin, "normal"
             )
-            time_by_workcenter[workcenter.id][time_to_update] += duration
-        for workcenter in self:
-            workcenter_time = time_by_workcenter[workcenter.id]
-            productive_time = workcenter_time["productive_time"]
-            if productive_time:
-                blocked_time = workcenter_time["blocked_time"]
-                workcenter.oee = float_round(
-                    productive_time * 100.0 / (productive_time + blocked_time),
-                    precision_digits=2,
-                )
-            else:
-                workcenter.oee = 0.0
 
-    def _compute_performance(self):
-        wo_data = self.env["mrp.workorder"]._read_group(
-            [
-                (
-                    "date_start",
-                    ">=",
-                    fields.Datetime.to_string(
-                        fields.Datetime.now() - relativedelta.relativedelta(months=1)
-                    ),
-                ),
-                ("workcenter_id", "in", self.ids),
-                ("state", "=", "done"),
-            ],
-            ["workcenter_id"],
-            ["duration_expected:sum", "duration:sum"],
+    OEE_WINDOW_MONTHS = 1
+
+    def _oee_window_start(self):
+        return fields.Datetime.to_string(
+            fields.Datetime.now()
+            - relativedelta.relativedelta(months=self.OEE_WINDOW_MONTHS)
         )
-        duration_expected = {
-            workcenter.id: expected for workcenter, expected, __ in wo_data
-        }
-        duration = {workcenter.id: duration for workcenter, __, duration in wo_data}
+
+    @api.depends(
+        "time_ids.duration",
+        "time_ids.loss_type",
+        "time_ids.date_start",
+        "time_ids.date_end",
+    )
+    def _compute_effectiveness_times(self):
+        time_by_workcenter = defaultdict(lambda: {"blocked": 0.0, "productive": 0.0})
+        for workcenter, loss_type, duration in self.env[
+            "mrp.workcenter.productivity"
+        ]._read_group(
+            [
+                ("date_start", ">=", self._oee_window_start()),
+                ("workcenter_id", "in", self.ids),
+                ("date_end", "!=", False),
+            ],
+            ["workcenter_id", "loss_type"],
+            ["duration:sum"],
+        ):
+            bucket = "productive" if loss_type == "productive" else "blocked"
+            time_by_workcenter[workcenter.id][bucket] += duration
         for workcenter in self:
-            if duration.get(workcenter.id):
-                workcenter.performance = (
-                    100
-                    * duration_expected.get(workcenter.id, 0.0)
-                    / duration[workcenter.id]
+            measured = time_by_workcenter[workcenter.id]
+            blocked, productive = measured["blocked"], measured["productive"]
+            workcenter.blocked_time = blocked / 60.0
+            workcenter.productive_time = productive / 60.0
+            workcenter.oee = (
+                float_round(
+                    productive * 100.0 / (productive + blocked), precision_digits=2
                 )
-            else:
-                workcenter.performance = 0.0
+                if productive
+                else 0.0
+            )
+
+    @api.depends("order_ids.duration", "order_ids.duration_expected", "order_ids.state")
+    def _compute_performance(self):
+        by_workcenter = {
+            workcenter.id: (expected, spent)
+            for workcenter, expected, spent in self.env["mrp.workorder"]._read_group(
+                [
+                    ("date_start", ">=", self._oee_window_start()),
+                    ("workcenter_id", "in", self.ids),
+                    ("state", "=", "done"),
+                ],
+                ["workcenter_id"],
+                ["duration_expected:sum", "duration:sum"],
+            )
+        }
+        for workcenter in self:
+            expected, spent = by_workcenter.get(workcenter.id, (0.0, 0.0))
+            workcenter.performance = 100 * expected / spent if spent else 0.0
 
     @api.depends("routing_line_ids")
     def _compute_has_routing_lines(self):
@@ -470,23 +405,29 @@ class MrpWorkcenter(models.Model):
     def unblock(self):
         self.ensure_one()
         if self.working_state != "blocked":
-            raise exceptions.UserError(_("It has already been unblocked."))
-        times = self.env["mrp.workcenter.productivity"].search(
-            [("workcenter_id", "=", self.id), ("date_end", "=", False)]
+            raise UserError(_("It has already been unblocked."))
+        blocking = self.env["mrp.workcenter.productivity"].search(
+            [
+                ("workcenter_id", "=", self.id),
+                ("date_end", "=", False),
+                (
+                    "loss_type",
+                    "not in",
+                    list(
+                        self.env[
+                            "mrp.workcenter.productivity.loss"
+                        ].WALL_CLOCK_LOSS_TYPES
+                    ),
+                ),
+            ]
         )
-        times.write({"date_end": fields.Datetime.now()})
+        blocking.write({"date_end": fields.Datetime.now()})
         return True
 
     @api.model_create_multi
     def create(self, vals_list):
-        return super(
-            MrpWorkcenter, self.with_context(default_resource_type="material")
-        ).create(vals_list)
-
-    def write(self, vals):
-        if "company_id" in vals:
-            self.resource_id.company_id = vals["company_id"]
-        return super().write(vals)
+        self = self.with_context(default_resource_type="material")
+        return super().create(vals_list)
 
     def action_show_operations(self):
         self.ensure_one()
@@ -498,24 +439,69 @@ class MrpWorkcenter(models.Model):
         return action
 
     def action_work_order(self):
-        return self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.action_work_orders")
+        self.ensure_one()
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.action_work_orders")
+        action["context"] = dict(self.env.context, search_default_workcenter_id=self.id)
+        return action
 
     def action_work_order_alternatives(self):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.mrp_workorder_todo")
         action["domain"] = [
-            "|",
-            ("workcenter_id", "in", self.alternative_workcenter_ids.ids),
-            ("workcenter_id.alternative_workcenter_ids", "=", self.id),
+            ("workcenter_id.alternative_workcenter_ids", "in", self.ids)
         ]
         return action
 
+    def _get_working_minutes_batch(self, spans):
+        self.ensure_one()
+        if not spans:
+            return []
+        resource = self.resource_id
+        work_intervals = self.resource_calendar_id._work_intervals_batch(
+            localized(min(start for start, _stop in spans)),
+            localized(max(stop for _start, stop in spans)),
+            resources=resource,
+        ).get(resource.id, Intervals())
+        minutes = []
+        for start, stop in spans:
+            worked = work_intervals & Intervals(
+                [
+                    (
+                        localized(start),
+                        localized(stop),
+                        self.env["resource.calendar.attendance"],
+                    )
+                ]
+            )
+            minutes.append(
+                round(
+                    sum(
+                        (interval_stop - interval_start).total_seconds()
+                        for interval_start, interval_stop, _records in worked
+                    )
+                    / 60.0,
+                    2,
+                )
+            )
+        return minutes
+
     def _get_unavailability_intervals(self, start_datetime, end_datetime):
-        unavailability_ressources = self.resource_id._get_unavailable_intervals(
+        unavailable_per_resource = self.resource_id._get_unavailable_intervals(
             start_datetime, end_datetime
         )
         return {
-            wc.id: unavailability_ressources.get(wc.resource_id.id, []) for wc in self
+            wc.id: unavailable_per_resource.get(wc.resource_id.id, []) for wc in self
         }
+
+    def _planning_horizon(self):
+        iterations = max(
+            int(
+                self.env["ir.config_parameter"]
+                .sudo()
+                .get_param("mrp.workcenter_max_planning_iterations", "50")
+            ),
+            1,
+        )
+        return iterations, timedelta(days=14)
 
     def _get_first_available_slot(
         self,
@@ -526,136 +512,148 @@ class MrpWorkcenter(models.Model):
         extra_leaves_slots=None,
     ):
         self.ensure_one()
-        if extra_leaves_slots is None:
-            extra_leaves_slots = []
-        ICP = self.env["ir.config_parameter"].sudo()
-        max_planning_iterations = max(
-            int(ICP.get_param("mrp.workcenter_max_planning_iterations", "50")), 1
-        )
-        resource = self.resource_id
+        iterations, step = self._planning_horizon()
         revert = to_timezone(start_datetime.tzinfo)
         start_datetime = localized(start_datetime)
-        get_available_intervals = partial(
-            self.resource_calendar_id._work_intervals_batch,
-            resources=resource,
-            tz=timezone(self.resource_calendar_id.tz),
-        )
-        Reservation = self.env["resource.reservation"]
-        reservation_domain = []
-        if reservations_to_ignore:
-            reservation_domain = [("id", "not in", reservations_to_ignore.ids)]
-        extra_leaves_slots_intervals = Intervals(
+        duration = max(duration, 1 / 60)
+        blocked = Intervals(
             [
                 (
                     localized(start),
                     localized(stop),
                     self.env["resource.calendar.attendance"],
                 )
-                for start, stop in extra_leaves_slots
+                for start, stop in extra_leaves_slots or []
             ]
         )
+        walk = self._walk_forward if forward else self._walk_backward
+        slot = walk(
+            start_datetime, duration, iterations, step, blocked, reservations_to_ignore
+        )
+        if slot is None:
+            return False, _(
+                "No available slot within %(days)s days of the planned start",
+                days=iterations * step.days,
+            )
+        return revert(slot[0]), revert(slot[1])
 
-        remaining = duration = max(duration, 1 / 60)
+    def _available_intervals(self, date_start, date_stop, reservations_to_ignore):
+        resource = self.resource_id
+        available = self.resource_calendar_id._work_intervals_batch(
+            date_start,
+            date_stop,
+            resources=resource,
+            tz=timezone(self.resource_calendar_id.tz),
+        )[resource.id]
+        occupied = (
+            self.env["resource.reservation"]
+            ._reservation_intervals_batch(
+                date_start,
+                date_stop,
+                resource,
+                domain=[("id", "not in", reservations_to_ignore.ids)]
+                if reservations_to_ignore
+                else [],
+            )
+            .get(resource.id, Intervals())
+        )
+        return available, occupied
+
+    @staticmethod
+    def _first_conflict(interval, occupied, blocked):
+        conflict = interval & occupied or interval & blocked
+        return next(iter(conflict), None)
+
+    def _walk_forward(
+        self,
+        start_datetime,
+        duration,
+        iterations,
+        step,
+        blocked,
+        reservations_to_ignore,
+    ):
+        remaining = duration
+        start_interval = None
+        for n in range(iterations):
+            date_start = start_datetime + step * n
+            available, occupied = self._available_intervals(
+                date_start, date_start + step, reservations_to_ignore
+            )
+            for start, stop, records in available:
+                start_interval = start_interval or start
+                interval_minutes = (stop - start).total_seconds() / 60
+                while conflict := self._first_conflict(
+                    Intervals(
+                        [
+                            (
+                                start_interval or start,
+                                start
+                                + timedelta(minutes=min(remaining, interval_minutes)),
+                                records,
+                            )
+                        ]
+                    ),
+                    occupied,
+                    blocked,
+                ):
+                    start = conflict[1]
+                    interval_minutes = (stop - start).total_seconds() / 60
+                    start_interval, remaining = (
+                        start if interval_minutes else None,
+                        duration,
+                    )
+                if float_compare(interval_minutes, remaining, precision_digits=3) >= 0:
+                    return start_interval, start + timedelta(minutes=remaining)
+                remaining -= interval_minutes
+        return None
+
+    def _walk_backward(
+        self,
+        start_datetime,
+        duration,
+        iterations,
+        step,
+        blocked,
+        reservations_to_ignore,
+    ):
+        remaining = duration
+        stop_interval = None
         now = localized(fields.Datetime.now())
-        delta = timedelta(days=14)
-        start_interval, stop_interval = None, None
-        for n in range(max_planning_iterations):
-            if forward:
-                date_start = start_datetime + delta * n
-                date_stop = date_start + delta
-                available_intervals = get_available_intervals(date_start, date_stop)[
-                    resource.id
-                ]
-                occupied = Reservation._reservation_intervals_batch(
-                    date_start,
-                    date_stop,
-                    resource,
-                    domain=reservation_domain,
-                ).get(resource.id, Intervals())
-                for start, stop, _records in available_intervals:
-                    start_interval = start_interval or start
+        for n in range(iterations):
+            date_stop = start_datetime - step * n
+            available, occupied = self._available_intervals(
+                date_stop - step, date_stop, reservations_to_ignore
+            )
+            for start, stop, records in reversed(available):
+                stop_interval = stop_interval or stop
+                interval_minutes = (stop - start).total_seconds() / 60
+                while conflict := self._first_conflict(
+                    Intervals(
+                        [
+                            (
+                                stop
+                                - timedelta(minutes=min(remaining, interval_minutes)),
+                                stop_interval or stop,
+                                records,
+                            )
+                        ]
+                    ),
+                    occupied,
+                    blocked,
+                ):
+                    stop = conflict[0]
                     interval_minutes = (stop - start).total_seconds() / 60
-                    while (
-                        interval := Intervals(
-                            [
-                                (
-                                    start_interval or start,
-                                    start
-                                    + timedelta(
-                                        minutes=min(remaining, interval_minutes)
-                                    ),
-                                    _records,
-                                )
-                            ]
-                        )
-                    ) and (
-                        conflict := interval & occupied
-                        or interval & extra_leaves_slots_intervals
-                    ):
-                        (_start, start, _records) = conflict._items[0]
-                        interval_minutes = (stop - start).total_seconds() / 60
-                        start_interval, remaining = (
-                            start if interval_minutes else None,
-                            duration,
-                        )
-                    if (
-                        float_compare(interval_minutes, remaining, precision_digits=3)
-                        >= 0
-                    ):
-                        return revert(start_interval), revert(
-                            start + timedelta(minutes=remaining)
-                        )
-                    remaining -= interval_minutes
-            else:
-                date_stop = start_datetime - delta * n
-                date_start = date_stop - delta
-                available_intervals = get_available_intervals(date_start, date_stop)[
-                    resource.id
-                ]
-                available_intervals = reversed(available_intervals)
-                occupied = Reservation._reservation_intervals_batch(
-                    date_start,
-                    date_stop,
-                    resource,
-                    domain=reservation_domain,
-                ).get(resource.id, Intervals())
-                for start, stop, _records in available_intervals:
-                    stop_interval = stop_interval or stop
-                    interval_minutes = (stop - start).total_seconds() / 60
-                    while (
-                        interval := Intervals(
-                            [
-                                (
-                                    stop
-                                    - timedelta(
-                                        minutes=min(remaining, interval_minutes)
-                                    ),
-                                    stop_interval or stop,
-                                    _records,
-                                )
-                            ]
-                        )
-                    ) and (
-                        conflict := interval & occupied
-                        or interval & extra_leaves_slots_intervals
-                    ):
-                        (stop, _stop, _records) = conflict._items[0]
-                        interval_minutes = (stop - start).total_seconds() / 60
-                        stop_interval, remaining = (
-                            stop if interval_minutes else None,
-                            duration,
-                        )
-                    if (
-                        float_compare(interval_minutes, remaining, precision_digits=3)
-                        >= 0
-                    ):
-                        return revert(stop - timedelta(minutes=remaining)), revert(
-                            stop_interval
-                        )
-                    remaining -= interval_minutes
-                if date_start <= now:
-                    break
-        return False, "No available slot 700 days after the planned start"
+                    stop_interval, remaining = (
+                        stop if interval_minutes else None,
+                        duration,
+                    )
+                if float_compare(interval_minutes, remaining, precision_digits=3) >= 0:
+                    return stop - timedelta(minutes=remaining), stop_interval
+                remaining -= interval_minutes
+            if date_stop - step <= now:
+                break
+        return None
 
     def action_view_schedule(self):
         self.ensure_one()
@@ -690,18 +688,21 @@ class MrpWorkcenter(models.Model):
         return res
 
     def _get_capacity(self, product, unit, default_capacity=1):
-        capacity = self.capacity_ids.sorted(
-            lambda c: (
-                not (c.product_id == product and c.product_uom_id == product.uom_id),
-                not (not c.product_id and c.product_uom_id == unit),
-                not (not c.product_id and c.product_uom_id == product.uom_id),
-            )
-        )[:1]
-        if (
-            capacity
-            and capacity.product_id in [product, self.env["product.product"]]
-            and capacity.product_uom_id in [product.uom_id, unit]
-        ):
+        self.ensure_one()
+        ranked = [
+            (product, product.uom_id),
+            (self.env["product.product"], unit),
+            (self.env["product.product"], product.uom_id),
+            (product, unit),
+        ]
+        for wanted_product, wanted_unit in ranked:
+            capacity = self.capacity_ids.filtered(
+                lambda c, p=wanted_product, u=wanted_unit: (
+                    c.product_id == p and c.product_uom_id == u
+                )
+            )[:1]
+            if not capacity:
+                continue
             if float_is_zero(
                 capacity.capacity, precision_rounding=capacity.product_uom_id.rounding
             ):
@@ -725,9 +726,12 @@ class MrpWorkcenterProductivityLossType(models.Model):
     _description = "MRP Workorder productivity losses"
     _rec_name = "loss_type"
 
+    @api.depends("loss_type")
+    @api.depends_context("lang")
     def _compute_display_name(self):
+        labels = dict(self._fields["loss_type"]._description_selection(self.env))
         for rec in self:
-            rec.display_name = rec.loss_type.title()
+            rec.display_name = labels.get(rec.loss_type, "")
 
     loss_type = fields.Selection(
         [
@@ -759,23 +763,59 @@ class MrpWorkcenterProductivityLoss(models.Model):
         string="Effectiveness Category", related="loss_id.loss_type", readonly=False
     )
 
+    WALL_CLOCK_LOSS_TYPES = ("productive", "performance")
+
+    def _is_measured_on_working_time(self):
+        self.ensure_one()
+        return self.loss_type not in self.WALL_CLOCK_LOSS_TYPES
+
+    @api.model
+    def _get_loss_of_type(self, loss_type):
+        loss = self.search([("loss_type", "=", loss_type)], limit=1)
+        if not loss:
+            labels = dict(self._fields["loss_type"]._description_selection(self.env))
+            raise UserError(
+                _(
+                    "You need to define at least one productivity loss in the "
+                    "category '%s'. Create one from the Manufacturing app, menu: "
+                    "Configuration / Productivity Losses.",
+                    labels.get(loss_type, loss_type),
+                )
+            )
+        return loss
+
     def _convert_to_duration(self, date_start, date_stop, workcenter=False):
-        duration = 0
-        for productivity_loss in self:
+        self.ensure_one()
+        return self._convert_to_duration_batch(
+            [(self, workcenter, date_start, date_stop)]
+        )[0]
+
+    @api.model
+    def _convert_to_duration_batch(self, spans):
+        durations = [0.0] * len(spans)
+        spans_per_workcenter = defaultdict(list)
+        for index, (loss, workcenter, date_start, date_stop) in enumerate(spans):
+            if not loss:
+                continue
             if (
-                (productivity_loss.loss_type not in ("productive", "performance"))
+                loss._is_measured_on_working_time()
                 and workcenter
                 and workcenter.resource_calendar_id
             ):
-                r = workcenter._get_work_days_data_batch(date_start, date_stop)[
-                    workcenter.id
-                ]["hours"]
-                duration = max(duration, r * 60)
+                spans_per_workcenter[workcenter].append((index, date_start, date_stop))
             else:
-                duration = max(
-                    duration, (date_stop - date_start).total_seconds() / 60.0
+                durations[index] = round(
+                    (date_stop - date_start).total_seconds() / 60.0, 2
                 )
-        return round(duration, 2)
+        for workcenter, workcenter_spans in spans_per_workcenter.items():
+            minutes = workcenter._get_working_minutes_batch(
+                [(start, stop) for _index, start, stop in workcenter_spans]
+            )
+            for (index, _start, _stop), duration in zip(
+                workcenter_spans, minutes, strict=True
+            ):
+                durations[index] = duration
+        return durations
 
 
 class MrpWorkcenterProductivity(models.Model):
@@ -786,22 +826,18 @@ class MrpWorkcenterProductivity(models.Model):
     _check_company_auto = True
 
     def _default_company_id(self):
-        company_id = False
-        if self.env.context.get("default_company_id"):
-            company_id = self.env.context["default_company_id"]
-        if not company_id and self.env.context.get("default_workorder_id"):
-            workorder = self.env["mrp.workorder"].browse(
-                self.env.context["default_workorder_id"]
-            )
-            company_id = workorder.company_id
-        if not company_id and self.env.context.get("default_workcenter_id"):
-            workcenter = self.env["mrp.workcenter"].browse(
-                self.env.context["default_workcenter_id"]
-            )
-            company_id = workcenter.company_id
-        if not company_id:
-            company_id = self.env.company
-        return company_id
+        context = self.env.context
+        if context.get("default_company_id"):
+            return self.env["res.company"].browse(context["default_company_id"])
+        for field, model in (
+            ("default_workorder_id", "mrp.workorder"),
+            ("default_workcenter_id", "mrp.workcenter"),
+        ):
+            if context.get(field):
+                company = self.env[model].browse(context[field]).company_id
+                if company:
+                    return company
+        return self.env.company
 
     production_id = fields.Many2one(
         "mrp.production",
@@ -838,54 +874,53 @@ class MrpWorkcenterProductivity(models.Model):
     date_end = fields.Datetime("End Date")
     duration = fields.Float("Duration", compute="_compute_duration", store=True)
 
-    @api.depends("date_end", "date_start")
+    @api.depends(
+        "date_end",
+        "date_start",
+        "loss_id.loss_type",
+        "workcenter_id.resource_calendar_id",
+    )
     def _compute_duration(self):
+        measured = []
+        spans = []
         for blocktime in self:
             if blocktime.date_start and blocktime.date_end:
-                blocktime.duration = blocktime.loss_id._convert_to_duration(
-                    blocktime.date_start.replace(microsecond=0),
-                    blocktime.date_end.replace(microsecond=0),
-                    blocktime.workcenter_id,
+                measured.append(blocktime)
+                spans.append(
+                    (
+                        blocktime.loss_id,
+                        blocktime.workcenter_id,
+                        blocktime.date_start.replace(microsecond=0),
+                        blocktime.date_end.replace(microsecond=0),
+                    )
                 )
             else:
                 blocktime.duration = 0.0
+        durations = self.env[
+            "mrp.workcenter.productivity.loss"
+        ]._convert_to_duration_batch(spans)
+        for blocktime, duration in zip(measured, durations, strict=True):
+            blocktime.duration = duration
 
-    @api.onchange("duration")
-    def _duration_changed(self):
-        if not self.date_end:
-            return
-        self.date_start = self.date_end - timedelta(minutes=self.duration)
-        self._loss_type_change()
+    @api.model
+    def _open_timer_groupby(self):
+        return ["workorder_id", "user_id"]
 
-    @api.onchange("date_start")
-    def _date_start_changed(self):
-        if not self.date_start:
-            return
-        self.date_end = self.date_start + timedelta(minutes=self.duration)
-        self._loss_type_change()
-
-    @api.onchange("date_end")
-    def _date_end_changed(self):
-        if not self.date_end:
-            return
-        self.date_start = self.date_end - timedelta(minutes=self.duration)
-        self._loss_type_change()
-
-    @api.constrains("workorder_id")
+    @api.constrains("workorder_id", "date_end", "user_id")
     def _check_open_time_ids(self):
         workorders = self.workorder_id
         if not workorders:
             return
-        open_by_workorder_user = self.env["mrp.workcenter.productivity"]._read_group(
+        duplicated = self._read_group(
             [("workorder_id", "in", workorders.ids), ("date_end", "=", False)],
-            ["workorder_id", "user_id"],
+            self._open_timer_groupby(),
             having=[("__count", ">", 1)],
         )
-        for workorder, _user, *_dummy in open_by_workorder_user:
+        if duplicated:
             raise ValidationError(
                 _(
                     "The Workorder (%s) cannot be started twice!",
-                    workorder.display_name,
+                    duplicated[0][0].display_name,
                 )
             )
 
@@ -893,66 +928,42 @@ class MrpWorkcenterProductivity(models.Model):
         self.ensure_one()
         self.workcenter_id.order_ids.end_all()
 
-    def _loss_type_change(self):
-        self.ensure_one()
-        if self.workorder_id.duration > self.workorder_id.duration_expected:
-            self.loss_id = self.env.ref("mrp.block_reason4").id
-        else:
-            self.loss_id = self.env.ref("mrp.block_reason7").id
-
     def _close(self):
-        underperformance_timers = self.env["mrp.workcenter.productivity"]
+        now = fields.Datetime.now()
+        underperformance_timers = self.browse()
+        split_off = []
         for timer in self:
             wo = timer.workorder_id
-            timer.write({"date_end": fields.Datetime.now()})
-            if wo.duration > wo.duration_expected:
-                productive_date_end = timer.date_end - relativedelta.relativedelta(
-                    minutes=wo.duration - wo.duration_expected
-                )
-                if productive_date_end <= timer.date_start:
-                    underperformance_timers |= timer
-                else:
-                    underperformance_timers |= timer.copy(
-                        {"date_start": productive_date_end}
-                    )
-                    timer.write({"date_end": productive_date_end})
-        if underperformance_timers:
-            underperformance_type = self.env["mrp.workcenter.productivity.loss"].search(
-                [("loss_type", "=", "performance")], limit=1
+            timer.date_end = now
+            if wo.duration <= wo.duration_expected:
+                continue
+            productive_date_end = timer.date_end - timedelta(
+                minutes=wo.duration - wo.duration_expected
             )
-            if not underperformance_type:
-                raise UserError(
-                    _(
-                        "You need to define at least one unactive productivity loss in the category 'Performance'. Create one from the Manufacturing app, menu: Configuration / Productivity Losses."
-                    )
-                )
-            underperformance_timers.write({"loss_id": underperformance_type.id})
+            if productive_date_end <= timer.date_start:
+                underperformance_timers |= timer
+            else:
+                split_off.append((timer, productive_date_end))
+        if split_off:
+            copies = self.browse()
+            for timer, productive_date_end in split_off:
+                copies |= timer.copy({"date_start": productive_date_end})
+                timer.date_end = productive_date_end
+            underperformance_timers |= copies
+        if underperformance_timers:
+            underperformance_timers.write(
+                {
+                    "loss_id": self.env["mrp.workcenter.productivity.loss"]
+                    ._get_loss_of_type("performance")
+                    .id
+                }
+            )
 
 
 class MrpWorkcenterCapacity(models.Model):
     _name = "mrp.workcenter.capacity"
     _description = "Work Center Capacity"
     _check_company_auto = True
-
-    def _default_time_start(self):
-        workcenter_id = self.workcenter_id.id or self.env.context.get(
-            "default_workcenter_id"
-        )
-        return (
-            self.env["mrp.workcenter"].browse(workcenter_id).time_start
-            if workcenter_id
-            else 0.0
-        )
-
-    def _default_time_stop(self):
-        workcenter_id = self.workcenter_id.id or self.env.context.get(
-            "default_workcenter_id"
-        )
-        return (
-            self.env["mrp.workcenter"].browse(workcenter_id).time_stop
-            if workcenter_id
-            else 0.0
-        )
 
     workcenter_id = fields.Many2one(
         "mrp.workcenter", string="Work Center", required=True, index=True
@@ -973,12 +984,18 @@ class MrpWorkcenterCapacity(models.Model):
     )
     time_start = fields.Float(
         "Setup Time (minutes)",
-        default=_default_time_start,
+        compute="_compute_times",
+        precompute=True,
+        store=True,
+        readonly=False,
         help="Time in minutes for the setup.",
     )
     time_stop = fields.Float(
         "Cleanup Time (minutes)",
-        default=_default_time_stop,
+        compute="_compute_times",
+        precompute=True,
+        store=True,
+        readonly=False,
         help="Time in minutes for the cleaning.",
     )
 
@@ -990,6 +1007,12 @@ class MrpWorkcenterCapacity(models.Model):
         "(workcenter_id, COALESCE(product_id, 0), product_uom_id)",
         "Product/Unit capacity should be unique for each workcenter.",
     )
+
+    @api.depends("workcenter_id")
+    def _compute_times(self):
+        for capacity in self:
+            capacity.time_start = capacity.workcenter_id.time_start
+            capacity.time_stop = capacity.workcenter_id.time_stop
 
     @api.depends("product_id")
     def _compute_product_uom_id(self):

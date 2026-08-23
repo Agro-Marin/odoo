@@ -24,6 +24,7 @@ class TestOee(TestMrpCommon):
     @freeze_time("2025-05-30")
     def test_unset_end_date(self):
         with Form(self.env["mrp.workcenter.productivity"]) as workcenter_productivity:
+            workcenter_productivity.loss_id = self.env.ref("mrp.block_reason7")
             workcenter_productivity.date_end = datetime(2025, 5, 31, 12, 0, 0)
             workcenter_productivity.date_end = False
             self.assertFalse(workcenter_productivity.date_end)

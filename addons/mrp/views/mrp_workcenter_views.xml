@@ -7,7 +7,6 @@
             <field name="view_mode">list,form,pivot,graph,calendar</field>
             <field name="search_view_id" ref="view_mrp_production_work_order_search"/>
             <field name="domain">[('state', 'not in', ('done', 'cancel'))]</field>
-            <field name="context">{'search_default_workcenter_id': active_id}</field>
             <field name="help" type="html">
                 <p class="o_view_nocontent_smiling_face">
                     No work orders to do!
@@ -197,7 +196,7 @@
                             <div class="row mt-3 pb-3">
                                 <div class="col-6">
                                     <div class="btn-group p-1" name="o_wo">
-                                        <button t-if="record.workorder_count.raw_value &gt; 0" class="btn btn-primary" name="action_work_order" type="object" context="{'search_default_ready': 1, 'search_default_progress': 1, 'desktop_list_view': 1, 'search_default_workcenter_id': id}">
+                                        <button t-if="record.workorder_count.raw_value &gt; 0" class="btn btn-primary" name="action_work_order" type="object" context="{'search_default_ready': 1, 'search_default_progress': 1, 'desktop_list_view': 1}">
                                             <span>WORK ORDERS</span>
                                         </button>
                                         <button t-if="record.workorder_count.raw_value &lt;= 0" class="btn btn-warning" name="action_work_order_alternatives" type="object">
