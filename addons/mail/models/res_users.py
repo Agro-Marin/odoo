@@ -24,6 +24,9 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
+# (model name, subkey): a model yields one systray group unless a module splits it
+ActivityBucket = tuple[str, str]
+
 PERSONAL_MAIL_SERVER_SMTP_PORT = 587
 PERSONAL_MAIL_SERVER_SMTP_ENCRYPTION = "starttls"
 
@@ -599,11 +602,11 @@ class ResUsers(models.Model):
         activities = self._get_systray_activities()
         activities.mapped("state")
         activity_ids_by_record = self._group_activity_ids_by_record(activities)
-        counts_by_bucket, activity_ids_by_bucket = self._count_activities_per_bucket(
-            activity_ids_by_record
+        counts, activity_ids_by_bucket, res_ids_by_bucket = (
+            self._count_activities_per_bucket(activity_ids_by_record)
         )
         return self._prepare_activity_group_values(
-            counts_by_bucket, activity_ids_by_bucket
+            counts, activity_ids_by_bucket, res_ids_by_bucket
         )
 
     @api.model
@@ -611,10 +614,19 @@ class ResUsers(models.Model):
         limit = self.env["ir.config_parameter"]._get_positive_int_param(
             "mail.activity.systray.limit", 1000
         )
-        activities = self.env["mail.activity"].search(
-            [("user_id", "=", self.env.uid)],
-            order="id desc",
-            limit=limit,
+        # active_test is pinned rather than inherited: an archived activity is a
+        # DONE one (`_compute_state` reports "done" for exactly those), and a
+        # systray badge counts work still to do. Left to the context, a caller
+        # under `active_test=False` gets done activities folded into the
+        # "planned" bucket and a badge that no longer matches the list it opens.
+        activities = (
+            self.env["mail.activity"]
+            .with_context(active_test=True)
+            .search(
+                [("user_id", "=", self.env.uid)],
+                order="id desc",
+                limit=limit,
+            )
         )
         if len(activities) >= limit:
             _logger.warning(
@@ -638,6 +650,20 @@ class ResUsers(models.Model):
             else:
                 activity_ids_by_record[ORPHAN_BUCKET][activity.id].append(activity.id)
         return activity_ids_by_record
+
+    @api.model
+    def _activity_bucket_subkeys(
+        self, model_name: str, res_ids: Collection[int]
+    ) -> dict[int, str]:
+        """Sub-divide one model's systray bucket.
+
+        A bucket is keyed ``(model_name, subkey)`` and defaults to one bucket
+        per model, which is why this returns nothing. Override to give some of a
+        model's records a second key when one model must yield more than one
+        systray entry -- ``project_todo`` splits ``project.task`` on whether the
+        task has a project. Records absent from the mapping keep ``""``.
+        """
+        return {}
 
     @api.model
     def _get_readable_activity_record_ids(
@@ -664,7 +690,11 @@ class ResUsers(models.Model):
     @api.model
     def _count_activities_per_bucket(
         self, activity_ids_by_record: dict[str, dict[int, list[int]]]
-    ) -> tuple[dict[str, dict[str, int]], dict[str, list[int]]]:
+    ) -> tuple[
+        dict[ActivityBucket, dict[str, int]],
+        dict[ActivityBucket, list[int]],
+        dict[ActivityBucket, list[int]],
+    ]:
         counts_by_bucket = defaultdict(
             lambda: {
                 "overdue_count": 0,
@@ -674,19 +704,24 @@ class ResUsers(models.Model):
             }
         )
         activity_ids_by_bucket = defaultdict(list)
+        res_ids_by_bucket = defaultdict(list)
         Activity = self.env["mail.activity"]
         for model_name, activity_ids_by_res_id in activity_ids_by_record.items():
             allowed_ids, unallowed_ids = self._get_readable_activity_record_ids(
                 model_name, activity_ids_by_res_id.keys()
             )
+            # After the access filter, so a subkey may read the records: it is
+            # only ever asked about ids this user may already see.
+            subkeys = self._activity_bucket_subkeys(model_name, allowed_ids)
             for res_id, activity_ids in activity_ids_by_res_id.items():
                 if res_id in unallowed_ids:
-                    bucket = ORPHAN_BUCKET
+                    bucket = (ORPHAN_BUCKET, "")
                 elif res_id in allowed_ids:
-                    bucket = model_name
+                    bucket = (model_name, subkeys.get(res_id, ""))
                 else:
                     continue
                 activity_ids_by_bucket[bucket].extend(activity_ids)
+                res_ids_by_bucket[bucket].append(res_id)
                 states = set(Activity.browse(activity_ids).mapped("state"))
                 if "overdue" in states:
                     counts_by_bucket[bucket]["overdue_count"] += 1
@@ -696,19 +731,30 @@ class ResUsers(models.Model):
                     counts_by_bucket[bucket]["due_count"] += 1
                 else:
                     counts_by_bucket[bucket]["planned_count"] += 1
-        return counts_by_bucket, activity_ids_by_bucket
+        return counts_by_bucket, activity_ids_by_bucket, res_ids_by_bucket
 
     @api.model
     def _prepare_activity_group_values(
         self,
-        counts_by_bucket: dict[str, dict[str, int]],
-        activity_ids_by_bucket: dict[str, list[int]],
+        counts_by_bucket: dict[ActivityBucket, dict[str, int]],
+        activity_ids_by_bucket: dict[ActivityBucket, list[int]],
+        res_ids_by_bucket: dict[ActivityBucket, list[int]],
     ) -> list:
         model_ids = [
-            self.env["ir.model"]._get_id(name) for name in activity_ids_by_bucket
+            self.env["ir.model"]._get_id(bucket[0]) for bucket in activity_ids_by_bucket
         ]
+        # Models keep the order the activities arrived in; a model split across
+        # subkeys emits them in subkey order. Both of a split model's groups
+        # carry the same ``id`` -- the model's -- so the client's sort by id is
+        # a tie and would otherwise inherit whatever order this dict had.
+        model_order = {}
+        for bucket in activity_ids_by_bucket:
+            model_order.setdefault(bucket[0], len(model_order))
         groups = []
-        for model_name, activity_ids in activity_ids_by_bucket.items():
+        for bucket in sorted(
+            activity_ids_by_bucket, key=lambda b: (model_order[b[0]], b[1])
+        ):
+            model_name, subkey = bucket
             Model = self.env[model_name]
             module = Model._original_module
             model = self.env["ir.model"]._get(model_name).with_prefetch(model_ids)
@@ -723,12 +769,29 @@ class ResUsers(models.Model):
                 if is_orphan_bucket or "active" not in Model
                 else [("active", "in", [True, False])],
                 "view_type": getattr(Model, "_systray_view", "list"),
-                **counts_by_bucket[model_name],
+                **counts_by_bucket[bucket],
             }
             if is_orphan_bucket:
-                group["activity_ids"] = activity_ids
-            groups.append(group)
+                group["activity_ids"] = activity_ids_by_bucket[bucket]
+            groups.append(
+                self._apply_activity_bucket_subkey(
+                    group, model_name, subkey, res_ids_by_bucket[bucket]
+                )
+            )
         return groups
+
+    @api.model
+    def _apply_activity_bucket_subkey(
+        self, group: dict, model_name: str, subkey: str, res_ids: list[int]
+    ) -> dict:
+        """Finish a group whose bucket carried a subkey.
+
+        The base builds one group per model and has nothing to add. A module
+        that returned a subkey from :meth:`_activity_bucket_subkeys` names the
+        group here, and restricts its ``domain`` -- two groups over one model
+        share the model's own domain and would otherwise open the same list.
+        """
+        return group
 
     @api.model
     @tools.ormcache(cache="stable")

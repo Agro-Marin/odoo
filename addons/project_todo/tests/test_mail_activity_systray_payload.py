@@ -8,8 +8,8 @@ from odoo.tools import json as ojson
 
 
 class TestActivitySystrayPayload(TransactionCase):
-    """The To-Do/Task split rebuilds the systray group from raw SQL, so the
-    guarantees the base gets from ``search`` have to be re-established here.
+    """The To-Do/Task split is two buckets over one model, so every guarantee
+    the base gives a single-bucket model has to survive the split.
     """
 
     @classmethod
@@ -201,3 +201,72 @@ class TestActivitySystrayPayload(TransactionCase):
                 if g.get("model") == "project.task"
             ]
             self.assertEqual(names, ["Task", "To-Do"])
+
+    def test_the_split_counts_under_the_same_cap_as_every_other_group(self):
+        """The cap bounds ACTIVITIES, and must not quietly bound tasks here.
+
+        The split used to run its own query, which grouped by task before
+        applying the limit -- so the Task badge was capped at N tasks while
+        every other badge in the same systray was capped at N activities, and
+        the two disagreed on identical data (1 against 3 at a cap of 5).
+        """
+        self.env["ir.config_parameter"].sudo().set_param(
+            "mail.activity.systray.limit", "5"
+        )
+        for i in range(3):
+            task = self._todo(f"capped {i}")
+            self.env["mail.activity"].create(
+                [
+                    {
+                        "res_id": task.id,
+                        "res_model_id": self.model_id,
+                        "user_id": self.user.id,
+                        "date_deadline": fields.Date.today(),
+                        "summary": f"capped {i}.{j}",
+                        "activity_type_id": self.activity_type.id,
+                    }
+                    for j in range(9)
+                ]
+            )
+        self.env.flush_all()
+        users = self.env["res.users"].with_user(self.user)
+        activities = users._get_systray_activities()
+        counts, activity_ids, res_ids = users._count_activities_per_bucket(
+            users._group_activity_ids_by_record(activities)
+        )
+        unsplit = {
+            g["model"]: g["due_count"]
+            for g in users._prepare_activity_group_values(counts, activity_ids, res_ids)
+        }
+        split = sum(
+            g["due_count"]
+            for g in users._get_activity_groups()
+            if g.get("model") == "project.task"
+        )
+        self.assertEqual(split, unsplit["project.task"])
+
+    def test_the_split_reads_the_deadline_in_the_assignee_timezone(self):
+        """The base buckets on ``mail.activity.state``, which uses the stored
+        ``user_tz``. The split used to compute its own ``today`` from
+        ``context_today``, so an explicit context timezone moved a deadline
+        between buckets and the badge disagreed with the activity view.
+        """
+        self.user.tz = "Pacific/Kiritimati"  # UTC+14
+        elsewhere = "Pacific/Midway"  # UTC-11, a day behind
+        today_elsewhere = fields.Date.context_today(
+            self.env["res.users"].with_context(tz=elsewhere)
+        )
+        self._todo("timezone", deadline=today_elsewhere)
+        self.env.flush_all()
+        users = self.env["res.users"].with_user(self.user).with_context(tz=elsewhere)
+        states = set(users._get_systray_activities().mapped("state"))
+        groups = [
+            g for g in users._get_activity_groups() if g.get("model") == "project.task"
+        ]
+        self.assertTrue(groups)
+        for group in groups:
+            self.assertEqual(
+                bool(group["overdue_count"]),
+                "overdue" in states,
+                "the badge must bucket on the same clock as mail.activity.state",
+            )
