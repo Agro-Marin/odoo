@@ -1561,3 +1561,126 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
         for tag in ("short", "late", "soon"):
             self.assertIn(made[tag], candidates)
+
+    def _audit_byproduct_fixture(self):
+        unit = self.env.ref("uom.product_uom_unit")
+        finished = self.env["product.product"].create(
+            {"name": "Audit byp finished", "is_storable": True}
+        )
+        component = self.env["product.product"].create(
+            {"name": "Audit byp component", "is_storable": True}
+        )
+        byproduct = self.env["product.product"].create(
+            {"name": "Audit byp byproduct", "is_storable": True}
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "product_uom_id": unit.id,
+                "type": "normal",
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+            }
+        )
+        return finished, byproduct, bom, unit
+
+    def test_writing_both_move_keys_keeps_the_byproduct(self):
+        finished, byproduct, bom, unit = self._audit_byproduct_fixture()
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "product_qty": 1.0, "bom_id": bom.id}
+        )
+
+        production.write(
+            {
+                "move_finished_ids": [
+                    Command.update(
+                        production.move_finished_ids[0].id, {"product_uom_qty": 2}
+                    )
+                ],
+                "move_byproduct_ids": [
+                    Command.create(
+                        {
+                            "product_id": byproduct.id,
+                            "product_uom_qty": 1,
+                            "product_uom_id": unit.id,
+                        }
+                    )
+                ],
+            }
+        )
+
+        self.assertIn(
+            byproduct,
+            production.move_finished_ids.product_id,
+            "the merge used to be gated on bom_id also being in vals; without it "
+            "the byproduct command was dropped and no stock.move was ever created",
+        )
+        self.assertTrue(
+            self.env["stock.move"].search_count(
+                [
+                    ("product_id", "=", byproduct.id),
+                    ("production_id", "=", production.id),
+                ]
+            )
+        )
+
+    def test_writing_both_move_keys_matches_creating_with_both(self):
+        finished, byproduct, bom, unit = self._audit_byproduct_fixture()
+
+        def byproduct_command():
+            return Command.create(
+                {
+                    "product_id": byproduct.id,
+                    "product_uom_qty": 1,
+                    "product_uom_id": unit.id,
+                }
+            )
+
+        created = self.env["mrp.production"].create(
+            {
+                "product_id": finished.id,
+                "product_qty": 1.0,
+                "bom_id": bom.id,
+                "move_finished_ids": [
+                    Command.create(
+                        {
+                            "product_id": finished.id,
+                            "product_uom_qty": 1,
+                            "product_uom_id": unit.id,
+                        }
+                    )
+                ],
+                "move_byproduct_ids": [byproduct_command()],
+            }
+        )
+        written = self.env["mrp.production"].create(
+            {"product_id": finished.id, "product_qty": 1.0, "bom_id": bom.id}
+        )
+        written.write({"move_byproduct_ids": [byproduct_command()]})
+
+        self.assertEqual(
+            sorted(created.move_finished_ids.product_id.mapped("name")),
+            sorted(written.move_finished_ids.product_id.mapped("name")),
+            "create() and write() must fold the byproduct key the same way",
+        )
+
+    def test_writing_product_id_on_a_mixed_set_still_reaches_the_draft_orders(self):
+        productions, _component, _unit = self._audit_two_productions()
+        draft, confirmed = productions[0], productions[1]
+        confirmed.action_confirm()
+        original = confirmed.product_id
+        other = self.env["product.product"].create(
+            {"name": "Audit mixed other", "is_storable": True}
+        )
+
+        productions.write({"product_id": other.id})
+
+        self.assertEqual(
+            draft.product_id,
+            other,
+            "a draft order used to lose its product change because a confirmed "
+            "sibling was in the same recordset",
+        )
+        self.assertEqual(confirmed.product_id, original)

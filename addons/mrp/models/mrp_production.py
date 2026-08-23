@@ -1676,6 +1676,16 @@ class MrpProduction(models.Model):
 
     def write(self, vals):
         vals = self._get_normalized_write_vals(dict(vals))
+        if "product_id" in vals:
+            editable = self.filtered(lambda production: production.state == "draft")
+            if editable and editable != self:
+                frozen = {k: v for k, v in vals.items() if k != "product_id"}
+                result = editable.write(vals)
+                if frozen:
+                    result = (self - editable).write(frozen) and result
+                return result
+            if not editable:
+                del vals["product_id"]
         move_keys = [
             key for key in ("move_raw_ids", "move_finished_ids") if key in vals
         ]
@@ -1697,32 +1707,56 @@ class MrpProduction(models.Model):
         return res
 
     def _get_normalized_write_vals(self, vals):
-        if "product_id" in vals and any(
-            production.state != "draft" for production in self
-        ):
-            vals.pop("product_id")
-        if "move_byproduct_ids" in vals and "move_finished_ids" not in vals:
-            vals["move_finished_ids"] = (
-                vals.get("move_finished_ids", []) + vals["move_byproduct_ids"]
-            )
-            del vals["move_byproduct_ids"]
-        if (
-            "bom_id" in vals
-            and "move_byproduct_ids" in vals
-            and "move_finished_ids" in vals
-        ):
-            bom = self.env["mrp.bom"].browse(vals.get("bom_id"))
-            bom_product = bom.product_id or bom.product_tmpl_id.product_variant_id
-            joined_move_ids = vals.get("move_byproduct_ids", [])
-            for move_finished in vals.get("move_finished_ids", []):
-                if (
-                    move_finished[0] == Command.CREATE
-                    and move_finished[2].get("product_id") != bom_product.id
-                ):
-                    continue
-                joined_move_ids.append(move_finished)
-            vals["move_finished_ids"] = joined_move_ids
-            del vals["move_byproduct_ids"]
+        return self._merge_byproduct_commands(vals, self._main_product_id_from(vals))
+
+    def _main_product_id_from(self, vals):
+        """Which product the finished-move commands in `vals` are about.
+
+        `vals` wins, then the records' own product when they agree on one, then the
+        BoM the same write is setting. `False` when nothing settles it.
+        """
+        if vals.get("product_id"):
+            return vals["product_id"]
+        if len(self.product_id) == 1:
+            return self.product_id.id
+        if vals.get("bom_id"):
+            bom = self.env["mrp.bom"].browse(vals["bom_id"])
+            return (bom.product_id or bom.product_tmpl_id.product_variant_id).id
+        return False
+
+    @api.model
+    def _merge_byproduct_commands(self, vals, main_product_id=False):
+        """Fold `move_byproduct_ids` into `move_finished_ids`.
+
+        `move_byproduct_ids` is a computed view over `move_finished_ids`, so a
+        `vals` carrying both keys has to be reduced to one before it reaches the
+        ORM: applying the o2m and then the byproduct inverse loses whichever the
+        ORM happens to apply first, and the byproduct moves were the ones lost.
+        """
+        if "move_byproduct_ids" not in vals:
+            return vals
+        byproduct_commands = vals.pop("move_byproduct_ids")
+        finished_commands = vals.get("move_finished_ids") or []
+        if main_product_id:
+            # every other created finished move is a byproduct, and it is arriving
+            # through the byproduct key instead
+            def is_main(command):
+                return command[2].get("product_id") == main_product_id
+        else:
+            byproduct_product_ids = {
+                command[2].get("product_id")
+                for command in byproduct_commands
+                if command[0] == Command.CREATE and command[2].get("product_id")
+            }
+
+            def is_main(command):
+                return command[2].get("product_id") not in byproduct_product_ids
+
+        vals["move_finished_ids"] = [
+            command
+            for command in finished_commands
+            if command[0] != Command.CREATE or is_main(command)
+        ] + byproduct_commands
         return vals
 
     def _update_move_warehouse_vals(self, vals, move_keys):
@@ -1828,29 +1862,8 @@ class MrpProduction(models.Model):
         default_picking_type_by_company = {}
         vals_needing_group = []
         for vals in vals_list:
-            if vals.get("move_finished_ids") and vals.get("move_byproduct_ids"):
-                main_product_id = vals.get("product_id")
-                if main_product_id:
-                    kept = [
-                        command
-                        for command in vals["move_finished_ids"]
-                        if command[0] != Command.CREATE
-                        or command[2].get("product_id") == main_product_id
-                    ]
-                else:
-                    byproduct_product_ids = {
-                        command[2].get("product_id")
-                        for command in vals["move_byproduct_ids"]
-                        if command[0] == Command.CREATE and command[2].get("product_id")
-                    }
-                    kept = [
-                        command
-                        for command in vals["move_finished_ids"]
-                        if command[0] != Command.CREATE
-                        or command[2].get("product_id") not in byproduct_product_ids
-                    ]
-                vals["move_finished_ids"] = kept + vals["move_byproduct_ids"]
-                del vals["move_byproduct_ids"]
+            if vals.get("move_byproduct_ids"):
+                self._merge_byproduct_commands(vals, vals.get("product_id"))
             if not vals.get("name", False) or vals["name"] == _("New"):
                 picking_type_id = vals.get("picking_type_id")
                 if not picking_type_id:
