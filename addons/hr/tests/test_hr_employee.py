@@ -993,7 +993,7 @@ class TestVersionCron(TransactionCase):
         """
         with freeze_time("2023-10-06"):
             self.employee.create_version(
-                {"date_version": "2023-10-07", "distance_home_work": 40}
+                {"date_version": "2023-10-07", "wage": 4000}
             )
 
         # Saving current employee data to compare later on
@@ -1026,9 +1026,9 @@ class TestVersionCron(TransactionCase):
         """
         with freeze_time("2023-10-06"):
             self.employee.create_version(
-                {"date_version": "2023-10-07", "distance_home_work": 40}
+                {"date_version": "2023-10-07", "wage": 4000}
             )
-        current_home_distance = self.employee.distance_home_work
+        current_wage = self.employee.wage
         current_version = self.employee.current_version_id
         # Should change to new version
         with freeze_time("2023-10-07"):
@@ -1040,9 +1040,9 @@ class TestVersionCron(TransactionCase):
             "current_version_id should have changed after calling _cron_update_current_version_id()",
         )
         self.assertNotEqual(
-            current_home_distance,
-            self.employee.distance_home_work,
-            "distance_home_work should have changed after calling _cron_update_current_version_id()",
+            current_wage,
+            self.employee.wage,
+            "wage should have changed after calling _cron_update_current_version_id()",
         )
 
 

@@ -82,110 +82,6 @@ class HrVersion(models.Model):
         groups="hr.group_hr_user",
     )
 
-    # Personal Information
-    country_id = fields.Many2one(
-        "res.country", "Nationality (Country)", groups="hr.group_hr_user", tracking=True
-    )
-    identification_id = fields.Char(
-        string="Identification No",
-        help="Enter the employee's National Identification Number issued by the government (e.g., Aadhaar, SIN, NIN). This is used for official records and statutory compliance.",
-        groups="hr.group_hr_user",
-        tracking=True,
-    )
-    ssnid = fields.Char(
-        "SSN No",
-        help="Social Security Number",
-        groups="hr.group_hr_user",
-        tracking=True,
-    )
-    passport_id = fields.Char("Passport No", groups="hr.group_hr_user", tracking=True)
-    passport_expiration_date = fields.Date(
-        "Passport Expiration Date", groups="hr.group_hr_user", tracking=True
-    )
-    sex = fields.Selection(
-        [
-            ("male", "Male"),
-            ("female", "Female"),
-            ("other", "Other"),
-        ],
-        groups="hr.group_hr_user",
-        tracking=True,
-        help="This is the legal sex recognized by the state.",
-        string="Gender",
-    )
-
-    private_street = fields.Char(
-        string="Private Street", groups="hr.group_hr_user", tracking=True
-    )
-    private_street2 = fields.Char(
-        string="Private Street2", groups="hr.group_hr_user", tracking=True
-    )
-    private_city = fields.Char(
-        string="Private City", groups="hr.group_hr_user", tracking=True
-    )
-    allowed_country_state_ids = fields.Many2many(
-        "res.country.state",
-        compute="_compute_allowed_country_state_ids",
-        groups="hr.group_hr_user",
-    )
-    private_state_id = fields.Many2one(
-        "res.country.state",
-        string="Private State",
-        domain="[('id', 'in', allowed_country_state_ids)]",
-        groups="hr.group_hr_user",
-        tracking=True,
-    )
-    private_zip = fields.Char(
-        string="Private Zip", groups="hr.group_hr_user", tracking=True
-    )
-    private_country_id = fields.Many2one(
-        "res.country",
-        string="Private Country",
-        groups="hr.group_hr_user",
-        tracking=True,
-    )
-
-    distance_home_work = fields.Integer(
-        string="Home-Work Distance", groups="hr.group_hr_user", tracking=True
-    )
-    km_home_work = fields.Integer(
-        string="Home-Work Distance in Km",
-        groups="hr.group_hr_user",
-        compute="_compute_km_home_work",
-        inverse="_inverse_km_home_work",
-        store=True,
-        tracking=True,
-    )
-    distance_home_work_unit = fields.Selection(
-        [
-            ("kilometers", "km"),
-            ("miles", "mi"),
-        ],
-        "Home-Work Distance unit",
-        groups="hr.group_hr_user",
-        default="kilometers",
-        required=True,
-        tracking=True,
-    )
-
-    marital = fields.Selection(
-        selection="_get_marital_status_selection",
-        string="Marital Status",
-        groups="hr.group_hr_user",
-        default="single",
-        required=True,
-        tracking=True,
-    )
-    spouse_complete_name = fields.Char(
-        string="Spouse Legal Name", groups="hr.group_hr_user", tracking=True
-    )
-    spouse_birthdate = fields.Date(
-        string="Spouse Birthdate", groups="hr.group_hr_user", tracking=True
-    )
-    children = fields.Integer(
-        string="Dependent Children", groups="hr.group_hr_user", tracking=True
-    )
-
     # Work Information
     employee_type = fields.Selection(
         [
@@ -421,17 +317,6 @@ class HrVersion(models.Model):
             # cleared), so a stale flag can't keep an orphaned title around.
             if version._origin.job_id != version.job_id:
                 version.is_custom_job_title = False
-
-    @api.depends("private_country_id")
-    def _compute_allowed_country_state_ids(self):
-        states = None
-        for version in self:
-            if version.private_country_id:
-                version.allowed_country_state_ids = version.private_country_id.state_ids
-            else:
-                if states is None:
-                    states = self.env["res.country.state"].search([])
-                version.allowed_country_state_ids = states
 
     @staticmethod
     def _periods_overlap(start_a, end_a, start_b, end_b):
@@ -810,12 +695,6 @@ class HrVersion(models.Model):
             )
         return employee
 
-    @api.constrains("ssnid")
-    def _check_ssnid(self):
-        # By default, a Social Security Number is always valid, but each localization
-        # may want to add its own constraints
-        pass
-
     @api.depends_context("uid", "company")
     @api.depends("department_id")
     def _compute_member_of_department(self):
@@ -865,23 +744,6 @@ class HrVersion(models.Model):
                 version.structure_type_id = _default_structure_type_id(
                     version.company_id.country_id.id
                 )
-
-    @api.depends("distance_home_work", "distance_home_work_unit")
-    def _compute_km_home_work(self):
-        for version in self:
-            version.km_home_work = (
-                version.distance_home_work * 1.609
-                if version.distance_home_work_unit == "miles"
-                else version.distance_home_work
-            )
-
-    def _inverse_km_home_work(self):
-        for version in self:
-            version.distance_home_work = (
-                version.km_home_work / 1.609
-                if version.distance_home_work_unit == "miles"
-                else version.km_home_work
-            )
 
     @api.depends(
         "contract_date_start",
@@ -946,16 +808,6 @@ class HrVersion(models.Model):
 
     def _search_date_end(self, operator, value):
         return [("contract_date_end", operator, value)]
-
-    @api.model
-    def _get_marital_status_selection(self):
-        return [
-            ("single", self.env._("Single")),
-            ("married", self.env._("Married")),
-            ("cohabitant", self.env._("Legal Cohabitant")),
-            ("widower", self.env._("Widower")),
-            ("divorced", self.env._("Divorced")),
-        ]
 
     def _inverse_resource_calendar_id(self):
         for employee, versions in self.grouped("employee_id").items():

@@ -228,6 +228,110 @@ class HrEmployee(models.Model):
         compute="_compute_birthday_public_display_string",
         default="hidden",
     )
+    # Personal Information
+    country_id = fields.Many2one(
+        "res.country", "Nationality (Country)", groups="hr.group_hr_user", tracking=True
+    )
+    identification_id = fields.Char(
+        string="Identification No",
+        help="Enter the employee's National Identification Number issued by the government (e.g., Aadhaar, SIN, NIN). This is used for official records and statutory compliance.",
+        groups="hr.group_hr_user",
+        tracking=True,
+    )
+    ssnid = fields.Char(
+        "SSN No",
+        help="Social Security Number",
+        groups="hr.group_hr_user",
+        tracking=True,
+    )
+    passport_id = fields.Char("Passport No", groups="hr.group_hr_user", tracking=True)
+    passport_expiration_date = fields.Date(
+        "Passport Expiration Date", groups="hr.group_hr_user", tracking=True
+    )
+    sex = fields.Selection(
+        [
+            ("male", "Male"),
+            ("female", "Female"),
+            ("other", "Other"),
+        ],
+        groups="hr.group_hr_user",
+        tracking=True,
+        help="This is the legal sex recognized by the state.",
+        string="Gender",
+    )
+
+    private_street = fields.Char(
+        string="Private Street", groups="hr.group_hr_user", tracking=True
+    )
+    private_street2 = fields.Char(
+        string="Private Street2", groups="hr.group_hr_user", tracking=True
+    )
+    private_city = fields.Char(
+        string="Private City", groups="hr.group_hr_user", tracking=True
+    )
+    allowed_country_state_ids = fields.Many2many(
+        "res.country.state",
+        compute="_compute_allowed_country_state_ids",
+        groups="hr.group_hr_user",
+    )
+    private_state_id = fields.Many2one(
+        "res.country.state",
+        string="Private State",
+        domain="[('id', 'in', allowed_country_state_ids)]",
+        groups="hr.group_hr_user",
+        tracking=True,
+    )
+    private_zip = fields.Char(
+        string="Private Zip", groups="hr.group_hr_user", tracking=True
+    )
+    private_country_id = fields.Many2one(
+        "res.country",
+        string="Private Country",
+        groups="hr.group_hr_user",
+        tracking=True,
+    )
+
+    distance_home_work = fields.Integer(
+        string="Home-Work Distance", groups="hr.group_hr_user", tracking=True
+    )
+    km_home_work = fields.Integer(
+        string="Home-Work Distance in Km",
+        groups="hr.group_hr_user",
+        compute="_compute_km_home_work",
+        inverse="_inverse_km_home_work",
+        store=True,
+        tracking=True,
+    )
+    distance_home_work_unit = fields.Selection(
+        [
+            ("kilometers", "km"),
+            ("miles", "mi"),
+        ],
+        "Home-Work Distance unit",
+        groups="hr.group_hr_user",
+        default="kilometers",
+        required=True,
+        tracking=True,
+    )
+
+    marital = fields.Selection(
+        selection="_get_marital_status_selection",
+        string="Marital Status",
+        groups="hr.group_hr_user",
+        default="single",
+        required=True,
+        tracking=True,
+    )
+    spouse_complete_name = fields.Char(
+        string="Spouse Legal Name", groups="hr.group_hr_user", tracking=True
+    )
+    spouse_birthdate = fields.Date(
+        string="Spouse Birthdate", groups="hr.group_hr_user", tracking=True
+    )
+    children = fields.Integer(
+        string="Dependent Children", groups="hr.group_hr_user", tracking=True
+    )
+
     bank_account_ids = fields.Many2many(
         "res.partner.bank",
         relation="employee_bank_account_rel",
@@ -693,6 +797,50 @@ class HrEmployee(models.Model):
     def _onchange_contract_date_start(self):
         if not self.contract_date_start:
             self.contract_date_end = False
+
+    @api.depends("private_country_id")
+    def _compute_allowed_country_state_ids(self):
+        states = None
+        for employee in self:
+            if employee.private_country_id:
+                employee.allowed_country_state_ids = employee.private_country_id.state_ids
+            else:
+                if states is None:
+                    states = self.env["res.country.state"].search([])
+                employee.allowed_country_state_ids = states
+
+    @api.depends("distance_home_work", "distance_home_work_unit")
+    def _compute_km_home_work(self):
+        for employee in self:
+            employee.km_home_work = (
+                employee.distance_home_work * 1.609
+                if employee.distance_home_work_unit == "miles"
+                else employee.distance_home_work
+            )
+
+    def _inverse_km_home_work(self):
+        for employee in self:
+            employee.distance_home_work = (
+                employee.km_home_work / 1.609
+                if employee.distance_home_work_unit == "miles"
+                else employee.km_home_work
+            )
+
+    @api.model
+    def _get_marital_status_selection(self):
+        return [
+            ("single", self.env._("Single")),
+            ("married", self.env._("Married")),
+            ("cohabitant", self.env._("Legal Cohabitant")),
+            ("widower", self.env._("Widower")),
+            ("divorced", self.env._("Divorced")),
+        ]
+
+    @api.constrains("ssnid")
+    def _check_ssnid(self):
+        # By default, a Social Security Number is always valid, but each localization
+        # may want to add its own constraints
+        pass
 
     @api.onchange("private_state_id")
     def _onchange_private_state_id(self):
