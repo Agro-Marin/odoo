@@ -4080,6 +4080,158 @@ class TestCronsRecoverLikeRequests(BaseCase):
         )
 
 
+class TestCopyEncodingsAgree(BaseCase):
+    """`copy_from`'s central promise is that `binary=True` is only a hint: both
+    encodings write identical rows, so a caller never has to know its column
+    types. That was false for `json`/`jsonb`.
+
+    A plain `str` is a JSON *document* to text COPY, which lets PostgreSQL parse
+    it, and a JSON *string value* to binary COPY, which serialises it again.
+    Found by a differential test over 400 random rows across eleven column
+    types: `jsonb` was the only column that differed, and it differed in 312 of
+    them. Which encoding a call gets is decided by the *numeric* fraction of the
+    row, so whether a JSON column round-tripped depended on how many unrelated
+    numeric columns sat beside it.
+    """
+
+    COLUMNS = (
+        ("i", "int4"),
+        ("f", "float8"),
+        ("n", "numeric"),
+        ("t", "text"),
+        ("d", "date"),
+        ("j", "jsonb"),
+        ("ar", "int4[]"),
+    )
+
+    def _rows(self):
+        import datetime
+        import decimal
+
+        return [
+            [
+                1,
+                0.5,
+                decimal.Decimal("1.25"),
+                "x",
+                datetime.date(2026, 1, 1),
+                '{"en_US": "a"}',
+                [1, 2],
+            ],
+            [-1, -0.0, decimal.Decimal(0), "", datetime.date(1, 1, 1), "{}", []],
+            [None, None, None, None, None, None, None],
+            [
+                2,
+                1e300,
+                decimal.Decimal("-9.87"),
+                "\u00fcn\u00efc\u00f8d\u00e9",
+                datetime.date(9999, 12, 31),
+                '"scalar"',
+                [0],
+            ],
+        ]
+
+    def _load(self, cr, table, binary):
+        ddl = ", ".join(f'"{c}" {t}' for c, t in self.COLUMNS)
+        cr.execute(f"DROP TABLE IF EXISTS {table}")
+        cr.execute(f"CREATE TABLE {table} (id serial primary key, {ddl})")
+        cr.copy_from(table, [c for c, _ in self.COLUMNS], self._rows(), binary=binary)
+
+    def test_binary_and_text_write_identical_rows(self):
+        cr = db_connect(common.get_db_name()).cursor()
+        names = ", ".join(f'"{c}"' for c, _ in self.COLUMNS)
+        try:
+            self._load(cr, "_t_copy_bin", True)
+            self._load(cr, "_t_copy_txt", False)
+            for a, b in (
+                ("_t_copy_bin", "_t_copy_txt"),
+                ("_t_copy_txt", "_t_copy_bin"),
+            ):
+                cr.execute(
+                    f"SELECT count(*) FROM ("
+                    f"  SELECT {names} FROM {a} EXCEPT SELECT {names} FROM {b}) d"
+                )
+                self.assertEqual(
+                    cr.fetchone()[0],
+                    0,
+                    f"rows in {a} that are not in {b}: binary=True is documented "
+                    f"as a hint, so the two encodings must agree",
+                )
+        finally:
+            cr.rollback()
+            cr.close()
+
+    def test_a_json_string_is_stored_as_a_document_under_both(self):
+        cr = db_connect(common.get_db_name()).cursor()
+        try:
+            for binary in (True, False):
+                with self.subTest(binary=binary):
+                    cr.execute("DROP TABLE IF EXISTS _t_json")
+                    cr.execute("CREATE TABLE _t_json (id serial primary key, j jsonb)")
+                    cr.copy_from("_t_json", ["j"], [['{"a": 1}']], binary=binary)
+                    cr.execute("SELECT jsonb_typeof(j), j->>'a' FROM _t_json")
+                    kind, a = cr.fetchone()
+                    self.assertEqual(
+                        (kind, a),
+                        ("object", "1"),
+                        "a JSON document passed as text must be parsed, not "
+                        "re-encoded as a JSON string value",
+                    )
+        finally:
+            cr.rollback()
+            cr.close()
+
+    def test_a_caller_wrapped_value_is_untouched(self):
+        from psycopg.types.json import Json, Jsonb
+
+        cr = db_connect(common.get_db_name()).cursor()
+        try:
+            for binary in (True, False):
+                for wrapper in (Json, Jsonb):
+                    with self.subTest(binary=binary, wrapper=wrapper.__name__):
+                        cr.execute("DROP TABLE IF EXISTS _t_json2")
+                        cr.execute(
+                            "CREATE TABLE _t_json2 (id serial primary key, j jsonb)"
+                        )
+                        cr.copy_from(
+                            "_t_json2",
+                            ["j"],
+                            [[wrapper({"en_US": "hi"})]],
+                            binary=binary,
+                        )
+                        cr.execute("SELECT j->>'en_US' FROM _t_json2")
+                        self.assertEqual(cr.fetchone()[0], "hi")
+        finally:
+            cr.rollback()
+            cr.close()
+
+    def test_the_json_oids_are_the_real_ones(self):
+        from odoo.db.bulk import _JSON_OIDS
+
+        cr = db_connect(common.get_db_name()).cursor()
+        try:
+            cr.execute("SELECT oid FROM pg_type WHERE typname IN ('json', 'jsonb')")
+            self.assertEqual({r[0] for r in cr.fetchall()}, set(_JSON_OIDS))
+        finally:
+            cr.close()
+
+    def test_binary_is_still_chosen_for_a_json_column(self):
+        """The first fix degraded the whole COPY to text, measured at +31%.
+        The wrap keeps binary; this pins that it was not quietly given up."""
+        cr = db_connect(common.get_db_name()).cursor()
+        try:
+            cr.execute("DROP TABLE IF EXISTS _t_json3")
+            cr.execute("CREATE TABLE _t_json3 (id serial primary key, a int, j jsonb)")
+            oids = cr._get_column_type_oids("_t_json3", ["a", "j"])
+            self.assertTrue(
+                cr._binary_pays_off(oids),
+                "a JSON column must not disqualify binary COPY on its own",
+            )
+        finally:
+            cr.rollback()
+            cr.close()
+
+
 class TestFailedStatementsAreCounted(BaseCase):
     """A statement that raised still cost a round trip.
 
