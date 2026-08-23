@@ -1,0 +1,574 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="approval_category_data_business_trip" model="approval.category">
+        <field
+            name="approver_ids"
+            eval="[             Command.clear(),             Command.create({'user_id': ref('user_approver_1'), 'sequence': 10, 'required': True}),             Command.create({'user_id': ref('user_approval_manager'), 'sequence': 20, 'required': True})         ]" />
+        <field name="approve_sequentially" eval="True" />
+        <field name="approval_minimum">2</field>
+        <field name="approval_deadline_hours">72</field>
+        <field name="escalate_overdue" eval="False" />
+    </record>
+
+    <record id="approval_category_data_borrow_items" model="approval.category">
+        <field
+            name="approver_ids"
+            eval="[             Command.create({'user_id': ref('user_approver_1'), 'sequence': 10, 'required': False}),             Command.create({'user_id': ref('user_approver_2'), 'sequence': 10, 'required': False}),             Command.create({'user_id': ref('user_approver_3'), 'sequence': 10, 'required': False})         ]" />
+        <field name="approval_minimum">2</field>
+        <field name="approval_deadline_hours">24</field>
+    </record>
+
+    <record id="approval_category_data_general_approval" model="approval.category">
+        <field
+            name="approver_ids"
+            eval="[             Command.create({'user_id': ref('base.user_admin'), 'sequence': 10, 'required': True})         ]" />
+        <field name="approval_minimum">1</field>
+        <field name="approval_deadline_hours">48</field>
+    </record>
+
+    <record id="approval_category_data_contract_approval" model="approval.category">
+        <field
+            name="approver_ids"
+            eval="[             Command.create({'user_id': ref('user_approver_2'), 'sequence': 10, 'required': True}),             Command.create({'user_id': ref('user_approval_manager'), 'sequence': 20, 'required': True})         ]" />
+        <field name="approve_sequentially" eval="True" />
+        <field name="approval_minimum">2</field>
+        <field name="approval_deadline_hours">96</field>
+    </record>
+
+    <record id="approval_category_data_payment_application" model="approval.category">
+        <field name="group_approval">exclusive</field>
+        <field name="approver_group_id" ref="group_finance_approvers" />
+        <field name="approval_minimum">2</field>
+        <field name="approval_deadline_hours">48</field>
+    </record>
+
+    <record
+        id="approval_category_data_car_rental_application"
+        model="approval.category">
+        <field
+            name="approver_ids"
+            eval="[             Command.create({'user_id': ref('user_approver_1'), 'sequence': 10, 'required': True})         ]" />
+        <field name="approval_minimum">1</field>
+        <field name="approval_deadline_hours">24</field>
+    </record>
+
+    <record id="approval_category_data_job_referral_award" model="approval.category">
+        <field
+            name="approver_ids"
+            eval="[             Command.create({'user_id': ref('user_approval_manager'), 'sequence': 10, 'required': True})         ]" />
+        <field name="approval_minimum">1</field>
+        <field name="approval_deadline_hours">168</field>
+    </record>
+
+    <record id="partner_acme_corp" model="res.partner">
+        <field name="name">Acme Corporation</field>
+        <field name="email">contact@acmecorp.com</field>
+        <field name="phone">+1-555-0123</field>
+    </record>
+
+    <record id="partner_tech_solutions" model="res.partner">
+        <field name="name">Tech Solutions Inc.</field>
+        <field name="email">info@techsolutions.com</field>
+        <field name="phone">+1-555-0456</field>
+    </record>
+
+    <record id="partner_john_doe" model="res.partner">
+        <field name="name">John Doe</field>
+        <field name="email">john.doe@example.com</field>
+        <field name="phone">+1-555-0789</field>
+    </record>
+
+    <record id="approval_request_business_trip_london" model="approval.request">
+        <field name="name">BT-00001</field>
+        <field name="state">pending</field>
+        <field name="category_id" ref="approval_category_data_business_trip" />
+        <field name="request_owner_id" ref="user_employee" />
+        <field
+            name="date_start"
+            eval="(datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d 09:00:00')" />
+        <field
+            name="date_end"
+            eval="(datetime.now() + timedelta(days=35)).strftime('%Y-%m-%d 18:00:00')" />
+        <field
+            name="date_confirmed"
+            eval="(datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d 10:00:00')" />
+        <field name="location">London, UK</field>
+        <field
+            name="reason">&lt;p&gt;Meeting with potential customer Acme Corporation to discuss new partnership opportunities and product demonstration.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Meeting Agenda:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Product presentation&lt;/li&gt;&lt;li&gt;Contract negotiation&lt;/li&gt;&lt;li&gt;Factory tour&lt;/li&gt;&lt;/ul&gt;</field>
+        <field name="priority">2</field>
+    </record>
+
+    <record id="approval_approver_business_trip_london_1" model="approval.approver">
+        <field name="user_id" ref="user_approver_1" />
+        <field name="request_id" ref="approval_request_business_trip_london" />
+        <field name="state">approved</field>
+        <field name="sequence" eval="10" />
+        <field name="required" eval="True" />
+        <field
+            name="note">Approved. Please ensure all travel documents are prepared in advance.</field>
+    </record>
+
+    <record id="approval_approver_business_trip_london_2" model="approval.approver">
+        <field name="user_id" ref="user_approval_manager" />
+        <field name="request_id" ref="approval_request_business_trip_london" />
+        <field name="state">pending</field>
+        <field name="sequence" eval="20" />
+        <field name="required" eval="True" />
+    </record>
+
+    <record id="approval_request_business_trip_paris" model="approval.request">
+        <field name="name">BT-00002</field>
+        <field name="state">approved</field>
+        <field name="category_id" ref="approval_category_data_business_trip" />
+        <field name="request_owner_id" ref="base.user_demo" />
+        <field
+            name="date_start"
+            eval="(datetime.now() + timedelta(days=15)).strftime('%Y-%m-%d 08:00:00')" />
+        <field
+            name="date_end"
+            eval="(datetime.now() + timedelta(days=17)).strftime('%Y-%m-%d 20:00:00')" />
+        <field
+            name="date_confirmed"
+            eval="(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d 14:00:00')" />
+        <field name="location">Paris, France</field>
+        <field
+            name="reason">&lt;p&gt;Attending International Tech Conference 2025 to represent our company and explore new technologies.&lt;/p&gt;</field>
+        <field name="priority">1</field>
+    </record>
+
+    <record id="approval_approver_business_trip_paris_1" model="approval.approver">
+        <field name="user_id" ref="user_approver_1" />
+        <field name="request_id" ref="approval_request_business_trip_paris" />
+        <field name="state">approved</field>
+        <field name="sequence" eval="10" />
+        <field name="required" eval="True" />
+        <field
+            name="note">Conference participation is valuable for our business development.</field>
+    </record>
+
+    <record id="approval_approver_business_trip_paris_2" model="approval.approver">
+        <field name="user_id" ref="user_approval_manager" />
+        <field name="request_id" ref="approval_request_business_trip_paris" />
+        <field name="state">approved</field>
+        <field name="sequence" eval="20" />
+        <field name="required" eval="True" />
+        <field
+            name="note">Final approval granted. Budget allocated from Q1 conference budget.</field>
+    </record>
+
+    <record id="approval_request_business_trip_tokyo" model="approval.request">
+        <field name="name">BT-00003</field>
+        <field name="state">pending</field>
+        <field name="category_id" ref="approval_category_data_business_trip" />
+        <field name="request_owner_id" ref="user_employee" />
+        <field
+            name="date_start"
+            eval="(datetime.now() + timedelta(days=45)).strftime('%Y-%m-%d 09:00:00')" />
+        <field
+            name="date_end"
+            eval="(datetime.now() + timedelta(days=52)).strftime('%Y-%m-%d 18:00:00')" />
+        <field
+            name="date_confirmed"
+            eval="(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d 09:00:00')" />
+        <field name="location">Tokyo, Japan</field>
+        <field
+            name="reason">&lt;p&gt;Strategic partnership meeting with Asian distributors and supplier facility inspection.&lt;/p&gt;</field>
+        <field name="priority">3</field>
+    </record>
+
+    <record id="approval_approver_business_trip_tokyo_1" model="approval.approver">
+        <field name="user_id" ref="user_approver_1" />
+        <field name="request_id" ref="approval_request_business_trip_tokyo" />
+        <field name="state">pending</field>
+        <field name="sequence" eval="10" />
+        <field name="required" eval="True" />
+    </record>
+
+    <record id="approval_approver_business_trip_tokyo_2" model="approval.approver">
+        <field name="user_id" ref="user_approval_manager" />
+        <field name="request_id" ref="approval_request_business_trip_tokyo" />
+        <field name="state">waiting</field>
+        <field name="sequence" eval="20" />
+        <field name="required" eval="True" />
+    </record>
+
+    <record id="approval_request_borrow_projector" model="approval.request">
+        <field name="name">Borrow Conference Room Projector</field>
+        <field name="state">approved</field>
+        <field name="category_id" ref="approval_category_data_borrow_items" />
+        <field name="request_owner_id" ref="base.user_demo" />
+        <field name="date_start" eval="datetime.now().strftime('%Y-%m-%d 14:00:00')" />
+        <field
+            name="date_end"
+            eval="(datetime.now() + timedelta(days=3)).strftime('%Y-%m-%d 17:00:00')" />
+        <field
+            name="date_confirmed"
+            eval="(datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d 11:00:00')" />
+        <field
+            name="reason">&lt;p&gt;Need projector for client presentation scheduled this week.&lt;/p&gt;</field>
+        <field name="priority">2</field>
+    </record>
+
+    <record id="approval_approver_borrow_projector_1" model="approval.approver">
+        <field name="user_id" ref="user_approver_1" />
+        <field name="request_id" ref="approval_request_borrow_projector" />
+        <field name="state">approved</field>
+        <field name="sequence" eval="10" />
+        <field name="required" eval="False" />
+    </record>
+
+    <record id="approval_approver_borrow_projector_2" model="approval.approver">
+        <field name="user_id" ref="user_approver_2" />
+        <field name="request_id" ref="approval_request_borrow_projector" />
+        <field name="state">approved</field>
+        <field name="sequence" eval="10" />
+        <field name="required" eval="False" />
+    </record>
+
+    <record id="approval_approver_borrow_projector_3" model="approval.approver">
+        <field name="user_id" ref="user_approver_3" />
+        <field name="request_id" ref="approval_request_borrow_projector" />
+        <field name="state">new</field>
+        <field name="sequence" eval="10" />
+        <field name="required" eval="False" />
+    </record>
+
+    <record id="approval_request_borrow_laptop" model="approval.request">
+        <field name="name">Borrow Laptop for Remote Work</field>
+        <field name="state">pending</field>
+        <field name="category_id" ref="approval_category_data_borrow_items" />
+        <field name="request_owner_id" ref="user_employee" />
+        <field
+            name="date_start"
+            eval="(datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d 08:00:00')" />
+        <field
+            name="date_end"
+            eval="(datetime.now() + timedelta(days=21)).strftime('%Y-%m-%d 18:00:00')" />
+        <field
+            name="date_confirmed"
+            eval="datetime.now().strftime('%Y-%m-%d 10:00:00')" />
+        <field name="quantity">1</field>
+        <field
+            name="reason">&lt;p&gt;Temporary replacement while my main laptop is being repaired.&lt;/p&gt;</field>
+        <field name="priority">2</field>
+    </record>
+
+    <record id="approval_approver_borrow_laptop_1" model="approval.approver">
+        <field name="user_id" ref="user_approver_1" />
+        <field name="request_id" ref="approval_request_borrow_laptop" />
+        <field name="state">approved</field>
+        <field name="sequence" eval="10" />
+        <field name="required" eval="False" />
+        <field name="note">Approved. Please return the laptop in good condition.</field>
+    </record>
+
+    <record id="approval_approver_borrow_laptop_2" model="approval.approver">
+        <field name="user_id" ref="user_approver_2" />
+        <field name="request_id" ref="approval_request_borrow_laptop" />
+        <field name="state">pending</field>
+        <field name="sequence" eval="10" />
+        <field name="required" eval="False" />
+    </record>
+
+    <record id="approval_approver_borrow_laptop_3" model="approval.approver">
+        <field name="user_id" ref="user_approver_3" />
+        <field name="request_id" ref="approval_request_borrow_laptop" />
+        <field name="state">pending</field>
+        <field name="sequence" eval="10" />
+        <field name="required" eval="False" />
+    </record>
+
+    <record id="approval_request_general_office_renovation" model="approval.request">
+        <field name="name">Office Space Renovation</field>
+        <field name="state">new</field>
+        <field name="category_id" ref="approval_category_data_general_approval" />
+        <field name="request_owner_id" ref="user_employee" />
+        <field
+            name="date"
+            eval="(datetime.now() + timedelta(days=60)).strftime('%Y-%m-%d')" />
+        <field name="amount">15000.00</field>
+        <field name="reference">REN-2025-001</field>
+        <field name="location">Main Office, 3rd Floor</field>
+        <field
+            name="reason">&lt;p&gt;Proposal to renovate the 3rd floor office space to create a modern collaborative work environment.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Scope:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Open workspace design&lt;/li&gt;&lt;li&gt;New furniture&lt;/li&gt;&lt;li&gt;Upgraded lighting&lt;/li&gt;&lt;li&gt;Meeting room modernization&lt;/li&gt;&lt;/ul&gt;</field>
+        <field name="priority">1</field>
+    </record>
+
+    <record id="approval_approver_general_renovation" model="approval.approver">
+        <field name="user_id" ref="base.user_admin" />
+        <field name="request_id" ref="approval_request_general_office_renovation" />
+        <field name="state">new</field>
+        <field name="sequence" eval="10" />
+        <field name="required" eval="True" />
+    </record>
+
+    <record id="approval_request_general_training_program" model="approval.request">
+        <field name="name">Employee Training Program</field>
+        <field name="state">approved</field>
+        <field name="category_id" ref="approval_category_data_general_approval" />
+        <field name="request_owner_id" ref="user_approver_2" />
+        <field
+            name="date"
+            eval="(datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')" />
+        <field
+            name="date_start"
+            eval="(datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d 09:00:00')" />
+        <field
+            name="date_end"
+            eval="(datetime.now() + timedelta(days=32)).strftime('%Y-%m-%d 17:00:00')" />
+        <field
+            name="date_confirmed"
+            eval="(datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d 13:00:00')" />
+        <field name="amount">5000.00</field>
+        <field name="quantity">15</field>
+        <field name="reference">TRN-2025-Q1</field>
+        <field name="partner_id" ref="partner_tech_solutions" />
+        <field name="location">Training Center, Building A</field>
+        <field
+            name="reason">&lt;p&gt;Professional development training for team members on new technologies and best practices.&lt;/p&gt;</field>
+        <field name="priority">2</field>
+    </record>
+
+    <record id="approval_approver_general_training" model="approval.approver">
+        <field name="user_id" ref="base.user_admin" />
+        <field name="request_id" ref="approval_request_general_training_program" />
+        <field name="state">approved</field>
+        <field name="sequence" eval="10" />
+        <field name="required" eval="True" />
+        <field
+            name="note">Training approved. This aligns well with our Q1 development goals.</field>
+    </record>
+
+    <record id="approval_request_contract_acme" model="approval.request">
+        <field name="name">CON-00001</field>
+        <field name="state">pending</field>
+        <field name="category_id" ref="approval_category_data_contract_approval" />
+        <field name="request_owner_id" ref="user_employee" />
+        <field
+            name="date_confirmed"
+            eval="(datetime.now() - timedelta(hours=36)).strftime('%Y-%m-%d %H:%M:%S')" />
+        <field name="partner_id" ref="partner_acme_corp" />
+        <field name="reference">CONTRACT-2025-ACME-001</field>
+        <field name="amount">250000.00</field>
+        <field
+            name="reason">&lt;p&gt;Annual service contract with Acme Corporation for IT infrastructure maintenance and support.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Contract Terms:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;12-month duration&lt;/li&gt;&lt;li&gt;24/7 support&lt;/li&gt;&lt;li&gt;Monthly SLA reporting&lt;/li&gt;&lt;li&gt;Quarterly business reviews&lt;/li&gt;&lt;/ul&gt;</field>
+        <field name="priority">3</field>
+    </record>
+
+    <record id="approval_approver_contract_acme_1" model="approval.approver">
+        <field name="user_id" ref="user_approver_2" />
+        <field name="request_id" ref="approval_request_contract_acme" />
+        <field name="state">approved</field>
+        <field name="sequence" eval="10" />
+        <field name="required" eval="True" />
+        <field
+            name="note">Contract terms reviewed and approved. Good value for the scope of services.</field>
+    </record>
+
+    <record id="approval_approver_contract_acme_2" model="approval.approver">
+        <field name="user_id" ref="user_approval_manager" />
+        <field name="request_id" ref="approval_request_contract_acme" />
+        <field name="state">pending</field>
+        <field name="sequence" eval="20" />
+        <field name="required" eval="True" />
+    </record>
+
+    <record id="approval_request_contract_refused" model="approval.request">
+        <field name="name">CON-00002</field>
+        <field name="state">refused</field>
+        <field name="category_id" ref="approval_category_data_contract_approval" />
+        <field name="request_owner_id" ref="base.user_demo" />
+        <field
+            name="date_confirmed"
+            eval="(datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d 10:00:00')" />
+        <field name="partner_id" ref="partner_tech_solutions" />
+        <field name="reference">CONTRACT-2025-TECH-002</field>
+        <field name="amount">500000.00</field>
+        <field
+            name="reason">&lt;p&gt;Multi-year software licensing agreement with Tech Solutions Inc.&lt;/p&gt;</field>
+        <field name="priority">2</field>
+        <field name="refusal_reason_id" ref="refusal_reason_budget_exceeded" />
+        <field
+            name="refusal_note">The proposed amount exceeds our annual software budget by 50%. Please revise the contract terms or seek additional budget allocation before resubmitting.</field>
+    </record>
+
+    <record id="approval_approver_contract_refused_1" model="approval.approver">
+        <field name="user_id" ref="user_approver_2" />
+        <field name="request_id" ref="approval_request_contract_refused" />
+        <field name="state">refused</field>
+        <field name="sequence" eval="10" />
+        <field name="required" eval="True" />
+        <field name="refusal_reason_id" ref="refusal_reason_budget_exceeded" />
+        <field
+            name="note">The proposed amount exceeds our annual software budget by 50%. Please revise the contract terms or seek additional budget allocation before resubmitting.</field>
+    </record>
+
+    <record id="approval_approver_contract_refused_2" model="approval.approver">
+        <field name="user_id" ref="user_approval_manager" />
+        <field name="request_id" ref="approval_request_contract_refused" />
+        <field name="state">waiting</field>
+        <field name="sequence" eval="20" />
+        <field name="required" eval="True" />
+    </record>
+
+    <record id="approval_request_payment_vendor" model="approval.request">
+        <field name="name">PAY-00001</field>
+        <field name="state">approved</field>
+        <field name="category_id" ref="approval_category_data_payment_application" />
+        <field name="request_owner_id" ref="user_employee" />
+        <field
+            name="date"
+            eval="(datetime.now() + timedelta(days=5)).strftime('%Y-%m-%d')" />
+        <field
+            name="date_confirmed"
+            eval="(datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d 14:00:00')" />
+        <field name="partner_id" ref="partner_acme_corp" />
+        <field name="amount">12500.00</field>
+        <field name="reference">INV-2025-0123</field>
+        <field
+            name="reason">&lt;p&gt;Payment for services rendered in January 2025 as per invoice INV-2025-0123.&lt;/p&gt;</field>
+        <field name="priority">2</field>
+    </record>
+
+    <record id="approval_approver_payment_vendor_1" model="approval.approver">
+        <field name="user_id" ref="user_approval_manager" />
+        <field name="request_id" ref="approval_request_payment_vendor" />
+        <field name="state">approved</field>
+        <field name="sequence" eval="10" />
+        <field name="required" eval="True" />
+        <field name="note">Invoice verified against contract. Payment approved.</field>
+    </record>
+
+    <record id="approval_approver_payment_vendor_2" model="approval.approver">
+        <field name="user_id" ref="user_approver_1" />
+        <field name="request_id" ref="approval_request_payment_vendor" />
+        <field name="state">approved</field>
+        <field name="sequence" eval="500" />
+        <field name="required" eval="False" />
+        <field name="note">Finance team confirmed - budget available.</field>
+    </record>
+
+    <record id="approval_request_payment_urgent" model="approval.request">
+        <field name="name">PAY-00002</field>
+        <field name="state">pending</field>
+        <field name="category_id" ref="approval_category_data_payment_application" />
+        <field name="request_owner_id" ref="base.user_demo" />
+        <field
+            name="date"
+            eval="(datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d')" />
+        <field
+            name="date_confirmed"
+            eval="datetime.now().strftime('%Y-%m-%d 09:00:00')" />
+        <field
+            name="date_deadline"
+            eval="(datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d 17:00:00')" />
+        <field name="partner_id" ref="partner_tech_solutions" />
+        <field name="amount">8900.00</field>
+        <field name="reference">INV-2025-0156</field>
+        <field
+            name="reason">&lt;p&gt;Urgent payment required for critical server maintenance. Payment deadline: end of this week to avoid service interruption.&lt;/p&gt;</field>
+        <field name="priority">3</field>
+    </record>
+
+    <record id="approval_approver_payment_urgent_1" model="approval.approver">
+        <field name="user_id" ref="user_approval_manager" />
+        <field name="request_id" ref="approval_request_payment_urgent" />
+        <field name="state">pending</field>
+        <field name="sequence" eval="10" />
+        <field name="required" eval="True" />
+    </record>
+
+    <record id="approval_approver_payment_urgent_2" model="approval.approver">
+        <field name="user_id" ref="user_approver_1" />
+        <field name="request_id" ref="approval_request_payment_urgent" />
+        <field name="state">pending</field>
+        <field name="sequence" eval="500" />
+        <field name="required" eval="False" />
+    </record>
+
+    <record id="approval_approver_payment_urgent_3" model="approval.approver">
+        <field name="user_id" ref="user_approver_2" />
+        <field name="request_id" ref="approval_request_payment_urgent" />
+        <field name="state">pending</field>
+        <field name="sequence" eval="500" />
+        <field name="required" eval="False" />
+    </record>
+
+    <record id="approval_request_car_rental_client_visit" model="approval.request">
+        <field name="name">Car Rental for Client Visit</field>
+        <field name="state">approved</field>
+        <field name="category_id" ref="approval_category_data_car_rental_application" />
+        <field name="request_owner_id" ref="user_employee" />
+        <field
+            name="date_start"
+            eval="(datetime.now() + timedelta(days=10)).strftime('%Y-%m-%d 08:00:00')" />
+        <field
+            name="date_end"
+            eval="(datetime.now() + timedelta(days=10)).strftime('%Y-%m-%d 20:00:00')" />
+        <field
+            name="date_confirmed"
+            eval="(datetime.now() - timedelta(days=4)).strftime('%Y-%m-%d 11:00:00')" />
+        <field
+            name="reason">&lt;p&gt;Need vehicle for client site visit and facility tour. Estimated 200km round trip.&lt;/p&gt;</field>
+        <field name="priority">1</field>
+    </record>
+
+    <record id="approval_approver_car_rental_1" model="approval.approver">
+        <field name="user_id" ref="user_approver_1" />
+        <field name="request_id" ref="approval_request_car_rental_client_visit" />
+        <field name="state">approved</field>
+        <field name="sequence" eval="10" />
+        <field name="required" eval="True" />
+    </record>
+
+    <record id="approval_request_car_rental_cancelled" model="approval.request">
+        <field name="name">Car Rental for Conference</field>
+        <field name="state">cancelled</field>
+        <field name="category_id" ref="approval_category_data_car_rental_application" />
+        <field name="request_owner_id" ref="base.user_demo" />
+        <field
+            name="date_start"
+            eval="(datetime.now() + timedelta(days=20)).strftime('%Y-%m-%d 08:00:00')" />
+        <field
+            name="date_end"
+            eval="(datetime.now() + timedelta(days=23)).strftime('%Y-%m-%d 18:00:00')" />
+        <field
+            name="date_confirmed"
+            eval="(datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d 15:00:00')" />
+        <field
+            name="reason">&lt;p&gt;Car rental for transportation during conference. NOTE: Conference has been postponed, cancelling this request.&lt;/p&gt;</field>
+        <field name="priority">1</field>
+    </record>
+
+    <record id="approval_approver_car_rental_cancelled" model="approval.approver">
+        <field name="user_id" ref="user_approver_1" />
+        <field name="request_id" ref="approval_request_car_rental_cancelled" />
+        <field name="state">cancelled</field>
+        <field name="sequence" eval="10" />
+        <field name="required" eval="True" />
+    </record>
+
+    <record id="approval_request_job_referral" model="approval.request">
+        <field name="name">Employee Referral Award - Jane Smith</field>
+        <field name="state">pending</field>
+        <field name="category_id" ref="approval_category_data_job_referral_award" />
+        <field name="request_owner_id" ref="user_approver_1" />
+        <field
+            name="date_confirmed"
+            eval="(datetime.now() - timedelta(hours=12)).strftime('%Y-%m-%d %H:%M:%S')" />
+        <field name="partner_id" ref="partner_john_doe" />
+        <field
+            name="reason">&lt;p&gt;Referral award for successful candidate placement. John Doe referred by employee has successfully completed 90-day probation period.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Position:&lt;/b&gt; Senior Software Engineer&lt;/p&gt;&lt;p&gt;&lt;b&gt;Start Date:&lt;/b&gt; October 1, 2024&lt;/p&gt;</field>
+        <field name="priority">1</field>
+    </record>
+
+    <record id="approval_approver_job_referral" model="approval.approver">
+        <field name="user_id" ref="user_approval_manager" />
+        <field name="request_id" ref="approval_request_job_referral" />
+        <field name="state">pending</field>
+        <field name="sequence" eval="10" />
+        <field name="required" eval="True" />
+    </record>
+
+</odoo>

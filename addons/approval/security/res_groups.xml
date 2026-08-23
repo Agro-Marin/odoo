@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_groups_privilege_approvals" model="res.groups.privilege">
+        <field name="name">Approvals</field>
+        <field name="sequence" eval="9" />
+        <field name="category_id" ref="base.module_category_human_resources" />
+    </record>
+
+    <record id="group_approval_approver" model="res.groups">
+        <field name="name">Approver</field>
+        <field name="sequence" eval="5" />
+        <field name="privilege_id" ref="res_groups_privilege_approvals" />
+        <field name="implied_ids" eval="[Command.link(ref('base.group_user'))]" />
+        <field
+            name="comment">Shows the "My Approvals" menu for users who primarily review and approve/refuse requests. Not required to act as an approver — that right comes from being assigned on the request, regardless of group membership. No configuration access.</field>
+    </record>
+
+    <record id="group_approval_manager" model="res.groups">
+        <field name="name">Administrator</field>
+        <field name="sequence" eval="10" />
+        <field name="privilege_id" ref="res_groups_privilege_approvals" />
+        <field
+            name="implied_ids"
+            eval="[Command.link(ref('group_approval_approver'))]" />
+        <field
+            name="comment">System administrator with full access to approvals configuration and all requests.</field>
+    </record>
+
+</odoo>

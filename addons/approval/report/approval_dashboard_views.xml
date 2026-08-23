@@ -1,0 +1,359 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_approval_dashboard_form" model="ir.ui.view">
+        <field name="name">approval.dashboard.form</field>
+        <field name="model">approval.dashboard</field>
+        <field name="arch" type="xml">
+            <form
+                string="Approval Dashboard"
+                create="false"
+                edit="false"
+                delete="false"
+                class="o_approval_dashboard_form">
+                <sheet class="o_dashboard_sheet">
+                    <div class="oe_title">
+                        <h1>
+                            <i class="fa-solid fa-gauge-high me-2" title="Dashboard" />
+                            <field name="name" readonly="1" class="d-inline" />
+                        </h1>
+                        <div
+                            class="d-flex justify-content-between align-items-center mb-3">
+                            <small class="text-muted"> Last refreshed: <field name="last_refresh" widget="datetime" readonly="1" />
+                            </small>
+                            <button
+                                name="action_refresh"
+                                type="object"
+                                class="btn btn-primary"
+                                string="Refresh">
+                                <i class="fa-solid fa-arrows-rotate" /> Refresh Data </button>
+                        </div>
+                    </div>
+
+                    <group name="kpi_cards" class="o_dashboard_kpis">
+                        <group colspan="4" class="o_group_col_12">
+                            <div class="row g-3 mb-4">
+                                <div class="col-lg-3 col-md-6">
+                                    <div class="o_kpi_card o_kpi_primary">
+                                        <div class="o_kpi_icon">
+                                            <i
+                                                class="fa-solid fa-inbox fa-3x"
+                                                title="Submitted Today" />
+                                        </div>
+                                        <div class="o_kpi_content">
+                                            <div class="o_kpi_label">Submitted Today</div>
+                                            <div class="o_kpi_value">
+                                                <field
+                                                    name="submitted_today"
+                                                    readonly="1" />
+                                            </div>
+                                            <button
+                                                name="%(action_view_approval_request)d"
+                                                type="action"
+                                                class="btn btn-link btn-sm p-0">
+                                                View all requests →
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-lg-3 col-md-6">
+                                    <div class="o_kpi_card o_kpi_success">
+                                        <div class="o_kpi_icon">
+                                            <i
+                                                class="fa-solid fa-check-circle fa-3x"
+                                                title="Approved Today" />
+                                        </div>
+                                        <div class="o_kpi_content">
+                                            <div class="o_kpi_label">Approved Today</div>
+                                            <div class="o_kpi_value">
+                                                <field
+                                                    name="approved_today"
+                                                    readonly="1" />
+                                            </div>
+                                            <small class="text-muted"> Avg: <field name="avg_response_time_hours" widget="float_time" readonly="1" />
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-lg-3 col-md-6">
+                                    <div class="o_kpi_card o_kpi_danger">
+                                        <div class="o_kpi_icon">
+                                            <i
+                                                class="fa-solid fa-times-circle fa-3x"
+                                                title="Refused Today" />
+                                        </div>
+                                        <div class="o_kpi_content">
+                                            <div class="o_kpi_label">Refused Today</div>
+                                            <div class="o_kpi_value">
+                                                <field
+                                                    name="refused_today"
+                                                    readonly="1" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-lg-3 col-md-6">
+                                    <div class="o_kpi_card o_kpi_warning">
+                                        <div class="o_kpi_icon">
+                                            <i
+                                                class="fa-regular fa-clock fa-3x"
+                                                title="Pending Today" />
+                                        </div>
+                                        <div class="o_kpi_content">
+                                            <div class="o_kpi_label">Pending Today</div>
+                                            <div class="o_kpi_value">
+                                                <field
+                                                    name="pending_today"
+                                                    readonly="1" />
+                                            </div>
+                                            <button
+                                                name="action_view_to_review"
+                                                type="object"
+                                                class="btn btn-link btn-sm p-0">
+                                                Review pending →
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </group>
+                    </group>
+
+                    <group
+                        name="my_pending"
+                        string="👤 My Pending Approvals"
+                        invisible="my_pending_count == 0">
+                        <group>
+                            <field name="my_pending_count" />
+                            <field name="my_pending_urgent_count" />
+                        </group>
+                        <group>
+                            <field name="my_avg_response_hours" widget="float_time" />
+                            <button
+                                name="action_view_to_review"
+                                type="object"
+                                string="Review My Pending"
+                                class="btn btn-warning"
+                                icon="fa-check-circle" />
+                        </group>
+                    </group>
+
+                    <group name="trends_performance" string="Trends &amp; Performance">
+                        <group string="Volume Trends">
+                            <label for="trend_7days_display" string="7-Day Trend" />
+                            <div class="o_row">
+                                <field
+                                    name="trend_7days_display"
+                                    class="oe_inline o_trend_badge" />
+                                <span class="text-muted ms-2"> (<field name="trend_7days" class="oe_inline" />% vs last week) </span>
+                            </div>
+                            <label for="trend_15days_display" string="15-Day Trend" />
+                            <div class="o_row">
+                                <field
+                                    name="trend_15days_display"
+                                    class="oe_inline o_trend_badge" />
+                                <span class="text-muted ms-2"> (<field name="trend_15days" class="oe_inline" />% vs prev 15d) </span>
+                            </div>
+                            <label for="trend_30days_display" string="30-Day Trend" />
+                            <div class="o_row">
+                                <field
+                                    name="trend_30days_display"
+                                    class="oe_inline o_trend_badge" />
+                                <span class="text-muted ms-2"> (<field name="trend_30days" class="oe_inline" />% vs last month) </span>
+                            </div>
+                        </group>
+                        <group string="Overall Performance">
+                            <field name="total_requests_all_time" />
+                            <field name="total_pending_all_time" />
+                            <field name="overall_approval_rate" />
+                            <field
+                                name="avg_approval_time_all_time"
+                                widget="float_time" />
+                        </group>
+                    </group>
+
+                    <group name="velocity" string="📈 Approval Velocity">
+                        <group string="Submission Rate (Requests/Day)">
+                            <field name="requests_per_day_7d" string="7-Day Avg" />
+                            <field name="requests_per_day_15d" string="15-Day Avg" />
+                            <field name="requests_per_day_30d" string="30-Day Avg" />
+                        </group>
+                        <group string="Processing Rate (Approvals/Day)">
+                            <field name="approvals_per_day_7d" string="7-Day Avg" />
+                            <field name="approvals_per_day_15d" string="15-Day Avg" />
+                            <field name="approvals_per_day_30d" string="30-Day Avg" />
+                        </group>
+                    </group>
+
+                    <group name="response_times" string="⏱ Response Time Analysis">
+                        <group string="Average Response Time">
+                            <field
+                                name="avg_response_hours_7d"
+                                widget="float_time"
+                                string="7-Day Avg" />
+                            <field
+                                name="avg_response_hours_15d"
+                                widget="float_time"
+                                string="15-Day Avg" />
+                            <field
+                                name="avg_response_hours_30d"
+                                widget="float_time"
+                                string="30-Day Avg" />
+                        </group>
+                        <group string="Overall Metrics">
+                            <field
+                                name="median_approval_hours"
+                                widget="float_time"
+                                string="Median (90d)" />
+                            <field
+                                name="avg_approval_time_all_time"
+                                widget="float_time"
+                                string="Mean (All Time)" />
+                        </group>
+                    </group>
+
+                    <group name="bottlenecks" string="⚠ Performance Bottlenecks">
+                        <group
+                            string="Slowest Category"
+                            invisible="not slowest_category_id">
+                            <field name="slowest_category_id" />
+                            <label for="slowest_category_hours" string="Average Time" />
+                            <div class="o_row">
+                                <field
+                                    name="slowest_category_hours"
+                                    widget="float_time"
+                                    class="oe_inline" />
+                                <button
+                                    name="action_view_slowest_category"
+                                    string="View Requests"
+                                    type="object"
+                                    class="btn btn-sm btn-secondary ms-2"
+                                    icon="fa-eye" />
+                            </div>
+                        </group>
+                        <group
+                            string="Response Time"
+                            invisible="not slowest_approver_id">
+                            <field
+                                name="slowest_approver_id"
+                                string="Slowest Approver" />
+                            <label
+                                for="slowest_approver_hours"
+                                string="Average Response" />
+                            <div class="o_row">
+                                <field
+                                    name="slowest_approver_hours"
+                                    widget="float_time"
+                                    class="oe_inline" />
+                                <button
+                                    name="action_view_slowest_approver"
+                                    string="View Pending"
+                                    type="object"
+                                    class="btn btn-sm btn-secondary ms-2"
+                                    icon="fa-eye" />
+                            </div>
+                        </group>
+                        <group
+                            string="Workload"
+                            invisible="not most_pending_approver_id">
+                            <field
+                                name="most_pending_approver_id"
+                                string="Most Overloaded" />
+                            <label for="most_pending_count" string="Pending Count" />
+                            <div class="o_row">
+                                <field name="most_pending_count" class="oe_inline" />
+                                <button
+                                    name="action_view_overloaded_approver"
+                                    string="View Workload"
+                                    type="object"
+                                    class="btn btn-sm btn-secondary ms-2"
+                                    icon="fa-eye" />
+                            </div>
+                        </group>
+                    </group>
+
+                    <group name="quick_actions" string="⚡ Quick Actions">
+                        <group colspan="4" class="o_group_col_12">
+                            <div class="row g-2 mt-2">
+                                <div class="col-md-3 col-sm-6">
+                                    <button
+                                        type="object"
+                                        name="action_view_to_review"
+                                        class="btn btn-primary w-100"
+                                        icon="fa-check">
+                                        Review Pending
+                                    </button>
+                                </div>
+                                <div class="col-md-3 col-sm-6">
+                                    <button
+                                        type="action"
+                                        name="%(action_approval_request_all)d"
+                                        class="btn btn-secondary w-100"
+                                        icon="fa-list">
+                                        All Approvals
+                                    </button>
+                                </div>
+                                <div class="col-md-3 col-sm-6">
+                                    <button
+                                        type="action"
+                                        name="%(action_approval_metrics)d"
+                                        class="btn btn-info w-100"
+                                        icon="fa-bar-chart">
+                                        Category Metrics
+                                    </button>
+                                </div>
+                                <div class="col-md-3 col-sm-6">
+                                    <button
+                                        type="action"
+                                        name="%(action_approver_performance)d"
+                                        class="btn btn-success w-100"
+                                        icon="fa-users">
+                                        Approver Performance
+                                    </button>
+                                </div>
+                            </div>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_approval_dashboard" model="ir.actions.act_window">
+        <field name="name">Dashboard</field>
+        <field name="res_model">approval.dashboard</field>
+        <field name="view_mode">form</field>
+        <field name="target">current</field>
+        <field name="context">{'form_view_initial_mode': 'readonly'}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Welcome to the Approval Dashboard!
+            </p>
+            <p>
+                This dashboard provides real-time insights into your approval workflow performance,
+                trends, and bottlenecks.
+            </p>
+        </field>
+    </record>
+
+    <record id="action_approval_dashboard_view_singleton" model="ir.actions.server">
+        <field name="name">Open Approval Dashboard</field>
+        <field name="model_id" ref="model_approval_dashboard" />
+        <field name="state">code</field>
+        <field
+            name="code">dashboard = model.get_dashboard()
+action = {
+    "type": "ir.actions.act_window",
+    "name": "Approval Dashboard",
+    "res_model": "approval.dashboard",
+    "view_mode": "form",
+    "res_id": dashboard.id,
+    "target": "current",
+    "context": {"form_view_initial_mode": "readonly"},
+}</field>
+    </record>
+
+</odoo>

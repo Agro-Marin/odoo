@@ -1,0 +1,746 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_approval_search_search" model="ir.ui.view">
+        <field name="name">approval.request.search</field>
+        <field name="model">approval.request</field>
+        <field name="priority" eval="20" />
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" />
+                <field name="request_owner_id" />
+                <field name="partner_id" />
+                <field name="category_id" />
+                <separator />
+                <filter
+                    name="filter_my_request"
+                    string="My Requests"
+                    domain="[('request_owner_id', '=', uid)]" />
+                <filter
+                    name="filter_approvals_to_review"
+                    string="To Review"
+                    domain="[('is_pending_my_review', '=', True)]" />
+                <filter
+                    name="filter_delegated_to_me"
+                    string="Delegated to Me"
+                    domain="[('state', '=', 'pending'), ('approver_ids', 'any', [('delegate_id', '=', uid), ('is_delegated', '=', True), ('state', '=', 'pending')])]" />
+                <separator />
+                <filter
+                    name="filter_urgent"
+                    string="High &amp; Urgent"
+                    domain="[('state', '=', 'pending'), ('priority', 'in', ['2', '3'])]" />
+                <filter
+                    name="filter_urgent_only"
+                    string="Urgent"
+                    domain="[('state', '=', 'pending'), ('priority', '=', '3')]" />
+                <filter
+                    name="filter_overdue"
+                    string="Overdue"
+                    domain="[('is_overdue', '=', True)]" />
+                <filter
+                    name="filter_sla_at_risk"
+                    string="SLA At Risk"
+                    domain="[('sla_status', 'in', ['at_risk', 'breached'])]" />
+                <separator />
+                <filter
+                    name="filter_pending"
+                    string="Pending"
+                    domain="[('state', '=', 'pending')]" />
+                <filter
+                    name="filter_approved_requests"
+                    string="Approved"
+                    domain="[('state', '=', 'approved')]" />
+                <filter
+                    name="filter_refused_requests"
+                    string="Refused"
+                    domain="[('state', '=', 'refused')]" />
+                <filter
+                    name="filter_cancelled_requests"
+                    string="Cancelled"
+                    domain="[('state', '=', 'cancelled')]" />
+                <group>
+                    <filter
+                        name="groupby_category_id"
+                        string="Category"
+                        context="{'group_by': 'category_id'}" />
+                    <filter
+                        name="groupby_state"
+                        string="Status"
+                        context="{'group_by': 'state'}" />
+                    <filter
+                        name="groupby_priority"
+                        string="Priority"
+                        context="{'group_by': 'priority'}" />
+                    <filter
+                        name="groupby_request_owner"
+                        string="Request Owner"
+                        context="{'group_by': 'request_owner_id'}" />
+                    <filter
+                        name="groupby_partner_id"
+                        string="Contact"
+                        context="{'group_by': 'partner_id'}" />
+                    <filter
+                        name="groupby_create_date"
+                        string="Create Date"
+                        context="{'group_by': 'create_date'}" />
+                    <filter
+                        name="groupby_date"
+                        string="Date"
+                        context="{'group_by': 'date'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_approval_request_tree" model="ir.ui.view">
+        <field name="name">approval.request.view.list</field>
+        <field name="model">approval.request</field>
+        <field name="priority" eval="10" />
+        <field name="arch" type="xml">
+            <list sample="1" decoration-info="state == 'new'">
+                <field name="create_date" string="Date" optional="show" />
+                <field name="category_id" optional="show" />
+                <field name="name" />
+                <field name="priority" widget="priority" />
+                <field name="partner_id" optional="hide" />
+                <field name="request_owner_id" widget="many2one_avatar_user" />
+                <field name="date" string="Date" optional="hide" />
+                <field name="date_planned" string="Planned" optional="hide" />
+                <field name="date_deadline" string="Deadline" optional="hide" />
+                <field name="date_start" string="Request Start" optional="hide" />
+                <field name="date_end" string="Request To" optional="hide" />
+                <field name="date_confirmed" string="Confirm Date" optional="hide" />
+                <field name="location" string="Location" optional="hide" />
+                <field name="currency_id" column_invisible="1" />
+                <field name="amount" string="Amount" optional="show" />
+                <field name="activity_ids" widget="list_activity" optional="hide" />
+                <field
+                    name="user_ids"
+                    string="Approvers"
+                    widget="many2many_avatar_user"
+                    optional="hide" />
+                <field
+                    name="sla_status"
+                    widget="badge"
+                    optional="hide"
+                    decoration-success="sla_status in ('on_track', 'met')"
+                    decoration-warning="sla_status == 'at_risk'"
+                    decoration-danger="sla_status == 'breached'" />
+                <field
+                    name="state"
+                    widget="badge"
+                    decoration-info="state == 'new'"
+                    decoration-warning="state == 'pending'"
+                    decoration-success="state == 'approved'"
+                    decoration-danger="state == 'refused'"
+                    decoration-muted="state == 'cancelled'" />
+                <field
+                    name="company_id"
+                    readonly="True"
+                    optional="hide"
+                    groups="base.group_multi_company" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_approval_request_kanban" model="ir.ui.view">
+        <field name="name">approval.request.view.kanban</field>
+        <field name="model">approval.request</field>
+        <field name="arch" type="xml">
+            <kanban
+                create="false"
+                class="o_modules_kanban"
+                default_group_by="state"
+                default_order="create_date desc"
+                group_create="false"
+                group_edit="false"
+                group_delete="false"
+                sample="1">
+                <field name="state" />
+                <field name="user_approver_state" />
+                <field name="can_withdraw" />
+                <templates>
+                    <t t-name="menu">
+                        <a t-if="widget.editable" role="menuitem" type="open" class="dropdown-item">Edit
+                            Request</a>
+                        <a t-if="widget.deletable" role="menuitem" type="delete" class="dropdown-item">Delete</a>
+                        <a name="action_approve" role="menuitem" type="object" class="dropdown-item" invisible="user_approver_state != 'pending'">Approve</a>
+                        <a name="action_refuse" role="menuitem" type="object" class="dropdown-item" invisible="user_approver_state != 'pending' or pending_change_field">Refuse</a>
+                        <a name="action_request_change" role="menuitem" type="object" class="dropdown-item" invisible="user_approver_state != 'pending' or pending_change_field">Request a Change</a>
+                        <a name="action_withdraw" role="menuitem" type="object" class="dropdown-item" invisible="not can_withdraw">Withdraw</a>
+                    </t>
+                    <t t-name="card">
+                        <div
+                            class="ribbon ribbon-top-right"
+                            invisible="user_approver_state not in ['pending', 'approved', 'refused']">
+                            <field
+                                name="user_approver_state"
+                                t-if="record.user_approver_state.raw_value == 'pending'"
+                                class="text-bg-info" />
+                            <field
+                                name="user_approver_state"
+                                t-if="record.user_approver_state.raw_value == 'approved'"
+                                class="text-bg-success" />
+                            <field
+                                name="user_approver_state"
+                                t-if="record.user_approver_state.raw_value == 'refused'"
+                                class="text-bg-warning" />
+                        </div>
+                        <field name="name" class="fw-bolder fs-5" />
+                        <field name="category_id" class="text-muted" />
+                        <div class="d-flex text-muted">
+                            <field name="date_start" options="{'show_time': false}" class="me-1" />-<field name="date_end" options="{'show_time': false}" class="ms-1" />
+                        </div>
+                        <footer class="pt-0">
+                            <field name="activity_ids" widget="kanban_activity" />
+                            <field
+                                name="request_owner_id"
+                                widget="many2one_avatar_user"
+                                class="ms-auto" />
+                        </footer>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_approval_request_form" model="ir.ui.view">
+        <field name="name">approval.request.view.form</field>
+        <field name="model">approval.request</field>
+        <field name="priority" eval="10" />
+        <field name="arch" type="xml">
+            <form string="Request">
+                <header>
+                    <field name="user_approver_state" invisible="1" />
+                    <field name="is_terminal" invisible="1" />
+                    <field name="has_access_to_request" invisible="1" />
+                    <field name="can_withdraw" invisible="1" />
+                    <widget
+                        name="attach_document"
+                        string="Attach Document"
+                        action="message_post"
+                        highlight="1"
+                        invisible="request_owner_id != uid or is_terminal or count_attachment &gt;= 1 or pending_change_field" />
+                    <button
+                        name="action_confirm"
+                        string="Submit"
+                        type="object"
+                        class="btn-primary"
+                        data-hotkey="q"
+                        invisible="count_attachment &lt; 1 or not approver_ids or state != 'new' or pending_change_field" />
+                    <button
+                        name="action_confirm"
+                        string="Submit"
+                        type="object"
+                        data-hotkey="q"
+                        invisible="count_attachment &gt;= 1 or not approver_ids or state != 'new' or pending_change_field" />
+                    <button
+                        name="action_approve"
+                        string="Approve"
+                        type="object"
+                        class="btn-primary"
+                        data-hotkey="v"
+                        invisible="is_terminal or user_approver_state != 'pending' or pending_change_field" />
+                    <button
+                        name="action_refuse"
+                        string="Refuse"
+                        type="object"
+                        class="btn-danger"
+                        data-hotkey="z"
+                        invisible="is_terminal or user_approver_state != 'pending' or pending_change_field" />
+                    <button
+                        name="action_request_change"
+                        string="Request a Change"
+                        type="object"
+                        invisible="state != 'pending' or user_approver_state != 'pending' or pending_change_field" />
+                    <button
+                        name="action_resubmit"
+                        string="Re-submit"
+                        type="object"
+                        class="btn-primary"
+                        invisible="not pending_change_field or (request_owner_id != uid and not user_approver_state)" />
+                    <button
+                        name="action_withdraw"
+                        string="Withdraw"
+                        type="object"
+                        data-hotkey="y"
+                        invisible="not can_withdraw or pending_change_field" />
+                    <button
+                        name="action_cancel"
+                        string="Cancel Request"
+                        type="object"
+                        data-hotkey="x"
+                        confirm="Cancel this request? Approvers will be notified and their pending to-dos removed. You can reset it to draft later."
+                        invisible="state != 'pending' or (request_owner_id != uid and not can_change_request_owner)" />
+                    <button
+                        name="action_reset_to_draft"
+                        string="Reset to Draft"
+                        type="object"
+                        data-hotkey="d"
+                        confirm="Reopen this request for another approval cycle? Decision metadata will be cleared; the chatter history and the request number are kept."
+                        invisible="state not in ('refused', 'cancelled') or (request_owner_id != uid and not can_change_request_owner)" />
+                    <button
+                        name="action_reset_to_draft"
+                        string="Reset to Draft"
+                        type="object"
+                        confirm="Reset this APPROVED request to draft? This revokes the approval and notifies the source document. Only do this if the approval must be redone (e.g. the approver is no longer available)."
+                        invisible="state != 'approved' or not can_change_request_owner" />
+                    <widget
+                        name="attach_document"
+                        string="Attach Document"
+                        action="message_post"
+                        invisible="request_owner_id != uid or is_terminal or (count_attachment &lt; 1) or pending_change_field" />
+                    <button
+                        name="%(action_report_approval_request)d"
+                        string="Print"
+                        type="action"
+                        invisible="state != 'approved'" />
+                    <field
+                        name="state"
+                        widget="statusbar"
+                        statusbar_visible="new,pending,approved" />
+                </header>
+                <sheet>
+                    <field name="predicted_outcome" invisible="1" />
+                    <field name="prediction_confidence" invisible="1" />
+                    <field name="sla_status" invisible="1" />
+                    <field name="pending_change_field" invisible="1" />
+                    <div
+                        class="alert alert-warning"
+                        role="alert"
+                        invisible="sla_status not in ('at_risk', 'breached') or state not in ('new', 'pending')">
+                        <strong invisible="sla_status != 'at_risk'">SLA At Risk</strong>
+                        <strong invisible="sla_status != 'breached'" class="text-danger">SLA Breached</strong>
+                        <span class="ms-2">
+                            (<field name="sla_elapsed_hours" class="d-inline" widget="float_time" /> elapsed)
+                        </span>
+                    </div>
+                    <div
+                        class="alert alert-info"
+                        role="alert"
+                        invisible="not pending_change_field">
+                        <strong>Change requested</strong>
+                        on <field name="pending_change_field" class="d-inline" readonly="1" />.
+                        Update the field and press <em>Re-submit</em>. See the chatter for the approver's instructions.
+                    </div>
+                    <div
+                        class="alert alert-info"
+                        role="alert"
+                        invisible="predicted_outcome in (False, 'uncertain') or state not in ('new', 'pending') or pending_change_field">
+                        <strong>Prediction: </strong>
+                        <span
+                            invisible="predicted_outcome != 'approve'"
+                            class="text-success">
+                            Likely Approved
+                        </span>
+                        <span
+                            invisible="predicted_outcome != 'refuse'"
+                            class="text-danger">
+                            Likely Refused
+                        </span>
+                        <span class="text-muted ms-1">
+                            (<field name="prediction_confidence" widget="percentage" class="d-inline" /> confidence
+                            based on similar requests)
+                        </span>
+                    </div>
+                    <field name="has_date" invisible="1" />
+                    <field name="has_date_deadline" invisible="1" />
+                    <field name="has_date_planned" invisible="1" />
+                    <field name="has_date_range" invisible="1" />
+                    <field name="has_quantity" invisible="1" />
+                    <field name="has_amount" invisible="1" />
+                    <field name="has_reference" invisible="1" />
+                    <field name="has_partner" invisible="1" />
+                    <field name="has_payment_method" invisible="1" />
+                    <field name="has_location" invisible="1" />
+                    <field name="has_document" invisible="1" />
+                    <field name="document_requirement_ids" invisible="1" />
+                    <field name="approval_minimum" invisible="1" />
+                    <field name="approval_type" invisible="1" />
+                    <field name="can_change_request_owner" invisible="1" />
+                    <div name="button_box" class="o_not_full oe_button_box">
+                        <button
+                            name="action_view_attachment"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-book"
+                            invisible="count_attachment == 0">
+                            <field
+                                name="count_attachment"
+                                string="Documents"
+                                widget="statinfo"
+                                options="{'reload_on_button': true}" />
+                        </button>
+                    </div>
+                    <div class="oe_avatar">
+                        <field
+                            name="category_image"
+                            widget="image"
+                            class="bg-view"
+                            options="{'preview_image': 'category_image', 'size': [80, 80]}" />
+                    </div>
+                    <div class="oe_title">
+                        <label for="name" />
+                        <h1>
+                            <field name="name" readonly="1" />
+                        </h1>
+                    </div>
+                    <group name="group_main">
+                        <group name="request_main">
+                            <field
+                                name="category_id"
+                                force_save="1"
+                                readonly="state != 'new'" />
+                            <field
+                                name="partner_id"
+                                required="has_partner == 'required'"
+                                readonly="state != 'new'"
+                                context="{'category_id': ''}"
+                                invisible="has_partner == 'no'" />
+                            <field
+                                name="request_owner_id"
+                                widget="many2one_avatar_user"
+                                domain="[('share', '=', False), ('company_ids', 'in', company_id)]"
+                                readonly="not can_change_request_owner or state != 'new'" />
+                            <field name="priority" widget="priority" />
+                            <field
+                                name="reference"
+                                required="has_reference == 'required'"
+                                readonly="state != 'new'"
+                                invisible="has_reference == 'no'" />
+                            <field
+                                name="location"
+                                placeholder="e.g. Brussels"
+                                required="has_location == 'required'"
+                                readonly="state != 'new'"
+                                invisible="has_location == 'no'" />
+                        </group>
+                        <group name="request_details">
+                            <label
+                                for="date"
+                                string="Date"
+                                invisible="has_date == 'no'" />
+                            <div invisible="has_date == 'no'">
+                                <div>
+                                    <field
+                                        name="date"
+                                        class="oe_inline"
+                                        required="has_date == 'required' and state == 'new'"
+                                        readonly="state != 'new' and pending_change_field != 'date'" />
+                                </div>
+                            </div>
+                            <label
+                                for="date_deadline"
+                                string="Date Deadline"
+                                invisible="has_date_deadline == 'no'" />
+                            <div invisible="has_date_deadline == 'no'">
+                                <div>
+                                    <field
+                                        name="date_deadline"
+                                        class="oe_inline"
+                                        required="has_date_deadline == 'required' and state == 'new'"
+                                        readonly="state != 'new'" />
+                                </div>
+                            </div>
+                            <label
+                                for="date_planned"
+                                string="Date Planned"
+                                invisible="has_date_planned == 'no'" />
+                            <div invisible="has_date_planned == 'no'">
+                                <div>
+                                    <field
+                                        name="date_planned"
+                                        class="oe_inline"
+                                        required="has_date_planned == 'required' and state == 'new'"
+                                        readonly="state != 'new'" />
+                                </div>
+                            </div>
+                            <label
+                                for="date_start"
+                                string="Period"
+                                invisible="has_date_range == 'no'" />
+                            <div invisible="has_date_range == 'no'">
+                                <div>
+                                    <label
+                                        for="date_start"
+                                        class="col-lg-2"
+                                        string="From:" />
+                                    <field
+                                        name="date_start"
+                                        required="has_date_range == 'required' and state == 'new'"
+                                        readonly="state != 'new' and pending_change_field != 'date'"
+                                        class="oe_inline" />
+                                </div>
+                                <div>
+                                    <label
+                                        for="date_end"
+                                        class="col-lg-2"
+                                        string="to:" />
+                                    <field
+                                        name="date_end"
+                                        required="has_date_range == 'required' and state == 'new'"
+                                        readonly="state != 'new' and pending_change_field != 'date'"
+                                        class="oe_inline" />
+                                </div>
+                            </div>
+                            <field name="date_confirmed" readonly="1" />
+                            <field
+                                name="date_refused"
+                                readonly="1"
+                                invisible="state != 'refused'" />
+                            <field
+                                name="refusal_reason_id"
+                                readonly="1"
+                                invisible="state != 'refused' or not refusal_reason_id" />
+                            <field
+                                name="refusal_note"
+                                readonly="1"
+                                invisible="state != 'refused' or not refusal_note" />
+                            <field
+                                name="quantity"
+                                required="has_quantity == 'required' and state == 'new'"
+                                readonly="state != 'new'"
+                                invisible="has_quantity == 'no'" />
+                            <label for="amount" invisible="has_amount == 'no'" />
+                            <div class="o_row" invisible="has_amount == 'no'">
+                                <field
+                                    name="amount"
+                                    required="has_amount == 'required' and state == 'new'"
+                                    readonly="state != 'new'" />
+                                <field
+                                    name="currency_id"
+                                    options="{'no_create': True, 'no_open': True}"
+                                    readonly="state != 'new'"
+                                    groups="base.group_multi_currency" />
+                            </div>
+                            <field name="currency_id" invisible="1" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page name="description" string="Description">
+                            <field
+                                name="reason"
+                                readonly="state != 'new' and pending_change_field != 'reason'" />
+                        </page>
+                        <page name="approvers" string="Approver(s)">
+                            <field name="approver_ids" mode="list,kanban" readonly="1">
+                                <list
+                                    editable="bottom"
+                                    no_open="1"
+                                    decoration-success="state=='approved'"
+                                    decoration-warning="state in ['pending', 'waiting']"
+                                    decoration-danger="state=='refused'">
+                                    <field name="can_edit" column_invisible="True" />
+                                    <field
+                                        name="can_edit_user_id"
+                                        column_invisible="True" />
+                                    <field name="company_id" column_invisible="True" />
+                                    <field
+                                        name="existing_request_user_ids"
+                                        column_invisible="True" />
+                                    <field name="sequence" column_invisible="True" />
+                                    <field
+                                        name="user_id"
+                                        string="Approver"
+                                        readonly="not can_edit_user_id or state != 'new'"
+                                        force_save="1" />
+                                    <field
+                                        name="is_delegated"
+                                        column_invisible="True" />
+                                    <field
+                                        name="delegate_id"
+                                        optional="show"
+                                        readonly="state not in ['pending', 'waiting']" />
+                                    <field
+                                        name="delegate_start_date"
+                                        optional="hide"
+                                        readonly="state not in ['pending', 'waiting']"
+                                        required="delegate_id" />
+                                    <field
+                                        name="delegate_end_date"
+                                        optional="hide"
+                                        readonly="state not in ['pending', 'waiting']"
+                                        required="delegate_id" />
+                                    <field
+                                        name="required"
+                                        readonly="not can_edit"
+                                        force_save="1" />
+                                    <field name="state" />
+                                    <field
+                                        name="refusal_reason_id"
+                                        optional="show"
+                                        readonly="1" />
+                                    <field
+                                        name="note"
+                                        optional="show"
+                                        readonly="state not in ['approved', 'refused']"
+                                        placeholder="Add a note explaining your decision..." />
+                                </list>
+                                <kanban class="o_kanban_mobile">
+                                    <templates>
+                                        <t t-name="card" class="flex-row">
+                                            <field name="user_id" />
+                                            <t t-if="record.state.raw_value">
+                                                <t
+                                                    t-set="classname"
+                                                    t-value="{'approved': 'text-bg-success', 'pending': 'text-bg-warning', 'refused': 'text-bg-danger'}[record.state.raw_value] || 'text-bg-light'" />
+                                                <span
+                                                    t-att-class="'ms-auto rounded-pill ' + classname">
+                                                    <field name="state" />
+                                                </span>
+                                            </t>
+                                        </t>
+                                    </templates>
+                                </kanban>
+                                <form>
+                                    <group>
+                                        <field name="company_id" invisible="1" />
+                                        <field
+                                            name="existing_request_user_ids"
+                                            invisible="1" />
+                                        <field name="user_id" />
+                                        <field name="state" invisible="1" />
+                                        <field
+                                            name="note"
+                                            invisible="state not in ['approved', 'refused']"
+                                            placeholder="Add a note explaining your decision..." />
+                                    </group>
+                                </form>
+                            </field>
+                        </page>
+                        <page
+                            string="Automation Details"
+                            name="automation_details"
+                            invisible="has_automation == 'no'">
+                            <group>
+                                <group string="Operation Generation">
+                                    <field
+                                        name="automation_id"
+                                        invisible="has_automation == 'no'"
+                                        required="has_automation == 'required'"
+                                        readonly="state != 'new' and state != 'pending'" />
+                                    <field name="automation_runtime_id" readonly="1" />
+                                </group>
+                            </group>
+                        </page>
+                        <page
+                            name="documents"
+                            string="Documents"
+                            invisible="not document_requirement_ids">
+                            <div class="alert alert-info" role="alert">
+                                Attach a file for each required document, then
+                                say which requirement it satisfies. The approvers
+                                see the answer; nothing is inferred from the file
+                                name.
+                            </div>
+                            <field name="attachment_ids" nolabel="1">
+                                <list editable="bottom" create="false">
+                                    <field name="name" readonly="1" />
+                                    <field
+                                        name="approval_requirement_id"
+                                        domain="[('id', 'in', parent.document_requirement_ids)]"
+                                        options="{'no_create': True}" />
+                                </list>
+                            </field>
+                        </page>
+                        <page name="other_info" string="Other Information">
+                            <group name="other_info_group">
+                                <group name="other_info_left">
+                                    <field
+                                        name="applied_rule_ids"
+                                        widget="many2many_tags"
+                                        invisible="not applied_rule_ids"
+                                        groups="approval.group_approval_manager" />
+                                </group>
+                                <group name="other_info_right">
+                                    <field name="company_id" invisible="1" />
+                                    <field
+                                        name="company_id"
+                                        readonly="state != 'new'"
+                                        options="{'no_create': True}"
+                                        groups="base.group_multi_company" />
+                                    <field
+                                        name="category_snapshot"
+                                        widget="json"
+                                        invisible="not category_snapshot"
+                                        groups="approval.group_approval_manager" />
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="o_attachment_preview" />
+                <chatter />
+            </form>
+        </field>
+    </record>
+
+    <record id="action_approval_request_all" model="ir.actions.act_window">
+        <field name="name">All Approvals</field>
+        <field name="res_model">approval.request</field>
+        <field name="view_mode">list,form,kanban</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No Approvals
+            </p>
+            <p> Let's go to the <a type="action" class="text-primary" name="%(approval.action_approval_category_dashboard)d">new request</a> menu </p>
+        </field>
+    </record>
+
+    <record id="action_view_approval_request" model="ir.actions.act_window">
+        <field name="name">My Requests</field>
+        <field name="res_model">approval.request</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="domain">[('request_owner_id', '=', uid)]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No Approvals Requests
+            </p>
+            <p> Let's go to the <a type="action" class="text-primary" name="%(approval.action_approval_category_dashboard)d">new request</a> menu </p>
+        </field>
+    </record>
+
+    <record id="action_approval_request_to_review" model="ir.actions.act_window">
+        <field name="name">Approvals to Review</field>
+        <field name="res_model">approval.request</field>
+        <field name="view_mode">list,form,kanban</field>
+        <field name="domain">[('is_pending_my_review', '=', True)]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No new approvals to review
+            </p>
+        </field>
+    </record>
+
+    <record id="action_approval_inbox" model="ir.actions.act_window">
+        <field name="name">Approval Inbox</field>
+        <field name="res_model">approval.request</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="domain">[('is_pending_my_review', '=', True)]</field>
+        <field
+            name="context">{
+            'search_default_filter_approvals_to_review': 1,
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Nothing to approve — you're all caught up!
+            </p>
+        </field>
+    </record>
+
+    <record id="action_approval_my_history" model="ir.actions.act_window">
+        <field name="name">My Approval History</field>
+        <field name="res_model">approval.request</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field
+            name="domain">[
+            ('approver_ids', 'any', [('user_id', '=', uid), ('state', 'in', ['approved', 'refused'])]),
+        ]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No approval history yet
+            </p>
+        </field>
+    </record>
+
+</odoo>

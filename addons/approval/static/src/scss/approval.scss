@@ -1,0 +1,353 @@
+.o_approval_kanban_avatar {
+    .o_avatar {
+        gap: 0.375rem;
+    }
+}
+
+.o_approval_dashboard {
+    --approval-card-bg: var(--o-view-background-color, #{$o-view-background-color});
+    --approval-text: var(--o-main-text-color, #{$o-main-text-color});
+    --approval-text-muted: var(--o-gray-600, #{$o-gray-600});
+    --approval-border: var(--o-gray-300, #{$o-gray-300});
+    --approval-primary: var(--o-brand-primary, #{$o-brand-primary});
+    --approval-danger: var(--o-danger, #{$danger});
+
+    .o_kanban_renderer {
+        gap: 1rem;
+    }
+
+    .o_kanban_record {
+        border: 1px solid var(--approval-border);
+        border-radius: 12px;
+        transition: all 0.2s ease;
+        overflow: hidden;
+        background: var(--approval-card-bg);
+
+        &:hover {
+            border-color: var(--approval-primary);
+            box-shadow: 0 4px 12px
+                color-mix(in srgb, var(--approval-primary) 15%, transparent);
+        }
+    }
+}
+
+.o_approval_card {
+    display: flex;
+    flex-direction: column;
+    padding: 1.25rem;
+    gap: 1rem;
+}
+
+.o_approval_card_header {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.875rem;
+}
+
+.o_approval_card_icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.o_approval_card_info {
+    flex: 1;
+    min-width: 0;
+}
+
+.o_approval_card_name {
+    display: block;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--approval-text);
+    line-height: 1.3;
+    margin-bottom: 0.25rem;
+}
+
+.o_approval_card_desc {
+    font-size: 0.8125rem;
+    color: var(--approval-text-muted);
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.o_approval_card_actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.o_approval_btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:hover {
+        transform: translateY(-1px);
+    }
+
+    &:active {
+        transform: translateY(0);
+    }
+
+    i {
+        font-size: 0.8125rem;
+    }
+}
+
+.o_approval_btn_primary {
+    flex: 1;
+    color: white;
+    background: var(--approval-primary);
+
+    &:hover {
+        filter: brightness(1.08);
+        box-shadow: 0 4px 12px
+            color-mix(in srgb, var(--approval-primary) 30%, transparent);
+    }
+}
+
+.o_approval_btn_review {
+    color: var(--approval-primary);
+    background: color-mix(in srgb, var(--approval-primary) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--approval-primary) 25%, transparent);
+
+    &:hover {
+        background: color-mix(in srgb, var(--approval-primary) 18%, transparent);
+    }
+
+    &.o_urgent {
+        color: var(--approval-danger);
+        background: color-mix(in srgb, var(--approval-danger) 12%, transparent);
+        border-color: color-mix(in srgb, var(--approval-danger) 25%, transparent);
+
+        &:hover {
+            background: color-mix(in srgb, var(--approval-danger) 18%, transparent);
+        }
+
+        .o_review_badge {
+            background: var(--approval-danger);
+        }
+    }
+}
+
+.o_review_badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.375rem;
+    height: 1.375rem;
+    padding: 0 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: white;
+    background: var(--approval-primary);
+    border-radius: 7px;
+}
+
+.o_approval_card_footer {
+    display: flex;
+    justify-content: center;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--approval-border);
+}
+
+.o_approval_review_link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+    color: var(--approval-primary);
+    text-decoration: none;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+
+    &:hover {
+        background: color-mix(in srgb, var(--approval-primary) 10%, transparent);
+    }
+
+    &.o_urgent {
+        color: var(--approval-danger);
+
+        &:hover {
+            background: color-mix(in srgb, var(--approval-danger) 10%, transparent);
+        }
+
+        .o_review_count {
+            background: var(--approval-danger);
+        }
+    }
+}
+
+.o_review_count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: white;
+    background: var(--approval-primary);
+    border-radius: 10px;
+}
+
+.o_review_label {
+    font-weight: 500;
+}
+
+.o_urgency_icon {
+    font-size: 0.875rem;
+    margin-left: 0.125rem;
+}
+
+.o_approval_browse_link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--approval-text-muted);
+    text-decoration: none;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+
+    &:hover {
+        color: var(--approval-primary);
+        background: color-mix(in srgb, var(--approval-primary) 8%, transparent);
+    }
+
+    i {
+        font-size: 0.75rem;
+        transition: transform 0.15s ease;
+    }
+
+    &:hover i {
+        transform: translateX(3px);
+    }
+}
+
+.o_approval_menu {
+    min-width: 240px;
+    padding: 0.5rem 0;
+}
+
+.o_approval_menu_section {
+    padding: 0.25rem 0.75rem;
+
+    a {
+        display: flex;
+        align-items: center;
+        gap: 0.625rem;
+        padding: 0.5rem 0.625rem;
+        margin: 0.125rem 0;
+        font-size: 0.875rem;
+        color: var(--approval-text);
+        text-decoration: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+
+        &:hover {
+            background: color-mix(in srgb, var(--approval-primary) 10%, transparent);
+            color: var(--approval-primary);
+        }
+
+        i {
+            width: 1rem;
+            text-align: center;
+            font-size: 0.875rem;
+            opacity: 0.7;
+        }
+    }
+}
+
+.o_approval_menu_action {
+    font-weight: 500 !important;
+
+    &.o_primary {
+        color: var(--approval-primary) !important;
+        background: color-mix(in srgb, var(--approval-primary) 8%, transparent);
+    }
+}
+
+.o_approval_menu_label {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--approval-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.625rem 0.625rem 0.25rem;
+}
+
+.o_approval_menu_divider {
+    height: 1px;
+    background: var(--approval-border);
+    margin: 0.5rem 0.75rem;
+}
+
+.o_approval_stats_row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.25rem 0.625rem;
+}
+
+.o_stat_badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 4px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &.o_stat_success {
+        background: color-mix(in srgb, var(--o-success, #{$success}) 12%, transparent);
+        color: var(--o-success, #{$success});
+
+        &:hover {
+            background: color-mix(
+                in srgb,
+                var(--o-success, #{$success}) 18%,
+                transparent
+            );
+        }
+    }
+
+    &.o_stat_danger {
+        background: color-mix(in srgb, var(--approval-danger) 12%, transparent);
+        color: var(--approval-danger);
+
+        &:hover {
+            background: color-mix(in srgb, var(--approval-danger) 18%, transparent);
+        }
+    }
+}
+
+.o_approval_menu_settings {
+    padding: 0.5rem 0.75rem;
+
+    .o_favorite {
+        font-size: 1.125rem;
+    }
+}

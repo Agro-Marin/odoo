@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_approval_decision_wizard_form" model="ir.ui.view">
+        <field name="name">approval.decision.wizard.form</field>
+        <field name="model">approval.decision.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Approval Decision">
+                <field name="approver_id" invisible="1" />
+                <field name="request_id" invisible="1" />
+                <field name="user_id" invisible="1" />
+                <field name="decision_type" invisible="1" />
+                <field name="request_name" invisible="1" />
+                <field name="category_id" invisible="1" />
+                <field name="request_owner_id" invisible="1" />
+
+                <group invisible="decision_type != 'refuse'">
+                    <field
+                        name="refusal_reason_id"
+                        string="Reason"
+                        required="decision_type == 'refuse'"
+                        domain="['|', ('category_ids', '=', False), ('category_ids', 'in', category_id)]"
+                        placeholder="Select a reason..." />
+                </group>
+
+                <div
+                    class="text-muted fst-italic small ms-1 mb-3"
+                    invisible="decision_type != 'refuse' or not refusal_reason_description">
+                    <field name="refusal_reason_description" nolabel="1" readonly="1" />
+                </div>
+
+                <group invisible="decision_type != 'change'">
+                    <field
+                        name="change_field"
+                        string="Field to Modify"
+                        required="decision_type == 'change'" />
+                </group>
+
+                <group>
+                    <label for="note" class="o_form_label" string="Note" />
+                    <field
+                        name="note"
+                        nolabel="1"
+                        colspan="2"
+                        required="decision_type == 'change'"
+                        placeholder="Explain the decision. This message reaches the requester." />
+                </group>
+
+                <footer>
+                    <button
+                        string="Refuse"
+                        name="action_confirm_refuse"
+                        type="object"
+                        class="btn-danger"
+                        invisible="decision_type != 'refuse'" />
+                    <button
+                        string="Request Change"
+                        name="action_confirm_change"
+                        type="object"
+                        class="btn-primary"
+                        invisible="decision_type != 'change'" />
+                    <button
+                        string="Close"
+                        name="action_cancel"
+                        type="object"
+                        class="btn-secondary" />
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

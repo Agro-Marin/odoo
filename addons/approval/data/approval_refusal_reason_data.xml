@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="refusal_reason_missing_documentation" model="approval.refusal.reason">
+        <field name="name">Missing Documentation</field>
+        <field
+            name="description">Required documents or supporting information are not attached or incomplete.</field>
+        <field name="sequence" eval="10" />
+    </record>
+
+    <record id="refusal_reason_budget_exceeded" model="approval.refusal.reason">
+        <field name="name">Budget Exceeded</field>
+        <field
+            name="description">The requested amount exceeds available budget or budget limits.</field>
+        <field name="sequence" eval="20" />
+    </record>
+
+    <record id="refusal_reason_policy_violation" model="approval.refusal.reason">
+        <field name="name">Policy Violation</field>
+        <field
+            name="description">The request does not comply with company policies or procedures.</field>
+        <field name="sequence" eval="30" />
+    </record>
+
+    <record
+        id="refusal_reason_insufficient_justification"
+        model="approval.refusal.reason">
+        <field name="name">Insufficient Justification</field>
+        <field
+            name="description">The business justification or need for this request is not clear or sufficient.</field>
+        <field name="sequence" eval="40" />
+    </record>
+
+    <record id="refusal_reason_incorrect_information" model="approval.refusal.reason">
+        <field name="name">Incorrect Information</field>
+        <field
+            name="description">Information provided is inaccurate, incomplete, or contains errors.</field>
+        <field name="sequence" eval="50" />
+    </record>
+
+    <record id="refusal_reason_timing_issue" model="approval.refusal.reason">
+        <field name="name">Timing Issue</field>
+        <field
+            name="description">Request submitted at wrong time or does not meet timing requirements.</field>
+        <field name="sequence" eval="60" />
+    </record>
+
+    <record id="refusal_reason_duplicate_request" model="approval.refusal.reason">
+        <field name="name">Duplicate Request</field>
+        <field
+            name="description">This request duplicates an existing or previously approved request.</field>
+        <field name="sequence" eval="70" />
+    </record>
+
+    <record id="refusal_reason_not_authorized" model="approval.refusal.reason">
+        <field name="name">Not Authorized</field>
+        <field
+            name="description">Requestor is not authorized to submit this type of request.</field>
+        <field name="sequence" eval="80" />
+    </record>
+
+    <record id="refusal_reason_other" model="approval.refusal.reason">
+        <field name="name">Other</field>
+        <field
+            name="description">Please provide detailed explanation in the notes field.</field>
+        <field name="sequence" eval="999" />
+    </record>
+
+    <record id="refusal_reason_parent_cancelled" model="approval.refusal.reason">
+        <field name="name">Parent document cancelled</field>
+        <field
+            name="description">Set automatically when the source document that owned this approval was cancelled.</field>
+        <field name="active" eval="False" />
+        <field name="sequence" eval="990" />
+    </record>
+
+    <record id="refusal_reason_auto_rule" model="approval.refusal.reason">
+        <field name="name">Automatic refusal (rule)</field>
+        <field
+            name="description">Set automatically when a conditional auto-refuse rule matched the request at confirmation.</field>
+        <field name="active" eval="False" />
+        <field name="sequence" eval="991" />
+    </record>
+
+    <record id="refusal_reason_data_migration" model="approval.refusal.reason">
+        <field name="name">Data migration</field>
+        <field
+            name="description">Catch-all reason used by the data migration to label pre-existing refused approval requests that had no reason captured at decision time.</field>
+        <field name="active" eval="False" />
+        <field name="sequence" eval="1000" />
+    </record>
+
+</odoo>

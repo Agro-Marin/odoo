@@ -1,0 +1,570 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_approval_category_search" model="ir.ui.view">
+        <field name="name">approval.category.search</field>
+        <field name="model">approval.category</field>
+        <field name="priority" eval="10" />
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" />
+                <separator />
+                <filter
+                    name="dashboard"
+                    string="Favorites"
+                    domain="[('show_on_dashboard', '=', True)]" />
+                <separator />
+                <filter
+                    name="archived"
+                    string="Archived"
+                    domain="[('active', '=', False)]" />
+            </search>
+        </field>
+    </record>
+
+    <record id="view_approval_category_tree" model="ir.ui.view">
+        <field name="name">approval.category.view.list</field>
+        <field name="model">approval.category</field>
+        <field name="priority" eval="10" />
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field
+                    name="company_id"
+                    groups="base.group_multi_company"
+                    optional="show" />
+            </list>
+        </field>
+    </record>
+
+    <record id="server_action_approval_category_edit" model="ir.actions.server">
+        <field name="name">Edit Approval Category</field>
+        <field name="model_id" ref="model_approval_category" />
+        <field name="state">code</field>
+        <field
+            name="code">action = {
+                "type": "ir.actions.act_window",
+                "res_model": "approval.category",
+                "views": [[False, "form"]],
+                "target": "new",
+                "res_id": records.id,
+            }</field>
+    </record>
+
+    <record id="view_approval_category_kanban" model="ir.ui.view">
+        <field name="name">approval.category.views.kanban</field>
+        <field name="model">approval.category</field>
+        <field name="arch" type="xml">
+            <kanban
+                create="false"
+                can_open="0"
+                highlight_color="color"
+                class="o_approval_dashboard"
+                js_class="approvals_category_kanban">
+                <field name="id" />
+                <field name="name" />
+                <field name="description" />
+                <field name="image" />
+                <field name="active" />
+                <field name="color" />
+                <field name="company_id" />
+                <field name="kanban_dashboard" />
+                <field name="count_request_to_validate" />
+                <field name="show_on_dashboard" />
+                <templates>
+                    <t t-name="card">
+                        <t
+                            t-set="dashboard"
+                            t-value="record.kanban_dashboard.raw_value" />
+                        <t t-set="to_review" t-value="dashboard.to_review_count" />
+                        <t t-set="has_urgency" t-value="dashboard.has_late_requests" />
+
+                        <div class="o_approval_card">
+                            <widget
+                                name="web_ribbon"
+                                title="Archived"
+                                bg_color="text-bg-danger"
+                                invisible="active" />
+
+                            <div class="o_approval_card_header">
+                                <field
+                                    name="image"
+                                    widget="image"
+                                    class="o_approval_card_icon" />
+                                <div class="o_approval_card_info">
+                                    <span class="o_approval_card_name">
+                                        <field name="name" />
+                                    </span>
+                                    <div class="o_approval_card_desc">
+                                        <field name="description" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="o_approval_card_actions">
+                                <button
+                                    type="object"
+                                    name="create_request"
+                                    class="o_approval_btn o_approval_btn_primary">
+                                    <i class="fa-solid fa-plus" />
+                                    <span>New Request</span>
+                                </button>
+                                <button
+                                    t-if="to_review &gt; 0"
+                                    type="object"
+                                    name="view_requests_to_review"
+                                    t-att-class="'o_approval_btn o_approval_btn_review' + (has_urgency ? ' o_urgent' : '')">
+                                    <span class="o_review_badge">
+                                        <t t-out="to_review" />
+                                    </span>
+                                    <span>To Review</span>
+                                    <i
+                                        t-if="has_urgency"
+                                        class="fa-solid fa-exclamation-circle"
+                                        title="Has overdue" />
+                                </button>
+                            </div>
+
+                            <div class="o_approval_card_footer">
+                                <a
+                                    type="object"
+                                    name="action_view"
+                                    class="o_approval_browse_link">
+                                    <span>Browse all requests</span>
+                                    <i class="fa-solid fa-arrow-right" />
+                                </a>
+                            </div>
+                        </div>
+                    </t>
+
+                    <t t-name="menu">
+                        <t
+                            t-set="dashboard"
+                            t-value="record.kanban_dashboard.raw_value" />
+                        <div class="o_approval_menu">
+                            <div class="o_approval_menu_section">
+                                <a
+                                    role="menuitem"
+                                    type="object"
+                                    name="create_request"
+                                    class="o_approval_menu_action o_primary">
+                                    <i class="fa-solid fa-plus-circle" /> New Request </a>
+                                <a
+                                    t-if="dashboard.to_review_count &gt; 0"
+                                    role="menuitem"
+                                    type="object"
+                                    name="view_requests_to_review"
+                                    class="o_approval_menu_action">
+                                    <i class="fa-solid fa-gavel" /> Review Pending (<t t-out="dashboard.to_review_count" />) </a>
+                            </div>
+
+                            <hr class="my-2" />
+
+                            <div class="o_approval_menu_section">
+                                <span class="o_approval_menu_label">Browse</span>
+                                <a role="menuitem" type="object" name="action_view">All Requests</a>
+                                <a role="menuitem" type="object" name="view_requests_pending">Pending
+                                    Approval</a>
+                                <a role="menuitem" type="object" name="view_requests_draft">Drafts</a>
+                                <a role="menuitem" type="object" name="view_requests_user">My Requests</a>
+                                <a
+                                    t-if="dashboard.has_late_requests"
+                                    role="menuitem"
+                                    type="object"
+                                    name="view_requests_late"
+                                    class="text-danger">
+                                    <i class="fa-regular fa-clock" /> Overdue (<t t-out="dashboard.late_count" />) </a>
+                            </div>
+
+                            <hr class="my-2" />
+
+                            <div class="o_approval_menu_section o_approval_menu_stats">
+                                <span class="o_approval_menu_label">This Month</span>
+                                <div class="o_approval_stats_row">
+                                    <a
+                                        t-if="dashboard.approved_count &gt; 0"
+                                        role="menuitem"
+                                        type="object"
+                                        name="view_requests_approved"
+                                        class="o_stat_badge o_stat_success">
+                                        <i class="fa-solid fa-check" title="Approved" />
+                                        <t t-out="dashboard.approved_count" />
+                                        approved </a>
+                                    <a
+                                        t-if="dashboard.refused_count &gt; 0"
+                                        role="menuitem"
+                                        type="object"
+                                        name="view_requests_refused"
+                                        class="o_stat_badge o_stat_danger">
+                                        <i class="fa-solid fa-times" title="Refused" />
+                                        <t t-out="dashboard.refused_count" />
+                                        refused </a>
+                                    <span t-if="dashboard.approved_count == 0 &amp;&amp; dashboard.refused_count == 0" class="text-muted small">No decisions yet</span>
+                                </div>
+                            </div>
+
+                            <hr class="my-2" />
+
+                            <div
+                                class="o_approval_menu_section o_approval_menu_settings">
+                                <div
+                                    class="d-flex align-items-center justify-content-between mb-2">
+                                    <span class="small">Favorite</span>
+                                    <field
+                                        name="show_on_dashboard"
+                                        widget="boolean_favorite" />
+                                </div>
+                                <div t-if="widget.editable" class="mb-2">
+                                    <field name="color" widget="kanban_color_picker" />
+                                </div>
+                            </div>
+
+                            <div
+                                groups="approval.group_approval_manager"
+                                class="o_approval_menu_section border-top pt-2 mt-2">
+                                <a
+                                    t-if="widget.editable"
+                                    role="menuitem"
+                                    type="action"
+                                    name="%(approval.server_action_approval_category_edit)d">
+                                    <i class="fa-solid fa-cog" /> Configuration </a>
+                                <a
+                                    t-if="record.active.raw_value"
+                                    role="menuitem"
+                                    type="archive"
+                                    class="text-danger">
+                                    <i class="fa-solid fa-archive" /> Archive </a>
+                                <a
+                                    t-if="!record.active.raw_value"
+                                    role="menuitem"
+                                    type="unarchive"
+                                    class="text-success">
+                                    <i class="fa-solid fa-inbox" /> Restore </a>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_approval_category_form" model="ir.ui.view">
+        <field name="name">approval.category.view.form</field>
+        <field name="model">approval.category</field>
+        <field name="priority" eval="10" />
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button
+                            name="view_rules"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-cogs"
+                            invisible="rule_count == 0"
+                            groups="approval.group_approval_manager">
+                            <field name="rule_count" widget="statinfo" string="Rules" />
+                        </button>
+                        <button
+                            name="view_templates"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-files-o"
+                            invisible="template_count == 0"
+                            groups="approval.group_approval_manager">
+                            <field
+                                name="template_count"
+                                widget="statinfo"
+                                string="Templates" />
+                        </button>
+                    </div>
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        bg_color="text-bg-danger"
+                        invisible="active" />
+                    <field name="active" invisible="1" />
+                    <field name="invalid_minimum" invisible="1" />
+                    <field
+                        name="image"
+                        widget="image"
+                        class="oe_avatar"
+                        options="{&quot;preview_image&quot;: &quot;image&quot;, &quot;size&quot;: [80, 80]}" />
+                    <div class="oe_title">
+                        <label for="name" string="Approval Category" />
+                        <h1>
+                            <field name="name" placeholder="e.g. Procurement" />
+                        </h1>
+                        <field name="description" placeholder="Short description..." />
+                    </div>
+                    <group name="main_group">
+                        <group name="general_group">
+                            <field name="approval_type" />
+                            <field name="target_model" />
+                        </group>
+                        <group name="sequence_group">
+                            <field name="sequence_code" />
+                            <field name="company_id" invisible="1" />
+                            <field
+                                name="company_id"
+                                options="{'no_create': True}"
+                                groups="base.group_multi_company"
+                                readonly="1" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page name="fields" string="Fields">
+                            <group name="request_fields_group">
+                                <group name="fields_dates" string="Dates">
+                                    <field
+                                        name="has_date"
+                                        string="Date"
+                                        widget="radio"
+                                        options="{'horizontal': true}" />
+                                    <field
+                                        name="has_date_deadline"
+                                        string="Deadline"
+                                        widget="radio"
+                                        options="{'horizontal': true}" />
+                                    <field
+                                        name="has_date_planned"
+                                        string="Planned Date"
+                                        widget="radio"
+                                        options="{'horizontal': true}" />
+                                    <field
+                                        name="has_date_range"
+                                        string="Period"
+                                        widget="radio"
+                                        options="{'horizontal': true}" />
+                                </group>
+                                <group
+                                    name="fields_amounts"
+                                    string="Amounts &amp; Quantities">
+                                    <field
+                                        name="has_amount"
+                                        string="Amount"
+                                        widget="radio"
+                                        options="{'horizontal': true}" />
+                                    <field
+                                        name="has_quantity"
+                                        string="Quantity"
+                                        widget="radio"
+                                        options="{'horizontal': true}" />
+                                </group>
+                                <group
+                                    name="fields_references"
+                                    string="References &amp; Contacts">
+                                    <field
+                                        name="has_partner"
+                                        string="Contact"
+                                        widget="radio"
+                                        options="{'horizontal': true}" />
+                                    <field
+                                        name="has_reference"
+                                        string="Reference"
+                                        widget="radio"
+                                        options="{'horizontal': true}" />
+                                    <field
+                                        name="has_location"
+                                        string="Location"
+                                        widget="radio"
+                                        options="{'horizontal': true}" />
+                                </group>
+                                <group
+                                    name="fields_documents"
+                                    string="Documents &amp; Automation">
+                                    <field
+                                        name="has_document"
+                                        string="Document"
+                                        widget="radio"
+                                        options="{'horizontal': true}" />
+                                    <field
+                                        name="has_automation"
+                                        string="Automation"
+                                        widget="radio"
+                                        options="{'horizontal': true}" />
+                                    <field
+                                        name="automation_id"
+                                        invisible="has_automation == 'no'" />
+                                </group>
+                                <group
+                                    name="document_requirements_group"
+                                    string="Required Documents"
+                                    invisible="has_document == 'optional'"
+                                    colspan="2">
+                                    <field
+                                        name="document_requirement_ids"
+                                        nolabel="1"
+                                        colspan="2"
+                                        context="{'default_category_id': id}">
+                                        <list editable="bottom">
+                                            <field name="sequence" widget="handle" />
+                                            <field
+                                                name="name"
+                                                placeholder="e.g. Invoice PDF" />
+                                            <field name="required" />
+                                            <field
+                                                name="description"
+                                                placeholder="Instructions..."
+                                                optional="show" />
+                                        </list>
+                                    </field>
+                                </group>
+                            </group>
+                        </page>
+                        <page name="approvers" string="Approvers">
+                            <group name="approvers_settings_group">
+                                <group name="approvers_source" string="Approver Source">
+                                    <field
+                                        name="group_approval"
+                                        string="Based on"
+                                        widget="radio" />
+                                    <field
+                                        name="approver_group_id"
+                                        string="Security Group"
+                                        invisible="group_approval == 'no'"
+                                        required="group_approval != 'no'" />
+                                </group>
+                                <group name="approvers_settings" string="Requirements">
+                                    <field name="approval_minimum" />
+                                    <div
+                                        class="text-warning d-flex align-items-center gap-2"
+                                        colspan="2"
+                                        invisible="not invalid_minimum">
+                                        <span
+                                            class="fa-solid fa-triangle-exclamation"
+                                            title="Invalid minimum approvals" />
+                                        <field
+                                            name="invalid_minimum_warning"
+                                            nolabel="1"
+                                            class="mb-0" />
+                                    </div>
+                                    <field
+                                        name="approve_sequentially"
+                                        invisible="approval_minimum == 0 or group_approval != 'no'" />
+                                </group>
+                            </group>
+                            <group
+                                name="approvers_list"
+                                string="Default Approvers"
+                                invisible="group_approval == 'exclusive'">
+                                <field name="approver_ids" nolabel="1" colspan="2" />
+                            </group>
+                            <group
+                                name="group_members_list"
+                                string="Group Members"
+                                invisible="group_approval == 'no'">
+                                <field
+                                    name="approver_group_user_ids"
+                                    nolabel="1"
+                                    colspan="2"
+                                    readonly="1">
+                                    <list>
+                                        <field name="name" string="User" />
+                                    </list>
+                                </field>
+                            </group>
+                            <group name="conditional_rules" string="Conditional Rules">
+                                <field
+                                    name="rule_ids"
+                                    nolabel="1"
+                                    colspan="2"
+                                    context="{'default_category_id': id}">
+                                    <list editable="bottom">
+                                        <field name="sequence" widget="handle" />
+                                        <field name="name" />
+                                        <field name="condition_field" />
+                                        <field name="operator" />
+                                        <field name="threshold" />
+                                        <field
+                                            name="approver_ids"
+                                            widget="many2many_tags" />
+                                        <field name="approver_required" />
+                                    </list>
+                                </field>
+                            </group>
+                        </page>
+                        <page name="settings" string="Settings">
+                            <group name="settings_group">
+                                <group name="access_visibility" string="Privacy">
+                                    <field
+                                        name="privacy_visibility"
+                                        string="Visibility"
+                                        widget="radio" />
+                                    <field
+                                        name="allowed_user_ids"
+                                        widget="many2many_tags"
+                                        options="{'no_create': True}"
+                                        placeholder="Visible to all"
+                                        invisible="privacy_visibility != 'restricted_users'" />
+                                    <field
+                                        name="allowed_group_ids"
+                                        widget="many2many_tags"
+                                        options="{'no_create': True}"
+                                        placeholder="Visible to all"
+                                        invisible="privacy_visibility != 'restricted_groups'" />
+                                </group>
+                                <group name="display_settings" string="Dashboard">
+                                    <field name="show_on_dashboard" />
+                                    <field
+                                        name="sequence"
+                                        invisible="not show_on_dashboard" />
+                                    <field
+                                        name="color"
+                                        widget="color_picker"
+                                        invisible="not show_on_dashboard" />
+                                </group>
+                                <group
+                                    name="approval_policy"
+                                    string="Deadlines &amp; Escalation">
+                                    <field name="approval_deadline_hours" />
+                                    <field name="escalate_overdue" />
+                                    <field
+                                        name="escalation_user_id"
+                                        invisible="not escalate_overdue" />
+                                    <field name="auto_expire_hours" />
+                                    <field name="consent_approval_hours" />
+                                </group>
+                                <group name="sla_tracking" string="SLA Tracking">
+                                    <field name="sla_target_hours" />
+                                    <field
+                                        name="sla_warning_pct"
+                                        invisible="not sla_target_hours" />
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter />
+            </form>
+        </field>
+    </record>
+
+    <record id="action_approval_category_dashboard" model="ir.actions.act_window">
+        <field name="name">Approval Categories</field>
+        <field name="res_model">approval.category</field>
+        <field name="view_mode">kanban,form</field>
+        <field name="view_id" ref="view_approval_category_kanban" />
+        <field
+            name="domain">['|', '|', '&amp;', ('allowed_user_ids', '=', False), ('allowed_group_ids', '=', False),
+            ('allowed_user_ids', '=', uid), ('allowed_group_ids.all_user_ids', '=', uid)]</field>
+        <field name="context">{'search_default_dashboard': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                This is the approvals dashboard
+            </p>
+            <p>
+                Create approval categories to organize your approval workflows.
+            </p>
+        </field>
+        <field name="usage">menu</field>
+    </record>
+
+    <record id="action_approval_category" model="ir.actions.act_window">
+        <field name="name">Approval Categories</field>
+        <field name="res_model">approval.category</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>

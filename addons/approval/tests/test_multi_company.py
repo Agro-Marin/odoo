@@ -1,0 +1,406 @@
+from freezegun import freeze_time
+
+from odoo import Command
+from odoo.exceptions import AccessError, ValidationError
+from odoo.tests import common, tagged
+
+from .common import ApprovalCommon
+
+
+@tagged("post_install", "-at_install")
+class TestMultiCompanyIsolation(common.TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        cls.company_a = cls.env["res.company"].create({"name": "Company A"})
+        cls.company_b = cls.env["res.company"].create({"name": "Company B"})
+
+        cls.manager_group = cls.env.ref("approval.group_approval_manager")
+
+        cls.user_a = cls.env["res.users"].create(
+            {
+                "name": "Manager A",
+                "login": "mc_manager_a",
+                "email": "mc_manager_a@test.com",
+                "group_ids": [Command.link(cls.manager_group.id)],
+                "company_ids": [Command.set([cls.company_a.id])],
+                "company_id": cls.company_a.id,
+            }
+        )
+        cls.user_b = cls.env["res.users"].create(
+            {
+                "name": "Manager B",
+                "login": "mc_manager_b",
+                "email": "mc_manager_b@test.com",
+                "group_ids": [Command.link(cls.manager_group.id)],
+                "company_ids": [Command.set([cls.company_b.id])],
+                "company_id": cls.company_b.id,
+            }
+        )
+        cls.approver_b = cls.env["res.users"].create(
+            {
+                "name": "Approver B",
+                "login": "mc_approver_b",
+                "email": "mc_approver_b@test.com",
+                "company_ids": [Command.set([cls.company_b.id])],
+                "company_id": cls.company_b.id,
+            }
+        )
+
+        cls.category_b = cls.env["approval.category"].create(
+            {
+                "sequence_code": "MCB01",
+                "name": "Company B Category",
+                "company_id": cls.company_b.id,
+                "approval_minimum": 1,
+                "has_amount": "optional",
+                "sla_target_hours": 10,
+                "approver_ids": [
+                    Command.create({"user_id": cls.approver_b.id, "required": True}),
+                ],
+            }
+        )
+        cls.rule_b = cls.env["approval.rule"].create(
+            {
+                "name": "Company B Rule",
+                "category_id": cls.category_b.id,
+                "company_id": cls.company_b.id,
+                "condition_field": "amount",
+                "operator": "gt",
+                "threshold": 999999,
+                "action_type": "add_approver",
+                "approver_ids": [Command.link(cls.approver_b.id)],
+            }
+        )
+        cls.tier_b = cls.env["approval.rule"].create(
+            {
+                "action_type": "set_approvers",
+                "operator": "between",
+                "name": "Company B Tier",
+                "category_id": cls.category_b.id,
+                "company_id": cls.company_b.id,
+                "condition_field": "amount",
+                "threshold": 999999,
+                "threshold_max": 0,
+                "approver_ids": [Command.link(cls.approver_b.id)],
+            }
+        )
+        cls.template_b = cls.env["approval.template"].create(
+            {
+                "name": "Company B Template",
+                "category_id": cls.category_b.id,
+                "company_id": cls.company_b.id,
+            }
+        )
+
+        with freeze_time("2026-01-05 08:00:00"):
+            cls.request_b = cls.env["approval.request"].create(
+                {
+                    "name": "Company B Request",
+                    "request_owner_id": cls.user_b.id,
+                    "category_id": cls.category_b.id,
+                    "company_id": cls.company_b.id,
+                    "amount": 10,
+                }
+            )
+            cls.request_b.action_confirm()
+        with freeze_time("2026-01-05 09:00:00"):
+            cls.request_b.approver_ids.sudo().write({"state": "approved"})
+        cls.env.flush_all()
+
+    def test_category_isolated_across_companies(self):
+        found = (
+            self.env["approval.category"]
+            .with_user(self.user_a)
+            .search([("id", "=", self.category_b.id)])
+        )
+        self.assertFalse(found, "Company A manager must not see Company B's category")
+        found_b = (
+            self.env["approval.category"]
+            .with_user(self.user_b)
+            .search([("id", "=", self.category_b.id)])
+        )
+        self.assertEqual(found_b, self.category_b)
+
+    def test_rule_isolated_across_companies(self):
+        found = (
+            self.env["approval.rule"]
+            .with_user(self.user_a)
+            .search([("id", "=", self.rule_b.id)])
+        )
+        self.assertFalse(found, "Company A manager must not see Company B's rule")
+
+    def test_tier_isolated_across_companies(self):
+        found = (
+            self.env["approval.rule"]
+            .with_user(self.user_a)
+            .search([("id", "=", self.tier_b.id)])
+        )
+        self.assertFalse(found, "Company A manager must not see Company B's tier")
+
+    def test_template_isolated_across_companies(self):
+        found = (
+            self.env["approval.template"]
+            .with_user(self.user_a)
+            .search([("id", "=", self.template_b.id)])
+        )
+        self.assertFalse(found, "Company A manager must not see Company B's template")
+
+    def test_request_and_approver_isolated_across_companies(self):
+        found_request = (
+            self.env["approval.request"]
+            .with_user(self.user_a)
+            .search([("id", "=", self.request_b.id)])
+        )
+        self.assertFalse(
+            found_request,
+            "Company A manager must not see Company B's request",
+        )
+        found_approver = (
+            self.env["approval.approver"]
+            .with_user(self.user_a)
+            .search([("request_id", "=", self.request_b.id)])
+        )
+        self.assertFalse(
+            found_approver,
+            "Company A manager must not see Company B's approver rows",
+        )
+
+    def test_category_approver_isolated_across_companies(self):
+        found = (
+            self.env["approval.category.approver"]
+            .with_user(self.user_a)
+            .search([("category_id", "=", self.category_b.id)])
+        )
+        self.assertFalse(
+            found,
+            "Company A manager must not see who approves Company B's categories",
+        )
+        found_b = (
+            self.env["approval.category.approver"]
+            .with_user(self.user_b)
+            .search([("category_id", "=", self.category_b.id)])
+        )
+        self.assertTrue(found_b)
+
+    def test_metrics_view_isolated_across_companies(self):
+        found = (
+            self.env["approval.metrics"]
+            .with_user(self.user_a)
+            .search([("category_id", "=", self.category_b.id)])
+        )
+        self.assertFalse(
+            found,
+            "Company A manager must not see Company B's approval metrics",
+        )
+        found_b = (
+            self.env["approval.metrics"]
+            .with_user(self.user_b)
+            .search([("category_id", "=", self.category_b.id)])
+        )
+        self.assertTrue(found_b, "Company B manager should see its own metrics")
+
+    def test_approver_performance_view_isolated_across_companies(self):
+        found = (
+            self.env["approver.performance"]
+            .with_user(self.user_a)
+            .search([("user_id", "=", self.approver_b.id)])
+        )
+        self.assertFalse(
+            found,
+            "Company A manager must not see Company B's approver performance data",
+        )
+        found_b = (
+            self.env["approver.performance"]
+            .with_user(self.user_b)
+            .search([("user_id", "=", self.approver_b.id)])
+        )
+        self.assertTrue(found_b)
+
+
+@tagged("post_install", "-at_install")
+class TestRefusalReasonMultiCompany(common.TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        cls.company_1 = cls.env["res.company"].create({"name": "Test Company 1"})
+        cls.company_2 = cls.env["res.company"].create({"name": "Test Company 2"})
+
+        cls.user_company_1 = cls.env["res.users"].create(
+            {
+                "name": "User Company 1",
+                "login": "user_company_1",
+                "email": "user1@test.com",
+                "company_ids": [(6, 0, [cls.company_1.id])],
+                "company_id": cls.company_1.id,
+            }
+        )
+
+        cls.user_company_2 = cls.env["res.users"].create(
+            {
+                "name": "User Company 2",
+                "login": "user_company_2",
+                "email": "user2@test.com",
+                "company_ids": [(6, 0, [cls.company_2.id])],
+                "company_id": cls.company_2.id,
+            }
+        )
+
+    def test_shared_reason_visible_to_all(self):
+        shared_reason = self.env["approval.refusal.reason"].create(
+            {
+                "name": "Shared Reason",
+                "company_id": False,
+            }
+        )
+
+        reasons_c1 = (
+            self.env["approval.refusal.reason"]
+            .with_user(self.user_company_1)
+            .search([("id", "=", shared_reason.id)])
+        )
+        self.assertEqual(
+            len(reasons_c1), 1, "Shared reason should be visible to company 1"
+        )
+
+        reasons_c2 = (
+            self.env["approval.refusal.reason"]
+            .with_user(self.user_company_2)
+            .search([("id", "=", shared_reason.id)])
+        )
+        self.assertEqual(
+            len(reasons_c2), 1, "Shared reason should be visible to company 2"
+        )
+
+    def test_company_specific_reason_only_visible_to_company(self):
+        reason_c1 = self.env["approval.refusal.reason"].create(
+            {
+                "name": "Company 1 Reason",
+                "company_id": self.company_1.id,
+            }
+        )
+
+        reasons_c1 = (
+            self.env["approval.refusal.reason"]
+            .with_user(self.user_company_1)
+            .search([("id", "=", reason_c1.id)])
+        )
+        self.assertEqual(
+            len(reasons_c1),
+            1,
+            "Company 1 reason should be visible to company 1 user",
+        )
+
+        reasons_c2 = (
+            self.env["approval.refusal.reason"]
+            .with_user(self.user_company_2)
+            .search([("id", "=", reason_c1.id)])
+        )
+        self.assertEqual(
+            len(reasons_c2),
+            0,
+            "Company 1 reason should NOT be visible to company 2 user",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestMultiCompanyAuditRegressions(ApprovalCommon):
+    def test_manager_cannot_see_other_companys_tier(self):
+        other_company = self.env["res.company"].create(
+            {"name": f"Other Co {self.id()}"},
+        )
+        category = self._make_category(approvers=[self.approver_1])
+        tier = self.env["approval.rule"].create(
+            {
+                "action_type": "set_approvers",
+                "operator": "between",
+                "name": f"Foreign {self.id()}",
+                "category_id": category.id,
+                "company_id": other_company.id,
+                "condition_field": "amount",
+                "threshold": 0,
+                "threshold_max": 0,
+                "approver_ids": [Command.link(self.approver_1.id)],
+            },
+        )
+        found = (
+            self.env["approval.rule"]
+            .with_user(self.manager_user)
+            .search(
+                [("id", "=", tier.id)],
+            )
+        )
+        self.assertFalse(
+            found,
+            "A tier scoped to a company the manager can't access must "
+            "not be visible to them.",
+        )
+        with self.assertRaises((AccessError, ValidationError)):
+            tier.with_user(self.manager_user).write({"approval_minimum": 1})
+
+    def test_category_from_other_company_not_visible(self):
+        other_company = self.env["res.company"].create(
+            {"name": f"Other Co {self.id()}"},
+        )
+        category = self._make_category(
+            approvers=[self.approver_1],
+            company_id=other_company.id,
+        )
+        found = (
+            self.env["approval.category"]
+            .with_user(
+                self.approver_1,
+            )
+            .search([("id", "=", category.id)])
+        )
+        self.assertFalse(
+            found,
+            "A category scoped to another company must not be visible.",
+        )
+
+    def test_request_from_other_company_not_visible(self):
+        other_company = self.env["res.company"].create(
+            {"name": f"Other Co {self.id()}"},
+        )
+        other_user = self.env["res.users"].create(
+            {
+                "name": "Other Co User",
+                "login": f"other_co_user_{self.id()}",
+                "email": f"other_co_user_{self.id()}@test.com",
+                "company_ids": [Command.link(other_company.id)],
+                "company_id": other_company.id,
+            },
+        )
+        category = self._make_category(
+            approvers=[other_user],
+            company_id=other_company.id,
+        )
+        request = (
+            self.env["approval.request"]
+            .with_company(
+                other_company,
+            )
+            .create(
+                {
+                    "category_id": category.id,
+                    "request_owner_id": other_user.id,
+                    "reason": "<p>cross-company isolation test</p>",
+                },
+            )
+        )
+        self.assertEqual(request.company_id, other_company)
+
+        found = (
+            self.env["approval.request"]
+            .with_user(
+                self.approver_1,
+            )
+            .search([("id", "=", request.id)])
+        )
+        self.assertFalse(
+            found,
+            "A request scoped to another company must not be visible "
+            "to a user who has no access to that company.",
+        )

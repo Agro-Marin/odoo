@@ -1,0 +1,470 @@
+from datetime import timedelta
+
+from odoo import fields
+from odoo.exceptions import ValidationError
+from odoo.tests import common, tagged
+
+from .common import ApprovalCommon
+
+
+@tagged("post_install", "-at_install")
+class TestConditionalRules(common.TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.approver_user = cls.env["res.users"].create(
+            {
+                "name": "Rule Approver",
+                "login": "rule_approver",
+                "email": "rule_approver@test.com",
+            }
+        )
+        cls.extra_approver = cls.env["res.users"].create(
+            {
+                "name": "Extra Approver",
+                "login": "extra_approver",
+                "email": "extra_approver@test.com",
+            }
+        )
+        cls.category = cls.env.ref("approval.approval_category_data_business_trip")
+        cls.category.write(
+            {
+                "approver_ids": [(5, 0, 0)],
+                "has_amount": "required",
+                "has_quantity": "optional",
+            }
+        )
+        cls.env["approval.category.approver"].create(
+            {
+                "category_id": cls.category.id,
+                "user_id": cls.approver_user.id,
+                "required": True,
+                "sequence": 10,
+            }
+        )
+
+    def _create_request(self, **kwargs):
+        vals = {
+            "name": "Test Request",
+            "category_id": self.category.id,
+            "request_owner_id": self.env.ref("base.user_admin").id,
+            "date_start": fields.Datetime.now(),
+            "date_end": fields.Datetime.now(),
+            "location": "testland",
+        }
+        vals.update(kwargs)
+        return self.env["approval.request"].create(vals)
+
+    def test_rule_amount_greater_than(self):
+        self.env["approval.rule"].create(
+            {
+                "name": "High-Value Purchase",
+                "category_id": self.category.id,
+                "condition_field": "amount",
+                "operator": "gt",
+                "threshold": 10000,
+                "approver_ids": [(4, self.extra_approver.id)],
+                "approver_required": True,
+                "approver_sequence": 5,
+            }
+        )
+
+        request_low = self._create_request(amount=5000)
+        approver_users = request_low.approver_ids.mapped("user_id")
+        self.assertIn(self.approver_user, approver_users)
+        self.assertNotIn(self.extra_approver, approver_users)
+        self.assertFalse(request_low.applied_rule_ids)
+
+        request_high = self._create_request(amount=15000)
+        approver_users = request_high.approver_ids.mapped("user_id")
+        self.assertIn(self.extra_approver, approver_users)
+        self.assertEqual(len(request_high.applied_rule_ids), 1)
+        self.assertEqual(request_high.applied_rule_ids.name, "High-Value Purchase")
+
+    def test_rule_quantity_less_than(self):
+        self.env["approval.rule"].create(
+            {
+                "name": "Small Quantity Review",
+                "category_id": self.category.id,
+                "condition_field": "quantity",
+                "operator": "lt",
+                "threshold": 5,
+                "approver_ids": [(4, self.extra_approver.id)],
+                "approver_required": False,
+                "approver_sequence": 20,
+            }
+        )
+
+        request = self._create_request(quantity=3)
+        approver_users = request.approver_ids.mapped("user_id")
+        self.assertIn(self.extra_approver, approver_users)
+
+        request_ok = self._create_request(quantity=10)
+        approver_users = request_ok.approver_ids.mapped("user_id")
+        self.assertNotIn(self.extra_approver, approver_users)
+
+    def test_rule_priority_equal(self):
+        self.env["approval.rule"].create(
+            {
+                "name": "Urgent Review",
+                "category_id": self.category.id,
+                "condition_field": "priority",
+                "operator": "eq",
+                "threshold": 3,
+                "approver_ids": [(4, self.extra_approver.id)],
+            }
+        )
+
+        request_normal = self._create_request(priority="1")
+        self.assertNotIn(
+            self.extra_approver,
+            request_normal.approver_ids.mapped("user_id"),
+        )
+
+        request_urgent = self._create_request(priority="3")
+        self.assertIn(
+            self.extra_approver,
+            request_urgent.approver_ids.mapped("user_id"),
+        )
+
+    def test_rule_inactive_not_evaluated(self):
+        rule = self.env["approval.rule"].create(
+            {
+                "name": "Archived Rule",
+                "category_id": self.category.id,
+                "condition_field": "amount",
+                "operator": "gt",
+                "threshold": 100,
+                "approver_ids": [(4, self.extra_approver.id)],
+                "active": False,
+            }
+        )
+
+        request = self._create_request(amount=5000)
+        self.assertNotIn(
+            self.extra_approver,
+            request.approver_ids.mapped("user_id"),
+        )
+        self.assertNotIn(rule, request.applied_rule_ids)
+
+    def test_rule_multiple_approvers(self):
+        third_approver = self.env["res.users"].create(
+            {
+                "name": "Third Approver",
+                "login": "third_approver",
+                "email": "third@test.com",
+            }
+        )
+        self.env["approval.rule"].create(
+            {
+                "name": "Multi Approver Rule",
+                "category_id": self.category.id,
+                "condition_field": "amount",
+                "operator": "gte",
+                "threshold": 1000,
+                "approver_ids": [
+                    (4, self.extra_approver.id),
+                    (4, third_approver.id),
+                ],
+            }
+        )
+
+        request = self._create_request(amount=1000)
+        approver_users = request.approver_ids.mapped("user_id")
+        self.assertIn(self.extra_approver, approver_users)
+        self.assertIn(third_approver, approver_users)
+
+    def test_rule_priority_threshold_validation(self):
+        with self.assertRaises(ValidationError):
+            self.env["approval.rule"].create(
+                {
+                    "name": "Bad Priority",
+                    "category_id": self.category.id,
+                    "condition_field": "priority",
+                    "operator": "eq",
+                    "threshold": 5,
+                    "approver_ids": [(4, self.extra_approver.id)],
+                }
+            )
+
+    def test_rule_date_range_days(self):
+
+        self.category.has_date_range = "required"
+        self.env["approval.rule"].create(
+            {
+                "name": "Extended Leave",
+                "category_id": self.category.id,
+                "condition_field": "date_range_days",
+                "operator": "gt",
+                "threshold": 10,
+                "approver_ids": [(4, self.extra_approver.id)],
+            }
+        )
+
+        now = fields.Datetime.now()
+        request_short = self._create_request(
+            date_start=now,
+            date_end=now + timedelta(days=5),
+        )
+        self.assertNotIn(
+            self.extra_approver,
+            request_short.approver_ids.mapped("user_id"),
+        )
+
+        request_long = self._create_request(
+            date_start=now,
+            date_end=now + timedelta(days=15),
+        )
+        self.assertIn(
+            self.extra_approver,
+            request_long.approver_ids.mapped("user_id"),
+        )
+
+    def test_multiple_rules_same_category(self):
+        self.env["approval.rule"].create(
+            {
+                "name": "Amount Rule",
+                "category_id": self.category.id,
+                "condition_field": "amount",
+                "operator": "gt",
+                "threshold": 1000,
+                "approver_ids": [(4, self.extra_approver.id)],
+            }
+        )
+        third_approver = self.env["res.users"].create(
+            {
+                "name": "Priority Approver",
+                "login": "priority_approver",
+                "email": "priority@test.com",
+            }
+        )
+        self.env["approval.rule"].create(
+            {
+                "name": "Priority Rule",
+                "category_id": self.category.id,
+                "condition_field": "priority",
+                "operator": "gte",
+                "threshold": 2,
+                "approver_ids": [(4, third_approver.id)],
+            }
+        )
+
+        request = self._create_request(amount=5000, priority="3")
+        approver_users = request.approver_ids.mapped("user_id")
+        self.assertIn(self.extra_approver, approver_users)
+        self.assertIn(third_approver, approver_users)
+        self.assertEqual(len(request.applied_rule_ids), 2)
+
+
+@tagged("post_install", "-at_install")
+class TestLiveRerouting(ApprovalCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.late_approver = cls.env["res.users"].create(
+            {
+                "name": "Late Approver",
+                "login": "live_late_approver",
+                "email": "late@live.test",
+            },
+        )
+
+    def _urgent_rule(self, category, required=True, sequence=5):
+        return self.env["approval.rule"].create(
+            {
+                "name": "Urgent needs the late approver",
+                "category_id": category.id,
+                "condition_field": "priority",
+                "operator": "gte",
+                "threshold": 3,
+                "action_type": "add_approver",
+                "approver_ids": [(6, 0, [self.late_approver.id])],
+                "approver_required": required,
+                "approver_sequence": sequence,
+            },
+        )
+
+    def test_raising_priority_after_submit_adds_the_rule_approver(self):
+        category = self._make_category("Live Prio", approvers=[self.approver_1])
+        self._urgent_rule(category)
+        request = self._prepare_request(category, priority="1")
+        self.assertNotIn(self.late_approver, request.approver_ids.user_id)
+
+        request.with_user(self.owner_user).write({"priority": "3"})
+
+        self.assertIn(self.late_approver, request.approver_ids.user_id)
+
+    def test_live_reroute_leaves_the_request_pending(self):
+        category = self._make_category("Live State", approvers=[self.approver_1])
+        self._urgent_rule(category)
+        request = self._prepare_request(category, priority="1")
+        confirmed_at = request.date_confirmed
+
+        request.with_user(self.owner_user).write({"priority": "3"})
+
+        self.assertEqual(request.state, "pending")
+        self.assertEqual(request.date_confirmed, confirmed_at)
+        added = request.approver_ids.filtered(
+            lambda a: a.user_id == self.late_approver,
+        )
+        self.assertEqual(added.state, "pending")
+        self.assertFalse(request.approver_ids.filtered(lambda a: a.state == "new"))
+
+    def test_live_reroute_preserves_decisions_already_recorded(self):
+        category = self._make_category(
+            "Live Keep",
+            approvers=[self.approver_1, self.approver_2],
+        )
+        self._urgent_rule(category, required=False)
+        request = self._prepare_request(category, priority="1")
+        request.with_user(self.approver_1).action_approve()
+        decided = request.approver_ids.filtered(
+            lambda a: a.user_id == self.approver_1,
+        )
+        decision_date = decided.decision_date
+
+        request.with_user(self.owner_user).write({"priority": "3"})
+
+        self.assertEqual(decided.state, "approved")
+        self.assertEqual(decided.decision_date, decision_date)
+        self.assertIn(self.late_approver, request.approver_ids.user_id)
+
+    def test_live_reroute_never_touches_a_terminal_request(self):
+        category = self._make_category("Live Terminal", approvers=[self.approver_1])
+        self._urgent_rule(category)
+        request = self._prepare_request(category, priority="1")
+        request.with_user(self.approver_1).action_approve()
+        self.assertEqual(request.state, "approved")
+
+        request.with_user(self.manager_user).write({"priority": "3"})
+
+        self.assertEqual(request.state, "approved")
+        self.assertNotIn(self.late_approver, request.approver_ids.user_id)
+
+    def test_live_reroute_never_lowers_the_approval_minimum(self):
+        category = self._make_category(
+            "Live Minimum",
+            approvers=[
+                (self.approver_1, False, 10),
+                (self.approver_2, False, 20),
+            ],
+        )
+        category.approval_minimum = 2
+        self._urgent_rule(category, required=False)
+        request = self._prepare_request(category, priority="1")
+        request.sudo().write({"approval_minimum": 2})
+        request.with_user(self.approver_1).action_approve()
+        self.assertEqual(request.state, "pending")
+
+        category.approval_minimum = 1
+        request.with_user(self.owner_user).write({"priority": "3"})
+
+        self.assertEqual(request.approval_minimum, 2)
+        self.assertEqual(request.state, "pending")
+
+    def test_live_reroute_keeps_an_approver_whose_source_stopped_matching(self):
+        category = self._make_category("Live Orphan", approvers=[self.approver_1])
+        self._urgent_rule(category, required=False)
+        request = self._prepare_request(category, priority="3")
+        self.assertIn(self.late_approver, request.approver_ids.user_id)
+
+        request.with_user(self.owner_user).write({"priority": "1"})
+
+        self.assertIn(self.late_approver, request.approver_ids.user_id)
+
+    def test_live_reroute_places_a_sequential_arrival_where_it_is_reachable(self):
+        category = self._make_category(
+            "Live Sequential",
+            approvers=[(self.approver_1, True, 10), (self.approver_2, True, 20)],
+            approve_sequentially=True,
+        )
+        self._urgent_rule(category, required=True, sequence=5)
+        request = self._prepare_request(category, priority="1")
+        request.with_user(self.approver_1).action_approve()
+
+        request.with_user(self.owner_user).write({"priority": "3"})
+
+        added = request.approver_ids.filtered(
+            lambda a: a.user_id == self.late_approver,
+        )
+        self.assertEqual(added.state, "waiting")
+        self.assertGreaterEqual(added.sequence, 20)
+
+        request.with_user(self.approver_2).action_approve()
+        self.assertEqual(added.state, "pending")
+        self.assertEqual(request.state, "pending")
+
+        request.with_user(self.late_approver).action_approve()
+        self.assertEqual(request.state, "approved")
+
+    def test_live_reroute_ignores_configuration_added_after_submission(self):
+        category = self._make_category("Live Config", approvers=[self.approver_1])
+        self._urgent_rule(category, required=False)
+        request = self._prepare_request(category, priority="1")
+        self.env["approval.category.approver"].create(
+            {
+                "category_id": category.id,
+                "user_id": self.approver_2.id,
+                "required": False,
+                "sequence": 20,
+            },
+        )
+        category.approval_minimum = 3
+
+        request.with_user(self.owner_user).write({"priority": "3"})
+
+        self.assertIn(self.late_approver, request.approver_ids.user_id)
+        self.assertNotIn(self.approver_2, request.approver_ids.user_id)
+        self.assertEqual(request.approval_minimum, 1)
+
+
+@tagged("post_install", "-at_install")
+class TestRoutingFieldLifecycle(ApprovalCommon):
+    def _sets(self):
+        request = self.env["approval.request"]
+        return (
+            request._get_routing_fields_frozen(),
+            request._get_routing_fields_live(),
+            request._get_fields_approver_sync_trigger(),
+        )
+
+    def test_the_split_is_exhaustive_and_disjoint(self):
+        frozen, live, triggers = self._sets()
+        self.assertEqual(frozen | live, triggers)
+        self.assertFalse(frozen & live)
+
+    def test_every_rule_and_tier_condition_is_classified(self):
+        _frozen, _live, triggers = self._sets()
+        declared = (
+            self.env["approval.rule"]._get_fields_request_trigger()
+            | self.env["approval.rule"]._get_fields_request_trigger()
+        )
+        self.assertFalse(
+            declared - triggers,
+            "these rule/tier condition inputs reach no lifecycle bucket: %s"
+            % sorted(declared - triggers),
+        )
+
+    def test_frozen_routing_inputs_really_cannot_move_after_submission(self):
+        frozen, _live, _triggers = self._sets()
+        request = self.env["approval.request"]
+        locked = request._LOCKED_FIELDS | request._SYSTEM_LOCKED_FIELDS
+        unprotected = frozen - locked - {"category_id"}
+        self.assertFalse(
+            unprotected,
+            "these routing inputs are treated as frozen but nothing stops a "
+            "submitted request from changing them, so the approver set they "
+            "feed would go stale silently: %s" % sorted(unprotected),
+        )
+
+    def test_live_routing_inputs_are_actually_reachable_after_submission(self):
+        _frozen, live, _triggers = self._sets()
+        request = self.env["approval.request"]
+        locked = request._LOCKED_FIELDS | request._SYSTEM_LOCKED_FIELDS
+        reopened = frozenset().union(*request._PENDING_CHANGE_EDITABLE.values())
+        unreachable = {f for f in live if f in locked and f not in reopened}
+        self.assertFalse(
+            unreachable,
+            "these are classified live but can never move after submission, "
+            "so the live path carries them for nothing: %s" % sorted(unreachable),
+        )

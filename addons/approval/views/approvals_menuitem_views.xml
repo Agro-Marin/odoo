@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="approvals_menu_root"
+        name="Approvals"
+        action="action_approval_category_dashboard"
+        sequence="255"
+        web_icon="approval,static/description/icon.png" />
+
+    <menuitem
+        id="approvals_category_menu_new"
+        name="Dashboard"
+        parent="approvals_menu_root"
+        action="action_approval_category_dashboard"
+        sequence="1" />
+
+    <menuitem
+        id="approvals_approval_menu"
+        name="My Approvals"
+        parent="approvals_menu_root"
+        sequence="10" />
+
+    <menuitem
+        id="approvals_approval_menu_inbox"
+        name="Inbox"
+        parent="approvals_approval_menu"
+        action="action_approval_inbox"
+        sequence="5" />
+
+    <menuitem
+        id="approvals_request_menu_my"
+        name="My Requests"
+        parent="approvals_approval_menu"
+        action="action_view_approval_request"
+        sequence="10" />
+
+    <menuitem
+        id="approvals_request_menu_history"
+        name="My History"
+        parent="approvals_approval_menu"
+        action="action_approval_my_history"
+        sequence="15" />
+
+    <menuitem
+        id="approvals_menu_manager"
+        name="Manager"
+        parent="approvals_menu_root"
+        sequence="20"
+        groups="approval.group_approval_approver" />
+
+    <menuitem
+        id="approvals_approval_menu_to_review"
+        name="Approvals to Review"
+        parent="approvals_menu_manager"
+        action="action_approval_request_to_review"
+        sequence="10" />
+
+    <menuitem
+        id="approvals_approval_menu_all"
+        name="All Approvals"
+        parent="approvals_menu_manager"
+        action="action_approval_request_all"
+        sequence="20" />
+
+    <menuitem
+        id="menu_approval_report"
+        name="Reporting"
+        parent="approvals_menu_root"
+        sequence="30"
+        groups="approval.group_approval_manager" />
+
+    <menuitem
+        id="menu_approval_dashboard"
+        name="Dashboard"
+        parent="menu_approval_report"
+        action="action_approval_dashboard_view_singleton"
+        sequence="5" />
+
+    <menuitem
+        id="menu_approval_metrics"
+        name="Category Metrics"
+        parent="menu_approval_report"
+        action="action_approval_metrics"
+        sequence="10" />
+
+    <menuitem
+        id="menu_approver_performance"
+        name="Approver Performance"
+        parent="menu_approval_report"
+        action="action_approver_performance"
+        sequence="20" />
+
+    <menuitem
+        id="approvals_menu_config"
+        name="Configuration"
+        parent="approvals_menu_root"
+        sequence="40"
+        groups="approval.group_approval_manager" />
+
+    <menuitem
+        id="approvals_category_menu_config"
+        name="Approval Categories"
+        parent="approvals_menu_config"
+        action="action_approval_category"
+        sequence="10"
+        groups="approval.group_approval_manager" />
+
+    <menuitem
+        id="approvals_template_menu_config"
+        name="Templates"
+        parent="approvals_menu_config"
+        action="action_approval_template"
+        sequence="15"
+        groups="approval.group_approval_manager" />
+
+    <menuitem
+        id="menu_approval_rules"
+        name="Conditional Rules"
+        parent="approvals_menu_config"
+        action="action_approval_rule"
+        sequence="18"
+        groups="approval.group_approval_manager" />
+
+    <menuitem
+        id="menu_approval_refusal_reason"
+        name="Refusal Reasons"
+        parent="approvals_menu_config"
+        action="action_approval_refusal_reason"
+        sequence="20"
+        groups="approval.group_approval_manager" />
+
+</odoo>

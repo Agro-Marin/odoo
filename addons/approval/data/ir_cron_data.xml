@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="ir_cron_smart_escalation" model="ir.cron">
+        <field name="name">Smart Approval Escalation</field>
+        <field name="model_id" ref="model_approval_request" />
+        <field name="state">code</field>
+        <field name="code">model.cron_smart_escalation()</field>
+        <field name="interval_number" eval="4" />
+        <field name="interval_type">hours</field>
+        <field name="active" eval="True" />
+        <field name="priority" eval="5" />
+    </record>
+
+    <record id="ir_cron_auto_expire" model="ir.cron">
+        <field name="name">Auto-Expire Stale Approval Requests</field>
+        <field name="model_id" ref="model_approval_request" />
+        <field name="state">code</field>
+        <field name="code">model.cron_auto_expire()</field>
+        <field name="interval_number" eval="1" />
+        <field name="interval_type">days</field>
+        <field name="active" eval="True" />
+        <field name="priority" eval="10" />
+    </record>
+
+    <record id="ir_cron_consent_approval" model="ir.cron">
+        <field name="name">Consent-Based Auto-Approval</field>
+        <field name="model_id" ref="model_approval_request" />
+        <field name="state">code</field>
+        <field name="code">model.cron_consent_approval()</field>
+        <field name="interval_number" eval="4" />
+        <field name="interval_type">hours</field>
+        <field name="active" eval="True" />
+        <field name="priority" eval="8" />
+    </record>
+
+</odoo>

@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_approval_template_list" model="ir.ui.view">
+        <field name="name">approval.template.list</field>
+        <field name="model">approval.template</field>
+        <field name="arch" type="xml">
+            <list string="Approval Templates">
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field name="category_id" />
+                <field name="default_priority" widget="priority" optional="hide" />
+                <field name="usage_count" string="Used" />
+                <field
+                    name="company_id"
+                    groups="base.group_multi_company"
+                    optional="hide" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_approval_template_form" model="ir.ui.view">
+        <field name="name">approval.template.form</field>
+        <field name="model">approval.template</field>
+        <field name="arch" type="xml">
+            <form string="Approval Template">
+                <header>
+                    <button
+                        name="action_create_request"
+                        string="Create Request"
+                        type="object"
+                        class="oe_highlight" />
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button
+                            name="action_view_requests"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-files-o"
+                            invisible="usage_count == 0">
+                            <field
+                                name="usage_count"
+                                widget="statinfo"
+                                string="Requests" />
+                        </button>
+                    </div>
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        bg_color="text-bg-danger"
+                        invisible="active" />
+                    <group>
+                        <group>
+                            <field
+                                name="name"
+                                placeholder="e.g. Weekly Expense Report" />
+                            <field name="category_id" />
+                            <field name="default_priority" widget="priority" />
+                            <field name="sequence" />
+                        </group>
+                        <group>
+                            <field
+                                name="company_id"
+                                groups="base.group_multi_company" />
+                            <field name="active" invisible="1" />
+                        </group>
+                    </group>
+                    <group string="Description">
+                        <field
+                            name="description"
+                            nolabel="1"
+                            colspan="2"
+                            placeholder="Describe when to use this template..." />
+                    </group>
+                    <notebook>
+                        <page string="Default Values" name="defaults">
+                            <group>
+                                <group>
+                                    <field name="has_amount" invisible="1" />
+                                    <field name="has_quantity" invisible="1" />
+                                    <field name="has_location" invisible="1" />
+                                    <field name="has_partner" invisible="1" />
+                                    <field name="has_reference" invisible="1" />
+
+                                    <field
+                                        name="default_amount"
+                                        invisible="has_amount == 'no'" />
+                                    <field
+                                        name="default_quantity"
+                                        invisible="has_quantity == 'no'" />
+                                    <field
+                                        name="default_location"
+                                        invisible="has_location == 'no'" />
+                                </group>
+                                <group>
+                                    <field
+                                        name="default_partner_id"
+                                        invisible="has_partner == 'no'" />
+                                    <field
+                                        name="default_reference"
+                                        invisible="has_reference == 'no'" />
+                                </group>
+                            </group>
+                            <group string="Default Description">
+                                <field name="default_reason" nolabel="1" colspan="2" />
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_approval_template_search" model="ir.ui.view">
+        <field name="name">approval.template.search</field>
+        <field name="model">approval.template</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" />
+                <field name="category_id" />
+                <filter
+                    name="filter_inactive"
+                    string="Archived"
+                    domain="[('active', '=', False)]" />
+                <group>
+                    <filter
+                        name="groupby_category"
+                        string="Category"
+                        context="{'group_by': 'category_id'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_approval_template" model="ir.actions.act_window">
+        <field name="name">Approval Templates</field>
+        <field name="res_model">approval.template</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first approval template
+            </p>
+            <p>Templates pre-fill approval requests with default values,
+            reducing repetitive data entry for recurring workflows.</p>
+        </field>
+    </record>
+
+</odoo>

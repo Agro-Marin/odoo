@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="report_approval_request_document">
+        <t t-call="web.external_layout">
+            <t t-set="o" t-value="o.with_context(lang=o.partner_id.lang)" />
+
+            <div class="row mb-3">
+                <div class="col-8">
+                    <h2 class="mt-2" t-field="o.name" />
+                    <h5 class="text-muted" t-field="o.category_id.name" />
+                </div>
+                <div class="col-4 text-end">
+                    <span t-if="o.state == 'approved'" class="badge rounded-pill text-bg-success fs-5">Approved</span>
+                    <span t-elif="o.state == 'pending'" class="badge rounded-pill text-bg-warning fs-5">Pending</span>
+                    <span t-elif="o.state == 'refused'" class="badge rounded-pill text-bg-secondary fs-5">Refused</span>
+                    <span t-elif="o.state == 'cancelled'" class="badge rounded-pill text-bg-secondary fs-5">Cancelled</span>
+                    <span t-else="" class="badge rounded-pill text-bg-light fs-5">Draft</span>
+                    <div t-if="o.priority != '1'" class="mt-1">
+                        <span t-if="o.priority == '3'" class="badge text-bg-danger">Urgent</span>
+                        <span t-elif="o.priority == '2'" class="badge text-bg-warning">High</span>
+                        <span t-elif="o.priority == '0'" class="badge text-bg-secondary">Low</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mt-3">
+                <div class="col-6">
+                    <table class="table table-sm table-borderless">
+                        <tr>
+                            <td class="fw-bold" style="width: 40%;">Requested By</td>
+                            <td><span t-field="o.request_owner_id" /></td>
+                        </tr>
+                        <tr t-if="o.partner_id">
+                            <td class="fw-bold">Contact</td>
+                            <td><span t-field="o.partner_id" /></td>
+                        </tr>
+                        <tr t-if="o.location">
+                            <td class="fw-bold">Location</td>
+                            <td><span t-field="o.location" /></td>
+                        </tr>
+                        <tr t-if="o.reference">
+                            <td class="fw-bold">Reference</td>
+                            <td><span t-field="o.reference" /></td>
+                        </tr>
+                        <tr t-if="o.template_id">
+                            <td class="fw-bold">Template</td>
+                            <td><span t-field="o.template_id" /></td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-6">
+                    <table class="table table-sm table-borderless">
+                        <tr t-if="o.date_confirmed">
+                            <td class="fw-bold" style="width: 40%;">Submitted</td>
+                            <td><span t-field="o.date_confirmed" t-options="{'widget': 'datetime'}" /></td>
+                        </tr>
+                        <tr t-if="o.date_approval_granted">
+                            <td class="fw-bold">Approved On</td>
+                            <td><span t-field="o.date_approval_granted" t-options="{'widget': 'datetime'}" /></td>
+                        </tr>
+                        <tr t-if="o.date">
+                            <td class="fw-bold">Date</td>
+                            <td><span t-field="o.date" t-options="{'widget': 'datetime'}" /></td>
+                        </tr>
+                        <tr t-if="o.date_start">
+                            <td class="fw-bold">Period</td>
+                            <td>
+                                <span
+                                    t-field="o.date_start"
+                                    t-options="{'widget': 'datetime'}" />
+                                <span> - </span>
+                                <span
+                                    t-field="o.date_end"
+                                    t-options="{'widget': 'datetime'}" />
+                            </td>
+                        </tr>
+                        <tr t-if="o.amount">
+                            <td class="fw-bold">Amount</td>
+                            <td><span t-field="o.amount" /></td>
+                        </tr>
+                        <tr t-if="o.quantity">
+                            <td class="fw-bold">Quantity</td>
+                            <td><span t-field="o.quantity" /></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div t-if="o.reason" class="mt-3">
+                <h6 class="fw-bold">Description</h6>
+                <div class="border rounded p-2" t-field="o.reason" />
+            </div>
+
+            <h5 class="mt-4 mb-2">Approval Chain</h5>
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th style="width: 5%;">#</th>
+                        <th style="width: 30%;">Approver</th>
+                        <th style="width: 15%;">Decision</th>
+                        <th style="width: 10%;">Required</th>
+                        <th style="width: 40%;">Note</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr
+                        t-foreach="o.approver_ids.sorted(lambda a: (a.sequence, a.id))"
+                        t-as="approver">
+                        <td><t t-out="approver.sequence" /></td>
+                        <td>
+                            <span t-field="approver.user_id" />
+                            <t t-if="approver.is_delegated and approver.delegate_id">
+                                <br /><small class="text-muted">
+                                    (delegated to <t t-out="approver.delegate_id.name" />)
+                                </small>
+                            </t>
+                        </td>
+                        <td>
+                            <span t-if="approver.state == 'approved'" class="badge text-bg-success">Approved</span>
+                            <span t-elif="approver.state == 'pending'" class="badge text-bg-warning">Pending</span>
+                            <span t-elif="approver.state == 'waiting'" class="badge text-bg-secondary">Waiting</span>
+                            <span t-elif="approver.state == 'refused'" class="badge text-bg-secondary">Refused</span>
+                            <span t-elif="approver.state == 'cancelled'" class="badge text-bg-secondary">Cancelled</span>
+                            <span t-else="" class="badge text-bg-light">New</span>
+                        </td>
+                        <td>
+                            <span t-if="approver.required">Yes</span>
+                            <span t-else="" class="text-muted">No</span>
+                        </td>
+                        <td>
+                            <t t-if="approver.note">
+                                <span t-field="approver.note" />
+                            </t>
+                            <t t-if="approver.refusal_reason_id">
+                                <br t-if="approver.note" />
+                                <small class="text-muted">Reason:
+                                    <t t-out="approver.refusal_reason_id.name" /></small>
+                            </t>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div t-if="o.applied_rule_ids" class="mt-3">
+                <h6 class="fw-bold">Applied Conditional Rules</h6>
+                <ul class="list-unstyled">
+                    <li t-foreach="o.applied_rule_ids" t-as="rule">
+                        <span class="badge text-bg-primary me-1">
+                            <t t-out="rule.name" />
+                        </span>
+                    </li>
+                </ul>
+            </div>
+
+            <div name="approval_attachments" t-if="o.attachment_ids" class="mt-3">
+                <h6 class="fw-bold">Attached Documents</h6>
+                <ul>
+                    <li t-foreach="o.attachment_ids" t-as="attachment">
+                        <t t-out="attachment.name" />
+                    </li>
+                </ul>
+            </div>
+
+        </t>
+    </template>
+
+    <template id="report_approval_request">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t
+                    t-call="approval.report_approval_request_document"
+                    t-lang="o.partner_id.lang" />
+            </t>
+        </t>
+    </template>
+
+</odoo>

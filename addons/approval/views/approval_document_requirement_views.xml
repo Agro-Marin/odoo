@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_approval_document_requirement_list" model="ir.ui.view">
+        <field name="name">approval.document.requirement.list</field>
+        <field name="model">approval.document.requirement</field>
+        <field name="arch" type="xml">
+            <list string="Document Requirements" editable="bottom">
+                <field name="sequence" widget="handle" />
+                <field name="name" placeholder="e.g. Invoice PDF" />
+                <field name="category_id" optional="hide" />
+                <field name="required" />
+                <field name="description" optional="show" />
+            </list>
+        </field>
+    </record>
+
+</odoo>

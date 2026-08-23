@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_approval_rule_list" model="ir.ui.view">
+        <field name="name">approval.rule.list</field>
+        <field name="model">approval.rule</field>
+        <field name="arch" type="xml">
+            <list string="Approval Rules" editable="bottom">
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field name="category_id" />
+                <field name="condition_field" />
+                <field name="operator" />
+                <field name="threshold" />
+                <field name="action_type" />
+                <field
+                    name="approver_ids"
+                    widget="many2many_tags"
+                    invisible="action_type != 'add_approver'" />
+                <field
+                    name="approver_required"
+                    invisible="action_type != 'add_approver'" />
+                <field
+                    name="approver_sequence"
+                    optional="hide"
+                    invisible="action_type != 'add_approver'" />
+                <field
+                    name="company_id"
+                    groups="base.group_multi_company"
+                    optional="hide" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_approval_rule_form" model="ir.ui.view">
+        <field name="name">approval.rule.form</field>
+        <field name="model">approval.rule</field>
+        <field name="arch" type="xml">
+            <form string="Approval Rule">
+                <sheet>
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        bg_color="text-bg-danger"
+                        invisible="active" />
+                    <group>
+                        <group string="Rule">
+                            <field name="name" placeholder="e.g. High-Value Purchase" />
+                            <field name="category_id" />
+                            <field name="sequence" />
+                            <field name="active" invisible="1" />
+                            <field
+                                name="company_id"
+                                groups="base.group_multi_company" />
+                        </group>
+                        <group string="Condition">
+                            <field name="condition_field" />
+                            <field name="operator" />
+                            <field name="threshold" />
+                            <field
+                                name="currency_id"
+                                invisible="condition_field != 'amount'"
+                                options="{'no_create': True, 'no_open': True}"
+                                groups="base.group_multi_currency" />
+                        </group>
+                    </group>
+                    <group string="Action">
+                        <group>
+                            <field name="action_type" widget="radio" />
+                        </group>
+                        <group invisible="action_type != 'add_approver'">
+                            <field name="approver_ids" widget="many2many_tags" />
+                            <field name="approver_required" />
+                            <field name="approver_sequence" />
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_approval_rule_search" model="ir.ui.view">
+        <field name="name">approval.rule.search</field>
+        <field name="model">approval.rule</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" />
+                <field name="category_id" />
+                <filter
+                    name="filter_inactive"
+                    string="Archived"
+                    domain="[('active', '=', False)]" />
+                <group>
+                    <filter
+                        name="groupby_category"
+                        string="Category"
+                        context="{'group_by': 'category_id'}" />
+                    <filter
+                        name="groupby_condition"
+                        string="Condition"
+                        context="{'group_by': 'condition_field'}" />
+                    <filter
+                        name="groupby_action"
+                        string="Action Type"
+                        context="{'group_by': 'action_type'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_approval_rule" model="ir.actions.act_window">
+        <field name="name">Conditional Rules</field>
+        <field name="res_model">approval.rule</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_groupby_category': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first conditional approval rule
+            </p>
+            <p>Rules dynamically add approvers based on request attributes.
+            For example: "If amount exceeds 10,000, add CFO as required approver."</p>
+        </field>
+    </record>
+
+</odoo>

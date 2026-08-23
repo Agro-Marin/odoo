@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_approval_metrics_list" model="ir.ui.view">
+        <field name="name">approval.metrics.list</field>
+        <field name="model">approval.metrics</field>
+        <field name="arch" type="xml">
+            <list string="Approval Metrics" create="false" edit="false" delete="false">
+                <field name="category_id" />
+                <field name="company_id" groups="base.group_multi_company" />
+                <field name="total_requests" />
+                <field name="approved_count" />
+                <field name="rejected_count" />
+                <field name="pending_count" />
+                <field name="approval_rate" />
+                <field name="avg_approval_hours" widget="float_time" />
+                <field name="median_approval_hours" widget="float_time" />
+                <field name="sla_target_hours" widget="float_time" optional="show" />
+                <field name="sla_compliant_count" optional="show" />
+                <field
+                    name="sla_compliance_rate"
+                    optional="show"
+                    decoration-success="sla_compliance_rate &gt;= 90"
+                    decoration-warning="sla_compliance_rate &gt;= 70 and sla_compliance_rate &lt; 90"
+                    decoration-danger="sla_compliance_rate &lt; 70" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_approval_metrics_pivot" model="ir.ui.view">
+        <field name="name">approval.metrics.pivot</field>
+        <field name="model">approval.metrics</field>
+        <field name="arch" type="xml">
+            <pivot string="Approval Metrics">
+                <field name="category_id" type="row" />
+                <field name="total_requests" type="measure" />
+                <field name="approved_count" type="measure" />
+                <field name="rejected_count" type="measure" />
+                <field name="pending_count" type="measure" />
+                <field name="approval_rate" type="measure" />
+                <field name="avg_approval_hours" type="measure" />
+                <field name="sla_compliance_rate" type="measure" />
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_approval_metrics_graph" model="ir.ui.view">
+        <field name="name">approval.metrics.graph</field>
+        <field name="model">approval.metrics</field>
+        <field name="arch" type="xml">
+            <graph string="Approval Metrics" type="bar">
+                <field name="category_id" />
+                <field name="approval_rate" type="measure" />
+                <field name="avg_approval_hours" type="measure" />
+                <field name="sla_compliance_rate" type="measure" />
+            </graph>
+        </field>
+    </record>
+
+    <record id="action_approval_metrics" model="ir.actions.act_window">
+        <field name="name">Approval Metrics</field>
+        <field name="res_model">approval.metrics</field>
+        <field name="view_mode">list,pivot,graph</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No approval metrics available yet
+            </p>
+            <p>
+                Approval metrics will appear here once you have submitted approval requests.
+                This view provides insights into approval performance by category.
+            </p>
+        </field>
+    </record>
+
+</odoo>

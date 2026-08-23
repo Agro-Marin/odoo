@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_approver_performance_list" model="ir.ui.view">
+        <field name="name">approver.performance.list</field>
+        <field name="model">approver.performance</field>
+        <field name="arch" type="xml">
+            <list
+                string="Approver Performance"
+                create="false"
+                edit="false"
+                delete="false">
+                <field name="user_id" />
+                <field name="company_id" groups="base.group_multi_company" />
+                <field name="total_approvals" />
+                <field name="approved_count" />
+                <field name="refused_count" />
+                <field name="pending_count" />
+                <field name="avg_response_hours" widget="float_time" />
+                <field name="approval_rate" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_approver_performance_pivot" model="ir.ui.view">
+        <field name="name">approver.performance.pivot</field>
+        <field name="model">approver.performance</field>
+        <field name="arch" type="xml">
+            <pivot string="Approver Performance">
+                <field name="user_id" type="row" />
+                <field name="total_approvals" type="measure" />
+                <field name="approved_count" type="measure" />
+                <field name="refused_count" type="measure" />
+                <field name="pending_count" type="measure" />
+                <field name="avg_response_hours" type="measure" />
+                <field name="approval_rate" type="measure" />
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_approver_performance_graph" model="ir.ui.view">
+        <field name="name">approver.performance.graph</field>
+        <field name="model">approver.performance</field>
+        <field name="arch" type="xml">
+            <graph string="Approver Performance" type="bar">
+                <field name="user_id" />
+                <field name="avg_response_hours" type="measure" />
+                <field name="pending_count" type="measure" />
+            </graph>
+        </field>
+    </record>
+
+    <record id="action_approver_performance" model="ir.actions.act_window">
+        <field name="name">Approver Performance</field>
+        <field name="res_model">approver.performance</field>
+        <field name="view_mode">list,pivot,graph</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No approver performance data available yet
+            </p>
+            <p>
+                Approver performance metrics will appear here once approvers start
+                making decisions. This view helps identify response times and workload
+                distribution across approvers.
+            </p>
+        </field>
+    </record>
+
+</odoo>

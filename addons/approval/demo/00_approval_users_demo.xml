@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record
+        id="user_approval_manager"
+        model="res.users"
+        context="{'no_reset_password': True}">
+        <field name="name">Approval Manager</field>
+        <field name="login">approval_manager</field>
+        <field name="password">approval_manager</field>
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('approval.group_approval_manager')), Command.link(ref('base.group_user'))]" />
+    </record>
+
+    <record
+        id="user_approver_1"
+        model="res.users"
+        context="{'no_reset_password': True}">
+        <field name="name">John Approver</field>
+        <field name="login">approver1</field>
+        <field name="password">approver1</field>
+        <field name="group_ids" eval="[Command.link(ref('base.group_user'))]" />
+    </record>
+
+    <record
+        id="user_approver_2"
+        model="res.users"
+        context="{'no_reset_password': True}">
+        <field name="name">Sarah Approver</field>
+        <field name="login">approver2</field>
+        <field name="password">approver2</field>
+        <field name="group_ids" eval="[Command.link(ref('base.group_user'))]" />
+    </record>
+
+    <record
+        id="user_approver_3"
+        model="res.users"
+        context="{'no_reset_password': True}">
+        <field name="name">Mike Approver</field>
+        <field name="login">approver3</field>
+        <field name="password">approver3</field>
+        <field name="group_ids" eval="[Command.link(ref('base.group_user'))]" />
+    </record>
+
+    <record id="user_employee" model="res.users" context="{'no_reset_password': True}">
+        <field name="name">Employee User</field>
+        <field name="login">employee</field>
+        <field name="password">employee</field>
+        <field name="group_ids" eval="[Command.link(ref('base.group_user'))]" />
+    </record>
+
+    <record id="base.user_demo" model="res.users">
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('approval.group_approval_manager'))]" />
+    </record>
+
+</odoo>

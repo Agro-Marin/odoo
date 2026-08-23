@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_res_users_form" model="ir.ui.view">
+        <field name="name">res.users.view.form.approval.inherit</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form" />
+        <field name="arch" type="xml">
+            <header position="inside">
+                <button
+                    name="%(approval.action_approval_category_dashboard)d"
+                    string="Request Approval"
+                    type="action"
+                    class="btn btn-primary" />
+                <button
+                    name="%(approval.action_approval_delegate_wizard)d"
+                    string="Delegate My Approvals"
+                    type="action"
+                    class="btn btn-secondary" />
+            </header>
+        </field>
+    </record>
+
+</odoo>
