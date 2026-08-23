@@ -90,6 +90,24 @@ while read -r cited; do
 done < <(grep -hoP '`\K(approval_\w+|approver_\w+|ir_attachment|mail_activity\w*|res_\w+)\.py(?=`)' \
     "${DOCS[@]}" | sort -u)
 
+# ------------------------------------------------------------------- fields --
+# Every field a model declares is named somewhere in the docs. This is the
+# assertion whose absence let approval.rule drift: models.md carried a SECOND,
+# older field table for it -- threshold_field/threshold_min, fields that exist
+# nowhere -- while the live table was missing threshold_max and
+# approval_minimum, which do. 151 assertions passed over both. A field table
+# that is merely incomplete is the drift a reader cannot detect, the same
+# argument the file listing above makes, one level down.
+#
+# Forward only. The reverse -- a documented field that no model declares --
+# needs the field bound to its model to be decidable, and the docs name fields
+# in prose as often as in tables, so it would report the prose as a defect.
+while read -r field; do
+    [ -z "$field" ] && continue
+    assert_doc_cites "\`$field\`" "field $field"
+done < <(grep -hoP '^    \K[a-z_][a-z0-9_]*(?= = fields\.)' \
+    "$MOD"/models/*.py "$MOD"/wizard/*.py "$MOD"/report/*.py | sort -u)
+
 # ------------------------------------------------------------------- models --
 # Every model the module declares must appear in models.md, and every
 # approval.* model the docs name must exist.

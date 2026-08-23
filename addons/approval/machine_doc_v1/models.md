@@ -248,6 +248,7 @@ so category names are unique per company, archived rows included.
 | `user_ids` | Many2many(`res.users`) | No | No | compute |
 | `state` | Selection(new/pending/approved/refused/cancelled) | Yes | No | compute, store, default="new", tracking, group_expand, index |
 | `user_approver_state` | Selection(new/pending/waiting/approved/refused/cancelled) | No | No | compute (context=uid) — mirrors the six `approval.approver` states |
+| `is_terminal` | Boolean | No | No | compute. True once the request reaches approved, refused or cancelled — exists so views can say "this is over" BY NAME instead of spelling `_TERMINAL_STATES` out as a literal triple in four `invisible` expressions |
 | `has_access_to_request` | Boolean | No | No | compute (context=uid) |
 | `is_pending_my_review` | Boolean | No | No | compute (context=uid), search (via `boolean_search_domain`). Delegation-aware "is this in my queue right now" — backs the review inbox |
 | `can_change_request_owner` | Boolean | No | No | compute |
@@ -585,9 +586,11 @@ refusals), `refusal_reason_auto_rule` (auto-refuse rules),
 | `currency_id` | Many2one(`res.currency`) | Yes | **Yes** | from `mixin.approval.threshold`; `threshold` is expressed in it |
 | `category_id` | Many2one(`approval.category`) | Yes | Yes | ondelete=cascade, index |
 | `condition_field` | Selection(amount/quantity/date_range_days/priority) | Yes | Yes | |
-| `operator` | Selection(gt/gte/lt/lte/eq/neq) | Yes | Yes | |
-| `threshold` | Float | Yes | Yes | |
-| `action_type` | Selection(add_approver/auto_approve/auto_refuse) | Yes | Yes | default="add_approver" |
+| `operator` | Selection(gt/gte/lt/lte/eq/neq/between) | Yes | Yes | string="Comparison" |
+| `threshold` | Float | Yes | Yes | the lower bound (inclusive) when `operator` is `between`; for `priority`, 0=Low 1=Normal 2=High 3=Urgent |
+| `threshold_max` | Float | Yes | No | `between` only: the upper bound, EXCLUSIVE. 0 means unlimited, which is how the highest band is spelled |
+| `action_type` | Selection(add_approver/set_approvers/auto_approve/auto_refuse) | Yes | Yes | default="add_approver". `set_approvers` replaces the category's approvers AND its minimum; first match by sequence wins, and it is skipped entirely when the category draws approvers from a security group |
+| `approval_minimum` | Integer | Yes | No | default=1. `set_approvers` only: the minimum this band requires, overriding the category's |
 | `approver_ids` | Many2many(`res.users`) | Yes | No | |
 | `approver_required` | Boolean | Yes | No | default=True |
 | `approver_sequence` | Integer | Yes | No | default=5 |
@@ -595,6 +598,10 @@ refusals), `refusal_reason_auto_rule` (auto-refuse rules),
 ### Constraints
 
 - `_name_category_uniq`: unique nulls not distinct (name, category_id, company_id)
+- `_check_approver_ids_required`: `add_approver`/`set_approvers` need at least one approver
+- `_check_approval_minimum`: `set_approvers` only — at least 1, and no more than the approvers the rule sets
+- `_check_range_bounds`: `between` only — the upper bound exceeds the lower one, or is 0 for unlimited
+- `_check_threshold`: a `priority` threshold is one of 0, 1, 2, 3
 
 ### Key Methods
 
@@ -646,37 +653,6 @@ refusals), `refusal_reason_auto_rule` (auto-refuse rules),
 
 ---
 
-## Fields
-
-| Field | Type | Stored | Required | Key Attributes |
-|-------|------|--------|----------|----------------|
-| `name` | Char | Yes | Yes | |
-| `active` | Boolean | Yes | No | default=True |
-| `category_id` | Many2one(`approval.category`) | Yes | Yes | ondelete=cascade, index |
-| `company_id` | Many2one(`res.company`) | Yes | No | from `mixin.approval.threshold`; empty = every company |
-| `currency_id` | Many2one(`res.currency`) | Yes | **Yes** | from `mixin.approval.threshold`; `threshold_min`/`threshold_max` are expressed in it |
-| `threshold_field` | Selection(amount/quantity) | Yes | Yes | default="amount" |
-| `threshold_min` | Float | Yes | Yes | |
-| `threshold_max` | Float | Yes | No | default=0 (0=unlimited) |
-| `approver_ids` | Many2many(`res.users`) | Yes | Yes | |
-| `approver_required` | Boolean | Yes | No | default=True |
-| `approval_minimum` | Integer | Yes | No | default=1 |
-
-### Constraints
-
-- `_name_category_uniq`: unique(name, category_id)
-- `_check_thresholds`: max > min (or max=0)
-- `_check_no_overlap`: No overlapping ranges per category+field
-
-### Key Methods
-
-| Method | Purpose |
-|--------|---------|
-| `_matches(value)` | Check if value in [min, max) — takes the output of `_get_threshold_value`, never a raw `request.amount` |
-| `_overlaps(other)` | Check range overlap (delegates to `_intervals_overlap`) |
-
----
-
 ## approval.document.requirement
 
 | Key | Value |
@@ -725,6 +701,7 @@ is a label and two requirements may share a translation freely.
 | `name` | Char | required, tracking |
 | `description` | Text | |
 | `amount` | Float | tracking |
+| `amount_total` | Monetary | currency_field="currency_id" |
 | `partner_id` | Many2one(`res.partner`) | tracking |
 | `state` | Selection(draft/confirmed/approved/rejected) | default="draft", tracking |
 | `company_id` | Many2one(`res.company`) | default=env.company |
@@ -895,11 +872,11 @@ is computed and non-stored, recalculated per read.
 |-------|--------|
 | Today | `pending_today`, `approved_today`, `refused_today`, `submitted_today`, `avg_response_time_hours` |
 | Meta | `last_refresh` |
-| Trends | `trend_7days`, `trend_15days`, `trend_30days`, `trend_*_display` |
+| Trends | `trend_7days`, `trend_15days`, `trend_30days`, and their rendered siblings `trend_7days_display`, `trend_15days_display`, `trend_30days_display` |
 | Bottlenecks | `slowest_category_id`, `slowest_category_hours`, `slowest_approver_id`, `slowest_approver_hours`, `most_pending_approver_id`, `most_pending_count` |
 | All-time | `total_requests_all_time`, `total_pending_all_time`, `overall_approval_rate`, `avg_approval_time_all_time` |
 | User | `my_pending_count`, `my_pending_urgent_count`, `my_avg_response_hours` |
-| Velocity | `requests_per_day_7d/15d/30d`, `approvals_per_day_7d/15d/30d`, `avg_response_hours_7d/15d/30d`, `median_approval_hours` |
+| Velocity | `requests_per_day_7d`, `requests_per_day_15d`, `requests_per_day_30d`, `approvals_per_day_7d`, `approvals_per_day_15d`, `approvals_per_day_30d`, `avg_response_hours_7d`, `avg_response_hours_15d`, `avg_response_hours_30d`, `median_approval_hours` |
 
 ### Key Methods
 
