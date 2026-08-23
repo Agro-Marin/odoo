@@ -1,10 +1,8 @@
 {
-  "expected": {
-    "maintenance/TestCalendarWithRecurrence.test_drag_and_drop_calendar_event": "FAIL"
-  },
-  "note": "One tour left. test_dblclick_event_from_calendar was fixed in 944f49cdafe: web's useSpecialData stored, and every caller awaited, a promise the disk cache settles from the CACHE while update:'always' delivers the fresh value through its callback -- so a cold cache never settled it and the form never rendered. Suite grew 11 -> 12 with the cold-open regression test that guards it. What remains is test_drag_and_drop_calendar_event: it now completes all five tour steps and fails the Python assertion, the event landing Aug 8 instead of Aug 15 -- right column, one row short, identical whether the drop targets the day cell or .fc-daygrid-day-top, so it is web_tour's drag_and_drop against FullCalendar v7's pointer handling and not a selector. The stale a[data-event-id] and .fc-daygrid-day-events selectors that masked both faults were fixed in 1e2bdac3e2a.",
+  "expected": {},
+  "note": "Green. Kept because the suite is worth a recorded zero: it sat at 2 of 11 behind a stale selector, and both are browser tours, which fail for environmental reasons as readily as real ones. Three repairs got here: 1e2bdac3e2a (a[data-event-id] and .fc-daygrid-day-events, neither rendered since FullCalendar v7), 944f49cdafe (web's useSpecialData hung a cold many2one statusbar -- what step 1 was hiding), and the drop position: the run:'drag_and_drop ...' string form defaults to position:'top', which hoot resolves to one pixel ABOVE the target, so the dragged event landed in the previous week's row.",
   "run_spec": "-i maintenance --test-enable --test-tags '/maintenance'",
   "suite": "/maintenance",
   "tests_total": 12,
-  "verified_at": "944f49cdafe"
+  "verified_at": "ea6447faade"
 }

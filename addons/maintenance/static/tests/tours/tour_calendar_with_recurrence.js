@@ -77,12 +77,25 @@ registry.category("web_tour.tours").add("test_drag_and_drop_event_in_calendar", 
         {
             content: "Move event to 15th of the month",
             trigger: '.fc-event[data-event-id="1"]',
-            run: 'drag_and_drop .fc-daygrid-day[data-date$="15"]',
+            async run(helpers) {
+                // Options, rather than the `run: "drag_and_drop ..."` string
+                // form, and the empty object is the point: the string form
+                // defaults to `position: "top"`, which hoot resolves to one
+                // pixel ABOVE the target's top edge. Between list rows that
+                // reads as "insert before this one"; in a date grid that pixel
+                // belongs to the previous week, and the event landed a row
+                // short of where the tour aimed. An empty object drops on the
+                // cell's centre.
+                await helpers.drag_and_drop('.fc-daygrid-day[data-date$="15"]', {});
+            },
         },
         {
             content: "Move occurrence to 20th of the month (nothing should happen)",
             trigger: '.fc-event[data-event-id="2"]',
-            run: 'drag_and_drop .fc-daygrid-day[data-date$="20"]',
+            async run(helpers) {
+                // Centre of the cell, for the reason given on the step above.
+                await helpers.drag_and_drop('.fc-daygrid-day[data-date$="20"]', {});
+            },
         },
     ],
 });

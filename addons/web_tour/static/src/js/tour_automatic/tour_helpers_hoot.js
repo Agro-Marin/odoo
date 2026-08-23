@@ -80,6 +80,13 @@ patch(TourHelpers.prototype, {
      * @param {hoot.PointerOptions} options
      * @example
      *  run: "drag_and_drop .o_rows:first", // Drag the active element and drop it in the selector
+     *
+     * The string form above drops at `position: "top"`, which hoot resolves to
+     * one pixel ABOVE the target's top edge -- the right thing between list
+     * rows, where it reads as "insert before this one", and the wrong thing for
+     * a target you mean to drop INTO: in a grid that pixel belongs to the
+     * neighbour above. Pass options for those, where `{}` alone means the
+     * target's centre.
      * @example
      *  async run(helpers) {
      *      await helpers.drag_and_drop(".o_rows:first", {
