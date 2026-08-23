@@ -2,8 +2,8 @@ from contextlib import contextmanager
 
 import pytest
 
+from odoo.db import FunctionStatus
 from odoo.libs import sql
-from odoo.modules.db import FunctionStatus
 from odoo.orm.runtime.registry import Registry
 
 

@@ -20,7 +20,7 @@ if typing.TYPE_CHECKING:
     from odoo.api import Environment
     from odoo.fields import Field
     from odoo.models import BaseModel
-    from odoo.modules.registry import Registry
+    from odoo.orm.runtime import Registry
 
 _logger = logging.getLogger("odoo.registry")
 

@@ -10,6 +10,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from odoo import Command, _, api, fields, models, tools
 from odoo.api import ValuesType
+from odoo.db import FunctionStatus
 from odoo.exceptions import RedirectWarning, UserError, ValidationError
 from odoo.libs.datetime import all_timezones
 from odoo.libs.datetime import timezone as get_timezone
@@ -96,7 +97,6 @@ _RE_WHITESPACE_BEFORE_NEWLINE = re.compile(r"\s+\n")
 def _complete_name_trgm_index_definition(registry) -> str:
     if not registry.has_trigram:
         return ""
-    from odoo.modules.db import FunctionStatus
 
     expression = '"complete_name"'
     if registry.has_unaccent == FunctionStatus.INDEXABLE:

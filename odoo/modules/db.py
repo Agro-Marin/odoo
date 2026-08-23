@@ -1,7 +1,6 @@
 import logging
 import typing
 from contextlib import closing
-from enum import IntEnum
 
 from psycopg.types.json import Json
 
@@ -13,7 +12,7 @@ from odoo.db import schema as _db_schema
 from .registry import Registry
 
 if typing.TYPE_CHECKING:
-    from odoo.db import BaseCursor, Cursor
+    from odoo.db import Cursor
 
 _logger = logging.getLogger(__name__)
 
@@ -198,35 +197,6 @@ def create_categories(
         if category_cache is not None:
             category_cache[xml_id] = p_id
     return p_id
-
-
-class FunctionStatus(IntEnum):
-    MISSING = 0
-    PRESENT = 1
-    INDEXABLE = 2
-
-
-def has_unaccent(cr: BaseCursor) -> FunctionStatus:
-    cr.execute("""
-        SELECT p.provolatile
-        FROM pg_proc p
-        WHERE p.proname = 'unaccent'
-              AND p.pronamespace = current_schema::regnamespace
-              AND p.pronargs = 1
-    """)
-    result = cr.fetchone()
-    if not result:
-        return FunctionStatus.MISSING
-    return FunctionStatus.INDEXABLE if result[0] == "i" else FunctionStatus.PRESENT
-
-
-def has_trigram(cr: BaseCursor) -> bool:
-    cr.execute("""
-        SELECT 1 FROM pg_proc
-        WHERE proname = 'word_similarity'
-          AND pronamespace = current_schema::regnamespace
-    """)
-    return bool(cr.fetchone())
 
 
 def initialize_db(

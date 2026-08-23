@@ -7,9 +7,8 @@ from datetime import UTC, datetime
 from operator import attrgetter
 from typing import TYPE_CHECKING
 
-from odoo.db import BaseCursor
+from odoo.db import BaseCursor, FunctionStatus
 from odoo.libs.collections import Collector
-from odoo.modules.db import FunctionStatus
 from odoo.tools import OrderedSet
 
 from . import decorators as api

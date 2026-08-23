@@ -5,6 +5,7 @@ from collections.abc import Callable, Iterable
 
 import psycopg
 
+from odoo.db import FunctionStatus
 from odoo.db import schema as sql
 from odoo.libs.sql import make_index_name
 from odoo.tools import OrderedSet
@@ -149,8 +150,6 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 if index == "trigram":
                     if field.translate:
                         column_expression = f"""(jsonb_path_query_array({column_expression}, '$.*')::text)"""
-                    from odoo.modules.db import FunctionStatus
-
                     if self.has_unaccent == FunctionStatus.INDEXABLE:
                         column_expression = self.unaccent(column_expression)
                     elif self.has_unaccent:

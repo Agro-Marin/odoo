@@ -3,13 +3,13 @@ from functools import partial
 
 from psycopg import sql as psycopg_sql
 
+from odoo.db import FunctionStatus, has_trigram, has_unaccent
 from odoo.tools import SQL
 
 from ._registry_stubs import _RegistryStubs
 
 if typing.TYPE_CHECKING:
     from odoo.db import BaseCursor
-    from odoo.modules.db import FunctionStatus
 
 
 def _unaccent(
@@ -73,10 +73,8 @@ class _RegistryCapabilitiesMixin(_RegistryStubs):
     unaccent_python: typing.Callable[[str], str]
 
     def _probe_capabilities(self, cr: BaseCursor, db_name: str) -> None:
-        from odoo.modules import db as modules_db
-
-        self.has_unaccent = modules_db.has_unaccent(cr)
-        self.has_trigram = modules_db.has_trigram(cr)
+        self.has_unaccent = has_unaccent(cr)
+        self.has_trigram = has_trigram(cr)
         table = _get_unaccent_table(cr, db_name) if self.has_unaccent else None
 
         self.unaccent = _unaccent if self.has_unaccent else _identity

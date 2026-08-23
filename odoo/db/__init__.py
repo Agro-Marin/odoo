@@ -7,6 +7,7 @@ from odoo import tools
 
 from .budget import ConnectionBudget
 from .cursor import BaseCursor, Cursor, Savepoint
+from .schema import FunctionStatus, has_trigram, has_unaccent
 from .savepoint import insert_or_existing
 from .pool import Connection, ConnectionPool, PoolError
 from .utils import (
@@ -22,6 +23,7 @@ __all__ = [
     "Connection",
     "ConnectionPool",
     "Cursor",
+    "FunctionStatus",
     "PoolError",
     "Savepoint",
     "categorize_query",
@@ -31,6 +33,8 @@ __all__ = [
     "db_connect",
     "drain_all",
     "drain_db",
+    "has_trigram",
+    "has_unaccent",
     "insert_or_existing",
     "is_maintenance_db",
     "is_pooled",

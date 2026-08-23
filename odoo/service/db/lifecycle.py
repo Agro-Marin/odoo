@@ -133,10 +133,7 @@ def _create_empty_database(
             cr.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
             if force_unaccent or odoo.tools.config["unaccent"]:
                 cr.execute("CREATE EXTENSION IF NOT EXISTS unaccent")
-                if (
-                    odoo.modules.db.has_unaccent(cr)
-                    != odoo.modules.db.FunctionStatus.INDEXABLE
-                ):
+                if odoo.db.has_unaccent(cr) != odoo.db.FunctionStatus.INDEXABLE:
                     cr.execute(
                         "ALTER FUNCTION unaccent(text) IMMUTABLE",
                         log_exceptions=False,

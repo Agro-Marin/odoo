@@ -1,8 +1,8 @@
 import typing
 
 if typing.TYPE_CHECKING:
+    from odoo.db import FunctionStatus
     from odoo.models import BaseModel
-    from odoo.modules.db import FunctionStatus
 
     from ._init_phase import InitModelsPhase
 

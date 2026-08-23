@@ -165,9 +165,7 @@ class Registry(
         try:
             registry.setup_signaling()
             with registry.cursor() as cr:
-                from odoo.modules import db as modules_db
-
-                if modules_db.is_initialized(cr):
+                if sql.table_exists(cr, "ir_module_module"):
                     cr.execute(
                         "DELETE FROM ir_config_parameter WHERE key='base.partially_updated_database'"
                     )
