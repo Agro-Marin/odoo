@@ -235,8 +235,19 @@ class TestMarinAccountMoveSyncFixes(AccountTestInvoicingCommon):
             "the change detector and the tax computation must agree on base lines",
         )
 
+    def _needed_values_key(self):
+        move = self.env["account.move"].create(
+            {"move_type": "entry", "date": "2026-01-01"}
+        )
+        return frozendict(
+            {
+                "move_id": move.id,
+                "account_id": self.company_data["default_account_revenue"].id,
+            }
+        )
+
     def test_needed_values_merge_is_order_independent(self):
-        key = frozendict({"move_id": 1, "account_id": 1})
+        key = self._needed_values_key()
         left = {"balance": 10.0, "amount_currency": 10.0}
         right = {
             "balance": -4.0,
@@ -256,7 +267,7 @@ class TestMarinAccountMoveSyncFixes(AccountTestInvoicingCommon):
         self.assertEqual(forward[key]["balance"], backward[key]["balance"])
 
     def test_needed_values_merge_tolerates_a_missing_monetary_field(self):
-        key = frozendict({"move_id": 1, "account_id": 1})
+        key = self._needed_values_key()
         merged = self.env["account.move"]._sync_dynamic_line_needed_values(
             [
                 {key: {"balance": 10.0, "amount_currency": 10.0}},
