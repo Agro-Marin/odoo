@@ -189,6 +189,7 @@ class CreateMixin(_ModelStubs):
 
         data_list = []
         determine_inverses = defaultdict(OrderedSet)
+        bypass_access_ids: defaultdict[Field, OrderedSet] = defaultdict(OrderedSet)
 
         for vals in new_vals_list:
             precomputed = vals.pop("__precomputed__", ())
@@ -217,10 +218,22 @@ class CreateMixin(_ModelStubs):
                 ) or key in cached_only:
                     protected.update(self.pool.field_computed.get(field, [field]))
                 if field.is_many2one and field.bypass_search_access and not self.env.su:
-                    co_id = field.convert_to_cache(val, self)
-                    self.env[field.comodel_name].browse(co_id).check_access("read")
+                    # Collected, not checked here. `check_access` on a
+                    # one-record recordset has to fetch whatever the comodel's
+                    # ir.rule reads, and a recordset of one has nothing to
+                    # prefetch with -- so a rule as small as ("name","!=",x)
+                    # cost one SELECT per record. Indexing the map with a falsy
+                    # co_id on purpose: it creates the entry, so a batch that
+                    # only ever sets the field to False still pays the
+                    # model-level ACL check it paid before.
+                    co_ids = bypass_access_ids[field]
+                    if co_id := field.convert_to_cache(val, self):
+                        co_ids.add(co_id)
 
             data_list.append(data)
+
+        for field, co_ids in bypass_access_ids.items():
+            self.env[field.comodel_name].browse(co_ids).check_access("read")
         prof.mark("prep")
 
         for model_name, parent_name in self._inherits.items():

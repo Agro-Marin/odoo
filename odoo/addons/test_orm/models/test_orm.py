@@ -1414,6 +1414,22 @@ class TestOrmAttachmentHost(models.Model):
     )
 
 
+class TestOrmBypassTarget(models.Model):
+    _name = "test_orm.bypass.target"
+    _description = "Target of a bypass_search_access many2one"
+
+    name = fields.Char()
+
+
+class TestOrmBypassHolder(models.Model):
+    _name = "test_orm.bypass.holder"
+    _description = "Holder of a bypass_search_access many2one"
+
+    name = fields.Char()
+    target_id = fields.Many2one("test_orm.bypass.target", bypass_search_access=True)
+    plain_target_id = fields.Many2one("test_orm.bypass.target")
+
+
 class DecimalPrecisionTest(models.Model):
     _name = "decimal.precision.test"
     _description = "Decimal Precision Test"
