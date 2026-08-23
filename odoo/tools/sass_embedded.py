@@ -358,9 +358,11 @@ class SassEmbeddedCompiler:
                 canon_resp.id = req.id
                 if importer is not None:
                     try:
-                        result = importer.canonicalize(req.url, req.from_import)
-                        if result is not None:
-                            canon_resp.url = result
+                        canonical_url = importer.canonicalize(
+                            req.url, req.from_import
+                        )
+                        if canonical_url is not None:
+                            canon_resp.url = canonical_url
                     except Exception as e:
                         canon_resp.error = str(e)
                 self._send_packet(recv_cid, response.SerializeToString())
@@ -373,9 +375,13 @@ class SassEmbeddedCompiler:
                 import_resp.id = req.id
                 if importer is not None:
                     try:
-                        result = importer.load(req.url)
-                        if result is not None:
-                            contents, file_syntax = result
+                        # A distinct name from `canonicalize`'s above: one
+                        # `result` holding a URL in one branch and a
+                        # (contents, syntax) pair in the other reads as one
+                        # value and is not.
+                        loaded = importer.load(req.url)
+                        if loaded is not None:
+                            contents, file_syntax = loaded
                             success = import_resp.success
                             success.contents = contents
                             syntax_val = {

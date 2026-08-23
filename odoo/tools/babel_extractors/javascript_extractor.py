@@ -36,13 +36,16 @@ def parse_template_string(
     prev_character = None
     escaped = False
     level = 0
-    inside_str = False
+    #: The quote character that opened the string we are inside, or "" when we
+    #: are not inside one. This was `False`/quote-char, so `inside_str ==
+    #: character` compared a bool against a str on every non-string character.
+    inside_str = ""
     expression_contents = ""
     for character in template_string[1:-1]:
         if not inside_str and character in ('"', "'", "`"):
             inside_str = character
         elif inside_str == character and not escaped:
-            inside_str = False
+            inside_str = ""
         if level or keyword:
             expression_contents += character
         if not inside_str:

@@ -468,14 +468,24 @@ def assert_valid_codeobj(
 
 
 def compile_codeobj(
-    expr: str,
+    expr: str | bytes,
     /,
     filename: str = "<unknown>",
     mode: typing.Literal["eval", "exec"] = "eval",
     guard_format: bool = False,
 ) -> CodeType:
-    assert mode in ("eval", "exec")
+    # Not an assert: `-O` strips those, and this is a sandbox entry point whose
+    # whole job is refusing input. A mode the compiler does not know would
+    # otherwise reach `compile()` unchecked.
+    if mode not in ("eval", "exec"):
+        msg = f"compile_codeobj() mode must be 'eval' or 'exec', not {mode!r}"
+        raise ValueError(msg)
     try:
+        # `compile()` takes bytes, but everything below reads `expr` as text --
+        # `"format" in expr` raised TypeError on the bytes the signature
+        # advertised, so the bytes branch had never worked. Decode once, here.
+        if isinstance(expr, (bytes, bytearray)):
+            expr = expr.decode()
         if mode == "eval":
             expr = expr.strip()
         if guard_format and "format" in expr:
@@ -592,18 +602,27 @@ def _is_classified_db_error(exc: BaseException) -> bool:
 
 
 def safe_eval(
-    expr: str | bytes,
+    expr: str | bytes | CodeType,
     /,
     context: dict | None = None,
     *,
     mode: typing.Literal["eval", "exec"] = "eval",
     filename: str | None = None,
 ) -> typing.Any:
-    if type(expr) is CodeType:
+    # `isinstance`, and the annotation admits it: the parameter is typed
+    # `str | bytes`, so under an exact-type test mypy reads this as unreachable
+    # and the check reads as dead -- while the callers it defends against are
+    # the unannotated ones passing whatever they hold.
+    if isinstance(expr, CodeType):
         msg = "safe_eval does not allow direct evaluation of code objects."
         raise TypeError(msg)
 
-    assert context is None or type(context) is dict, "Context must be a dict"
+    # Not an assert, for the same reason as `mode` above. `type() is dict`
+    # rather than isinstance stays deliberate: a dict *subclass* can override
+    # __getitem__, and this mapping becomes the evaluated code's globals.
+    if context is not None and type(context) is not dict:
+        msg = f"safe_eval() context must be a dict, not {type(context).__name__}"
+        raise TypeError(msg)
 
     check_values(context)
 
