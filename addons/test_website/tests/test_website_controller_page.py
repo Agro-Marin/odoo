@@ -1,4 +1,3 @@
-
 from lxml import html
 
 from odoo.exceptions import AccessError, ValidationError
@@ -8,24 +7,27 @@ from odoo.tools import mute_logger
 from odoo.addons.website.controllers.model_page import ModelPageController
 
 
-@tagged('post_install', '-at_install')
+@tagged("post_install", "-at_install")
 class TestWebsiteControllerPage(HttpCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.model = cls.env["ir.model"]._get("test.model.exposed")
 
-        cls.model_acl = cls.env["ir.model.access"].create({
-            "name": "test acl expose",
-            "model_id": cls.model.id,
-            "group_id": cls.env.ref("website.website_page_controller_expose").id,
-            "perm_read": True,
-        })
+        cls.model_acl = cls.env["ir.model.access"].create(
+            {
+                "name": "test acl expose",
+                "model_id": cls.model.id,
+                "group_id": cls.env.ref("website.website_page_controller_expose").id,
+                "perm_read": True,
+            }
+        )
 
-        cls.listing_view = cls.env["ir.ui.view"].create({
-            "type": "qweb",
-            "model": cls.model.model,
-            "arch": """<t t-call="website.layout">
+        cls.listing_view = cls.env["ir.ui.view"].create(
+            {
+                "type": "qweb",
+                "model": cls.model.model,
+                "arch": """<t t-call="website.layout">
                 <t t-set="_activeClasses" t-translation="off">border-primary</t>
                 <div t-attf-class="listing_layout_switcher btn-group ms-3" t-att-data-active-classes="_activeClasses" t-att-data-view-id="view_id">
                     <input type="radio" class="btn-check" name="wstudio_layout" id="o_wstudio_apply_grid" value="grid" t-att-checked="'checked' if layout_mode != 'list' else None"/>
@@ -43,66 +45,88 @@ class TestWebsiteControllerPage(HttpCase):
                         <a class="test_record_listing" t-out="record.display_name" t-att-href="record_to_url(record)" />
                     </t>
                 </div>
-            </t> """
-        })
+            </t> """,
+            }
+        )
 
-        cls.single_view = cls.env["ir.ui.view"].create({
-            "type": "qweb",
-            "model": cls.model.model,
-            "arch": """<t t-call="website.layout">
+        cls.single_view = cls.env["ir.ui.view"].create(
+            {
+                "type": "qweb",
+                "model": cls.model.model,
+                "arch": """<t t-call="website.layout">
                 <div class="test_record" t-out="record.display_name" />
-            </t> """
-        })
+            </t> """,
+            }
+        )
 
-        cls.listing_controller_page = cls.env["website.controller.page"].create({
-            "name": "Exposed Model",
-            "view_id": cls.listing_view.id,
-            "record_view_id": cls.single_view.id,
-            "record_domain": "[('name', '=ilike', 'test_partner_%')]",
-            "website_published": True,
-        })
+        cls.listing_controller_page = cls.env["website.controller.page"].create(
+            {
+                "name": "Exposed Model",
+                "view_id": cls.listing_view.id,
+                "record_view_id": cls.single_view.id,
+                "record_domain": "[('name', '=ilike', 'test_partner_%')]",
+                "website_published": True,
+            }
+        )
 
         partner_data = {}
         if "is_published" in cls.env[cls.model.model]._fields:
             partner_data["is_published"] = True
 
-        records_to_create = [dict(name=f"test_partner_{i}", **partner_data) for i in range(2)]
+        records_to_create = [
+            dict(name=f"test_partner_{i}", **partner_data) for i in range(2)
+        ]
         cls.exposed_records = cls.env[cls.model.model].create(records_to_create)
 
     def test_cannot_bypass_read_rights(self):
-        self.env["ir.model.access"].search([("model_id", "=", self.model.id)]).perm_read = False
+        self.env["ir.model.access"].search(
+            [("model_id", "=", self.model.id)]
+        ).perm_read = False
 
         with self.assertRaises(AccessError) as cm:
-            self.env["website.controller.page"].with_user(2).create({
-                "name": "Exposed Model Read",
-                "website_id": False,
-                "view_id": self.single_view.id,
-                "record_domain": "[('name', '=ilike', 'test_partner_%')]",
-                "website_published": True,
-            })
-        self.assertEqual(str(cm.exception).split("\n")[0], "You are not allowed to access 'Website Model Test Exposed' (test.model.exposed) records.")
+            self.env["website.controller.page"].with_user(2).create(
+                {
+                    "name": "Exposed Model Read",
+                    "website_id": False,
+                    "view_id": self.single_view.id,
+                    "record_domain": "[('name', '=ilike', 'test_partner_%')]",
+                    "website_published": True,
+                }
+            )
+        self.assertEqual(
+            str(cm.exception).split("\n")[0],
+            "You are not allowed to access 'Website Model Test Exposed' (test.model.exposed) records.",
+        )
 
     def test_access_rights_and_rules(self):
         self.authenticate(None, None)
         self.model_acl.active = False
         with mute_logger("odoo.http"):
-            response = self.url_open(f"/model/{self.listing_controller_page.name_slugified}")
+            response = self.url_open(
+                f"/model/{self.listing_controller_page.name_slugified}"
+            )
         self.assertEqual(response.status_code, 403)
 
         self.model_acl.active = True
-        response = self.url_open(f"/model/{self.listing_controller_page.name_slugified}")
+        response = self.url_open(
+            f"/model/{self.listing_controller_page.name_slugified}"
+        )
         self.assertEqual(response.status_code, 200)
         tree = html.fromstring(response.content.decode())
         rec_nodes = tree.xpath("//a[@class='test_record_listing']")
         self.assertEqual(len(rec_nodes), 2)
 
-        self.env["ir.rule"].create({
-            "name": "dummy",
-            "model_id": self.model.id,
-            "domain_force": "[('name', '=', 'test_partner_1')]",
-            "groups": self.env.ref("base.group_public"),
-        })
-        response = self.url_open(f"/model/{self.listing_controller_page.name_slugified}")
+        self.env["ir.rule"].create(
+            {
+                "name": "dummy",
+                "model_id": self.model.id,
+                "domain_force": "[('name', '=', 'test_partner_1')]",
+                "groups": self.env.ref("base.group_public"),
+            }
+        )
+        response = self.url_open(
+            f"/model/{self.listing_controller_page.name_slugified}"
+        )
         tree = html.fromstring(response.content.decode())
         rec_nodes = tree.xpath("//a[@class='test_record_listing']")
         self.assertEqual(len(rec_nodes), 1)
@@ -110,62 +134,103 @@ class TestWebsiteControllerPage(HttpCase):
     def test_expose_model(self):
         self.authenticate(None, None)
 
-        slug = self.env['ir.http']._slug
-        response = self.url_open(f"/model/{self.listing_controller_page.name_slugified}")
+        slug = self.env["ir.http"]._slug
+        response = self.url_open(
+            f"/model/{self.listing_controller_page.name_slugified}"
+        )
         tree = html.fromstring(response.content.decode())
         rec_nodes = tree.xpath("//a[@class='test_record_listing']")
         self.assertEqual(len(rec_nodes), 2)
         for n, record in zip(rec_nodes, self.exposed_records, strict=True):
-            self.assertEqual(n.get("href"), f"/model/{self.listing_controller_page.name_slugified}/{slug(record)}")
+            self.assertEqual(
+                n.get("href"),
+                f"/model/{self.listing_controller_page.name_slugified}/{slug(record)}",
+            )
 
-        response = self.url_open(f"/model/{self.listing_controller_page.name_slugified}/{slug(self.exposed_records[0])}")
+        response = self.url_open(
+            f"/model/{self.listing_controller_page.name_slugified}/{slug(self.exposed_records[0])}"
+        )
         tree = html.fromstring(response.content.decode())
         self.assertEqual(len(tree.xpath("//div[@class='test_record']")), 1)
 
-        response = self.url_open(f"/model/{self.listing_controller_page.name_slugified}/fake-slug-{self.exposed_records[0].id}")
+        response = self.url_open(
+            f"/model/{self.listing_controller_page.name_slugified}/fake-slug-{self.exposed_records[0].id}"
+        )
         self.assertEqual(response.status_code, 404)
 
-        non_reachable_record = self.env[self.model.model].create({"name": "non_reachable"})
-        response = self.url_open(f"/model/{self.listing_controller_page.name_slugified}/{slug(non_reachable_record)}")
+        non_reachable_record = self.env[self.model.model].create(
+            {"name": "non_reachable"}
+        )
+        response = self.url_open(
+            f"/model/{self.listing_controller_page.name_slugified}/{slug(non_reachable_record)}"
+        )
         self.assertEqual(response.status_code, 404)
 
         response = self.url_open("/model/some-other-slug")
         self.assertEqual(response.status_code, 404)
 
         self.listing_controller_page.website_published = False
-        response = self.url_open(f"/model/{self.listing_controller_page.name_slugified}")
+        response = self.url_open(
+            f"/model/{self.listing_controller_page.name_slugified}"
+        )
         self.assertEqual(response.status_code, 404)
 
     def test_search_listing(self):
         self.authenticate(None, None)
 
-        slug = self.env['ir.http']._slug
-        response = self.url_open(f"/model/{self.listing_controller_page.name_slugified}?search=1")
+        slug = self.env["ir.http"]._slug
+        response = self.url_open(
+            f"/model/{self.listing_controller_page.name_slugified}?search=1"
+        )
         tree = html.fromstring(response.content.decode())
         rec_nodes = tree.xpath("//a[@class='test_record_listing']")
         self.assertEqual(len(rec_nodes), 1)
-        self.assertEqual(rec_nodes[0].get("href"), f"/model/{self.listing_controller_page.name_slugified}/{slug(self.exposed_records[1])}")
+        self.assertEqual(
+            rec_nodes[0].get("href"),
+            f"/model/{self.listing_controller_page.name_slugified}/{slug(self.exposed_records[1])}",
+        )
 
         self.patch(ModelPageController, "pager_step", 1)
-        response = self.url_open(f"/model/{self.listing_controller_page.name_slugified}/page/2")
+        response = self.url_open(
+            f"/model/{self.listing_controller_page.name_slugified}/page/2"
+        )
         tree = html.fromstring(response.content.decode())
         rec_nodes = tree.xpath("//a[@class='test_record_listing']")
         self.assertEqual(len(rec_nodes), 1)
-        self.assertEqual(rec_nodes[0].get("href"), f"/model/{self.listing_controller_page.name_slugified}/{slug(self.exposed_records[1])}")
+        self.assertEqual(
+            rec_nodes[0].get("href"),
+            f"/model/{self.listing_controller_page.name_slugified}/{slug(self.exposed_records[1])}",
+        )
 
-        response = self.url_open(f"/model/{self.listing_controller_page.name_slugified}/page/2?search={self.exposed_records[0].name}")
-        self.assertEqual(response.url.partition('/model/')[2], f"exposed-model?search={self.exposed_records[0].name}&order=create_date+desc")
+        response = self.url_open(
+            f"/model/{self.listing_controller_page.name_slugified}/page/2?search={self.exposed_records[0].name}"
+        )
+        self.assertEqual(
+            response.url.partition("/model/")[2],
+            f"exposed-model?search={self.exposed_records[0].name}&order=create_date+desc",
+        )
         tree = html.fromstring(response.content.decode())
         rec_nodes = tree.xpath("//a[@class='test_record_listing']")
         self.assertEqual(len(rec_nodes), 1)
-        self.assertEqual(rec_nodes[0].get("href"), f"/model/{self.listing_controller_page.name_slugified}/{slug(self.exposed_records[0])}")
+        self.assertEqual(
+            rec_nodes[0].get("href"),
+            f"/model/{self.listing_controller_page.name_slugified}/{slug(self.exposed_records[0])}",
+        )
 
     def test_default_layout(self):
-        self.assertEqual(self.listing_controller_page.default_layout, 'grid')
-        self.start_tour('/model/exposed-model', 'website_controller_page_listing_layout', login='admin')
-        self.assertEqual(self.listing_controller_page.default_layout, 'list')
-        #check that the user that has not previously interacted with the layout switcher will prompt on the default layout
-        self.start_tour('/model/exposed-model', 'website_controller_page_default_page_check', login='admin')
+        self.assertEqual(self.listing_controller_page.default_layout, "grid")
+        self.start_tour(
+            "/model/exposed-model",
+            "website_controller_page_listing_layout",
+            login="admin",
+        )
+        self.assertEqual(self.listing_controller_page.default_layout, "list")
+        # check that the user that has not previously interacted with the layout switcher will prompt on the default layout
+        self.start_tour(
+            "/model/exposed-model",
+            "website_controller_page_default_page_check",
+            login="admin",
+        )
 
     def test_model_constrains(self):
         def get_model_meta_params(model_name):
@@ -173,24 +238,41 @@ class TestWebsiteControllerPage(HttpCase):
             return (m._abstract, m._auto, m._transient)
 
         default_page_vals = {
-                "arch": "<t><div/></t>",
-                "type": "qweb",
-                "name": "some_name"
+            "arch": "<t><div/></t>",
+            "type": "qweb",
+            "name": "some_name",
         }
         # Abstract Model
-        self.assertEqual(get_model_meta_params("mixin.website.published"), (True, False, False))
+        self.assertEqual(
+            get_model_meta_params("mixin.website.published"), (True, False, False)
+        )
         with self.assertRaises(ValidationError) as cm:
-            self.env["website.controller.page"].create({**default_page_vals, "model": "mixin.website.published"})
-        self.assertEqual(str(cm.exception), "A page must be set to display a concrete model.")
+            self.env["website.controller.page"].create(
+                {**default_page_vals, "model": "mixin.website.published"}
+            )
+        self.assertEqual(
+            str(cm.exception), "A page must be set to display a concrete model."
+        )
 
         # Transient Model
-        self.assertEqual(get_model_meta_params("base.partner.merge.automatic.wizard"), (False, True, True))
+        self.assertEqual(
+            get_model_meta_params("base.partner.merge.automatic.wizard"),
+            (False, True, True),
+        )
         with self.assertRaises(ValidationError) as cm:
-            self.env["website.controller.page"].create({**default_page_vals, "model": "base.partner.merge.automatic.wizard"})
-        self.assertEqual(str(cm.exception), "A page must be set to display a concrete model.")
+            self.env["website.controller.page"].create(
+                {**default_page_vals, "model": "base.partner.merge.automatic.wizard"}
+            )
+        self.assertEqual(
+            str(cm.exception), "A page must be set to display a concrete model."
+        )
 
         # _auto = False Model
         self.assertEqual(get_model_meta_params("res.device"), (False, False, False))
         with self.assertRaises(ValidationError) as cm:
-            self.env["website.controller.page"].create({**default_page_vals, "model": "res.device"})
-        self.assertEqual(str(cm.exception), "A page must be set to display a concrete model.")
+            self.env["website.controller.page"].create(
+                {**default_page_vals, "model": "res.device"}
+            )
+        self.assertEqual(
+            str(cm.exception), "A page must be set to display a concrete model."
+        )

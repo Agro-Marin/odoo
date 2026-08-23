@@ -343,10 +343,14 @@ class TestMailAlias(TestMailAliasCommon):
                 "alias, exactly like the purely non-latin case below"
             ),
             "Only a subset of unaccented latin chars are valid, others are replaced",
-            ("Purely non-latin names are dropped to empty and rejected as False, "
-            'not turned into a garbage "?" alias'),
+            (
+                "Purely non-latin names are dropped to empty and rejected as False, "
+                'not turned into a garbage "?" alias'
+            ),
         ]
-        for alias_name, expected, msg in zip(alias_names, expected_names, msgs, strict=True):
+        for alias_name, expected, msg in zip(
+            alias_names, expected_names, msgs, strict=True
+        ):
             with self.subTest(alias_name=alias_name):
                 alias = self.env["mail.alias"].create(
                     {
@@ -365,7 +369,9 @@ class TestMailAlias(TestMailAliasCommon):
             }
         )
         # check at write
-        for alias_name, expected, msg in zip(alias_names, expected_names, msgs, strict=True):
+        for alias_name, expected, msg in zip(
+            alias_names, expected_names, msgs, strict=True
+        ):
             with self.subTest(alias_name=alias_name):
                 alias.write({"alias_name": alias_name})
                 self.assertEqual(alias.alias_name, expected, msg)
@@ -388,14 +394,16 @@ class TestMailAlias(TestMailAliasCommon):
             "jobs.\u65e5\u672c",
             "\u041e\u041e\u041e.\u0420\u043e\u043c\u0430\u0448\u043a\u0430",
             "info.\u043a\u043e\u043d\u0442\u0430\u043a\u0442.sales",
-            "jobs.\U0001F60A.sales",
+            "jobs.\U0001f60a.sales",
             "..\u65e5\u672c..",
         ]
         for name in explicit:
             with self.subTest(alias_name=name):
                 sanitized = MailAlias._sanitize_alias_name(name)
                 if sanitized:
-                    self.assertRegex(sanitized, dot_atom_text, "must satisfy the constraint")
+                    self.assertRegex(
+                        sanitized, dot_atom_text, "must satisfy the constraint"
+                    )
                     # and the constraint itself must agree, not just the regex
                     alias = MailAlias.create(
                         {
@@ -411,11 +419,16 @@ class TestMailAlias(TestMailAliasCommon):
         # A dot next to an unrepresentable character is the whole failure mode, so
         # sweep the alphabet that produces it rather than trusting six examples.
         rng = random.Random(20260817)
-        alphabet = list("ab.-_@ ") + ["\u4e2d", "\u042b", "\u00e9", "\u3041", "!", "\u20ac"]
+        alphabet = list("ab.-_@ ") + [
+            "\u4e2d",
+            "\u042b",
+            "\u00e9",
+            "\u3041",
+            "!",
+            "\u20ac",
+        ]
         for _idx in range(3000):
-            name = "".join(
-                rng.choice(alphabet) for _c in range(rng.randint(1, 9))
-            )
+            name = "".join(rng.choice(alphabet) for _c in range(rng.randint(1, 9)))
             sanitized = MailAlias._sanitize_alias_name(name)
             if sanitized:
                 self.assertRegex(
@@ -476,7 +489,12 @@ class TestMailAlias(TestMailAliasCommon):
         for fname, value, expected, msg in [
             ("alias_force_thread_id", record.id, "not_tested", "repairs the config"),
             ("alias_contact", "everyone", "not_tested", "changes who may post"),
-            ("alias_defaults", "{'name': 'x'}", "not_tested", "changes what is created"),
+            (
+                "alias_defaults",
+                "{'name': 'x'}",
+                "not_tested",
+                "changes what is created",
+            ),
             ("alias_name", "status.renamed", "invalid", "renaming repairs nothing"),
             (
                 "alias_domain_id",
@@ -1055,9 +1073,9 @@ class TestMailAliasBounce(TestMailAliasCommon):
         fallback = alias._get_alias_contact_description()
         restrictions = [
             value
-            for value, _label in alias._fields["alias_contact"].get_description(self.env)[
-                "selection"
-            ]
+            for value, _label in alias._fields["alias_contact"].get_description(
+                self.env
+            )["selection"]
             if value != "everyone"
         ]
         self.assertTrue(restrictions)
@@ -1249,7 +1267,8 @@ class TestMailAliasDomain(TestMailAliasCommon):
                     f"catchall@{alias_domain.name}",
                     "notifications@valid.complete.com",
                 ),
-            ], strict=True,
+            ],
+            strict=True,
         ):
             with self.subTest(bounce_alias=bounce_alias):
                 alias_domain.write({"bounce_alias": bounce_alias})
@@ -1320,7 +1339,7 @@ class TestMailAliasDomainLocalParts(TestMailAliasCommon):
             "\u0431\u043e\u0443\u043d\u0441.\u044f",
             "bounce.\u65e5\u672c",
             "\u65e5\u672c.bounce",
-            "b.\U0001F60A.c",
+            "b.\U0001f60a.c",
             "\u3041",
         ]:
             for fname, email_fname in [
@@ -1393,7 +1412,9 @@ class TestMailAliasDomainLocalParts(TestMailAliasCommon):
                 "default_from": "notifications@\u043f\u043e\u0447\u0442\u0430.\u0440\u0444"
             }
         )
-        self.assertEqual(alias_domain.default_from, "notifications@xn--80a1acny.xn--p1ai")
+        self.assertEqual(
+            alias_domain.default_from, "notifications@xn--80a1acny.xn--p1ai"
+        )
         self.assertTrue(alias_domain.default_from_email.isascii())
 
 
@@ -1942,7 +1963,9 @@ class TestMailAliasDanglingDocument(TestMailAliasCommon):
         ]
         for kind, extra, doc_name in cases:
             with self.subTest(kind=kind):
-                domain = self.env["mail.alias.domain"].create({"name": f"clash-{kind}.test"})
+                domain = self.env["mail.alias.domain"].create(
+                    {"name": f"clash-{kind}.test"}
+                )
                 values = {
                     "alias_domain_id": domain.id,
                     "alias_model_id": self.container_model.id,
@@ -1950,7 +1973,9 @@ class TestMailAliasDanglingDocument(TestMailAliasCommon):
                     **extra,
                 }
                 if doc_name:
-                    document = self.env["mail.test.container"].create({"name": doc_name})
+                    document = self.env["mail.test.container"].create(
+                        {"name": doc_name}
+                    )
                     if kind == "owner":
                         values["alias_parent_thread_id"] = document.id
                     else:
@@ -2033,7 +2058,9 @@ class TestMailAliasDefaultsValidation(TestMailAliasCommon):
         """
         for model, fname, value, survives in self.DEFAULTS_CASES:
             with self.subTest(model=model, field=fname):
-                record = self.env[model].create({"name": "defaults probe", fname: value})
+                record = self.env[model].create(
+                    {"name": "defaults probe", fname: value}
+                )
                 record.flush_recordset()
                 record.invalidate_recordset()
                 self.assertEqual(
@@ -2709,7 +2736,9 @@ class TestMailAliasModelTarget(TestMailAliasCommon):
         at all, which is what the wider suite caught.
         """
         Alias = self.env["mail.alias"]
-        self.assertTrue(Alias._alias_model_accepts_mail(self.env["mail.test.container"]))
+        self.assertTrue(
+            Alias._alias_model_accepts_mail(self.env["mail.test.container"])
+        )
         for model_name in ("res.currency", "mixin.mail.thread", "base"):
             with self.subTest(model=model_name):
                 self.assertFalse(
@@ -3008,7 +3037,9 @@ class TestMailAliasIncomingLocalReservations(TestMailAliasCommon):
         with self.assertRaises(exceptions.ValidationError):
             self.env["mail.alias"].create(self._vals(alias_incoming_local=True))
         with self.assertRaises(exceptions.ValidationError):
-            self.env["mail.alias"].create(self._vals(alias_name="bnc-b", alias_incoming_local=True))
+            self.env["mail.alias"].create(
+                self._vals(alias_name="bnc-b", alias_incoming_local=True)
+            )
 
     @users("admin")
     def test_a_scoped_alias_is_unaffected(self):
@@ -3062,7 +3093,9 @@ class TestMailAliasBounceCompany(TestMailAliasCommon):
             {
                 "alias_contact": "partners",
                 "alias_domain_id": domain.id,
-                "alias_model_id": self.env["ir.model"]._get("mail.test.gateway.company").id,
+                "alias_model_id": self.env["ir.model"]
+                ._get("mail.test.gateway.company")
+                .id,
                 "alias_name": "bc.alias",
                 "alias_parent_model_id": self.env["ir.model"]
                 ._get("mail.test.gateway.company")
@@ -3134,25 +3167,35 @@ class TestMailAliasMixinDomainPrecedence(TestMailAliasCommon):
                 "name": "cell A",
             }
         )
-        self.assertEqual(record.alias_id.alias_domain_id, expected, "mixin create, explicit domain")
+        self.assertEqual(
+            record.alias_id.alias_domain_id, expected, "mixin create, explicit domain"
+        )
 
         record = self.env["mail.test.container"].create(
             {"alias_name": "cell.b@typed.test.example", "name": "cell B"}
         )
-        self.assertEqual(record.alias_id.alias_domain_id, expected, "mixin create, no domain")
+        self.assertEqual(
+            record.alias_id.alias_domain_id, expected, "mixin create, no domain"
+        )
 
-        record = self.env["mail.test.container"].create({"alias_name": "cellc", "name": "cell C"})
+        record = self.env["mail.test.container"].create(
+            {"alias_name": "cellc", "name": "cell C"}
+        )
         record.write({"alias_name": "cell.c@typed.test.example"})
         self.assertEqual(record.alias_id.alias_domain_id, expected, "mixin write")
 
-        record = self.env["mail.test.container"].create({"alias_name": "celld", "name": "cell D"})
+        record = self.env["mail.test.container"].create(
+            {"alias_name": "celld", "name": "cell D"}
+        )
         record.write(
             {
                 "alias_domain_id": self.mail_alias_domain.id,
                 "alias_name": "cell.d@typed.test.example",
             }
         )
-        self.assertEqual(record.alias_id.alias_domain_id, expected, "mixin write, explicit domain")
+        self.assertEqual(
+            record.alias_id.alias_domain_id, expected, "mixin write, explicit domain"
+        )
 
         alias = self.env["mail.alias"].create(
             {
@@ -3161,7 +3204,9 @@ class TestMailAliasMixinDomainPrecedence(TestMailAliasCommon):
                 "alias_name": "cell.e@typed.test.example",
             }
         )
-        self.assertEqual(alias.alias_domain_id, expected, "mail.alias create, explicit domain")
+        self.assertEqual(
+            alias.alias_domain_id, expected, "mail.alias create, explicit domain"
+        )
 
     @users("admin")
     def test_a_caller_s_values_still_win_over_the_recomputed_ones(self):
@@ -3205,16 +3250,23 @@ class TestMailAliasDefaultsShape(TestMailAliasCommon):
         traceback for whoever fed it through the API.
         """
         for defaults in ("{1: 2}", "{None: 'x'}", "{(1, 2): 'x'}"):
-            with self.subTest(defaults=defaults), self.assertRaises(
-                exceptions.ValidationError
+            with (
+                self.subTest(defaults=defaults),
+                self.assertRaises(exceptions.ValidationError),
             ):
                 self._make(defaults)
 
     @users("admin")
     def test_the_shapes_that_were_already_refused_still_are(self):
-        for defaults in ("[1, 2]", "not python", "{'nope': 1}", "{'display_name': 'x'}"):
-            with self.subTest(defaults=defaults), self.assertRaises(
-                exceptions.ValidationError
+        for defaults in (
+            "[1, 2]",
+            "not python",
+            "{'nope': 1}",
+            "{'display_name': 'x'}",
+        ):
+            with (
+                self.subTest(defaults=defaults),
+                self.assertRaises(exceptions.ValidationError),
             ):
                 self._make(defaults)
 

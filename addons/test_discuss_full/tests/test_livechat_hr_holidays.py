@@ -48,6 +48,8 @@ class TestLivechatHrHolidays(HttpCase, MailCommon):
                 "user_ids": [Command.link(self.user_employee.id)],
             }
         )
-        self.make_jsonrpc_request("/im_livechat/get_session", {"channel_id": livechat_channel.id})
+        self.make_jsonrpc_request(
+            "/im_livechat/get_session", {"channel_id": livechat_channel.id}
+        )
         self.assertEqual(self.user_employee.im_status, "leave_online")
         self.assertFalse(livechat_channel.available_operator_ids)

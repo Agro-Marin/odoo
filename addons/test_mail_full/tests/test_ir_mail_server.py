@@ -8,25 +8,30 @@ from odoo.addons.base.models.ir_mail_server import IrMail_Server
 from odoo.addons.mail.tests.common import MailCommon
 
 
-@tagged('mail_server')
+@tagged("mail_server")
 class TestIrMailServerPersonal(MailCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.env['ir.config_parameter'].sudo().set_param('mail.disable_personal_mail_servers', False)
-        cls.user_admin.email = 'admin@test.lan'
-        cls.user_employee.email = 'employee@test.lan'
-        cls.user_employee.group_ids += cls.env.ref('mass_mailing.group_mass_mailing_user')
-        cls.test_partner = cls.env['res.partner'].create({
-            'name': 'test partner', 'email': 'test.partner@test.lan'
-        })
-        cls.mail_server_user.write({
-            'from_filter': cls.user_employee.email,
-            'owner_user_id': cls.user_employee,
-            'smtp_user': cls.user_employee.email,
-        })
-        cls.user_employee.invalidate_recordset(['outgoing_mail_server_id'])
+        cls.env["ir.config_parameter"].sudo().set_param(
+            "mail.disable_personal_mail_servers", False
+        )
+        cls.user_admin.email = "admin@test.lan"
+        cls.user_employee.email = "employee@test.lan"
+        cls.user_employee.group_ids += cls.env.ref(
+            "mass_mailing.group_mass_mailing_user"
+        )
+        cls.test_partner = cls.env["res.partner"].create(
+            {"name": "test partner", "email": "test.partner@test.lan"}
+        )
+        cls.mail_server_user.write(
+            {
+                "from_filter": cls.user_employee.email,
+                "owner_user_id": cls.user_employee,
+                "smtp_user": cls.user_employee.email,
+            }
+        )
+        cls.user_employee.invalidate_recordset(["outgoing_mail_server_id"])
 
     @contextmanager
     def mock_mail_connect(self):
@@ -34,20 +39,27 @@ class TestIrMailServerPersonal(MailCommon):
         self.connected_server_ids = []
 
         def patched_connect(mail_server, *args, **kwargs):
-            self.connected_server_ids.append(kwargs.get('mail_server_id'))
+            self.connected_server_ids.append(kwargs.get("mail_server_id"))
             original_connect(mail_server, *args, **kwargs)
 
-        with patch.object(IrMail_Server, '_connect__', autospec=True, wraps=IrMail_Server, side_effect=patched_connect):
+        with patch.object(
+            IrMail_Server,
+            "_connect__",
+            autospec=True,
+            wraps=IrMail_Server,
+            side_effect=patched_connect,
+        ):
             yield
 
-    @users('admin', 'employee')
+    @users("admin", "employee")
     def test_personal_mail_server_allowed_post(self):
         """Check that only the owner of the mail server can create mails that will be sent from it."""
         test_record = self.test_partner.with_user(self.env.user)
         with self.mock_mail_connect():
             test_record.message_post(
-                body='hello',
-                author_id=self.user_employee.partner_id.id, email_from=self.user_employee.email,
+                body="hello",
+                author_id=self.user_employee.partner_id.id,
+                email_from=self.user_employee.email,
                 partner_ids=test_record.ids,
             )
 
@@ -62,41 +74,58 @@ class TestIrMailServerPersonal(MailCommon):
             # check raise on invalid server at create
             with self.assertRaises(ValidationError):
                 test_record.message_post(
-                    body='hello',
-                    author_id=self.user_employee.partner_id.id, email_from=self.user_employee.email,
+                    body="hello",
+                    author_id=self.user_employee.partner_id.id,
+                    email_from=self.user_employee.email,
                     mail_server_id=self.mail_server_user.id,
                     partner_ids=test_record.ids,
                 )
 
             # check refusal on invalid server at send (should not happen in normal flow)
-            mail = self.env['mail.mail'].sudo().create({
-                'body_html': 'hello',
-                'email_from': self.user_employee.email,
-                'author_id': self.user_employee.partner_id.id,
-                'partner_ids': test_record.ids,
-            })
+            mail = (
+                self.env["mail.mail"]
+                .sudo()
+                .create(
+                    {
+                        "body_html": "hello",
+                        "email_from": self.user_employee.email,
+                        "author_id": self.user_employee.partner_id.id,
+                        "partner_ids": test_record.ids,
+                    }
+                )
+            )
             # a caller that asked to be told still is
-            with self.mock_mail_gateway(), self.assertRaisesRegex(UserError, "Unauthorized server for some of the sending mails."):
+            with (
+                self.mock_mail_gateway(),
+                self.assertRaisesRegex(
+                    UserError, "Unauthorized server for some of the sending mails."
+                ),
+            ):
                 mail._send(mail_server=self.mail_server_user, raise_exception=True)
 
             # the queue is not: raising for the batch made one misconfigured mail
             # fatal to every mail queued behind it, so the mail is failed and the
             # rest of the run goes on
-            mail.write({
-                'failure_reason': False, 'failure_type': False, 'state': 'outgoing',
-            })
+            mail.write(
+                {
+                    "failure_reason": False,
+                    "failure_type": False,
+                    "state": "outgoing",
+                }
+            )
             with self.mock_mail_gateway():
                 mail._send(mail_server=self.mail_server_user)
             self.assertEqual(
-                len(self._mails), 0,
-                'nothing goes out over a server this mail may not use',
+                len(self._mails),
+                0,
+                "nothing goes out over a server this mail may not use",
             )
-            self.assertEqual(mail.state, 'exception')
-            self.assertEqual(mail.failure_type, 'mail_server_unauthorized')
+            self.assertEqual(mail.state, "exception")
+            self.assertEqual(mail.failure_type, "mail_server_unauthorized")
 
     def test_personal_mail_server_find_mail_server(self):
         """Check that _get_mail_server only finds 'public' servers unless otherwise allowed."""
-        IrMailServer = self.env['ir.mail_server']
+        IrMailServer = self.env["ir.mail_server"]
         all_servers = IrMailServer.search([])
         test_cases = [
             (None, False),
@@ -104,24 +133,29 @@ class TestIrMailServerPersonal(MailCommon):
         ]
         for mail_servers, should_find_personal in test_cases:
             with self.subTest(mail_servers=mail_servers):
-                found_server, found_email_from = IrMailServer._get_mail_server(self.user_employee.email, mail_servers=mail_servers)
+                found_server, found_email_from = IrMailServer._get_mail_server(
+                    self.user_employee.email, mail_servers=mail_servers
+                )
                 if should_find_personal:
                     self.assertEqual(
-                        (found_server, found_email_from), (self.mail_server_user, self.user_employee.email),
-                        'Passing in a server that is owned should allow finding it.'
+                        (found_server, found_email_from),
+                        (self.mail_server_user, self.user_employee.email),
+                        "Passing in a server that is owned should allow finding it.",
                     )
                 else:
                     self.assertNotEqual(
-                        found_server, self.mail_server_user,
-                        'Finding a server for an email_from without specifying a list of servers should not find owned servers.'
+                        found_server,
+                        self.mail_server_user,
+                        "Finding a server for an email_from without specifying a list of servers should not find owned servers.",
                     )
 
-    @users('employee')
+    @users("employee")
     def test_immutable_create_uid(self):
         """Make sure create_uid is not writable, as it's a security assumption for these tests."""
         message = self.test_partner.with_user(self.env.user).message_post(
-            body='hello',
-            author_id=self.user_employee.partner_id.id, email_from=self.user_employee.email,
+            body="hello",
+            author_id=self.user_employee.partner_id.id,
+            email_from=self.user_employee.email,
             partner_ids=self.test_partner.ids,
         )
 
@@ -131,8 +165,16 @@ class TestIrMailServerPersonal(MailCommon):
 
     def test_personal_mail_server_mail_for_existing_message(self):
         """Crons should be able to send a mail from a personal server for an existing message."""
-        message = self.test_partner.with_user(self.user_employee).message_post(body='hello')
+        message = self.test_partner.with_user(self.user_employee).message_post(
+            body="hello"
+        )
         message.partner_ids += self.test_partner
         with self.mock_mail_connect():
-            self.test_partner.with_user(self.env.ref('base.user_root'))._notify_thread(message)
-        self.assertEqual(self.connected_server_ids, [self.mail_server_user.id], "Should have used message creator's server.")
+            self.test_partner.with_user(self.env.ref("base.user_root"))._notify_thread(
+                message
+            )
+        self.assertEqual(
+            self.connected_server_ids,
+            [self.mail_server_user.id],
+            "Should have used message creator's server.",
+        )

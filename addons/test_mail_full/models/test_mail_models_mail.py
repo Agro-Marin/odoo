@@ -4,89 +4,107 @@ from odoo import api, fields, models
 
 
 class MailTestPortal(models.Model):
-    """ A model inheriting from mixin.mail.thread and mixin.portal with some fields
+    """A model inheriting from mixin.mail.thread and mixin.portal with some fields
     used for portal sharing, like a partner, ..."""
-    _name = 'mail.test.portal'
-    _description = 'Chatter Model for Portal'
+
+    _name = "mail.test.portal"
+    _description = "Chatter Model for Portal"
     _inherit = [
-        'mixin.portal',
-        'mixin.mail.thread',
+        "mixin.portal",
+        "mixin.mail.thread",
     ]
 
-    name = fields.Char('Name')
-    partner_id = fields.Many2one('res.partner', 'Customer')
-    user_id = fields.Many2one(comodel_name='res.users', string="Salesperson")
+    name = fields.Char("Name")
+    partner_id = fields.Many2one("res.partner", "Customer")
+    user_id = fields.Many2one(comodel_name="res.users", string="Salesperson")
 
     def _compute_access_url(self):
         super()._compute_access_url()
-        for record in self.filtered('id'):
-            record.access_url = '/my/test_portal/%s' % self.id
+        for record in self.filtered("id"):
+            record.access_url = "/my/test_portal/%s" % self.id
 
 
 class MailTestPortalNoPartner(models.Model):
-    """ A model inheriting from portal, but without any partner field """
-    _name = 'mail.test.portal.no.partner'
-    _description = 'Chatter Model for Portal (no partner field)'
+    """A model inheriting from portal, but without any partner field"""
+
+    _name = "mail.test.portal.no.partner"
+    _description = "Chatter Model for Portal (no partner field)"
     _inherit = [
-        'mixin.mail.thread',
-        'mixin.portal',
+        "mixin.mail.thread",
+        "mixin.portal",
     ]
 
     name = fields.Char()
 
     def _compute_access_url(self):
         self.access_url = False
-        for record in self.filtered('id'):
-            record.access_url = '/my/test_portal_no_partner/%s' % self.id
+        for record in self.filtered("id"):
+            record.access_url = "/my/test_portal_no_partner/%s" % self.id
 
 
 class MailTestPortalPublicAccessAction(models.Model):
-    """ Test 'public' target_type access action """
-    _description = 'Portal Public Access Action'
-    _name = 'mail.test.portal.public.access.action'
-    _inherit = 'mail.test.portal'
+    """Test 'public' target_type access action"""
+
+    _description = "Portal Public Access Action"
+    _name = "mail.test.portal.public.access.action"
+    _inherit = "mail.test.portal"
 
     def _compute_access_url(self):
         super()._compute_access_url()
-        for record in self.filtered('id'):
-            record.access_url = f'/test_portal/public_type/{record.id}'
+        for record in self.filtered("id"):
+            record.access_url = f"/test_portal/public_type/{record.id}"
 
     def _get_access_action(self, access_uid=None, force_website=False):
         # Test 'public' target type for portal / public people
         if self.env.user.share or force_website:
             return {
-                'type': 'ir.actions.act_url',
-                'url': self.access_url,
-                'target': 'self',
-                'target_type': 'public',
-                'res_id': self.id,
+                "type": "ir.actions.act_url",
+                "url": self.access_url,
+                "target": "self",
+                "target_type": "public",
+                "res_id": self.id,
             }
-        return super()._get_access_action(access_uid=access_uid, force_website=force_website)
+        return super()._get_access_action(
+            access_uid=access_uid, force_website=force_website
+        )
 
 
 class MailTestRating(models.Model):
-    """ A model inheriting from mixin.rating (which inherits from mixin.mail.thread) with some fields used for SMS
-    gateway, like a partner, a specific mobile phone, ... """
-    _name = 'mail.test.rating'
-    _description = 'Rating Model (ticket-like)'
+    """A model inheriting from mixin.rating (which inherits from mixin.mail.thread) with some fields used for SMS
+    gateway, like a partner, a specific mobile phone, ..."""
+
+    _name = "mail.test.rating"
+    _description = "Rating Model (ticket-like)"
     _inherit = [
-        'mixin.rating',
-        'mixin.mail.activity',
-        'mixin.portal',
+        "mixin.rating",
+        "mixin.mail.activity",
+        "mixin.portal",
     ]
     _mailing_enabled = True
-    _order = 'id asc'
-    _mail_partner_fields = ('customer_id',)
+    _order = "id asc"
+    _mail_partner_fields = ("customer_id",)
 
-    name = fields.Char('Name')
-    subject = fields.Char('Subject')
-    company_id = fields.Many2one('res.company', 'Company')
-    customer_id = fields.Many2one('res.partner', 'Customer')
-    email_from = fields.Char('From', compute='_compute_email_from', precompute=True, readonly=False, store=True)
-    phone_nbr = fields.Char('Phone Number', compute='_compute_phone_nbr', precompute=True, readonly=False, store=True)
-    user_id = fields.Many2one('res.users', 'Responsible', tracking=1)
+    name = fields.Char("Name")
+    subject = fields.Char("Subject")
+    company_id = fields.Many2one("res.company", "Company")
+    customer_id = fields.Many2one("res.partner", "Customer")
+    email_from = fields.Char(
+        "From",
+        compute="_compute_email_from",
+        precompute=True,
+        readonly=False,
+        store=True,
+    )
+    phone_nbr = fields.Char(
+        "Phone Number",
+        compute="_compute_phone_nbr",
+        precompute=True,
+        readonly=False,
+        store=True,
+    )
+    user_id = fields.Many2one("res.users", "Responsible", tracking=1)
 
-    @api.depends('customer_id')
+    @api.depends("customer_id")
     def _compute_email_from(self):
         for rating in self:
             if rating.customer_id.email_normalized:
@@ -94,7 +112,7 @@ class MailTestRating(models.Model):
             elif not rating.email_from:
                 rating.email_from = False
 
-    @api.depends('customer_id')
+    @api.depends("customer_id")
     def _compute_phone_nbr(self):
         for rating in self:
             if rating.customer_id.phone:
@@ -102,21 +120,24 @@ class MailTestRating(models.Model):
             elif not rating.phone_nbr:
                 rating.phone_nbr = False
 
-    @api.depends('name', 'subject')
+    @api.depends("name", "subject")
     def _compute_display_name(self):
         # a display_name built from more than _rec_name, the shape product.template
         # has (@api.depends("name", "default_code")) and the one the mixins
         # denormalising it have to follow
         for record in self:
-            record.display_name = ' - '.join(
-                part for part in (record.name, record.subject) if part
-            ) or False
+            record.display_name = (
+                " - ".join(part for part in (record.name, record.subject) if part)
+                or False
+            )
 
     def _phone_get_number_fields(self):
-        return ['phone_nbr']
+        return ["phone_nbr"]
 
     def _rating_apply_get_default_subtype_id(self):
-        return self.env['ir.model.data']._xmlid_to_res_id("test_mail_full.mt_mail_test_rating_rating_done")
+        return self.env["ir.model.data"]._xmlid_to_res_id(
+            "test_mail_full.mt_mail_test_rating_rating_done"
+        )
 
     def _rating_get_partner(self):
         return self.customer_id
@@ -128,20 +149,21 @@ class MailTestRating(models.Model):
 
 class MailTestRatingThread(models.Model):
     """A model inheriting from mixin.mail.thread with minimal fields for testing
-     rating submission without the rating mixin but with the same test code:
+    rating submission without the rating mixin but with the same test code:
 
-     - partner_id: value returned by the base _rating_get_partner method
-     - user_id: value returned by the base _rating_get_operator method
-     """
-    _name = 'mail.test.rating.thread'
-    _description = 'Model for testing rating without the rating mixin'
-    _inherit = ['mixin.mail.thread']
-    _order = 'name asc, id asc'
-    _mail_partner_fields = ('customer_id',)
+    - partner_id: value returned by the base _rating_get_partner method
+    - user_id: value returned by the base _rating_get_operator method
+    """
 
-    name = fields.Char('Name')
-    customer_id = fields.Many2one('res.partner', 'Customer')
-    user_id = fields.Many2one('res.users', 'Responsible', tracking=1)
+    _name = "mail.test.rating.thread"
+    _description = "Model for testing rating without the rating mixin"
+    _inherit = ["mixin.mail.thread"]
+    _order = "name asc, id asc"
+    _mail_partner_fields = ("customer_id",)
+
+    name = fields.Char("Name")
+    customer_id = fields.Many2one("res.partner", "Customer")
+    user_id = fields.Many2one("res.users", "Responsible", tracking=1)
 
     def _rating_get_partner(self):
         return self.customer_id or super()._rating_get_partner()
@@ -149,7 +171,8 @@ class MailTestRatingThread(models.Model):
 
 class MailTestRatingThreadRead(models.Model):
     """Same as MailTestRatingThread but post accessible on read by portal users."""
-    _name = 'mail.test.rating.thread.read'
+
+    _name = "mail.test.rating.thread.read"
     _description = "Read-post rating model"
     _inherit = ["mail.test.rating.thread"]
     _order = "name asc, id asc"

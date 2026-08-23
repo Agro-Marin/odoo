@@ -312,7 +312,9 @@ class TestMailFlow(MailCommon, TestRecipients):
                 subject="Inquiry",
                 target_model="mail.test.lead",
             )
-        self.assertEqual(lead.email_cc, email_cc, "Filled by mixin.mail.thread.cc mixin")
+        self.assertEqual(
+            lead.email_cc, email_cc, "Filled by mixin.mail.thread.cc mixin"
+        )
         self.assertEqual(lead.email_from, self.test_emails[0])
         self.assertEqual(lead.name, "Inquiry")
         self.assertFalse(lead.partner_id)

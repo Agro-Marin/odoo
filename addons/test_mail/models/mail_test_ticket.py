@@ -1,4 +1,3 @@
-
 from odoo import api, fields, models
 from odoo.tools import email_normalize
 

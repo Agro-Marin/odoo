@@ -5,17 +5,25 @@ from odoo.addons.mail.tests.common_controllers import MailControllerUpdateCommon
 
 @tagged("-at_install", "post_install", "mail_controller")
 class TestPortalMessageUpdateController(MailControllerUpdateCommon):
-
     def test_message_update_no_message(self):
         """Test update a non-existing message."""
         self._execute_subtests(
             self.fake_message,
-            ((user, False) for user in [self.guest, self.user_admin, self.user_employee, self.user_portal, self.user_public]),
+            (
+                (user, False)
+                for user in [
+                    self.guest,
+                    self.user_admin,
+                    self.user_employee,
+                    self.user_portal,
+                    self.user_public,
+                ]
+            ),
         )
 
     def test_message_update_portal(self):
         """Test only admin and author can modify content of a message, works if
-        author is a portal user. """
+        author is a portal user."""
         record = self.env["mail.test.portal.no.partner"].create({"name": "Test"})
         token, bad_token, sign, bad_sign, _ = self._get_sign_token_params(record)
         message = record.message_post(

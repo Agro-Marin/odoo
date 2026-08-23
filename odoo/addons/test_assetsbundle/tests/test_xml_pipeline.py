@@ -222,7 +222,6 @@ class TestEsmTemplateBundleForms(BaseCase):
 
 
 class TestTemplateBlockFollowsModuleCode(BaseCase):
-
     _MODULE_CODE = "console.log('module code');\n"
     _TEMPLATE_CODE = 'registerTemplate("my.module.Widget", "/u", `hi`);\n'
 

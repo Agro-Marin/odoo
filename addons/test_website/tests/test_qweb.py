@@ -10,30 +10,38 @@ from odoo.addons.http_routing.tests.common import MockRequest
 
 class TestQweb(TransactionCaseWithUserDemo):
     def _load(self, module, filepath):
-        tools.convert_file(self.env, module, filepath, {}, 'init')
+        tools.convert_file(self.env, module, filepath, {}, "init")
 
     def test_qweb_cdn(self):
-        self._load('test_website', 'tests/template_qweb_test.xml')
+        self._load("test_website", "tests/template_qweb_test.xml")
 
-        website = self.env.ref('website.default_website')
-        website.write({
-            "cdn_activated": True,
-            "cdn_url": "http://test.cdn"
-        })
+        website = self.env.ref("website.default_website")
+        website.write({"cdn_activated": True, "cdn_url": "http://test.cdn"})
 
-        demo = self.env['res.users'].search([('login', '=', 'demo')])[0]
-        demo.write({"signature": '''<span class="toto">
+        demo = self.env["res.users"].search([("login", "=", "demo")])[0]
+        demo.write(
+            {
+                "signature": """<span class="toto">
                 span<span class="fa"></span><img src="/web/image/1"/>
-            </span>'''})
+            </span>"""
+            }
+        )
 
         demo_env = self.env(user=demo)
 
-        html = demo_env['ir.qweb']._render('test_website.test_template', {"user": demo}, website_id=website.id)
-        asset_bundle_xmlid = 'test_website.test_bundle'
-        qweb = self.env['ir.qweb']
-        bundle = qweb._get_asset_bundle(asset_bundle_xmlid, css=True, js=True, assets_params={'website_id': website.id})
+        html = demo_env["ir.qweb"]._render(
+            "test_website.test_template", {"user": demo}, website_id=website.id
+        )
+        asset_bundle_xmlid = "test_website.test_bundle"
+        qweb = self.env["ir.qweb"]
+        bundle = qweb._get_asset_bundle(
+            asset_bundle_xmlid,
+            css=True,
+            js=True,
+            assets_params={"website_id": website.id},
+        )
 
-        asset_version_css = bundle.get_version('css')
+        asset_version_css = bundle.get_version("css")
         # The bundle carries no LOCAL JS (only external scripts + local
         # CSS), so its only generated link is the css attachment — there
         # is no bundle ``.min.js`` script to expect.  The old
@@ -42,7 +50,7 @@ class TestQweb(TransactionCaseWithUserDemo):
         css_url = bundle.get_links()[-1]
 
         html = html.strip()
-        html = re.sub(r'\?unique=[^"]+', '', html).encode('utf8')
+        html = re.sub(r'\?unique=[^"]+', "", html).encode("utf8")
 
         format_data = {
             "css": css_url,
@@ -52,7 +60,10 @@ class TestQweb(TransactionCaseWithUserDemo):
             "asset_xmlid": asset_bundle_xmlid,
             "asset_version_css": asset_version_css,
         }
-        self.assertHTMLEqual(html, ("""<!DOCTYPE html>
+        self.assertHTMLEqual(
+            html,
+            (
+                """<!DOCTYPE html>
 <html>
     <head>
         <link type="text/css" rel="stylesheet" href="http://test.external.link/style1.css"/>
@@ -73,11 +84,19 @@ class TestQweb(TransactionCaseWithUserDemo):
             </span></div>
         <div widget="image"><img src="http://test.cdn/web/image/res.users/%(user_id)s/avatar_1920/%(filename)s" class="img img-fluid" alt="%(alt)s" loading="lazy"/></div>
     </body>
-</html>""" % format_data).encode('utf8'))
+</html>"""
+                % format_data
+            ).encode("utf8"),
+        )
 
         with MockRequest(self.env, website=website):
-            html = demo_env['ir.qweb']._render('test_website.test_template_tatt_qweb', {}, website_id=website.id)
-            self.assertHTMLEqual(html, ("""
+            html = demo_env["ir.qweb"]._render(
+                "test_website.test_template_tatt_qweb", {}, website_id=website.id
+            )
+            self.assertHTMLEqual(
+                html,
+                (
+                    """
     <html>
        <body><a href="/">1</a>
         <a>2</a>
@@ -85,4 +104,6 @@ class TestQweb(TransactionCaseWithUserDemo):
         <a>4</a>
         <a href="">5</a></body>
     </html>
-    """))
+    """
+                ),
+            )

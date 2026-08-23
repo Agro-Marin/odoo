@@ -347,9 +347,7 @@ class TestActivityRights(TestActivityCommon):
             side_effect=_employee_crash,
         ):
             with self.assertRaises(exceptions.AccessError):
-                self.test_record.with_user(
-                    self.user_employee
-                ).activity_schedule(
+                self.test_record.with_user(self.user_employee).activity_schedule(
                     "test_mail.mail_act_test_todo", user_id=self.user_admin.id
                 )
 
@@ -1020,7 +1018,8 @@ class TestActivitySystrayBusNotify(TestActivityCommon):
                     datetime(2024, 1, 1, 15, 0, 0),
                     datetime(2024, 1, 2, 15, 0, 0),
                 ),
-                ({"active": False}, {}, {}, {}), strict=True,
+                ({"active": False}, {}, {}, {}),
+                strict=True,
             )
         ]
 
@@ -1332,7 +1331,9 @@ class TestActivitySystrayBusNotify(TestActivityCommon):
             [([], [])],  # no change -> no notif
             [([], [])],  # no change in "todo" count -> no notif
         ]
-        for write_vals, expected_notif_vals in zip(write_vals_all, expected_notifs, strict=True):
+        for write_vals, expected_notif_vals in zip(
+            write_vals_all, expected_notifs, strict=True
+        ):
             with self.subTest(vals=write_vals):
                 _past_archived, _past_active, _today, _tomorrow = activities = self.env[
                     "mail.activity"
@@ -2908,9 +2909,11 @@ class TestActivityDeadlineClock(ActivityScheduleCase):
             Doc.search([("activity_state", "=", "today")]),
             "the SQL path must see the same day the compute does",
         )
-        groups = dict(Doc._read_group(
+        groups = dict(
+            Doc._read_group(
                 [("id", "=", self.record.id)], ["activity_state"], ["__count"]
-            ))
+            )
+        )
         self.assertEqual(list(groups), ["today"])
 
 

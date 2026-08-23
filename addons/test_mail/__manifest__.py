@@ -1,4 +1,3 @@
-
 {
     "name": "Mail Tests",
     "version": "1.0",

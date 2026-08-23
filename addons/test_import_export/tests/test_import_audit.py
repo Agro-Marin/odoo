@@ -22,8 +22,8 @@ from odoo.addons.base_import.models.base_import import (
     ImportValidationError,
 )
 
-XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-CSV_OPTS = {'quoting': '"', 'separator': ',', 'has_headers': True, 'encoding': 'utf-8'}
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+CSV_OPTS = {"quoting": '"', "separator": ",", "has_headers": True, "encoding": "utf-8"}
 
 
 def make_xlsx(headers, rows, date_columns=()):
@@ -32,6 +32,7 @@ def make_xlsx(headers, rows, date_columns=()):
     'YYYY-MM-DD' is classified as *time* and would not produce a date object).
     """
     import openpyxl
+
     book = openpyxl.Workbook()
     sheet = book.active
     sheet.append(list(headers))
@@ -39,24 +40,24 @@ def make_xlsx(headers, rows, date_columns=()):
         sheet.append(list(row))
     for row_index in range(2, len(rows) + 2):
         for column in date_columns:
-            sheet.cell(row=row_index, column=column).number_format = 'yyyy-mm-dd'
+            sheet.cell(row=row_index, column=column).number_format = "yyyy-mm-dd"
     buf = io.BytesIO()
     book.save(buf)
     return buf.getvalue()
 
 
 class ImportAuditCommon(TransactionCase):
-    def _wizard(self, res_model='import.char', **vals):
-        vals.setdefault('res_model', res_model)
-        return self.env['base_import.import'].create(vals)
+    def _wizard(self, res_model="import.char", **vals):
+        vals.setdefault("res_model", res_model)
+        return self.env["base_import.import"].create(vals)
 
-    def _csv(self, content, res_model='import.char', **vals):
-        return self._wizard(res_model, file=content, file_name='t.csv',
-                            file_type='text/csv', **vals)
+    def _csv(self, content, res_model="import.char", **vals):
+        return self._wizard(
+            res_model, file=content, file_name="t.csv", file_type="text/csv", **vals
+        )
 
 
 class TestReaderDispatch(ImportAuditCommon):
-
     def test_extension_dispatch_is_allow_listed(self):
         """`_read_file` used to do getattr(self, '_read_' + <filename suffix>).
 
@@ -72,21 +73,25 @@ class TestReaderDispatch(ImportAuditCommon):
         # so re-patching per iteration would wrap the previous wrapper and
         # double-count.
         real = Base_ImportImport._read_file
-        self.patch(Base_ImportImport, '_read_file',
-                   lambda s, o: (calls.append(1), real(s, o))[1])
-        for name in ('payload.file', 'payload.group', 'payload.format'):
-            wizard = self._wizard(file=b'\x00\x01junk', file_name=name,
-                                  file_type='application/x-thing')
+        self.patch(
+            Base_ImportImport,
+            "_read_file",
+            lambda s, o: (calls.append(1), real(s, o))[1],
+        )
+        for name in ("payload.file", "payload.group", "payload.format"):
+            wizard = self._wizard(
+                file=b"\x00\x01junk", file_name=name, file_type="application/x-thing"
+            )
             calls.clear()
             with self.assertRaises(Exception):
-                wizard._read_file({'quoting': '"'})
+                wizard._read_file({"quoting": '"'})
             self.assertEqual(len(calls), 1, f"{name} re-entered _read_file")
 
     def test_allow_list_covers_the_extensions_the_ui_offers(self):
         """The dropzone/button accept list and the reader table must agree."""
         self.assertEqual(
             set(EXTENSION_TO_READER),
-            {'csv', 'ods', 'xls', 'xlsm', 'xlsx'},
+            {"csv", "ods", "xls", "xlsm", "xlsx"},
         )
 
     def test_readers_return_rows_only(self):
@@ -95,75 +100,82 @@ class TestReaderDispatch(ImportAuditCommon):
         csv/ods count kept rows). It gated exactly one `<= 0` check and was
         discarded everywhere else, so the inconsistency only ever caused bugs.
         """
-        wizard = self._csv(b'value\nx\ny\n')
-        self.assertEqual(wizard._read_file(dict(CSV_OPTS)), [['value'], ['x'], ['y']])
+        wizard = self._csv(b"value\nx\ny\n")
+        self.assertEqual(wizard._read_file(dict(CSV_OPTS)), [["value"], ["x"], ["y"]])
 
 
 class TestCleanErrors(ImportAuditCommon):
-
     def test_header_only_file_is_mappable_not_an_internal_error(self):
         """`preview[0]` was indexed unconditionally after the header row was
         popped, so a header-only file raised IndexError, which the blanket
         handler turned into the literal text 'list index out of range' in the
         UI. The file should stay mappable with empty examples instead.
         """
-        result = self._csv(b'value\n').parse_preview(dict(CSV_OPTS))
-        self.assertNotIn('error', result, result.get('error'))
-        self.assertEqual(result['headers'], ['value'])
-        self.assertEqual(result['preview'], [['']])
-        self.assertEqual(result['num_rows'], 0)
+        result = self._csv(b"value\n").parse_preview(dict(CSV_OPTS))
+        self.assertNotIn("error", result, result.get("error"))
+        self.assertEqual(result["headers"], ["value"])
+        self.assertEqual(result["preview"], [[""]])
+        self.assertEqual(result["num_rows"], 0)
 
     def test_num_rows_counts_data_rows_only(self):
         """It counted the header too, so the client's batch count
         (ceil((num_rows - skip) / limit)) was one row too high."""
-        self.assertEqual(self._csv(b'value\na\nb\n').parse_preview(dict(CSV_OPTS))['num_rows'], 2)
+        self.assertEqual(
+            self._csv(b"value\na\nb\n").parse_preview(dict(CSV_OPTS))["num_rows"], 2
+        )
 
     def test_multi_character_text_delimiter_reports_a_clean_error(self):
         """The single-character check ran *after* the separator sniffer had
         already handed `quoting` to csv.reader, so on the default path (no
         explicit separator) the user got csv's raw TypeError instead.
         """
-        wizard = self._csv(b'a,b\n1,2\n')
-        for options in ({'quoting': '""'}, {'quoting': '""', 'separator': ','}):
+        wizard = self._csv(b"a,b\n1,2\n")
+        for options in ({"quoting": '""'}, {"quoting": '""', "separator": ","}):
             with self.assertRaises(ImportValidationError):
                 wizard._read_csv(dict(options))
 
     def test_quoting_defaults_instead_of_raising_keyerror(self):
         """Non-UI callers (RPC, automation) that omit `quoting` used to get
         KeyError, surfaced as a misleading 'Unable to read file as csv'."""
-        self.assertEqual(self._csv(b'a,b\n1,2\n')._read_csv({'separator': ','}),
-                         [['a', 'b'], ['1', '2']])
+        self.assertEqual(
+            self._csv(b"a,b\n1,2\n")._read_csv({"separator": ","}),
+            [["a", "b"], ["1", "2"]],
+        )
 
     def test_unexpected_errors_are_logged_and_not_shown_verbatim(self):
         """Every exception used to be handed to the user as `str(error)` and
         logged only at debug level, so a defect in this code read as gibberish
         in the UI ("list index out of range") and left no trace in the log.
         """
-        wizard = self._csv(b'value\nx\n')
-        self.patch(type(wizard), '_read_file',
-                   lambda self, options: (_ for _ in ()).throw(AttributeError("boom")))
+        wizard = self._csv(b"value\nx\n")
+        self.patch(
+            type(wizard),
+            "_read_file",
+            lambda self, options: (_ for _ in ()).throw(AttributeError("boom")),
+        )
         with self.assertLogs(
-            'odoo.addons.base_import.models.base_import', level='ERROR') as logs:
+            "odoo.addons.base_import.models.base_import", level="ERROR"
+        ) as logs:
             result = wizard.parse_preview(dict(CSV_OPTS))
-        self.assertNotIn('boom', result['error'])
-        self.assertIn('could not be read', result['error'])
-        self.assertTrue(any('Unexpected error' in line for line in logs.output))
+        self.assertNotIn("boom", result["error"])
+        self.assertIn("could not be read", result["error"])
+        self.assertTrue(any("Unexpected error" in line for line in logs.output))
 
     def test_expected_errors_still_reach_the_user_verbatim(self):
         """The actionable messages must not be swallowed by the above."""
-        wizard = self._csv(b'')
+        wizard = self._csv(b"")
         result = wizard.parse_preview(dict(CSV_OPTS))
-        self.assertIn('no content', result['error'])
+        self.assertIn("no content", result["error"])
 
     def test_ragged_rows_do_not_break_the_preview(self):
         """A data row narrower than the header used to raise IndexError while
         building the per-column examples."""
-        result = self._csv(b'a,b,c\n1\n').parse_preview(dict(CSV_OPTS))
-        self.assertNotIn('error', result, result.get('error'))
-        self.assertEqual(len(result['preview']), 3)
+        result = self._csv(b"a,b,c\n1\n").parse_preview(dict(CSV_OPTS))
+        self.assertNotIn("error", result, result.get("error"))
+        self.assertEqual(len(result["preview"]), 3)
 
 
-@unittest.skipUnless(can_import('openpyxl'), "openpyxl not available")
+@unittest.skipUnless(can_import("openpyxl"), "openpyxl not available")
 class TestSpreadsheetDateCells(ImportAuditCommon):
     """The xls/xlsx readers hand back native date/datetime objects. Landing one
     in a column that expects a string raised a bare AttributeError/TypeError
@@ -171,31 +183,50 @@ class TestSpreadsheetDateCells(ImportAuditCommon):
     """
 
     def test_date_cell_in_a_float_column(self):
-        wizard = self._wizard('import.float',
-                              file=make_xlsx(['value'], [[datetime.date(2024, 1, 1)]], [1]),
-                              file_name='f.xlsx', file_type=XLSX_MIME)
-        result = wizard.execute_import(['value'], ['value'], {'has_headers': True})
-        self.assertTrue(result.get('messages'), "expected a clean import error")
+        wizard = self._wizard(
+            "import.float",
+            file=make_xlsx(["value"], [[datetime.date(2024, 1, 1)]], [1]),
+            file_name="f.xlsx",
+            file_type=XLSX_MIME,
+        )
+        result = wizard.execute_import(["value"], ["value"], {"has_headers": True})
+        self.assertTrue(result.get("messages"), "expected a clean import error")
 
     def test_date_cell_in_a_multi_mapped_many2many_column(self):
-        wizard = self._wizard('res.partner',
-                              file=make_xlsx(['a', 'b'],
-                                             [[datetime.date(2024, 1, 1), 'Consulting']], [1]),
-                              file_name='m.xlsx', file_type=XLSX_MIME)
-        result = wizard.execute_import(['category_id', 'category_id'], ['a', 'b'],
-                                       {'has_headers': True})
+        wizard = self._wizard(
+            "res.partner",
+            file=make_xlsx(
+                ["a", "b"], [[datetime.date(2024, 1, 1), "Consulting"]], [1]
+            ),
+            file_name="m.xlsx",
+            file_type=XLSX_MIME,
+        )
+        result = wizard.execute_import(
+            ["category_id", "category_id"], ["a", "b"], {"has_headers": True}
+        )
         self.assertIsInstance(result, dict)
 
     def test_date_cell_with_a_boolean_fallback_value(self):
-        wizard = self._wizard('res.partner',
-                              file=make_xlsx(['active'], [[datetime.date(2024, 1, 1)]], [1]),
-                              file_name='b.xlsx', file_type=XLSX_MIME)
-        result = wizard.execute_import(['active'], ['active'], {
-            'has_headers': True,
-            'fallback_values': {'active': {'fallback_value': 'true',
-                                           'field_model': 'res.partner',
-                                           'field_type': 'boolean'}},
-        })
+        wizard = self._wizard(
+            "res.partner",
+            file=make_xlsx(["active"], [[datetime.date(2024, 1, 1)]], [1]),
+            file_name="b.xlsx",
+            file_type=XLSX_MIME,
+        )
+        result = wizard.execute_import(
+            ["active"],
+            ["active"],
+            {
+                "has_headers": True,
+                "fallback_values": {
+                    "active": {
+                        "fallback_value": "true",
+                        "field_model": "res.partner",
+                        "field_type": "boolean",
+                    }
+                },
+            },
+        )
         self.assertIsInstance(result, dict)
 
     def test_selection_fallback_on_an_unknown_field_does_not_raise_keyerror(self):
@@ -203,17 +234,23 @@ class TestSpreadsheetDateCells(ImportAuditCommon):
         model, so fields_get returned nothing for it and indexing the result
         raised KeyError.
         """
-        wizard = self._wizard('res.partner')
+        wizard = self._wizard("res.partner")
         data = wizard._handle_fallback_values(
-            ['props.mysel'], [['bogus']],
-            {'props.mysel': {'fallback_value': 'a', 'field_model': 'res.partner',
-                             'field_type': 'selection',
-                             'selection': [('a', 'A'), ('b', 'B')]}})
-        self.assertEqual(data, [['a']], "unmatched value should take the fallback")
+            ["props.mysel"],
+            [["bogus"]],
+            {
+                "props.mysel": {
+                    "fallback_value": "a",
+                    "field_model": "res.partner",
+                    "field_type": "selection",
+                    "selection": [("a", "A"), ("b", "B")],
+                }
+            },
+        )
+        self.assertEqual(data, [["a"]], "unmatched value should take the fallback")
 
 
 class TestNameColumn(ImportAuditCommon):
-
     def test_name_is_read_from_the_merged_row(self):
         """`import_fields` is rebound by _handle_multi_mapping to the
         deduplicated list, but the name was still read out of the *pre-merge*
@@ -221,17 +258,19 @@ class TestNameColumn(ImportAuditCommon):
         original row is the second `city` cell -- the import reported 'FR' as
         the record name.
         """
-        wizard = self._csv(b'city,region,partner\nParis,FR,ACME Corp\n', res_model='res.partner')
-        result = wizard.execute_import(['city', 'city', 'name'],
-                                       ['city', 'region', 'partner'], dict(CSV_OPTS))
-        self.assertFalse(result.get('messages'))
-        self.assertEqual(result['name'], ['ACME Corp'])
-        partner = self.env['res.partner'].browse(result['ids'])
-        self.assertEqual(partner.city, 'Paris FR')
+        wizard = self._csv(
+            b"city,region,partner\nParis,FR,ACME Corp\n", res_model="res.partner"
+        )
+        result = wizard.execute_import(
+            ["city", "city", "name"], ["city", "region", "partner"], dict(CSV_OPTS)
+        )
+        self.assertFalse(result.get("messages"))
+        self.assertEqual(result["name"], ["ACME Corp"])
+        partner = self.env["res.partner"].browse(result["ids"])
+        self.assertEqual(partner.city, "Paris FR")
 
 
 class TestBatchWindow(ImportAuditCommon):
-
     def test_url_fetches_are_limited_to_the_batch(self):
         """Only `load` honoured the batch limit, so `_parse_import_data` -- which
         *downloads remote image URLs* -- ran over the whole remainder on every
@@ -240,15 +279,27 @@ class TestBatchWindow(ImportAuditCommon):
         """
         calls = []
         wizard = self._csv(
-            ("image_1920\n" + "".join(f"http://example.invalid/{i}.png\n" for i in range(50))).encode(),
-            res_model='res.partner')
+            (
+                "image_1920\n"
+                + "".join(f"http://example.invalid/{i}.png\n" for i in range(50))
+            ).encode(),
+            res_model="res.partner",
+        )
         options = dict(CSV_OPTS, limit=5)
-        with patch.object(Base_ImportImport, '_import_file_by_url',
-                          lambda self, url, s, f, n: calls.append(url) or b'x'), \
-             patch.object(type(self.env['res.users']), '_can_import_remote_urls',
-                          lambda self: True):
-            data, fields = wizard._convert_import_data(['image_1920'], dict(options))
-            data = data[:wizard._batch_window(fields, data, 5)]
+        with (
+            patch.object(
+                Base_ImportImport,
+                "_import_file_by_url",
+                lambda self, url, s, f, n: calls.append(url) or b"x",
+            ),
+            patch.object(
+                type(self.env["res.users"]),
+                "_can_import_remote_urls",
+                lambda self: True,
+            ),
+        ):
+            data, fields = wizard._convert_import_data(["image_1920"], dict(options))
+            data = data[: wizard._batch_window(fields, data, 5)]
             wizard._parse_import_data(data, fields, dict(options))
         self.assertEqual(len(calls), 5)
 
@@ -258,39 +309,39 @@ class TestBatchWindow(ImportAuditCommon):
         rows must stay in the window, or the record loses part of its one2many
         lines and they are re-read as a broken record on the next batch.
         """
-        wizard = self._wizard('import.o2m')
-        fields = ['name', 'value/name']
+        wizard = self._wizard("import.o2m")
+        fields = ["name", "value/name"]
         data = [
-            ['rec0', 'line0'],
-            ['', 'line1'],       # continuation of rec0
-            ['', 'line2'],       # continuation of rec0
-            ['rec1', 'line3'],
+            ["rec0", "line0"],
+            ["", "line1"],  # continuation of rec0
+            ["", "line2"],  # continuation of rec0
+            ["rec1", "line3"],
         ]
         self.assertEqual(wizard._batch_window(fields, data, 1), 3)
         self.assertEqual(wizard._batch_window(fields, data, 4), 4)
 
     def test_window_is_exactly_the_limit_without_one2many_columns(self):
-        wizard = self._wizard('res.partner')
-        data = [[f'r{i}'] for i in range(10)]
-        self.assertEqual(wizard._batch_window(['name'], data, 4), 4)
-        self.assertEqual(wizard._batch_window(['name'], data, 0), 10)
+        wizard = self._wizard("res.partner")
+        data = [[f"r{i}"] for i in range(10)]
+        self.assertEqual(wizard._batch_window(["name"], data, 4), 4)
+        self.assertEqual(wizard._batch_window(["name"], data, 0), 10)
 
     def test_one2many_import_across_a_batch_boundary(self):
         """End-to-end guard for the window: the o2m lines of a record whose
         continuation rows straddle the batch limit must all land on it.
         """
-        csv = b'name,value/name\nparent A,l1\n,l2\n,l3\nparent B,l4\n'
-        wizard = self._csv(csv, res_model='import.o2m')
-        result = wizard.execute_import(['name', 'value/name'], ['name', 'value/name'],
-                                       dict(CSV_OPTS, limit=1))
-        self.assertFalse(result.get('messages'))
-        parent = self.env['import.o2m'].browse(result['ids'])
-        self.assertEqual(parent.name, 'parent A')
-        self.assertEqual(sorted(parent.value.mapped('name')), ['l1', 'l2', 'l3'])
+        csv = b"name,value/name\nparent A,l1\n,l2\n,l3\nparent B,l4\n"
+        wizard = self._csv(csv, res_model="import.o2m")
+        result = wizard.execute_import(
+            ["name", "value/name"], ["name", "value/name"], dict(CSV_OPTS, limit=1)
+        )
+        self.assertFalse(result.get("messages"))
+        parent = self.env["import.o2m"].browse(result["ids"])
+        self.assertEqual(parent.name, "parent A")
+        self.assertEqual(sorted(parent.value.mapped("name")), ["l1", "l2", "l3"])
 
 
 class TestMappingSuggestions(ImportAuditCommon):
-
     def test_empty_column_still_gets_a_fuzzy_suggestion(self):
         """`_extract_header_types` returns ['all'] for an all-empty column, and
         `_filter_fields_by_types` had no case for it, so only fields *with
@@ -298,10 +349,14 @@ class TestMappingSuggestions(ImportAuditCommon):
         'Functon' matched `function` when the column had data and matched
         nothing at all when it did not.
         """
-        populated = self._csv(b'Functon,other\nboss,x\nlead,y\n', res_model='res.partner')
-        empty = self._csv(b'Functon,other\n,x\n,y\n', res_model='res.partner')
-        self.assertEqual(populated.parse_preview(dict(CSV_OPTS))['matches'],
-                         empty.parse_preview(dict(CSV_OPTS))['matches'])
+        populated = self._csv(
+            b"Functon,other\nboss,x\nlead,y\n", res_model="res.partner"
+        )
+        empty = self._csv(b"Functon,other\n,x\n,y\n", res_model="res.partner")
+        self.assertEqual(
+            populated.parse_preview(dict(CSV_OPTS))["matches"],
+            empty.parse_preview(dict(CSV_OPTS))["matches"],
+        )
 
     def test_stale_saved_mapping_is_ignored(self):
         """A saved mapping outlives the field it points at. It was replayed
@@ -309,59 +364,69 @@ class TestMappingSuggestions(ImportAuditCommon):
         path the client cannot resolve and ended up silently unmapped --
         suppressing the suggestion it would otherwise have received.
         """
-        self.env['base_import.mapping'].create({
-            'res_model': 'import.char', 'column_name': 'value',
-            'field_name': 'gone_field'})
-        result = self._csv(b'value\nx\n').parse_preview(dict(CSV_OPTS))
-        self.assertEqual(result['matches'], {0: ['value']})
+        self.env["base_import.mapping"].create(
+            {
+                "res_model": "import.char",
+                "column_name": "value",
+                "field_name": "gone_field",
+            }
+        )
+        result = self._csv(b"value\nx\n").parse_preview(dict(CSV_OPTS))
+        self.assertEqual(result["matches"], {0: ["value"]})
 
     def test_negative_integers_are_typed_as_integer(self):
         """str.isdigit rejects '-1', so a column of negative integers was typed
         float/monetary and integer fields never appeared as suggestions."""
-        wizard = self.env['base_import.import']
-        self.assertEqual(wizard._extract_header_types(['-1', '2'], {}),
-                         ['integer', 'float', 'monetary'])
+        wizard = self.env["base_import.import"]
+        self.assertEqual(
+            wizard._extract_header_types(["-1", "2"], {}),
+            ["integer", "float", "monetary"],
+        )
 
     def test_non_ascii_digits_are_not_typed_as_integer(self):
         """str.isdigit accepts '٣' and '²', for which int() then fails."""
-        wizard = self.env['base_import.import']
-        self.assertNotIn('integer', wizard._extract_header_types(['٣', '٤'], {}))
-        self.assertNotIn('integer', wizard._extract_header_types(['²'], {}))
+        wizard = self.env["base_import.import"]
+        self.assertNotIn("integer", wizard._extract_header_types(["٣", "٤"], {}))
+        self.assertNotIn("integer", wizard._extract_header_types(["²"], {}))
 
 
 class TestMappingStorage(ImportAuditCommon):
-
     def test_unmapped_columns_are_not_stored(self):
         """A `field_name = False` row was written for every column the user
         explicitly left unmapped: it can never produce a suggestion, it
         accumulates on every import, and nothing vacuums it.
         """
-        wizard = self._csv(b'value,ignored\nhello,x\n')
-        wizard.execute_import(['value', False], ['value', 'ignored'], dict(CSV_OPTS))
-        rows = self.env['base_import.mapping'].search([('res_model', '=', 'import.char')])
-        self.assertEqual([(r.column_name, r.field_name) for r in rows], [('value', 'value')])
+        wizard = self._csv(b"value,ignored\nhello,x\n")
+        wizard.execute_import(["value", False], ["value", "ignored"], dict(CSV_OPTS))
+        rows = self.env["base_import.mapping"].search(
+            [("res_model", "=", "import.char")]
+        )
+        self.assertEqual(
+            [(r.column_name, r.field_name) for r in rows], [("value", "value")]
+        )
 
     def test_remapping_a_column_updates_in_place(self):
-        wizard = self._csv(b'value\nhello\n')
-        wizard.execute_import(['value'], ['value'], dict(CSV_OPTS))
-        wizard2 = self._csv(b'value\nhello\n')
-        wizard2.execute_import(['id'], ['value'], dict(CSV_OPTS))
-        rows = self.env['base_import.mapping'].search([('res_model', '=', 'import.char')])
+        wizard = self._csv(b"value\nhello\n")
+        wizard.execute_import(["value"], ["value"], dict(CSV_OPTS))
+        wizard2 = self._csv(b"value\nhello\n")
+        wizard2.execute_import(["id"], ["value"], dict(CSV_OPTS))
+        rows = self.env["base_import.mapping"].search(
+            [("res_model", "=", "import.char")]
+        )
         self.assertEqual(len(rows), 1, "the unique constraint must be respected")
-        self.assertEqual(rows.field_name, 'id')
+        self.assertEqual(rows.field_name, "id")
 
 
 class TestFieldsTree(ImportAuditCommon):
-
     def test_depth_is_clamped(self):
         """`get_fields_tree` is RPC-callable and `depth` was caller-supplied,
         with each level multiplying the payload ~2-4x: over JSON-RPC as a plain
         internal user, depth 3 returned 0.5 MiB, depth 7 11 MiB and depth 9
         47 MiB, and nothing refused the call.
         """
-        wizard = self.env['base_import.import']
-        reference = wizard.get_fields_tree('res.partner')
-        self.assertEqual(wizard.get_fields_tree('res.partner', depth=99), reference)
+        wizard = self.env["base_import.import"]
+        reference = wizard.get_fields_tree("res.partner")
+        self.assertEqual(wizard.get_fields_tree("res.partner", depth=99), reference)
 
     def test_properties_subcolumns_are_still_published(self):
         """The properties branch was gated on `field['type'] not in 'properties'`
@@ -369,10 +434,10 @@ class TestFieldsTree(ImportAuditCommon):
         comparison. It is an equality now; this pins that the branch still
         selects exactly the properties fields.
         """
-        tree = self.env['base_import.import'].get_fields_tree('import.properties')
-        by_name = {f['name']: f for f in tree}
-        self.assertIn('properties', by_name)
-        self.assertEqual(by_name['properties']['type'], 'properties')
+        tree = self.env["base_import.import"].get_fields_tree("import.properties")
+        by_name = {f["name"]: f for f in tree}
+        self.assertIn("properties", by_name)
+        self.assertEqual(by_name["properties"]["type"], "properties")
 
 
 class TestIsolation(ImportAuditCommon):
@@ -384,19 +449,40 @@ class TestIsolation(ImportAuditCommon):
     """
 
     def test_a_user_cannot_read_another_users_import(self):
-        alice = new_test_user(self.env, login='audit_alice', groups='base.group_user')
-        bob = new_test_user(self.env, login='audit_bob', groups='base.group_user')
-        record = self.env['base_import.import'].with_user(alice).create({
-            'res_model': 'res.partner', 'file': b'secret', 'file_name': 'payroll.csv'})
+        alice = new_test_user(self.env, login="audit_alice", groups="base.group_user")
+        bob = new_test_user(self.env, login="audit_bob", groups="base.group_user")
+        record = (
+            self.env["base_import.import"]
+            .with_user(alice)
+            .create(
+                {
+                    "res_model": "res.partner",
+                    "file": b"secret",
+                    "file_name": "payroll.csv",
+                }
+            )
+        )
         self.env.flush_all()
         self.assertFalse(
-            self.env['base_import.import'].with_user(bob).search([('id', '=', record.id)]))
+            self.env["base_import.import"]
+            .with_user(bob)
+            .search([("id", "=", record.id)])
+        )
 
     def test_a_user_can_still_use_their_own_import(self):
-        alice = new_test_user(self.env, login='audit_alice2', groups='base.group_user')
-        wizard = self.env['base_import.import'].with_user(alice).create({
-            'res_model': 'import.char', 'file': b'value\nx\n',
-            'file_name': 't.csv', 'file_type': 'text/csv'})
+        alice = new_test_user(self.env, login="audit_alice2", groups="base.group_user")
+        wizard = (
+            self.env["base_import.import"]
+            .with_user(alice)
+            .create(
+                {
+                    "res_model": "import.char",
+                    "file": b"value\nx\n",
+                    "file_name": "t.csv",
+                    "file_type": "text/csv",
+                }
+            )
+        )
         self.env.flush_all()
         result = wizard.parse_preview(dict(CSV_OPTS))
-        self.assertNotIn('error', result, result.get('error'))
+        self.assertNotIn("error", result, result.get("error"))

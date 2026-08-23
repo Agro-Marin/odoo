@@ -15,7 +15,10 @@ class TestAvatarCardTour(MailCommon, HttpCase):
         new_test_user(
             cls.env,
             login="hr_user",
-            company_ids=[Command.link(cls.env.company.id), Command.link(cls.company_2.id)],
+            company_ids=[
+                Command.link(cls.env.company.id),
+                Command.link(cls.company_2.id),
+            ],
             groups="hr.group_hr_user",
         )
 
@@ -33,32 +36,39 @@ class TestAvatarCardTour(MailCommon, HttpCase):
         other_partner = (
             cls.env["res.partner"]
             .with_company(cls.company_2)
-            .create({
-                "name": "Test Other Partner",
-                "company_id": cls.company_2.id,
-                "phone": "987654321",
-            })
+            .create(
+                {
+                    "name": "Test Other Partner",
+                    "company_id": cls.company_2.id,
+                    "phone": "987654321",
+                }
+            )
         )
         test_employee = (
             cls.env["hr.employee"]
             .with_company(cls.company_2)
-            .create({
-                "name": "Test Employee",
-                "user_id": cls.user_employee_c2.id,
-                "company_id": cls.company_2.id,
-                "department_id": department.id,
-                "job_id": job.id,
-                "address_id": other_partner.id,
-                "work_email": "test_employee@test.com",
-                "work_phone": "123456789",
-            })
+            .create(
+                {
+                    "name": "Test Employee",
+                    "user_id": cls.user_employee_c2.id,
+                    "company_id": cls.company_2.id,
+                    "department_id": department.id,
+                    "job_id": job.id,
+                    "address_id": other_partner.id,
+                    "work_email": "test_employee@test.com",
+                    "work_phone": "123456789",
+                }
+            )
         )
         cls.test_employee = test_employee
         cls.user_employee_c2.write({"employee_ids": [Command.link(test_employee.id)]})
         new_test_user(
             cls.env,
             login="base_user",
-            company_ids=[Command.link(cls.env.company.id), Command.link(cls.company_2.id)],
+            company_ids=[
+                Command.link(cls.env.company.id),
+                Command.link(cls.company_2.id),
+            ],
         )
 
         # hr_holidays setup for multi-company
@@ -96,7 +106,9 @@ class TestAvatarCardTour(MailCommon, HttpCase):
         )
 
     def _setup_channel(self, user):
-        self.user_employee_c2.partner_id.sudo().with_user(self.user_employee_c2).message_post(
+        self.user_employee_c2.partner_id.sudo().with_user(
+            self.user_employee_c2
+        ).message_post(
             body="Test message in chatter",
             message_type="comment",
             subtype_xmlid="mail.mt_comment",

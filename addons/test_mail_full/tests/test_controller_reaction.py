@@ -5,12 +5,19 @@ from odoo.addons.mail.tests.common_controllers import MailControllerReactionComm
 
 @tagged("-at_install", "post_install", "mail_controller")
 class TestPortalMessageReactionController(MailControllerReactionCommon):
-
     def test_message_reaction_nomsg(self):
         """Test access of message reaction for a non-existing message."""
         self._execute_subtests(
             self.fake_message,
-            ((user, False) for user in [self.user_public, self.guest, self.user_portal, self.user_employee]),
+            (
+                (user, False)
+                for user in [
+                    self.user_public,
+                    self.guest,
+                    self.user_portal,
+                    self.user_employee,
+                ]
+            ),
         )
 
     def test_message_reaction_portal_no_partner(self):
@@ -48,7 +55,9 @@ class TestPortalMessageReactionController(MailControllerReactionCommon):
     def test_message_reaction_portal_assigned_partner(self):
         """Test access of message reaction for portal with partner."""
         rec_partner = self.env["res.partner"].create({"name": "Record Partner"})
-        record = self.env["mail.test.portal"].create({"name": "Test", "partner_id": rec_partner.id})
+        record = self.env["mail.test.portal"].create(
+            {"name": "Test", "partner_id": rec_partner.id}
+        )
         message = record.message_post(body="portal with partner")
         token, bad_token, sign, bad_sign, partner = self._get_sign_token_params(record)
         self._execute_subtests(

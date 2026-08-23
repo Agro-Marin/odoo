@@ -7,7 +7,6 @@ from odoo.addons.mail.tests.common_controllers import MailControllerAttachmentCo
 
 @odoo.tests.tagged("-at_install", "post_install", "mail_controller")
 class TestPortalAttachmentController(MailControllerAttachmentCommon):
-
     def test_attachment_upload_portal(self):
         """Test access to upload an attachment on portal"""
         record = self.env["mail.test.portal.no.partner"].create({"name": "Test"})

@@ -1557,7 +1557,9 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
             [],
         ]
 
-        for partner_email, expected_to in zip(partner_emails, expected_tos, strict=True):
+        for partner_email, expected_to in zip(
+            partner_emails, expected_tos, strict=True
+        ):
             with self.subTest(partner_email=partner_email, expected_to=expected_to):
                 self.partner_1.write({"email": partner_email})
                 with self.mock_mail_gateway():
@@ -2304,7 +2306,9 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
             self.assertNotIn("email_prefetch", params)
 
     @mute_logger(
-        "odoo.addons.mail.models.mail_mail", "odoo.addons.mail.models.mixin_mail_thread", "odoo.addons.mail.models.mixin_mail_gateway"
+        "odoo.addons.mail.models.mail_mail",
+        "odoo.addons.mail.models.mixin_mail_thread",
+        "odoo.addons.mail.models.mixin_mail_gateway",
     )
     @users("employee")
     def test_author_is_subscribed_the_same_batched_or_not(self):
@@ -2386,7 +2390,9 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
         )
 
     @mute_logger(
-        "odoo.addons.mail.models.mail_mail", "odoo.addons.mail.models.mixin_mail_thread", "odoo.addons.mail.models.mixin_mail_gateway"
+        "odoo.addons.mail.models.mail_mail",
+        "odoo.addons.mail.models.mixin_mail_thread",
+        "odoo.addons.mail.models.mixin_mail_gateway",
     )
     @users("employee")
     def test_references_are_the_same_batched_or_not(self):
@@ -2456,7 +2462,9 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
             )
 
     @mute_logger(
-        "odoo.addons.mail.models.mail_mail", "odoo.addons.mail.models.mixin_mail_thread", "odoo.addons.mail.models.mixin_mail_gateway"
+        "odoo.addons.mail.models.mail_mail",
+        "odoo.addons.mail.models.mixin_mail_thread",
+        "odoo.addons.mail.models.mixin_mail_gateway",
     )
     @users("employee")
     def test_post_internal(self):

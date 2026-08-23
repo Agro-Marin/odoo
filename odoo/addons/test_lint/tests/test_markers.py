@@ -47,7 +47,6 @@ class TestConflictMarkers(lint_case.LintCase):
 
 
 class TestNulBytes(lint_case.LintCase):
-
     def test_no_nul_bytes(self):
         roots = _scan_roots()
         self.assertTrue(roots, "the scan reached no roots at all")

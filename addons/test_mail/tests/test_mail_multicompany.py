@@ -387,7 +387,8 @@ class TestMultiCompanyControllers(TestMailMCCommon, HttpCase):
                 ),  # currently not really supported actually, should go through portal controllers
                 (False, True, True),
                 (True, True, True),
-            ), strict=True,
+            ),
+            strict=True,
         ):
             with self.subTest(user_name=test_user.name):
                 self.authenticate(test_user.login, test_user.login)
@@ -425,9 +426,15 @@ class TestMultiCompanyControllers(TestMailMCCommon, HttpCase):
                             ]
                         },
                     )
-                    self.assertEqual(result["mixin.mail.thread"][0]["followersCount"], 2)
-                    self.assertEqual(result["mixin.mail.thread"][0]["hasWriteAccess"], has_w)
-                    self.assertEqual(result["mixin.mail.thread"][0]["hasReadAccess"], has_r)
+                    self.assertEqual(
+                        result["mixin.mail.thread"][0]["followersCount"], 2
+                    )
+                    self.assertEqual(
+                        result["mixin.mail.thread"][0]["hasWriteAccess"], has_w
+                    )
+                    self.assertEqual(
+                        result["mixin.mail.thread"][0]["hasReadAccess"], has_r
+                    )
                     self.assertEqual(
                         result["mixin.mail.thread"][0]["canPostOnReadonly"], can_post
                     )

@@ -8,14 +8,18 @@ from odoo.tests.common import TransactionCase
 
 class TestResourceCommon(TransactionCase):
     @classmethod
-    def datetime_tz(cls, year, month, day, hour=0, minute=0, second=0, microsecond=0, tzinfo=None):
-        """ Return a `datetime` object with a given timezone (if given). """
+    def datetime_tz(
+        cls, year, month, day, hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+    ):
+        """Return a `datetime` object with a given timezone (if given)."""
         dt = datetime(year, month, day, hour, minute, second, microsecond)
         return dt.replace(tzinfo=timezone(tzinfo)) if tzinfo else dt
 
     @classmethod
-    def datetime_str(cls, year, month, day, hour=0, minute=0, second=0, microsecond=0, tzinfo=None):
-        """ Return a fields.Datetime value with the given timezone. """
+    def datetime_str(
+        cls, year, month, day, hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+    ):
+        """Return a fields.Datetime value with the given timezone."""
         dt = datetime(year, month, day, hour, minute, second, microsecond)
         if tzinfo:
             dt = dt.replace(tzinfo=timezone(tzinfo)).astimezone(UTC)
@@ -75,7 +79,9 @@ class TestResourceCommon(TransactionCase):
 
         # UTC+1 winter, UTC+2 summer
         cls.calendar_jean = cls._define_calendar(
-            "40 Hours", [(8, 16, i, 1) for i in range(5)], "Europe/Brussels",
+            "40 Hours",
+            [(8, 16, i, 1) for i in range(5)],
+            "Europe/Brussels",
         )
         # UTC+6
         cls.calendar_patel = cls._define_calendar(

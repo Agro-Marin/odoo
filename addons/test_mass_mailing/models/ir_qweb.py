@@ -13,4 +13,4 @@ class IrQweb(models.AbstractModel):
         # declared ESM, which cannot be concatenated into this non-ESM bundle.
         # Putting it in js_assets makes _pregenerate_assets_bundles raise
         # ModuleSyntaxInLegacyBundleError and take the post_install phase down.
-        return (js_assets, css_assets | {'mass_mailing.assets_iframe_style'})
+        return (js_assets, css_assets | {"mass_mailing.assets_iframe_style"})

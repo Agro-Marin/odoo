@@ -314,13 +314,19 @@ class TestMailThreadRottingMixin(MailTrackingDurationMixinCase):
             self.env.cr.execute(
                 "UPDATE mail_test_rotting_resource "
                 "SET date_last_stage_update = %s WHERE id = %s",
-                (base - relativedelta(days=(0, 1, 2, 3, 4, 5, 6, 30)[index // 2 % 8]), record.id),
+                (
+                    base
+                    - relativedelta(days=(0, 1, 2, 3, 4, 5, 6, 30)[index // 2 % 8]),
+                    record.id,
+                ),
             )
         records.invalidate_recordset()
 
         with self.mock_datetime_and_now(base):
             computed = records.filtered("is_rotting")
-            searched = model.search([("id", "in", records.ids), ("is_rotting", "=", True)])
+            searched = model.search(
+                [("id", "in", records.ids), ("is_rotting", "=", True)]
+            )
             self.assertEqual(
                 computed, searched, "is_rotting and its search must select the same set"
             )

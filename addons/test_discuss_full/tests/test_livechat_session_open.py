@@ -15,8 +15,11 @@ class TestImLivechatSessions(TestImLivechatCommon):
         self.make_jsonrpc_request(
             "/im_livechat/get_session", {"channel_id": self.livechat_channel.id}
         )
-        action = self.env.ref("im_livechat.discuss_channel_action_from_livechat_channel")
+        action = self.env.ref(
+            "im_livechat.discuss_channel_action_from_livechat_channel"
+        )
         self.start_tour(
-            f"/odoo/livechat/{self.livechat_channel.id}/action-{action.id}", "im_livechat_session_open",
-            login="operator"
+            f"/odoo/livechat/{self.livechat_channel.id}/action-{action.id}",
+            "im_livechat_session_open",
+            login="operator",
         )

@@ -492,7 +492,8 @@ class TestMailMail(MailCommon):
         mail = self.env["mail.mail"].create(
             dict(
                 base_values,
-                model=self.test_record._name, res_id=self.test_record.id,
+                model=self.test_record._name,
+                res_id=self.test_record.id,
             )
         )
         with self.mock_mail_gateway():
@@ -891,7 +892,9 @@ class TestMailMail(MailCommon):
 
         # MailServer.send_email(): _prepare_email_message__: invalid To
         for email_to, failure_type in zip(
-            self.emails_invalid, ["mail_email_missing", "mail_email_missing"], strict=True
+            self.emails_invalid,
+            ["mail_email_missing", "mail_email_missing"],
+            strict=True,
         ):
             with self.subTest(email_to=email_to):
                 self._reset_data(track_email=email_to)
@@ -1748,7 +1751,8 @@ class TestMailMailServer(MailCommon):
                     ),
                     ([], ['"UpCc" <uppercase.customer.cc@example.gov.uni>']),
                 ],
-            ], strict=True,
+            ],
+            strict=True,
         ):
             with self.subTest(values=recipient_values):
                 mail = self.env["mail.mail"].create(

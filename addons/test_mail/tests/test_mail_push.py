@@ -201,7 +201,8 @@ class TestWebPushNotification(SMSCommon):
         for channel, sender, notification_count in zip(
             (chat_channel + channel_channel + group_channel + group_channel),
             (self.user_email, self.user_email, self.user_email, self.guest),
-            (1, 0, 1, 2), strict=True,
+            (1, 0, 1, 2),
+            strict=True,
         ):
             with self.subTest(channel_type=channel.channel_type):
                 if sender == self.guest:
@@ -758,9 +759,7 @@ class TestWebPushNotification(SMSCommon):
     @patch.object(
         odoo.addons.mail.models.mixin_mail_thread.Session,
         "post",
-        return_value=SimpleNamespace(
-            status_code=404, text="Device Unreachable"
-        ),
+        return_value=SimpleNamespace(status_code=404, text="Device Unreachable"),
     )
     def test_push_notifications_error_device_unreachable(self, post):
         with mute_logger("odoo.addons.mail.tools.web_push"):

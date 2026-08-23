@@ -846,7 +846,9 @@ class TestORM(TestActivityCommon):
                         "summary": f"Test activity for CRM lead {lead.id}",
                         "user_id": self.env.user.id,
                     }
-                    for lead, delta_days in zip(leads, lead_timedelta_setup, strict=True)
+                    for lead, delta_days in zip(
+                        leads, lead_timedelta_setup, strict=True
+                    )
                 ]
             )
 
@@ -1763,7 +1765,9 @@ class TestNextActivityProjectionAgreement(TestActivityCommon):
     def test_projection_follows_the_public_reschedule_buttons(self):
         record = self.env["mail.test.activity"].create({"name": "buttons"})
         self._activity(record, date(2030, 1, 1), "FIRST")
-        late = self._activity(record, date(2031, 1, 1), "LATE", activity_type=self.type_todo)
+        late = self._activity(
+            record, date(2031, 1, 1), "LATE", activity_type=self.type_todo
+        )
         self.assertEqual(record.activity_summary, "FIRST")
 
         late.action_reschedule_today()
@@ -1776,7 +1780,9 @@ class TestNextActivityProjectionAgreement(TestActivityCommon):
         record and the search disagree inside one transaction."""
         record = self.env["mail.test.activity"].create({"name": "search-agree"})
         self._activity(record, date(2030, 1, 1), "FIRST")
-        late = self._activity(record, date(2031, 1, 1), "LATE", activity_type=self.type_todo)
+        late = self._activity(
+            record, date(2031, 1, 1), "LATE", activity_type=self.type_todo
+        )
         self.assertEqual(record.activity_summary, "FIRST")
 
         late.date_deadline = date(2029, 1, 1)
@@ -2081,12 +2087,8 @@ class TestNextActivityProjectionProperties(TestActivityCommon):
         Activity = self.env["mail.activity"]
         model_id = self.env["ir.model"]._get_id("mail.test.activity")
         users = self.env["res.users"].browse(self.env.uid)
-        users |= mail_new_test_user(
-            self.env, login="prop_a", groups="base.group_user"
-        )
-        users |= mail_new_test_user(
-            self.env, login="prop_b", groups="base.group_user"
-        )
+        users |= mail_new_test_user(self.env, login="prop_a", groups="base.group_user")
+        users |= mail_new_test_user(self.env, login="prop_b", groups="base.group_user")
         types = self.env["mail.activity.type"].search([], limit=3)
         today = Activity._today_in_tz()
 
@@ -2115,17 +2117,13 @@ class TestNextActivityProjectionProperties(TestActivityCommon):
             openness = sorted(
                 (
                     activity
-                    for activity in record.with_context(
-                        active_test=False
-                    ).activity_ids
+                    for activity in record.with_context(active_test=False).activity_ids
                     if activity.active
                 ),
                 key=lambda activity: (activity.date_deadline, activity.id),
             )
             deadlines = [activity.date_deadline for activity in openness]
-            mine = next(
-                (a for a in openness if a.user_id.id == self.env.uid), Activity
-            )
+            mine = next((a for a in openness if a.user_id.id == self.env.uid), Activity)
             head = openness[0] if openness else Activity
             truth[record.id] = {
                 "activity_summary": head.summary,
@@ -2154,13 +2152,9 @@ class TestNextActivityProjectionProperties(TestActivityCommon):
                     self.assertEqual(value, expected)
 
         def assertSearchMatches(field, operator, value, keep):
-            expected = {
-                rid for rid, values in truth.items() if keep(values[field])
-            }
+            expected = {rid for rid, values in truth.items() if keep(values[field])}
             found = set(
-                Model.search(
-                    [("id", "in", records.ids), (field, operator, value)]
-                ).ids
+                Model.search([("id", "in", records.ids), (field, operator, value)]).ids
             )
             with self.subTest(field=field, operator=operator, value=value):
                 self.assertEqual(found, expected)
@@ -2197,7 +2191,10 @@ class TestNextActivityProjectionProperties(TestActivityCommon):
                 ("in", lambda v, d=day: v == d),
             ):
                 assertSearchMatches(
-                    "activity_date_deadline", operator, day if operator != "in" else [day], keep
+                    "activity_date_deadline",
+                    operator,
+                    day if operator != "in" else [day],
+                    keep,
                 )
             assertSearchMatches(
                 "my_activity_date_deadline",
@@ -2230,9 +2227,7 @@ class TestNextActivityProjectionProperties(TestActivityCommon):
         ):
             activity_type.decoration_type = decoration
         users = self.env["res.users"].browse(self.env.uid)
-        users |= mail_new_test_user(
-            self.env, login="deco_a", groups="base.group_user"
-        )
+        users |= mail_new_test_user(self.env, login="deco_a", groups="base.group_user")
 
         rng = random.Random(20260818)
         records = Model.create([{"name": f"R{index}"} for index in range(150)])
@@ -2256,9 +2251,7 @@ class TestNextActivityProjectionProperties(TestActivityCommon):
         truth = {
             record.id: {
                 "activity_state": record.activity_state,
-                "activity_exception_decoration": (
-                    record.activity_exception_decoration
-                ),
+                "activity_exception_decoration": (record.activity_exception_decoration),
                 "activity_date_deadline": record.activity_date_deadline,
                 "my_activity_date_deadline": record.my_activity_date_deadline,
             }
@@ -2466,9 +2459,7 @@ class TestNextActivityInvariants(TestActivityCommon):
                     with self.assertRaises(exceptions.AccessError):
                         Model.search([("activity_summary", "=", "SECRET")])
                     continue
-                projected = set(
-                    Model.search([("activity_summary", "=", "SECRET")]).ids
-                )
+                projected = set(Model.search([("activity_summary", "=", "SECRET")]).ids)
                 self.assertEqual(projected, plain)
                 self.assertLessEqual(
                     projected,

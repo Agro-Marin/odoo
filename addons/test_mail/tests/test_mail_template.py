@@ -328,7 +328,9 @@ class TestMailTemplateLanguages(TestMailTemplateCommon):
             mails_sudo = template.send_mail_batch(self.test_records_batch.ids)
 
         self.assertEqual(len(mails_sudo), 100)
-        for idx, (mail, record) in enumerate(zip(mails_sudo, self.test_records_batch, strict=True)):
+        for idx, (mail, record) in enumerate(
+            zip(mails_sudo, self.test_records_batch, strict=True)
+        ):
             self.assertEqual(
                 sorted(mail.attachment_ids.mapped("name")), ["first.txt", "second.txt"]
             )
@@ -436,7 +438,9 @@ class TestMailTemplateLanguages(TestMailTemplateCommon):
             mails_sudo = template.send_mail_batch(self.test_records_batch.ids)
 
         self.assertEqual(len(mails_sudo), 100)
-        for idx, (mail, record) in enumerate(zip(mails_sudo, self.test_records_batch, strict=True)):
+        for idx, (mail, record) in enumerate(
+            zip(mails_sudo, self.test_records_batch, strict=True)
+        ):
             self.assertEqual(
                 sorted(mail.attachment_ids.mapped("name")),
                 [

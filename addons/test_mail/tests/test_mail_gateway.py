@@ -1784,7 +1784,8 @@ class TestMailgateway(MailGatewayCommon):
                 # and with a domain allowed
                 (test_domain, test_domain),
             ],
-            [True, True, False, True], strict=True,
+            [True, True, False, True],
+            strict=True,
         ):
             with self.subTest(
                 alias_right_part=alias_right_part, allowed_domain=allowed_domain
@@ -4335,7 +4336,8 @@ class TestMailGatewayRecipients(MailGatewayCommon):
                 self.test_partners[
                     2
                 ],  # case should not impact (lower versus stored upper)
-            ], strict=True,
+            ],
+            strict=True,
         ):
             with self.subTest(additional_to=additional_to):
                 with self.mock_mail_gateway():

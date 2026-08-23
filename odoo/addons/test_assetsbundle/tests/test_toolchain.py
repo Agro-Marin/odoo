@@ -186,7 +186,6 @@ class TestPipelineFingerprint(BaseCase):
 
 
 class TestToolchainParticipatesInBundleIdentity(BaseCase):
-
     def _fingerprint_with(self, versions):
         from odoo.addons.base.models.assetsbundle import common
 

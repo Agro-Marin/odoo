@@ -14,27 +14,43 @@ def _urlencode_kwargs(**kwargs):
 @tagged("post_install_l10n", "post_install", "-at_install")
 class BaseAutomationTestUi(HttpCase):
     def _neutralize_preexisting_automations(self, neutralize_action=True):
-        self.env["base.automation"].with_context(active_test=False).search([]).write({"active": False})
+        self.env["base.automation"].with_context(active_test=False).search([]).write(
+            {"active": False}
+        )
         if neutralize_action:
-            context = eval_action_context(self.env.ref("base_automation.base_automation_act").context, self.env)
+            context = eval_action_context(
+                self.env.ref("base_automation.base_automation_act").context, self.env
+            )
             del context["search_default_inactive"]
             self.env.ref("base_automation.base_automation_act").context = str(context)
 
     def test_01_base_automation_tour(self):
         self._neutralize_preexisting_automations()
-        self.start_tour("/odoo/action-base_automation.base_automation_act?debug=tests", "test_base_automation", login="admin")
+        self.start_tour(
+            "/odoo/action-base_automation.base_automation_act?debug=tests",
+            "test_base_automation",
+            login="admin",
+        )
         base_automation = self.env["base.automation"].search([])
         self.assertEqual(base_automation.model_id.model, "res.partner")
         self.assertEqual(base_automation.trigger, "on_create_or_write")
-        self.assertEqual(base_automation.action_server_ids.state, "object_write")  # only one action
+        self.assertEqual(
+            base_automation.action_server_ids.state, "object_write"
+        )  # only one action
         self.assertEqual(base_automation.action_server_ids.model_name, "res.partner")
-        self.assertEqual(base_automation.action_server_ids.update_field_id.name, "function")
+        self.assertEqual(
+            base_automation.action_server_ids.update_field_id.name, "function"
+        )
         self.assertEqual(base_automation.action_server_ids.value, "Test")
 
     def test_base_automation_on_tag_added(self):
         self._neutralize_preexisting_automations()
         self.env["test_base_automation.tag"].create({"name": "test"})
-        self.start_tour("/odoo/action-base_automation.base_automation_act?debug=tests", "test_base_automation_on_tag_added", login="admin")
+        self.start_tour(
+            "/odoo/action-base_automation.base_automation_act?debug=tests",
+            "test_base_automation_on_tag_added",
+            login="admin",
+        )
 
     def test_open_automation_from_grouped_kanban(self):
         self._neutralize_preexisting_automations()
@@ -59,13 +75,21 @@ class BaseAutomationTestUi(HttpCase):
             {
                 "name": "test action",
                 "res_model": "test_base_automation.project",
-                "view_ids": [Command.create({"view_id": test_view.id, "view_mode": "kanban"})],
+                "view_ids": [
+                    Command.create({"view_id": test_view.id, "view_mode": "kanban"})
+                ],
             }
         )
         tag = self.env["test_base_automation.tag"].create({"name": "test tag"})
-        self.env["test_base_automation.project"].create({"name": "test", "tag_ids": [Command.link(tag.id)]})
+        self.env["test_base_automation.project"].create(
+            {"name": "test", "tag_ids": [Command.link(tag.id)]}
+        )
 
-        self.start_tour(f"/odoo/action-{test_action.id}?debug=0", "test_open_automation_from_grouped_kanban", login="admin")
+        self.start_tour(
+            f"/odoo/action-{test_action.id}?debug=0",
+            "test_open_automation_from_grouped_kanban",
+            login="admin",
+        )
         base_auto = self.env["base.automation"].search([])
         self.assertEqual(base_auto.name, "From Tour")
         self.assertEqual(base_auto.model_name, "test_base_automation.project")
@@ -77,20 +101,28 @@ class BaseAutomationTestUi(HttpCase):
     def test_kanban_automation_view_stage_trigger(self):
         self._neutralize_preexisting_automations()
 
-        project_model = self.env.ref('test_base_automation.model_test_base_automation_project')
-        stage_field = self.env['ir.model.fields'].search([
-            ('model_id', '=', project_model.id),
-            ('name', '=', 'stage_id'),
-        ])
-        test_stage = self.env['test_base_automation.stage'].create({'name': 'Stage value'})
+        project_model = self.env.ref(
+            "test_base_automation.model_test_base_automation_project"
+        )
+        stage_field = self.env["ir.model.fields"].search(
+            [
+                ("model_id", "=", project_model.id),
+                ("name", "=", "stage_id"),
+            ]
+        )
+        test_stage = self.env["test_base_automation.stage"].create(
+            {"name": "Stage value"}
+        )
 
-        automation = self.env["base.automation"].create({
-            "name": "Test Stage",
-            "trigger": "on_stage_set",
-            "model_id": project_model.id,
-            "trigger_field_ids": [stage_field.id],
-            "trg_field_ref": test_stage,
-        })
+        automation = self.env["base.automation"].create(
+            {
+                "name": "Test Stage",
+                "trigger": "on_stage_set",
+                "model_id": project_model.id,
+                "trigger_field_ids": [stage_field.id],
+                "trg_field_ref": test_stage,
+            }
+        )
 
         action = {
             "name": "Set Active To False",
@@ -98,78 +130,90 @@ class BaseAutomationTestUi(HttpCase):
             "state": "object_write",
             "update_path": "user_ids.active",
             "value": False,
-            "model_id": project_model.id
+            "model_id": project_model.id,
         }
         automation.write({"action_server_ids": [Command.create(action)]})
 
         self.start_tour(
             "/odoo/action-base_automation.base_automation_act",
-            "test_kanban_automation_view_stage_trigger", login="admin"
+            "test_kanban_automation_view_stage_trigger",
+            login="admin",
         )
 
     def test_kanban_automation_view_time_trigger(self):
         self._neutralize_preexisting_automations()
-        model = self.env['ir.model']._get("base.automation.lead.test")
+        model = self.env["ir.model"]._get("base.automation.lead.test")
 
-        date_field = self.env['ir.model.fields'].search([
-            ('model_id', '=', model.id),
-            ('name', '=', 'date_automation_last'),
-        ])
+        date_field = self.env["ir.model.fields"].search(
+            [
+                ("model_id", "=", model.id),
+                ("name", "=", "date_automation_last"),
+            ]
+        )
 
-        self.env["base.automation"].create({
-            "name": "Test Date",
-            "trigger": "on_time",
-            "model_id": model.id,
-            "trg_date_range": 1,
-            "trg_date_range_type": "hour",
-            "trg_date_id": date_field.id,
-        })
+        self.env["base.automation"].create(
+            {
+                "name": "Test Date",
+                "trigger": "on_time",
+                "model_id": model.id,
+                "trg_date_range": 1,
+                "trg_date_range_type": "hour",
+                "trg_date_id": date_field.id,
+            }
+        )
 
         self.start_tour(
             "/odoo/action-base_automation.base_automation_act",
-            "test_kanban_automation_view_time_trigger", login="admin"
+            "test_kanban_automation_view_time_trigger",
+            login="admin",
         )
 
     def test_kanban_automation_view_time_updated_trigger(self):
         self._neutralize_preexisting_automations()
         model = self.env.ref("base.model_res_partner")
 
-        self.env["base.automation"].create({
-            "name": "Test Date",
-            "trigger": "on_time_updated",
-            "model_id": model.id,
-            "trg_date_range": 1,
-            "trg_date_range_type": "hour",
-        })
+        self.env["base.automation"].create(
+            {
+                "name": "Test Date",
+                "trigger": "on_time_updated",
+                "model_id": model.id,
+                "trg_date_range": 1,
+                "trg_date_range_type": "hour",
+            }
+        )
 
         self.start_tour(
             "/odoo/action-base_automation.base_automation_act",
-            "test_kanban_automation_view_time_updated_trigger", login="admin"
+            "test_kanban_automation_view_time_updated_trigger",
+            login="admin",
         )
 
     def test_kanban_automation_view_create_action(self):
         self._neutralize_preexisting_automations()
         model = self.env.ref("base.model_res_partner")
 
-        automation = self.env["base.automation"].create({
-            "name": "Test",
-            "trigger": "on_create_or_write",
-            "model_id": model.id,
-        })
+        automation = self.env["base.automation"].create(
+            {
+                "name": "Test",
+                "trigger": "on_create_or_write",
+                "model_id": model.id,
+            }
+        )
 
         action = {
             "name": "Create Contact with name NameX",
             "base_automation_id": automation.id,
             "state": "object_create",
             "value": "NameX",
-            "model_id": model.id
+            "model_id": model.id,
         }
 
         automation.write({"action_server_ids": [Command.create(action)]})
 
         self.start_tour(
             "/odoo/action-base_automation.base_automation_act",
-            "test_kanban_automation_view_create_action", login="admin"
+            "test_kanban_automation_view_create_action",
+            login="admin",
         )
 
     def test_resize_kanban(self):
@@ -192,7 +236,9 @@ class BaseAutomationTestUi(HttpCase):
             "value": False,
             "model_id": model.id,
         }
-        automation.write({"action_server_ids": [Command.create(action) for i in range(3)]})
+        automation.write(
+            {"action_server_ids": [Command.create(action) for i in range(3)]}
+        )
 
         self.start_tour(
             "/odoo/action-base_automation.base_automation_act",
@@ -218,7 +264,14 @@ class BaseAutomationTestUi(HttpCase):
             "model_id": model.id,
         }
         automation.write(
-            {"action_server_ids": [Command.create(dict(action, name=action["name"] + f" {i}", sequence=i)) for i in range(3)]}
+            {
+                "action_server_ids": [
+                    Command.create(
+                        dict(action, name=action["name"] + f" {i}", sequence=i)
+                    )
+                    for i in range(3)
+                ]
+            }
         )
         self.assertEqual(
             automation.action_server_ids.mapped("name"),
@@ -233,7 +286,11 @@ class BaseAutomationTestUi(HttpCase):
             onchange_link_passes += 1
             res = origin_link_onchange(self_model, *args)
             if onchange_link_passes == 1:
-                default_keys = {k: v for k, v in self_model.env.context.items() if k.startswith("default_")}
+                default_keys = {
+                    k: v
+                    for k, v in self_model.env.context.items()
+                    if k.startswith("default_")
+                }
                 self.assertEqual(
                     default_keys,
                     {"default_model_id": model.id, "default_usage": "base_automation"},
@@ -243,7 +300,9 @@ class BaseAutomationTestUi(HttpCase):
 
             return res
 
-        self.patch(type(self.env["ir.actions.server"]), "onchange", _onchange_base_auto_link)
+        self.patch(
+            type(self.env["ir.actions.server"]), "onchange", _onchange_base_auto_link
+        )
 
         self.start_tour(
             (
@@ -288,17 +347,25 @@ class BaseAutomationTestUi(HttpCase):
         )
 
     def test_on_change_rule_creation(self):
-        """ test on_change rule creation from the UI """
-        self.start_tour("/odoo/action-base_automation.base_automation_act", 'base_automation.on_change_rule_creation', login="admin")
+        """test on_change rule creation from the UI"""
+        self.start_tour(
+            "/odoo/action-base_automation.base_automation_act",
+            "base_automation.on_change_rule_creation",
+            login="admin",
+        )
 
-        rule = self.env['base.automation'].search([], order="create_date desc", limit=1)[0]
-        view_model = self.env['ir.model']._get("ir.ui.view")
-        active_field = self.env['ir.model.fields'].search([
-            ('name', '=', 'active'),
-            ('model', '=', 'ir.ui.view'),
-        ])[0]
+        rule = self.env["base.automation"].search(
+            [], order="create_date desc", limit=1
+        )[0]
+        view_model = self.env["ir.model"]._get("ir.ui.view")
+        active_field = self.env["ir.model.fields"].search(
+            [
+                ("name", "=", "active"),
+                ("model", "=", "ir.ui.view"),
+            ]
+        )[0]
         self.assertEqual(rule.name, "Test rule")
         self.assertEqual(rule.model_id, view_model)
-        self.assertEqual(rule.trigger, 'on_change')
+        self.assertEqual(rule.trigger, "on_change")
         self.assertEqual(len(rule.on_change_field_ids), 1)
         self.assertEqual(rule.on_change_field_ids[0], active_field)

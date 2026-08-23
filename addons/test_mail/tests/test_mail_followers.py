@@ -2042,9 +2042,7 @@ class RecipientsNotificationTest(MailCommon):
         )
         # 0: portal is follower but does not follow comment + common partner (+ admin as pid)
         recipients_data_1 = {
-            r: recipients_data[r]
-            for r in recipients_data
-            if r in test_records[0:1].ids
+            r: recipients_data[r] for r in recipients_data if r in test_records[0:1].ids
         }
         self.assertRecipientsData(
             recipients_data_1,
@@ -2053,9 +2051,7 @@ class RecipientsNotificationTest(MailCommon):
         )
         # 1: portal is follower with comment + common partner (+ admin as pid)
         recipients_data_1 = {
-            r: recipients_data[r]
-            for r in recipients_data
-            if r in test_records[1:2].ids
+            r: recipients_data[r] for r in recipients_data if r in test_records[1:2].ids
         }
         self.assertRecipientsData(
             recipients_data_1,
@@ -2067,9 +2063,7 @@ class RecipientsNotificationTest(MailCommon):
         )
         # 2-3: common partner (+ admin as pid)
         recipients_data_2 = {
-            r: recipients_data[r]
-            for r in recipients_data
-            if r in test_records[2:4].ids
+            r: recipients_data[r] for r in recipients_data if r in test_records[2:4].ids
         }
         self.assertRecipientsData(
             recipients_data_2,
@@ -2078,9 +2072,7 @@ class RecipientsNotificationTest(MailCommon):
         )
         # 4+: env user partner (+ admin as pid)
         recipients_data_3 = {
-            r: recipients_data[r]
-            for r in recipients_data
-            if r in test_records[4:].ids
+            r: recipients_data[r] for r in recipients_data if r in test_records[4:].ids
         }
         self.assertRecipientsData(
             recipients_data_3,
@@ -2394,7 +2386,9 @@ class UnfollowLinkTest(MailCommon, HttpCase):
                 unfollow_urls = self._message_post_and_get_unfollow_urls(
                     test_record, test_partners
                 )
-                for _test_partner, unfollow_url in zip(test_partners, unfollow_urls, strict=True):
+                for _test_partner, unfollow_url in zip(
+                    test_partners, unfollow_urls, strict=True
+                ):
                     self.assertFalse(unfollow_url)
 
     def test_unsubscribe_unreadable(self):

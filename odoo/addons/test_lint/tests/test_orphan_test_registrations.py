@@ -13,7 +13,9 @@ IMPORT_RE = re.compile(
     r"""(?:^|[\s;}])(?:import|export)\s+(?:[^'"()]*?\sfrom\s+)?["']([^"']+)["']""",
     re.MULTILINE,
 )
-REGISTRATION_RE = re.compile(r"^(?:onRpc|defineModels|defineParams|mockService)\(", re.MULTILINE)
+REGISTRATION_RE = re.compile(
+    r"^(?:onRpc|defineModels|defineParams|mockService)\(", re.MULTILINE
+)
 TEST_SUFFIX = ".test.js"
 
 

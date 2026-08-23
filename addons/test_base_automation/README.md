@@ -242,14 +242,16 @@ odoo-bin -d test_db -i test_base_automation --test-tags TestTimeBasedTriggers --
 **Use case:** Send reminder X days/hours after record creation or update
 
 ```python
-automation = env['base.automation'].create({
-    'name': 'Follow-up Reminder',
-    'model_id': model_lead.id,
-    'trigger': 'on_time',
-    'trg_date_id': create_date_field.id,
-    'trg_date_range': 3,
-    'trg_date_range_type': 'day',
-})
+automation = env["base.automation"].create(
+    {
+        "name": "Follow-up Reminder",
+        "model_id": model_lead.id,
+        "trigger": "on_time",
+        "trg_date_id": create_date_field.id,
+        "trg_date_range": 3,
+        "trg_date_range_type": "day",
+    }
+)
 ```
 
 **Key points:**
@@ -262,12 +264,14 @@ automation = env['base.automation'].create({
 **Use case:** React to specific field value changes
 
 ```python
-automation = env['base.automation'].create({
-    'name': 'Priority Escalation',
-    'model_id': model_lead.id,
-    'trigger': 'on_write',
-    'filter_domain': "[('priority', '=', '3')]",
-})
+automation = env["base.automation"].create(
+    {
+        "name": "Priority Escalation",
+        "model_id": model_lead.id,
+        "trigger": "on_write",
+        "filter_domain": "[('priority', '=', '3')]",
+    }
+)
 ```
 
 **Key points:**
@@ -280,18 +284,20 @@ automation = env['base.automation'].create({
 **Use case:** Accept data from external systems
 
 ```python
-automation = env['base.automation'].create({
-    'name': 'External Lead Creation',
-    'model_id': model_lead.id,
-    'trigger': 'on_webhook',
-    'record_getter': """
+automation = env["base.automation"].create(
+    {
+        "name": "External Lead Creation",
+        "model_id": model_lead.id,
+        "trigger": "on_webhook",
+        "record_getter": """
 external_id = payload.get('external_id')
 lead = model.search([('name', '=', external_id)], limit=1)
 if not lead:
     lead = model.create({'name': external_id})
 lead
     """,
-})
+    }
+)
 ```
 
 **Key points:**
@@ -305,27 +311,33 @@ lead
 **Use case:** Execute multiple actions sequentially
 
 ```python
-automation = env['base.automation'].create({
-    'name': 'Onboarding Workflow',
-    'model_id': model_lead.id,
-    'trigger': 'on_create',
-})
+automation = env["base.automation"].create(
+    {
+        "name": "Onboarding Workflow",
+        "model_id": model_lead.id,
+        "trigger": "on_create",
+    }
+)
 
 # Action 1
-env['ir.actions.server'].create({
-    'name': 'Initialize',
-    'base_automation_id': automation.id,
-    'sequence': 10,
-    'code': "record.write({'state': 'draft'})",
-})
+env["ir.actions.server"].create(
+    {
+        "name": "Initialize",
+        "base_automation_id": automation.id,
+        "sequence": 10,
+        "code": "record.write({'state': 'draft'})",
+    }
+)
 
 # Action 2
-env['ir.actions.server'].create({
-    'name': 'Assign',
-    'base_automation_id': automation.id,
-    'sequence': 20,
-    'code': "record.write({'user_id': env.user.id})",
-})
+env["ir.actions.server"].create(
+    {
+        "name": "Assign",
+        "base_automation_id": automation.id,
+        "sequence": 20,
+        "code": "record.write({'user_id': env.user.id})",
+    }
+)
 ```
 
 **Key points:**
@@ -338,18 +350,20 @@ env['ir.actions.server'].create({
 **Use case:** Manual multi-step workflows with dependencies
 
 ```python
-automation = env['base.automation'].create({
-    'name': 'Approval Workflow',
-    'model_id': model_automation.id,
-    'trigger': 'on_hand',
-    'use_workflow_dag': True,
-    'auto_execute_workflow': False,
-})
+automation = env["base.automation"].create(
+    {
+        "name": "Approval Workflow",
+        "model_id": model_automation.id,
+        "trigger": "on_hand",
+        "use_workflow_dag": True,
+        "auto_execute_workflow": False,
+    }
+)
 
 # Create actions with dependencies
-action1 = create_action('Review', automation)
-action2 = create_action('Approve', automation)
-action2.write({'predecessor_ids': [(6, 0, [action1.id])]})
+action1 = create_action("Review", automation)
+action2 = create_action("Approve", automation)
+action2.write({"predecessor_ids": [(6, 0, [action1.id])]})
 ```
 
 **Key points:**
@@ -370,15 +384,18 @@ Add new test models to `models/` directory:
 # models/my_test_model.py
 from odoo import models, fields
 
+
 class MyTestModel(models.Model):
-    _name = 'my.test.model'
-    _description = 'My Test Model'
+    _name = "my.test.model"
+    _description = "My Test Model"
 
     name = fields.Char()
-    state = fields.Selection([
-        ('draft', 'Draft'),
-        ('done', 'Done'),
-    ])
+    state = fields.Selection(
+        [
+            ("draft", "Draft"),
+            ("done", "Done"),
+        ]
+    )
 ```
 
 ### Adding New Tests
@@ -389,17 +406,17 @@ Create test files in `tests/` directory following naming convention:
 # tests/test_my_feature.py
 from odoo.tests import TransactionCase, tagged
 
-@tagged('post_install', '-at_install', 'test_my_feature')
-class TestMyFeature(TransactionCase):
 
+@tagged("post_install", "-at_install", "test_my_feature")
+class TestMyFeature(TransactionCase):
     def setUp(self):
         super().setUp()
-        self.Model = self.env['my.test.model']
+        self.Model = self.env["my.test.model"]
 
     def test_something(self):
         """Test description."""
-        record = self.Model.create({'name': 'Test'})
-        self.assertEqual(record.state, 'draft')
+        record = self.Model.create({"name": "Test"})
+        self.assertEqual(record.state, "draft")
 ```
 
 ### Creating Demo Automations
@@ -411,12 +428,15 @@ def create_demo_my_automation(env):
     """Demo: My Custom Automation"""
     _logger.info("Creating demo: My automation")
 
-    automation = env['base.automation'].create({
-        'name': 'Demo: My Automation',
-        # ... configuration
-    })
+    automation = env["base.automation"].create(
+        {
+            "name": "Demo: My Automation",
+            # ... configuration
+        }
+    )
 
     return automation
+
 
 # Register in _setup_demo_data():
 def _setup_demo_data(env):
@@ -512,32 +532,38 @@ test_base_automation/
 
 #### `base.automation.lead.test`
 ```python
-env['base.automation.lead.test'].create({
-    'name': 'Test Lead',
-    'user_id': env.user.id,
-    'partner_id': partner.id,
-    'priority': '2',
-    'state': 'draft',
-})
+env["base.automation.lead.test"].create(
+    {
+        "name": "Test Lead",
+        "user_id": env.user.id,
+        "partner_id": partner.id,
+        "priority": "2",
+        "state": "draft",
+    }
+)
 ```
 
 #### `base.automation.lead.thread.test`
 ```python
-env['base.automation.lead.thread.test'].create({
-    'name': 'Threaded Lead',
-    # ... same as lead.test
-})
+env["base.automation.lead.thread.test"].create(
+    {
+        "name": "Threaded Lead",
+        # ... same as lead.test
+    }
+)
 # Additional mixin.mail.thread features:
 lead.message_post(body="Comment")
 ```
 
 #### `test_base_automation.project`
 ```python
-env['test_base_automation.project'].create({
-    'name': 'Test Project',
-    'user_id': env.user.id,
-    'state': 'draft',
-})
+env["test_base_automation.project"].create(
+    {
+        "name": "Test Project",
+        "user_id": env.user.id,
+        "state": "draft",
+    }
+)
 ```
 
 ### Automation Context Variables
@@ -556,8 +582,8 @@ When writing automation code (in `ir.actions.server`), these variables are avail
 ```python
 # In server action code field:
 log(f"Processing {record.name}")
-if record.priority == '3':
-    record.write({'user_id': env.ref('base.user_admin').id})
+if record.priority == "3":
+    record.write({"user_id": env.ref("base.user_admin").id})
     log(f"Escalated to admin")
 ```
 

@@ -302,7 +302,9 @@ class TestRuntimeWorkflows(common.TransactionCase):
         runtime.action_next_step()
 
         self.assertEqual(
-            self.env["ir.config_parameter"].sudo().get_param(
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param(
                 "test_base_automation.next_step",
             ),
             "executed",
@@ -450,7 +452,9 @@ env['ir.config_parameter'].sudo().set_param(
         self.assertEqual(runtime.line_ids.state, "done")
         self.assertEqual(runtime.state, "done")
         self.assertEqual(
-            self.env["ir.config_parameter"].sudo().get_param(
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param(
                 "test_base_automation.ctx",
             ),
             f"{self.test_partner.name}|2500.0|CTX-TEST",
@@ -484,7 +488,9 @@ env['ir.config_parameter'].sudo().set_param(
 
         self.assertEqual(runtime.state, "done")
         self.assertEqual(
-            self.env["ir.config_parameter"].sudo().get_param(
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param(
                 "test_base_automation.company",
             ),
             runtime.company_id.name,

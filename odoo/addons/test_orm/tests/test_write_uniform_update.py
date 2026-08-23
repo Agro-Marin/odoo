@@ -6,7 +6,6 @@ from odoo.tests import TransactionCase, tagged
 
 
 class UniformUpdateCase(TransactionCase):
-
     def setUp(self):
         super().setUp()
         self.uniform_calls = []
@@ -63,7 +62,6 @@ class UniformUpdateCase(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestUniformUpdateEligibility(UniformUpdateCase):
-
     def test_plain_scalar_columns_collapse(self):
         records = self.messages(5)
         for fname, value in (
@@ -164,7 +162,6 @@ class TestUniformUpdateEligibility(UniformUpdateCase):
 
 @tagged("post_install", "-at_install")
 class TestUniformUpdateEquivalence(UniformUpdateCase):
-
     def _write_both_ways(self, count, fname, value, other, seed=None):
         results = []
         for extra in (0, 1):
@@ -256,7 +253,6 @@ class TestUniformUpdateEquivalence(UniformUpdateCase):
 
 @tagged("post_install", "-at_install")
 class TestUniformUpdateStatements(UniformUpdateCase):
-
     def _update_count(self, records, vals):
         self.reset_calls()
         records.write(vals)

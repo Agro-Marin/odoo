@@ -355,7 +355,6 @@ class TestOrmImportLint(BaseCase):
 
 @no_retry
 class TestConfigChainmapPatchLint(BaseCase):
-
     def _check(self, snippet):
         return list(_checker_config_patch.check(ast.parse(dedent(snippet).strip())))
 

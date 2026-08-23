@@ -18,7 +18,6 @@ TEST_SUFFIX = ".test.js"
 
 @tagged("post_install", "-at_install")
 class TestSetupBundleHasNoTests(lint_case.LintCase):
-
     def test_setup_bundles_carry_no_test_files(self):
         offenders = []
         checked = 0
@@ -124,6 +123,5 @@ class TestSetupBundleHasNoTests(lint_case.LintCase):
             "evaluated as plain modules, with no per-file suite for "
             "`describe.current`, so the page dies before HOOT starts and "
             "reports no tests at all. Move the file out of the helper "
-            "directory the glob covers:\n  "
-            + "\n  ".join(sorted(set(offenders))),
+            "directory the glob covers:\n  " + "\n  ".join(sorted(set(offenders))),
         )

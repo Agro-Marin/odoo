@@ -14,26 +14,28 @@ from odoo.addons.test_mail_sms.tests.common import TestSMSRecipients
 
 
 class TestRatingCommon(TestMailFullCommon, TestSMSRecipients):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
 
-        cls.record_rating = cls.env['mail.test.rating'].create({
-            'customer_id': cls.partner_1.id,
-            'name': 'Test Rating',
-            'user_id': cls.user_admin.id,
-        })
-        cls.record_rating_thread = cls.env['mail.test.rating.thread'].create({
-            'customer_id': cls.partner_1.id,
-            'name': 'Test rating without rating mixin',
-            'user_id': cls.user_admin.id,
-        })
+        cls.record_rating = cls.env["mail.test.rating"].create(
+            {
+                "customer_id": cls.partner_1.id,
+                "name": "Test Rating",
+                "user_id": cls.user_admin.id,
+            }
+        )
+        cls.record_rating_thread = cls.env["mail.test.rating.thread"].create(
+            {
+                "customer_id": cls.partner_1.id,
+                "name": "Test rating without rating mixin",
+                "user_id": cls.user_admin.id,
+            }
+        )
 
 
-@tagged('rating')
+@tagged("rating")
 class TestRatingFlow(TestRatingCommon):
-
     def test_initial_values(self):
         for record_rating in [self.record_rating, self.record_rating_thread]:
             record_rating = record_rating.with_env(self.env)
@@ -41,11 +43,13 @@ class TestRatingFlow(TestRatingCommon):
             self.assertEqual(record_rating.message_partner_ids, self.partner_admin)
             self.assertEqual(len(record_rating.message_ids), 1)
 
-    @users('employee')
-    @mute_logger('odoo.addons.mail.models.mail_mail')
+    @users("employee")
+    @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_rating_prepare(self):
-        for record_rating, desc in ((self.record_rating, 'With rating mixin'),
-                                    (self.record_rating_thread, 'Without rating mixin')):
+        for record_rating, desc in (
+            (self.record_rating, "With rating mixin"),
+            (self.record_rating_thread, "Without rating mixin"),
+        ):
             with self.subTest(desc):
                 record_rating = record_rating.with_env(self.env)
 
@@ -61,14 +65,20 @@ class TestRatingFlow(TestRatingCommon):
                 self.assertEqual(rating.rated_partner_id, self.user_admin.partner_id)
                 self.assertFalse(rating.rating)
 
-    @users('employee')
-    @mute_logger('odoo.addons.mail.models.mail_mail')
+    @users("employee")
+    @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_rating_rating_apply(self):
         for record_rating, expected_subtype, is_rating_mixin_test in (
-            (self.record_rating_thread, self.env.ref('mail.mt_comment'), False),
-            (self.record_rating, self.env.ref('test_mail_full.mt_mail_test_rating_rating_done'), True),
+            (self.record_rating_thread, self.env.ref("mail.mt_comment"), False),
+            (
+                self.record_rating,
+                self.env.ref("test_mail_full.mt_mail_test_rating_rating_done"),
+                True,
+            ),
         ):
-            with self.subTest('With rating mixin' if is_rating_mixin_test else 'Without rating mixin'):
+            with self.subTest(
+                "With rating mixin" if is_rating_mixin_test else "Without rating mixin"
+            ):
                 record_rating = record_rating.with_env(self.env)
                 record_messages = record_rating.message_ids
 
@@ -76,15 +86,23 @@ class TestRatingFlow(TestRatingCommon):
                 access_token = record_rating._rating_get_access_token()
 
                 # simulate an email click: notification should be delayed
-                with self.mock_mail_gateway(mail_unlink_sent=False), self.mock_mail_app():
-                    record_rating.rating_apply(5, token=access_token, feedback='Top Feedback', notify_delay_send=True)
+                with (
+                    self.mock_mail_gateway(mail_unlink_sent=False),
+                    self.mock_mail_app(),
+                ):
+                    record_rating.rating_apply(
+                        5,
+                        token=access_token,
+                        feedback="Top Feedback",
+                        notify_delay_send=True,
+                    )
                 message = record_rating.message_ids[0]
                 rating = record_rating.rating_ids
 
                 # check posted message
                 self.assertEqual(record_rating.message_ids, record_messages + message)
-                self.assertIn('Top Feedback', message.body)
-                self.assertIn('/rating/static/src/img/rating_5.png', message.body)
+                self.assertIn("Top Feedback", message.body)
+                self.assertIn("/rating/static/src/img/rating_5.png", message.body)
                 self.assertEqual(message.author_id, self.partner_1)
                 self.assertEqual(message.rating_ids, rating)
                 self.assertFalse(message.notified_partner_ids)
@@ -92,61 +110,83 @@ class TestRatingFlow(TestRatingCommon):
 
                 # check rating update
                 self.assertTrue(rating.consumed)
-                self.assertEqual(rating.feedback, 'Top Feedback')
+                self.assertEqual(rating.feedback, "Top Feedback")
                 self.assertEqual(rating.message_id, message)
                 self.assertEqual(rating.rating, 5)
                 if is_rating_mixin_test:
                     self.assertEqual(record_rating.rating_last_value, 5)
 
                 # give a feedback: send notifications (notify_delay_send set to False)
-                with self.mock_mail_gateway(mail_unlink_sent=False), self.mock_mail_app():
-                    record_rating.rating_apply(1, token=access_token, feedback='Bad Feedback')
+                with (
+                    self.mock_mail_gateway(mail_unlink_sent=False),
+                    self.mock_mail_app(),
+                ):
+                    record_rating.rating_apply(
+                        1, token=access_token, feedback="Bad Feedback"
+                    )
 
                 # check posted message: message is updated
                 update_message = record_rating.message_ids[0]
-                self.assertEqual(update_message, message, 'Should update first message')
-                self.assertEqual(record_rating.message_ids, record_messages + update_message)
-                self.assertIn('Bad Feedback', update_message.body)
-                self.assertIn('/rating/static/src/img/rating_1.png', update_message.body)
+                self.assertEqual(update_message, message, "Should update first message")
+                self.assertEqual(
+                    record_rating.message_ids, record_messages + update_message
+                )
+                self.assertIn("Bad Feedback", update_message.body)
+                self.assertIn(
+                    "/rating/static/src/img/rating_1.png", update_message.body
+                )
                 self.assertEqual(update_message.author_id, self.partner_1)
                 self.assertEqual(update_message.rating_ids, rating)
-                self.assertEqual(update_message.notified_partner_ids, self.partner_admin)
+                self.assertEqual(
+                    update_message.notified_partner_ids, self.partner_admin
+                )
                 self.assertEqual(update_message.subtype_id, expected_subtype)
 
                 # check rating update
                 new_rating = record_rating.rating_ids
-                self.assertEqual(new_rating, rating, 'Should update first rating')
+                self.assertEqual(new_rating, rating, "Should update first rating")
                 self.assertTrue(new_rating.consumed)
-                self.assertEqual(new_rating.feedback, 'Bad Feedback')
+                self.assertEqual(new_rating.feedback, "Bad Feedback")
                 self.assertEqual(new_rating.message_id, update_message)
                 self.assertEqual(new_rating.rating, 1)
                 if is_rating_mixin_test:
                     self.assertEqual(record_rating.rating_last_value, 1)
 
 
-@tagged('rating')
+@tagged("rating")
 class TestRatingMixin(TestRatingCommon):
-
-    @users('employee')
+    @users("employee")
     @warmup
     def test_rating_values(self):
         record_rating = self.record_rating.with_env(self.env)
 
         # prepare rating token
         access_0 = record_rating._rating_get_access_token()
-        last_rating = record_rating.rating_apply(3, token=access_0, feedback="This record is meh but it's cheap.")
+        last_rating = record_rating.rating_apply(
+            3, token=access_0, feedback="This record is meh but it's cheap."
+        )
         # Make sure to update the write_date which is used to retrieve the last rating
         last_rating.write_date = datetime(2022, 1, 1, 14, 00)
         access_1 = record_rating._rating_get_access_token()
-        last_rating = record_rating.rating_apply(1, token=access_1, feedback="This record sucks so much. I want to speak to the manager !")
+        last_rating = record_rating.rating_apply(
+            1,
+            token=access_1,
+            feedback="This record sucks so much. I want to speak to the manager !",
+        )
         last_rating.write_date = datetime(2022, 2, 1, 14, 00)
         access_2 = record_rating._rating_get_access_token()
-        last_rating = record_rating.rating_apply(5, token=access_2, feedback="This is the best record ever ! I wish I read the documentation before complaining !")
+        last_rating = record_rating.rating_apply(
+            5,
+            token=access_2,
+            feedback="This is the best record ever ! I wish I read the documentation before complaining !",
+        )
         last_rating.write_date = datetime(2022, 3, 1, 14, 00)
-        record_rating.rating_ids.flush_model(['write_date'])
+        record_rating.rating_ids.flush_model(["write_date"])
 
         self.assertEqual(record_rating.rating_last_value, 5, "The last rating is kept.")
-        self.assertEqual(record_rating.rating_avg, 3, "The average should be equal to 3")
+        self.assertEqual(
+            record_rating.rating_avg, 3, "The average should be equal to 3"
+        )
 
 
 @tagged("rating")
@@ -161,33 +201,35 @@ class TestRatingResName(TransactionCase):
     """
 
     def test_res_name_follows_display_name_not_just_rec_name(self):
-        record = self.env['mail.test.rating'].create({'name': 'ONE'})
-        rating = self.env['rating.rating'].create({
-            'res_model_id': self.env['ir.model']._get_id('mail.test.rating'),
-            'res_id': record.id,
-            'rating': 5,
-            'consumed': True,
-        })
+        record = self.env["mail.test.rating"].create({"name": "ONE"})
+        rating = self.env["rating.rating"].create(
+            {
+                "res_model_id": self.env["ir.model"]._get_id("mail.test.rating"),
+                "res_id": record.id,
+                "rating": 5,
+                "consumed": True,
+            }
+        )
         self.env.flush_all()
-        self.assertEqual(rating.res_name, 'ONE')
+        self.assertEqual(rating.res_name, "ONE")
 
-        record.name = 'TWO'
+        record.name = "TWO"
         self.env.flush_all()
-        self.assertEqual(rating.res_name, 'TWO', 'the record-name field still works')
+        self.assertEqual(rating.res_name, "TWO", "the record-name field still works")
 
         # subject is not _rec_name, and display_name depends on it
-        record.subject = 'SUBJ'
+        record.subject = "SUBJ"
         self.env.flush_all()
-        self.assertEqual(record.display_name, 'TWO - SUBJ')
+        self.assertEqual(record.display_name, "TWO - SUBJ")
         self.assertEqual(
             rating.res_name,
-            'TWO - SUBJ',
-            'a rename through any display_name dependency must reach res_name',
+            "TWO - SUBJ",
+            "a rename through any display_name dependency must reach res_name",
         )
 
         # and a write that cannot move display_name leaves the ratings alone
         stamp = rating.write_date
-        record.user_id = self.env.ref('base.user_admin').id
+        record.user_id = self.env.ref("base.user_admin").id
         self.env.flush_all()
         self.assertEqual(rating.write_date, stamp)
 
@@ -200,9 +242,13 @@ class TestRatingRoutes(TestRatingCommon):
         cls._create_portal_user()
 
     def test_open_rating_route(self):
-        for record_rating, is_rating_mixin_test in ((self.record_rating_thread, False),
-                                                    (self.record_rating, True)):
-            with self.subTest('With rating mixin' if is_rating_mixin_test else 'Without rating mixin'):
+        for record_rating, is_rating_mixin_test in (
+            (self.record_rating_thread, False),
+            (self.record_rating, True),
+        ):
+            with self.subTest(
+                "With rating mixin" if is_rating_mixin_test else "Without rating mixin"
+            ):
                 """
                 16.0 + expected behavior
                 1) Clicking on the smiley image triggers the /rate/<string:token>/<int:rate>
@@ -219,10 +265,20 @@ class TestRatingRoutes(TestRatingCommon):
                 response_click_one.raise_for_status()
 
                 # there should be a form to post to validate the feedback and avoid one-click anyway
-                forms = lxml.html.fromstring(response_click_one.content).xpath('//form')
-                matching_rate_form = next((form for form in forms if form.get("action", "").startswith("/rate")), None)
-                self.assertEqual(matching_rate_form.get('method'), 'post')
-                self.assertEqual(matching_rate_form.get('action', ''), f'/rate/{access_token}/submit_feedback')
+                forms = lxml.html.fromstring(response_click_one.content).xpath("//form")
+                matching_rate_form = next(
+                    (
+                        form
+                        for form in forms
+                        if form.get("action", "").startswith("/rate")
+                    ),
+                    None,
+                )
+                self.assertEqual(matching_rate_form.get("method"), "post")
+                self.assertEqual(
+                    matching_rate_form.get("action", ""),
+                    f"/rate/{access_token}/submit_feedback",
+                )
 
                 # rating should not change, i.e. default values
                 rating = record_rating.rating_ids
@@ -238,7 +294,7 @@ class TestRatingRoutes(TestRatingCommon):
                         "rate": 5,
                         "csrf_token": http.Request.csrf_token(self),
                         "feedback": "good",
-                    }
+                    },
                 )
                 response_submit_one.raise_for_status()
 
@@ -253,21 +309,33 @@ class TestRatingRoutes(TestRatingCommon):
                 response_click_two = self.url_open(f"/rate/{access_token}/1")
                 response_click_two.raise_for_status()
                 if is_rating_mixin_test:
-                    self.assertEqual(record_rating.rating_last_value, 5)  # should not be updated to 1
+                    self.assertEqual(
+                        record_rating.rating_last_value, 5
+                    )  # should not be updated to 1
 
                 # check returned form
-                forms = lxml.html.fromstring(response_click_two.content).xpath('//form')
-                matching_rate_form = next((form for form in forms if form.get("action", "").startswith("/rate")), None)
-                self.assertEqual(matching_rate_form.get('method'), 'post')
-                self.assertEqual(matching_rate_form.get('action', ''), f'/rate/{access_token}/submit_feedback')
+                forms = lxml.html.fromstring(response_click_two.content).xpath("//form")
+                matching_rate_form = next(
+                    (
+                        form
+                        for form in forms
+                        if form.get("action", "").startswith("/rate")
+                    ),
+                    None,
+                )
+                self.assertEqual(matching_rate_form.get("method"), "post")
+                self.assertEqual(
+                    matching_rate_form.get("action", ""),
+                    f"/rate/{access_token}/submit_feedback",
+                )
 
                 response_submit_two = self.url_open(
                     f"/rate/{access_token}/submit_feedback",
                     data={
                         "rate": 1,
                         "csrf_token": http.Request.csrf_token(self),
-                        "feedback": "bad job"
-                    }
+                        "feedback": "bad job",
+                    },
                 )
                 response_submit_two.raise_for_status()
 
@@ -306,7 +374,9 @@ class TestRatingRoutes(TestRatingCommon):
             rating_id=rating.id,
             subtype_xmlid="mail.mt_comment",
         )
-        self.assertEqual(message.sudo().rating_id, rating, "rating was not removed from m1")
+        self.assertEqual(
+            message.sudo().rating_id, rating, "rating was not removed from m1"
+        )
         self.assertFalse(message2.rating_id, "rating was not added to m2")
         # from controller
         self.authenticate("portal_test", "portal_test")
@@ -327,6 +397,8 @@ class TestRatingRoutes(TestRatingCommon):
             m for m in res["store_data"]["mail.message"] if m["id"] == res["message_id"]
         )
         rating = next(
-            r for r in res["store_data"]["rating.rating"] if r["id"] == message["rating_id"]
+            r
+            for r in res["store_data"]["rating.rating"]
+            if r["id"] == message["rating_id"]
         )
         self.assertEqual(rating["rating"], 5)

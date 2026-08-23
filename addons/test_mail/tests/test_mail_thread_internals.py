@@ -164,9 +164,7 @@ class TestAPI(ThreadRecipients):
             ),
         ]:
             with self.subTest(body=body):
-                processed = self.env[
-                    "mixin.mail.thread"
-                ]._process_attachments_for_post(
+                processed = self.env["mixin.mail.thread"]._process_attachments_for_post(
                     [("test_image.jpeg", "b", {"cid": "ii_shape"})],
                     [],
                     {
@@ -362,7 +360,9 @@ class TestAPI(ThreadRecipients):
             (self.test_partner, [{}]),
             (self.env["res.partner"], []),
         ]
-        for ticket, (exp_partners, exp_values_list) in zip(tickets, expected_all, strict=True):
+        for ticket, (exp_partners, exp_values_list) in zip(
+            tickets, expected_all, strict=True
+        ):
             partners = res[ticket.id]
             with self.subTest(ticket_name=ticket.name):
                 self.assertEqual(

@@ -10,7 +10,9 @@ class TestImLivechatPortal(TestLivechatChatbotUI):
         task = self.env["project.task"].create(
             {"name": "Test Task Name Match", "project_id": project.id}
         )
-        chatbot_redirect_script = self.env["chatbot.script"].create({"title": "Redirection Bot"})
+        chatbot_redirect_script = self.env["chatbot.script"].create(
+            {"title": "Redirection Bot"}
+        )
         question_step = self.env["chatbot.script.step"].create(
             [
                 {

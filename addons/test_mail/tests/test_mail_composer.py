@@ -239,7 +239,9 @@ class TestComposerForm(TestMailComposer):
             (self.company_2, self.mail_alias_domain_c2),
             (self.company_admin, self.mail_alias_domain),  # env company
         ]
-        for company, (exp_company, exp_alias_domain) in zip(source_company, expected, strict=True):
+        for company, (exp_company, exp_alias_domain) in zip(
+            source_company, expected, strict=True
+        ):
             with self.subTest(cmopany=company):
                 test_record.write({"company_id": company.id})
                 composer_form = Form(
@@ -2830,7 +2832,8 @@ class TestComposerResultsComment(TestMailComposer, CronMixinCase):
                     ],
                     self.alias_domain,
                 ),  # no spoof
-            ], strict=True,
+            ],
+            strict=True,
         ):
             with self.subTest(emails_from=emails_from, servers_active=servers_active):
                 # update servers
@@ -3381,11 +3384,11 @@ class TestComposerResultsComment(TestMailComposer, CronMixinCase):
                     self.assertEqual(
                         set(message.attachment_ids.mapped("name")),
                         {
-                                "AttFileName_00.txt",
-                                "AttFileName_01.txt",
-                                f"TestReport for {test_record.name}.html",
-                                f"TestReport2 for {test_record.name}.html",
-                            },
+                            "AttFileName_00.txt",
+                            "AttFileName_01.txt",
+                            f"TestReport for {test_record.name}.html",
+                            f"TestReport2 for {test_record.name}.html",
+                        },
                     )
                     self.assertEqual(
                         set(message.attachment_ids.mapped("res_model")),
@@ -3474,7 +3477,10 @@ class TestComposerResultsComment(TestMailComposer, CronMixinCase):
                 self.assertEqual(len(new_partner), 1)
                 # check output, company-specific values mainly for this test
                 for record, exp_company, exp_alias_domain in zip(
-                    test_records, expected_companies, expected_alias_domains, strict=True
+                    test_records,
+                    expected_companies,
+                    expected_alias_domains,
+                    strict=True,
                 ):
                     message = record.message_ids[0]
                     for recipient in [
@@ -4317,7 +4323,8 @@ class TestComposerResultsMass(TestMailComposer):
                 (2, False, "outgoing"),
                 (2, True, "sent"),
                 (1, False, "outgoing"),
-            ], strict=True,
+            ],
+            strict=True,
         ):
             with self.subTest(batch_size=batch_size, send_limit=send_limit):
                 self.env["ir.config_parameter"].sudo().set_param(
@@ -4776,7 +4783,10 @@ class TestComposerResultsMass(TestMailComposer):
                 self.assertEqual(len(new_partner), 1)
                 # check output, company-specific values mainly for this test
                 for record, exp_company, exp_alias_domain in zip(
-                    test_records, expected_companies, expected_alias_domains, strict=True
+                    test_records,
+                    expected_companies,
+                    expected_alias_domains,
+                    strict=True,
                 ):
                     # message copy is kept
                     message = record.message_ids[0]

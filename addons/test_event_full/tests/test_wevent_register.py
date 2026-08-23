@@ -8,13 +8,12 @@ from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.test_event_full.tests.common import TestWEventCommon
 
 
-@tests.common.tagged('event_online', 'post_install', '-at_install')
+@tests.common.tagged("event_online", "post_install", "-at_install")
 class TestWEventRegister(TestWEventCommon):
-
     def test_register(self):
-        self.env.company.country_id = self.env.ref('base.us')
+        self.env.company.country_id = self.env.ref("base.us")
         with freeze_time(self.reference_now, tick=True):
-            self.start_tour('/event', 'wevent_register', login=None)
+            self.start_tour("/event", "wevent_register", login=None)
         new_registrations = self.event.registration_ids
         visitor = new_registrations.visitor_id
 
@@ -22,30 +21,29 @@ class TestWEventRegister(TestWEventCommon):
         self.assertEqual(len(new_registrations), 2)
         self.assertEqual(
             set(new_registrations.mapped("name")),
-            {"Raoulette Poiluchette", "Michel Tractopelle"}
+            {"Raoulette Poiluchette", "Michel Tractopelle"},
         )
         self.assertEqual(
-            set(new_registrations.mapped("phone")),
-            {"0456112233", "0456332211"}
+            set(new_registrations.mapped("phone")), {"0456112233", "0456332211"}
         )
         self.assertEqual(
             set(new_registrations.mapped("email")),
-            {"raoulette@example.com", "michel@example.com"}
+            {"raoulette@example.com", "michel@example.com"},
         )
 
         # check visitor stored information
         self.assertEqual(visitor.display_name, "Raoulette Poiluchette")
         self.assertEqual(visitor.event_registration_ids, new_registrations)
-        self.assertEqual(visitor.partner_id, self.env['res.partner'])
+        self.assertEqual(visitor.partner_id, self.env["res.partner"])
         self.assertEqual(visitor.email, "raoulette@example.com")
 
     def test_internal_user_register(self):
         mail_new_test_user(
             self.env,
-            name='User Internal',
-            login='user_internal',
-            email='user_internal@example.com',
-            groups='base.group_user',
+            name="User Internal",
+            login="user_internal",
+            email="user_internal@example.com",
+            groups="base.group_user",
         )
         with freeze_time(self.reference_now, tick=True):
-            self.start_tour('/event', 'wevent_register', login='user_internal')
+            self.start_tour("/event", "wevent_register", login="user_internal")

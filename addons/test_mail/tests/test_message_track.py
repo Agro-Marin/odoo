@@ -1385,7 +1385,9 @@ class TestTrackingInternals(MailCommon):
 
         # check groups, as it depends on model
         for tracking, exp_groups in zip(
-            trackings, ["base.group_user", "base.group_system", "base.group_system"], strict=True
+            trackings,
+            ["base.group_user", "base.group_system", "base.group_system"],
+            strict=True,
         ):
             groups = "base.group_system"
             if tracking.field_id:

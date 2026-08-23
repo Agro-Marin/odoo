@@ -798,7 +798,9 @@ record.write({'state': next_states.get(current, 'cancel')})
 
         self.assertTrue(automation._execute_webhook({"ping": "pong"}))
         self.assertEqual(
-            self.env["ir.config_parameter"].sudo().get_param(
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param(
                 "test_base_automation.recordless",
             ),
             "pong",

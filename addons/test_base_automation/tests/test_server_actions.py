@@ -9,52 +9,58 @@ from odoo.addons.test_base_automation.tests.test_flow import create_automation
 
 class TestServerActionsValidation(TestServerActionsBase):
     def test_multi_action_children_warnings(self):
-        self.action.write({
-            'state': 'multi',
-            'child_ids': [self.test_server_action.id]
-        })
+        self.action.write({"state": "multi", "child_ids": [self.test_server_action.id]})
         self.assertEqual(self.action.model_id.model, "res.partner")
         self.assertEqual(self.test_server_action.model_id.model, "ir.actions.server")
-        self.assertEqual(self.action.warning, "Following child actions should have the same model (Contact): TestDummyServerAction")
+        self.assertEqual(
+            self.action.warning,
+            "Following child actions should have the same model (Contact): TestDummyServerAction",
+        )
 
         new_action = self.action.copy()
         with self.assertRaises(ValidationError) as ve:
-            new_action.write({
-                'child_ids': [self.action.id]
-            })
-        self.assertEqual(ve.exception.args[0], "Following child actions have warnings: TestAction")
+            new_action.write({"child_ids": [self.action.id]})
+        self.assertEqual(
+            ve.exception.args[0], "Following child actions have warnings: TestAction"
+        )
 
     def test_webhook_payload_includes_group_restricted_fields(self):
-        self.test_server_action.write({
-            'state': 'webhook',
-            'webhook_field_ids': [self.env['ir.model.fields']._get('ir.actions.server', 'code').id],
-        })
-        self.assertEqual(self.test_server_action.warning, "Group-restricted fields cannot be included in "
+        self.test_server_action.write(
+            {
+                "state": "webhook",
+                "webhook_field_ids": [
+                    self.env["ir.model.fields"]._get("ir.actions.server", "code").id
+                ],
+            }
+        )
+        self.assertEqual(
+            self.test_server_action.warning,
+            "Group-restricted fields cannot be included in "
             "webhook payloads, as it could allow any user to "
             "accidentally leak sensitive information. You will "
             "have to remove the following fields from the webhook payload:\n"
-            "- Python Code")
+            "- Python Code",
+        )
 
     def test_recursion_in_child(self):
         new_action = self.action.copy()
-        self.action.write({
-            'state': 'multi',
-            'child_ids': [new_action.id]
-        })
+        self.action.write({"state": "multi", "child_ids": [new_action.id]})
         with self.assertRaises(ValidationError) as ve:
-            new_action.write({
-                'child_ids': [self.action.id]
-            })
-        self.assertEqual(ve.exception.args[0], "Recursion found in child server actions")
+            new_action.write({"child_ids": [self.action.id]})
+        self.assertEqual(
+            ve.exception.args[0], "Recursion found in child server actions"
+        )
 
     def test_non_relational_field_traversal(self):
-        self.action.write({
-            'state': 'object_write',
-            'update_path': 'parent_id.name',
-            'value': 'TestNew',
-        })
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "parent_id.name",
+                "value": "TestNew",
+            }
+        )
         with self.assertRaises(ValidationError) as ve:
-            self.action.write({'update_path': 'parent_id.name.something_else'})
+            self.action.write({"update_path": "parent_id.name.something_else"})
         # Assert what the message must convey, not its exact prose: this fork
         # rewords validation messages to be more actionable, and pinning the
         # full string turns every such improvement into a test failure.
@@ -65,21 +71,21 @@ class TestServerActionsValidation(TestServerActionsBase):
 
     def test_python_bad_expr(self):
         with self.assertRaises(ValidationError) as ve:
-            self.test_server_action.write({'code': 'this is invalid python code'})
+            self.test_server_action.write({"code": "this is invalid python code"})
         self.assertEqual(
             ve.exception.args[0],
-            "SyntaxError : invalid syntax at line 1\n"
-            "this is invalid python code\n")
+            "SyntaxError : invalid syntax at line 1\nthis is invalid python code\n",
+        )
 
     def test_cannot_run_if_warnings(self):
-        self.action.write({
-            'state': 'multi',
-            'child_ids': [self.test_server_action.id]
-        })
+        self.action.write({"state": "multi", "child_ids": [self.test_server_action.id]})
         self.assertTrue(self.action.warning)
         with self.assertRaises(ServerActionWithWarningsError) as e:
             self.action.run()
-        self.assertEqual(e.exception.args[0], "Server action TestAction has one or more warnings, address them first.")
+        self.assertEqual(
+            e.exception.args[0],
+            "Server action TestAction has one or more warnings, address them first.",
+        )
 
 
 class TestOnUnlinkWarnsForActionsNeedingTheirRecord(TestServerActionsBase):

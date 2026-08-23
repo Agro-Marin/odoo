@@ -1216,7 +1216,8 @@ class TestMailMessageAccess(MessageAccessCommon):
                 + msg_record_portal_internal
                 + msg_record_public
                 + msg_record_public_internal,
-            ], strict=True,
+            ],
+            strict=True,
         ):
             with self.subTest(test_user=test_user.name, add_domain=add_domain):
                 self.env.invalidate_all()
