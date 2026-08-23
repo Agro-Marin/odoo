@@ -27,10 +27,10 @@ class AccountPaymentMethodLine(models.Model):
 
     @api.depends('payment_method_id')
     def _compute_payment_provider_id(self):
-        results = self.journal_id._get_journals_payment_method_information()
-        manage_providers = results['manage_providers']
-        method_information_mapping = results['method_information_mapping']
-        providers_per_code = results['providers_per_code']
+        info = self.journal_id._get_journals_payment_method_information()
+        manage_providers = info.manage_providers
+        method_information_mapping = info.method_information_mapping
+        providers_per_code = info.providers_per_code
 
         for line in self:
             journal = line.journal_id

@@ -1,4 +1,5 @@
 import re
+from typing import NamedTuple
 from urllib.parse import urlencode
 
 from odoo import Command, _, api, fields, models
@@ -59,6 +60,14 @@ JOURNAL_TYPES = {
         "account_types": ANY_ACCOUNT_TYPES,
     },
 }
+
+
+class JournalPaymentMethods(NamedTuple):
+    pay_methods: object
+    manage_providers: bool
+    method_information_mapping: dict
+    providers_per_code: dict
+
 
 LIQUIDITY_TYPES = ("bank", "cash", "credit")
 DOCUMENT_TYPES = ("sale", "purchase")
@@ -444,8 +453,6 @@ class AccountJournal(models.Model):
         method_information = self.env[
             "account.payment.method"
         ]._get_payment_method_information()
-        unique_electronic_ids = set()
-        electronic_names = set()
         pay_methods = (
             self.env["account.payment.method"]
             .sudo()
@@ -455,90 +462,103 @@ class AccountJournal(models.Model):
             "payment_provider_id" in self.env["account.payment.method.line"]._fields
         )
 
-        method_information_mapping = {}
+        mapping, unique_ids, electronic_names = self._map_payment_methods(
+            pay_methods, method_information, manage_providers
+        )
+        self._update_company_journals(mapping, unique_ids, manage_providers)
+        return JournalPaymentMethods(
+            pay_methods=pay_methods,
+            manage_providers=manage_providers,
+            method_information_mapping=mapping,
+            providers_per_code=self._get_providers_per_code(electronic_names)
+            if manage_providers
+            else {},
+        )
+
+    @api.model
+    def _map_payment_methods(self, pay_methods, method_information, manage_providers):
+        mapping = {}
+        unique_ids = set()
+        electronic_names = set()
         for pay_method in pay_methods:
-            code = pay_method.code
-            values = method_information_mapping[pay_method.id] = {
-                **method_information[code],
+            values = mapping[pay_method.id] = {
+                **method_information[pay_method.code],
                 "payment_method": pay_method,
                 "company_journals": {},
             }
             if values["mode"] == "unique":
-                unique_electronic_ids.add(pay_method.id)
+                unique_ids.add(pay_method.id)
             elif manage_providers and values["mode"] == "electronic":
-                unique_electronic_ids.add(pay_method.id)
+                unique_ids.add(pay_method.id)
                 electronic_names.add(pay_method.code)
+        return mapping, unique_ids, electronic_names
 
+    def _get_providers_per_code(self, electronic_names):
         providers_per_code = {}
+        providers = (
+            self.env["payment.provider"]
+            .sudo()
+            .search(
+                [
+                    *self.env["payment.provider"]._check_company_domain(
+                        self.company_id
+                    ),
+                    ("code", "in", tuple(electronic_names)),
+                ]
+            )
+        )
+        for provider in providers:
+            providers_per_code.setdefault(provider.company_id.id, {}).setdefault(
+                provider._get_code(), set()
+            ).add(provider.id)
+        return providers_per_code
+
+    def _update_company_journals(self, mapping, unique_ids, manage_providers):
+        if not unique_ids:
+            return
+        fnames = ["payment_method_id", "journal_id"]
         if manage_providers:
-            providers = (
-                self.env["payment.provider"]
-                .sudo()
-                .search(
-                    [
-                        *self.env["payment.provider"]._check_company_domain(
-                            self.company_id
-                        ),
-                        ("code", "in", tuple(electronic_names)),
-                    ]
+            fnames.append("payment_provider_id")
+        self.env["account.payment.method.line"].flush_model(fnames=fnames)
+
+        self.env.cr.execute(
+            f"""
+                SELECT
+                    apm.id,
+                    journal.company_id,
+                    journal.id,
+                    {"apml.payment_provider_id" if manage_providers else "NULL"}
+                FROM account_payment_method_line apml
+                JOIN account_journal journal ON journal.id = apml.journal_id
+                JOIN account_payment_method apm ON apm.id = apml.payment_method_id
+                WHERE apm.id = ANY(%s)
+            """,
+            [list(unique_ids)],
+        )
+        for (
+            pay_method_id,
+            company_id,
+            journal_id,
+            provider_id,
+        ) in self.env.cr.fetchall():
+            values = mapping[pay_method_id]
+            company_journals = values["company_journals"]
+            if manage_providers and values["mode"] == "electronic":
+                journal_ids = company_journals.setdefault(company_id, {}).setdefault(
+                    provider_id, []
                 )
-            )
-            for provider in providers:
-                providers_per_code.setdefault(provider.company_id.id, {}).setdefault(
-                    provider._get_code(), set()
-                ).add(provider.id)
-
-        if unique_electronic_ids:
-            fnames = ["payment_method_id", "journal_id"]
-            if manage_providers:
-                fnames.append("payment_provider_id")
-            self.env["account.payment.method.line"].flush_model(fnames=fnames)
-
-            self.env.cr.execute(
-                f"""
-                    SELECT
-                        apm.id,
-                        journal.company_id,
-                        journal.id,
-                        {"apml.payment_provider_id" if manage_providers else "NULL"}
-                    FROM account_payment_method_line apml
-                    JOIN account_journal journal ON journal.id = apml.journal_id
-                    JOIN account_payment_method apm ON apm.id = apml.payment_method_id
-                    WHERE apm.id = ANY(%s)
-                """,
-                [list(unique_electronic_ids)],
-            )
-            for (
-                pay_method_id,
-                company_id,
-                journal_id,
-                provider_id,
-            ) in self.env.cr.fetchall():
-                values = method_information_mapping[pay_method_id]
-                is_electronic = manage_providers and values["mode"] == "electronic"
-                if is_electronic:
-                    journal_ids = (
-                        values["company_journals"]
-                        .setdefault(company_id, {})
-                        .setdefault(provider_id, [])
-                    )
-                else:
-                    journal_ids = values["company_journals"].setdefault(company_id, [])
-                journal_ids.append(journal_id)
-        return {
-            "pay_methods": pay_methods,
-            "manage_providers": manage_providers,
-            "method_information_mapping": method_information_mapping,
-            "providers_per_code": providers_per_code,
-        }
+            else:
+                journal_ids = company_journals.setdefault(company_id, [])
+            journal_ids.append(journal_id)
 
     @api.depends("outbound_payment_method_line_ids", "inbound_payment_method_line_ids")
     def _compute_available_payment_method_ids(self):
-        results = self._get_journals_payment_method_information()
-        pay_methods = results["pay_methods"]
-        manage_providers = results["manage_providers"]
-        method_information_mapping = results["method_information_mapping"]
-        providers_per_code = results["providers_per_code"]
+        (
+            pay_methods,
+            manage_providers,
+            method_information_mapping,
+            providers_per_code,
+        ) = self._get_journals_payment_method_information()
 
         journal_bank_cash = self.filtered(lambda j: j.type in LIQUIDITY_TYPES)
         journal_other = self - journal_bank_cash
@@ -553,16 +573,12 @@ class AccountJournal(models.Model):
             for payment_type in ("inbound", "outbound"):
                 lines = journal[f"{payment_type}_payment_method_line_ids"]
                 for line in lines:
-                    if line.payment_method_id.id in method_information_mapping:
-                        protected_payment_method_ids.add(line.payment_method_id.id)
-                        if (
-                            manage_providers
-                            and method_information_mapping.get(
-                                line.payment_method_id.id, {}
-                            ).get("mode")
-                            == "electronic"
-                        ):
-                            protected_provider_ids.add(line.payment_provider_id.id)
+                    values = method_information_mapping.get(line.payment_method_id.id)
+                    if not values:
+                        continue
+                    protected_payment_method_ids.add(line.payment_method_id.id)
+                    if manage_providers and values["mode"] == "electronic":
+                        protected_provider_ids.add(line.payment_provider_id.id)
 
             for pay_method in pay_methods:
                 if not journal._is_payment_method_available(
@@ -820,22 +836,19 @@ class AccountJournal(models.Model):
         "inbound_payment_method_line_ids", "outbound_payment_method_line_ids"
     )
     def _check_payment_method_line_ids_multiplicity(self):
-        results = self._get_journals_payment_method_information()
-        pay_methods = results["pay_methods"]
-        manage_providers = results["manage_providers"]
-        method_information_mapping = results["method_information_mapping"]
-        providers_per_code = results["providers_per_code"]
+        (
+            pay_methods,
+            manage_providers,
+            method_information_mapping,
+            providers_per_code,
+        ) = self._get_journals_payment_method_information()
 
-        failing_unicity_payment_methods = self.env["account.payment.method"]
         for journal in self:
-            company = journal.company_id
-
             for payment_type in ("inbound", "outbound"):
                 counter = {}
                 for line in journal[f"{payment_type}_payment_method_line_ids"]:
-                    if method_information_mapping.get(
-                        line.payment_method_id.id, {}
-                    ).get("mode") not in ("electronic", "unique"):
+                    values = method_information_mapping.get(line.payment_method_id.id)
+                    if not values or values["mode"] not in ("electronic", "unique"):
                         continue
 
                     key = line.payment_method_id.id, line.name
@@ -851,25 +864,23 @@ class AccountJournal(models.Model):
                             )
                         )
 
+        failing_unicity_payment_methods = self.env["account.payment.method"]
+        for company in self.company_id:
             for pay_method in pay_methods:
                 values = method_information_mapping[pay_method.id]
+                company_journals = values["company_journals"]
 
                 if values["mode"] == "unique":
-                    already_linked_journal_ids = values["company_journals"].get(
-                        company.id, []
-                    )
-                    if len(already_linked_journal_ids) > 1:
+                    if len(company_journals.get(company.id, [])) > 1:
                         failing_unicity_payment_methods |= pay_method
                 elif manage_providers and values["mode"] == "electronic":
                     for provider_id in providers_per_code.get(company.id, {}).get(
                         pay_method.code, set()
                     ):
-                        already_linked_journal_ids = (
-                            values["company_journals"]
-                            .get(company.id, {})
-                            .get(provider_id, [])
+                        linked = company_journals.get(company.id, {}).get(
+                            provider_id, []
                         )
-                        if len(already_linked_journal_ids) > 1:
+                        if len(linked) > 1:
                             failing_unicity_payment_methods |= pay_method
 
         if failing_unicity_payment_methods:
