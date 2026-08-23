@@ -1,0 +1,26 @@
+{
+  "expected": {
+    "test_mail/Subtest TestBaseAPIPerformance.test_mail_composer (login='admin')": "FAIL",
+    "test_mail/Subtest TestBaseAPIPerformance.test_mail_composer (login='employee')": "FAIL",
+    "test_mail/Subtest TestBaseAPIPerformance.test_mail_composer_attachments (login='admin')": "FAIL",
+    "test_mail/Subtest TestBaseAPIPerformance.test_mail_composer_attachments (login='employee')": "FAIL",
+    "test_mail/Subtest TestBaseAPIPerformance.test_mail_composer_nodelete (login='admin')": "FAIL",
+    "test_mail/Subtest TestBaseAPIPerformance.test_mail_composer_nodelete (login='employee')": "FAIL",
+    "test_mail/Subtest TestBaseAPIPerformance.test_mail_composer_w_template (login='admin')": "FAIL",
+    "test_mail/Subtest TestBaseAPIPerformance.test_mail_composer_w_template (login='employee')": "FAIL",
+    "test_mail/Subtest TestBaseAPIPerformance.test_mail_composer_w_template_attachments (login='admin')": "FAIL",
+    "test_mail/Subtest TestBaseAPIPerformance.test_mail_composer_w_template_attachments (login='employee')": "FAIL",
+    "test_mail/Subtest TestBaseAPIPerformance.test_message_assignation_inbox (login='admin')": "FAIL",
+    "test_mail/Subtest TestBaseAPIPerformance.test_message_assignation_inbox (login='employee')": "FAIL",
+    "test_mail/Subtest TestBaseAPIPerformance.test_message_post_one_email_notification (login='admin')": "FAIL",
+    "test_mail/Subtest TestBaseAPIPerformance.test_message_post_one_inbox_notification (login='admin')": "FAIL",
+    "test_mail/Subtest TestMailAPIPerformance.test_message_post_view (login='admin')": "FAIL",
+    "test_mail/Subtest TestMailAPIPerformance.test_message_post_view (login='employee')": "FAIL",
+    "test_mail/Subtest TestMessageToStorePerformance.test_message_to_store_group_thread_name_by_model (login='employee')": "FAIL"
+  },
+  "note": "One block: the query-count assertions d350dad426d describes as 'the gate meant to catch N+1 regressions, and it has been gating nothing'. That commit re-set floors only where an entire surplus had a named cause and deliberately left the rest; these are the rest. Measured stable: the same 17 deltas reproduce at 43e68a6bbb5 and at CI addons scope (--addons-path=odoo/addons,addons), so they are neither this branch's later mail work nor an artifact of enterprise/agromarin being on the path. Closing one means attributing its whole surplus, the way d350dad426d did, not raising the number.",
+  "run_spec": "-i test_mail --test-enable --test-tags '/test_mail'",
+  "suite": "/test_mail",
+  "tests_total": 1101,
+  "verified_at": "4e26835434e"
+}

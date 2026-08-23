@@ -1,0 +1,11 @@
+{
+  "expected": {
+    "maintenance/TestCalendarWithRecurrence.test_dblclick_event_from_calendar": "FAIL",
+    "maintenance/TestCalendarWithRecurrence.test_drag_and_drop_calendar_event": "FAIL"
+  },
+  "note": "Two browser tours in TestCalendarWithRecurrence, failing at step 1/10 on a[data-event-id=\"1\"] never appearing. Not root-caused, and four hypotheses are already eliminated: the three requests the test creates get ids 1-3 with demo data off, the calendar model numbers its own events sequentially from 1 and maintenance.request is _order='id desc' so the recurring request IS event 1, both of the action's default search filters (todo, active) admit all three records, and the browser console reports no error. What remains is DOM-level: which element paintMountedEvent lands data-event-id on. Not the recurrence fields -- reproduces identically before and after f54dce29567 moved them to mixin.recurrence.rule.",
+  "run_spec": "-i maintenance --test-enable --test-tags '/maintenance'",
+  "suite": "/maintenance",
+  "tests_total": 11,
+  "verified_at": "4e26835434e"
+}
