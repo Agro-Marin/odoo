@@ -78,11 +78,23 @@ export function useSpecialData(loadFn) {
         subscribers.add(reloadOnStaleCache);
         joinedSubscribers.add(subscribers);
         if (!specialDataCaches.has(key)) {
+            // `update: "always"` delivers the fresh value through `callback` and
+            // settles the promise it returns from the CACHE. A cold cache has
+            // nothing to settle it from, so awaiting that promise alone waits
+            // for a value that has already been handed to the callback instead
+            // -- which is why the first render of a field using this hook could
+            // hang forever while the second, against a now-warm cache, was
+            // instant. Settle on whichever of the two arrives first.
+            let deliver;
+            const delivered = new Promise((resolve) => {
+                deliver = resolve;
+            });
             const prom = orm
                 .cache({
                     type: "disk",
                     update: "always",
                     callback: (res, hasChanged) => {
+                        deliver(res);
                         specialDataCaches.set(key, Promise.resolve(res));
                         if (!hasChanged) {
                             return;
@@ -93,9 +105,10 @@ export function useSpecialData(loadFn) {
                     },
                 })
                 .call(...args);
-            specialDataCaches.set(key, prom);
+            const settled = Promise.race([prom, delivered]);
+            specialDataCaches.set(key, settled);
             prom.catch(() => {
-                if (specialDataCaches.get(key) === prom) {
+                if (specialDataCaches.get(key) === settled) {
                     specialDataCaches.delete(key);
                 }
             });
