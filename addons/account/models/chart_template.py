@@ -83,7 +83,7 @@ def template(template=None, model="template_data"):
 
         path = func.__globals__["__file__"]
         path_info = get_resource_from_path(path)
-        module = path_info[0] if path_info else "account"
+        module = path_info.module if path_info else "account"
 
         wrapper._module = module
         wrapper._l10n_template = (template, model)

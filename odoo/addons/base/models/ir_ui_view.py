@@ -412,7 +412,7 @@ class IrUiView(models.Model):
             if "install_filename" in self.env.context:
                 path_info = get_resource_from_path(self.env.context["install_filename"])
                 if path_info:
-                    data["arch_fs"] = "/".join(path_info[0:2])
+                    data["arch_fs"] = path_info.addons_path
                     data["arch_updated"] = False
             view.write(data)
             view.arch = view.arch_db
@@ -886,7 +886,7 @@ class IrUiView(models.Model):
                         self.env.context["install_filename"]
                     )
                     if path_info:
-                        values["arch_fs"] = "/".join(path_info[0:2])
+                        values["arch_fs"] = path_info.addons_path
                         values["arch_updated"] = False
             self._compute_defaults(values)
 

@@ -42,7 +42,7 @@ class TestGreyRampToken(lint_case.LintCase):
             if "/static/lib/" in path or "/static/tests/" in path:
                 continue
             try:
-                mod, relative_path, _ = get_resource_from_path(path)
+                mod, relative_path = get_resource_from_path(path)
             except TypeError:
                 mod, relative_path = "?", path
             if f"{mod}/{relative_path}" in ALLOWED:

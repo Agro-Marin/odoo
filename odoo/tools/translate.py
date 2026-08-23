@@ -513,7 +513,7 @@ def get_translated_module(
         from odoo.modules import get_resource_from_path
 
         path_info = get_resource_from_path(path)
-        return path_info[0] if path_info else "base"
+        return path_info.module if path_info else "base"
 
 
 def _probe(obj: object, name: str) -> object:

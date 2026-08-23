@@ -28,7 +28,7 @@ class MixinTemplateReset(models.AbstractModel):
             if "template_fs" not in vals and "install_filename" in self.env.context:
                 path_info = get_resource_from_path(self.env.context["install_filename"])
                 if path_info:
-                    vals["template_fs"] = "/".join(path_info[0:2])
+                    vals["template_fs"] = path_info.addons_path
         return super().create(vals_list)
 
     def _load_records_write(self, values: dict) -> None:

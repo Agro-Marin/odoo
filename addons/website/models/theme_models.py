@@ -76,7 +76,7 @@ class ThemeIrUiView(models.Model):
             return ""
         path_info = get_resource_from_path(self.env.context["install_filename"])
         if path_info:
-            return "/".join(path_info[0:2])
+            return path_info.addons_path
         return None
 
     name = fields.Char(required=True)

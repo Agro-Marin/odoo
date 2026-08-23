@@ -53,7 +53,7 @@ class TestColorSchemeReads(lint_case.LintCase):
                 continue
 
             try:
-                mod, relative_path, _ = get_resource_from_path(path)
+                mod, relative_path = get_resource_from_path(path)
             except TypeError:
                 mod, relative_path = "?", path
             offenders.append(f"{mod}/{relative_path}:{line}: {matched_text.strip()}")

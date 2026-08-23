@@ -93,7 +93,7 @@ class TestJsTranslations(lint_case.LintCase):
                 suffix = "_t is the JS translation function"
 
             try:
-                mod, relative_path, _ = get_resource_from_path(path)
+                mod, relative_path = get_resource_from_path(path)
             except TypeError:
                 mod, relative_path = "?", path
             offenders.append(f"{mod}/{relative_path}:{line}: {prefix}: {suffix}")

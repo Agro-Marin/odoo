@@ -38,6 +38,7 @@ except ImportError:
 
 __all__ = [
     "Manifest",
+    "ResourceLocation",
     "adapt_version",
     "get_manifest",
     "get_module_path",
@@ -432,7 +433,20 @@ def module_content_checksum(module: str) -> str | None:
     return f"{ALGO_TAG}:{digest.hexdigest()}"
 
 
-def get_resource_from_path(path: str) -> tuple[str, str, str] | None:
+class ResourceLocation(typing.NamedTuple):
+    """Where an absolute path sits in the addons tree."""
+
+    module: str
+    relative_path: str
+    """Slash-separated, relative to the module directory."""
+
+    @property
+    def addons_path(self) -> str:
+        """``module/relative/path``, the form data files and views record."""
+        return f"{self.module}/{self.relative_path}"
+
+
+def get_resource_from_path(path: str) -> ResourceLocation | None:
     p = Path(path)
     sorted_paths = sorted(odoo.addons.__path__, key=len, reverse=True)
     for adpath in sorted_paths:
@@ -443,13 +457,7 @@ def get_resource_from_path(path: str) -> tuple[str, str, str] | None:
         parts = rel.parts
         if not parts:
             continue
-        module = parts[0]
-        relative = parts[1:]
-        return (
-            module,
-            "/".join(relative),
-            str(Path(*relative)) if relative else "",
-        )
+        return ResourceLocation(parts[0], "/".join(parts[1:]))
     return None
 
 
