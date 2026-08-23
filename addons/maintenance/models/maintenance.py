@@ -139,7 +139,7 @@ class MaintenanceEquipment(models.Model):
 
 class MaintenanceRequest(models.Model):
     _name = 'maintenance.request'
-    _inherit = ['mixin.mail.thread.cc', 'mixin.mail.activity']
+    _inherit = ['mixin.mail.thread.cc', 'mixin.mail.activity', 'mixin.recurrence.rule']
     _description = 'Maintenance Request'
     _order = "id desc"
     _check_company_auto = True
@@ -201,17 +201,6 @@ class MaintenanceRequest(models.Model):
     instruction_google_slide = fields.Char('Google Slide', help="Paste the url of your Google Slide. Make sure the access to the document is public.")
     instruction_text = fields.Html('Text')
     recurring_maintenance = fields.Boolean(string="Recurrent", compute='_compute_recurring_maintenance', store=True, readonly=False)
-    repeat_interval = fields.Integer(string='Repeat Every', default=1)
-    repeat_unit = fields.Selection([
-        ('day', 'Days'),
-        ('week', 'Weeks'),
-        ('month', 'Months'),
-        ('year', 'Years'),
-    ], default='week')
-    repeat_type = fields.Selection([
-        ('forever', 'Forever'),
-        ('until', 'Until'),
-    ], default="forever", string="Until")
     repeat_until = fields.Date(string="End Date")
 
     def archive_equipment_request(self):
@@ -242,12 +231,6 @@ class MaintenanceRequest(models.Model):
                 request.duration = round(duration, 2)
             else:
                 request.duration = 0
-
-    @api.constrains('repeat_interval')
-    def _check_repeat_interval(self):
-        for record in self:
-            if record.repeat_interval < 1:
-                raise ValidationError(self.env._("The repeat interval cannot be less than 1."))
 
     @api.depends('company_id', 'equipment_id')
     def _compute_maintenance_team_id(self):
@@ -298,7 +281,7 @@ class MaintenanceRequest(models.Model):
                 if request.maintenance_type != 'preventive' or not request.recurring_maintenance:
                     continue
                 schedule_date = request.schedule_date or now
-                schedule_date += relativedelta(**{f"{request.repeat_unit}s": request.repeat_interval})
+                schedule_date += request._get_recurrence_delta()
                 schedule_end = schedule_date + relativedelta(hours=request.duration or 1)
                 if request.repeat_type == 'forever' or schedule_date.date() <= request.repeat_until:
                     request.copy({
