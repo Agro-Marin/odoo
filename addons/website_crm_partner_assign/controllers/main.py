@@ -1,19 +1,17 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from urllib.parse import urlencode
 
 from werkzeug.exceptions import NotFound
 
-from odoo import fields
-from odoo import http
+from odoo import fields, http
+from odoo.fields import Domain
 from odoo.http import request
+from odoo.tools.translate import LazyTranslate, _
+
 from odoo.addons.portal.controllers.portal import CustomerPortal
 from odoo.addons.website_google_map.controllers.main import GoogleMap
 from odoo.addons.website_partner.controllers.main import WebsitePartnerPage
-from odoo.fields import Domain
-
-from odoo.tools.translate import _, LazyTranslate
 
 _lt = LazyTranslate(__name__)
 
@@ -162,13 +160,13 @@ class WebsiteAccount(CustomerPortal):
     @http.route(['''/my/lead/<model('crm.lead', "[('type','=', 'lead')]"):lead>'''], type='http', auth="user", website=True)
     def portal_my_lead(self, lead, **kw):
         if lead.type != 'lead':
-            raise NotFound()
+            raise NotFound
         return request.render("website_crm_partner_assign.portal_my_lead", {'lead': lead})
 
     @http.route(['''/my/opportunity/<model('crm.lead', "[('type','=', 'opportunity')]"):opp>'''], type='http', auth="user", website=True)
     def portal_my_opportunity(self, opp, **kw):
         if opp.type != 'opportunity':
-            raise NotFound()
+            raise NotFound
 
         return request.render(
             "website_crm_partner_assign.portal_my_opportunity", {
@@ -204,6 +202,7 @@ class WebsiteCrmPartnerAssign(WebsitePartnerPage, GoogleMap):
 
         return domain
 
+    @staticmethod
     def sitemap_partners(env, rule, qs):
         if not qs or qs.lower() in '/partners':
             yield {'loc': '/partners'}
@@ -337,7 +336,7 @@ class WebsiteCrmPartnerAssign(WebsitePartnerPage, GoogleMap):
 
         google_maps_api_key = request.website.google_maps_api_key
 
-        values = {
+        return {
             'industries': industries,
             'current_industry': current_industry,
             'countries': countries,
@@ -353,7 +352,6 @@ class WebsiteCrmPartnerAssign(WebsitePartnerPage, GoogleMap):
             'google_maps_api_key': google_maps_api_key,
             'fallback_all_countries': fallback_all_countries,
         }
-        return values
 
     @http.route([
         '/partners',
@@ -376,7 +374,7 @@ class WebsiteCrmPartnerAssign(WebsitePartnerPage, GoogleMap):
             references_per_page=self._references_per_page,
             **post
         )
-        return request.render("website_crm_partner_assign.index", values, status=values.get('partners') and 200 or 404)
+        return request.render("website_crm_partner_assign.index", values, status=(values.get('partners') and 200) or 404)
 
     # Do not use semantic controller due to sudo()
     @http.route()

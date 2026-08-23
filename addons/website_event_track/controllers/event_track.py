@@ -7,7 +7,6 @@ from ast import literal_eval
 from collections import defaultdict
 from datetime import UTC, timedelta
 
-import babel
 import babel.dates
 from werkzeug.exceptions import Forbidden, NotFound
 
@@ -26,14 +25,13 @@ class EventTrackController(http.Controller):
         domain will select the tracks that belongs to a track stage that should
         be visible in the agenda (see: 'is_visible_in_agenda'). Published tracks
         are also displayed whatever their stage. """
-        agenda_domain = [
+        return [
             '&',
             ('event_id', '=', event.id),
             '|',
             ('is_published', '=', True),
             ('stage_id.is_visible_in_agenda', '=', True),
         ]
-        return agenda_domain
 
     def _get_event_tracks_domain(self, event):
         """ Base domain for displaying tracks. The returned search domain will
@@ -108,9 +106,9 @@ class EventTrackController(http.Controller):
             # Doing it this way allows to only get events who are tagged "age: 10-12" AND "activity: football".
             # Add another tag "age: 12-15" to the search and it would fetch the ones who are tagged:
             # ("age: 10-12" OR "age: 12-15") AND "activity: football
-            grouped_tags = dict()
+            grouped_tags = {}
             for search_tag in search_tags:
-                grouped_tags.setdefault(search_tag.category_id, list()).append(search_tag)
+                grouped_tags.setdefault(search_tag.category_id, []).append(search_tag)
             search_domain_items = [
                 [('tag_ids', 'in', [tag.id for tag in grouped_tags[group]])]
                 for group in grouped_tags
@@ -134,16 +132,16 @@ class EventTrackController(http.Controller):
         # organize categories for display: announced, live, soon and day-based
         tracks_announced = tracks_sudo.filtered(lambda track: not track.date)
         tracks_wdate = tracks_sudo - tracks_announced
-        date_begin_tz_all = list(set(
+        date_begin_tz_all = list({
             dt.date()
             for dt in self._get_dt_in_event_tz(tracks_wdate.mapped('date'), event)
-        ))
+        })
         date_begin_tz_all.sort()
         tracks_sudo_live = tracks_wdate.filtered(lambda track: track.is_track_live)
         tracks_sudo_soon = tracks_wdate.filtered(lambda track: not track.is_track_live and track.is_track_soon)
         tracks_by_day = []
         for display_date in date_begin_tz_all:
-            matching_tracks = tracks_wdate.filtered(lambda track: self._get_dt_in_event_tz([track.date], event)[0].date() == display_date)
+            matching_tracks = tracks_wdate.filtered(lambda track, display_date=display_date: self._get_dt_in_event_tz([track.date], event)[0].date() == display_date)
             tracks_by_day.append({'date': display_date, 'name': display_date, 'tracks': matching_tracks})
         if tracks_announced:
             tracks_announced = tracks_announced.sorted('wishlisted_by_default', reverse=True)
@@ -222,23 +220,23 @@ class EventTrackController(http.Controller):
         ])
         tracks_sudo = request.env['event.track'].sudo().search(base_track_domain)
 
-        locations = list(set(track.location_id for track in tracks_sudo))
+        locations = list({track.location_id for track in tracks_sudo})
         locations.sort(key=operator.itemgetter('sequence', 'id'))
 
         # First split day by day (based on start time)
         time_slots_by_tracks = {track: self._split_track_by_days(track, local_tz) for track in tracks_sudo}
 
         # extract all the tracks time slots
-        track_time_slots = set().union(*(time_slot.keys() for time_slot in [time_slots for time_slots in time_slots_by_tracks.values()]))
+        track_time_slots = set().union(*(time_slot.keys() for time_slot in list(time_slots_by_tracks.values())))
 
         # extract unique days
-        days = list(set(time_slot.date() for time_slot in track_time_slots))
+        days = list({time_slot.date() for time_slot in track_time_slots})
         days.sort()
 
         # Create the dict that contains the tracks at the correct time_slots / locations coordinates
         tracks_by_days = dict.fromkeys(days, 0)
-        time_slots_by_day = dict((day, dict(start=set(), end=set())) for day in days)
-        tracks_by_rounded_times = dict((time_slot, dict((location, {}) for location in locations)) for time_slot in track_time_slots)
+        time_slots_by_day = {day: {'start': set(), 'end': set()} for day in days}
+        tracks_by_rounded_times = {time_slot: {location: {} for location in locations} for time_slot in track_time_slots}
         for track, time_slots in time_slots_by_tracks.items():
             start_date = fields.Datetime.from_string(track.date).replace(tzinfo=UTC).astimezone(local_tz)
             end_date = start_date + timedelta(hours=(track.duration or 0.25))
@@ -258,17 +256,17 @@ class EventTrackController(http.Controller):
                 tracks_by_days[day] += 1
 
         # split days into 15 minutes time slots
-        global_time_slots_by_day = dict((day, {}) for day in days)
+        global_time_slots_by_day = {day: {} for day in days}
         for day, time_slots in time_slots_by_day.items():
             start_time_slot = min(time_slots['start'])
             end_time_slot = max(time_slots['end'])
 
             time_slots_count = int(((end_time_slot - start_time_slot).total_seconds() / 3600) * 4)
             current_time_slot = start_time_slot
-            for _i in range(0, time_slots_count + 1):
+            for _i in range(time_slots_count + 1):
                 global_time_slots_by_day[day][current_time_slot] = tracks_by_rounded_times.get(current_time_slot, {})
                 global_time_slots_by_day[day][current_time_slot]['formatted_time'] = self._get_locale_time(current_time_slot, lang_code)
-                current_time_slot = current_time_slot + timedelta(minutes=15)
+                current_time_slot += timedelta(minutes=15)
 
         # count the number of tracks by days
         tracks_by_days = dict.fromkeys(days, 0)
@@ -325,7 +323,7 @@ class EventTrackController(http.Controller):
         time_slots_count = int(((end_datetime - start_datetime).total_seconds() / 3600) * 4)
 
         time_slots_by_day_start_time = {start_datetime: 0}
-        for i in range(0, time_slots_count):
+        for i in range(time_slots_count):
             # If the new time slot is still on the current day
             next_day = (start_datetime + timedelta(days=1)).date()
             if (start_datetime + timedelta(minutes=15*i)).date() <= next_day:
@@ -346,7 +344,7 @@ class EventTrackController(http.Controller):
 
         start_date = fields.Datetime.from_string(track.date).replace(tzinfo=UTC).astimezone(local_tz)
         start_date = self.time_slot_rounder(start_date, 15)
-        for i in range(0, rowspan):
+        for i in range(rowspan):
             time_slot = start_date + timedelta(minutes=15*i)
             if track.location_id:
                 occupied_cells.append((time_slot, track.location_id))
@@ -424,9 +422,8 @@ class EventTrackController(http.Controller):
                 return {'error': 'ignored'}
             event_track_partner.is_blacklisted = not set_reminder_on
 
-        result = {'reminderOn': set_reminder_on}
+        return {'reminderOn': set_reminder_on}
 
-        return result
 
     @http.route('/event/track/send_email_reminder', type="jsonrpc", auth="public", website=True)
     def send_email_reminder(self, track_id, email_to):
@@ -562,18 +559,18 @@ class EventTrackController(http.Controller):
     def _fetch_track(self, track_id, allow_sudo=False):
         track = request.env['event.track'].browse(track_id).exists()
         if not track:
-            raise NotFound()
+            raise NotFound
         if not track.has_access('read'):
             if not allow_sudo:
-                raise Forbidden()
+                raise Forbidden
             track = track.sudo()
 
         event = track.event_id
         # JSON RPC have no website in requests
         if hasattr(request, 'website_id') and not event.can_access_from_current_website():
-            raise NotFound()
+            raise NotFound
         if not event.has_access('read'):
-            raise Forbidden()
+            raise Forbidden
 
         return track
 

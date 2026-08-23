@@ -1,14 +1,15 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime, timedelta
-from freezegun import freeze_time
 from unittest.mock import patch
 
+from freezegun import freeze_time
+
 from odoo import fields
+from odoo.tests.common import tagged, users
+
 from odoo.addons.website.models.website_visitor import WebsiteVisitor
 from odoo.addons.website_event.tests.common import TestEventOnlineCommon
-from odoo.tests.common import tagged, users
 
 
 @tagged('event_track_internals')

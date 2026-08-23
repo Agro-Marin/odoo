@@ -1,4 +1,5 @@
 from odoo import tests
+
 from odoo.addons.website_livechat.tests.common import TestLivechatCommon
 
 

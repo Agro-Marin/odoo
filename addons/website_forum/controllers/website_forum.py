@@ -1,22 +1,21 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import json
 import logging
+from urllib.parse import unquote_plus
 
 import lxml
 import requests
-from urllib.parse import unquote_plus
-
 import werkzeug.exceptions
-import werkzeug.wrappers
 
 from odoo import _, http, tools
-from odoo.addons.website.models.ir_http import sitemap_qs2dom
-from odoo.addons.website_profile.controllers.main import WebsiteProfile
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 from odoo.http import request
 from odoo.tools import is_html_empty
 from odoo.tools.translate import LazyTranslate
+
+from odoo.addons.website.models.ir_http import sitemap_qs2dom
+from odoo.addons.website_profile.controllers.main import WebsiteProfile
 
 _lt = LazyTranslate(__name__)
 _logger = logging.getLogger(__name__)
@@ -27,11 +26,11 @@ class WebsiteForum(WebsiteProfile):
     _user_per_page = 30
 
     def _prepare_user_values(self, **kwargs):
-        values = super(WebsiteForum, self)._prepare_user_values(**kwargs)
+        values = super()._prepare_user_values(**kwargs)
         values['forum_welcome_message'] = request.cookies.get('forum_welcome_message', False)
         values.update({
-            'header': kwargs.get('header', dict()),
-            'searches': kwargs.get('searches', dict()),
+            'header': kwargs.get('header', {}),
+            'searches': kwargs.get('searches', {}),
         })
         if kwargs.get('forum'):
             values['forum'] = kwargs.get('forum')
@@ -79,6 +78,7 @@ class WebsiteForum(WebsiteProfile):
             'forums': forums
         })
 
+    @staticmethod
     def sitemap_forum(env, rule, qs):
         Forum = env['forum.forum']
         dom = sitemap_qs2dom(qs, '/forum', Forum._rec_name)
@@ -157,9 +157,11 @@ class WebsiteForum(WebsiteProfile):
 
         url_args = {'sorting': sorting}
 
-        for name, value in zip(['filters', 'search', 'my'], [filters, search, my]):
-            if value:
-                url_args[name] = value
+        url_args.update({
+            name: value
+            for name, value in zip(['filters', 'search', 'my'], [filters, search, my], strict=True)
+            if value
+        })
 
         pager = tools.lazy(lambda: request.website.pager(
             url=url, total=question_count, page=page, step=self._post_per_page,
@@ -188,7 +190,7 @@ class WebsiteForum(WebsiteProfile):
 
     @http.route(['''/forum/<model("forum.forum"):forum>/faq'''], type='http', auth="public", website=True, sitemap=True, readonly=True)
     def forum_faq(self, forum, **post):
-        values = self._prepare_user_values(forum=forum, searches=dict(), header={'is_guidelines': True}, **post)
+        values = self._prepare_user_values(forum=forum, searches={}, header={'is_guidelines': True}, **post)
         return request.render("website_forum.faq", values)
 
     @http.route(['/forum/<model("forum.forum"):forum>/faq/karma'], type='http', auth="public", website=True, sitemap=False, readonly=True)
@@ -275,11 +277,11 @@ class WebsiteForum(WebsiteProfile):
     @http.route('/forum/get_url_title', type='jsonrpc', auth="user", methods=['POST'], website=True)
     def get_url_title(self, **kwargs):
         try:
-            req = requests.get(kwargs.get('url'))
+            req = requests.get(kwargs.get('url'), timeout=10)
             req.raise_for_status()
             arch = lxml.html.fromstring(req.content)
             return arch.find(".//title").text
-        except IOError:
+        except OSError:
             return False
 
     @http.route(['''/forum/<model("forum.forum"):forum>/question/<model("forum.post", "[('forum_id','=',forum.id),('parent_id','=',False),('can_view', '=', True)]"):question>'''],
@@ -289,6 +291,7 @@ class WebsiteForum(WebsiteProfile):
         slug = request.env['ir.http']._slug
         return request.redirect("/forum/%s/%s" % (slug(forum), slug(question)), code=301)
 
+    @staticmethod
     def sitemap_forum_post(env, rule, qs):
         ForumPost = env['forum.post']
         dom = (
@@ -324,12 +327,12 @@ class WebsiteForum(WebsiteProfile):
 
         # Hide posts from abusers (negative karma), except for moderators
         if not question.can_view:
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
 
         # Hide pending posts from non-moderators and non-creator
         user = request.env.user
         if question.state == 'pending' and user.karma < forum.karma_post and question.create_uid != user:
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
 
         if question.parent_id:
             slug = request.env['ir.http']._slug
@@ -344,7 +347,7 @@ class WebsiteForum(WebsiteProfile):
     @http.route('/forum/<model("forum.forum"):forum>/question/<model("forum.post"):question>/toggle_favourite', type='jsonrpc', auth="user", methods=['POST'], website=True)
     def question_toggle_favorite(self, forum, question, **post):
         favourite = not question.user_favourite
-        question.sudo().favourite_ids = [(favourite and 4 or 3, request.env.uid)]
+        question.sudo().favourite_ids = [((favourite and 4) or 3, request.env.uid)]
         if favourite:
             # Automatically add the user as follower of the posts that he
             # favorites (on unfavorite we chose to keep him as a follower until
@@ -371,7 +374,7 @@ class WebsiteForum(WebsiteProfile):
                 answer = record
                 break
         else:
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
         slug = request.env['ir.http']._slug
         return request.redirect(f'/forum/{slug(forum)}/post/{slug(answer)}/edit')
 
@@ -417,7 +420,7 @@ class WebsiteForum(WebsiteProfile):
         if is_html_empty(post.get('content', '')):
             return request.render('http_routing.http_error', {
                 'status_code': _('Bad Request'),
-                'status_message': post_parent and _('Reply should not be empty.') or _('Question should not be empty.')
+                'status_message': (post_parent and _('Reply should not be empty.')) or _('Question should not be empty.')
             })
 
         post_tag_ids = forum._tag_to_write_vals(post.get('post_tags', ''))
@@ -429,7 +432,7 @@ class WebsiteForum(WebsiteProfile):
             'forum_id': forum.id,
             'name': post.get('post_name') or (post_parent and 'Re: %s' % (post_parent.name or '')) or '',
             'content': post.get('content', False),
-            'parent_id': post_parent and post_parent.id or False,
+            'parent_id': (post_parent and post_parent.id) or False,
             'tag_ids': post_tag_ids
         })
         if post_parent:
@@ -459,7 +462,7 @@ class WebsiteForum(WebsiteProfile):
             return {'error': 'own_post'}
 
         # set all answers to False, only one can be accepted
-        (post.parent_id.child_ids - post).write(dict(is_correct=False))
+        (post.parent_id.child_ids - post).write({'is_correct': False})
         post.is_correct = not post.is_correct
         return post.is_correct
 
@@ -474,7 +477,7 @@ class WebsiteForum(WebsiteProfile):
 
     @http.route('/forum/<model("forum.forum"):forum>/post/<model("forum.post"):post>/edit', type='http', auth="user", website=True)
     def post_edit(self, forum, post, **kwargs):
-        tags = [dict(id=tag.id, name=tag.name) for tag in post.tag_ids]
+        tags = [{'id': tag.id, 'name': tag.name} for tag in post.tag_ids]
         tags = json.dumps(tags)
         values = self._prepare_user_values(forum=forum)
         values.update({
@@ -503,7 +506,7 @@ class WebsiteForum(WebsiteProfile):
             vals['name'] = kwargs.get('post_name')
         vals['tag_ids'] = forum._tag_to_write_vals(kwargs.get('post_tags', ''))
         post.write(vals)
-        question = post.parent_id if post.parent_id else post
+        question = post.parent_id or post
         slug = request.env['ir.http']._slug
         return request.redirect("/forum/%s/%s" % (slug(forum), slug(question)))
 
@@ -514,14 +517,14 @@ class WebsiteForum(WebsiteProfile):
     def post_upvote(self, forum, post, **kwargs):
         if request.env.uid == post.create_uid.id:
             return {'error': 'own_post'}
-        upvote = True if not post.user_vote > 0 else False
+        upvote = bool(not post.user_vote > 0)
         return post.vote(upvote=upvote)
 
     @http.route('/forum/<model("forum.forum"):forum>/post/<model("forum.post"):post>/downvote', type='jsonrpc', auth="user", website=True)
     def post_downvote(self, forum, post, **kwargs):
         if request.env.uid == post.create_uid.id:
             return {'error': 'own_post'}
-        upvote = True if post.user_vote < 0 else False
+        upvote = post.user_vote < 0
         return post.vote(upvote=upvote)
 
     # Moderation Tools
@@ -531,7 +534,7 @@ class WebsiteForum(WebsiteProfile):
     def validation_queue(self, forum, **kwargs):
         user = request.env.user
         if user.karma < forum.karma_moderate:
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
 
         Post = request.env['forum.post']
         domain = [('forum_id', '=', forum.id), ('state', '=', 'pending')]
@@ -549,7 +552,7 @@ class WebsiteForum(WebsiteProfile):
     def flagged_queue(self, forum, **kwargs):
         user = request.env.user
         if user.karma < forum.karma_moderate:
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
 
         Post = request.env['forum.post']
         domain = [('forum_id', '=', forum.id), ('state', '=', 'flagged')]
@@ -570,7 +573,7 @@ class WebsiteForum(WebsiteProfile):
     def offensive_posts(self, forum, **kwargs):
         user = request.env.user
         if user.karma < forum.karma_moderate:
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
 
         Post = request.env['forum.post']
         domain = [('forum_id', '=', forum.id), ('state', '=', 'offensive'), ('active', '=', False)]
@@ -587,7 +590,7 @@ class WebsiteForum(WebsiteProfile):
     @http.route('/forum/<model("forum.forum"):forum>/closed_posts', type='http', auth="user", website=True)
     def closed_posts(self, forum, **kwargs):
         if request.env.user.karma < forum.karma_moderate:
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
 
         closed_posts_ids = request.env['forum.post'].search(
             [('forum_id', '=', forum.id), ('state', '=', 'close')],
@@ -663,7 +666,7 @@ class WebsiteForum(WebsiteProfile):
     # -----------------------------------
 
     def _prepare_user_profile_values(self, user, **post):
-        values = super(WebsiteForum, self)._prepare_user_profile_values(user, **post)
+        values = super()._prepare_user_profile_values(user, **post)
         if not post.get('no_forum'):
             if post.get('forum'):
                 forums = post['forum']
@@ -757,7 +760,7 @@ class WebsiteForum(WebsiteProfile):
         for act in activities:
             posts[act.res_id] = True
         posts_ids = Post.search([('id', 'in', list(posts))])
-        posts = {x.id: (x.parent_id or x, x.parent_id and x or False) for x in posts_ids}
+        posts = {x.id: (x.parent_id or x, (x.parent_id and x) or False) for x in posts_ids}
 
         if user != request.env.user:
             kwargs['users'] = True
@@ -803,7 +806,7 @@ class WebsiteForum(WebsiteProfile):
         slug = request.env['ir.http']._slug
         if not post:
             return request.redirect("/forum/%s" % slug(forum))
-        question = post.parent_id if post.parent_id else post
+        question = post.parent_id or post
         return request.redirect("/forum/%s/%s" % (slug(forum), request.env['ir.http']._slug(question)))
 
     @http.route('/forum/<model("forum.forum"):forum>/post/<model("forum.post"):post>/convert_to_comment', type='http', auth="user", methods=['POST'], website=True)

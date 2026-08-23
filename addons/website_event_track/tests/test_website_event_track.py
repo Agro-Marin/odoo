@@ -1,6 +1,7 @@
+from odoo.tests.common import HttpCase, freeze_time, tagged
+
 from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.website_event.tests.common import TestEventOnlineCommon
-from odoo.tests.common import HttpCase, freeze_time, tagged
 
 
 @tagged('post_install', '-at_install')
@@ -43,7 +44,7 @@ class TestWebsiteEventTrack(TestEventOnlineCommon, HttpCase):
                     ('model', '=', self.track._name),
                     ('res_id', '=', self.track.id),
                     ('subject', '=', f'Add talk reminder: {self.track.name}')
-                ]).mail_ids.filtered(lambda m: m.email_to == (user.email or "visitor@odoo.com"))
+                ]).mail_ids.filtered(lambda m, user=user: m.email_to == (user.email or "visitor@odoo.com"))
                 # Check that a mail with track reminders has been created with the submitted email address.
                 self.assertEqual(len(mails), 1)
 

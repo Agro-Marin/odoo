@@ -1,9 +1,11 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import fields, models, _
+from datetime import datetime, timedelta
+
+from odoo import _, fields, models
+
 from odoo.addons.im_livechat.models.discuss_channel import is_livechat_channel
 from odoo.addons.mail.tools.discuss import Store
-from datetime import datetime, timedelta
 
 
 class DiscussChannel(models.Model):

@@ -1,19 +1,19 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+import contextlib
 from datetime import date, timedelta
 from unittest.mock import patch
 
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, UserError
 from odoo.fields import Command
-from odoo.tests.common import tagged, new_test_user, TransactionCase
+from odoo.tests.common import TransactionCase, new_test_user, tagged
 from odoo.tools import mute_logger
 
 from odoo.addons.base.tests.common import HttpCase
 from odoo.addons.crm.tests.common import TestCrmCommon
+from odoo.addons.http_routing.tests.common import MockRequest
 from odoo.addons.mail.controllers.thread import ThreadController
 from odoo.addons.mail.tests.common import mail_new_test_user
-from odoo.addons.http_routing.tests.common import MockRequest
 from odoo.addons.website_crm_partner_assign.controllers.main import (
     WebsiteAccount,
     WebsiteCrmPartnerAssign,
@@ -23,7 +23,7 @@ from odoo.addons.website_crm_partner_assign.controllers.main import (
 class TestPartnerAssign(TransactionCase):
 
     def setUp(self):
-        super(TestPartnerAssign, self).setUp()
+        super().setUp()
 
         self.customer_uk = self.env['res.partner'].create({
             'name': 'Nigel',
@@ -90,17 +90,16 @@ class TestPartnerAssign(TransactionCase):
         # I forward this opportunity to its nearest partner.
         context = dict(self.env.context, default_model='crm.lead', default_res_id=lead.id, active_ids=lead.ids)
         lead_forwarded = self.env['crm.lead.forward.to.partner'].with_context(context).create({})
-        try:
+        # the assigned partner carries no email, so forwarding stops at that guard
+        with contextlib.suppress(UserError):
             lead_forwarded.action_forward()
-        except:
-            pass
 
 
 @tagged('lead_portal')
 class TestPartnerLeadPortal(TestCrmCommon, HttpCase):
 
     def setUp(self):
-        super(TestPartnerLeadPortal, self).setUp()
+        super().setUp()
         # Partner Grade
         self.grade = self.env['res.partner.grade'].create({
             'name': "Grade Test",

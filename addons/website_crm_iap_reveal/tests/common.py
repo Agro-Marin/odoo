@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 
 from contextlib import contextmanager
 from unittest.mock import patch
 
 from odoo import exceptions
+
 from odoo.addons.crm.models.crm_lead import CrmLead
 from odoo.addons.iap.tests.common import MockIAPEnrich
 from odoo.addons.website_crm_iap_reveal.models.crm_reveal_rule import CrmRevealRule
@@ -13,7 +13,7 @@ class MockIAPReveal(MockIAPEnrich):
 
     @classmethod
     def setUpClass(cls):
-        super(MockIAPReveal, cls).setUpClass()
+        super().setUpClass()
         cls._new_leads = cls.env['crm.lead'].sudo()
         cls.rules = False
         cls.views = False
@@ -76,7 +76,7 @@ class MockIAPReveal(MockIAPEnrich):
             yield
 
     def _get_iap_company_data(self, base_name, service=None, add_values=None):
-        company_data = super(MockIAPReveal, self)._get_iap_company_data(base_name, service=service, add_values=add_values)
+        company_data = super()._get_iap_company_data(base_name, service=service, add_values=add_values)
         if service == 'reveal':
             company_data['phone'] = company_data['phone_numbers'][0]
             company_data['sector'] = 'Sector Info'

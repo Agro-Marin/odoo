@@ -77,3 +77,4 @@ class SaleOrder(models.Model):
                 **registration_values,
             }) for booth in booths
         ]
+        return None

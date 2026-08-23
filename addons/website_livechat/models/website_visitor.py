@@ -117,9 +117,7 @@ class WebsiteVisitor(models.Model):
                     "name": ", ".join(
                         [
                             visitor_name,
-                            operator.livechat_username
-                            if operator.livechat_username
-                            else operator.name,
+                            operator.livechat_username or operator.name,
                         ]
                     ),
                     "livechat_visitor_id": visitor.id,

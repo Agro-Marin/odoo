@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 from . import chatbot_script
 from . import chatbot_script_step

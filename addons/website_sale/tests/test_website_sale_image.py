@@ -13,7 +13,7 @@ from odoo.addons.website.tests.common import HttpCaseWithWebsiteUser
 
 def _create_image(color='black', dims=(1920, 1080), format='JPEG'):
     f = io.BytesIO()
-    Image.new('RGB', dims, color).save(f, format)  # type: ignore
+    Image.new('RGB', dims, color).save(f, format)
     f.seek(0)
     return base64.b64encode(f.read())
 

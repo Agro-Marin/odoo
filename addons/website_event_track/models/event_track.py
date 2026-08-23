@@ -217,10 +217,8 @@ class EventTrack(models.Model):
     @api.depends('partner_id')
     def _compute_partner_biography(self):
         for track in self:
-            if not track.partner_biography:
-                track.partner_biography = track.partner_id.website_description
-            elif track.partner_id and is_html_empty(track.partner_biography) and \
-                not is_html_empty(track.partner_id.website_description):
+            if not track.partner_biography or (track.partner_id and is_html_empty(track.partner_biography) and
+                not is_html_empty(track.partner_id.website_description)):
                 track.partner_biography = track.partner_id.website_description
 
     @api.depends('partner_id')
@@ -478,8 +476,7 @@ class EventTrack(models.Model):
         if vals.get('stage_id'):
             stage = self.env['event.track.stage'].browse(vals['stage_id'])
             self._synchronize_with_stage(stage)
-        res = super().write(vals)
-        return res
+        return super().write(vals)
 
     def _synchronize_with_stage(self, stage):
         if stage.is_fully_accessible:

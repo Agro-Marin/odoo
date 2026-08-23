@@ -1,17 +1,17 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import exceptions
+from odoo.tests.common import users
+
 from odoo.addons.crm.tests.common import TestCrmCommon
 from odoo.addons.website_crm_iap_reveal.tests.common import MockIAPReveal
-from odoo.tests.common import users
 
 
 class TestLeadMine(TestCrmCommon, MockIAPReveal):
 
     @classmethod
     def setUpClass(cls):
-        super(TestLeadMine, cls).setUpClass()
+        super().setUpClass()
         cls.registry_enter_test_mode_cls()
 
         cls.test_industry_tags = cls.env.ref('crm_iap_mine.crm_iap_mine_industry_33') + cls.env.ref('crm_iap_mine.crm_iap_mine_industry_148')
@@ -88,7 +88,7 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
             self.env['crm.reveal.view'].search([('reveal_ip', 'in', ['90.80.70.60', '90.80.70.61', '90.80.70.70'])]),
             self.test_views
         )
-        self.assertEqual(set(self.test_views.mapped('reveal_state')), set(['to_process']))
+        self.assertEqual(set(self.test_views.mapped('reveal_state')), {'to_process'})
 
     @users('user_sales_manager')
     def test_reveal_error_jsonrpc_exception(self):
@@ -107,7 +107,7 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
             self.env['crm.reveal.view'].search([('reveal_ip', 'in', ['90.80.70.60', '90.80.70.61', '90.80.70.70'])]),
             self.test_views
         )
-        self.assertEqual(set(self.test_views.mapped('reveal_state')), set(['to_process']))
+        self.assertEqual(set(self.test_views.mapped('reveal_state')), {'to_process'})
 
     @users('user_sales_manager')
     def test_reveal_error_no_result(self):
@@ -125,7 +125,7 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
             self.env['crm.reveal.view'].search([('reveal_ip', 'in', ['90.80.70.60', '90.80.70.61', '90.80.70.70'])]),
             self.test_views
         )
-        self.assertEqual(set(self.test_views.mapped('reveal_state')), set(['not_found']))
+        self.assertEqual(set(self.test_views.mapped('reveal_state')), {'not_found'})
 
     @users('user_sales_manager')
     def test_reveal(self):
@@ -154,7 +154,7 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
             else:
                 rule = self.test_request_1
 
-            lead = self._new_leads.filtered(lambda lead: lead.name == '%s GmbH - %s' % (base_name, rule.suffix))
+            lead = self._new_leads.filtered(lambda lead, base_name=base_name, rule=rule: lead.name == '%s GmbH - %s' % (base_name, rule.suffix))
             self.assertTrue(bool(lead))
 
             # mine information

@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.website_slides.controllers.main import WebsiteSlides
 from odoo.http import request, route
 from odoo.tools import format_amount
+
+from odoo.addons.website_slides.controllers.main import WebsiteSlides
 
 
 class WebsiteSaleSlides(WebsiteSlides):
@@ -19,7 +19,7 @@ class WebsiteSaleSlides(WebsiteSlides):
         } for product in products]
 
     def _prepare_additional_channel_values(self, values, **kwargs):
-        values = super(WebsiteSaleSlides, self)._prepare_additional_channel_values(values, **kwargs)
+        values = super()._prepare_additional_channel_values(values, **kwargs)
         channel = values['channel']
         if channel.enroll == 'payment':
             # search the product to apply ACLs, notably on published status, to avoid access errors

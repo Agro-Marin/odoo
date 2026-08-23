@@ -1,17 +1,17 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime, timedelta
 
 from odoo import fields
-from odoo.addons.website_event.tests.common import OnlineEventCase
 from odoo.tests.common import users
+
+from odoo.addons.website_event.tests.common import OnlineEventCase
 
 
 class TestEventWebsiteTrack(OnlineEventCase):
 
     def _get_menus(self):
-        return super(TestEventWebsiteTrack, self)._get_menus() | set(['Talks', 'Agenda', 'Propose a talk'])
+        return super()._get_menus() | {'Talks', 'Agenda', 'Propose a talk'}
 
     @users('user_eventmanager')
     def test_create_menu(self):

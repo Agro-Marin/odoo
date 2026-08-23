@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -25,14 +24,14 @@ class CrmLeadForwardToPartner(models.TransientModel):
                 partner_location.append(partner.city)
         return {'lead_id': lead.id,
                 'lead_location': ", ".join(lead_location),
-                'partner_assigned_id': partner and partner.id or False,
+                'partner_assigned_id': (partner and partner.id) or False,
                 'partner_location': ", ".join(partner_location),
                 'lead_link': self.get_lead_portal_url(lead),
                 }
 
     @api.model
     def default_get(self, fields):
-        res = super(CrmLeadForwardToPartner, self).default_get(fields)
+        res = super().default_get(fields)
         active_ids = self.env.context.get('active_ids')
         if 'body' in fields:
             template = self.env.ref('website_crm_partner_assign.email_template_lead_forward_mail', False)
@@ -61,7 +60,7 @@ class CrmLeadForwardToPartner(models.TransientModel):
         portal_group = self.env.ref('base.group_portal')
 
         local_context = self.env.context.copy()
-        if not (self.forward_type == 'single'):
+        if self.forward_type != 'single':
             no_email = set()
             for lead in self.assignation_lines:
                 if lead.partner_assigned_id and not lead.partner_assigned_id.email:
@@ -73,7 +72,7 @@ class CrmLeadForwardToPartner(models.TransientModel):
 
         partners_leads = {}
         for lead in self.assignation_lines:
-            partner = self.forward_type == 'single' and self.partner_id or lead.partner_assigned_id
+            partner = (self.forward_type == 'single' and self.partner_id) or lead.partner_assigned_id
             lead_details = {
                 'lead_link': lead.lead_link,
                 'lead_id': lead.lead_id,

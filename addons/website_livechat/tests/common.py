@@ -3,6 +3,7 @@
 import random
 
 from odoo import fields
+
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 from odoo.addons.mail.tests.common import MailCommon
 
@@ -77,7 +78,6 @@ class TestLivechatCommon(MailCommon, TransactionCaseWithUserDemo):
     def _send_rating(self, channel, visitor, rating_value, reason=False):
         channel_messages_count = len(channel.message_ids)
 
-        rating_to_emoji = {1: "😞", 3: "😐", 5: "😊"}
         self.url_open(url=self.send_feedback_url, json={'params': {
             'channel_id': channel.id,
             'rate': rating_value,

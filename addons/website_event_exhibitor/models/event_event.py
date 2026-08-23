@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 
 
 class EventEvent(models.Model):
@@ -47,21 +46,21 @@ class EventEvent(models.Model):
             new_event.exhibitor_menu_ids.menu_id.parent_id = new_event.menu_id
 
     def _get_fields_menu_update(self):
-        return super(EventEvent, self)._get_fields_menu_update() + ['exhibitor_menu']
+        return super()._get_fields_menu_update() + ['exhibitor_menu']
 
     def _update_website_menus(self, menus_update_by_field=None):
-        super(EventEvent, self)._update_website_menus(menus_update_by_field=menus_update_by_field)
+        super()._update_website_menus(menus_update_by_field=menus_update_by_field)
         for event in self:
             if event.menu_id and (not menus_update_by_field or event in menus_update_by_field.get('exhibitor_menu')):
                 event._update_website_menu_entry('exhibitor_menu', 'exhibitor_menu_ids', 'exhibitor')
 
     def _get_menu_type_field_matching(self):
-        res = super(EventEvent, self)._get_menu_type_field_matching()
+        res = super()._get_menu_type_field_matching()
         res['exhibitor'] = 'exhibitor_menu'
         return res
 
     def _get_website_menu_entries(self):
         self.ensure_one()
-        return super(EventEvent, self)._get_website_menu_entries() + [
+        return super()._get_website_menu_entries() + [
             (_('Exhibitors list'), '/event/%s/exhibitors' % self.env['ir.http']._slug(self), False, 60, 'exhibitor', False)
         ]

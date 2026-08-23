@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from psycopg import IntegrityError
 
-from odoo.addons.website_forum.tests.common import KARMA, TestForumCommon
-from odoo.exceptions import UserError, AccessError
+from odoo.exceptions import AccessError, UserError
 from odoo.tools import mute_logger
+
+from odoo.addons.website_forum.tests.common import KARMA, TestForumCommon
 
 
 class TestForumCRUD(TestForumCommon):

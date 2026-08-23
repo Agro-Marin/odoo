@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import models
@@ -8,7 +7,7 @@ class WebsiteVisitor(models.Model):
     _inherit = 'website.visitor'
 
     def _check_for_sms_composer(self):
-        check = super(WebsiteVisitor, self)._check_for_sms_composer()
+        check = super()._check_for_sms_composer()
         if not check and self.lead_ids:
             sorted_leads = self.lead_ids.filtered(lambda l: l.phone == self.phone)._sort_by_confidence_level(reverse=True)
             if sorted_leads:
@@ -25,4 +24,4 @@ class WebsiteVisitor(models.Model):
                     'default_res_id': lead.id,
                     'number_field_name': 'phone',
                 }
-        return super(WebsiteVisitor, self)._prepare_sms_composer_context()
+        return super()._prepare_sms_composer_context()

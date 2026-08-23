@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import models, _
 from markupsafe import Markup
+
+from odoo import _, models
 
 
 class EventRegistration(models.Model):
@@ -10,7 +10,7 @@ class EventRegistration(models.Model):
 
     def _get_lead_description_registration(self, line_suffix=''):
         """Add the questions and answers linked to the registrations into the description of the lead."""
-        reg_description = super(EventRegistration, self)._get_lead_description_registration(line_suffix=line_suffix)
+        reg_description = super()._get_lead_description_registration(line_suffix=line_suffix)
         if not self.registration_answer_ids:
             return reg_description
 
@@ -22,7 +22,7 @@ class EventRegistration(models.Model):
         return Markup("%s%s<br/>%s") % (reg_description, _("Questions"), Markup('<br/>').join(answer_descriptions))
 
     def _get_fields_lead_description(self):
-        res = super(EventRegistration, self)._get_fields_lead_description()
+        res = super()._get_fields_lead_description()
         res.append('registration_answer_ids')
         return res
 

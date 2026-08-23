@@ -250,7 +250,7 @@ class ForumPost(models.Model):
                 ["vote", "post_id"],
             )
         )
-        mapped_vote = dict([(v["post_id"][0], v["vote"]) for v in votes])
+        mapped_vote = {v["post_id"][0]: v["vote"] for v in votes}
         for vote in self:
             vote.user_vote = mapped_vote.get(vote.id, 0)
 
@@ -293,7 +293,7 @@ class ForumPost(models.Model):
         is_admin = self.env.is_admin()
         # sudoed recordset instead of individual posts so values can be
         # prefetched in bulk
-        for post, post_sudo in zip(self, self.sudo()):
+        for post, post_sudo in zip(self, self.sudo(), strict=True):
             is_creator = post.create_uid == user
 
             post.karma_accept = (
@@ -350,8 +350,8 @@ class ForumPost(models.Model):
             )
             post.can_view = (
                 post.can_close
-                or post_sudo.active
-                and (post_sudo.create_uid.karma > 0 or post_sudo.create_uid == user)
+                or (post_sudo.active
+                and (post_sudo.create_uid.karma > 0 or post_sudo.create_uid == user))
             )
             post.can_display_biography = is_admin or (
                 post_sudo.create_uid.karma >= post.forum_id.karma_user_bio
@@ -444,7 +444,7 @@ class ForumPost(models.Model):
                         post.forum_id.karma_ask,
                     )
                 )
-            elif post.parent_id and not post.can_answer:
+            if post.parent_id and not post.can_answer:
                 raise AccessError(
                     _(
                         "%d karma required to answer a question.",
@@ -599,7 +599,7 @@ class ForumPost(models.Model):
     def _get_access_action(self, access_uid=None, force_website=False):
         """Instead of the classic form view, redirect to the post on the website directly"""
         self.ensure_one()
-        if not force_website and not self.state == "active":
+        if not force_website and self.state != "active":
             return super()._get_access_action(
                 access_uid=access_uid, force_website=force_website
             )
@@ -636,7 +636,7 @@ class ForumPost(models.Model):
 
         if self.env.user.karma < forum.karma_editor:
             filter_regexp = r'(<img.*?>)|(<a[^>]*?href[^>]*?>)|(<[a-z|A-Z]+[^>]*style\s*=\s*[\'"][^\'"]*\s*background[^:]*:[^url;]*url)'
-            content_match = re.search(filter_regexp, content, re.I)
+            content_match = re.search(filter_regexp, content, re.IGNORECASE)
             if content_match:
                 raise AccessError(
                     _("%d karma required to post an image or link.", forum.karma_editor)
@@ -670,7 +670,7 @@ class ForumPost(models.Model):
                 # however here we remove subtype but set partner_ids
                 partners = post.sudo().message_partner_ids | tag_partners
                 partners = partners.filtered(
-                    lambda partner: (
+                    lambda partner, post=post: (
                         partner.user_ids
                         and any(
                             user.karma >= post.forum_id.karma_moderate
@@ -717,6 +717,7 @@ class ForumPost(models.Model):
                 )
 
         self.sudo().write({"state": "active"})
+        return None
 
     def close(self, reason_id):
         if any(post.parent_id for post in self):
@@ -817,8 +818,8 @@ class ForumPost(models.Model):
                     }
                 )
                 res.append(
-                    post.can_moderate
-                    and {"success": "post_flagged_moderator"}
+                    (post.can_moderate
+                    and {"success": "post_flagged_moderator"})
                     or {"success": "post_flagged_non_moderator"}
                 )
             else:
@@ -866,7 +867,7 @@ class ForumPost(models.Model):
             spams = self.filtered(lambda x: x.id in values)
 
         reason_id = self.env.ref("website_forum.reason_8").id
-        _logger.info("User %s marked as spams (in batch): %s" % (self.env.uid, spams))
+        _logger.info("User %s marked as spams (in batch): %s", self.env.uid, spams)
         return spams._mark_as_offensive(reason_id)
 
     def vote(self, upvote=True):
@@ -950,7 +951,7 @@ class ForumPost(models.Model):
         is_author = comment_sudo.author_id.id == self.env.user.partner_id.id
         karma_own = post.forum_id.karma_comment_convert_own
         karma_all = post.forum_id.karma_comment_convert_all
-        karma_convert = is_author and karma_own or karma_all
+        karma_convert = (is_author and karma_own) or karma_all
         can_convert = self.env.user.karma >= karma_convert
         if not can_convert:
             if is_author and karma_own < karma_all:
@@ -960,13 +961,12 @@ class ForumPost(models.Model):
                         karma_own,
                     )
                 )
-            else:
-                raise AccessError(
-                    _("%d karma required to convert a comment to an answer.", karma_all)
-                )
+            raise AccessError(
+                _("%d karma required to convert a comment to an answer.", karma_all)
+            )
 
         # check the message's author has not already an answer
-        question = post.parent_id if post.parent_id else post
+        question = post.parent_id or post
         post_create_uid = comment_sudo.author_id.user_ids[0]
         if any(
             answer.create_uid.id == post_create_uid.id for answer in question.child_ids
@@ -1102,7 +1102,7 @@ class ForumPost(models.Model):
         # ufficient.
         msg_vals = msg_vals or {}
         if msg_vals.get("message_type", message.message_type) == "comment":
-            return
+            return None
         return super()._notify_thread_by_inbox(
             message, recipients_data, msg_vals=msg_vals, **kwargs
         )
@@ -1261,7 +1261,7 @@ class ForumPost(models.Model):
         results_data = super()._search_render_results(
             fetch_fields, mapping, icon, limit
         )
-        for post, data in zip(self, results_data):
+        for post, data in zip(self, results_data, strict=True):
             if with_date:
                 data["date"] = self.env["ir.qweb.field.date"].record_to_html(
                     post, "write_date", {}

@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import tools, _
+from odoo import _, tools
 from odoo.exceptions import UserError
-from odoo.http import route, request
+from odoo.http import request, route
+
 from odoo.addons.mass_mailing.controllers import main
 
 

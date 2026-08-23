@@ -1,7 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
-from odoo.exceptions import UserError, AccessError
+from odoo import _, api, fields, models
+from odoo.exceptions import AccessError, UserError
 
 
 class ForumPostVote(models.Model):
@@ -46,7 +46,7 @@ class ForumPostVote(models.Model):
             for vals in vals_list:
                 vals.pop('user_id', None)
                 vals.pop('recipient_id', None)
-            self = self.with_context({k: v for k, v in self.env.context.items() if k not in ['default_user_id', 'default_recipient_id']})  # noqa: PLW0642
+            self = self.with_context({k: v for k, v in self.env.context.items() if k not in ['default_user_id', 'default_recipient_id']})
 
         votes = super().create(vals_list)
 
@@ -94,7 +94,7 @@ class ForumPostVote(models.Model):
         # karma check
         if upvote and not self.post_id.can_upvote:
             raise AccessError(_('%d karma required to upvote.', self.post_id.forum_id.karma_upvote))
-        elif not upvote and not self.post_id.can_downvote:
+        if not upvote and not self.post_id.can_downvote:
             raise AccessError(_('%d karma required to downvote.', self.post_id.forum_id.karma_downvote))
 
     def _vote_update_karma(self, old_vote, new_vote):

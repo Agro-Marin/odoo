@@ -11,7 +11,7 @@ class WebsiteSlidesSurvey(WebsiteProfile):
         """Loads all data required to display the certification attempts of the given user"""
         values = super()._prepare_user_profile_values(user, **kwargs)
         values['show_certification_tab'] = ('user' in values) and (
-            values['user'].id == request.env.user.id or \
+            values['user'].id == request.env.user.id or
             request.env.user.has_group('survey.group_survey_manager')
         )
 

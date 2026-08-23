@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from werkzeug.exceptions import Forbidden
 
 from odoo import http
-from odoo.addons.website_event_track.controllers.event_track import EventTrackController
 from odoo.http import request
+
+from odoo.addons.website_event_track.controllers.event_track import EventTrackController
 
 
 class WebsiteEventTrackQuiz(EventTrackController):
@@ -32,7 +32,7 @@ class WebsiteEventTrackQuiz(EventTrackController):
             'quiz_points': answers_details['points'],
         })
 
-        result = {
+        return {
             'answers': {
                 answer.question_id.id: {
                     'awarded_points': answer.awarded_points,
@@ -44,7 +44,6 @@ class WebsiteEventTrackQuiz(EventTrackController):
             'quiz_completed': event_track_visitor.quiz_completed,
             'quiz_points': answers_details['points']
         }
-        return result
 
     @http.route('/event_track/quiz/reset', type="jsonrpc", auth="public", website=True)
     def quiz_reset(self, event_id, track_id):
@@ -54,7 +53,7 @@ class WebsiteEventTrackQuiz(EventTrackController):
         # the quiz. The event managers will always be able to reset the quiz
         # even if the option is disabled (for testing purposes).
         if not request.env.user.has_group('event.group_event_manager') and not track.sudo().quiz_id.repeatable:
-            raise Forbidden()
+            raise Forbidden
 
         event_track_visitor = track._get_event_track_visitors(force_create=True)
         event_track_visitor.write({
@@ -71,8 +70,6 @@ class WebsiteEventTrackQuiz(EventTrackController):
 
         return {
             'user_answers': user_answers,
-            'points': sum([
-                answer.awarded_points
-                for answer in user_answers
-            ])
+            'points': sum(answer.awarded_points
+                for answer in user_answers)
         }

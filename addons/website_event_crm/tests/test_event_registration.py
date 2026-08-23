@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime, timedelta
 
-from odoo.addons.event_crm.tests.common import TestEventCrmCommon
 from odoo.tests.common import RecordCapturer, tagged, users
+
+from odoo.addons.event_crm.tests.common import TestEventCrmCommon
 
 
 @tagged('event_crm', 'post_install', '-at_install')
@@ -92,8 +92,8 @@ class EventRegistrationCase(TestEventCrmCommon):
 
         # attendee-based descriptions
         attendee_leads = test_rule_attendee.sudo().lead_ids
-        for registration, customer_data in zip(registrations, self.batch_customer_data):
-            lead = attendee_leads.filtered(lambda l: l.registration_ids == registration)
+        for registration, customer_data in zip(registrations, self.batch_customer_data, strict=True):
+            lead = attendee_leads.filtered(lambda l, registration=registration: l.registration_ids == registration)
             self.assertTrue(lead)
             self.assertEqual(lead.registration_ids, registration)
             self.assertEqual(registration.sudo().lead_ids, lead + order_lead)

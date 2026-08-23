@@ -1,13 +1,13 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from urllib.parse import urlencode
 
 from odoo import http
+from odoo.http import request
+from odoo.tools.translate import LazyTranslate, _
+
 from odoo.addons.website.models.ir_http import sitemap_qs2dom
 from odoo.addons.website_google_map.controllers.main import GoogleMap
-from odoo.tools.translate import _, LazyTranslate
-from odoo.http import request
 
 _lt = LazyTranslate(__name__)
 
@@ -32,6 +32,7 @@ class WebsiteCustomer(GoogleMap):
 
         return domain
 
+    @staticmethod
     def sitemap_industry(env, rule, qs):
         if not qs or qs.lower() in '/customers':
             yield {'loc': '/customers'}
@@ -141,7 +142,7 @@ class WebsiteCustomer(GoogleMap):
         google_maps_api_key = request.website.google_maps_api_key
 
         tags = Tag.search([('website_published', '=', True), ('partner_ids', 'in', partners.ids)], order='classname, name ASC')
-        tag = tag_id and Tag.browse(tag_id) or False
+        tag = (tag_id and Tag.browse(tag_id)) or False
 
         values = {
             'countries': countries,

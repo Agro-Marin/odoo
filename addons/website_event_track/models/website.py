@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 
@@ -52,7 +51,7 @@ class Website(models.Model):
                 website.app_icon = False
                 continue
             w, h = image.image.size
-            square_size = w if w > h else h
+            square_size = max(h, w)
             image.crop_resize(square_size, square_size)
             image.image = image.image.resize((512, 512))
             image.operations_count += 1

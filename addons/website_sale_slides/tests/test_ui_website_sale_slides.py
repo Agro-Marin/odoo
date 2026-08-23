@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import fields, tests
+
 from odoo.addons.website_slides.tests import test_ui_wslides
 
 
@@ -8,7 +9,7 @@ from odoo.addons.website_slides.tests import test_ui_wslides
 class TestUiWebsiteSaleSlides(test_ui_wslides.TestUICommon):
 
     def setUp(self):
-        super(TestUiWebsiteSaleSlides, self).setUp()
+        super().setUp()
         self.course_product = self.env['product.product'].create({
             'name': "Course Product",
             'standard_price': 100,

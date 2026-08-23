@@ -1,15 +1,18 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+import contextlib
 from ast import literal_eval
 from collections import OrderedDict
 from random import randint, sample
+
 from werkzeug.exceptions import Forbidden
 
 from odoo import http
-from odoo.addons.website_event.controllers.main import WebsiteEventController
 from odoo.fields import Domain
 from odoo.http import request
 from odoo.tools import format_duration
+
+from odoo.addons.website_event.controllers.main import WebsiteEventController
 
 
 class ExhibitorController(WebsiteEventController):
@@ -129,7 +132,7 @@ class ExhibitorController(WebsiteEventController):
                 type='http', auth="public", website=True, sitemap=True)
     def event_exhibitor(self, event, sponsor, **options):
         if not sponsor.has_access('read'):
-            raise Forbidden()
+            raise Forbidden
         sponsor = sponsor.sudo()
 
         return request.render(
@@ -219,19 +222,15 @@ class ExhibitorController(WebsiteEventController):
     def _get_search_countries(self, country_search):
         # TDE FIXME: make me generic (slides, event, ...)
         country_ids = set(request.httprequest.form.getlist('sponsor_country'))
-        try:
+        with contextlib.suppress(Exception):
             country_ids.update(literal_eval(country_search))
-        except Exception:
-            pass
         # perform a search to filter on existing / valid tags implicitly
         return request.env['res.country'].sudo().search([('id', 'in', list(country_ids))])
 
     def _get_search_sponsorships(self, sponsorship_search):
         # TDE FIXME: make me generic (slides, event, ...)
         sponsorship_ids = set(request.httprequest.form.getlist('sponsor_type'))
-        try:
+        with contextlib.suppress(Exception):
             sponsorship_ids.update(literal_eval(sponsorship_search))
-        except Exception:
-            pass
         # perform a search to filter on existing / valid tags implicitly
         return request.env['event.sponsor.type'].sudo().search([('id', 'in', list(sponsorship_ids))])

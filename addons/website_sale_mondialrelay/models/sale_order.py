@@ -15,7 +15,7 @@ class SaleOrder(models.Model):
             raise ValidationError(_(
                 "Point Relais® can only be used with the delivery method Mondial Relay."
             ))
-        elif not self.partner_shipping_id.is_mondialrelay and self.carrier_id.is_mondialrelay:
+        if not self.partner_shipping_id.is_mondialrelay and self.carrier_id.is_mondialrelay:
             raise ValidationError(_(
                 "Delivery method Mondial Relay can only ship to Point Relais®."
             ))

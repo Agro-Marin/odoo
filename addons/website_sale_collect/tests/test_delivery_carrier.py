@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from odoo import Command
 from odoo.exceptions import ValidationError
-from odoo.tests import Form, tagged
+from odoo.tests import tagged
 
 from odoo.addons.website_sale.tests.common import MockRequest
 from odoo.addons.website_sale_collect.tests.common import ClickAndCollectCommon

@@ -1,9 +1,10 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import tools
+from odoo.http import request
+
 from odoo.addons.phone_validation.tools import phone_validation
 from odoo.addons.website.controllers import form
-from odoo.http import request
 
 
 class WebsiteForm(form.WebsiteForm):
@@ -26,8 +27,7 @@ class WebsiteForm(form.WebsiteForm):
         if model_record:
             try:
                 data = self.extract_data(model_record, request.params)
-            except:
-                # no specific management, super will do it
+            except Exception:  # noqa: S110  no specific management, super will do it
                 pass
             else:
                 record = data.get('record', {})
@@ -53,7 +53,7 @@ class WebsiteForm(form.WebsiteForm):
                 state = request.env['res.country.state'].search([('code', '=', geoip_state_code), ('country_id.code', '=', geoip_country_code)])
                 if state:
                     request.params['state_id'] = state.id
-        return super(WebsiteForm, self)._handle_website_form(model_name, **kwargs)
+        return super()._handle_website_form(model_name, **kwargs)
 
     def insert_record(self, request, model_sudo, values, custom, meta=None):
         is_lead_model = model_sudo.model == 'crm.lead'
@@ -68,9 +68,7 @@ class WebsiteForm(form.WebsiteForm):
                 # or if both numbers (after formating) are the same. This way we get additional phone
                 # if possible, without modifying an existing one. (see inverse function on model crm.lead)
                 if values_phone and visitor_partner.phone:
-                    if values_phone == visitor_partner.phone:
-                        values['partner_id'] = visitor_partner.id
-                    elif (visitor_partner._phone_format('phone') or visitor_partner.phone) == values_phone:
+                    if values_phone == visitor_partner.phone or (visitor_partner._phone_format('phone') or visitor_partner.phone) == values_phone:
                         values['partner_id'] = visitor_partner.id
                 else:
                     values['partner_id'] = visitor_partner.id

@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import models, fields, api, _
+from odoo import _, api, fields, models
 
 
 class Website(models.Model):
@@ -16,7 +15,7 @@ class Website(models.Model):
         return websites
 
     def get_suggested_controllers(self):
-        suggested_controllers = super(Website, self).get_suggested_controllers()
+        suggested_controllers = super().get_suggested_controllers()
         suggested_controllers.append((_('Forum'), self.env['ir.http']._url_for('/forum'), 'website_forum'))
         return suggested_controllers
 
@@ -50,7 +49,7 @@ class Website(models.Model):
         This method either runs on self (if not void), either on all existing
         websites (to update globally counters, notably when a new forum is
         created). """
-        websites = self if self else self.search([])
+        websites = self or self.search([])
         forums_all = self.env['forum.forum'].search([])
         for website in websites:
             website.forum_count = len(forums_all.filtered_domain(website.website_domain()))

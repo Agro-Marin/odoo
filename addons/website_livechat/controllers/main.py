@@ -2,6 +2,7 @@
 
 from odoo import _
 from odoo.http import request
+
 from odoo.addons.im_livechat.controllers.main import LivechatController
 
 

@@ -1,13 +1,15 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import datetime
+
 from freezegun import freeze_time
 
-from odoo import fields, tests, _
+from odoo import _, fields, tests
+from odoo.tests.common import new_test_user
+
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 from odoo.addons.mail.tools.discuss import Store
 from odoo.addons.website_livechat.tests.common import TestLivechatCommon
-from odoo.tests.common import new_test_user
 
 
 @tests.tagged('post_install', '-at_install')

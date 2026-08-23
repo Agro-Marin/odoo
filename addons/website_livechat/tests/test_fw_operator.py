@@ -1,7 +1,8 @@
 from odoo import Command
 from odoo.tests import HttpCase, tagged
-from odoo.addons.website_livechat.tests.common import TestLivechatCommon
+
 from odoo.addons.im_livechat.tests.chatbot_common import ChatbotCase
+from odoo.addons.website_livechat.tests.common import TestLivechatCommon
 
 
 @tagged("post_install", "-at_install")

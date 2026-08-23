@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import math
 
 from odoo import http
-from odoo.addons.website_event.controllers.community import EventCommunityController
 from odoo.http import request
+
+from odoo.addons.website_event.controllers.community import EventCommunityController
 
 
 class WebsiteEventTrackQuizCommunityController(EventCommunityController):
@@ -45,7 +45,7 @@ class WebsiteEventTrackQuizCommunityController(EventCommunityController):
             elif not page:
                 page = 1
             pager = request.website.pager(url=url, total=user_count, page=page, step=self._visitors_per_page,
-                                          scope=page_count if page_count < self._pager_max_pages else self._pager_max_pages,
+                                          scope=min(self._pager_max_pages, page_count),
                                           url_args={'search': search_term})
             values['visitors'] = values['visitors'][(page - 1) * self._visitors_per_page: (page) * self._visitors_per_page]
         else:
@@ -77,7 +77,7 @@ class WebsiteEventTrackQuizCommunityController(EventCommunityController):
                 leaderboard.append({'visitor': visitor, 'points': points, 'position': position})
                 if current_visitor and current_visitor == visitor:
                     current_visitor_position = position
-            position = position + 1
+            position += 1
 
         return {
             'top3_visitors': leaderboard[:3],

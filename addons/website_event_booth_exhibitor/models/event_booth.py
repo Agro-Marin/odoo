@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import fields, models
@@ -49,4 +48,4 @@ class EventBooth(models.Model):
         for booth in self:
             if booth.use_sponsor and booth.partner_id:
                 booth.sponsor_id = booth._get_or_create_sponsor(write_vals)
-        super(EventBooth, self)._action_post_confirm(write_vals)
+        super()._action_post_confirm(write_vals)

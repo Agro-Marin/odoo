@@ -1,6 +1,7 @@
-from odoo.addons.crm.tests.test_res_partner import TestResPartner
 from odoo.tests import tagged, users
 from odoo.tests.common import warmup
+
+from odoo.addons.crm.tests.test_res_partner import TestResPartner
 
 
 @tagged('res_partner', 'post_install', '-at_install')

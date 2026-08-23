@@ -1,7 +1,5 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import textwrap
 from collections import defaultdict
 from operator import itemgetter
 
@@ -294,10 +292,9 @@ class ForumForum(models.Model):
                 tag_ids = Tag.search([('name', '=', tag_name), ('forum_id', '=', self.id)], limit=1)
                 if tag_ids:
                     existing_keep.append(tag_ids.id)
-                else:
-                    # check if user have Karma needed to create need tag
-                    if user.exists() and user.karma >= self.karma_tag_create and tag_name:
-                        post_tags.append((0, 0, {'name': tag_name, 'forum_id': self.id}))
+                # check if user have Karma needed to create need tag
+                elif user.exists() and user.karma >= self.karma_tag_create and tag_name:
+                    post_tags.append((0, 0, {'name': tag_name, 'forum_id': self.id}))
             else:
                 existing_keep.append(int(tag_id_or_new_name))
         post_tags.insert(0, [6, 0, existing_keep])
@@ -347,6 +344,6 @@ class ForumForum(models.Model):
 
     def _search_render_results(self, fetch_fields, mapping, icon, limit):
         results_data = super()._search_render_results(fetch_fields, mapping, icon, limit)
-        for forum, data in zip(self, results_data):
+        for forum, data in zip(self, results_data, strict=True):
             data['website_url'] = forum._compute_website_url()
         return results_data

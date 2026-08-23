@@ -78,7 +78,7 @@ class ProductProduct(models.Model):
 
                 mail = self_ctxt.env['mail.mail'].sudo().create(mail_values)
                 mail.send(raise_exception=False)
-                product.stock_notification_partner_ids -= partner
+                product.stock_notification_partner_ids -= partner  # noqa: B909  recordsets are immutable: -= rebinds, the iterator keeps the original
 
     def _to_markup_data(self, website):
         """ Override of `website_sale` to include the product availability in the offer. """

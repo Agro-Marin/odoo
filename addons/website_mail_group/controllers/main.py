@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import http
@@ -11,18 +10,18 @@ class WebsiteMailGroup(http.Controller):
         """Return the email of the member if found, otherwise None."""
         group = request.env['mail.group'].browse(int(group_id)).exists()
         if not group:
-            return
+            return None
 
         token = kw.get('token')
 
         if token and token != group._generate_group_access_token():
-            return
+            return None
 
         if token:
             group = group.sudo()
 
         if not group.has_access('read'):
-            return
+            return None
 
         if not request.env.user._is_public():
             email = request.env.user.email_normalized

@@ -1,13 +1,12 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime, timedelta
 
 from odoo import Command, fields
-from odoo.addons.website_event_sale.tests.common import TestWebsiteEventSaleCommon
-from odoo.addons.base.tests.common import HttpCaseWithUserPortal
 from odoo.tests.common import tagged
 
+from odoo.addons.base.tests.common import HttpCaseWithUserPortal
+from odoo.addons.website_event_sale.tests.common import TestWebsiteEventSaleCommon
 
 
 @tagged('post_install', '-at_install')

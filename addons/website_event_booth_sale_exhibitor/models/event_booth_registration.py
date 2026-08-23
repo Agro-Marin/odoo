@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import fields, models
@@ -15,6 +14,6 @@ class EventBoothRegistration(models.Model):
     sponsor_image_512 = fields.Image(string='Sponsor Logo')
 
     def _get_fields_for_booth_confirmation(self):
-        return super(EventBoothRegistration, self)._get_fields_for_booth_confirmation() + \
+        return super()._get_fields_for_booth_confirmation() + \
                ['sponsor_name', 'sponsor_email', 'sponsor_phone', 'sponsor_subtitle',
                 'sponsor_website_description', 'sponsor_image_512']

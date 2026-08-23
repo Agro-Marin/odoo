@@ -1,6 +1,7 @@
+from odoo.tests import tagged, users
+
 from odoo.addons.mail.tests.common import MailCase
 from odoo.addons.website_event.tests.common import TestEventOnlineCommon
-from odoo.tests import tagged, users
 
 
 @tagged('post_install', '-at_install', 'mail_flow', 'mail_tools')

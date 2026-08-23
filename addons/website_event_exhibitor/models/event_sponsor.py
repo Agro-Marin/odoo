@@ -143,7 +143,7 @@ class EventSponsor(models.Model):
                 opening_to_tz = datetime.combine(now_tz.date(), float_to_time(sponsor.hour_to)).replace(tzinfo=event_tz)
                 if sponsor.hour_to == 0:
                     # when closing 'at midnight', we consider it's at midnight the next day
-                    opening_to_tz = opening_to_tz + timedelta(days=1)
+                    opening_to_tz += timedelta(days=1)
 
                 opening_from = max([dt_begin, opening_from_tz])
                 opening_to = min([dt_end, opening_to_tz])

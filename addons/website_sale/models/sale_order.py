@@ -771,7 +771,7 @@ class SaleOrder(models.Model):
                 latest_create_date_per_partner[sale.partner_id] = max(latest_create_date_per_partner[sale.partner_id], sale.create_date)
         has_later_sale_order = {}
         for sale in sales_after_abandoned_date:
-            if has_later_sale_order.get(sale.partner_id, False):
+            if has_later_sale_order.get(sale.partner_id):
                 continue
             has_later_sale_order[sale.partner_id] = latest_create_date_per_partner[sale.partner_id] <= sale.date_order
 
@@ -792,7 +792,7 @@ class SaleOrder(models.Model):
             abandoned_sale_order.partner_id.email
             and not any(transaction.sudo().state == 'error' for transaction in abandoned_sale_order.transaction_ids)
             and any(not float_is_zero(line.price_unit, precision_rounding=line.currency_id.rounding) for line in abandoned_sale_order.line_ids)
-            and not has_later_sale_order.get(abandoned_sale_order.partner_id, False)
+            and not has_later_sale_order.get(abandoned_sale_order.partner_id)
         )
 
     def _has_deliverable_products(self):

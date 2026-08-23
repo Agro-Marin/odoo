@@ -1,13 +1,13 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import json
-from urllib.parse import urlencode, quote
+from urllib.parse import quote, urlencode
 
 from werkzeug.exceptions import Forbidden, NotFound
 
 from odoo import http, tools
 from odoo.http import request
+
 from odoo.addons.website_event.controllers.main import WebsiteEventController
 
 
@@ -16,7 +16,7 @@ class WebsiteEventBoothController(WebsiteEventController):
     @http.route('/event/<model("event.event"):event>/booth', type='http', auth='public', website=True, sitemap=False)
     def event_booth_main(self, event, booth_category_id=False, booth_ids=False):
         if not event.has_access('read'):
-            raise Forbidden()
+            raise Forbidden
 
         booth_category_id = int(booth_category_id) if booth_category_id else False
         return request.render(
@@ -40,7 +40,7 @@ class WebsiteEventBoothController(WebsiteEventController):
                 type='http', auth='public', methods=['GET'], website=True, sitemap=False)
     def event_booth_contact_form(self, event, booth_ids=None, booth_category_id=None):
         if not booth_ids or not booth_category_id:
-            raise NotFound()
+            raise NotFound
 
         return request.render(
             'website_event_booth.event_booth_registration_details',

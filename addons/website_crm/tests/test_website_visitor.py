@@ -1,19 +1,19 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime, timedelta
 
-from odoo.addons.crm.tests.common import TestCrmCommon
-from odoo.addons.website.tests.test_website_visitor import WebsiteVisitorTestsCommon
 from odoo.tests import tagged
 from odoo.tests.common import users
+
+from odoo.addons.crm.tests.common import TestCrmCommon
+from odoo.addons.website.tests.test_website_visitor import WebsiteVisitorTestsCommon
 
 
 @tagged('website_visitor', 'is_query_count')
 class TestWebsiteVisitor(TestCrmCommon, WebsiteVisitorTestsCommon):
 
     def setUp(self):
-        super(TestWebsiteVisitor, self).setUp()
+        super().setUp()
         self.test_partner = self.env['res.partner'].create({
             'name': 'Test Customer',
             'email': '"Test Customer" <test@test.example.com>',

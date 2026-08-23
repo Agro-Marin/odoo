@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import fields, models, api
+from odoo import api, fields, models
 from odoo.fields import Domain
 
 
@@ -16,21 +16,21 @@ class WebsiteVisitor(models.Model):
 
     @api.depends('partner_id.email_normalized', 'partner_id.phone', 'lead_ids.email_normalized', 'lead_ids.phone')
     def _compute_email_phone(self):
-        super(WebsiteVisitor, self)._compute_email_phone()
+        super()._compute_email_phone()
 
         left_visitors = self.filtered(lambda visitor: not visitor.email or not visitor.mobile)
         leads = left_visitors.mapped('lead_ids').sorted('create_date', reverse=True)
-        visitor_to_lead_ids = dict((visitor.id, visitor.lead_ids.ids) for visitor in left_visitors)
+        visitor_to_lead_ids = {visitor.id: visitor.lead_ids.ids for visitor in left_visitors}
 
         for visitor in left_visitors:
-            visitor_leads = leads.filtered(lambda lead: lead.id in visitor_to_lead_ids[visitor.id])
+            visitor_leads = leads.filtered(lambda lead, visitor=visitor: lead.id in visitor_to_lead_ids[visitor.id])
             if not visitor.email:
                 visitor.email = next((lead.email_normalized for lead in visitor_leads if lead.email_normalized), False)
             if not visitor.mobile:
                 visitor.mobile = next((lead.phone for lead in visitor_leads if lead.phone), False)
 
     def _check_for_message_composer(self):
-        check = super(WebsiteVisitor, self)._check_for_message_composer()
+        check = super()._check_for_message_composer()
         if not check and self.lead_ids:
             sorted_leads = self.lead_ids._sort_by_confidence_level(reverse=True)
             partners = sorted_leads.mapped('partner_id')
@@ -65,4 +65,4 @@ class WebsiteVisitor(models.Model):
                     'default_res_id': sorted_leads[0].id,
                     'default_partner_ids': partner.ids,
                 }
-        return super(WebsiteVisitor, self)._prepare_message_composer_context()
+        return super()._prepare_message_composer_context()

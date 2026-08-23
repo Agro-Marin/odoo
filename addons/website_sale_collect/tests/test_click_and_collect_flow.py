@@ -1,8 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo.tests import tagged
-
 from odoo.tests.common import HttpCase
+
 from odoo.addons.website_sale_collect.tests.common import ClickAndCollectCommon
 
 

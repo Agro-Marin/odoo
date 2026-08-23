@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo.addons.website_event.tests.common import TestEventOnlineCommon
@@ -8,7 +7,7 @@ class TestEventExhibitorCommon(TestEventOnlineCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestEventExhibitorCommon, cls).setUpClass()
+        super().setUpClass()
 
         # Sponsorship data
         cls.sponsor_type_0 = cls.env['event.sponsor.type'].create({
