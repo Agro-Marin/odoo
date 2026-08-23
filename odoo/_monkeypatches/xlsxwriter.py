@@ -13,12 +13,29 @@ class PatchedXlsxWorkbook(xlsxwriter.Workbook):
         options.setdefault("strings_to_formulas", False)
         super().__init__(filename, options)
 
+    def _sanitized(self, name: str | None) -> str | None:
+        if not name:
+            return name
+        # Both sheet kinds share one namespace in `_check_sheetname`, and
+        # `worksheets()` is the list it checks against, so a chartsheet clashes
+        # with a worksheet exactly as two worksheets do.
+        return sanitize_excel_sheet_name(
+            name, [sheet.name for sheet in self.worksheets()]
+        )
+
     def add_worksheet(
         self, name: str | None = None, worksheet_class: type | None = None
     ) -> Any:
-        if name:
-            name = sanitize_excel_sheet_name(name)
-        return super().add_worksheet(name, worksheet_class=worksheet_class)
+        return super().add_worksheet(
+            self._sanitized(name), worksheet_class=worksheet_class
+        )
+
+    def add_chartsheet(
+        self, name: str | None = None, chartsheet_class: type | None = None
+    ) -> Any:
+        return super().add_chartsheet(
+            self._sanitized(name), chartsheet_class=chartsheet_class
+        )
 
 
 def patch_module() -> None:

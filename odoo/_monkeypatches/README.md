@@ -12,10 +12,35 @@ This directory contains runtime patches for Python standard library and third-pa
    - If the target module is already imported: patch immediately
    - Otherwise: patch right after the module is imported
 
-### Naming Conventions
+### The name is the wiring, so it cannot lie
 
-- `<module>.py` - Patches for module `<module>` (auto-detected)
-- `_<name>.py` - Utility modules, NOT auto-detected as patches
+`patch_init()` derives the hook set from the file names; nothing else declares
+what a file patches. A file named for a module it does not touch still runs —
+it is hooked on that module's import, which for a stdlib module means "at
+boot" — so the mechanism cannot tell the difference, and the index inherits
+the lie. `site.py` was that file: it patched `odoo`, `encodings.aliases`,
+`codecs` and `babel.core`, and nothing named `site`. Bootstrap that patches no
+module at all belongs in `patch_init()` (see `_select_run_mode`), not in a file
+borrowing an unrelated module's name.
+
+### Importing a patch submodule applies its patch
+
+`odoo._monkeypatches.<target>` is hooked alongside `<target>` itself, because
+the two orders have to converge. A patch submodule imports its own target at
+module level, so importing the submodule first re-enters `patch_module()` while
+the submodule is still initializing and its `patch_module()` does not yet
+exist. That call defers; the submodule's own `_PatchingLoader` applies the
+patch when exec finishes.
+
+Before that, the re-entrant call returned silently and the patch was **dropped
+for the life of the process** — with no log, and with the name absent from
+`_APPLIED`, so nothing downstream could tell. `TestMonkeypatchContract` walked
+every submodule with `importlib.import_module`, and thereby disabled 9 of the
+14 patches it was asserting about: `csv` never got its `UNIX` dialect, so
+`tools/translate.py` would have raised `csv.Error: unknown dialect`.
+
+`applied()` returns the set that has actually run. A hooked name missing from
+it is deferred, waiting for its target's import — not failed.
 
 ## Patch Index
 
@@ -29,46 +54,40 @@ This directory contains runtime patches for Python standard library and third-pa
 
 | File | Purpose | Type |
 |------|---------|------|
-| `ast.py` | Limit `ast.literal_eval()` buffer to prevent segfaults (default 100KiB, configurable via `ODOO_LIMIT_LITEVAL_BUFFER`) | SECURITY |
-| `csv.py` | Increase field size limit from 128KiB to 500MiB for image imports; register UNIX dialect | PERF |
-| `email.py` | Replace `email.policy.SMTP` so identification headers (`Message-Id`, `References`, ...) are never folded and user headers fold only at the RFC 5322 limit of 998 chars | COMPAT |
-| `locale.py` | Add missing `D_FMT`, `T_FMT` constants and `nl_langinfo()` for Windows | COMPAT |
-| `mimetypes.py` | Register missing MIME types: fonts (.woff, .eot, .ttf), .webp, .svg, .js | COMPAT |
-| `re.py` | Increase regex cache from 512 to 4096 entries | PERF |
-| `smtplib.py` | Route `SMTP.set_debuglevel` output through `logging` instead of stderr | COMPAT |
+| `ast.py` | Bound `ast.literal_eval()`'s input (default 100KiB, `ODOO_LIMIT_LITEVAL_BUFFER`). Resolved once at patch time, not per call | SECURITY |
+| `codecs.py` | Charset labels CPython will not resolve: `874`/`windows_874` to cp874 in `encodings.aliases`, and a search function for the separator-less ISO-8859-8-E/I spellings | COMPAT |
+| `csv.py` | Raise the field size limit from 128KiB to 500MiB, so an inlined base64 image is one readable field | PERF |
+| `email.py` | Replace `email.policy.SMTP` so identification headers (`Message-Id`, `References`, `Resent-Message-ID`, ...) are never folded and user headers fold only at the RFC 5322 limit of 998 chars | COMPAT |
+| `locale.py` | Add missing `D_FMT`, `T_FMT` constants and `nl_langinfo()` for Windows. Inert on POSIX | COMPAT |
+| `mimetypes.py` | Pin six extensions (fonts, `.webp`, `.svg`, `.js`) against a host `/etc/mime.types` or Windows registry that overrides CPython's table. All six match CPython 3.14's own defaults, so this only has to win against host config — and it wraps `init()`, which would otherwise discard the pins on any rebuild | COMPAT |
+| `re.py` | Raise the pattern cache from 512 to 4096 entries. Odoo's working set does exceed the stdlib floor — 872 distinct patterns at a `-u base` boot, 1341 over a 3261-test `/base` run — but the **measured** end-to-end saving is small: 86.7ms → 80.4ms of compile time per boot, 389.6ms → 366.6ms per test run. Patterns are overwhelmingly compiled once and held in module globals, so eviction rarely costs a recompile | PERF |
 
 ### Web Framework Patches
 
 | File | Purpose | Type |
 |------|---------|------|
-| `werkzeug.py` | Patch json_module (XSS safety), MultiDict.deepcopy, Rule._get_func_code | COMPAT |
+| `werkzeug.py` | Route `Request`/`Response` JSON through `odoo.libs.json.scriptsafe` (XSS safety) | COMPAT |
 | `bs4.py` | Suppress `XMLParsedAsHTMLWarning` from BeautifulSoup 4.11.0+ (ofxparse compatibility) | COMPAT |
 
 ### Spreadsheet Patches
 
 | File | Purpose | Type |
 |------|---------|------|
-| `xlsxwriter.py` | Sanitize Excel sheet names (remove invalid chars, limit to 31 chars) | COMPAT |
-| `_excel_utils.py` | Shared utilities for Excel sheet name sanitization | UTIL |
+| `xlsxwriter.py` | Sanitize Excel sheet names; default `strings_to_formulas` off, so an exported cell starting `=` is never a live formula | COMPAT |
+| `_excel_utils.py` | Excel sheet-name sanitization: all four of xlsxwriter's rules, including de-duplicating the clashes truncation creates | UTIL |
 
 ### Text Processing Patches
 
 | File | Purpose | Type |
 |------|---------|------|
-| `num2words.py` | Add Bulgarian language support (not in upstream num2words) | FEATURE |
-| `docutils.py` | Add dummy Sphinx domain elements to avoid Sphinx dependency | COMPAT |
+| `num2words.py` | Register `odoo.libs.locale.BulgarianNumerals` with num2words 0.5.14, which ships no `bg`. The converter is a language implementation, not a patch, and lives in `libs/` | FEATURE |
+| `docutils.py` | Stand in for the Sphinx domain (`:meth:`, `:class:`, … as literals; `deprecated`/`attribute` as notes that keep their argument) so docstring RST renders without depending on Sphinx | COMPAT |
 
-### Core Patches
-
-| File | Purpose | Type |
-|------|---------|------|
-| `site.py` | Run-mode flags (`odoo.evented`/prefork), codec aliases, Babel locale patching | COMPAT |
-
-### Third-Party Library Patches
+### Internationalization Patches
 
 | File | Purpose | Type |
 |------|---------|------|
-| `stdnum.py` | Set `operation_timeout` on the zeep SOAP client used for VIES/VAT lookups (upstream only sets the wsdl-fetch timeout) | COMPAT |
+| `babel.py` | Alias bare `nb` to `nb_NO`, so `Request.best_lang` resolves an `Accept-Language: nb` browser instead of raising `KeyError` into "no preference" | COMPAT |
 
 ## Patch Types
 
@@ -100,6 +119,19 @@ def patch_module():
     target_module.some_function = patched_function
 ```
 
+## What belongs here
+
+A patch, and only the patch. `num2words.py` used to be 250 lines of Bulgarian
+numeral logic wrapped around a one-line registration; the language now lives in
+`odoo/libs/locale/cardinals_bg.py`, where it is Odoo-agnostic code in the
+package for Odoo-agnostic code and its tests run DB-free in Tier 1 rather than
+needing `-i base`. If a file here is mostly *implementation*, the implementation
+has a better home and the registration stays.
+
+The same rule sent the `UNIX` csv dialect to `tools/translate.py`: configuration
+that is ours, consumed in one place, does not belong in a third-party registry
+under a global name.
+
 ## Removal Criteria
 
 Patches should be removed when:
@@ -109,7 +141,9 @@ Patches should be removed when:
 | `num2words.py` | Bulgarian is added to upstream num2words |
 | `locale.py` | Windows support is dropped OR Python stdlib adds Windows support |
 | `bs4.py` | ofxparse fixes XML parsing issue (#170) |
-| `mimetypes.py` | Python stdlib registers correct MIME types on all platforms |
+| `mimetypes.py` | No supported host can override CPython's table for these six |
+| `babel.py` | Babel ships an `nb` entry in `LOCALE_ALIASES` |
+| `codecs.py` | CPython resolves `iso88598i`/`iso88598e` and the cp874 MIME labels |
 
 ## Recently Removed
 
@@ -123,11 +157,17 @@ Patches should be removed when:
 | `email.py` (policy-clone validation) | 2026-02 | Python 3.12+ natively validates attributes in `_PolicyBase.clone()`. **Not** the current `email.py`, which is a later, unrelated patch for header folding — see the Patch Index. |
 | `pytz.py` | 2026-02 | Migrated to zoneinfo (stdlib); see `odoo/libs/datetime/tz.py` |
 | `xlwt.py` | 2026-02 | xlwt is abandoned (last release 2017); migrated to xlsxwriter |
+| `stdnum.py` | 2026-08 | Obsolete **and broken**. python-stdnum 2.2 sets `operation_timeout` itself in `_get_zeep_soap_client`, which `requirements-addons.txt` already recorded as the reason for the pin; meanwhile stdnum grew a third `verify` parameter that the replacement never had, so every VIES/UID/RNC/TCKimlik lookup raised `TypeError` -- uncaught, since `base_vat`'s `_compute_vies_valid` only handles `OSError`/`InvalidComponent`/`zeep.exceptions.Fault`. The replacement also dropped `session.verify`, i.e. TLS verification config. |
+| `smtplib.py` | 2026-08 | Unreachable. It replaced `SMTP._print_debug` on the class, but the only caller (`ir_mail_server.py`) assigns the identical function to the *instance* two lines before its `set_debuglevel()`, so the class-level one was never invoked -- and it hard-coded an addon's logger name into core. |
+| `site.py` | 2026-08 | Split, not deleted: it was named for a module it did not patch. The codec/alias half is `codecs.py`, the Babel half is `babel.py`, and the `evented` argv surgery -- not a module patch at all -- is now `patch_init`'s `_select_run_mode()`. |
+| `werkzeug.py` (MultiDict.deepcopy) | 2026-08 | Werkzeug 3.x already takes `memo`; the wrapper dropped it, which turned a working cycle-safe `copy.deepcopy` into `RecursionError`. |
+| `werkzeug.py` (Rule._get_func_code) | 2026-08 | An `assert isinstance(code, CodeType)` over a parameter werkzeug already annotates `CodeType`, stripped entirely under `-O`. |
+| `csv.py` (the `UNIX` dialect) | 2026-08 | Not a patch: Odoo's own dialect, registered under a global name in the stdlib registry, with exactly one caller. It now lives beside that caller as `tools/translate.py::_UnixDialect`, where it cannot be reached by name from anywhere and does not depend on a monkeypatch having run first. |
 
 ## Statistics
 
-- **Total**: 15 files (14 patches + 1 utility)
-- **By type**: COMPAT (10), PERF (2), SECURITY (1), FEATURE (1)
+- **Total**: 14 files (13 patches + 1 utility)
+- **By type**: COMPAT (9), PERF (2), SECURITY (1), FEATURE (1)
 
 These are re-derived from the directory and the Patch Index by
 `tooling/architecture/package_index_check.py`, so they cannot drift again — the

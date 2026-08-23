@@ -48,4 +48,4 @@ qrcode==8.2  # auth_totp, pos_self_order
 # The only remaining reason pytz is installed anywhere: vobject depends on it.
 vobject==0.9.9  # calendar, event, web, website_event_track — optional
 xlrd==2.0.2  # base_import: legacy .xls (BIFF) reader — optional
-zeep==4.3.3  # base_vat (via the stdnum SOAP client patched in _monkeypatches) — optional
+zeep==4.3.3  # base_vat, via stdnum's own SOAP client — optional

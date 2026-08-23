@@ -4,7 +4,7 @@ RFC5322_IDENTIFICATION_HEADERS = {
     "message-id",
     "in-reply-to",
     "references",
-    "resent-msg-id",
+    "resent-message-id",
 }
 USER_DEFINED_HEADERS = {"bcc", "cc", "from", "reply-to", "subject", "to"}
 

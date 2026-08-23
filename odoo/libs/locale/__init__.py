@@ -5,6 +5,7 @@ from .number_format import (
     parse_grouping,
     split,
 )
+from .cardinals_bg import BulgarianNumerals
 from .conversions import (
     XPG_LOCALE_RE,
     POSIX_TO_LDML,
@@ -15,6 +16,7 @@ from .conversions import (
 __all__ = [
     "POSIX_TO_LDML",
     "XPG_LOCALE_RE",
+    "BulgarianNumerals",
     "LocaleConventions",
     "format_number",
     "intersperse",

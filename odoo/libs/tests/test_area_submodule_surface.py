@@ -139,9 +139,18 @@ def _accidental_from_disk(area: str) -> set[str]:
 
 
 def test_accidental_submodule_surface_is_bounded():
+    """37 -> 38: `locale.cardinals_bg`, the Bulgarian numeral implementation.
+
+    It moved out of `_monkeypatches/num2words.py`, where 250 lines of language
+    logic were wrapped around a one-line registration. `locale/__init__.py`
+    exports `BulgarianNumerals` and the patch imports the area, so the leaf is
+    accidental surface in the same way `locale.conversions` and
+    `locale.number_format` already are -- one more module on disk that nothing
+    is supposed to import directly.
+    """
     total = sum(len(_accidental_from_disk(a)) for a in _areas())
-    assert total <= 37, (
-        f"accidental submodule surface grew to {total} (was 37). Each one is a "
+    assert total <= 38, (
+        f"accidental submodule surface grew to {total} (was 38). Each one is a "
         f"leaf module importable as `from odoo.libs.<area> import <name>`, "
         f"which libs_facade_check cannot see."
     )
