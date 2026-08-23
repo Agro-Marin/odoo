@@ -17,12 +17,12 @@ class WebClient(WebclientController):
 
     @classmethod
     def _link_visitor_to_livechat(cls, livechat_channel_id):
-        """ Check if there is an opened chat request for the website livechat
+        """Check if there is an opened chat request for the website livechat
         channel and the current visitor (from request). If so, link the visitor
         to the chat request channel. Channel will then be returned as part of
         the mail store initialization (/mail/data).
         """
-        visitor = request.env['website.visitor']._get_visitor_from_request()
+        visitor = request.env["website.visitor"]._get_visitor_from_request()
         if not visitor:
             return None
         # get active chat_request linked to visitor
@@ -45,7 +45,9 @@ class WebClient(WebclientController):
         if not chat_request_channel or visitor.partner_id:
             return None
         current_guest = request.env["mail.guest"]._get_guest_from_context()
-        channel_guest_member = chat_request_channel.channel_member_ids.filtered(lambda m: m.guest_id)
+        channel_guest_member = chat_request_channel.channel_member_ids.filtered(
+            lambda m: m.guest_id
+        )
         if current_guest and current_guest != channel_guest_member.guest_id:
             # Channel was created with a guest but the visitor was
             # linked to another guest in the meantime. We need to

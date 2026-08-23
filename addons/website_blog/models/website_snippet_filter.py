@@ -6,48 +6,55 @@ from odoo import _, api, fields, models
 
 
 class WebsiteSnippetFilter(models.Model):
-    _inherit = 'website.snippet.filter'
+    _inherit = "website.snippet.filter"
 
     def _get_hardcoded_sample(self, model):
         samples = super()._get_hardcoded_sample(model)
-        if model._name == 'blog.post':
-            data = [{
-                'cover_properties': '{"background-image": "url(\'/website_blog/static/src/img/cover_2.jpg\')", "resize_class": "o_record_has_cover o_half_screen_height", "opacity": "0"}',
-                'name': _('Islands'),
-                'subtitle': _('Alone in the ocean'),
-                'post_date': fields.Date.today() - timedelta(days=1),
-                'website_url': "",
-            }, {
-                'cover_properties': '{"background-image": "url(\'/website_blog/static/src/img/cover_3.jpg\')", "resize_class": "o_record_has_cover o_half_screen_height", "opacity": "0"}',
-                'name': _('With a View'),
-                'subtitle': _('Awesome hotel rooms'),
-                'post_date': fields.Date.today() - timedelta(days=2),
-                'website_url': "",
-            }, {
-                'cover_properties': '{"background-image": "url(\'/website_blog/static/src/img/cover_4.jpg\')", "resize_class": "o_record_has_cover o_half_screen_height", "opacity": "0"}',
-                'name': _('Skies'),
-                'subtitle': _('Taking pictures in the dark'),
-                'post_date': fields.Date.today() - timedelta(days=3),
-                'website_url': "",
-            }, {
-                'cover_properties': '{"background-image": "url(\'/website_blog/static/src/img/cover_5.jpg\')", "resize_class": "o_record_has_cover o_half_screen_height", "opacity": "0"}',
-                'name': _('Satellites'),
-                'subtitle': _('Seeing the world from above'),
-                'post_date': fields.Date.today() - timedelta(days=4),
-                'website_url': "",
-            }, {
-                'cover_properties': '{"background-image": "url(\'/website_blog/static/src/img/cover_6.jpg\')", "resize_class": "o_record_has_cover o_half_screen_height", "opacity": "0"}',
-                'name': _('Viewpoints'),
-                'subtitle': _('Seaside vs mountain side'),
-                'post_date': fields.Date.today() - timedelta(days=5),
-                'website_url': "",
-            }, {
-                'cover_properties': '{"background-image": "url(\'/website_blog/static/src/img/cover_7.jpg\')", "resize_class": "o_record_has_cover o_half_screen_height", "opacity": "0"}',
-                'name': _('Jungle'),
-                'subtitle': _('Spotting the fauna'),
-                'post_date': fields.Date.today() - timedelta(days=6),
-                'website_url': "",
-            }]
+        if model._name == "blog.post":
+            data = [
+                {
+                    "cover_properties": '{"background-image": "url(\'/website_blog/static/src/img/cover_2.jpg\')", "resize_class": "o_record_has_cover o_half_screen_height", "opacity": "0"}',
+                    "name": _("Islands"),
+                    "subtitle": _("Alone in the ocean"),
+                    "post_date": fields.Date.today() - timedelta(days=1),
+                    "website_url": "",
+                },
+                {
+                    "cover_properties": '{"background-image": "url(\'/website_blog/static/src/img/cover_3.jpg\')", "resize_class": "o_record_has_cover o_half_screen_height", "opacity": "0"}',
+                    "name": _("With a View"),
+                    "subtitle": _("Awesome hotel rooms"),
+                    "post_date": fields.Date.today() - timedelta(days=2),
+                    "website_url": "",
+                },
+                {
+                    "cover_properties": '{"background-image": "url(\'/website_blog/static/src/img/cover_4.jpg\')", "resize_class": "o_record_has_cover o_half_screen_height", "opacity": "0"}',
+                    "name": _("Skies"),
+                    "subtitle": _("Taking pictures in the dark"),
+                    "post_date": fields.Date.today() - timedelta(days=3),
+                    "website_url": "",
+                },
+                {
+                    "cover_properties": '{"background-image": "url(\'/website_blog/static/src/img/cover_5.jpg\')", "resize_class": "o_record_has_cover o_half_screen_height", "opacity": "0"}',
+                    "name": _("Satellites"),
+                    "subtitle": _("Seeing the world from above"),
+                    "post_date": fields.Date.today() - timedelta(days=4),
+                    "website_url": "",
+                },
+                {
+                    "cover_properties": '{"background-image": "url(\'/website_blog/static/src/img/cover_6.jpg\')", "resize_class": "o_record_has_cover o_half_screen_height", "opacity": "0"}',
+                    "name": _("Viewpoints"),
+                    "subtitle": _("Seaside vs mountain side"),
+                    "post_date": fields.Date.today() - timedelta(days=5),
+                    "website_url": "",
+                },
+                {
+                    "cover_properties": '{"background-image": "url(\'/website_blog/static/src/img/cover_7.jpg\')", "resize_class": "o_record_has_cover o_half_screen_height", "opacity": "0"}',
+                    "name": _("Jungle"),
+                    "subtitle": _("Spotting the fauna"),
+                    "post_date": fields.Date.today() - timedelta(days=6),
+                    "website_url": "",
+                },
+            ]
             # merge the sample and data definitions position-wise, cycling the shorter one
             samples = [
                 {**samples[index % len(samples)], **data[index % len(data)]}
@@ -58,6 +65,6 @@ class WebsiteSnippetFilter(models.Model):
     @api.model
     def default_get(self, fields):
         defaults = super().default_get(fields)
-        if 'field_names' in defaults and self.env.context.get('model') == 'blog.post':
-            defaults['field_names'] = 'name,teaser,subtitle'
+        if "field_names" in defaults and self.env.context.get("model") == "blog.post":
+            defaults["field_names"] = "name,teaser,subtitle"
         return defaults

@@ -4,9 +4,9 @@ from odoo import api, models
 
 
 class SaleOrderLine(models.Model):
-    _inherit = 'sale.order.line'
+    _inherit = "sale.order.line"
 
-    @api.depends('event_booth_ids')
+    @api.depends("event_booth_ids")
     def _compute_name_short(self):
         wbooth = self.filtered(lambda line: line.event_booth_pending_ids)
         for record in wbooth:

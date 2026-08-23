@@ -7,7 +7,6 @@ from odoo.addons.website_sale.controllers import payment
 
 
 class PaymentPortal(payment.PaymentPortal):
-
     def _validate_transaction_for_order(self, transaction, sale_order):
         """Update programs & rewards before finalizing transaction.
 
@@ -19,7 +18,9 @@ class PaymentPortal(payment.PaymentPortal):
         if sale_order.exists():
             initial_amount = sale_order.amount_total
             sale_order._update_programs_and_rewards()
-            if sale_order.currency_id.compare_amounts(sale_order.amount_total, initial_amount):
+            if sale_order.currency_id.compare_amounts(
+                sale_order.amount_total, initial_amount
+            ):
                 raise ValidationError(
                     _(
                         "Cannot process payment: applied reward was changed or has expired.\n"

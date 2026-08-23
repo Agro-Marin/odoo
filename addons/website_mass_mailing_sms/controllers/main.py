@@ -6,18 +6,17 @@ from odoo.addons.mass_mailing.controllers import main
 
 
 class MassMailController(main.MassMailController):
-
     def _get_value(self, subscription_type):
         value = super()._get_value(subscription_type)
-        if not value and subscription_type == 'mobile':
+        if not value and subscription_type == "mobile":
             if not request.env.user._is_public():
                 value = request.env.user.partner_id.phone
-            elif request.session.get('mass_mailing_mobile'):
-                value = request.session['mass_mailing_mobile']
+            elif request.session.get("mass_mailing_mobile"):
+                value = request.session["mass_mailing_mobile"]
         return value
 
     def _get_fname(self, subscription_type):
         value_field = super()._get_fname(subscription_type)
-        if not value_field and subscription_type == 'mobile':
-            value_field = 'mobile'
+        if not value_field and subscription_type == "mobile":
+            value_field = "mobile"
         return value_field

@@ -12,22 +12,27 @@ from odoo.addons.website_sale.controllers.main import WebsiteSale
 from odoo.addons.website_sale.tests.common import MockRequest, WebsiteSaleCommon
 
 
-@tagged('post_install', '-at_install')
-class TestWebsiteSaleStockDeliveryController(PaymentCommon, WebsiteSaleCommon, DeliveryCommon):
-
+@tagged("post_install", "-at_install")
+class TestWebsiteSaleStockDeliveryController(
+    PaymentCommon, WebsiteSaleCommon, DeliveryCommon
+):
     def test_validate_payment_with_no_available_delivery_method(self):
         """
         An error should be raised if you try to validate an order with a storable
         product without any delivery method available
         """
-        storable_product = self.env['product.product'].create([{
-            'name': 'Storable Product',
-            'sale_ok': True,
-            'is_storable': True,
-            'website_published': True,
-        }])
-        carriers = self.env['delivery.carrier'].search([])
-        carriers.write({'website_published': False})
+        storable_product = self.env["product.product"].create(
+            [
+                {
+                    "name": "Storable Product",
+                    "sale_ok": True,
+                    "is_storable": True,
+                    "website_published": True,
+                }
+            ]
+        )
+        carriers = self.env["delivery.carrier"].search([])
+        carriers.write({"website_published": False})
 
         WebsiteSaleCartController = Cart()
         WebsiteSaleController = WebsiteSale()
@@ -46,28 +51,38 @@ class TestWebsiteSaleStockDeliveryController(PaymentCommon, WebsiteSaleCommon, D
         an out of stock product with 0 price
         """
         WebsiteSaleController = WebsiteSale()
-        storable_product = self.env['product.product'].create({
-            'name': 'Storable Product',
-            'sale_ok': True,
-            'is_storable': True,
-            'website_published': True,
-            'allow_out_of_stock_order': False,
-            'lst_price': 0,
-        })
-        sale_order = self.env['sale.order'].create({
-            'partner_id': self.partner.id,
-            'line_ids': [Command.create({
-                'product_id': storable_product.id,
-                'product_qty': 12.0,
-            })],
-            'carrier_id': self.free_delivery.id,
-        })
-        self.free_delivery.write({'website_published': True})
-        self.env['stock.quant'].with_context(inventory_mode=True).create({
-            'product_id': storable_product.id,
-            'inventory_quantity': 10.0,
-            'location_id': self.env.user._get_default_warehouse_id().lot_stock_id.id,
-        }).action_apply_inventory()
+        storable_product = self.env["product.product"].create(
+            {
+                "name": "Storable Product",
+                "sale_ok": True,
+                "is_storable": True,
+                "website_published": True,
+                "allow_out_of_stock_order": False,
+                "lst_price": 0,
+            }
+        )
+        sale_order = self.env["sale.order"].create(
+            {
+                "partner_id": self.partner.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": storable_product.id,
+                            "product_qty": 12.0,
+                        }
+                    )
+                ],
+                "carrier_id": self.free_delivery.id,
+            }
+        )
+        self.free_delivery.write({"website_published": True})
+        self.env["stock.quant"].with_context(inventory_mode=True).create(
+            {
+                "product_id": storable_product.id,
+                "inventory_quantity": 10.0,
+                "location_id": self.env.user._get_default_warehouse_id().lot_stock_id.id,
+            }
+        ).action_apply_inventory()
 
         with MockRequest(self.env, website=self.website):
             request.cart = sale_order

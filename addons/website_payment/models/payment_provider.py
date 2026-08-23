@@ -21,7 +21,7 @@ class PaymentProvider(models.Model):
 
     @api.model
     def _get_compatible_providers(self, *args, website_id=None, report=None, **kwargs):
-        """ Override of `payment` to only return providers matching website-specific criteria.
+        """Override of `payment` to only return providers matching website-specific criteria.
 
         In addition to the base criteria, the website must either not be set or be the same as the
         one provided in the kwargs.
@@ -43,7 +43,7 @@ class PaymentProvider(models.Model):
                 report,
                 unfiltered_providers - providers,
                 available=False,
-                reason=REPORT_REASONS_MAPPING['incompatible_website'],
+                reason=REPORT_REASONS_MAPPING["incompatible_website"],
             )
         return providers
 
@@ -59,7 +59,7 @@ class PaymentProvider(models.Model):
 
     def copy(self, default=None):
         res = super().copy(default=default)
-        if not default or 'website_id' not in default:
+        if not default or "website_id" not in default:
             for src, copy in zip(self, res, strict=True):
                 if src.website_id and src.company_id in copy.company_id.parent_ids:
                     copy.website_id = src.website_id

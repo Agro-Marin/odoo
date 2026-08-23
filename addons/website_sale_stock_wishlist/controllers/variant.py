@@ -6,7 +6,6 @@ from odoo.addons.website_sale.controllers.variant import WebsiteSaleVariantContr
 
 
 class WebsiteSaleStockWishlistVariantController(WebsiteSaleVariantController):
-
     @route()
     def get_combination_info_website(self, *args, **kwargs):
         request.update_context(website_sale_stock_wishlist_get_wish=True)

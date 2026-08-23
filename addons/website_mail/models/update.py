@@ -9,5 +9,5 @@ class Publisher_WarrantyContract(models.AbstractModel):
     @api.model
     def _get_message(self):
         msg = super()._get_message()
-        msg['website'] = True
+        msg["website"] = True
         return msg

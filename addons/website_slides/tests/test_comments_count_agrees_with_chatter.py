@@ -37,8 +37,10 @@ class TestCommentsCountAgreesWithChatter(common.SlidesCase):
 
     def _chatter_visible_messages(self):
         """The messages the portal chatter would fetch for this channel."""
-        return self.env["mail.message"].sudo().search(
-            self.slide._get_portal_message_fetch_domain()
+        return (
+            self.env["mail.message"]
+            .sudo()
+            .search(self.slide._get_portal_message_fetch_domain())
         )
 
     def test_bodyless_rating_is_both_shown_and_counted(self):

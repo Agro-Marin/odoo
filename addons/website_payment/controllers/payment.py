@@ -6,7 +6,6 @@ from odoo.addons.account_payment.controllers import payment as account_payment
 
 
 class PaymentPortal(account_payment.PaymentPortal):
-
     @route()
     def payment_pay(self, *args, **kwargs):
         """Override of `payment` to make the provider filtering website-aware."""

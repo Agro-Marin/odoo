@@ -17,12 +17,14 @@ def format_product_stock_values(product, wh_id=None, qty_free=None):
 
         in_stock = qty_free > 0
         show_quantity = (
-            product.show_availability and in_stock and product.available_threshold >= qty_free
+            product.show_availability
+            and in_stock
+            and product.available_threshold >= qty_free
         )
         return {
-            'in_stock': in_stock or product.allow_out_of_stock_order,
-            'show_quantity': show_quantity,
-            'quantity': qty_free,
+            "in_stock": in_stock or product.allow_out_of_stock_order,
+            "show_quantity": show_quantity,
+            "quantity": qty_free,
         }
     return {}
 
@@ -42,9 +44,7 @@ def calculate_partner_distance(partner1, partner2):
     lat2, long2 = partner2.partner_latitude, partner2.partner_longitude
     dlat = math.radians(lat2 - lat1)
     dlong = math.radians(long2 - long1)
-    arcsin = (
-        math.sin(dlat / 2) * math.sin(dlat / 2)
-        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2))
-        * (math.sin(dlong / 2) * math.sin(dlong / 2))
-    )
+    arcsin = math.sin(dlat / 2) * math.sin(dlat / 2) + math.cos(
+        math.radians(lat1)
+    ) * math.cos(math.radians(lat2)) * (math.sin(dlong / 2) * math.sin(dlong / 2))
     return 2 * R * math.atan2(math.sqrt(arcsin), math.sqrt(1 - arcsin))

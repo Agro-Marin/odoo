@@ -6,7 +6,7 @@ from odoo import models
 
 
 class ProductProduct(models.Model):
-    _inherit = 'product.product'
+    _inherit = "product.product"
 
     def _prepare_categories_for_display(self):
         """On the comparison page group on the same line the values of each
@@ -24,24 +24,33 @@ class ProductProduct(models.Model):
         }]
         """
         attributes = self.product_tmpl_id.valid_product_template_attribute_line_ids.attribute_id.sorted()
-        categories = OrderedDict([(cat, OrderedDict()) for cat in attributes.category_id.sorted()])
+        categories = OrderedDict(
+            [(cat, OrderedDict()) for cat in attributes.category_id.sorted()]
+        )
         if any(not pa.category_id for pa in attributes):
             # category_id is not required and the mapped does not return empty
-            categories[self.env['product.attribute.category']] = OrderedDict()
+            categories[self.env["product.attribute.category"]] = OrderedDict()
         for pa in attributes:
-            categories[pa.category_id][pa] = OrderedDict([(
-                product,
-                product.product_template_attribute_value_ids.filtered(
-                    lambda ptav, pa=pa: ptav.attribute_id == pa
-                ) or  # If no_variant, show all possible values
-                product.attribute_line_ids.filtered(lambda ptal, pa=pa: ptal.attribute_id == pa).value_ids
-            ) for product in self])
+            categories[pa.category_id][pa] = OrderedDict(
+                [
+                    (
+                        product,
+                        product.product_template_attribute_value_ids.filtered(
+                            lambda ptav, pa=pa: ptav.attribute_id == pa
+                        )  # If no_variant, show all possible values
+                        or product.attribute_line_ids.filtered(
+                            lambda ptal, pa=pa: ptal.attribute_id == pa
+                        ).value_ids,
+                    )
+                    for product in self
+                ]
+            )
         return categories
 
     def _get_image_1024_url(self):
-        """ Returns the local url of the product main image.
+        """Returns the local url of the product main image.
         Note: self.ensure_one()
         :rtype: str
         """
         self.ensure_one()
-        return self.env['website'].image_url(self, 'image_1024')
+        return self.env["website"].image_url(self, "image_1024")

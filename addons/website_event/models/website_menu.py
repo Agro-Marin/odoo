@@ -9,12 +9,17 @@ class WebsiteMenu(models.Model):
     _inherit = "website.menu"
 
     def unlink(self):
-        """ Override to synchronize event configuration fields with menu deletion. """
+        """Override to synchronize event configuration fields with menu deletion."""
         event_updates = {}
-        website_event_menus = self.env['website.event.menu'].search([('menu_id', 'in', self.ids)])
+        website_event_menus = self.env["website.event.menu"].search(
+            [("menu_id", "in", self.ids)]
+        )
         for event_menu in website_event_menus:
             to_update = event_updates.setdefault(event_menu.event_id, [])
-            for menu_type, fname in event_menu.event_id._get_menu_type_field_matching().items():
+            for (
+                menu_type,
+                fname,
+            ) in event_menu.event_id._get_menu_type_field_matching().items():
                 if event_menu.menu_type == menu_type:
                     to_update.append(fname)
 
@@ -65,56 +70,58 @@ class WebsiteMenu(models.Model):
          -> it means that we just created a menu inside an event.
 
          Once we have identified that, we force its URL to be part of the event pages, and we create
-         a matching website.event.menu record for it. """
+         a matching website.event.menu record for it."""
 
-        old_menu_ids = [menu['id'] for menu in data['data'] if isinstance(menu['id'], int)]
-        has_new_menus = any(isinstance(menu['id'], str) for menu in data['data'])
+        old_menu_ids = [
+            menu["id"] for menu in data["data"] if isinstance(menu["id"], int)
+        ]
+        has_new_menus = any(isinstance(menu["id"], str) for menu in data["data"])
         res = super().save(website_id, data)
 
         if not has_new_menus:
             return res
 
         menus_by_parent_id = {}
-        for menu in data['data']:
-            if not menu.get('parent_id'):
+        for menu in data["data"]:
+            if not menu.get("parent_id"):
                 continue
-            if not menus_by_parent_id.get(menu['parent_id']):
-                menus_by_parent_id[menu['parent_id']] = []
+            if not menus_by_parent_id.get(menu["parent_id"]):
+                menus_by_parent_id[menu["parent_id"]] = []
 
-            menus_by_parent_id[menu['parent_id']].append(menu)
+            menus_by_parent_id[menu["parent_id"]].append(menu)
 
         for parent_id, menus in menus_by_parent_id.items():
-            new_menus = filter(lambda menu: menu['id'] not in old_menu_ids, menus)
+            new_menus = filter(lambda menu: menu["id"] not in old_menu_ids, menus)
             if not new_menus:
                 continue
 
-            parent = self.env['website.menu'].browse(parent_id)
+            parent = self.env["website.menu"].browse(parent_id)
             while parent.parent_id:  # get the top-most parent to handle sub-menus
                 parent = parent.parent_id
 
-            if parent_event_menu := self.env['website.event.menu'].search([
-                ('menu_id.parent_id', '=', parent.id)
-            ], limit=1):
-                event_url = parent_event_menu.event_id.website_url.rstrip('/')
+            if parent_event_menu := self.env["website.event.menu"].search(
+                [("menu_id.parent_id", "=", parent.id)], limit=1
+            ):
+                event_url = parent_event_menu.event_id.website_url.rstrip("/")
                 event_menu_values = []
                 for new_menu in new_menus:
-                    menu_record = self.env['website.menu'].browse(new_menu['id'])
+                    menu_record = self.env["website.menu"].browse(new_menu["id"])
                     menu_record_url = menu_record.url.lstrip("/")
-                    if not menu_record_url or menu_record_url == '#':
+                    if not menu_record_url or menu_record_url == "#":
                         # prevent blank URLs, use 't' prefix to avoid slug syntax
                         menu_record_url = f"t{int(datetime.now().timestamp())}"
 
-                    menu_record.write({
-                        'url': f'{event_url}/page/{menu_record_url}'
-                    })
-                    event_menu_values.append({
-                        'menu_id': menu_record.id,
-                        'event_id': parent_event_menu.event_id.id,
-                        'menu_type': 'other',
-                    })
+                    menu_record.write({"url": f"{event_url}/page/{menu_record_url}"})
+                    event_menu_values.append(
+                        {
+                            "menu_id": menu_record.id,
+                            "event_id": parent_event_menu.event_id.id,
+                            "menu_type": "other",
+                        }
+                    )
 
                 # if the current user can create website.menu, then he should be able to
                 # create website.event.menu (e.g: website designer group)
-                self.env['website.event.menu'].sudo().create(event_menu_values)
+                self.env["website.event.menu"].sudo().create(event_menu_values)
 
         return res

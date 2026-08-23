@@ -39,11 +39,15 @@ def MockRequest(
         request.pricelist = lazy(request.website._get_and_cache_current_pricelist)
 
         if website_sale_selected_pl_id is not None:
-            request.session[PRICELIST_SELECTED_SESSION_CACHE_KEY] = website_sale_selected_pl_id
+            request.session[PRICELIST_SELECTED_SESSION_CACHE_KEY] = (
+                website_sale_selected_pl_id
+            )
 
         if fiscal_position_id is not None:
             request.session[FISCAL_POSITION_SESSION_CACHE_KEY] = fiscal_position_id
-        request.fiscal_position = lazy(request.website._get_and_cache_current_fiscal_position)
+        request.fiscal_position = lazy(
+            request.website._get_and_cache_current_fiscal_position
+        )
 
         yield request
 
@@ -57,75 +61,88 @@ class WebsiteSaleCommon(ProductCommon, DeliveryCommon):
 
         cls.website = cls.env.company.website_id
         if not cls.website:
-            cls.website = cls.env['website'].create({
-                'name': 'Test Website',
-                'company_id': cls.env.company.id,
-            })
+            cls.website = cls.env["website"].create(
+                {
+                    "name": "Test Website",
+                    "company_id": cls.env.company.id,
+                }
+            )
 
         cls.public_user = cls.website.user_id
         cls.public_partner = cls.public_user.partner_id
 
-        cls.empty_cart = cls.env['sale.order'].create({
-            'partner_id': cls.partner.id,
-            'website_id': cls.website.id,
-        })
-        cls.cart = cls.env['sale.order'].create({
-            'partner_id': cls.partner.id,
-            'website_id': cls.website.id,
-            'line_ids': [
-                Command.create({
-                    'product_id': cls.product.id,
-                    'product_qty': 5.0,
-                }),
-                Command.create({
-                    'product_id': cls.service_product.id,
-                    'product_qty': 12.5,
-                })
-            ]
-        })
+        cls.empty_cart = cls.env["sale.order"].create(
+            {
+                "partner_id": cls.partner.id,
+                "website_id": cls.website.id,
+            }
+        )
+        cls.cart = cls.env["sale.order"].create(
+            {
+                "partner_id": cls.partner.id,
+                "website_id": cls.website.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": cls.product.id,
+                            "product_qty": 5.0,
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "product_id": cls.service_product.id,
+                            "product_qty": 12.5,
+                        }
+                    ),
+                ],
+            }
+        )
 
         # Publish tests products
-        (
-            cls.product
-            + cls.service_product
-        ).website_published = True
+        (cls.product + cls.service_product).website_published = True
         cls.pricelist.website_id = cls.website
 
-        cls.country_be = cls.quick_ref('base.be')
-        cls.country_us = cls.quick_ref('base.us')
-        cls.country_us_state_id = cls.env['ir.model.data']._xmlid_to_res_id('base.state_us_39')
+        cls.country_be = cls.quick_ref("base.be")
+        cls.country_us = cls.quick_ref("base.us")
+        cls.country_us_state_id = cls.env["ir.model.data"]._xmlid_to_res_id(
+            "base.state_us_39"
+        )
         cls.dummy_partner_address_values = {
-            'street': '215 Vine St',
-            'city': 'Scranton',
-            'zip': '18503',
-            'country_id': cls.country_us.id,
-            'state_id': cls.country_us_state_id,
-            'phone': '+1 555-555-5555',
-            'email': 'admin@yourcompany.example.com',
+            "street": "215 Vine St",
+            "city": "Scranton",
+            "zip": "18503",
+            "country_id": cls.country_us.id,
+            "state_id": cls.country_us_state_id,
+            "phone": "+1 555-555-5555",
+            "email": "admin@yourcompany.example.com",
         }
 
     def _create_so(self, **values):
         default_values = {
-            'partner_id': self.partner.id,
-            'website_id': self.website.id,
-            'line_ids': [
-                Command.create({
-                    'product_id': self.product.id,
-                }),
+            "partner_id": self.partner.id,
+            "website_id": self.website.id,
+            "line_ids": [
+                Command.create(
+                    {
+                        "product_id": self.product.id,
+                    }
+                ),
             ],
         }
-        return self.env['sale.order'].create(dict(default_values, **values))
+        return self.env["sale.order"].create(dict(default_values, **values))
 
     @classmethod
     def _prepare_carrier(cls, product, website_published=True, **values):
-        """ Override of `delivery` to auto-publish test delivery methods. """
-        return super()._prepare_carrier(product, website_published=website_published, **values)
+        """Override of `delivery` to auto-publish test delivery methods."""
+        return super()._prepare_carrier(
+            product, website_published=website_published, **values
+        )
 
     @classmethod
     def _create_product(cls, **kwargs):
-        """ Override of `product` to auto-publish test products by default. """
-        if 'website_published' not in kwargs:
-            kwargs['website_published'] = True
+        """Override of `product` to auto-publish test products by default."""
+        if "website_published" not in kwargs:
+            kwargs["website_published"] = True
         return super()._create_product(**kwargs)
 
     @classmethod
@@ -135,14 +152,12 @@ class WebsiteSaleCommon(ProductCommon, DeliveryCommon):
         For example::
 
             # Furnitures / Sofas
-            self._create_public_category([
-                {'name': 'Furnitures'}, {'name': 'Sofas'}
-            ])
+            self._create_public_category([{"name": "Furnitures"}, {"name": "Sofas"}])
 
         :return: The created categories.
         :rtype: public.product.category
         """
-        categs = cls.env['product.public.category'].create(list_vals)
+        categs = cls.env["product.public.category"].create(list_vals)
         for i in range(len(categs) - 1):
             categs[i].parent_id = categs[i + 1]
         return categs
@@ -150,6 +165,6 @@ class WebsiteSaleCommon(ProductCommon, DeliveryCommon):
     @classmethod
     def _create_image(cls, color):
         f = io.BytesIO()
-        Image.new('RGB', (1920, 1080), color).save(f, 'JPEG')
+        Image.new("RGB", (1920, 1080), color).save(f, "JPEG")
         f.seek(0)
         return base64.b64encode(f.read())

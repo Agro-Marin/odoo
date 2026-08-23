@@ -6,8 +6,9 @@ from odoo.addons.website_event_track_live.controllers.track_live import (
 
 
 class EventTrackLiveQuizController(EventTrackLiveController):
-
     def _prepare_track_suggestion_values(self, track, track_suggestion):
         res = super()._prepare_track_suggestion_values(track, track_suggestion)
-        res['current_track']['show_quiz'] = bool(track.quiz_id) and not track.is_quiz_completed
+        res["current_track"]["show_quiz"] = (
+            bool(track.quiz_id) and not track.is_quiz_completed
+        )
         return res

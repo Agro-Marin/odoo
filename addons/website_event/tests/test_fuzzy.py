@@ -7,18 +7,19 @@ from odoo.addons.http_routing.tests.common import MockRequest
 from odoo.addons.website.tests.test_fuzzy import TestAutoComplete
 
 
-@tagged('-at_install', 'post_install')
+@tagged("-at_install", "post_install")
 class TestWebsiteEventAutocomplete(TestAutoComplete):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.event = cls.env['event.event'].create({
-            'name': "Latest Singing Event",
-            'website_published': True,
-            'date_begin': datetime.today() - timedelta(days=1),
-            'date_end': datetime.today() + timedelta(days=1),
-        })
+        cls.event = cls.env["event.event"].create(
+            {
+                "name": "Latest Singing Event",
+                "website_published": True,
+                "date_begin": datetime.today() - timedelta(days=1),
+                "date_end": datetime.today() + timedelta(days=1),
+            }
+        )
 
     def test_autocomplete_search_for_multiple_spaces(self):
         """Tests that autocomplete handles multiple spaces in the search term correctly."""

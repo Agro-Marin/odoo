@@ -4,10 +4,10 @@ from odoo import models
 
 
 class ResCompany(models.Model):
-    _inherit = 'res.company'
+    _inherit = "res.company"
 
     def _get_default_pricelist_vals(self):
-        """ Override of product. Called at company creation or activation of the pricelist setting.
+        """Override of product. Called at company creation or activation of the pricelist setting.
 
         We don't want the default website from the current company to be applied on every company
 
@@ -16,5 +16,5 @@ class ResCompany(models.Model):
         :rtype: dict
         """
         values = super()._get_default_pricelist_vals()
-        values['website_id'] = False
+        values["website_id"] = False
         return values

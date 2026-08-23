@@ -8,11 +8,15 @@ from odoo.addons.website_sale_stock.controllers.variant import (
 
 
 class WebsiteSaleMrpVariantController(WebsiteSaleStockVariantController):
-
-    @route('/website_sale_mrp/get_unavailable_qty_from_kits', type='jsonrpc', auth='public', website=True)
+    @route(
+        "/website_sale_mrp/get_unavailable_qty_from_kits",
+        type="jsonrpc",
+        auth="public",
+        website=True,
+    )
     def get_unavailable_qty_from_kits(self, product_id=None, *args, **kwargs):
         so = request.cart
         if not so:
             return 0
-        product = request.env['product.product'].browse(product_id)
+        product = request.env["product.product"].browse(product_id)
         return so._get_unavailable_quantity_from_kits(product)

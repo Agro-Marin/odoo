@@ -4,10 +4,10 @@ from odoo import api, models
 
 
 class WebsitePage(models.Model):
-    _inherit = 'website.page'
+    _inherit = "website.page"
 
     @api.model
     def _allow_to_use_cache(self, request):
-        if request.httprequest.path == '/your-task-has-been-submitted':
+        if request.httprequest.path == "/your-task-has-been-submitted":
             return False
         return super()._allow_to_use_cache(request)

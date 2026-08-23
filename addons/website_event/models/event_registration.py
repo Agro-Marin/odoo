@@ -4,9 +4,20 @@ from odoo import fields, models
 
 
 class EventRegistration(models.Model):
-    _inherit = 'event.registration'
+    _inherit = "event.registration"
 
-    visitor_id = fields.Many2one('website.visitor', string='Visitor', ondelete='set null', index='btree_not_null')
+    visitor_id = fields.Many2one(
+        "website.visitor", string="Visitor", ondelete="set null", index="btree_not_null"
+    )
 
     def _get_fields_website_registration_allowed(self):
-        return {'name', 'phone', 'email', 'company_name', 'event_id', 'partner_id', 'event_slot_id', 'event_ticket_id'}
+        return {
+            "name",
+            "phone",
+            "email",
+            "company_name",
+            "event_id",
+            "partner_id",
+            "event_slot_id",
+            "event_ticket_id",
+        }

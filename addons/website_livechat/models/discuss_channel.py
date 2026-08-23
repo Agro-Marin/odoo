@@ -9,21 +9,23 @@ from odoo.addons.mail.tools.discuss import Store
 
 
 class DiscussChannel(models.Model):
-    _inherit = 'discuss.channel'
+    _inherit = "discuss.channel"
 
     is_pending_chat_request = fields.Boolean(
         "When created from an operator, whether the channel is yet to be opened on the visitor side.",
     )
-    livechat_visitor_id = fields.Many2one('website.visitor', string='Visitor', index='btree_not_null')
+    livechat_visitor_id = fields.Many2one(
+        "website.visitor", string="Visitor", index="btree_not_null"
+    )
 
     def channel_pin(self, pinned=False):
-        """ Override to clean an empty livechat channel.
-         This is typically called when the operator send a chat request to a website.visitor
-         but don't speak to them and closes the chatter.
-         This allows operators to send the visitor a new chat request.
-         If active empty livechat channel,
-         delete discuss_channel as not useful to keep empty chat
-         """
+        """Override to clean an empty livechat channel.
+        This is typically called when the operator send a chat request to a website.visitor
+        but don't speak to them and closes the chatter.
+        This allows operators to send the visitor a new chat request.
+        If active empty livechat channel,
+        delete discuss_channel as not useful to keep empty chat
+        """
         super().channel_pin(pinned=pinned)
         if self.channel_type == "livechat" and not pinned and not self.message_ids:
             self.sudo().unlink()
@@ -40,15 +42,19 @@ class DiscussChannel(models.Model):
                     Store.One("partner_id", [Store.One("country_id", ["code"])]),
                     Store.One("website_id", ["name"]),
                 ],
-                predicate=lambda channel: channel.channel_type == "livechat"
-                and self.livechat_visitor_id.has_access("read"),
+                predicate=lambda channel: (
+                    channel.channel_type == "livechat"
+                    and self.livechat_visitor_id.has_access("read")
+                ),
             ),
             # sudo: discuss.channel - visitor can access to the channel member history of
             # an accessible channel when computing requested_by_operator
             Store.Attr(
                 "requested_by_operator",
-                lambda channel: channel.create_uid
-                in channel.sudo().livechat_agent_history_ids.partner_id.user_ids,
+                lambda channel: (
+                    channel.create_uid
+                    in channel.sudo().livechat_agent_history_ids.partner_id.user_ids
+                ),
                 predicate=is_livechat_channel,
             ),
         ]
@@ -59,7 +65,10 @@ class DiscussChannel(models.Model):
     def _get_visitor_leave_message(self, operator=False, cancel=False):
         if not cancel:
             if self.livechat_visitor_id.id:
-                return _("Visitor #%(id)d left the conversation.", id=self.livechat_visitor_id.id)
+                return _(
+                    "Visitor #%(id)d left the conversation.",
+                    id=self.livechat_visitor_id.id,
+                )
             return _("Visitor left the conversation.")
         return _(
             "%(visitor)s started a conversation with %(operator)s.\nThe chat request has been cancelled",
@@ -81,7 +90,8 @@ class DiscussChannel(models.Model):
         channels = self.env["discuss.channel"].search(domain, limit=5)
         fields_to_store.append(
             Store.One(
-                "livechat_visitor_id", [
+                "livechat_visitor_id",
+                [
                     Store.Many(
                         "discuss_channel_ids",
                         value=channels,
@@ -99,7 +109,11 @@ class DiscussChannel(models.Model):
         message = super().message_post(**kwargs)
         message_author_id = message.author_id
         visitor = self.livechat_visitor_id
-        if len(self) == 1 and visitor and message_author_id != self.livechat_operator_id:
+        if (
+            len(self) == 1
+            and visitor
+            and message_author_id != self.livechat_operator_id
+        ):
             # sudo: website.visitor: updating data of a specific visitor
             visitor.sudo()._update_visitor_last_visit()
         return message

@@ -4,16 +4,24 @@ from odoo import fields, models
 
 
 class EventBoothRegistration(models.Model):
-    _inherit = 'event.booth.registration'
+    _inherit = "event.booth.registration"
 
-    sponsor_name = fields.Char(string='Sponsor Name')
-    sponsor_email = fields.Char(string='Sponsor Email')
-    sponsor_phone = fields.Char(string='Sponsor Phone')
-    sponsor_subtitle = fields.Char(string='Sponsor Slogan')
-    sponsor_website_description = fields.Html(string='Sponsor Description', sanitize_overridable=True,)
-    sponsor_image_512 = fields.Image(string='Sponsor Logo')
+    sponsor_name = fields.Char(string="Sponsor Name")
+    sponsor_email = fields.Char(string="Sponsor Email")
+    sponsor_phone = fields.Char(string="Sponsor Phone")
+    sponsor_subtitle = fields.Char(string="Sponsor Slogan")
+    sponsor_website_description = fields.Html(
+        string="Sponsor Description",
+        sanitize_overridable=True,
+    )
+    sponsor_image_512 = fields.Image(string="Sponsor Logo")
 
     def _get_fields_for_booth_confirmation(self):
-        return super()._get_fields_for_booth_confirmation() + \
-               ['sponsor_name', 'sponsor_email', 'sponsor_phone', 'sponsor_subtitle',
-                'sponsor_website_description', 'sponsor_image_512']
+        return super()._get_fields_for_booth_confirmation() + [
+            "sponsor_name",
+            "sponsor_email",
+            "sponsor_phone",
+            "sponsor_subtitle",
+            "sponsor_website_description",
+            "sponsor_image_512",
+        ]

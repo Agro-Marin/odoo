@@ -10,11 +10,12 @@ class IrAttachment(models.Model):
         # Bypass the attachment create ACL and let the user create the image
         # attachment if they have write access to the model (the image attachment
         # will be bound to this model's record).
-        res_model = attachment_data['res_model']
-        res_id = attachment_data.get('res_id')
+        res_model = attachment_data["res_model"]
+        res_id = attachment_data.get("res_id")
         if (
-            res_model == 'forum.post' and res_id
-            and self.env['forum.post'].browse(res_id).can_use_full_editor
+            res_model == "forum.post"
+            and res_id
+            and self.env["forum.post"].browse(res_id).can_use_full_editor
         ):
             return True
 

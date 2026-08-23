@@ -10,9 +10,8 @@ from odoo.tests.common import BaseCase, get_db_name
 from odoo.tools import mute_logger
 
 
-@tagged('-standard', '-at_install', 'post_install', 'database_breaking')
+@tagged("-standard", "-at_install", "post_install", "database_breaking")
 class TestConcurrencyPromoCode(BaseCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -23,50 +22,80 @@ class TestConcurrencyPromoCode(BaseCase):
             env = api.Environment(cr, SUPERUSER_ID, {})
 
             cls.promo_code = "AZERTY123456"
-            cls.promo_code_program = env['loyalty.program'].create({
-                'name': 'FREE FOR ONE',
-                'program_type': 'promo_code',
-                'limit_usage': True,
-                'max_usage': 1,
-                'rule_ids': [(0, 0, {
-                    'minimum_qty': 0,
-                    'code': cls.promo_code,
-                })],
-                'reward_ids': [(0, 0, {
-                    'reward_type': 'discount',
-                    'discount_mode': 'percent',
-                    'discount_applicability': 'order',
-                    'discount': 100.0,
-                })]
-            })
+            cls.promo_code_program = env["loyalty.program"].create(
+                {
+                    "name": "FREE FOR ONE",
+                    "program_type": "promo_code",
+                    "limit_usage": True,
+                    "max_usage": 1,
+                    "rule_ids": [
+                        (
+                            0,
+                            0,
+                            {
+                                "minimum_qty": 0,
+                                "code": cls.promo_code,
+                            },
+                        )
+                    ],
+                    "reward_ids": [
+                        (
+                            0,
+                            0,
+                            {
+                                "reward_type": "discount",
+                                "discount_mode": "percent",
+                                "discount_applicability": "order",
+                                "discount": 100.0,
+                            },
+                        )
+                    ],
+                }
+            )
 
-            cls.partner_1 = env['res.partner'].create([{
-                'name': 'Mitchel Notadmin',
-                'email': 'mitch.el@example.com',
-            }])
-            cls.partner_2 = env['res.partner'].create({
-                'name': 'John Smith',
-                'email': 'john.smith@example.com',
-            })
+            cls.partner_1 = env["res.partner"].create(
+                [
+                    {
+                        "name": "Mitchel Notadmin",
+                        "email": "mitch.el@example.com",
+                    }
+                ]
+            )
+            cls.partner_2 = env["res.partner"].create(
+                {
+                    "name": "John Smith",
+                    "email": "john.smith@example.com",
+                }
+            )
 
-            cls.product = env['product.product'].create({
-                'name': "TEST PRODUCT",
-                'standard_price': 100,
-            })
+            cls.product = env["product.product"].create(
+                {
+                    "name": "TEST PRODUCT",
+                    "standard_price": 100,
+                }
+            )
 
-            cls.order_partner_1 = env['sale.order'].create({'partner_id': cls.partner_1.id})
-            cls.order_partner_2 = env['sale.order'].create({'partner_id': cls.partner_2.id})
+            cls.order_partner_1 = env["sale.order"].create(
+                {"partner_id": cls.partner_1.id}
+            )
+            cls.order_partner_2 = env["sale.order"].create(
+                {"partner_id": cls.partner_2.id}
+            )
 
-            cls.order_lines = env['sale.order.line'].create([{
-                    'order_id': cls.order_partner_1.id,
-                    'product_id': cls.product.id,
-                    'product_qty': 1,
-                }, {
-                    'order_id': cls.order_partner_2.id,
-                    'product_id': cls.product.id,
-                    'product_qty': 3,
-                },
-            ])
+            cls.order_lines = env["sale.order.line"].create(
+                [
+                    {
+                        "order_id": cls.order_partner_1.id,
+                        "product_id": cls.product.id,
+                        "product_qty": 1,
+                    },
+                    {
+                        "order_id": cls.order_partner_2.id,
+                        "product_id": cls.product.id,
+                        "product_qty": 3,
+                    },
+                ]
+            )
 
             cls._released_signal = threading.Event()
 
@@ -81,11 +110,11 @@ class TestConcurrencyPromoCode(BaseCase):
                 env.cr.close()
 
             params = {
-                'program_id': cls.promo_code_program.id,
-                'sol_ids': list(cls.order_lines.ids),
-                'so_ids': [cls.order_partner_1.id, cls.order_partner_2.id],
-                'partner_ids': [cls.partner_1.id, cls.partner_2.id],
-                'product_id': cls.product.id,
+                "program_id": cls.promo_code_program.id,
+                "sol_ids": list(cls.order_lines.ids),
+                "so_ids": [cls.order_partner_1.id, cls.order_partner_2.id],
+                "partner_ids": [cls.partner_1.id, cls.partner_2.id],
+                "product_id": cls.product.id,
             }
             # One execute per statement (FK-safe order preserved): psycopg3
             # rejects multiple parameterised commands in a single prepared
@@ -105,29 +134,36 @@ class TestConcurrencyPromoCode(BaseCase):
             with cls.registry.cursor() as cr:
                 for statement in statements:
                     cr.execute(statement, params)
+
         cls.addClassCleanup(reset)
 
-    @mute_logger('odoo.db')
+    @mute_logger("odoo.db")
     def test_lock_concurrent_promo_code(self):
-        """ Test that two cursors cannot lock the same row simultaneously """
+        """Test that two cursors cannot lock the same row simultaneously"""
 
         # A simple barrier to make sure threads start roughly at the same time
         start_barrier = threading.Barrier(2)
 
         def run(env, order_id):
-            env.cr.execute("SELECT id FROM loyalty_rule WHERE code = %s", (self.promo_code,))
+            env.cr.execute(
+                "SELECT id FROM loyalty_rule WHERE code = %s", (self.promo_code,)
+            )
             self.assertTrue(env.cr.fetchone())
-            order = env['sale.order'].browse(order_id)
+            order = env["sale.order"].browse(order_id)
 
             # Wait for the other threads to be ready
             start_barrier.wait()
 
             try:
                 order._try_apply_code(self.promo_code)
-                self._released_signal.wait(timeout=20)  # Hold the lock for a moment to ensure overlap
+                self._released_signal.wait(
+                    timeout=20
+                )  # Hold the lock for a moment to ensure overlap
                 return True
 
-            except OperationalError:  # This catches the Postgres error when a row is locked
+            except (
+                OperationalError
+            ):  # This catches the Postgres error when a row is locked
                 self._released_signal.set()  # Signal to release the lock
                 return False
 

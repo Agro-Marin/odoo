@@ -7,15 +7,14 @@ from odoo.tools import consteq
 
 
 class ProductFeed(Controller):
-
     @route(
-        '/gmc.xml',
-        type='http',
-        auth='public',
+        "/gmc.xml",
+        type="http",
+        auth="public",
         website=True,
         sitemap=False,
     )
-    def gmc_feed(self, feed_id='', access_token=''):
+    def gmc_feed(self, feed_id="", access_token=""):
         """Serve a dynamic XML feed to synchronize the eCommerce products with Google Merchant
         Center (GMC).
 
@@ -45,10 +44,13 @@ class ProductFeed(Controller):
 
         compressed_gmc_xml = feed_sudo._render_and_cache_compressed_gmc_feed()
 
-        return request.make_response(compressed_gmc_xml, [
-            ('Content-Type', 'application/xml; charset=utf-8'),
-            ('Content-Encoding', 'gzip'),
-        ])
+        return request.make_response(
+            compressed_gmc_xml,
+            [
+                ("Content-Type", "application/xml; charset=utf-8"),
+                ("Content-Encoding", "gzip"),
+            ],
+        )
 
     def _find_and_check_feed_access(self, feed_id, access_token):
         """Find the feed by its ID and validate its access token.
@@ -65,7 +67,7 @@ class ProductFeed(Controller):
             feed_id = int(feed_id)
         except ValueError as e:
             raise BadRequest from e
-        feed_sudo = request.env['product.feed'].sudo().browse(feed_id).exists()
+        feed_sudo = request.env["product.feed"].sudo().browse(feed_id).exists()
         if not feed_sudo:
             raise NotFound
 

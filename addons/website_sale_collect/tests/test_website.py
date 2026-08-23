@@ -6,9 +6,8 @@ from odoo.tests import tagged
 from odoo.addons.website_sale_collect.tests.common import ClickAndCollectCommon
 
 
-@tagged('post_install', '-at_install')
+@tagged("post_install", "-at_install")
 class TestWebsite(ClickAndCollectCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -27,6 +26,10 @@ class TestWebsite(ClickAndCollectCommon):
 
     def test_in_store_product_available_qty_for_order(self):
         self.in_store_dm.warehouse_ids = [Command.link(self.warehouse_2.id)]
-        self._add_product_qty_to_wh(self.storable_product.id, 15, self.warehouse_2.lot_stock_id.id)
-        qty_free = self.website._get_max_in_store_product_available_qty(self.storable_product)
+        self._add_product_qty_to_wh(
+            self.storable_product.id, 15, self.warehouse_2.lot_stock_id.id
+        )
+        qty_free = self.website._get_max_in_store_product_available_qty(
+            self.storable_product
+        )
         self.assertEqual(qty_free, 15)

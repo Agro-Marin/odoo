@@ -348,10 +348,9 @@ class ForumPost(models.Model):
             post.can_comment_convert = (
                 is_admin or user.karma >= post.karma_comment_convert
             )
-            post.can_view = (
-                post.can_close
-                or (post_sudo.active
-                and (post_sudo.create_uid.karma > 0 or post_sudo.create_uid == user))
+            post.can_view = post.can_close or (
+                post_sudo.active
+                and (post_sudo.create_uid.karma > 0 or post_sudo.create_uid == user)
             )
             post.can_display_biography = is_admin or (
                 post_sudo.create_uid.karma >= post.forum_id.karma_user_bio
@@ -818,8 +817,7 @@ class ForumPost(models.Model):
                     }
                 )
                 res.append(
-                    (post.can_moderate
-                    and {"success": "post_flagged_moderator"})
+                    (post.can_moderate and {"success": "post_flagged_moderator"})
                     or {"success": "post_flagged_non_moderator"}
                 )
             else:

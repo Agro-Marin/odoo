@@ -19,23 +19,24 @@ from odoo.addons.website_sale.models.product_template import ProductTemplate
 from odoo.addons.website_sale.tests.common import MockRequest, WebsiteSaleCommon
 
 
-@tagged('post_install', '-at_install')
+@tagged("post_install", "-at_install")
 class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.user_portal = cls._create_new_portal_user()
         cls.WebsiteSaleController = WebsiteSale()
         cls.WebsiteSaleCartController = Cart()
-        cls.public_user = cls.env.ref('base.public_user')
-        cls.product = cls.env['product.product'].create({
-            'name': 'Test Product',
-            'sale_ok': True,
-            'website_published': True,
-            'lst_price': 1000.0,
-            'standard_price': 800.0,
-        })
+        cls.public_user = cls.env.ref("base.public_user")
+        cls.product = cls.env["product.product"].create(
+            {
+                "name": "Test Product",
+                "sale_ok": True,
+                "website_published": True,
+                "lst_price": 1000.0,
+                "standard_price": 800.0,
+            }
+        )
 
     def test_add_cart_deleted_product(self):
         # Unlink published product.
@@ -95,26 +96,35 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
         `_get_product_types_allow_zero_price` method, so this test ensures that it works
         by mocking that function to return the "service" product type.
         """
-        website_prevent_zero_price = self.env['website'].create({
-            'name': 'Prevent zero price sale',
-            'prevent_zero_price_sale': True,
-        })
-        product_consu = self.env['product.product'].create({
-            'name': 'Cannot be zero price',
-            'type': 'consu',
-            'list_price': 0,
-            'website_published': True,
-        })
-        product_service = self.env['product.product'].create({
-            'name': 'Can be zero price',
-            'type': 'service',
-            'list_price': 0,
-            'website_published': True,
-        })
+        website_prevent_zero_price = self.env["website"].create(
+            {
+                "name": "Prevent zero price sale",
+                "prevent_zero_price_sale": True,
+            }
+        )
+        product_consu = self.env["product.product"].create(
+            {
+                "name": "Cannot be zero price",
+                "type": "consu",
+                "list_price": 0,
+                "website_published": True,
+            }
+        )
+        product_service = self.env["product.product"].create(
+            {
+                "name": "Can be zero price",
+                "type": "service",
+                "list_price": 0,
+                "website_published": True,
+            }
+        )
 
         with (
-            self.assertRaises(UserError, msg="'consu' product type is not allowed to have a 0 price sale"),
-            MockRequest(self.env, website=website_prevent_zero_price)
+            self.assertRaises(
+                UserError,
+                msg="'consu' product type is not allowed to have a 0 price sale",
+            ),
+            MockRequest(self.env, website=website_prevent_zero_price),
         ):
             self.WebsiteSaleCartController.add_to_cart(
                 product_template_id=product_consu.product_tmpl_id,
@@ -123,7 +133,11 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             )
 
         with (
-            patch.object(ProductTemplate, '_get_product_types_allow_zero_price', lambda pt: ['no']),
+            patch.object(
+                ProductTemplate,
+                "_get_product_types_allow_zero_price",
+                lambda pt: ["no"],
+            ),
             MockRequest(self.env, website=website_prevent_zero_price),
         ):
             # service_tracking 'no' should not raise error
@@ -143,7 +157,7 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
                 quantity=1,
             )
             sale_order = request.cart
-            sale_order.access_token = 'test_token'
+            sale_order.access_token = "test_token"
             old_amount = sale_order.amount_total
             self.WebsiteSaleCartController.add_to_cart(
                 product_template_id=self.product.product_tmpl_id,
@@ -153,29 +167,31 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             # Try processing payment with the old amount
             with self.assertRaises(UserError):
                 PaymentPortal().shop_payment_transaction(
-                    sale_order.id,
-                    sale_order.access_token,
-                    amount=old_amount
+                    sale_order.id, sale_order.access_token, amount=old_amount
                 )
 
     def test_check_order_delivery_before_payment(self):
         website = self.website.with_user(self.public_user)
         with MockRequest(website.env, website=website):
-            sale_order = self.env['sale.order'].create({
-                'partner_id': self.public_user.id,
-                'line_ids': [Command.create({'product_id': self.product.id})],
-                'access_token': 'test_token',
-            })
+            sale_order = self.env["sale.order"].create(
+                {
+                    "partner_id": self.public_user.id,
+                    "line_ids": [Command.create({"product_id": self.product.id})],
+                    "access_token": "test_token",
+                }
+            )
             # Try processing payment with a storable product and no carrier_id
             with self.assertRaises(ValidationError):
-                PaymentPortal().shop_payment_transaction(sale_order.id, sale_order.access_token)
+                PaymentPortal().shop_payment_transaction(
+                    sale_order.id, sale_order.access_token
+                )
 
     def test_update_cart_zero_qty(self):
         # Try to remove a product that has already been removed
         portal_user = self.user_portal
         website = self.website.with_user(portal_user)
 
-        SaleOrderLine = self.env['sale.order.line']
+        SaleOrderLine = self.env["sale.order.line"]
 
         with MockRequest(website.env, website=website) as request:
             # add the product to the cart
@@ -205,25 +221,31 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
 
     def test_unpublished_accessory_product_visibility(self):
         # Check if unpublished product is shown to public user
-        accessory_product = self.env['product.product'].create({
-            'name': 'Access Product',
-            'is_published': False,
-        })
+        accessory_product = self.env["product.product"].create(
+            {
+                "name": "Access Product",
+                "is_published": False,
+            }
+        )
 
         self.product.accessory_product_ids = [Command.link(accessory_product.id)]
         self.empty_cart._cart_add(product_id=self.product.id)
-        self.assertEqual(len(self.empty_cart.with_user(self.public_user)._cart_accessories()), 0)
+        self.assertEqual(
+            len(self.empty_cart.with_user(self.public_user)._cart_accessories()), 0
+        )
 
     def test_cart_new_fpos_from_geoip(self):
-        fpos_be = self.env["account.fiscal.position"].create({
-            'name': 'Fiscal Position BE',
-            'country_id': self.country_be.id,
-            'company_id': self.company.id,
-            'auto_apply': True,
-        })
+        fpos_be = self.env["account.fiscal.position"].create(
+            {
+                "name": "Fiscal Position BE",
+                "country_id": self.country_be.id,
+                "company_id": self.company.id,
+                "auto_apply": True,
+            }
+        )
 
         website = self.website.with_user(self.public_user)
-        with MockRequest(website.env, website=website, country_code='BE') as request:
+        with MockRequest(website.env, website=website, country_code="BE") as request:
             self.assertEqual(request.fiscal_position, fpos_be)
             self.WebsiteSaleCartController.add_to_cart(
                 product_template_id=self.product.product_tmpl_id,
@@ -231,8 +253,9 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
                 quantity=1,
             )
             self.assertEqual(
-                request.cart.fiscal_position_id, fpos_be,
-                "Fiscal position should be determined from GEOIP country for public users."
+                request.cart.fiscal_position_id,
+                fpos_be,
+                "Fiscal position should be determined from GEOIP country for public users.",
             )
 
     def test_cart_update_with_fpos(self):
@@ -241,54 +264,73 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
         self._enable_pricelists()
         pricelist = self.pricelist
         # Create fiscal position mapping taxes 10% -> 6%
-        fpos = self.env['account.fiscal.position'].create({
-            'name': 'test',
-        })
-        # Add 10% tax on product
-        tax10, tax6 = self.env['account.tax'].create([
+        fpos = self.env["account.fiscal.position"].create(
             {
-                'name': "Test tax 10",
-                'amount': 10,
-                'price_include_override': 'tax_included',
-                'amount_type': 'percent'
-            }, {
-                'name': "Test tax 6",
-                'fiscal_position_ids': fpos,
-                'amount': 6,
-                'price_include_override': 'tax_included',
-                'amount_type': 'percent'
-            },
-        ])
+                "name": "test",
+            }
+        )
+        # Add 10% tax on product
+        tax10, tax6 = self.env["account.tax"].create(
+            [
+                {
+                    "name": "Test tax 10",
+                    "amount": 10,
+                    "price_include_override": "tax_included",
+                    "amount_type": "percent",
+                },
+                {
+                    "name": "Test tax 6",
+                    "fiscal_position_ids": fpos,
+                    "amount": 6,
+                    "price_include_override": "tax_included",
+                    "amount_type": "percent",
+                },
+            ]
+        )
         tax6.original_tax_ids = tax10
 
-        test_product = self.env['product.product'].create({
-            'name': 'Test Product',
-            'list_price': 110,
-            'taxes_id': [Command.set([tax10.id])],
-        })
+        test_product = self.env["product.product"].create(
+            {
+                "name": "Test Product",
+                "list_price": 110,
+                "taxes_id": [Command.set([tax10.id])],
+            }
+        )
 
         # Add discount of 50% for pricelist
-        pricelist.write({
-            'item_ids': [
-                Command.create({
-                    'base': "list_price",
-                    'compute_price': "percentage",
-                    'percent_price': 50,
-                }),
-            ],
-        })
+        pricelist.write(
+            {
+                "item_ids": [
+                    Command.create(
+                        {
+                            "base": "list_price",
+                            "compute_price": "percentage",
+                            "percent_price": 50,
+                        }
+                    ),
+                ],
+            }
+        )
 
-        so = self.env['sale.order'].create({
-            'partner_id': self.env.user.partner_id.id,
-            'line_ids': [
-                Command.create({
-                    'product_id': test_product.id,
-                })
-            ]
-        })
+        so = self.env["sale.order"].create(
+            {
+                "partner_id": self.env.user.partner_id.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": test_product.id,
+                        }
+                    )
+                ],
+            }
+        )
         sol = so.line_ids
-        self.assertEqual(round(sol.price_total), 55.0, "110$ with 50% discount 10% included tax")
-        self.assertEqual(round(sol.price_tax), 5.0, "110$ with 50% discount 10% included tax")
+        self.assertEqual(
+            round(sol.price_total), 55.0, "110$ with 50% discount 10% included tax"
+        )
+        self.assertEqual(
+            round(sol.price_tax), 5.0, "110$ with 50% discount 10% included tax"
+        )
 
         so.fiscal_position_id = fpos
         so._recompute_taxes()
@@ -296,68 +338,85 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
         self.assertEqual(
             round(sol.price_total),
             106,
-            "2 units @ 100$ with 50% discount + 6% tax (mapped from fp 10% -> 6%)"
+            "2 units @ 100$ with 50% discount + 6% tax (mapped from fp 10% -> 6%)",
         )
 
     def test_cart_update_with_fpos_no_variant_product(self):
         # We will test that the mapping of an 10% included tax by a 0% by a fiscal position is taken
         # into account when updating the cart for no_variant product
         # Add 10% tax on product
-        fpos = self.env['account.fiscal.position'].create({
-            'name': 'test',
-        })
-        tax10, tax0 = self.env['account.tax'].create([
+        fpos = self.env["account.fiscal.position"].create(
             {
-                'name': "Test tax 10",
-                'amount': 10,
-                'price_include_override': 'tax_included',
-                'amount_type': 'percent'
-            }, {
-                'name': "Test tax 0",
-                'fiscal_position_ids': fpos,
-                'amount': 0,
-                'price_include_override': 'tax_included',
-                'amount_type': 'percent'
-            },
-        ])
+                "name": "test",
+            }
+        )
+        tax10, tax0 = self.env["account.tax"].create(
+            [
+                {
+                    "name": "Test tax 10",
+                    "amount": 10,
+                    "price_include_override": "tax_included",
+                    "amount_type": "percent",
+                },
+                {
+                    "name": "Test tax 0",
+                    "fiscal_position_ids": fpos,
+                    "amount": 0,
+                    "price_include_override": "tax_included",
+                    "amount_type": "percent",
+                },
+            ]
+        )
         tax0.original_tax_ids = tax10
 
         # create an attribute with one variant
-        product_attribute = self.env['product.attribute'].create({
-            'name': 'test_attr',
-            'display_type': 'radio',
-            'create_variant': 'no_variant',
-            'value_ids': [
-                Command.create({
-                    'name': 'pa_value',
-                    'sequence': 1,
-                }),
-            ],
-        })
+        product_attribute = self.env["product.attribute"].create(
+            {
+                "name": "test_attr",
+                "display_type": "radio",
+                "create_variant": "no_variant",
+                "value_ids": [
+                    Command.create(
+                        {
+                            "name": "pa_value",
+                            "sequence": 1,
+                        }
+                    ),
+                ],
+            }
+        )
 
-        product_template = self.env['product.template'].create({
-            'name': 'prod_no_variant',
-            'list_price': 110,
-            'taxes_id': [Command.set([tax10.id])],
-            'is_published': True,
-            'attribute_line_ids': [
-                Command.create({
-                    'attribute_id': product_attribute.id,
-                    'value_ids': [Command.set(product_attribute.value_ids.ids)],
-                }),
-            ],
-        })
+        product_template = self.env["product.template"].create(
+            {
+                "name": "prod_no_variant",
+                "list_price": 110,
+                "taxes_id": [Command.set([tax10.id])],
+                "is_published": True,
+                "attribute_line_ids": [
+                    Command.create(
+                        {
+                            "attribute_id": product_attribute.id,
+                            "value_ids": [Command.set(product_attribute.value_ids.ids)],
+                        }
+                    ),
+                ],
+            }
+        )
         product = product_template.product_variant_id
 
         # create a so for user using the fiscal position
-        so = self.env['sale.order'].create({
-            'partner_id': self.env.user.partner_id.id,
-            'line_ids': [
-                Command.create({
-                    'product_id': product.id,
-                })
-            ]
-        })
+        so = self.env["sale.order"].create(
+            {
+                "partner_id": self.env.user.partner_id.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": product.id,
+                        }
+                    )
+                ],
+            }
+        )
         sol = so.line_ids
         self.assertEqual(round(sol.price_total), 110.0, "110$ with 10% included tax")
 
@@ -367,20 +426,30 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
         self.assertEqual(
             round(sol.price_total),
             200,
-            "200$ with public price+ 0% tax (mapped from fp 10% -> 0%)"
+            "200$ with public price+ 0% tax (mapped from fp 10% -> 0%)",
         )
 
     def test_cart_lines_aggregation(self):
         # Adding a product with the same no_variant attributes combination twice should create only
         # one SOLine
-        product_no_variants = self.env['product.template'].create({
-            'name': 'No variants product (TEST)',
-            'attribute_line_ids': [Command.create({
-                'attribute_id': self.no_variant_attribute.id,
-                'value_ids': [Command.set(self.no_variant_attribute.value_ids.ids)],
-            })],
-        })
-        no_variant_ptavs = product_no_variants.attribute_line_ids.product_template_value_ids
+        product_no_variants = self.env["product.template"].create(
+            {
+                "name": "No variants product (TEST)",
+                "attribute_line_ids": [
+                    Command.create(
+                        {
+                            "attribute_id": self.no_variant_attribute.id,
+                            "value_ids": [
+                                Command.set(self.no_variant_attribute.value_ids.ids)
+                            ],
+                        }
+                    )
+                ],
+            }
+        )
+        no_variant_ptavs = (
+            product_no_variants.attribute_line_ids.product_template_value_ids
+        )
         no_variant_ptav = no_variant_ptavs[0]
         add_one = partial(
             self.empty_cart._cart_add,
@@ -397,48 +466,61 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
         self.assertEqual(self.empty_cart.line_ids.product_qty, 2)
 
         # Providing `no_variant_attribute_value_ids` should be optional if there's only 1 value...
-        product_no_variants.attribute_line_ids.value_ids = self.no_variant_attribute.value_ids[0]
+        product_no_variants.attribute_line_ids.value_ids = (
+            self.no_variant_attribute.value_ids[0]
+        )
         add_one(no_variant_attribute_value_ids=[])
         self.assertEqual(len(self.empty_cart.line_ids), 1)
         self.assertEqual(self.empty_cart.line_ids.product_qty, 3)
 
         # ...except if it's a multi-checkbox attribute, making the value optional
-        self.no_variant_attribute.display_type = 'multi'
+        self.no_variant_attribute.display_type = "multi"
         add_one(no_variant_attribute_value_ids=[])
         self.assertEqual(len(self.empty_cart.line_ids), 2)
-        self.assertEqual(self.empty_cart.line_ids.mapped('product_qty'), [3, 1])
+        self.assertEqual(self.empty_cart.line_ids.mapped("product_qty"), [3, 1])
 
         add_one(no_variant_attribute_value_ids=no_variant_ptav.ids)
         self.assertEqual(len(self.empty_cart.line_ids), 2)
-        self.assertEqual(self.empty_cart.line_ids.mapped('product_qty'), [4, 1])
+        self.assertEqual(self.empty_cart.line_ids.mapped("product_qty"), [4, 1])
 
     def test_cart_new_pricelist_from_geoip(self):
         """Check that, when adding a new partner to a website order, the partner's GeoIP
         is factored into the pricelist recomputation.
         """
         self._enable_pricelists()
-        eu_group = self.env.ref('base.europe')
-        not_eu_group = self.env['res.country.group'].create({
-            'name': "Not EU",
-            'country_ids': self.env['res.country'].search([
-                ('id', 'not in', eu_group.country_ids.ids),
-            ]).ids,
-        })
+        eu_group = self.env.ref("base.europe")
+        not_eu_group = self.env["res.country.group"].create(
+            {
+                "name": "Not EU",
+                "country_ids": self.env["res.country"]
+                .search(
+                    [
+                        ("id", "not in", eu_group.country_ids.ids),
+                    ]
+                )
+                .ids,
+            }
+        )
 
-        _pricelist_eu, pricelist_not_eu = self.env['product.pricelist'].create([{
-            'name': "EU",
-            'country_group_ids': eu_group.ids,
-            'website_id': self.website.id,
-            'sequence': 1,
-        }, {
-            'name': "Not EU",
-            'country_group_ids': not_eu_group.ids,
-            'website_id': self.website.id,
-            'sequence': 2,
-        }])
+        _pricelist_eu, pricelist_not_eu = self.env["product.pricelist"].create(
+            [
+                {
+                    "name": "EU",
+                    "country_group_ids": eu_group.ids,
+                    "website_id": self.website.id,
+                    "sequence": 1,
+                },
+                {
+                    "name": "Not EU",
+                    "country_group_ids": not_eu_group.ids,
+                    "website_id": self.website.id,
+                    "sequence": 2,
+                },
+            ]
+        )
 
         website = self.website.with_user(self.public_user)
-        with MockRequest(website.env, website=website, country_code='US') as request:
+        with MockRequest(website.env, website=website, country_code="US") as request:
             self.WebsiteSaleCartController.add_to_cart(
                 product_template_id=self.product.product_tmpl_id,
                 product_id=self.product.id,
@@ -446,7 +528,7 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             )
             cart = request.cart
             self.assertEqual(cart.pricelist_id, pricelist_not_eu)
-            cart.partner_id = self.partner.create({'name': "New Partner"})
+            cart.partner_id = self.partner.create({"name": "New Partner"})
             self.assertEqual(cart.pricelist_id, pricelist_not_eu)
 
     def test_remove_archived_product_line(self):
@@ -455,11 +537,13 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
         # Arrange
         user = self.public_user
         website = self.website.with_user(user)
-        product = self.env['product.product'].create({
-            'name': 'Product',
-            'sale_ok': True,
-            'website_published': True,
-        })
+        product = self.env["product.product"].create(
+            {
+                "name": "Product",
+                "sale_ok": True,
+                "website_published": True,
+            }
+        )
         with MockRequest(self.env(user=user), website=website) as request:
             self.WebsiteSaleCartController.add_to_cart(
                 product_template_id=product.product_tmpl_id,
@@ -469,9 +553,14 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             order = request.cart
 
             # pre-condition: the order contains an active product
-            self.assertRecordValues(order.line_ids, [{
-                "product_id": product.id,
-            }])
+            self.assertRecordValues(
+                order.line_ids,
+                [
+                    {
+                        "product_id": product.id,
+                    }
+                ],
+            )
             self.assertTrue(product.active)
 
             # Act: archive the product and open the cart
@@ -490,44 +579,58 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
         with MockRequest(self.env(user=user), website=website) as request:
             order = request.website._create_cart()
             order.line_ids = [
-                Command.create({
-                    "name": "Note",
-                    "display_type": "line_note",
-                })
+                Command.create(
+                    {
+                        "name": "Note",
+                        "display_type": "line_note",
+                    }
+                )
             ]
 
             # pre-condition: the order contains only a note line
-            self.assertRecordValues(order.line_ids, [{
-                "display_type": "line_note",
-            }])
+            self.assertRecordValues(
+                order.line_ids,
+                [
+                    {
+                        "display_type": "line_note",
+                    }
+                ],
+            )
 
             # Act: open the cart
             self.WebsiteSaleCartController.cart()
 
             # Assert: the line is still there
-            self.assertRecordValues(order.line_ids, [{
-                "display_type": "line_note",
-            }])
+            self.assertRecordValues(
+                order.line_ids,
+                [
+                    {
+                        "display_type": "line_note",
+                    }
+                ],
+            )
 
     def test_checkout_no_delivery_method_available(self):
         portal_user = self.user_portal
         website = self.website.with_user(portal_user)
         portal_user.write(self.dummy_partner_address_values)
         self.carrier.country_ids = [Command.set((2,))]
-        self.product.type = 'consu'
+        self.product.type = "consu"
         with (
             MockRequest(website.env, website=website) as request,
             patch(
-                'odoo.addons.website_sale.models.sale_order.SaleOrder._get_preferred_delivery_method',
-                return_value=self.env['delivery.carrier'],
-            )
+                "odoo.addons.website_sale.models.sale_order.SaleOrder._get_preferred_delivery_method",
+                return_value=self.env["delivery.carrier"],
+            ),
         ):
             order = request.website._create_cart()
             order.line_ids = [
-                Command.create({
-                    'product_id': self.product.id,
-                    'product_qty': 1.0,
-                })
+                Command.create(
+                    {
+                        "product_id": self.product.id,
+                        "product_qty": 1.0,
+                    }
+                )
             ]
             self.WebsiteSaleController.shop_checkout()
 
@@ -561,7 +664,7 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
 
     def test_get_cart_after_company_change(self):
         """Finding the customer cart shouldn't crash even if their company changed."""
-        internal_user = self.env.ref('base.user_admin')
+        internal_user = self.env.ref("base.user_admin")
         website = self.website.with_user(internal_user)
         with MockRequest(website.env, website=website):
             # Create a cart for the user
@@ -572,7 +675,7 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             )
 
         # Change the user's company (will also update the user's partner)
-        other_company = self.env['res.company'].create({'name': "Other Company"})
+        other_company = self.env["res.company"].create({"name": "Other Company"})
         internal_user.company_ids = [Command.link(other_company.id)]
         internal_user.company_id = other_company
         with MockRequest(website.env, website=website) as request:

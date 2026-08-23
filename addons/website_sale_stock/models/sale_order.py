@@ -6,10 +6,10 @@ from odoo.tools import float_round
 
 
 class SaleOrder(models.Model):
-    _inherit = 'sale.order'
+    _inherit = "sale.order"
 
     def _compute_warehouse_id(self):
-        website_orders = self.filtered('website_id')
+        website_orders = self.filtered("website_id")
         super(SaleOrder, self - website_orders)._compute_warehouse_id()
         for order in website_orders:
             if order.website_id.warehouse_id:
@@ -19,19 +19,27 @@ class SaleOrder(models.Model):
             if not order.warehouse_id:
                 order.warehouse_id = self.env.user._get_default_warehouse_id()
 
-    def _verify_updated_quantity(self, order_line, product_id, new_qty, uom_id, **kwargs):
+    def _verify_updated_quantity(
+        self, order_line, product_id, new_qty, uom_id, **kwargs
+    ):
         self.ensure_one()
-        product = self.env['product.product'].browse(product_id)
+        product = self.env["product.product"].browse(product_id)
         if product.is_storable and not product.allow_out_of_stock_order:
-            uom = self.env['uom.uom'].browse(uom_id)
+            uom = self.env["uom.uom"].browse(uom_id)
             product_uom_id = product.uom_id
 
             product_qty_in_cart, available_qty = self._get_cart_and_free_qty(product)
 
             # Convert cart and available quantities to the requested uom
-            product_qty_in_cart = product_uom_id._compute_quantity(product_qty_in_cart, uom)
-            available_qty = product_uom_id._compute_quantity(available_qty, uom, round=False)
-            available_qty = float_round(available_qty, precision_digits=0, rounding_method='DOWN')
+            product_qty_in_cart = product_uom_id._compute_quantity(
+                product_qty_in_cart, uom
+            )
+            available_qty = product_uom_id._compute_quantity(
+                available_qty, uom, round=False
+            )
+            available_qty = float_round(
+                available_qty, precision_digits=0, rounding_method="DOWN"
+            )
 
             old_qty = order_line.product_uom_qty if order_line else 0
             added_qty = new_qty - old_qty
@@ -39,8 +47,10 @@ class SaleOrder(models.Model):
             if available_qty < total_cart_qty:
                 allowed_line_qty = available_qty - (product_qty_in_cart - old_qty)
                 if allowed_line_qty > 0:
+
                     def format_qty(qty):
                         return int(qty) if float(qty).is_integer() else qty
+
                     if order_line:
                         warning = order_line._set_shop_warning_stock(
                             format_qty(total_cart_qty),
@@ -66,7 +76,9 @@ class SaleOrder(models.Model):
                         product_name=product.name,
                     )
                 return allowed_line_qty, warning
-        return super()._verify_updated_quantity(order_line, product_id, new_qty, uom_id, **kwargs)
+        return super()._verify_updated_quantity(
+            order_line, product_id, new_qty, uom_id, **kwargs
+        )
 
     def _get_cart_and_free_qty(self, product):
         """Get cart quantity and free quantity for given product.
@@ -112,7 +124,8 @@ class SaleOrder(models.Model):
         return sum(
             order_lines.mapped(
                 lambda sol: sol.product_uom_id._compute_quantity(
-                    sol.product_uom_qty, sol.product_id.uom_id,
+                    sol.product_uom_qty,
+                    sol.product_id.uom_id,
                 )
             )
         )
@@ -128,13 +141,15 @@ class SaleOrder(models.Model):
             if not line._check_availability()
         ]
         if values:
-            raise ValidationError(' '.join(values))
+            raise ValidationError(" ".join(values))
         return super()._check_cart_is_ready_to_be_paid()
 
     def _filter_can_send_abandoned_cart_mail(self):
         """Filter sale orders on their product availability."""
-        return super()._filter_can_send_abandoned_cart_mail().filtered(
-            lambda so: so._all_product_available()
+        return (
+            super()
+            ._filter_can_send_abandoned_cart_mail()
+            .filtered(lambda so: so._all_product_available())
         )
 
     def _all_product_available(self):
