@@ -171,7 +171,14 @@ class Float(Field[float]):
         if digits := self.get_digits(record.env):
             _precision, scale = digits
             value = float_round(value, precision_digits=scale)
-        elif self._digits is not None and self.column_type[0] == "numeric":
+        if self.column_type[0] == "numeric":
+            # A float handed to psycopg goes out as float8, and PostgreSQL's
+            # float8 -> numeric cast keeps only DBL_DIG (15) significant
+            # digits: 12345678901234.56 lands as 12345678901234.6 and
+            # 99999999999999.98 as 100000000000000. `Decimal(repr(...))` is
+            # exact, and is what the COPY path already sends -- without this,
+            # the same create() stored a different number depending on whether
+            # the batch was under or over COPY_THRESHOLD.
             return Decimal(repr(value))
         return value
 

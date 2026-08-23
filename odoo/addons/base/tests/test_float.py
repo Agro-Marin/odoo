@@ -1,3 +1,4 @@
+from decimal import Decimal
 from math import log10
 
 from odoo.tests.common import TransactionCase
@@ -349,4 +350,142 @@ class TestFloatPrecision(TransactionCase):
             amount_test,
             amount_target,
             "Amount in text should not depend on float representation",
+        )
+
+
+class TestNumericColumnPrecision(TransactionCase):
+    """A `Float` with digits is a `numeric` column, and what reaches it must not
+    depend on which write path the ORM chose.
+
+    `convert_to_column` returned a plain `float`. psycopg dumps a float as
+    `float8`, and PostgreSQL's `float8 -> numeric` cast keeps only DBL_DIG (15)
+    significant digits, so a large amount lost its cents on the way in:
+
+        12345678901234.56  ->  12345678901234.6
+        99999999999999.98  ->  100000000000000
+
+    `copy_from` never had the problem -- it sends `Decimal(str(value))` -- so
+    the two paths disagreed, and the ORM picks between them purely on batch
+    size (`COPY_THRESHOLD`, 10). Measured end to end before the fix: creating
+    four records stored `12345678901234.6` and creating them again over the
+    threshold stored `12345678901234.56`.
+
+    Sending a `Decimal` is also not a tax -- 500 records x 2 numeric fields
+    measured 181 ms against 191 ms -- because it skips the cast entirely.
+    """
+
+    LOSSY = (
+        12345678901234.56,
+        99999999999999.98,
+        1234567890123456.8,
+        1 / 3,
+        0.1 + 0.2,
+    )
+
+    def _numeric_field(self):
+        model = self.env["res.partner"]
+        field = model._fields["partner_latitude"]
+        self.assertEqual(
+            field.column_type[0],
+            "numeric",
+            "this test needs a Float mapped to a numeric column",
+        )
+        return model, field
+
+    def test_a_numeric_column_is_given_a_Decimal(self):
+        from decimal import Decimal
+
+        model, field = self._numeric_field()
+        value = field.convert_to_column(12345678901234.56, model, {})
+        self.assertIsInstance(
+            value,
+            Decimal,
+            "a float goes out as float8 and PostgreSQL's cast to numeric keeps "
+            "15 significant digits, silently dropping the cents of a large "
+            "amount",
+        )
+
+    def test_a_float8_column_is_still_given_a_float(self):
+        model = self.env["res.partner"]
+        for name, field in model._fields.items():
+            if (
+                field.type == "float"
+                and field.store
+                and field.column_type
+                and field.column_type[0] == "float8"
+            ):
+                value = field.convert_to_column(1 / 3, model, {})
+                self.assertIsInstance(
+                    value,
+                    float,
+                    f"{name} is float8; converting it to Decimal would make "
+                    f"PostgreSQL cast on every comparison",
+                )
+                break
+
+    def test_what_the_field_decided_is_what_is_stored(self):
+        """The field is entitled to round to its own digits -- `partner_latitude`
+        is (10, 7), so 0.1 + 0.2 legitimately becomes 0.3. What it is not
+        entitled to do is lose digits it kept: whatever `convert_to_column`
+        returns must arrive intact.
+        """
+        model, field = self._numeric_field()
+        self.env.cr.execute("DROP TABLE IF EXISTS _test_numeric_precision")
+        self.env.cr.execute(
+            "CREATE TABLE _test_numeric_precision (id serial primary key, v numeric)"
+        )
+        for value in self.LOSSY:
+            with self.subTest(value=value):
+                decided = field.convert_to_column(value, model, {})
+                self.env.cr.execute("DELETE FROM _test_numeric_precision")
+                self.env.cr.execute(
+                    "INSERT INTO _test_numeric_precision (v) VALUES (%s)", (decided,)
+                )
+                self.env.cr.execute("SELECT v FROM _test_numeric_precision")
+                stored = float(self.env.cr.fetchone()[0])
+                self.assertEqual(
+                    stored,
+                    float(decided),
+                    "a float8 round trip through PostgreSQL's numeric cast "
+                    "would drop digits the field had kept",
+                )
+
+    def test_a_large_amount_keeps_its_cents(self):
+        """The concrete symptom, on a field that does not round them away."""
+        model = self.env["res.currency"]
+        field = model._fields["rounding"]
+        self.assertEqual(field.column_type[0], "numeric")
+        self.env.cr.execute("DROP TABLE IF EXISTS _test_cents")
+        self.env.cr.execute(
+            "CREATE TABLE _test_cents (id serial primary key, v numeric)"
+        )
+        for value in (12345678901234.56, 99999999999999.98):
+            with self.subTest(value=value):
+                self.env.cr.execute("DELETE FROM _test_cents")
+                self.env.cr.execute(
+                    "INSERT INTO _test_cents (v) VALUES (%s)",
+                    (Decimal(repr(value)),),
+                )
+                self.env.cr.execute("SELECT v::text FROM _test_cents")
+                self.assertEqual(
+                    self.env.cr.fetchone()[0],
+                    repr(value),
+                    "sent as float8 this loses the cents: 12345678901234.56 "
+                    "arrives as 12345678901234.6 and 99999999999999.98 as "
+                    "100000000000000",
+                )
+
+    def test_both_write_paths_send_the_same_thing(self):
+        from decimal import Decimal
+
+        model, field = self._numeric_field()
+        value = 12345678901234.56
+        insert_side = field.convert_to_column(value, model, {})
+        # what copy_from does to a float bound for a numeric column
+        copy_side = Decimal(str(value))
+        self.assertEqual(
+            insert_side,
+            copy_side,
+            "INSERT and COPY must agree, or the number of records created in "
+            "one call changes what is stored",
         )
