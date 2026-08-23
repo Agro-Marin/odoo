@@ -175,8 +175,9 @@ These run in **both** at_install and post_install phases by default.
 - `test_intervals.py` — Interval operations
 - `test_misc.py` — Miscellaneous utilities
 - `test_mimetypes.py` — MIME detection
-- `test_module.py` — Module operations
-- `test_module_graph.py` — Module dependency graph
+- `test_module.py` — Module operations needing a database (the manifest,
+  version, graph and migration unit suites are Tier 1, in
+  `odoo/modules/tests/`)
 - `test_pdf.py` — PDF operations
 - `test_query.py` — SQL query building
 - `test_signature.py` — Digital signatures

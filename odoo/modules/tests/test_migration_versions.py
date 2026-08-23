@@ -1,5 +1,6 @@
 import shutil
 import tempfile
+import unittest
 from pathlib import Path
 
 from odoo.modules.migration import (
@@ -11,7 +12,8 @@ from odoo.modules.migration import (
     _scripts_by_version,
 )
 from odoo.release import major_version
-from odoo.tests.common import BaseCase
+
+BaseCase = unittest.TestCase
 
 
 class TestConvertVersion(BaseCase):

@@ -1,9 +1,11 @@
+import unittest
 from unittest.mock import patch
 
 from odoo.modules.module import _DEFAULT_MANIFEST, Manifest
 from odoo.modules.module_graph import ModuleGraph, ModuleNode
-from odoo.tests.common import BaseCase
 from odoo.tools import OrderedSet, mute_logger
+
+BaseCase = unittest.TestCase
 
 
 class TestGraph(BaseCase):

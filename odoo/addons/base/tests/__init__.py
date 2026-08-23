@@ -72,8 +72,6 @@ from . import test_mimetypes
 from . import test_misc
 from . import test_mixin_profiler
 from . import test_module
-from . import test_module_graph
-from . import test_module_migration
 from . import test_monkeypatches
 from . import test_orm
 from . import test_ormcache

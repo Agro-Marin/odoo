@@ -26,12 +26,12 @@ class TestNeutralizeQueries(BaseCase):
         p = patch.object(odoo.addons, "__path__", [self._tmp.name])
         p.start()
         self.addCleanup(p.stop)
-        saved = dict(Manifest._manifest_cache)
+        saved = dict(Manifest._parse_cache)
         Manifest.clear_caches()
 
         def _restore():
-            Manifest._manifest_cache.clear()
-            Manifest._manifest_cache.update(saved)
+            Manifest._parse_cache.clear()
+            Manifest._parse_cache.update(saved)
 
         self.addCleanup(_restore)
 

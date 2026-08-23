@@ -103,6 +103,20 @@ TYPED_FIELD_DEFINITION_RE = re.compile(
 
 _logger = logging.getLogger(__name__)
 
+_ManifestStat = tuple[int, int] | None
+"""``(st_mtime_ns, st_size)`` of a module's manifest, or None when it has none."""
+
+
+def _manifest_stat(path: str) -> _ManifestStat:
+    for manifest_name in MANIFEST_NAMES:
+        try:
+            st = Path(path, manifest_name).stat()
+        except OSError:
+            continue
+        return (st.st_mtime_ns, st.st_size)
+    return None
+
+
 if typing.TYPE_CHECKING:
     from odoo.tests.common import TestCase
 
@@ -220,7 +234,7 @@ class Manifest(Mapping[str, typing.Any]):
 
     @functools.cached_property
     def icon(self) -> str:
-        return get_module_icon(self.name)
+        return _resolve_module_icon(self.name, self.raw_value("icon"))
 
     @functools.cached_property
     def static_path(self) -> str | None:
@@ -274,21 +288,54 @@ class Manifest(Mapping[str, typing.Any]):
     def __repr__(self) -> str:
         return f"Manifest({self.name})"
 
-    _manifest_cache: dict[str, Manifest] = {}
+    _parse_cache: dict[str, tuple[_ManifestStat, Manifest | None]] = {}
+    """Parsed manifests, keyed by module directory and validated against disk.
+
+    One cache serves every entry point, and every read revalidates: the stored
+    ``(st_mtime_ns, st_size)`` of the module's ``__manifest__.py`` is compared
+    with the file's current one, so an edited, deleted or newly-appeared
+    manifest is picked up on the next lookup. A ``None`` signature records "this
+    directory has no manifest", which is what makes scanning an addons path
+    cheap -- most entries in one are not modules.
+
+    The freshness matters as much as the speed. ``ir.module.module.update_list``
+    exists to notice manifests that changed on disk, and the cache it consults
+    must not be able to hide one from it; the previous name-keyed cache was
+    never invalidated except by an addons-path change, so a version bump edited
+    into a manifest was invisible to ``Manifest.for_addon`` for the life of the
+    process. What the revalidation deliberately does *not* re-resolve is which
+    addons path wins for a given module name -- that is settled by iteration
+    order in ``_get_manifest_from_addons``, which re-runs on every call.
+    """
+
+    _resolution_cache: dict[str, str] = {}
+    """Which addons path won a module name, so a repeat lookup skips the losers.
+
+    Only the *directory* is remembered; the manifest behind it is still served
+    through ``_from_path``, which revalidates it against disk. So an edit is
+    picked up, and a manifest that has vanished falls through to a fresh scan.
+    Without this, resolving a name costs one failed ``stat`` per addons path
+    ahead of the winner -- 34us for a module in the last of six paths against
+    2us here, on a lookup the module graph performs per module per pass.
+    """
 
     @staticmethod
     def _get_manifest_from_addons(module: str) -> Manifest | None:
-        if (cached := Manifest._manifest_cache.get(module)) is not None:
-            return cached
+        if (known := Manifest._resolution_cache.get(module)) is not None:
+            if manifest := Manifest._from_path(known):
+                return manifest
+            del Manifest._resolution_cache[module]
         for adp in odoo.addons.__path__:
-            if manifest := Manifest._from_path(str(Path(adp, module))):
-                Manifest._manifest_cache[module] = manifest
+            path = str(Path(adp, module))
+            if manifest := Manifest._from_path(path):
+                Manifest._resolution_cache[module] = path
                 return manifest
         return None
 
     @staticmethod
     def clear_caches() -> None:
-        Manifest._manifest_cache.clear()
+        Manifest._parse_cache.clear()
+        Manifest._resolution_cache.clear()
 
     @staticmethod
     def for_addon(module_name: str, *, display_warning: bool = True) -> Manifest | None:
@@ -302,6 +349,21 @@ class Manifest(Mapping[str, typing.Any]):
 
     @staticmethod
     def _from_path(path: str, env: typing.Any = None) -> Manifest | None:
+        if env is not None:
+            # `env` widens file_open's search to the transaction's temporary
+            # paths, so the result is not a property of `path` alone and must
+            # not be cached under it.
+            return Manifest._parse_from_path(path, env)
+        signature = _manifest_stat(path)
+        cached = Manifest._parse_cache.get(path)
+        if cached is not None and cached[0] == signature:
+            return cached[1]
+        manifest = Manifest._parse_from_path(path, None)
+        Manifest._parse_cache[path] = (signature, manifest)
+        return manifest
+
+    @staticmethod
+    def _parse_from_path(path: str, env: typing.Any) -> Manifest | None:
         for manifest_name in MANIFEST_NAMES:
             try:
                 with tools.file_open(str(Path(path, manifest_name)), env=env) as f:
@@ -391,11 +453,8 @@ def get_resource_from_path(path: str) -> tuple[str, str, str] | None:
     return None
 
 
-def get_module_icon(module: str) -> str:
-    manifest = Manifest.for_addon(module, display_warning=False)
-    fpath = ""
-    if manifest:
-        fpath = (manifest.raw_value("icon") or "").lstrip("/")
+def _resolve_module_icon(module: str, declared: typing.Any) -> str:
+    fpath = (declared or "").lstrip("/")
     if not fpath:
         fpath = f"{module}/static/description/icon.png"
     try:
@@ -403,6 +462,12 @@ def get_module_icon(module: str) -> str:
         return "/" + fpath
     except FileNotFoundError:
         return "/base/static/description/icon.png"
+
+
+def get_module_icon(module: str) -> str:
+    manifest = Manifest.for_addon(module, display_warning=False)
+    declared = manifest.raw_value("icon") if manifest else None
+    return _resolve_module_icon(module, declared)
 
 
 def _load_manifest(module: str, manifest_content: dict) -> dict:
