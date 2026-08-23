@@ -37,6 +37,6 @@ export class ProductComboItem {
      * @return {ProductComboItem}
      */
     deepCopy() {
-        return new ProductComboItem(structuredClone({ ...this }));
+        return new ProductComboItem({ ...this });
     }
 }

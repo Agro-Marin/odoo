@@ -40,11 +40,13 @@ class SaleOrder(models.Model):
             order.delivery_set = any(line.is_delivery for line in order.line_ids)
 
     @api.onchange('line_ids', 'partner_id', 'partner_shipping_id')
-    def onchange_order_line(self):
-        self.ensure_one()
-        delivery_line = self.line_ids.filtered('is_delivery')
-        if delivery_line:
-            self.recompute_delivery_price = True
+    def _onchange_recompute_delivery_price(self):
+        self._flag_delivery_price_stale()
+
+    def _flag_delivery_price_stale(self):
+        for order in self:
+            if order.line_ids.filtered('is_delivery'):
+                order.recompute_delivery_price = True
 
     def _get_order_lines_price_updatable(self):
         """ Exclude delivery lines from price list recomputation based on product instead of carrier """
@@ -264,6 +266,5 @@ class SaleOrder(models.Model):
         :rtype: float
         """
         price_unit = super()._update_order_line_info(product_id, quantity, **kwargs)
-        if self:
-            self.onchange_line_ids()
+        self._flag_delivery_price_stale()
         return price_unit

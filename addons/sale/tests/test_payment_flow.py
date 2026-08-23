@@ -321,7 +321,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         with (
             mute_logger("odoo.addons.sale.models.payment_transaction"),
             patch(
-                "odoo.addons.base_order.models.order_invoice_mixin"
+                "odoo.addons.base_order.models.mixin_order_invoice"
                 ".MixinOrderInvoice._create_invoices",
                 return_value=self.env["account.move"],
             ) as _create_invoices_mock,

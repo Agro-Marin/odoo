@@ -23,7 +23,7 @@ registry.category("web_tour.tours").add("test_barcode_duplication_error", {
         },
         {
             trigger:
-                "div.modal-content.o_error_dialog main:contains('The operation cannot be completed: A barcode can only be assigned to one packaging.')",
+                "div.modal-content.o_error_dialog main:contains('A barcode can only be assigned to one packaging within a company.')",
         },
     ],
 });
