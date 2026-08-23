@@ -329,6 +329,17 @@ class Union(SetExpression):
 
     def matches(self, user_group_ids: Iterable[int]) -> bool:
         user_group_ids = set(user_group_ids)
+        # A subject with no sets matches NOTHING -- not even the universal set,
+        # and not even a purely negative expression it satisfies vacuously.
+        # This is deliberate and it fails closed: read as plain logic, `!A`
+        # holds for someone who is in no group at all, and honouring that would
+        # hand every "everyone except A" rule to a group-less user.  The guard
+        # has to precede the is_universal() check for the same reason.
+        #
+        # It is the one place this algebra is not ordinary boolean algebra, so
+        # a brute-force truth table disagrees with it on exactly these inputs.
+        # `TestMatchesFailsClosedForASubjectWithNoSets` is what stops that
+        # disagreement being read as a bug and "fixed".
         if self.is_empty() or not user_group_ids:
             return False
         if self.is_universal():

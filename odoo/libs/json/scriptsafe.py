@@ -20,16 +20,18 @@ JSON_SCRIPTSAFE_MAPPER: dict[str, str] = {
 }
 
 
+#: The characters that can break out of a `<script>` block, or that a JS
+#: parser treats as a line terminator inside a string literal.  Compiled at
+#: module level: this runs once per JSON payload embedded in a template.
+_SCRIPTSAFE_RE = re.compile(r"[<>&\u2028\u2029]")
+
+
 class ScriptSafe(str):
     __slots__ = ()
 
     def __html__(self) -> markupsafe.Markup:
         return markupsafe.Markup(
-            re.sub(
-                r"[<>&\u2028\u2029]",
-                lambda m: JSON_SCRIPTSAFE_MAPPER[m[0]],
-                self,
-            )
+            _SCRIPTSAFE_RE.sub(lambda m: JSON_SCRIPTSAFE_MAPPER[m[0]], self)
         )
 
 
