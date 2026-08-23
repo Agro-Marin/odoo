@@ -3,7 +3,6 @@ from collections import defaultdict
 from datetime import UTC, datetime, time, timedelta
 from math import ceil
 
-from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
 from odoo import api, fields, models
@@ -1496,8 +1495,7 @@ is approved, validated or refused.')
                     user_ids = holiday.sudo()._get_responsible_for_approval().ids
                     for user_id in user_ids:
                         date_deadline = (
-                            (holiday.date_from -
-                             relativedelta(**{activity_type.delay_unit or 'days': activity_type.delay_count or 0})).date()
+                            (holiday.date_from - activity_type._get_delay_delta()).date()
                             if holiday.date_from else today)
                         date_deadline = max(date_deadline, today)
                         activity_vals.append({

@@ -2,6 +2,7 @@ from . import mail_alias
 from . import mail_alias_domain
 from . import base
 
+from . import mixin_delay
 from . import mixin_mail_activity
 from . import mixin_mail_alias_optional
 from . import mixin_mail_alias

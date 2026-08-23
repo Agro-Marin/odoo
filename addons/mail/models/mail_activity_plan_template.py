@@ -2,8 +2,6 @@ import typing
 from datetime import date
 from typing import Literal
 
-from dateutil.relativedelta import relativedelta
-
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
@@ -16,6 +14,7 @@ if typing.TYPE_CHECKING:
 
 class MailActivityPlanTemplate(models.Model):
     _name = "mail.activity.plan.template"
+    _inherit = ["mixin.delay"]
     _description = "Activity plan template"
     _order = "sequence, id"
     _rec_name = "summary"
@@ -40,15 +39,7 @@ class MailActivityPlanTemplate(models.Model):
     )
     delay_count = fields.Integer(
         "Interval",
-        default=0,
         help="Number of days/week/month before executing the action after or before the scheduled plan date.",
-    )
-    delay_unit = fields.Selection(
-        [("days", "days"), ("weeks", "weeks"), ("months", "months")],
-        string="Delay units",
-        help="Unit of delay",
-        required=True,
-        default="days",
     )
     delay_from = fields.Selection(
         [
@@ -155,7 +146,7 @@ class MailActivityPlanTemplate(models.Model):
     def _get_date_deadline(self, base_date: date | Literal[False] = False) -> date:
         self.ensure_one()
         base_date = base_date or fields.Date.context_today(self)
-        delta = relativedelta(**{self.delay_unit: self.delay_count})
+        delta = self._get_delay_delta()
         if self.delay_from == "after_plan_date":
             return base_date + delta
         return base_date - delta

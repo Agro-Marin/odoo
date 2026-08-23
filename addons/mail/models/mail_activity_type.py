@@ -2,8 +2,6 @@ import typing
 from datetime import date
 from typing import Literal
 
-from dateutil.relativedelta import relativedelta
-
 from odoo import _, api, exceptions, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import UserError
@@ -15,6 +13,7 @@ if typing.TYPE_CHECKING:
 
 class MailActivityType(models.Model):
     _name = "mail.activity.type"
+    _inherit = ["mixin.delay"]
     _description = "Activity Type"
     _order = "sequence, id"
     _rec_name = "name"
@@ -34,15 +33,7 @@ class MailActivityType(models.Model):
     create_uid: ResUsers = fields.Many2one("res.users", index=True)
     delay_count = fields.Integer(
         "Schedule",
-        default=0,
         help="Number of days/week/month before executing the action. It allows to plan the action deadline.",
-    )
-    delay_unit = fields.Selection(
-        [("days", "days"), ("weeks", "weeks"), ("months", "months")],
-        string="Delay units",
-        help="Unit of delay",
-        required=True,
-        default="days",
     )
     delay_label = fields.Char(compute="_compute_delay_label")
     delay_from = fields.Selection(
@@ -258,7 +249,7 @@ class MailActivityType(models.Model):
             )
         else:
             base = self.env["mail.activity"]._today_for(user)
-        return base + relativedelta(**{self.delay_unit: self.delay_count})
+        return base + self._get_delay_delta()
 
     @api.model
     def _get_model_info_by_xmlid(self) -> dict:
