@@ -1,5 +1,6 @@
 from . import mixin_order
 from . import mixin_order_amount
+from . import mixin_order_state_rollup
 from . import mixin_order_line_fields
 from . import mixin_order_line_amount
 from . import mixin_order_invoice

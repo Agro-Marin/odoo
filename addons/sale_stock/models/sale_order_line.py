@@ -28,6 +28,16 @@ class SaleOrderLine(models.Model):
         related="product_id.is_storable",
         depends=["product_id"],
     )
+    transfer_state = fields.Selection(
+        selection=[
+            ("no", "Nothing to deliver"),
+            ("to do", "To deliver"),
+            ("partial", "Partially delivered"),
+            ("done", "Fully delivered"),
+            ("over done", "Over delivered"),
+        ],
+        string="Delivery Status",
+    )
     customer_lead = fields.Float(
         compute="_compute_customer_lead",
         store=True,

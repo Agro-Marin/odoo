@@ -229,6 +229,8 @@ enforce them.
 | [0056](0056-stored-python-is-a-binding-no-checkout-holds.md) | Stored Python is a binding no checkout holds, and `_for_xml_id` is renamed across it | 2026-08-20 | Accepted |
 | [0057](0057-a-count-asked-only-whether-it-is-nonzero.md) | A count asked only whether it is nonzero takes a limit | 2026-08-21 | Accepted |
 | [0058](0058-a-call-resolves-to-something-this-checkout-defines.md) | A call resolves to something this checkout defines | 2026-08-21 | Accepted |
+| [0059](0059-transfer-state-is-read-from-quantities-not-pickings.md) | `transfer_state` is read from the quantities, not the pickings | 2026-08-22 | Accepted |
+| [0060](0060-invoice-state-reports-progress-not-only-what-is-billable-now.md) | `invoice_state` reports progress, not only what is billable now | 2026-08-22 | Accepted |
 
 ## Template
 

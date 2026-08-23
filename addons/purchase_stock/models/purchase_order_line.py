@@ -20,6 +20,16 @@ class PurchaseOrderLine(models.Model):
         related="product_id.is_storable",
         depends=["product_id"],
     )
+    transfer_state = fields.Selection(
+        selection=[
+            ("no", "Nothing to receive"),
+            ("to do", "To receive"),
+            ("partial", "Partially received"),
+            ("done", "Fully received"),
+            ("over done", "Over received"),
+        ],
+        string="Receipt Status",
+    )
     orderpoint_id = fields.Many2one(
         comodel_name="stock.warehouse.orderpoint",
         string="Orderpoint",

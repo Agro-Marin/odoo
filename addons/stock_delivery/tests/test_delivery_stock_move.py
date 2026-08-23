@@ -185,9 +185,9 @@ class TestStockMoveInvoice(TestSaleCommon):
         # Invoice the delivered product
         invoice = so._create_invoices()
         invoice.action_post()
-        # One line is invoiced ('done'), the undelivered one has nothing to
-        # invoice ('no'): the order resolves to 'partial' per the state
-        # priority in base_order's order_invoice_mixin._compute_invoice_state.
+        # One line is invoiced ('done'), the undelivered one is still owed
+        # ('no' with a quantity): something billed and something outstanding
+        # is 'partial' per base_order's mixin.order.invoice (ADR-0060).
         self.assertEqual(so.invoice_state, 'partial')
 
         # Add delivery fee
@@ -198,10 +198,10 @@ class TestStockMoveInvoice(TestSaleCommon):
         choose_delivery_carrier = delivery_wizard.save()
         choose_delivery_carrier.button_confirm()
 
-        # The delivery fee is now the only line left 'to do' and it cannot be
-        # invoiced alone, so sale's _resolve_invoice_state_to_do() downgrades
-        # the order back to 'no' — the documented auxiliary-line rule.
-        self.assertEqual(so.invoice_state, 'no')
+        # One line is already invoiced, so the order has progressed whatever is
+        # left: sale's _resolve_invoice_state_to_do() downgrade to 'no' applies
+        # only while nothing has been invoiced at all (ADR-0060).
+        self.assertEqual(so.invoice_state, 'partial')
 
     def test_delivery_carrier_from_confirmed_so(self):
         """Test if adding shipping method in sale order after confirmation

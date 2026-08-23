@@ -585,7 +585,12 @@ class TestSaleOrder(SaleCommon):
         self.sale_order.line_ids.product_id.invoice_policy = "transferred"
         self.sale_order.action_confirm()
 
-        self.assertEqual(self.sale_order.invoice_state, "no")
+        self.assertEqual(
+            self.sale_order.invoice_state,
+            "to do",
+            "the lines are 'no' only because nothing has been delivered yet, "
+            "which is a quantity still owed rather than one that will never come",
+        )
         standard_lines = self.sale_order.line_ids
 
         self.env["sale.order.discount"].create(
@@ -604,7 +609,12 @@ class TestSaleOrder(SaleCommon):
         self.sale_order.line_ids.product_id.invoice_policy = "transferred"
         self.sale_order.action_confirm()
 
-        self.assertEqual(self.sale_order.invoice_state, "no")
+        self.assertEqual(
+            self.sale_order.invoice_state,
+            "to do",
+            "the lines are 'no' only because nothing has been delivered yet, "
+            "which is a quantity still owed rather than one that will never come",
+        )
         standard_lines = self.sale_order.line_ids
 
         for sol in standard_lines:
@@ -624,7 +634,12 @@ class TestSaleOrder(SaleCommon):
 
         discount_line = self.sale_order.line_ids - standard_lines
         self.assertEqual(discount_line.invoice_state, "to do")
-        self.assertEqual(self.sale_order.invoice_state, "to do")
+        self.assertEqual(
+            self.sale_order.invoice_state,
+            "partial",
+            "the standard lines are billed and the discount line is not, "
+            "which is partial progress rather than untouched work",
+        )
 
     def test_so_with_fixed_discount_zero_amount(self):
         initial_total = self.sale_order.amount_total

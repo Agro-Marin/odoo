@@ -1500,9 +1500,12 @@ class TestSaleToInvoice(TestSaleCommon):
 
         for line in self.sale_order.line_ids:
             line.qty_transferred = 2 if line.product_id.expense_policy == "no" else 0
-        self.assertTrue(
-            self.sale_order.invoice_state == "to do",
-            'Sale: SO status after delivery should be "to do"',
+        self.assertEqual(
+            self.sale_order.invoice_state,
+            "partial",
+            'Sale: SO status after delivery should be "partial" - a first '
+            "invoice is already posted and the newly delivered quantities are "
+            "not, so the order has progressed rather than not started",
         )
         invoice2 = self.sale_order._create_invoices()
         self.assertEqual(

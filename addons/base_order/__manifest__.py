@@ -19,6 +19,7 @@ Mixins:
 * **mixin.order.line.amount** — pricing and tax computation (line-level)
 * **mixin.order.line.fields** — common structural fields, CRUD guards,
   transfer tracking
+* **mixin.order.state.rollup** — gathers line states for an order-level rollup
 * **mixin.order.invoice** — invoice tracking (order-level)
 * **mixin.order.line.invoice** — invoice tracking (line-level)
 * **mixin.order.merge** — quotation/RFQ merge system

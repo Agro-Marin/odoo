@@ -78,7 +78,7 @@
                     invisible="1" />
                 <separator />
                 <filter name="to_invoice" string="To Invoice"
-                    domain="[('invoice_state', '=', 'to do')]" />
+                    domain="[('invoice_state', 'in', ['to do', 'partial'])]" />
                 <filter name="upselling" string="To Upsell"
                     domain="[('has_upsell_opportunity', '=', True)]" />
                 <separator />

@@ -104,8 +104,10 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         Form.from_action(self.env, pick.button_validate()).save().process()
         self.assertEqual(
             self.so.invoice_state,
-            "to do",
-            'Sale Stock: so invoice_state should be "to do" after partial delivery',
+            "partial",
+            'Sale Stock: so invoice_state should be "partial" after partial '
+            "delivery - the ordered products are already invoiced and the "
+            "delivered ones are not",
         )
         del_qties = [sol.qty_transferred for sol in self.so.line_ids]
         del_qties_truth = [
@@ -314,11 +316,11 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
             'Sale Stock: no picking created for "invoice on delivery" storable products',
         )
 
-        # invoice in on delivery, nothing should be invoiced
         self.assertEqual(
             self.so.invoice_state,
-            "no",
-            'Sale Stock: so invoice_state should be "no" instead of "%s".'
+            "to do",
+            'Sale Stock: so invoice_state should be "to do" instead of "%s" - '
+            "the lines are 'no' only because nothing has been delivered yet"
             % self.so.invoice_state,
         )
 
@@ -453,11 +455,11 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
             'Sale Stock: no picking created for "invoice on delivery" storable products',
         )
 
-        # invoice in on delivery, nothing should be invoiced
         self.assertEqual(
             self.so.invoice_state,
-            "no",
-            'Sale Stock: so invoice_state should be "nothing to invoice"',
+            "to do",
+            'Sale Stock: so invoice_state should be "to do" - nothing is '
+            "invoiceable yet, but the delivery is still owed",
         )
 
         # deliver partially
@@ -1457,7 +1459,12 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         self.assertTrue(so.locked)
         so.picking_ids.action_cancel()
 
-        self.assertEqual(so.invoice_state, "no")
+        self.assertEqual(
+            so.invoice_state,
+            "to do",
+            "cancelling the picking leaves the order lines in place, so the "
+            "quantities are still owed rather than settled",
+        )
 
     def test_16_multi_uom(self):
         yards_uom = self.env["uom.uom"].create(

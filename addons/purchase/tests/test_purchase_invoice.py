@@ -159,8 +159,16 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         )
         purchase_order.action_confirm()
 
-        self.assertEqual(purchase_order.invoice_state, "no")
+        self.assertEqual(
+            purchase_order.invoice_state,
+            "to do",
+            "a confirmed order still owes a bill even before the goods arrive: "
+            "its lines are 'no' only because nothing has been received yet, "
+            "which is a quantity they are still waiting for rather than one "
+            "they will never have",
+        )
         for line in purchase_order.line_ids:
+            self.assertEqual(line.invoice_state, "no")
             self.assertEqual(line.qty_to_invoice, 0.0)
             self.assertEqual(line.qty_invoiced, 0.0)
 

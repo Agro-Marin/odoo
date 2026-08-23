@@ -359,10 +359,6 @@ class TestPurchaseStockAdvanced(TestStockCommon):
     # -------------------------------------------------------------------------
 
     def test_transfer_state_no_picking(self):
-        """Test transfer_state when no picking exists.
-
-        When there are no pickings, transfer_state is False (not 'no').
-        """
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.vendor.id,
@@ -378,9 +374,101 @@ class TestPurchaseStockAdvanced(TestStockCommon):
             }
         )
 
-        self.assertFalse(
-            po.transfer_state, "Transfer state should be False before confirmation"
+        self.assertEqual(
+            po.transfer_state,
+            "no",
+            "Transfer state should be 'no' before confirmation",
         )
+
+    def _make_po(self, *quantities):
+        return self.env["purchase.order"].create(
+            {
+                "partner_id": self.vendor.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_storable.id,
+                            "product_qty": qty,
+                            "price_unit": 100,
+                        }
+                    )
+                    for qty in quantities
+                ],
+            }
+        )
+
+    def test_transfer_state_over_done(self):
+        """Receiving more than ordered is reported, not clamped to 'done'.
+
+        The state is read off the quantities for exactly this reason: the
+        picking is ``done`` either way, so nothing at picking level can tell
+        an over-receipt from an exact one.
+        """
+        po = self._make_po(10)
+        po.action_confirm()
+
+        picking = po.picking_ids[0]
+        picking.move_ids.quantity = 12
+        picking.move_ids.picked = True
+        picking.button_validate()
+
+        self.assertEqual(po.line_ids.transfer_state, "over done")
+        self.assertEqual(po.transfer_state, "over done")
+
+    def test_transfer_state_partial_when_one_line_of_two_is_done(self):
+        """A finished line beside an untouched one makes the order partial.
+
+        Neither line is itself ``partial``: one is ``done`` and the other
+        ``to do``. The order has still progressed, and reporting it as
+        ``to do`` would say nothing had happened at all.
+        """
+        po = self._make_po(10, 10)
+        po.action_confirm()
+
+        picking = po.picking_ids[0]
+        first_move = picking.move_ids.filtered(
+            lambda m: m.purchase_line_id == po.line_ids[0]
+        )
+        first_move.quantity = 10
+        first_move.picked = True
+        picking.with_context(skip_backorder=True).button_validate()
+
+        self.assertEqual(po.line_ids[0].transfer_state, "done")
+        self.assertEqual(po.line_ids[1].transfer_state, "to do")
+        self.assertEqual(po.transfer_state, "partial")
+
+    def test_transfer_state_forced_and_released(self):
+        """The force flag pins 'done' and survives a recompute."""
+        po = self._make_po(10)
+        po.action_confirm()
+        self.assertEqual(po.transfer_state, "to do")
+
+        po.action_force_transfer_state()
+        self.assertTrue(po.force_fully_delivered)
+        self.assertEqual(po.transfer_state, "done")
+
+        po.invalidate_recordset(["transfer_state"])
+        self.assertEqual(po.transfer_state, "done")
+
+        po.action_unforce_transfer_state()
+        self.assertFalse(po.force_fully_delivered)
+        self.assertEqual(po.transfer_state, "to do")
+
+    def test_transfer_state_ignores_section_lines(self):
+        """A section carries no quantity, so it cannot hold an order back."""
+        po = self._make_po(10)
+        po.write(
+            {
+                "line_ids": [
+                    Command.create({"display_type": "line_section", "name": "Section"})
+                ]
+            }
+        )
+        po.action_confirm()
+
+        section = po.line_ids.filtered("display_type")
+        self.assertEqual(section.transfer_state, "no")
+        self.assertEqual(po.transfer_state, "to do")
 
     def test_transfer_state_to_do(self):
         """Test transfer_state when picking exists but not done."""
