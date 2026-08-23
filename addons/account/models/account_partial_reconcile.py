@@ -355,7 +355,7 @@ class AccountPartialReconcile(models.Model):
             lambda x: x.tax_exigibility == "on_payment"
         )
         is_refund = base_line.is_refund
-        tax_tags = tax_ids.get_tax_tags(is_refund, "base")
+        tax_tags = tax_ids._get_repartition_tags(is_refund, "base")
         product_tags = base_line.tax_tag_ids.filtered(
             lambda x: x.applicability == "products"
         )
@@ -392,7 +392,7 @@ class AccountPartialReconcile(models.Model):
     @api.model
     def _prepare_cash_basis_tax_line_vals(self, tax_line, balance, amount_currency):
         tax_ids = tax_line.tax_ids.filtered(lambda x: x.tax_exigibility == "on_payment")
-        base_tags = tax_ids.get_tax_tags(
+        base_tags = tax_ids._get_repartition_tags(
             tax_line.tax_repartition_line_id.filtered(
                 lambda rl: rl.document_type == "refund"
             ).tax_id,

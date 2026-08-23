@@ -2502,7 +2502,7 @@ class AccountTax(models.Model):
                     values[raw_base_field] += amount_to_distribute
 
 
-    def get_tax_tags(self, is_refund, repartition_type):
+    def _get_repartition_tags(self, is_refund, repartition_type):
         document_type = "refund" if is_refund else "invoice"
         return self.repartition_line_ids.filtered(
             lambda x: (
