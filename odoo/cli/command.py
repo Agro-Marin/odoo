@@ -20,8 +20,13 @@ COMMAND_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*\Z")
 PROG_NAME = Path(sys.argv[0]).name
 DEFAULT_COMMAND = "server"
 """Command dispatched when argv names none; also rendered by ``help``."""
-MAINTENANCE_DB_MESSAGE = "Refusing to use system or template database {db_name}."
-"""One wording for the one rule :func:`refuse_maintenance_db` enforces."""
+MAINTENANCE_DB_MESSAGE = "Refusing to operate on system or template database {db_name}."
+"""One wording for the one rule :func:`refuse_maintenance_db` enforces.
+
+A neutral verb on purpose: the same sentence has to read correctly for serving,
+creating, dropping and renaming, which the two it replaces ("use", "touch") each
+did for only half of those.
+"""
 commands: dict[str, type[Command]] = {}
 """All loaded commands"""
 

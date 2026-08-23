@@ -184,12 +184,16 @@ class Module(DatabaseCommand):
                 _exit_nothing_done("install", unknown_modules)
             if importable_zipfiles:
                 if "imported" not in env["ir.module.module"]._fields:
-                    _logger.warning(
-                        "Cannot import data modules unless the `base_import_module` module is installed"
+                    # Not a warning-and-carry-on: the caller asked for these
+                    # archives and none of them was imported, so the command
+                    # has done nothing it was asked to do.
+                    sys.exit(
+                        f"Cannot import {len(importable_zipfiles)} data "
+                        "module(s): the `base_import_module` module is not "
+                        "installed in this database."
                     )
-                else:
-                    for importable_zipfile in importable_zipfiles:
-                        env["ir.module.module"]._import_zipfile(importable_zipfile)
+                for importable_zipfile in importable_zipfiles:
+                    env["ir.module.module"]._import_zipfile(importable_zipfile)
 
     def _upgrade(self, parsed_args: argparse.Namespace) -> None:
         with odoo_env(parsed_args.db_name, new_registry=True) as env:

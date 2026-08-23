@@ -12,7 +12,7 @@ from typing import NoReturn
 
 import requests
 
-from ..db import db_connect
+from ..db import SYSTEM_DBS, db_connect
 from ..modules.neutralize import neutralize_database
 from ..service.db import (
     _drop_database,
@@ -396,7 +396,15 @@ class Db(Command):
             )
 
     def dump(self, args: argparse.Namespace) -> None:
-        self._check_not_protected(args.database)
+        # NOT `_check_not_protected`: that rule is about *destructive*
+        # operations, and it also refuses `config["db_template"]`. Dumping is
+        # read-only, and backing up the configured creation template is a
+        # perfectly ordinary thing to want — `test_db_dump_allows_the_template`
+        # pins it. Only the PostgreSQL system databases are refused, because
+        # dumping one of those through Odoo's filestore-aware dumper is
+        # meaningless rather than dangerous.
+        if args.database in SYSTEM_DBS:
+            sys.exit(f"Refusing to dump system database {args.database}.")
         self._check_source_exists(args.database)
         if args.dump_path == "-":
             dump_db(args.database, sys.stdout.buffer, args.dump_format, args.filestore)

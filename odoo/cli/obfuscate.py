@@ -229,25 +229,55 @@ class Obfuscate(DatabaseCommand):
             return self._kind_of(self.cr.fetchone()[0])
         return None
 
-    def find_narrow_fields(
-        self, fields: list[tuple[str, str]]
-    ) -> list[tuple[tuple[str, str], int]]:
-        """Return the ``((table, column), width)`` pairs too narrow to hold
-        ciphertext, so obfuscation can refuse them before it writes anything.
+    def find_unfittable_fields(
+        self, fields: list[tuple[str, str]], pwd: str
+    ) -> list[tuple[tuple[str, str], int, int]]:
+        """Return ``(field, declared_width, projected_length)`` for every
+        length-limited column whose widest value would not survive encryption.
 
-        ``pgp_sym_encrypt`` output, base64-encoded and prefixed, runs to
-        hundreds of characters whatever the input, so a ``varchar(n)`` column
-        raises ``value too long for type character varying(n)`` mid-``UPDATE``.
-        That aborted the run partway: with ``--pertablecommit`` the tables
-        already processed stayed obfuscated and the password marker stayed
-        committed, with nothing recording where the run stopped.
-        ``res_country.code`` is ``varchar(2)`` on any database.
+        Ciphertext length depends only on the **byte** length of the input and
+        on nothing else — measured in PostgreSQL 18.4: 226 characters for any
+        100-ASCII-character value, the same for a longer password, 364 for 100
+        multi-byte characters, and a floor of **99 characters for the empty
+        string**. `varchar(n)` counts characters and the base64 output is all
+        ASCII, so the projection compares directly against ``n``.
+
+        The probe is per column and only for columns that declare a width, so
+        it is one aggregate over a minority of columns. It applies the same
+        ``WHERE`` as the ``UPDATE`` — rows already carrying the marker are not
+        rewritten — which makes the answer exact rather than conservative.
+
+        Without it, `res_country.code` (``varchar(2)`` on any database) raised
+        ``value too long for type character varying(2)`` mid-``UPDATE``, and
+        with ``--pertablecommit`` the tables already processed stayed
+        obfuscated and the password marker stayed committed, with nothing
+        recording where the run stopped.
         """
-        return [
-            (field, self._field_widths[field])
-            for field in fields
-            if field in (self._field_widths or {})
-        ]
+        unfittable = []
+        for field in fields:
+            width = (self._field_widths or {}).get(field)
+            if width is None:
+                continue
+            table, column = field
+            sql_field = SQL.identifier(column)
+            self.cr.execute(
+                SQL(
+                    "SELECT length('odoo_cyph_' || encode(pgp_sym_encrypt("
+                    "repeat('x', COALESCE(MAX(octet_length(%s)), 0)), %s"
+                    "), 'base64')) FROM %s"
+                    " WHERE %s IS NOT NULL AND NOT starts_with(%s, 'odoo_cyph_')",
+                    sql_field,
+                    pwd,
+                    SQL.identifier(table),
+                    sql_field,
+                    sql_field,
+                )
+            )
+            row = self.cr.fetchone()
+            projected = row[0] if row and row[0] is not None else 0
+            if projected > width:
+                unfittable.append((field, width, projected))
+        return unfittable
 
     def get_all_fields(self) -> list[tuple[str, str]]:
         self.cr.execute(
@@ -484,7 +514,7 @@ class Obfuscate(DatabaseCommand):
                     sys.exit(
                         "ERROR: invalid password (the database is encrypted with a different one)."
                     )
-                tables = self._resolve_targets(opt)
+                tables = self._resolve_targets(opt, pwd)
                 if opt.unobfuscate:
                     self._unobfuscate(opt, pwd, tables)
                 else:
@@ -505,7 +535,9 @@ class Obfuscate(DatabaseCommand):
             self._field_kinds = None
             self._field_widths = None
 
-    def _resolve_targets(self, opt: argparse.Namespace) -> dict[str, set[str]]:
+    def _resolve_targets(
+        self, opt: argparse.Namespace, pwd: str
+    ) -> dict[str, set[str]]:
         """Resolve the CLI selection into ``{table: {column, ...}}``.
 
         Everything that can disqualify a column happens here, before a single
@@ -537,7 +569,7 @@ class Obfuscate(DatabaseCommand):
                 )
                 fields = [f for f in fields if f not in absent]
             if not opt.unobfuscate:
-                fields = self._drop_narrow_fields(fields)
+                fields = self._drop_unfittable_fields(fields, pwd, requested)
 
         _logger.info(
             "Processing fields: %s", ", ".join([f"{f[0]}.{f[1]}" for f in fields])
@@ -582,21 +614,44 @@ class Obfuscate(DatabaseCommand):
                 ", ".join(f"{t}.{c}" for t, c in fields),
             )
 
-    def _drop_narrow_fields(
-        self, fields: list[tuple[str, str]]
+    def _drop_unfittable_fields(
+        self,
+        fields: list[tuple[str, str]],
+        pwd: str,
+        requested: set[tuple[str, str]],
     ) -> list[tuple[str, str]]:
-        """Drop the columns whose declared width cannot hold ciphertext."""
-        narrow = self.find_narrow_fields(fields)
-        if narrow:
-            _logger.warning(
-                "Skipping %d column(s) too narrow to hold ciphertext (the "
-                "UPDATE would fail with 'value too long' partway through the "
-                "run): %s",
-                len(narrow),
-                ", ".join(f"{t}.{c} varchar({width})" for (t, c), width in narrow),
+        """Drop the columns whose ciphertext would not fit, and refuse to run
+        at all if the user named one of them.
+
+        The two are not the same request. A field from :data:`DEFAULT_FIELDS`
+        that happens to be narrow in this schema is a convenience list meeting
+        a local fact, and skipping it with a warning is the useful answer. A
+        field the user spelled out in ``--fields``/``--file`` is an
+        instruction, and quietly not obfuscating a column somebody asked to
+        obfuscate is how unprotected data gets shipped believing otherwise —
+        so that one stops the run before anything is written.
+        """
+        unfittable = self.find_unfittable_fields(fields, pwd)
+        if not unfittable:
+            return fields
+        described = ", ".join(
+            f"{t}.{c} is varchar({width}), ciphertext needs {projected}"
+            for (t, c), width, projected in unfittable
+        )
+        if named := [f for f, _w, _p in unfittable if f in requested]:
+            sys.exit(
+                f"ERROR: {len(named)} field(s) you asked for cannot hold "
+                f"ciphertext, and obfuscating the rest would leave them "
+                f"readable: {described}. Drop them from --fields/--file, or "
+                f"widen the column."
             )
-        narrow_fields = {field for field, _width in narrow}
-        return [f for f in fields if f not in narrow_fields]
+        _logger.warning(
+            "Skipping %d built-in field(s) whose column cannot hold ciphertext: %s",
+            len(unfittable),
+            described,
+        )
+        unfittable_fields = {field for field, _w, _p in unfittable}
+        return [f for f in fields if f not in unfittable_fields]
 
     def _obfuscate(
         self, opt: argparse.Namespace, pwd: str, tables: dict[str, set[str]]

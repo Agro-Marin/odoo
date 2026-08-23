@@ -96,7 +96,16 @@ def main(args: list[str]) -> None:
     report_configuration()
 
     for db_name in config["db_name"]:
-        refuse_maintenance_db(db_name)
+        # The hint matters here because `start` routes through this loop: it no
+        # longer vets the name itself, so this is the only place that can tell
+        # the user what to do about it.
+        refuse_maintenance_db(
+            db_name,
+            error_handler=lambda msg: sys.exit(
+                f"{msg} Choose another with -d/--database, or db_name in the "
+                "config file."
+            ),
+        )
 
     for db_name in config["db_name"]:
         try:

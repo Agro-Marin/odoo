@@ -928,9 +928,9 @@ class TestCommand(BaseCase):
             msg="check_field issued a catalog query despite the prefetch",
         )
         self.assertEqual(
-            ob.find_narrow_fields([("res_partner", "name"), ("res_partner", "ref")]),
-            [(("res_partner", "ref"), 8)],
-            msg="the same catalog read must carry the column width",
+            ob._field_widths,
+            {("res_partner", "ref"): 8},
+            msg="the same catalog read must carry the declared column widths",
         )
 
     @unittest.skipIf(os.name != "posix", "`os.openpty` only available on POSIX systems")
@@ -1025,13 +1025,39 @@ class TestCommand(BaseCase):
                     cmd.rename(mock.Mock(source=name, target="tgt", force=True))
                 with self.assertRaises(SystemExit, msg=f"duplicate onto {name}"):
                     cmd.duplicate(mock.Mock(source="src", target=name, force=True))
-            for name in protected:
+            for name in ("postgres", "template0", "template1"):
                 with self.assertRaises(SystemExit, msg=f"dump {name} not refused"):
                     cmd.dump(mock.Mock(database=name))
         drop_mock.assert_not_called()
         create_mock.assert_not_called()
         rename_mock.assert_not_called()
         duplicate_mock.assert_not_called()
+
+    def test_db_dump_allows_the_template(self):
+        """Dumping is read-only, so it must not inherit the destructive rule.
+
+        `_check_not_protected` also refuses `config["db_template"]`, which is
+        right for drop/rename/init and wrong here: backing up the configured
+        creation template is ordinary. This test exists because that unification
+        was attempted and had to be undone.
+        """
+        from odoo.cli import db as dbmod
+
+        if config["db_template"] in SYSTEM_DBS:
+            self.skipTest("db_template is itself a system database here")
+        with (
+            mock.patch.object(dbmod, "exp_db_exist", return_value=True),
+            mock.patch.object(dbmod, "dump_db") as dump_mock,
+        ):
+            dbmod.Db().dump(
+                mock.Mock(
+                    database=config["db_template"],
+                    dump_path="-",
+                    dump_format="zip",
+                    filestore=True,
+                )
+            )
+        dump_mock.assert_called_once()
 
     def _assert_start_hands_db_name_to_the_server(self, db_name):
         from odoo.cli import start as startmod
@@ -1435,35 +1461,76 @@ class TestCommand(BaseCase):
             msg="db re-declares a flag the bootstrap parser always eats first",
         )
 
-    def test_obfuscate_skips_columns_too_narrow_for_ciphertext(self):
-        """Ciphertext is hundreds of characters whatever the input.
+    def test_obfuscate_probes_capacity_rather_than_the_declared_width(self):
+        """A declared width is not by itself a reason to skip a column.
 
-        `--fields res_country.code` (varchar(2) on any database) used to abort
-        the UPDATE with `value too long for type character varying(2)` partway
-        through the run, leaving `--pertablecommit` runs half obfuscated.
+        `pgp_sym_encrypt` output, base64-encoded and prefixed, is 99 characters
+        for the empty string and grows with the input's *byte* length —
+        measured on PostgreSQL 18.4: 226 for any 100-ASCII-character value, the
+        same for a longer password, 364 for 100 multi-byte characters. So a
+        `varchar(400)` holding short values fits and a `varchar(150)` holding
+        the same values does not, and only a probe can tell them apart. An
+        earlier revision of this check skipped every length-limited column,
+        which would have quietly left PII in place in the first case.
         """
         from odoo.cli.obfuscate import Obfuscate
 
         ob = Obfuscate()
+        projections = {"roomy": 180, "snug": 180, "code": 103}
 
         class FakeCur:
+            def __init__(self):
+                self.last = None
+
             def execute(self, query, params=None):
-                pass
+                code = getattr(query, "code", query)
+                self.last = next(
+                    (name for name in projections if f'"{name}"' in code), None
+                )
 
             def fetchall(self):
                 return [
-                    ("res_country", "code", "varchar", 2),
-                    ("res_country", "name", "jsonb", None),
+                    ("t", "roomy", "varchar", 400),
+                    ("t", "snug", "varchar", 150),
+                    ("t", "wide_open", "text", None),
                 ]
 
+            def fetchone(self):
+                return (projections[self.last],)
+
         ob.cr = FakeCur()
-        ob._prefetch_field_kinds({"res_country"})
-        fields = [("res_country", "code"), ("res_country", "name")]
+        ob._prefetch_field_kinds({"t"})
+        fields = [("t", "roomy"), ("t", "snug"), ("t", "wide_open")]
         self.assertEqual(
-            ob._drop_narrow_fields(fields),
-            [("res_country", "name")],
-            msg="a length-limited varchar must not reach the UPDATE",
+            ob.find_unfittable_fields(fields, "pw"),
+            [(("t", "snug"), 150, 180)],
+            msg="only the column that actually cannot hold the ciphertext",
         )
+
+    def test_obfuscate_refuses_a_field_the_user_named_and_cannot_encrypt(self):
+        """Skipping a column somebody asked to obfuscate ships readable PII.
+
+        A `DEFAULT_FIELDS` entry that is narrow in this schema is skipped with
+        a warning; a `--fields`/`--file` entry stops the run before anything is
+        written.
+        """
+        from odoo.cli.obfuscate import Obfuscate
+
+        ob = Obfuscate()
+        fields = [("t", "snug"), ("t", "other")]
+        with mock.patch.object(
+            Obfuscate,
+            "find_unfittable_fields",
+            return_value=[(("t", "snug"), 150, 180)],
+        ):
+            with self.assertRaises(SystemExit) as ctx:
+                ob._drop_unfittable_fields(fields, "pw", {("t", "snug")})
+            self.assertIn("cannot hold ciphertext", str(ctx.exception.code))
+            self.assertEqual(
+                ob._drop_unfittable_fields(fields, "pw", set()),
+                [("t", "other")],
+                msg="a built-in default entry is skipped, not fatal",
+            )
 
     def test_obfuscate_reports_user_named_fields_apart_from_the_defaults(self):
         """A default-list field absent because its module is not installed is

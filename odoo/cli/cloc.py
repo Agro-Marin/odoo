@@ -37,15 +37,19 @@ class Cloc(DatabaseCommand):
 
     def run(self, args: list[str]) -> None:
         opt, unknown = self.parse_args(args)
-        if not opt.db_name and not opt.path:
-            self.parser.print_help(sys.stderr)
-            sys.exit(2)
-
         counter = cloc.Cloc()
+
         # A `--path` run needs no database and must not adopt the one a config
-        # file happens to name; only an explicit `-d` opts into database mode.
+        # file happens to name, so it only reads the config when `-d` opts in.
+        # With no `--path` the config IS consulted: `cloc -c prod.conf` counts
+        # the database that file names, like every other command. The guard
+        # this replaces ran before the config was parsed, so a `db_name` in the
+        # file could only ever produce a usage error.
         if opt.db_name or not opt.path:
-            db_name = self.bootstrap_config(opt, extra_args=unknown)
+            db_name = self.bootstrap_config(opt, allow_none=True, extra_args=unknown)
+            if db_name is None:
+                self.parser.print_help(sys.stderr)
+                sys.exit(2)
             counter.count_database(db_name)
         if opt.path:
             for path in opt.path:
