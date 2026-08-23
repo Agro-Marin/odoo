@@ -66,6 +66,14 @@
                         invisible="purchase_order_count == 1" />
                 </button>
             </xpath>
+            <header position="inside">
+                <field name="purchase_order_count" invisible="1" />
+                <button name="create_purchase_order"
+                    string="Create Purchase"
+                    type="object"
+                    class="oe_highlight"
+                    invisible="move_type != 'in_invoice' or state != 'posted' or purchase_order_count != 0" />
+            </header>
             <header position="after">
                 <div class="alert alert-warning" role="alert"
                     invisible="not purchase_warning_text or move_type != 'in_invoice'">

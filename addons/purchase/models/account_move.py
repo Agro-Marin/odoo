@@ -5,6 +5,7 @@ import time
 from markupsafe import Markup
 
 from odoo import _, api, fields, models
+from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.tools import OrderedSet
 
@@ -282,6 +283,43 @@ class AccountMove(models.Model):
         else:
             result = {"type": "ir.actions.act_window_close"}
         return result
+
+    def create_purchase_order(self) -> bool:
+        self.ensure_one()
+        if any(not line.product_id for line in self.invoice_line_ids):
+            raise UserError(
+                self.env._(
+                    "Some move lines does not have a product set. Please review",
+                ),
+            )
+
+        purchase_exist = self.env["purchase.order"].search(
+            [
+                ("partner_id", "=", self.commercial_partner_id.id),
+                ("company_id", "=", self.company_id.id),
+                ("origin", "=", self.name),
+            ],
+        )
+        if len(purchase_exist) > 1:
+            raise UserError(
+                self.env._(
+                    "More than one Purchase Orders with the same origin have been"
+                    " found. Please review",
+                ),
+            )
+
+        if not purchase_exist:
+            purchase = self.env["purchase.order"].create(
+                self._prepare_purchase_order_vals(),
+            )
+            for move_line_id, vals in self._prepare_purchase_line_vals(
+                purchase,
+            ).items():
+                move_line = self.env["account.move.line"].browse(move_line_id)
+                move_line.purchase_line_ids = self.env["purchase.order.line"].create(
+                    vals,
+                )
+        return True
 
 
     def _add_purchase_order_lines(self, purchase_order_lines):
@@ -587,3 +625,50 @@ class AccountMove(models.Model):
                     ]
                     invoice.purchase_id = purchase_order
                     invoice._onchange_purchase_auto_complete()
+
+
+    def _prepare_purchase_order_vals(self) -> dict:
+        self.ensure_one()
+        return {
+            "company_id": self.company_id.id,
+            "currency_id": self.currency_id.id,
+            "partner_id": self.commercial_partner_id.id,
+            "dest_address_id": False,
+            "date_order": self.invoice_date,
+            "fiscal_position_id": (
+                self.fiscal_position_id
+                or self.env["account.fiscal.position"]._get_fiscal_position(
+                    self.commercial_partner_id,
+                )
+            ).id,
+            "payment_term_id": self.invoice_payment_term_id.id,
+            "origin": self.name,
+            "invoice_state": "done",
+        }
+
+    def _prepare_purchase_line_vals(self, purchase) -> dict:
+        self.ensure_one()
+        purchase_line_vals = {}
+        fpos = purchase.fiscal_position_id
+        for line in self.invoice_line_ids.filtered(
+            lambda ln: ln.display_type == "product",
+        ):
+            taxes = fpos.map_tax(line.product_id.supplier_taxes_id)
+            if taxes:
+                taxes = taxes.filtered(lambda t: t.company_id.id == self.company_id.id)
+            purchase_line_vals[line.id] = {
+                "order_id": purchase.id,
+                "product_id": line.product_id.id,
+                "name": (
+                    f"[{line.product_id.default_code}] {line.name}"
+                    if line.product_id.default_code
+                    else line.name
+                ),
+                "product_qty": line.quantity,
+                "product_uom_id": line.product_uom_id.id,
+                "price_unit": line.price_unit,
+                "date_commitment": purchase.date_order,
+                "tax_ids": [Command.set(taxes.ids)],
+                "analytic_distribution": line.analytic_distribution,
+            }
+        return purchase_line_vals

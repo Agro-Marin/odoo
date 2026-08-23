@@ -1,4 +1,6 @@
 from odoo import _, api, fields, models
+from odoo.exceptions import UserError
+from odoo.fields import Command
 from odoo.tools import OrderedSet, groupby
 
 
@@ -172,6 +174,37 @@ class AccountMove(models.Model):
             result = {"type": "ir.actions.act_window_close"}
         return result
 
+    def create_sale_order(self) -> bool:
+        self.ensure_one()
+        if any(not line.product_id for line in self.invoice_line_ids):
+            raise UserError(
+                self.env._(
+                    "Some move lines does not have a product set. Please review",
+                ),
+            )
+
+        sale_exist = self.env["sale.order"].search(
+            [
+                ("partner_id", "=", self.commercial_partner_id.id),
+                ("company_id", "=", self.company_id.id),
+                ("origin", "=", self.name),
+            ],
+        )
+        if len(sale_exist) > 1:
+            raise UserError(
+                self.env._(
+                    "More than one Sale Orders with the same origin have been found."
+                    " Please review",
+                ),
+            )
+
+        if not sale_exist:
+            sale = self.env["sale.order"].create(self._prepare_sale_order_vals())
+            for move_line_id, vals in self._prepare_sale_line_vals(sale).items():
+                move_line = self.env["account.move.line"].browse(move_line_id)
+                move_line.sale_line_ids = self.env["sale.order.line"].create(vals)
+        return True
+
     def _post(self, soft=True):
         posted = super()._post(soft)
 
@@ -264,3 +297,47 @@ class AccountMove(models.Model):
                 sale_line.is_downpayment for sale_line in self.line_ids.sale_line_ids
             )
         ) or False
+
+    def _prepare_sale_order_vals(self) -> dict:
+        self.ensure_one()
+        return {
+            "company_id": self.company_id.id,
+            "currency_id": self.currency_id.id,
+            "partner_id": self.commercial_partner_id.id,
+            "date_order": self.invoice_date,
+            "fiscal_position_id": (
+                self.fiscal_position_id
+                or self.env["account.fiscal.position"]._get_fiscal_position(
+                    self.commercial_partner_id,
+                )
+            ).id,
+            "payment_term_id": self.invoice_payment_term_id.id,
+            "origin": self.name,
+            "invoice_state": "done",
+        }
+
+    def _prepare_sale_line_vals(self, sale) -> dict:
+        self.ensure_one()
+        sale_line_vals = {}
+        fpos = sale.fiscal_position_id
+        for line in self.invoice_line_ids.filtered(
+            lambda ln: ln.display_type == "product",
+        ):
+            taxes = fpos.map_tax(line.product_id.taxes_id)
+            if taxes:
+                taxes = taxes.filtered(lambda t: t.company_id.id == self.company_id.id)
+            sale_line_vals[line.id] = {
+                "order_id": sale.id,
+                "product_id": line.product_id.id,
+                "name": (
+                    f"[{line.product_id.default_code}] {line.name}"
+                    if line.product_id.default_code
+                    else line.name
+                ),
+                "product_qty": line.quantity,
+                "product_uom_id": line.product_uom_id.id,
+                "price_unit": line.price_unit,
+                "tax_ids": [Command.set(taxes.ids)],
+                "analytic_distribution": line.analytic_distribution,
+            }
+        return sale_line_vals

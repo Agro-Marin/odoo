@@ -65,6 +65,14 @@
                 position="attributes">
                 <attribute name="readonly">is_downpayment</attribute>
             </xpath>
+            <header position="inside">
+                <field name="sale_order_count" invisible="1" />
+                <button name="create_sale_order"
+                    string="Create Sale"
+                    type="object"
+                    class="oe_highlight"
+                    invisible="move_type != 'out_invoice' or state != 'posted' or sale_order_count != 0" />
+            </header>
             <header position="after">
                 <div class="alert alert-warning" role="alert"
                     invisible="not sale_warning_text or move_type != 'out_invoice'">
