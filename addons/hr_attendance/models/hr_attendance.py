@@ -261,8 +261,8 @@ class HrAttendance(models.Model):
         assert self
         dates = self.mapped('date')
         date_start, date_end = min(dates), max(dates)
-        date_start = date_start - relativedelta(days=date_start.weekday())
-        date_end = date_end + relativedelta(days=6 - date_end.weekday())
+        date_start -= relativedelta(days=date_start.weekday())
+        date_end += relativedelta(days=6 - date_end.weekday())
         return date_start, date_end
 
     def _get_overtimes_to_update_domain(self):

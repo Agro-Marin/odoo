@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import Command, api, fields, models, _
+from odoo import Command, _, api, fields, models
 
 
 class HrExpenseApproveDuplicate(models.TransientModel):

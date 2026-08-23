@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 from odoo import api, fields, models, tools
 
@@ -69,13 +68,13 @@ class MaintenanceEquipment(models.Model):
                 partner_ids.append(department.manager_id.user_id.partner_id.id)
         if partner_ids:
             self.message_subscribe(partner_ids=partner_ids)
-        return super(MaintenanceEquipment, self).write(vals)
+        return super().write(vals)
 
     def _track_subtype(self, init_values):
         self.ensure_one()
         if ('employee_id' in init_values and self.employee_id) or ('department_id' in init_values and self.department_id):
             return self.env.ref('maintenance.mt_mat_assign')
-        return super(MaintenanceEquipment, self)._track_subtype(init_values)
+        return super()._track_subtype(init_values)
 
 
 class MaintenanceRequest(models.Model):
@@ -110,7 +109,7 @@ class MaintenanceRequest(models.Model):
             employee = self.env['hr.employee'].browse(vals['employee_id'])
             if employee and employee.user_id:
                 self.message_subscribe(partner_ids=[employee.user_id.partner_id.id])
-        return super(MaintenanceRequest, self).write(vals)
+        return super().write(vals)
 
     @api.model
     def message_new(self, msg_dict, custom_values=None):

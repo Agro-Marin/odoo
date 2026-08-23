@@ -2,8 +2,7 @@
 
 import logging
 
-from ast import literal_eval
-from odoo import fields, models, _, api
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Datetime
 
@@ -55,7 +54,7 @@ class HrEmployee(models.Model):
                 if any(ip in ip_list for ip in employee_ips):
                     ip_employees |= employee
             ip_employees.write({'ip_connected': True})
-            employees = employees - ip_employees
+            employees -= ip_employees
 
         # Check on sent emails
         if company.hr_presence_control_email:
@@ -69,7 +68,7 @@ class HrEmployee(models.Model):
                 if sent_emails >= threshold:
                     email_employees |= employee
             email_employees.write({'email_sent': True})
-            employees = employees - email_employees
+            employees -= email_employees
 
         company.sudo().hr_presence_last_compute_date = Datetime.now()
 

@@ -72,7 +72,7 @@ class ResPartner(models.Model):
                     calendar_interval = interval_by_calendar[calendar]
                 else:
                     calendar_interval = interval_by_calendar[calendar][employee.resource_id.id]
-                employee_interval = employee_interval | (calendar_interval & interval)
+                employee_interval |= (calendar_interval & interval)
             schedule_by_employee[employee] = employee_interval
 
         # Compute partner's schedule equals to the union between his employees's schedule
@@ -81,7 +81,7 @@ class ResPartner(models.Model):
             partner_schedule = Intervals([])
             for employee in employees:
                 if schedule_by_employee[employee]:
-                    partner_schedule = partner_schedule | schedule_by_employee[employee]
+                    partner_schedule |= schedule_by_employee[employee]
             schedules[partner] = partner_schedule
         return schedules
 

@@ -52,7 +52,7 @@ class ReportHr_HolidaysReport_Holidayssummary(models.AbstractModel):
         for _x in range(60):
             color = '#ababab' if self._date_is_day_off(start_date) else ''
             res.append({'day_str': babel.dates.get_day_names('abbreviated', locale=get_lang(self.env).code)[start_date.weekday()], 'day': start_date.day, 'color': color})
-            start_date = start_date + relativedelta(days=1)
+            start_date += relativedelta(days=1)
         return res
 
     def _get_months(self, start_date):

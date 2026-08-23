@@ -271,7 +271,7 @@ class HrAttendanceOvertimeRule(models.Model):
         date_start = date
         date_end = date
         if period == 'week':
-            date_start = date_start - relativedelta(days=date_start.weekday())  # Set to Monday
+            date_start -= relativedelta(days=date_start.weekday())  # Set to Monday
             date_end = date_start + relativedelta(days=6)  # Set to Sunday
         date_start = datetime.combine(date_start, datetime.min.time())
         date_end = datetime.combine(date_end, datetime.max.time())
@@ -306,7 +306,7 @@ class HrAttendanceOvertimeRule(models.Model):
         employee = attendances.employee_id
         company = self.company_id or employee.company_id
         if company.absence_management and float_compare(overtime_amount, -self.employee_tolerance, 5) == -1:
-            last_attendance = sorted(intervals_attendance_by_attendance.keys(), key=lambda att: att.check_out)[-1]
+            last_attendance = max(intervals_attendance_by_attendance.keys(), key=lambda att: att.check_out)
             return {}, {last_attendance: [(overtime_amount, self)]}
 
         if float_compare(overtime_amount, self.employer_tolerance, 5) != 1:
@@ -328,7 +328,7 @@ class HrAttendanceOvertimeRule(models.Model):
                 new_start = interval_stop - timedelta(hours=interval_overtime_duration)
                 remaining_duration = 0
                 overtime_intervals[attendance].append((new_start, interval_stop, self))
-                remanining_overtime_amount = remanining_overtime_amount - interval_overtime_duration
+                remanining_overtime_amount -= interval_overtime_duration
                 if remanining_overtime_amount <= 0:
                     return overtime_intervals, {}
         return overtime_intervals, {}
@@ -379,8 +379,7 @@ class HrAttendanceOvertimeRule(models.Model):
                     continue
                 start = datetime.combine(start_day, datetime.min.time())
                 stop = datetime.combine(stop_day, datetime.max.time())
-                for day in rrule(freq=DAILY, dtstart=start, until=stop):
-                    dates.add(day.date())
+                dates.update(day.date() for day in rrule(freq=DAILY, dtstart=start, until=stop))
             days_intervals.extend(
                 (
                     datetime.combine(date, datetime.min.time()),

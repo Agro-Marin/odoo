@@ -164,7 +164,7 @@ class AccountAnalyticLine(models.Model):
 
     def _compute_calendar_display_name(self):
         companies = self.company_id
-        encoding_in_days_per_company = dict(zip(companies, [company.timesheet_encode_uom_id == self.env.ref('uom.product_uom_day') for company in companies]))
+        encoding_in_days_per_company = dict(zip(companies, [company.timesheet_encode_uom_id == self.env.ref('uom.product_uom_day') for company in companies], strict=True))
         for line in self:
             if not line.project_id:
                 line.calendar_display_name = ""
@@ -222,7 +222,7 @@ class AccountAnalyticLine(models.Model):
         valid_vals = 0
         for vals in vals_list[:]:
             if self.env.context.get('timesheet_calendar'):
-                if not 'employee_id' in vals:
+                if 'employee_id' not in vals:
                     vals['employee_id'] = self.env.user.employee_id.id
                 employee = self.env['hr.employee'].browse(vals['employee_id'])
                 date = fields.Date.from_string(vals.get('date', fields.Date.to_string(fields.Date.context_today(self))))
@@ -238,7 +238,7 @@ class AccountAnalyticLine(models.Model):
             if not (task or project):
                 # It is not a timesheet
                 continue
-            elif task:
+            if task:
                 if not task.project_id:
                     raise ValidationError(_('Timesheets cannot be created on a private task.'))
                 if not project:
@@ -302,16 +302,14 @@ class AccountAnalyticLine(models.Model):
                 if employee_in_id in valid_employee_per_id:
                     vals['user_id'] = valid_employee_per_id[employee_in_id].sudo().user_id.id   # (A) OK
                     continue
-                else:
-                    raise ValidationError(error_msg)                                            # (C) KO
-            else:
-                user_id = vals.get('user_id', default_user_id)                                  # (B)...
+                raise ValidationError(error_msg)                                            # (C) KO
+            user_id = vals.get('user_id', default_user_id)                                  # (B)...
 
             # ...Look for an employee, with ** conditions
             employee_per_company = employee_id_per_company_per_user.get(user_id)
             employee_out_id = False
             if employee_per_company:
-                company_id = list(employee_per_company)[0] if len(employee_per_company) == 1\
+                company_id = next(iter(employee_per_company)) if len(employee_per_company) == 1\
                         else vals.get('company_id') or self.env.company.id
                 employee_out_id = employee_per_company.get(company_id, False)
 
@@ -330,7 +328,7 @@ class AccountAnalyticLine(models.Model):
         # 5/ Finally, create the timesheets
         lines = super().create(vals_list)
         lines._check_can_create()
-        for line, values in zip(lines, vals_list):
+        for line, values in zip(lines, vals_list, strict=True):
             if line.project_id:  # applied only for timesheet
                 line._timesheet_postprocess(values)
 

@@ -15,8 +15,8 @@ class HrDepartureWizard(models.TransientModel):
         return action
 
     def _free_company_car(self):
-        """Find all fleet.vehichle.assignation.log records that link to the employee, if there is no 
-        end date or end date > departure date, update the date. Also check fleet.vehicle to see if 
+        """Find all fleet.vehichle.assignation.log records that link to the employee, if there is no
+        end date or end date > departure date, update the date. Also check fleet.vehicle to see if
         there is any record with its driver_id to be the employee, set them to False."""
         drivers = self.employee_ids.user_id.partner_id | self.employee_ids.sudo().work_contact_id
         assignations = self.env['fleet.vehicle.assignation.log'].search([

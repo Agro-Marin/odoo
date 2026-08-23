@@ -543,7 +543,7 @@ class HrLeaveType(models.Model):
                     amount = excess_days['amount']
                     lt_info[1]['virtual_excess_data'].update({
                         excess_date.strftime('%Y-%m-%d'): excess_days
-                    }),
+                    })
                     lt_info[1]['total_virtual_excess'] += amount
                     if not leave_type.allows_negative:
                         continue

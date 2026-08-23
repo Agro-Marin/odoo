@@ -13,4 +13,3 @@ class HrDepartment(models.Model):
         result = {department.id: count for department, count in expense_data}
         for department in self:
             department.expenses_to_approve_count = result.get(department.id, 0)
-

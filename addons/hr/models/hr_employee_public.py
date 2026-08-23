@@ -2,7 +2,7 @@
 
 from datetime import UTC, timedelta
 
-from odoo import api, fields, models, tools
+from odoo import api, fields, models
 from odoo.db.schema import drop_view_if_exists
 from odoo.libs.datetime import timezone
 from odoo.tools import format_time

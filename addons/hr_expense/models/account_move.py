@@ -1,7 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from markupsafe import Markup
 
-from odoo import Command, models, fields, api, _
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.tools.misc import frozendict
 

@@ -2547,7 +2547,7 @@ We can redirect you to the public employee list."""
                     resources=self.resource_id,
                     lunch=True,
                 )[self.resource_id.id]
-                duration_data = duration_data | lunch_intervals
+                duration_data |= lunch_intervals
             return duration_data
 
     def _get_expected_attendances(self, date_from, date_to):
@@ -2600,7 +2600,7 @@ We can redirect you to the public employee list."""
                     ("time_type", "=", "leave"),
                 ],
             )[self.resource_id.id]
-            duration_data = duration_data | version_intervals
+            duration_data |= version_intervals
         return duration_data
 
     def _get_calendar_attendances(self, date_from, date_to):

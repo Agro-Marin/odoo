@@ -1,20 +1,18 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from lxml import etree
 from unittest.mock import patch
 
 from odoo import fields
+from odoo.exceptions import AccessError, RedirectWarning, UserError, ValidationError
 from odoo.fields import Command
 from odoo.tests import Form, TransactionCase, new_test_user
-from odoo.exceptions import AccessError, RedirectWarning, UserError, ValidationError
 
 
 class TestCommonTimesheet(TransactionCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestCommonTimesheet, cls).setUpClass()
+        super().setUpClass()
 
         # Crappy hack to disable the rule from timesheet grid, if it exists
         # The registry doesn't contain the field timesheet_manager_id.
@@ -147,7 +145,7 @@ class TestTimesheet(TestCommonTimesheet):
 
         # employee 1 cannot log timesheet for employee 2
         with self.assertRaises(AccessError):
-            timesheet2 = Timesheet.with_user(self.user_employee).create({
+            Timesheet.with_user(self.user_employee).create({
                 'project_id': self.project_customer.id,
                 'task_id': self.task1.id,
                 'name': 'a second timesheet but for employee 2',

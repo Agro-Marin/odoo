@@ -12,3 +12,4 @@ class HrEmployeePublic(models.Model):
         self.ensure_one()
         if self.is_user:
             return self.employee_id.action_timesheet_from_employee()
+        return None

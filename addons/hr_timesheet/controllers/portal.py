@@ -1,14 +1,17 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from dateutil.relativedelta import relativedelta
 from operator import itemgetter
 
-from odoo import fields, http, _
+from dateutil.relativedelta import relativedelta
+
+from odoo import _, fields, http
 from odoo.fields import Domain
 from odoo.http import request
-from odoo.tools import date_utils, groupby as groupbyelem
+from odoo.tools import date_utils
+from odoo.tools import groupby as groupbyelem
 
-from odoo.addons.portal.controllers.portal import CustomerPortal, pager as portal_pager
+from odoo.addons.portal.controllers.portal import CustomerPortal
+from odoo.addons.portal.controllers.portal import pager as portal_pager
 from odoo.addons.project.controllers.portal import ProjectCustomerPortal
 
 

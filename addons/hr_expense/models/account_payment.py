@@ -1,7 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, models, fields, _
-from odoo.exceptions import UserError, ValidationError
+from odoo import _, fields, models
+from odoo.exceptions import UserError
 
 
 class AccountPayment(models.Model):
@@ -24,7 +24,7 @@ class AccountPayment(models.Model):
     def write(self, vals):
         trigger_fields = {
             'date', 'amount', 'payment_type', 'partner_type', 'payment_reference',
-            'currency_id', 'partner_id', 'destination_account_id', 'partner_bank_id', 'journal_id'
+            'currency_id', 'partner_id', 'destination_account_id', 'partner_bank_id', 'journal_id',
             'ref', 'payment_method_line_id'
         }
         if self.expense_ids and any(field_name in trigger_fields for field_name in vals):
@@ -48,4 +48,3 @@ class AccountPayment(models.Model):
         if self.move_id.expense_ids:
             return _("Payment created for: %s", self.move_id.expense_ids._get_html_link())
         return super()._creation_message()
-

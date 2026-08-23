@@ -29,7 +29,7 @@ class ResConfigSettings(models.TransientModel):
 
     @api.model
     def get_values(self):
-        res = super(ResConfigSettings, self).get_values()
+        res = super().get_values()
         expense_alias = self.env.ref('hr_expense.mail_alias_expense', raise_if_not_found=False)
         res.update(
             hr_expense_alias_prefix=expense_alias.alias_name if expense_alias else False,

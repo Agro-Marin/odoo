@@ -1,7 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from copy import deepcopy
 
-from odoo import fields, models, api, Command
+from odoo import Command, api, fields, models
 from odoo.tools import float_compare
 
 from odoo.addons.hr_expense.models.hr_expense import EXPENSE_APPROVAL_STATE

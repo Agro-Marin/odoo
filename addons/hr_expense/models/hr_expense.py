@@ -1,15 +1,22 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import re
-
-from markupsafe import Markup
 import logging
+import re
 from urllib.parse import urlencode
 
-from odoo import api, fields, Command, models, _
-from odoo.exceptions import RedirectWarning, UserError, ValidationError
-from odoo.tools import clean_context, email_normalize, float_repr, float_round, format_date, is_html_empty, parse_version
+from markupsafe import Markup
 
+from odoo import Command, _, api, fields, models
+from odoo.exceptions import RedirectWarning, UserError, ValidationError
+from odoo.tools import (
+    clean_context,
+    email_normalize,
+    float_repr,
+    float_round,
+    format_date,
+    is_html_empty,
+    parse_version,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -290,7 +297,7 @@ class HrExpense(models.Model):
         for expense in self:
             total_amount_is_zero = expense.company_currency_id.is_zero(expense.total_amount)
             total_amount_currency_is_zero = expense.currency_id.is_zero(expense.total_amount_currency)
-            if (expense.state != 'draft' or expense.approval_state != False) and (total_amount_is_zero or total_amount_currency_is_zero):
+            if (expense.state != 'draft' or expense.approval_state) and (total_amount_is_zero or total_amount_currency_is_zero):
                 raise ValidationError(_("Only draft expenses can have a total of 0."))
 
     @api.constrains('account_move_id')
@@ -470,9 +477,7 @@ class HrExpense(models.Model):
                 if expense.payment_mode == 'company_account':
                     # Shortcut to paid, as it's already paid, but we may not have the bank statement yet
                     expense.state = 'paid'
-                elif move.state == 'draft':
-                    expense.state = 'posted'
-                elif move.payment_state == 'not_paid':
+                elif move.state == 'draft' or move.payment_state == 'not_paid':
                     expense.state = 'posted'
                 elif (
                         move.payment_state == 'in_payment'
@@ -736,9 +741,9 @@ class HrExpense(models.Model):
             self.env.cr.execute(duplicates_query, {'expense_ids': list(expenses.ids)})
 
             for duplicates_ids in (x[0] for x in self.env.cr.fetchall()):
-                expenses_duplicates = expenses.filtered(lambda expense: expense.id in duplicates_ids)
+                expenses_duplicates = expenses.filtered(lambda expense, duplicates_ids=duplicates_ids: expense.id in duplicates_ids)
                 expenses_duplicates.duplicate_expense_ids = [Command.set(duplicates_ids)]
-                expenses = expenses - expenses_duplicates
+                expenses -= expenses_duplicates
 
     @api.depends('product_id', 'account_id', 'employee_id')
     def _compute_analytic_distribution(self):
@@ -808,10 +813,10 @@ class HrExpense(models.Model):
                 raise UserError(_('You cannot delete a posted or approved expense.'))
 
     def write(self, vals):
-        if any(field in vals for field in {'is_editable', 'can_approve', 'can_refuse'}):
+        if any(field in vals for field in ('is_editable', 'can_approve', 'can_refuse')):
             raise UserError(_("You cannot edit the security fields of an expense manually"))
 
-        if any(field in vals for field in {'tax_ids', 'analytic_distribution', 'account_id', 'manager_id'}):
+        if any(field in vals for field in ('tax_ids', 'analytic_distribution', 'account_id', 'manager_id')):
             if any((not expense.is_editable and not self.env.su) for expense in self):
                 raise UserError(_(
                     "Uh-oh! You can’t edit this expense.\n\n"
@@ -907,7 +912,7 @@ class HrExpense(models.Model):
                 currencies = currencies.filtered(lambda c: currency_str in [c.symbol, c.name])
                 currency = currencies[:1] or currency
             expense_description = expense_description.replace(full_str, ' ')  # remove price from description
-            expense_description = re.sub(' +', ' ', expense_description.strip())
+            expense_description = re.sub(r' +', ' ', expense_description.strip())
 
         return float(price), currency, expense_description
 
@@ -1045,7 +1050,7 @@ class HrExpense(models.Model):
                 _logger.warning(_("Failed to send mails for submitted expenses. No valid email was found for the company"))
                 continue
 
-            for manager, expenses_submitted in expenses_submitted_per_company.grouped('manager_id').items():
+            for manager in expenses_submitted_per_company.grouped('manager_id'):
                 if not manager:
                     continue
                 manager_langs = tuple(lang for lang in manager.partner_id.mapped('lang') if lang)
@@ -1162,6 +1167,7 @@ class HrExpense(models.Model):
             action['context'] = {'default_expense_ids': duplicates.ids}
             return action
         self._do_approve(False)
+        return None
 
     def action_refuse(self):
         """ Refuse an expense with a reason """
@@ -1189,6 +1195,7 @@ class HrExpense(models.Model):
 
         if employee_expenses:
             return employee_expenses.with_context(company_paid_move_ids=company_expenses.account_move_id.ids)._post_wizard()
+        return None
 
     def action_pay(self):
         """ Register payment shortcut on the expense form view """
@@ -1562,14 +1569,14 @@ class HrExpense(models.Model):
         moves_sudo = self.env['account.move'].sudo()
 
         if company_account_expenses:
-            move_vals_list, payment_vals_list = zip(*[expense._prepare_payments_vals() for expense in company_account_expenses])
+            move_vals_list, payment_vals_list = zip(*[expense._prepare_payments_vals() for expense in company_account_expenses], strict=True)
 
             payment_moves_sudo = self.env['account.move'].sudo().create(move_vals_list)
-            for payment_vals, move in zip(payment_vals_list, payment_moves_sudo):
+            for payment_vals, move in zip(payment_vals_list, payment_moves_sudo, strict=True):
                 payment_vals['move_id'] = move.id
 
             payments_sudo = self.env['account.payment'].sudo().create(payment_vals_list)
-            for payment_sudo, move_sudo in zip(payments_sudo, payment_moves_sudo):
+            for payment_sudo, move_sudo in zip(payments_sudo, payment_moves_sudo, strict=True):
                 move_sudo.update({
                     'origin_payment_id': payment_sudo.id,
                     # We need to put the journal_id because editing origin_payment_id triggers a re-computation chain
@@ -1583,11 +1590,10 @@ class HrExpense(models.Model):
         return moves_sudo.sudo(self.env.su)
 
     def _prepare_receipts_vals(self):
-        attachments_data = []
-        for attachment in self.attachment_ids:
-            attachments_data.append(
-                Command.create(attachment.copy_data({'res_model': 'account.move', 'res_id': False, 'raw': attachment.raw})[0])
-            )
+        attachments_data = [
+            Command.create(attachment.copy_data({'res_model': 'account.move', 'res_id': False, 'raw': attachment.raw})[0])
+            for attachment in self.attachment_ids
+        ]
 
         return_vals = []
         for employee_sudo, expenses_sudo in self.sudo().grouped('employee_id').items():

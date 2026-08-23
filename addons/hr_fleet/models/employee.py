@@ -1,8 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import _, api, fields, models
-from odoo.fields import Domain
 from odoo.exceptions import ValidationError
+from odoo.fields import Domain
 
 
 class HrEmployee(models.Model):
@@ -74,10 +74,10 @@ class HrEmployee(models.Model):
                             ('future_driver_employee_id', '=', employee.id),
                     ])
                     if car_ids:
-                        car_ids.filtered(lambda c: c.driver_employee_id.id == employee.id).write({
+                        car_ids.filtered(lambda c, employee=employee: c.driver_employee_id.id == employee.id).write({
                             'driver_id': vals['work_contact_id'],
                         })
-                        car_ids.filtered(lambda c: c.future_driver_employee_id.id == employee.id).write({
+                        car_ids.filtered(lambda c, employee=employee: c.future_driver_employee_id.id == employee.id).write({
                             'future_driver_id': vals['work_contact_id'],
                         })
 

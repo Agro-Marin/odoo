@@ -1,9 +1,10 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.mail.tests.common import MailCase
 from odoo import fields
-from odoo.addons.hr_expense.tests.common import TestExpenseCommon
 from odoo.tests import tagged
+
+from odoo.addons.hr_expense.tests.common import TestExpenseCommon
+from odoo.addons.mail.tests.common import MailCase
 
 
 @tagged('-at_install', 'post_install')

@@ -424,7 +424,7 @@ class HrLeaveAllocation(models.Model):
             added_value = level.added_value
         # Convert time in hours to time in days in case the level is encoded in hours
         if level.added_value_type == 'hour':
-            added_value = added_value / self.employee_id._get_hours_per_day(self.date_from)
+            added_value /= self.employee_id._get_hours_per_day(self.date_from)
         period_prorata = 1
         if (start_period != start_date or end_period != end_date) and not level.accrual_plan_id.is_based_on_worked_time:
             period_days = (end_period - start_period)
