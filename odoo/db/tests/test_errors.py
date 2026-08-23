@@ -64,12 +64,12 @@ class TestStaleCachedPlanMarker(unittest.TestCase):
             PG_STALE_PLAN_EXCEPTIONS, (psycopg.errors.FeatureNotSupported,)
         )
         for cls in PG_STALE_PLAN_EXCEPTIONS:
-            self.assertEqual(cls.sqlstate, "0A000")
+            self.assertEqual(getattr(cls, "sqlstate", None), "0A000")
 
     def test_it_is_not_in_the_sqlstate_retry_taxonomy(self):
         for cls in PG_STALE_PLAN_EXCEPTIONS:
             self.assertNotIn(
-                cls.sqlstate,
+                getattr(cls, "sqlstate", None),
                 PG_RETRY_SQLSTATES,
                 "0A000 must NOT be blanket-retryable: it also covers permanent "
                 "failures. Only a marked instance is retried.",

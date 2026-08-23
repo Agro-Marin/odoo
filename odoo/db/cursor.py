@@ -453,7 +453,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         if not isinstance(exc, PG_STALE_PLAN_EXCEPTIONS):
             return False
         prepared = getattr(self._cnx, "_prepared", None)
-        if not getattr(prepared, "_names", None):
+        if prepared is None or not getattr(prepared, "_names", None):
             return False
         with suppress(Exception):
             prepared.clear()
