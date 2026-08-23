@@ -143,15 +143,14 @@ class StockMove(models.Model):
                 move.manual_consumption = move._is_manual_consumption()
 
     @api.depends(
-        "raw_material_production_id.location_src_id", "production_id.location_src_id"
+        "raw_material_production_id.location_src_id",
+        "production_id.production_location_id",
     )
     def _compute_location_id(self):
         ids_to_super = set()
         for move in self:
             if move.production_id:
-                move.location_id = move.product_id.with_company(
-                    move.company_id
-                ).property_stock_production.id
+                move.location_id = move.production_id.production_location_id
             elif move.raw_material_production_id:
                 move.location_id = move.raw_material_production_id.location_src_id
             else:
@@ -159,7 +158,8 @@ class StockMove(models.Model):
         return super(StockMove, self.browse(ids_to_super))._compute_location_id()
 
     @api.depends(
-        "raw_material_production_id.location_dest_id", "production_id.location_dest_id"
+        "raw_material_production_id.production_location_id",
+        "production_id.location_dest_id",
     )
     def _compute_location_dest_id(self):
         ids_to_super = set()
@@ -167,9 +167,9 @@ class StockMove(models.Model):
             if move.production_id:
                 move.location_dest_id = move.production_id.location_dest_id
             elif move.raw_material_production_id:
-                move.location_dest_id = move.product_id.with_company(
-                    move.company_id
-                ).property_stock_production.id
+                move.location_dest_id = (
+                    move.raw_material_production_id.production_location_id
+                )
             else:
                 ids_to_super.add(move.id)
         return super(StockMove, self.browse(ids_to_super))._compute_location_dest_id()
@@ -450,14 +450,7 @@ class StockMove(models.Model):
             ):
                 continue
             if move.product_uom_id.compare(move.product_uom_qty, 0) > 0:
-                if (
-                    move._should_bypass_reservation()
-                    or move.picking_type_id.reservation_method == "at_confirm"
-                    or (
-                        move.date_reservation
-                        and move.date_reservation <= fields.Date.today()
-                    )
-                ):
+                if move._should_assign_at_confirm():
                     to_assign |= move
             proc_move.add(move.id)
 

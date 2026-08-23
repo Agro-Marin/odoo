@@ -1684,3 +1684,69 @@ class TestMrpAuditFixes(TestMrpCommon):
             "sibling was in the same recordset",
         )
         self.assertEqual(confirmed.product_id, original)
+
+    def test_every_path_agrees_on_the_orders_production_location(self):
+        unit = self.env.ref("uom.product_uom_unit")
+        company = self.env.company
+        finished_location = self.env["stock.location"].create(
+            {"name": "Audit prod FIN", "usage": "production", "company_id": company.id}
+        )
+        component_location = self.env["stock.location"].create(
+            {"name": "Audit prod COMP", "usage": "production", "company_id": company.id}
+        )
+        finished = self.env["product.product"].create(
+            {"name": "Audit prodloc finished", "is_storable": True}
+        )
+        component = self.env["product.product"].create(
+            {"name": "Audit prodloc component", "is_storable": True}
+        )
+        finished.with_company(company).property_stock_production = finished_location
+        component.with_company(company).property_stock_production = component_location
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "product_uom_id": unit.id,
+                "type": "normal",
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "product_qty": 2.0, "bom_id": bom.id}
+        )
+        expected = production.production_location_id
+        self.assertEqual(expected, finished_location)
+
+        raw_move = production.move_raw_ids
+        self.assertEqual(raw_move.location_dest_id, expected)
+        self.assertEqual(production.move_finished_ids.location_id, expected)
+        self.assertEqual(
+            production._get_move_raw_values(
+                component, 1.0, unit, bom_line=bom.bom_line_ids[0]
+            )["location_dest_id"],
+            expected.id,
+            "the vals builder used to spell this as the finished product's own "
+            "property_stock_production, with no company fallback",
+        )
+
+        # the compute, which is what an unsaved form row shows and what a move
+        # linked to the order after the fact gets
+        linked = self.env["stock.move"].create(
+            {
+                "product_id": component.id,
+                "product_uom_qty": 1,
+                "product_uom_id": unit.id,
+                "location_id": production.location_src_id.id,
+                "location_dest_id": production.location_src_id.id,
+                "company_id": company.id,
+            }
+        )
+        linked.write({"raw_material_production_id": production.id})
+        self.assertEqual(
+            linked.location_dest_id,
+            expected,
+            "the compute used to answer with the component's production location, "
+            "which disagreed with everything that actually got saved",
+        )

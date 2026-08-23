@@ -1667,15 +1667,7 @@ class StockMove(models.Model):
 
         new_push_moves = moves._reverse_negative_demand()
 
-        moves.filtered(
-            lambda move: (
-                move.state in ("confirmed", "partially_available")
-                and (
-                    move._should_bypass_reservation()
-                    or move._should_assign_at_confirm()
-                )
-            ),
-        )._action_assign()
+        moves._filter_to_assign_at_confirm()._action_assign()
         new_push_moves._confirm_pushed_moves()
         return moves
 
@@ -4512,4 +4504,13 @@ class StockMove(models.Model):
             self._should_bypass_reservation()
             or self.picking_type_id.reservation_method == "at_confirm"
             or (self.date_reservation and self.date_reservation <= fields.Date.today())
+        )
+
+    def _filter_to_assign_at_confirm(self):
+        """The moves in `self` that confirming should reserve straight away."""
+        return self.filtered(
+            lambda move: (
+                move.state in ("confirmed", "partially_available")
+                and move._should_assign_at_confirm()
+            )
         )

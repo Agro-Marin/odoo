@@ -1298,7 +1298,7 @@ class MrpProduction(models.Model):
         for order in self:
             order.show_lock = order.state == "done" or (
                 not self.env.user.has_group("mrp.group_unlocked_by_default")
-                and order.id is not False
+                and order.id
                 and order.state not in {"cancel", "draft"}
             )
 
@@ -1516,6 +1516,9 @@ class MrpProduction(models.Model):
             production_with_move_finished_ids_to_unlink_ids
         )
 
+        # both statements are load-bearing: `delete` takes the saved moves, and
+        # `clear` takes the NewId ones a Form has added but not written, which
+        # `delete` cannot address
         production_with_move_finished_ids_to_unlink.move_finished_ids = [
             Command.delete(m)
             for m in production_with_move_finished_ids_to_unlink.move_finished_ids.ids
@@ -1843,19 +1846,7 @@ class MrpProduction(models.Model):
         if not moves_to_reassign:
             return
         moves_to_reassign._do_unreserve()
-        moves_to_reassign.filtered(
-            lambda move: (
-                move.state in ("confirmed", "partially_available")
-                and (
-                    move._should_bypass_reservation()
-                    or move.picking_type_id.reservation_method == "at_confirm"
-                    or (
-                        move.date_reservation
-                        and move.date_reservation <= fields.Date.today()
-                    )
-                )
-            )
-        )._action_assign()
+        moves_to_reassign._filter_to_assign_at_confirm()._action_assign()
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -2117,9 +2108,7 @@ class MrpProduction(models.Model):
             "date": self.date_end,
             "date_deadline": self.date_deadline,
             "picking_type_id": self.picking_type_id.id,
-            "location_id": self.product_id.with_company(
-                self.company_id
-            ).property_stock_production.id,
+            "location_id": self.production_location_id.id,
             "location_dest_id": self.location_dest_id.id,
             "company_id": self.company_id.id,
             "production_id": self.id,
@@ -2264,9 +2253,7 @@ class MrpProduction(models.Model):
             "product_uom_qty": product_uom_qty,
             "product_uom_id": product_uom_id.id,
             "location_id": source_location.id,
-            "location_dest_id": self.product_id.with_company(
-                self.company_id
-            ).property_stock_production.id,
+            "location_dest_id": self.production_location_id.id,
             "raw_material_production_id": self.id,
             "production_group_id": self.production_group_id.id,
             "company_id": self.company_id.id,
@@ -3099,10 +3086,7 @@ class MrpProduction(models.Model):
         production_to_backorders = {}
         production_ids = OrderedSet()
         for production in self:
-            backorders_created = (
-                len(amounts.get(production) or production._get_default_split_amounts())
-                - 1
-            )
+            backorders_created = len(amounts[production]) - 1
             production_backorders = backorders[index : index + backorders_created]
             production_to_backorders[production] = production_backorders
             production_ids.update(production.ids)
@@ -3234,19 +3218,7 @@ class MrpProduction(models.Model):
             {"state": "partially_available"}
         )
         self.env["stock.move.line"].create(move_lines_vals)
-        backorder_moves.filtered(
-            lambda move: (
-                move.state in ("confirmed", "partially_available")
-                and (
-                    move._should_bypass_reservation()
-                    or move.picking_type_id.reservation_method == "at_confirm"
-                    or (
-                        move.date_reservation
-                        and move.date_reservation <= fields.Date.today()
-                    )
-                )
-            )
-        )._action_assign()
+        backorder_moves._filter_to_assign_at_confirm()._action_assign()
 
         emptied_lines = self.env["stock.move.line"].browse(move_lines_to_unlink)
         emptied_lines.write({"move_id": False})
