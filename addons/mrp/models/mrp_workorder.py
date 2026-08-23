@@ -1185,7 +1185,22 @@ class MrpWorkorder(models.Model):
         vals["date_end"] = best_date_finished
         self.write(vals)
 
-    def _cal_cost(self, date=False):
+    def _get_costs_hour(self):
+        """The machine rate this work order is charged at.
+
+        The work order's own rate overrides the work centre's, which is what
+        lets a finished one keep the rate it actually ran at (`button_finish`
+        stamps it).  Spelled out in four places before this.
+        """
+        self.ensure_one()
+        return self.costs_hour or self.workcenter_id.costs_hour
+
+    def _get_cost(self, date=False):
+        """Machine cost of this set, optionally as it stood at ``date``.
+
+        Renamed from ``_cal_cost``: an abbreviation, and a getter by the
+        vocabulary in `coding_guidelines.rst` §2.4.
+        """
         total = 0
         for workorder in self:
             if workorder._should_estimate_cost():
@@ -1195,13 +1210,18 @@ class MrpWorkorder(models.Model):
                     [
                         [t.date_start, t.date_end, t]
                         for t in workorder.time_ids
-                        if t.date_end and (not date or t.date_end < date)
+                        # `<=`, not `<`.  `date` is an inclusive bound -- the
+                        # WIP wizard defaults it to 23:59:59 and filters the
+                        # component moves beside this with `ml.date <= date` --
+                        # and `mrp_workorder`'s override of this method already
+                        # used `<=` for the employee half of the same figure.
+                        # A timer ending exactly on the bound was charged
+                        # labour but not machine time.
+                        if t.date_end and (not date or t.date_end <= date)
                     ]
                 )
                 duration = sum_intervals(intervals)
-            total += duration * (
-                workorder.costs_hour or workorder.workcenter_id.costs_hour
-            )
+            total += duration * workorder._get_costs_hour()
         return total
 
     def button_start(self, skip_invalid_state=False):
@@ -1584,14 +1604,6 @@ class MrpWorkorder(models.Model):
         if self.qty_producing:
             self.qty_producing = quantity
 
-    def get_working_duration(self):
-        self.ensure_one()
-        duration = 0
-        now = self.env.cr.now()
-        for time in self.time_ids.filtered(lambda time: not time.date_end):
-            duration += (now - time.date_start).total_seconds() / 60
-        return duration
-
     def _intervals_duration(self, intervals):
         if not intervals:
             return 0.0
@@ -1629,21 +1641,39 @@ class MrpWorkorder(models.Model):
                 wo.duration = wo.duration_expected
                 wo.duration_percent = 100
 
-    def _compute_expected_operation_cost(self, without_employee_cost=False):
-        return (self.duration_expected / 60.0) * (
-            self.costs_hour or self.workcenter_id.costs_hour
-        )
+    def _get_machine_cost(self, minutes):
+        self.ensure_one()
+        return (minutes / 60.0) * self._get_costs_hour()
 
-    def _compute_current_operation_cost(self):
-        return (self.get_duration() / 60.0) * (
-            self.costs_hour or self.workcenter_id.costs_hour
-        )
+    def _get_expected_operation_cost(self, without_employee_cost=False):
+        """Cost of the time this work order is *scheduled* to take.
 
-    def _get_current_theorical_operation_cost(self, without_employee_cost=False):
-        return (self.get_duration() / 60.0) * (
-            self.costs_hour or self.workcenter_id.costs_hour
-        )
+        The three methods here carried one formula under three spellings, two
+        of them byte-identical in community: they differ only in the duration
+        they charge and -- in `mrp_workorder`, which is the only reason all
+        three exist -- in which employee cost is added on top.  `without_employee_cost`
+        is inert here and read by that override.
 
+        Renamed from `_compute_expected_operation_cost`: `_compute_` is
+        reserved for field computes.
+        """
+        return self._get_machine_cost(self.duration_expected)
+
+    def _get_current_operation_cost(self):
+        """Cost of the time actually logged. Renamed from `_compute_...`."""
+        return self._get_machine_cost(self.get_duration())
+
+    def _get_theoretical_operation_cost(self, without_employee_cost=False):
+        """As `_get_current_operation_cost`, but costed at standard rates.
+
+        Renamed from `_get_current_theorical_operation_cost` -- "theorical"
+        was a typo carried into `mrp_workorder` and into the overview report.
+        """
+        return self._get_machine_cost(self.get_duration())
+
+    # `_set_` is reserved for `inverse=` targets and this is not one, so it
+    # wants to be `_update_cost_mode`.  Left alone: its only call site is in
+    # `mrp_production.py`, which another session is holding.
     def _set_cost_mode(self):
         for workorder in self:
             workorder.cost_mode = workorder.operation_id.cost_mode or "actual"

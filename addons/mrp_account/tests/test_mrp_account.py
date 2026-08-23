@@ -388,7 +388,7 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         workorder = production.workorder_ids
         workorder.duration = 0.03  # ~= 2 seconds (1.8 seconds exactly)
         workorder.time_ids.write({'duration': 0.03})  # Ensure that the duration is correct
-        self.assertEqual(workorder._cal_cost(), (len(workorder) * 2 / 3600) * 100)  # 2 seconds at $100/h
+        self.assertEqual(workorder._get_cost(), (len(workorder) * 2 / 3600) * 100)  # 2 seconds at $100/h
 
         production.move_raw_ids.picked = True
         production.button_mark_done()
@@ -442,20 +442,20 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         mo = self._create_mo(self.bom_1, 1)
         self.bom_1.operation_ids.cost_mode = 'actual'
         mo.workorder_ids.duration = 60
-        self.assertEqual(mo.workorder_ids._cal_cost(), 600)
+        self.assertEqual(mo.workorder_ids._get_cost(), 600)
 
         # Cost should stay the same for a done MO if nothing else is changed
         mo.move_raw_ids.picked = True
         mo.button_mark_done()
         self.workcenter.costs_hour = 333
-        self.assertEqual(mo.workorder_ids._cal_cost(), 600)
+        self.assertEqual(mo.workorder_ids._get_cost(), 600)
 
     def test_mo_without_finished_moves(self):
         """Test that a MO without finished moves can post inventory and be completed."""
         mo = self._create_mo(self.bom_1, 1)
         workorder = mo.workorder_ids
         workorder.duration = 60
-        self.assertEqual(workorder._cal_cost(), 600)
+        self.assertEqual(workorder._get_cost(), 600)
         # Simulate missing finished moves
         mo.move_finished_ids.unlink()
         # Post inventory and complete MO

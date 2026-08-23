@@ -61,7 +61,7 @@ class MrpProduction(models.Model):
                 return True
             finished_move.ensure_one()
             for work_order in self.workorder_ids:
-                work_center_cost += work_order._cal_cost()
+                work_center_cost += work_order._get_cost()
             quantity = finished_move.product_uom_id._compute_quantity(
                 finished_move.quantity, finished_move.product_id.uom_id)
             extra_cost = self.extra_cost * quantity
@@ -97,7 +97,7 @@ class MrpProduction(models.Model):
             workorders = defaultdict(self.env['mrp.workorder'].browse)
             for wo in mo.workorder_ids:
                 account = wo.workcenter_id.expense_account_id or product_accounts['expense']
-                labour_amounts[account] += wo.company_id.currency_id.round(wo._cal_cost())
+                labour_amounts[account] += wo.company_id.currency_id.round(wo._get_cost())
                 workorders[account] |= wo
             workcenter_cost = sum(labour_amounts.values())
 

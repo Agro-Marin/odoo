@@ -494,7 +494,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 if estimate_cost
                 else workorder.get_duration()
             )
-            mo_cost = workorder._compute_expected_operation_cost()
+            mo_cost = workorder._get_expected_operation_cost()
             bom_cost = self._get_bom_operation_cost(
                 workorder,
                 production,
@@ -503,7 +503,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             real_cost = (
                 mo_cost
                 if estimate_cost
-                else workorder._compute_current_operation_cost()
+                else workorder._get_current_operation_cost()
             )
             real_cost_decorator = False
             mo_cost_decorator = False
@@ -511,7 +511,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 mo_cost = (
                     mo_cost
                     if workorder.duration_expected
-                    else workorder._get_current_theorical_operation_cost()
+                    else workorder._get_theoretical_operation_cost()
                 )
                 real_cost_decorator = self._get_comparison_decorator(
                     mo_cost, real_cost, 0.01
@@ -627,9 +627,9 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             ) / 60
             operation_cost = duration * hourly_cost
             mo_cost = (
-                workorder._compute_expected_operation_cost(without_employee_cost=True)
+                workorder._get_expected_operation_cost(without_employee_cost=True)
                 if workorder.duration_expected
-                else workorder._get_current_theorical_operation_cost(
+                else workorder._get_theoretical_operation_cost(
                     without_employee_cost=True
                 )
             )
