@@ -53,12 +53,29 @@ classes individually silently stops covering new ones.
   patched to raise. Open another cursor (`self.registry.cursor()`) or use
   savepoints.
 - `TestCursor._cursors_stack`: close order matters; `close()` removes the
-  cursor itself and warns on out-of-order close. Never `pop()` blindly.
+  cursor itself and warns on out-of-order close. Never `pop()` blindly. A
+  cursor still in the stack at class teardown is released by
+  `release_stranded_test_cursors` (a module-level function, so it is testable
+  without standing a suite up) — which must release the registry lock too, or
+  every later HttpCase request stalls 20s and 500s, blamed on the wrong test.
+- Every environment failure in `browser.py` raises `InfrastructureUnavailable`,
+  not bare `SkipTest`: it subclasses SkipTest so the test still skips, but it is
+  counted apart, named in the summary line, and `ODOO_REQUIRE_INFRA=1` makes it
+  an error. A host with no Chrome used to run zero tour assertions and exit 0.
+- `setUp` runs once per **attempt**, not once per test — `BaseCase.run` re-runs
+  it on the same instance for every retry. Never derive an instance attribute
+  from itself there (`self._logger = self._logger.getChild(...)` compounded),
+  and never bind a cleanup to an object a later call replaces
+  (`addCleanup(self.opener.close)` left `authenticate()`'s opener unclosed).
+- `TestSuite.run` calls `_removeTestAtIndex` like the stdlib it vendors, so a
+  finished test — and its env, registry, opener and proxies — is collectable.
+  Ask `has_http_case()` **before** running a suite; a spent one answers False.
 - HTTP requests during tests need `allow_requests` (lock release + cookie);
   requests without the current `test_request_key` cookie get HTTP 400 by
   design (`assertCanOpenTestCursor`).
 - `assertQueriesContain` is **not** a subset check: exact query count,
-  substring match per query.
+  substring match per query. Both it and `assertQueries` share
+  `_assert_queries`, differing only in the comparison they pass it.
 - `assertQueries`/`assertQueriesContain` record **every** statement entry point
   (`common._STATEMENT_RECORDERS`), one entry per *call* — a bulk `create()`
   above `COPY_THRESHOLD` shows as `COPY "table" (...) FROM STDIN`, an

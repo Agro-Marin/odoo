@@ -36,6 +36,12 @@ unittest.TestCase
   `SET TRANSACTION READ ONLY` inside the savepoint. A class-level
   `_cursors_stack` tracks open test cursors; `close()` removes *itself*
   (warning on out-of-order close — do not pop blindly, see git history).
+  Anything still in the stack at class teardown is a **stranded** cursor:
+  `common.release_stranded_test_cursors` closes it out **and releases its
+  `_registry_test_lock` acquisition**, which is not optional — `close()` is
+  the only other release, and `release_test_lock()` gives back exactly one, so
+  a leaked acquisition means the count never reaches zero and every later
+  HttpCase request stalls `test_cursor_lock_timeout` and fails.
 
 ## Execution flow (`--test-enable` / `--test-tags`)
 
