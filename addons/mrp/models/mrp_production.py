@@ -26,33 +26,6 @@ from odoo.addons.web.controllers.utils import clean_action
 SIZE_BACK_ORDER_NUMBERING = 3
 
 
-class MrpProductionGroup(models.Model):
-    _name = "mrp.production.group"
-    _description = "Production Group"
-
-    name = fields.Char("Name", required=True, index="btree")
-    production_ids = fields.One2many(
-        "mrp.production", "production_group_id", string="Productions"
-    )
-    move_ids = fields.One2many(
-        "stock.move", "production_group_id", string="Stock Moves"
-    )
-    child_ids = fields.Many2many(
-        "mrp.production.group",
-        "mrp_production_group_rel",
-        "parent_group_id",
-        "child_group_id",
-        string="Child Manufacturing Orders",
-    )
-    parent_ids = fields.Many2many(
-        "mrp.production.group",
-        "mrp_production_group_rel",
-        "child_group_id",
-        "parent_group_id",
-        string="Parent Manufacturing Orders",
-    )
-
-
 class MrpProduction(models.Model):
     _name = "mrp.production"
     _description = "Manufacturing Order"
@@ -60,6 +33,9 @@ class MrpProduction(models.Model):
     _inherit = [
         "mixin.mail.thread",
         "mixin.mail.activity",
+        # before `mixin.product.catalog`: its `_update_order_line_info` is a
+        # `return 0` stub, and the first entry wins the method resolution order.
+        "mixin.catalog.child.lines",
         "mixin.product.catalog",
         "mixin.date.category",
     ]
@@ -829,12 +805,31 @@ class MrpProduction(models.Model):
             elif not production.bom_id:
                 production.product_qty = 1.0
 
-    @api.depends("move_raw_ids")
+    # `qty_available` is context-dependent and not stored, so it cannot be declared;
+    # everything the formula reads that *can* be is, which is what makes the field
+    # follow a quantity change or a component swap instead of a stale first read.
+    @api.depends(
+        "product_id",
+        "product_qty",
+        "move_raw_ids",
+        "move_raw_ids.product_id",
+        "move_raw_ids.product_uom_id",
+        "move_raw_ids.unit_factor",
+    )
     def _compute_production_capacity(self):
         for production in self:
             production.production_capacity = production.product_qty
             moves = production.move_raw_ids.filtered(
-                lambda move: move.unit_factor and move.product_id.type != "consu"
+                # `is_storable`, not `type != "consu"`. In 19.0 `type` is
+                # consu/service/combo and stockability is its own flag, so that test
+                # selected services and combos -- precisely the products that have no
+                # `qty_available`, and the complement of the set
+                # `_get_moves_raw_values` will build a raw move for at all. It matched
+                # nothing, ever: the whole branch below was dead and the field simply
+                # echoed `product_qty`, reporting 1000 producible against 7 components
+                # in stock. `mrp_report_bom_structure._compute_current_production_capacity`
+                # is the same question asked correctly, and it filters on `is_storable`.
+                lambda move: move.unit_factor and move.product_id.is_storable
             )
             if moves:
                 production_capacity = min(
@@ -1074,7 +1069,13 @@ class MrpProduction(models.Model):
         "never_product_template_attribute_value_ids",
     )
     def _compute_workorder_ids(self):
-        for production in self:
+        # Two explosions per order, so the batch shares one scratch for the same
+        # reason `_compute_move_raw_ids` does: the kit closure is a function of the
+        # BoM, not of the order asking for it.
+        batch = self.with_context(
+            bom_cost_share_cache=self.env["mrp.bom"]._explosion_scratch()
+        )
+        for production in batch:
             if production.state != "draft":
                 continue
             workorders_list = [
@@ -1195,6 +1196,14 @@ class MrpProduction(models.Model):
         "move_raw_ids.state",
         "move_raw_ids.picked",
         "move_raw_ids.product_uom_qty",
+        # The `partially_available` branch below asks the BoM how eager it is and
+        # asks `_get_ready_to_produce_state` which moves belong to the first
+        # operation.  Neither input was declared, and the field is stored: an
+        # order sitting at `confirmed` kept that value on disk after its BoM
+        # flipped to `asap`, where the answer is `assigned`.
+        "bom_id.ready_to_produce",
+        "workorder_ids.operation_id",
+        "move_raw_ids.operation_id",
     )
     def _compute_reservation_state(self):
         for production in self:
@@ -1303,58 +1312,113 @@ class MrpProduction(models.Model):
                 and order.state not in {"cancel", "draft"}
             )
 
-    @api.depends("state", "move_raw_ids")
+    # The answer is "does any component carry a lot", so the components' tracking
+    # is an input: without it the column stayed hidden after a component was
+    # switched to serial tracking, for the life of the transaction.
+    @api.depends("state", "move_raw_ids", "move_raw_ids.product_id.tracking")
     def _compute_show_lot_ids(self):
         for order in self:
             order.show_lot_ids = order.state != "draft" and any(
                 m.product_id.tracking != "none" for m in order.move_raw_ids
             )
 
-    @api.depends("state", "move_finished_ids")
+    # `picking_type_id` and the finished products are inputs, not just the moves:
+    # the question is asked per warehouse and per product.
+    @api.depends(
+        "state", "picking_type_id", "move_finished_ids", "move_finished_ids.product_id"
+    )
     @api.depends_context("uid")
     def _compute_show_allocation(self):
+        """Is there anything in this warehouse this order's output could be given to?
+
+        Asked once per (warehouse, set of acceptable move states) rather than once
+        per order. The old shape was one `search_count(limit=1)` per order --
+        measured 50 of the 58 queries and 46 ms of the 46 for a list of fifty --
+        because three of the six conditions are per-order and the fourth,
+        `move_orig_ids`, is a many2many.
+
+        The batching turns on splitting that many2many condition, which is what made
+        this look unbatchable:
+
+        * a move with **no** origin is a candidate for any order whose finished
+          products include its own, so it is grouped by
+          `(product, raw_material_production_id)` -- bounded by products times
+          orders, not by moves;
+        * a move **chained to one of these orders' own finished moves** can only be
+          reached through those moves, so searching `move_orig_ids in <this batch's
+          lines>` is bounded by the batch itself.
+
+        Neither half reads an unbounded candidate set, which a single flattened
+        search over the union would have.
+        """
         self.show_allocation = False
         if not self.env.user.has_group("mrp.group_mrp_reception_report"):
             return
-        location_ids_by_warehouse = {}
-        for warehouse in self.picking_type_id.warehouse_id:
-            location_ids_by_warehouse[warehouse.id] = self.env[
-                "stock.location"
-            ]._search(
+        Move = self.env["stock.move"]
+        lines_by_order = {}
+        orders_by_scope = defaultdict(lambda: self.env["mrp.production"])
+        for order in self:
+            warehouse = order.picking_type_id.warehouse_id
+            if not warehouse:
+                continue
+            lines = order.move_finished_ids.filtered(
+                lambda m: m.product_id.is_storable and m.state != "cancel"
+            )
+            if not lines:
+                continue
+            lines_by_order[order.id] = lines
+            allowed_states = ("confirmed", "partially_available", "waiting")
+            if order.state == "done":
+                allowed_states += ("assigned",)
+            orders_by_scope[(warehouse, allowed_states)] |= order
+
+        for (warehouse, allowed_states), orders in orders_by_scope.items():
+            location_ids = self.env["stock.location"]._search(
                 [
                     ("id", "child_of", warehouse.view_location_id.id),
                     ("usage", "!=", "supplier"),
                 ]
             )
-        for mo in self:
-            if not mo.picking_type_id.warehouse_id:
-                continue
-            lines = mo.move_finished_ids.filtered(
-                lambda m: m.product_id.is_storable and m.state != "cancel"
-            )
-            if lines:
-                allowed_states = ["confirmed", "partially_available", "waiting"]
-                if mo.state == "done":
-                    allowed_states += ["assigned"]
-                wh_location_ids = location_ids_by_warehouse[
-                    mo.picking_type_id.warehouse_id.id
-                ]
-                if self.env["stock.move"].search_count(
-                    [
-                        ("state", "in", allowed_states),
-                        ("product_qty", ">", 0),
-                        ("location_id", "in", wh_location_ids),
-                        ("raw_material_production_id", "not in", mo.ids),
-                        ("product_id", "in", lines.product_id.ids),
-                        "|",
-                        ("move_orig_ids", "=", False),
-                        ("move_orig_ids", "in", lines.ids),
-                    ],
-                    limit=1,
-                ):
-                    mo.show_allocation = True
+            batch_lines = Move.union(*(lines_by_order[order.id] for order in orders))
+            scope = [
+                ("state", "in", list(allowed_states)),
+                ("product_qty", ">", 0),
+                ("location_id", "in", location_ids),
+                ("product_id", "in", batch_lines.product_id.ids),
+            ]
+            unchained_owners = defaultdict(set)
+            for product, raw_production in Move._read_group(
+                [*scope, ("move_orig_ids", "=", False)],
+                ["product_id", "raw_material_production_id"],
+            ):
+                unchained_owners[product].add(raw_production.id)
+            chained = Move.search([*scope, ("move_orig_ids", "in", batch_lines.ids)])
 
-    @api.depends("product_uom_qty", "date_start")
+            for order in orders:
+                lines = lines_by_order[order.id]
+                # `not in mo.ids` in the old domain, so a NULL owner counts: an
+                # order is only disqualified by a move it owns *itself*.
+                if any(
+                    unchained_owners[product] - {order.id}
+                    for product in lines.product_id
+                ):
+                    order.show_allocation = True
+                    continue
+                order.show_allocation = any(
+                    move.product_id in lines.product_id
+                    and move.raw_material_production_id != order
+                    and move.move_orig_ids & lines
+                    for move in chained
+                )
+
+    # Its real input is `product_id.qty_available_virtual`, a forecast that is not
+    # stored and depends on the context, so it cannot be declared here and the field
+    # goes stale inside a transaction whenever a move for the product changes:
+    # measured, new outgoing demand leaves this reading False where the truth is
+    # True. The declared inputs are the ones that *can* be named. Fixing it means
+    # not asking a compute a question only a search can answer -- the same shape as
+    # `hr_holidays._compute_leave_status` -- not adding a dependency.
+    @api.depends("product_uom_qty", "date_start", "product_id", "location_dest_id")
     def _compute_forecasted_issue(self):
         for order in self:
             warehouse = order.location_dest_id.warehouse_id
@@ -1425,7 +1489,13 @@ class MrpProduction(models.Model):
         "never_product_template_attribute_value_ids",
     )
     def _compute_move_raw_ids(self):
-        for production in self:
+        # `_get_moves_raw_values` is asked for one order at a time below, so the
+        # explosion scratch is opened around the loop: without it every order in a
+        # batched create re-resolves the same BoM's kit closure from scratch.
+        batch = self.with_context(
+            bom_cost_share_cache=self.env["mrp.bom"]._explosion_scratch()
+        )
+        for production in batch:
             if production.state != "draft" or self.env.context.get(
                 "skip_compute_move_raw_ids"
             ):
@@ -2234,7 +2304,14 @@ class MrpProduction(models.Model):
 
     def _get_moves_raw_values(self):
         moves = []
-        for production in self:
+        # One scratch for the whole batch, so the kit closure and the cost shares
+        # are resolved once per BoM rather than once per order. `_explode` builds
+        # its own when the context carries none, which is exactly the per-order
+        # scope this replaces.
+        batch = self.with_context(
+            bom_cost_share_cache=self.env["mrp.bom"]._explosion_scratch()
+        )
+        for production in batch:
             if not production.bom_id:
                 continue
             factor = (
@@ -2734,7 +2811,13 @@ class MrpProduction(models.Model):
         issues = []
         if self.env.context.get("skip_consumption", False):
             return issues
-        for order in self:
+        # `_get_moves_raw_values` is asked for one order at a time here, so the
+        # scratch has to be established around the loop -- otherwise each call
+        # opens its own and the batch re-explodes the same BoM per order.
+        orders = self.with_context(
+            bom_cost_share_cache=self.env["mrp.bom"]._explosion_scratch()
+        )
+        for order in orders:
             if (
                 order.consumption == "flexible"
                 or not order.bom_id
@@ -3078,6 +3161,14 @@ class MrpProduction(models.Model):
     def _create_split_backorders(self, amounts):
         backorder_vals_list = []
         initial_qty_by_production = {}
+        # The high-water mark per group has to survive the loop. The backorders are
+        # only created after it, so reading the group's `production_ids` inside it
+        # cannot see the ones the previous iteration already claimed: splitting two
+        # orders of the *same* group in one call gave both the same sequence, and
+        # therefore the same name -- a UniqueViolation on `mrp_production_name_uniq`
+        # rather than a wrong number. Reachable from one Mark Done over an order and
+        # its own backorder.
+        next_seq_by_group = {}
         for production in self.sudo():
             initial_qty_by_production[production] = production.product_qty
             if production.backorder_sequence == 0:
@@ -3096,14 +3187,15 @@ class MrpProduction(models.Model):
                 skip_compute_move_raw_ids=True
             ).product_qty = amounts[production][0]
 
-            next_seq = max(
-                production.production_group_id.production_ids.mapped(
-                    "backorder_sequence"
-                ),
-                default=1,
-            )
+            group = production.production_group_id
+            if group.id not in next_seq_by_group:
+                next_seq_by_group[group.id] = max(
+                    group.production_ids.mapped("backorder_sequence"),
+                    default=1,
+                )
             for qty_to_backorder in backorder_qtys:
-                next_seq += 1
+                next_seq_by_group[group.id] += 1
+                next_seq = next_seq_by_group[group.id]
                 backorder_vals_list.append(
                     dict(
                         backorder_vals,
@@ -4591,53 +4683,14 @@ class MrpProduction(models.Model):
     def _get_product_price_and_data(self, product):
         return {"price": product.standard_price}
 
-    def _get_product_catalog_record_lines(
-        self, product_ids, *, child_field=False, **kwargs
-    ):
-        if not child_field:
-            return {}
-        lines = self[child_field].filtered(
-            lambda line: line.product_id.id in product_ids
-        )
-        return lines.grouped(lambda line: line.product_id)
-
     def _get_product_catalog_domain(self):
         return super()._get_product_catalog_domain() & Domain("type", "=", "consu")
-
-    def _update_order_line_info(
-        self, product_id, quantity, *, child_field=False, **kwargs
-    ):
-        if not child_field:
-            return 0
-        entity = self[child_field].filtered(
-            lambda line: line.product_id.id == product_id
-        )
-        if entity:
-            if quantity != 0:
-                self._update_catalog_line_quantity(entity, quantity, **kwargs)
-            else:
-                entity.unlink()
-        elif quantity > 0:
-            new_line_vals = self._get_new_catalog_line_values(
-                product_id, quantity, **kwargs
-            )
-            command = Command.create(new_line_vals)
-            self.write({child_field: [command]})
-            new_line = self[child_field].filtered(
-                lambda mv: mv.product_id.id == product_id
-            )[-1:]
-            self._update_catalog_line_quantity(new_line, quantity, **kwargs)
-
-        return self.env["product.product"].browse(product_id).standard_price
 
     def _update_catalog_line_quantity(self, line, quantity, **kwargs):
         line.product_uom_qty = quantity
 
     def _get_new_catalog_line_values(self, product_id, quantity, **kwargs):
-        return {
-            "product_id": product_id,
-            "product_uom_qty": quantity,
-        }
+        return {"product_id": product_id, "product_uom_qty": quantity}
 
     def _is_display_stock_in_catalog(self):
         return True

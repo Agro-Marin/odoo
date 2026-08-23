@@ -1,12 +1,9 @@
-from collections import defaultdict
-from itertools import starmap
-
-from markupsafe import Markup
+from collections import defaultdict, deque
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.tools import float_compare, formatLang
+from odoo.tools import float_compare
 from odoo.tools.misc import OrderedSet, clean_context
 
 
@@ -34,7 +31,13 @@ class ExplodeScratch(dict):
 class MrpBom(models.Model):
     _name = "mrp.bom"
     _description = "Bill of Material"
-    _inherit = ["mixin.mail.thread", "mixin.product.catalog"]
+    _inherit = [
+        "mixin.mail.thread",
+        # before `mixin.product.catalog`: its `_update_order_line_info` is a
+        # `return 0` stub, and the first entry wins the method resolution order.
+        "mixin.catalog.child.lines",
+        "mixin.product.catalog",
+    ]
     _rec_name = "product_tmpl_id"
     _rec_names_search = ["product_tmpl_id", "code"]
     _order = "sequence, id"
@@ -768,6 +771,23 @@ class MrpBom(models.Model):
 
         return bom_by_product
 
+    @api.model
+    def _explosion_scratch(self):
+        """The scratch an explosion memoises on, reusing the caller's if it has one.
+
+        A caller that explodes several BoMs -- or the same BoM once per order --
+        opens one of these around the whole batch, so the kit closure and the cost
+        shares are resolved once each instead of once per call. `_explode` opens
+        its own when nobody did, which keeps a lone explosion self-contained.
+
+        Tested with ``is None``, never for truth: a scratch that has not been
+        written to yet is an empty dict, so ``context.get(...) or ExplodeScratch()``
+        hands back a *fresh* one exactly when the caller's is still empty -- which
+        is every time, since it can only fill through the object it just replaced.
+        """
+        scratch = self.env.context.get("bom_cost_share_cache")
+        return ExplodeScratch() if scratch is None else scratch
+
     def _explode(
         self, product, quantity, picking_type=False, never_attribute_values=False
     ):
@@ -779,10 +799,7 @@ class MrpBom(models.Model):
             Both lists are in depth-first order and callers index into them
             positionally, so the traversal order is part of the contract.
         """
-        self = self.with_context(
-            bom_cost_share_cache=self.env.context.get("bom_cost_share_cache")
-            or ExplodeScratch()
-        )
+        self = self.with_context(bom_cost_share_cache=self._explosion_scratch())
         product_boms = self._get_kit_closure(
             product, picking_type, never_attribute_values
         )
@@ -796,15 +813,20 @@ class MrpBom(models.Model):
             )
         ]
         lines_done = []
-        bom_lines = [
+        # A deque, not a list rebuilt by `bom_lines[1:]` and `[...] + bom_lines`:
+        # both of those copy the whole frontier on every node, which is quadratic
+        # in the size of the kit tree. `popleft` and `extendleft(reversed(...))`
+        # visit the nodes in exactly the same order -- and that order is part of
+        # this method's contract, since callers index into the two result lists
+        # positionally.
+        bom_lines = deque(
             (bom_line, product, quantity, False, frozenset((product.id,)))
             for bom_line in self.bom_line_ids
-        ]
+        )
         while bom_lines:
             current_line, current_product, current_qty, parent_line, ancestors = (
-                bom_lines[0]
+                bom_lines.popleft()
             )
-            bom_lines = bom_lines[1:]
 
             if current_line._skip_bom_line(current_product, never_attribute_values):
                 continue
@@ -816,7 +838,7 @@ class MrpBom(models.Model):
                 converted_line_quantity = current_line._get_exploded_kit_quantity(
                     bom, line_quantity, ancestors
                 )
-                bom_lines = [
+                bom_lines.extendleft(
                     (
                         line,
                         current_line.product_id,
@@ -824,8 +846,8 @@ class MrpBom(models.Model):
                         current_line,
                         child_ancestors,
                     )
-                    for line in bom.bom_line_ids
-                ] + bom_lines
+                    for line in reversed(bom.bom_line_ids)
+                )
                 boms_done.append(
                     (
                         bom,
@@ -874,7 +896,40 @@ class MrpBom(models.Model):
 
         Tolerates an empty recordset, as ``explode()`` always has: several
         callers reach it through an optional ``bom_id``.
+
+        Memoised on the explosion scratch when the caller supplies one. The answer
+        is a function of the BoM, the variant, the operation type and the excluded
+        attribute values only -- never of the quantity -- so every order built from
+        the same BoM resolves the same closure, and ``_get_moves_raw_values``
+        explodes once per *order*. Twenty orders on one BoM paid twenty identical
+        `_bom_find` searches at each level of the kit tree.
+
+        A hit rebuilds the mapping in the reader's environment rather than handing
+        back the seeder's, so neither the records nor the dict are shared out.
         """
+        picking_type = picking_type or self.picking_type_id
+        scratch = self.env.context.get("bom_cost_share_cache")
+        memo_key = (
+            "kit_closure",
+            self.id,
+            product.id,
+            picking_type.id,
+            frozenset(never_attribute_values.ids) if never_attribute_values else (),
+            # `_bom_find_domain` reads `context["company_id"]` whenever the company
+            # it is handed is falsy, which is every company-less parent BoM. Keying
+            # only on `self.id` would then let two readers in different companies
+            # share one answer: measured, the second reader got the first's kit.
+            self.company_id.id or self.env.context.get("company_id"),
+        )
+        if scratch is not None and (memoised := scratch.get(memo_key)) is not None:
+            # Rebound to the reader's environment. Recordsets hash on
+            # `(model, ids)`, so the lookup hits across environments, but the
+            # values carry whichever one seeded them: a `sudo()` explosion that
+            # shared a scratch handed the next reader superuser-bound BoMs, and
+            # everything walked from them would have been read with those rights.
+            return {
+                product: bom.with_env(self.env) for product, bom in memoised.items()
+            }
         product_boms = {}
         frontier = [(line, product) for line in self.bom_line_ids]
         while frontier:
@@ -888,7 +943,7 @@ class MrpBom(models.Model):
                 break
             bom_by_product = self._bom_find(
                 products,
-                picking_type=picking_type or self.picking_type_id,
+                picking_type=picking_type,
                 company_id=self.company_id.id,
                 bom_type="phantom",
             )
@@ -897,6 +952,8 @@ class MrpBom(models.Model):
                 bom = bom_by_product.get(child_product) or self.env["mrp.bom"]
                 product_boms[child_product] = bom
                 frontier += [(line, child_product) for line in bom.bom_line_ids]
+        if scratch is not None:
+            scratch[memo_key] = product_boms
         return product_boms
 
     @api.model
@@ -973,39 +1030,11 @@ class MrpBom(models.Model):
         self.ensure_one()
         return {"price": product.standard_price}
 
-    def _get_product_catalog_record_lines(
-        self, product_ids, *, child_field=False, **kwargs
-    ):
-        if not child_field:
-            return {}
-        lines = self[child_field].filtered(
-            lambda line: line.product_id.id in product_ids
-        )
-        return lines.grouped("product_id")
+    def _update_catalog_line_quantity(self, line, quantity, **kwargs):
+        line.product_qty = quantity
 
-    def _update_order_line_info(
-        self, product_id, quantity, *, child_field=False, **kwargs
-    ):
-        if not child_field:
-            return 0
-        entity = self[child_field].filtered(
-            lambda line: line.product_id.id == product_id
-        )
-        if entity:
-            if quantity != 0:
-                entity.product_qty = quantity
-            else:
-                entity.unlink()
-        elif quantity > 0:
-            command = Command.create(
-                {
-                    "product_qty": quantity,
-                    "product_id": product_id,
-                }
-            )
-            self.write({child_field: [command]})
-
-        return self.env["product.product"].browse(product_id).standard_price
+    def _get_new_catalog_line_values(self, product_id, quantity, **kwargs):
+        return {"product_id": product_id, "product_qty": quantity}
 
     def _get_mail_thread_data_attachments(self):
         res = super()._get_mail_thread_data_attachments()
@@ -1150,374 +1179,4 @@ class MrpBom(models.Model):
             self.env["mrp.routing.workcenter"]
             .with_context(bom_id=self.id)
             .copy_existing_operations()
-        )
-
-
-class MrpBomLine(models.Model):
-    _name = "mrp.bom.line"
-    _inherit = ["mixin.bom.component"]
-    _description = "Bill of Material Line"
-
-    _bom_child_field = "bom_line_ids"
-
-    product_id = fields.Many2one("product.product", "Component")
-    product_tmpl_id = fields.Many2one(
-        "product.template",
-        "Product Template",
-        related="product_id.product_tmpl_id",
-        store=True,
-        index=True,
-    )
-    sequence = fields.Integer(default=1)
-    parent_product_tmpl_id = fields.Many2one(
-        "product.template", "Parent Product Template", related="bom_id.product_tmpl_id"
-    )
-    operation_id = fields.Many2one(
-        "mrp.routing.workcenter",
-        "Consumed in Operation",
-        help="The operation where the components are consumed, or the finished products created.",
-    )
-    child_bom_id = fields.Many2one(
-        "mrp.bom", "Sub BoM", compute="_compute_child_bom_id"
-    )
-    child_line_ids = fields.One2many(
-        "mrp.bom.line",
-        string="BOM lines of the referred bom",
-        compute="_compute_child_line_ids",
-    )
-    attachments_count = fields.Integer(
-        "Attachments Count", compute="_compute_attachments_count"
-    )
-    tracking = fields.Selection(related="product_id.tracking")
-
-    @api.depends("product_id", "bom_id.company_id", "bom_id.picking_type_id")
-    def _compute_child_bom_id(self):
-        # Scoped the way explode() and every procurement caller scope it. Left
-        # unscoped, a user allowed in several companies is shown a Sub BoM that
-        # manufacturing will not use.
-        Bom = self.env["mrp.bom"]
-        for (company, picking_type), lines in self.grouped(
-            lambda line: (line.bom_id.company_id, line.bom_id.picking_type_id)
-        ).items():
-            bom_by_product = Bom._bom_find(
-                lines.product_id, picking_type=picking_type, company_id=company.id
-            )
-            for line in lines:
-                line.child_bom_id = bom_by_product.get(line.product_id, False)
-
-    @api.depends("product_id")
-    def _compute_attachments_count(self):
-        counts_by_product = {}
-        counts_by_template = {}
-        for res_model, counts in (
-            ("product.product", counts_by_product),
-            ("product.template", counts_by_template),
-        ):
-            res_ids = (
-                self.product_id.ids
-                if res_model == "product.product"
-                else self.product_tmpl_id.ids
-            )
-            if not res_ids:
-                continue
-            counts.update(
-                dict(
-                    self.env["product.document"]._read_group(
-                        [
-                            ("attached_on_mrp", "=", "bom"),
-                            ("active", "=", True),
-                            ("res_model", "=", res_model),
-                            ("res_id", "in", res_ids),
-                        ],
-                        ["res_id"],
-                        ["__count"],
-                    )
-                )
-            )
-        for line in self:
-            line.attachments_count = counts_by_product.get(
-                line.product_id.id, 0
-            ) + counts_by_template.get(line.product_tmpl_id.id, 0)
-
-    @api.depends("child_bom_id")
-    def _compute_child_line_ids(self):
-        for line in self:
-            line.child_line_ids = line.child_bom_id.bom_line_ids
-
-    def _get_uom_mismatch_message(self):
-        return _(
-            "The component %(product)s is used in %(unit)s, which does"
-            " not measure the same thing as its own unit"
-            " %(product_unit)s.",
-            product=self.product_id.display_name,
-            unit=self.product_uom_id.display_name,
-            product_unit=self.product_id.uom_id.display_name,
-        )
-
-    _CHATTER_TRACKED_FIELDS = (
-        "product_id",
-        "product_qty",
-        "product_uom_id",
-        "operation_id",
-        "bom_product_template_attribute_value_ids",
-    )
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        lines = super().create(vals_list)
-        # The thread recorded that a component changed and that one was removed,
-        # and said nothing about one being added.
-        if not self._chatter_is_muted():
-            for bom, added in lines.grouped("bom_id").items():
-                bom.message_post(
-                    body=Markup("{}<ul>{}</ul>").format(
-                        self.env._("Components added:"),
-                        Markup("").join(
-                            Markup("<li><b>{}</b> — {}: {} {}</li>").format(
-                                line.product_id.display_name,
-                                line._get_chatter_label("product_qty"),
-                                formatLang(
-                                    self.env, line.product_qty, dp="Product Unit"
-                                ),
-                                line.product_uom_id.display_name,
-                            )
-                            for line in added
-                        ),
-                    ),
-                    subtype_xmlid="mail.mt_note",
-                )
-        return lines
-
-    def write(self, vals):
-        tracked = [name for name in self._CHATTER_TRACKED_FIELDS if name in vals]
-        if not tracked or self._chatter_is_muted():
-            return super().write(vals)
-
-        before = {
-            line.id: (line.product_id.display_name, line._get_chatter_values(tracked))
-            for line in self
-        }
-        result = super().write(vals)
-
-        labels = {name: self._get_chatter_label(name) for name in tracked}
-        changes_by_bom = defaultdict(list)
-        for line in self:
-            component, old_values = before[line.id]
-            new_values = line._get_chatter_values(tracked)
-            changes = [
-                (labels[name], old_values[name], new_values[name])
-                for name in tracked
-                if old_values[name] != new_values[name]
-            ]
-            if changes:
-                changes_by_bom[line.bom_id].append((component, changes))
-
-        for bom, entries in changes_by_bom.items():
-            bom.message_post(
-                body=Markup("{}<ul>{}</ul>").format(
-                    self.env._("Components updated:"),
-                    Markup("").join(
-                        Markup("<li><b>{}</b><ul>{}</ul></li>").format(
-                            component,
-                            Markup("").join(
-                                starmap(Markup("<li>{}: {} → {}</li>").format, changes)
-                            ),
-                        )
-                        for component, changes in entries
-                    ),
-                ),
-                subtype_xmlid="mail.mt_note",
-            )
-        return result
-
-    def unlink(self):
-        if self._chatter_is_muted():
-            return super().unlink()
-
-        for bom, lines in self.grouped("bom_id").items():
-            bom.message_post(
-                body=Markup("{}<ul>{}</ul>").format(
-                    self.env._("Components removed:"),
-                    Markup("").join(
-                        Markup("<li><b>{}</b> — {}: {} {}</li>").format(
-                            line.product_id.display_name,
-                            line._get_chatter_label("product_qty"),
-                            formatLang(self.env, line.product_qty, dp="Product Unit"),
-                            line.product_uom_id.display_name,
-                        )
-                        for line in lines
-                    ),
-                ),
-                subtype_xmlid="mail.mt_note",
-            )
-        return super().unlink()
-
-    def _chatter_is_muted(self):
-        return bool(
-            self.env.context.get("tracking_disable")
-            or self.env.context.get("mail_notrack")
-        )
-
-    def _get_chatter_label(self, field_name):
-        return self._fields[field_name].get_description(
-            self.env, attributes=["string"]
-        )["string"]
-
-    def _get_chatter_values(self, field_names):
-        self.ensure_one()
-        return {name: self._get_chatter_value(name) for name in field_names}
-
-    def _get_chatter_value(self, field_name):
-        self.ensure_one()
-        field = self._fields[field_name]
-        value = self[field_name]
-        if field.relational:
-            return ", ".join(value.mapped("display_name")) or self.env._("(none)")
-        if field.type == "float":
-            return formatLang(self.env, value, dp="Product Unit")
-        if field.type == "selection":
-            return dict(field._description_selection(self.env)).get(value, value)
-        return str(value)
-
-    def action_see_attachments(self):
-        self.ensure_one()
-        domain = [
-            "&",
-            ("attached_on_mrp", "=", "bom"),
-            "|",
-            "&",
-            ("res_model", "=", "product.product"),
-            ("res_id", "=", self.product_id.id),
-            "&",
-            ("res_model", "=", "product.template"),
-            ("res_id", "=", self.product_id.product_tmpl_id.id),
-        ]
-        counts = dict(
-            self.env["product.document"]._read_group(domain, ["res_model"], ["__count"])
-        )
-        nbr_product_attach = counts.get("product.product", 0)
-        nbr_template_attach = counts.get("product.template", 0)
-        context = {
-            "default_res_model": "product.product",
-            "default_res_id": self.product_id.id,
-            "default_company_id": self.company_id.id,
-            "attached_on_bom": True,
-            "search_default_context_variant": not (
-                nbr_product_attach == 0 and nbr_template_attach > 0
-            )
-            if self.env.user.has_group("product.group_product_variant")
-            else False,
-        }
-
-        return {
-            "name": _("Attachments"),
-            "domain": domain,
-            "res_model": "product.document",
-            "type": "ir.actions.act_window",
-            "view_mode": "kanban,list,form",
-            "target": "current",
-            "help": _("""<p class="o_view_nocontent_smiling_face">
-                        Upload files to your product
-                    </p><p>
-                        Use this feature to store any files, like drawings or specifications.
-                    </p>"""),
-            "limit": 80,
-            "context": context,
-            "search_view_id": self.env.ref("product.view_product_document_search").ids,
-        }
-
-    def _get_still_used_notification(self):
-        """Warn that the products just archived remain components of a live BoM.
-
-        ``product.template`` and ``product.product`` archive the same way and
-        differ only in how they select these lines, so the notification --
-        including the sentence a translator keeps in sync -- is built once,
-        here, where the lines live.
-
-        Returns ``None`` when there is nothing to warn about, so the caller
-        keeps whatever ``action_archive`` returned.
-        """
-        products = self.product_id
-        if not products:
-            return None
-        return {
-            "type": "ir.actions.client",
-            "tag": "display_notification",
-            "params": {
-                "title": self.env._(
-                    "Note that product(s): '%s' is/are still linked to active Bill of "
-                    "Materials, which means that the product can still be used on "
-                    "it/them.",
-                    products.mapped("display_name"),
-                ),
-                "type": "warning",
-                "sticky": True,
-                "next": {"type": "ir.actions.act_window_close"},
-            },
-        }
-
-    def _get_exploded_kit_quantity(self, bom, line_quantity, ancestors):
-        """How much of `bom` this line calls for, in `bom`'s own unit.
-
-        Also the point at which a kit that contains itself is caught: the
-        explosion reaches it at run time, where the constraint that should have
-        refused it cannot.
-        """
-        self.ensure_one()
-        if self.product_id.id in ancestors:
-            raise ValidationError(
-                _(
-                    "The current configuration is incorrect because it would "
-                    "create a cycle between these products: %s.",
-                    self.product_id.display_name,
-                )
-            )
-        return self.product_uom_id._compute_quantity(
-            line_quantity / bom.product_qty, bom.product_uom_id, round=False
-        )
-
-    def _prepare_bom_done_values(self, quantity, product, original_quantity, boms_done):
-        return {
-            "qty": quantity,
-            "product": product,
-            "original_qty": original_quantity,
-            "parent_line": self,
-        }
-
-    def _prepare_line_done_values(
-        self, quantity, product, original_quantity, parent_line, boms_done
-    ):
-        return {
-            "qty": quantity,
-            "product": product,
-            "original_qty": original_quantity,
-            "parent_line": parent_line,
-        }
-
-
-class MrpBomByproduct(models.Model):
-    _name = "mrp.bom.byproduct"
-    _inherit = ["mixin.bom.component"]
-    _description = "Byproduct"
-
-    _bom_child_field = "byproduct_ids"
-
-    product_id = fields.Many2one("product.product", "By-product", index=False)
-    bom_id = fields.Many2one("mrp.bom", "BoM")
-    operation_id = fields.Many2one("mrp.routing.workcenter", "Produced in Operation")
-    cost_share = fields.Float(
-        "Cost Share (%)",
-        digits=(5, 2),
-        help="The percentage of the final production cost for this by-product line (divided between the quantity produced)."
-        "The total of all by-products' cost share must be less than or equal to 100.",
-    )
-
-    def _get_uom_mismatch_message(self):
-        return _(
-            "The by-product %(product)s is produced in %(unit)s, which"
-            " does not measure the same thing as its own unit"
-            " %(product_unit)s.",
-            product=self.product_id.display_name,
-            unit=self.product_uom_id.display_name,
-            product_unit=self.product_id.uom_id.display_name,
         )

@@ -1,6 +1,8 @@
+from collections import defaultdict
+
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.tools import float_is_zero, float_round
+from odoo.tools import SQL, float_is_zero, float_round
 
 
 class MrpRoutingWorkcenter(models.Model):
@@ -106,6 +108,66 @@ class MrpRoutingWorkcenter(models.Model):
                 else False
             )
 
+    def _get_recent_workorders(self):
+        """The last `time_mode_batch` done work orders of each of these operations.
+
+        A top-N-per-group, which is why this used to be one `search(limit=N)` per
+        operation -- 50 of the 59 queries a list of fifty computed operations cost.
+        `ROW_NUMBER() OVER (PARTITION BY operation_id ...)` answers it for the whole
+        set at once, and the operations are grouped by `time_mode_batch` so the
+        per-group N is a constant inside each query: one query per *distinct batch
+        size*, which is one in every configuration that leaves the default alone.
+
+        Built on `_search`'s own query rather than a hand-written FROM, so the
+        record rules on `mrp.workorder` still apply -- the ranking is wrapped
+        around what the ORM would have selected, not substituted for it.
+
+        :return: ``{operation id: mrp.workorder recordset}``, in the same
+            `date_end desc, id desc` order the per-operation search returned, and
+            empty for an operation with no history.
+        """
+        Workorder = self.env["mrp.workorder"]
+        result = {operation.id: Workorder for operation in self}
+        if not self:
+            return result
+        Workorder.flush_model(["operation_id", "qty_produced", "state", "date_end"])
+        for batch_size, operations in self.grouped("time_mode_batch").items():
+            if batch_size <= 0:
+                continue
+            query = Workorder._search(
+                [
+                    ("operation_id", "in", operations.ids),
+                    ("qty_produced", ">", 0),
+                    ("state", "=", "done"),
+                ],
+            )
+            table = query.table
+            ranked = query.select(
+                SQL("%s AS id", SQL.identifier(table, "id")),
+                SQL("%s AS operation_id", SQL.identifier(table, "operation_id")),
+                SQL(
+                    "ROW_NUMBER() OVER ("
+                    "PARTITION BY %s ORDER BY %s DESC, %s DESC) AS position",
+                    SQL.identifier(table, "operation_id"),
+                    SQL.identifier(table, "date_end"),
+                    SQL.identifier(table, "id"),
+                ),
+            )
+            rows = self.env.execute_query(
+                SQL(
+                    "SELECT id, operation_id FROM (%s) AS ranked"
+                    " WHERE position <= %s ORDER BY operation_id, position",
+                    ranked,
+                    batch_size,
+                ),
+            )
+            ids_by_operation = defaultdict(list)
+            for workorder_id, operation_id in rows:
+                ids_by_operation[operation_id].append(workorder_id)
+            for operation_id, workorder_ids in ids_by_operation.items():
+                result[operation_id] = Workorder.browse(workorder_ids)
+        return result
+
     @api.depends(
         "time_cycle_manual",
         "time_mode",
@@ -122,27 +184,20 @@ class MrpRoutingWorkcenter(models.Model):
         manual_ops = self.filtered(lambda operation: operation.time_mode == "manual")
         for operation in manual_ops:
             operation.time_cycle = operation.time_cycle_manual
-        for operation in self - manual_ops:
-            data = self.env["mrp.workorder"].search(
-                [
-                    ("operation_id", "in", operation.ids),
-                    ("qty_produced", ">", 0),
-                    ("state", "=", "done"),
-                ],
-                limit=operation.time_mode_batch,
-                order="date_end desc, id desc",
-            )
+        computed_ops = self - manual_ops
+        history = computed_ops._get_recent_workorders()
+        for operation in computed_ops:
             total_duration = 0
             cycle_number = 0
-            for item in data:
-                total_duration += item["duration"]
-                (capacity, _setup, _cleanup) = item["workcenter_id"]._get_capacity(
+            for item in history[operation.id]:
+                total_duration += item.duration
+                capacity, _setup, _cleanup = item.workcenter_id._get_capacity(
                     item.product_id,
                     item.product_uom_id,
                     operation.bom_id.product_qty or 1,
                 )
                 cycle_number += float_round(
-                    (item["qty_produced"] / capacity),
+                    item.qty_produced / capacity,
                     precision_digits=0,
                     rounding_method="UP",
                 )

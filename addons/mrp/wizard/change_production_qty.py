@@ -1,6 +1,5 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.tools import float_is_zero
 
 
 class ChangeProductionQty(models.TransientModel):
@@ -97,22 +96,22 @@ class ChangeProductionQty(models.TransientModel):
 
             for wo in production.workorder_ids:
                 operation = wo.operation_id
-                quantity = wo.qty_production - wo.qty_produced
-                if production.product_id.tracking == "serial":
-                    quantity = (
-                        1.0
-                        if not float_is_zero(quantity, precision_digits=precision)
-                        else 0.0
-                    )
+                # Rounded through the order's unit, like every other quantity test
+                # in this method. The two tests this replaces read
+                # `decimal_precision` instead, so a unit coarser than "Product
+                # Unit" -- one that cannot be split at all -- called a remainder of
+                # 0.4 non-zero and asked the work order to make 0.4 of an
+                # indivisible thing. The sign is now handled once for both
+                # branches: the serial one asked for one more unit on a *negative*
+                # remainder, because `not float_is_zero(-3)` is true, while the
+                # branch beside it had always guarded `quantity > 0`.
+                remaining = wo.qty_production - wo.qty_produced
+                if wo.product_uom_id.compare(remaining, 0) <= 0:
+                    quantity = 0.0
+                elif production.product_id.tracking == "serial":
+                    quantity = 1.0
                 else:
-                    quantity = (
-                        quantity
-                        if (
-                            quantity > 0
-                            and not float_is_zero(quantity, precision_digits=precision)
-                        )
-                        else 0
-                    )
+                    quantity = remaining
                 wo._update_qty_producing(quantity)
                 # After `_update_qty_producing`, not before.  A work order that
                 # carries an operation derives its duration from the quantity,
@@ -125,9 +124,16 @@ class ChangeProductionQty(models.TransientModel):
                 wo.duration_expected = wo._get_duration_expected(
                     ratio=new_production_qty / old_production_qty
                 )
-                if wo.qty_produced < wo.qty_production and wo.state == "done":
+                # `is_produced`, not a pair of bare float comparisons. The two
+                # tests here were `<` and `==`, which are not complements: a work
+                # order that had produced *more* than the order now asks for
+                # satisfied neither and stayed at `progress` for good -- which is
+                # exactly what cutting an order below what is already made
+                # produces. `mrp.workorder.is_produced` is the model's own answer
+                # to this question, rounded through the order's unit.
+                if wo.state == "done" and not wo.is_produced:
                     wo.state = "progress"
-                if wo.qty_produced == wo.qty_production and wo.state == "progress":
+                elif wo.state == "progress" and wo.is_produced:
                     wo.state = "done"
                 moves_raw = production.move_raw_ids.filtered(
                     lambda move, operation=operation: (

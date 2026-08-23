@@ -791,3 +791,38 @@ class TestOrderpointAudit(TransactionCase):
                 "product_id's domain branches on active_model, so a leaked one "
                 "silently narrows the product dropdown on the report.",
             )
+
+    def test_one_unreplenishable_orderpoint_does_not_silence_the_whole_batch(self):
+        """A batch that loses one orderpoint still orders for the others.
+
+        `_run_procurement_batch` runs the whole batch inside one savepoint, so a
+        single `ProcurementException` rolls back the orders that *did* succeed;
+        the retry loop exists to re-run the survivors. It could not: `failed` was
+        built as `self.concat(...)`, and `concat` prepends `self` -- the entire
+        batch -- so `orderpoints -= failed` emptied the set and the loop ended
+        after the round it had just discarded. One product with no route
+        therefore stopped every other orderpoint in the database from ordering,
+        silently: the `if not failed` guard that logs it can never fire while
+        `self` is non-empty.
+        """
+        good = self._product("Audit Batch Good")
+        bad = self._product("Audit Batch Bad", suppliable=False)
+        orderpoints = self._orderpoint(good, trigger="auto") + self._orderpoint(
+            bad, trigger="auto"
+        )
+        self.env.flush_all()
+
+        failures = orderpoints._run_procurement_batch({}, raise_user_error=False)
+
+        self.assertEqual(
+            [orderpoint.product_id for orderpoint, _msg in failures],
+            [bad],
+            "only the routeless product should have failed",
+        )
+        self.assertEqual(
+            self.env["stock.move"].search_count(
+                [("product_id", "=", good.id), ("location_dest_id", "=", self.stock_location.id)]
+            ),
+            1,
+            "the orderpoint that had a rule must still have been procured",
+        )

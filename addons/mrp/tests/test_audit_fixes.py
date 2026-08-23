@@ -2005,3 +2005,970 @@ class TestMrpAuditFixes(TestMrpCommon):
             )["move_dest_ids"],
             [],
         )
+
+    def test_reservation_state_follows_the_bom_it_asks_about(self):
+        """`reservation_state` is stored, and its inputs include the BoM.
+
+        On `partially_available` raw moves the compute asks the BoM whether it is
+        happy to start (`ready_to_produce == 'asap'`) and, if so, whether the
+        *first operation's* components are reserved.  Neither `bom_id.
+        ready_to_produce` nor the operation the moves hang off was declared, so
+        flipping the BoM left a wrong value on disk: the order below reads
+        `confirmed` and stays there, while recomputing by hand answers
+        `assigned`.
+        """
+        first, second, finished = self.env["product.product"].create(
+            [
+                {"name": "Ready First", "is_storable": True},
+                {"name": "Ready Second", "is_storable": True},
+                {"name": "Ready Finished", "is_storable": True},
+            ]
+        )
+        workcenter = self.env["mrp.workcenter"].create({"name": "Ready WC"})
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "type": "normal",
+                "ready_to_produce": "all_available",
+                "operation_ids": [
+                    Command.create(
+                        {
+                            "name": "first",
+                            "workcenter_id": workcenter.id,
+                            "time_cycle_manual": 10,
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "name": "second",
+                            "workcenter_id": workcenter.id,
+                            "time_cycle_manual": 10,
+                        }
+                    ),
+                ],
+            }
+        )
+        operations = bom.operation_ids
+        bom.bom_line_ids = [
+            Command.create(
+                {
+                    "product_id": first.id,
+                    "product_qty": 1.0,
+                    "operation_id": operations[0].id,
+                }
+            ),
+            Command.create(
+                {
+                    "product_id": second.id,
+                    "product_qty": 1.0,
+                    "operation_id": operations[1].id,
+                }
+            ),
+        ]
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "bom_id": bom.id, "product_qty": 10.0}
+        )
+        production.action_confirm()
+        warehouse = production.picking_type_id.warehouse_id
+        self.env["stock.quant"]._update_available_quantity(
+            first, warehouse.lot_stock_id, 100.0
+        )
+        production.action_assign()
+        self.assertEqual(
+            production.move_raw_ids.mapped("state"),
+            ["assigned", "confirmed"],
+            "the fixture needs the first operation reserved and the second not",
+        )
+        self.assertEqual(production.reservation_state, "confirmed")
+
+        bom.ready_to_produce = "asap"
+        self.env.flush_all()
+        production.invalidate_recordset(["reservation_state"])
+        self.assertEqual(
+            production.reservation_state,
+            "assigned",
+            "a stored field must not keep an answer its own input has changed",
+        )
+
+    def test_one_bom_is_exploded_once_for_a_whole_batch_of_orders(self):
+        """Twenty orders on one BoM resolve its kit closure once, not twenty times.
+
+        `_get_moves_raw_values` is called one order at a time by
+        `_compute_move_raw_ids` and by `_get_consumption_issues`, and `_explode`
+        opened a fresh scratch per call, so `_get_kit_closure` re-ran `_bom_find`
+        once per *order* at every level of the kit tree.
+
+        The scratch could not be shared even when a caller passed one: it is a
+        dict, an empty dict is falsy, and `_explode` reached for it with
+        `context.get(...) or ExplodeScratch()` -- which replaces the caller's
+        exactly while it is still empty, and it can only stop being empty through
+        the object that was just replaced.
+
+        Measured as a marginal cost rather than an absolute count, so a cheaper
+        explosion elsewhere cannot make the assertion vacuous.
+        """
+        kit_component, leaf, finished = self.env["product.product"].create(
+            [
+                {"name": "Batch Kit", "is_storable": True},
+                {"name": "Batch Leaf", "is_storable": True},
+                {"name": "Batch Finished", "is_storable": True},
+            ]
+        )
+        self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": kit_component.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "type": "phantom",
+                "bom_line_ids": [
+                    Command.create({"product_id": leaf.id, "product_qty": 1.0})
+                ],
+            }
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "type": "normal",
+                "bom_line_ids": [
+                    Command.create({"product_id": kit_component.id, "product_qty": 1.0})
+                ],
+            }
+        )
+
+        MrpBom = type(self.env["mrp.bom"])
+        unpatched = MrpBom._bom_find
+
+        def explosions_for(count):
+            calls = []
+
+            def counting(bom_self, *args, **kwargs):
+                calls.append(None)
+                return unpatched(bom_self, *args, **kwargs)
+
+            self.env.flush_all()
+            self.patch(MrpBom, "_bom_find", counting)
+            self.env["mrp.production"].create(
+                [
+                    {"product_id": finished.id, "bom_id": bom.id, "product_qty": 1.0}
+                    for _ in range(count)
+                ]
+            )
+            self.env.flush_all()
+            return len(calls)
+
+        few = explosions_for(2)
+        many = explosions_for(20)
+        self.assertLessEqual(
+            many - few,
+            few,
+            "resolving the kit closure must not scale with the number of orders: "
+            f"{few} lookups for 2 orders, {many} for 20",
+        )
+
+    def test_show_lot_ids_follows_its_components_tracking(self):
+        """The lot column is shown when a component is tracked -- as of now.
+
+        `_compute_show_lot_ids` reads `move_raw_ids.product_id.tracking` and
+        declared only the moves, so switching a component to serial tracking left
+        the column hidden: the field is not stored, and nothing invalidated it.
+        """
+        component, finished = self.env["product.product"].create(
+            [
+                {"name": "Lot Column Component", "is_storable": True},
+                {"name": "Lot Column Finished", "is_storable": True},
+            ]
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "type": "normal",
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "bom_id": bom.id, "product_qty": 1.0}
+        )
+        production.action_confirm()
+        self.assertFalse(production.show_lot_ids)
+
+        component.tracking = "serial"
+        self.env.flush_all()
+        self.assertTrue(
+            production.show_lot_ids,
+            "the column has to appear as soon as a component is tracked",
+        )
+
+    def test_splitting_two_orders_of_one_group_numbers_them_apart(self):
+        """One call may split several orders that share a production group.
+
+        `_create_split_backorders` read the group's high-water backorder sequence
+        inside its per-order loop, and the backorders are only created *after* it,
+        so the second order could not see the sequences the first had already
+        claimed. Both got the same number and therefore the same name, which the
+        `mrp_production_name_uniq` index rejects: a UniqueViolation out of one
+        Mark Done over an order and its own backorder, not a wrong number.
+        """
+        component, finished = self.env["product.product"].create(
+            [
+                {"name": "Split Seq Component", "is_storable": True},
+                {"name": "Split Seq Finished", "is_storable": True},
+            ]
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "type": "normal",
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "bom_id": bom.id, "product_qty": 10.0}
+        )
+        production.action_confirm()
+        siblings = production._split_productions({production: [4.0, 6.0]})
+        self.assertEqual(len(siblings), 2)
+        self.assertEqual(
+            siblings.production_group_id,
+            production.production_group_id,
+            "the fixture needs both orders in one group",
+        )
+
+        split = siblings._split_productions(
+            {order: [1.0, order.product_qty - 1.0] for order in siblings}
+        )
+
+        self.assertEqual(len(split), 4)
+        self.assertEqual(
+            sorted(split.mapped("backorder_sequence")),
+            [1, 2, 3, 4],
+            "every order in a group carries its own sequence",
+        )
+        self.assertEqual(
+            len(set(split.mapped("name"))),
+            4,
+            "and therefore its own name",
+        )
+
+    def test_the_kit_closure_memo_is_keyed_on_the_company_that_resolved_it(self):
+        """`_bom_find_domain` reads `context["company_id"]` when it is handed a falsy
+        company -- which `_get_kit_closure` passes for every company-less parent BoM.
+
+        The memo those closures are cached on is keyed on the BoM, so without the
+        company in the key one reader's answer is served to the next: measured, the
+        second company got the first company's kit resolution.
+        """
+        other = self.env["res.company"].create({"name": "Kit Memo Co"})
+        kit, first, second, finished = self.env["product.product"].create(
+            [
+                {"name": "Memo Kit", "is_storable": True},
+                {"name": "Memo First", "is_storable": True},
+                {"name": "Memo Second", "is_storable": True},
+                {"name": "Memo Finished", "is_storable": True},
+            ]
+        )
+        for company, leaf in ((self.env.company, first), (other, second)):
+            self.env["mrp.bom"].create(
+                {
+                    "product_tmpl_id": kit.product_tmpl_id.id,
+                    "product_qty": 1.0,
+                    "type": "phantom",
+                    "company_id": company.id,
+                    "bom_line_ids": [
+                        Command.create({"product_id": leaf.id, "product_qty": 1.0})
+                    ],
+                }
+            )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "type": "normal",
+                "company_id": False,
+                "bom_line_ids": [
+                    Command.create({"product_id": kit.id, "product_qty": 1.0})
+                ],
+            }
+        )
+
+        scratch = self.env["mrp.bom"]._explosion_scratch()
+        resolved = {}
+        for company, expected in ((self.env.company, first), (other, second)):
+            _boms, lines = bom.with_context(
+                bom_cost_share_cache=scratch,
+                company_id=company.id,
+                allowed_company_ids=[company.id],
+            )._explode(finished, 1.0)
+            resolved[company] = lines[0][0].product_id
+            self.assertEqual(
+                resolved[company],
+                expected,
+                f"{company.display_name} must get its own kit, not a memoised one",
+            )
+        self.assertNotEqual(*resolved.values())
+
+    def test_the_unbuild_bom_lookup_is_the_same_answer_in_a_batch(self):
+        """`_compute_bom_id` now asks `_bom_find` once per company instead of once per
+        order, which moves it off the `len(products) == 1` branch onto the batched one.
+
+        A characterisation test, not a regression test: it passes on the per-record
+        code too, and is here to hold the property that change *relies* on -- that
+        the two branches of `_bom_find` answer the same thing, including where a
+        variant BoM and a template-wide BoM compete on sequence, which is the case
+        the batched branch resolves through its own template fallback map.
+        """
+        attribute = self.env["product.attribute"].create(
+            {
+                "name": "Unbuild Batch Size",
+                "create_variant": "always",
+                "value_ids": [Command.create({"name": "S"}), Command.create({"name": "L"})],
+            }
+        )
+        leaf = self.env["product.product"].create(
+            {"name": "Unbuild Leaf", "is_storable": True}
+        )
+        products = self.env["product.product"]
+        for index, (variant_sequence, template_sequence) in enumerate(
+            ((9, 1), (1, 9), (5, 5))
+        ):
+            template = self.env["product.template"].create(
+                {
+                    "name": f"Unbuild Batch {index}",
+                    "is_storable": True,
+                    "attribute_line_ids": [
+                        Command.create(
+                            {
+                                "attribute_id": attribute.id,
+                                "value_ids": [Command.set(attribute.value_ids.ids)],
+                            }
+                        )
+                    ],
+                }
+            )
+            self.env["mrp.bom"].create(
+                [
+                    {
+                        "product_tmpl_id": template.id,
+                        "product_qty": 1.0,
+                        "type": "normal",
+                        "sequence": template_sequence,
+                        "bom_line_ids": [
+                            Command.create({"product_id": leaf.id, "product_qty": 1.0})
+                        ],
+                    },
+                    {
+                        "product_tmpl_id": template.id,
+                        "product_id": template.product_variant_ids[0].id,
+                        "product_qty": 1.0,
+                        "type": "normal",
+                        "sequence": variant_sequence,
+                        "bom_line_ids": [
+                            Command.create({"product_id": leaf.id, "product_qty": 2.0})
+                        ],
+                    },
+                ]
+            )
+            products |= template.product_variant_ids
+        # a product with no BoM at all has to survive the grouped lookup too
+        products |= self.env["product.product"].create(
+            {"name": "Unbuild No Bom", "is_storable": True}
+        )
+        self.env.flush_all()
+
+        orders = self.env["mrp.unbuild"].create(
+            [{"product_id": product.id, "product_qty": 1.0} for product in products]
+        )
+        one_at_a_time = []
+        for order in orders:
+            order.invalidate_recordset(["bom_id"])
+            one_at_a_time.append(order.bom_id)
+        orders.invalidate_recordset(["bom_id"])
+        orders.mapped("bom_id")
+
+        self.assertEqual(
+            [order.bom_id for order in orders],
+            one_at_a_time,
+            "the grouped lookup must answer what the per-record one did",
+        )
+        self.assertTrue(
+            any(one_at_a_time), "the fixture must resolve at least one BoM"
+        )
+
+    def test_production_capacity_counts_the_components_that_have_stock(self):
+        """`production_capacity` answers "how many can I actually make".
+
+        It filtered its raw moves on `product_id.type != "consu"`. In 19.0 `type` is
+        consu / service / combo and stockability is `is_storable`, so that test
+        selected services and combos -- which have no `qty_available`, and which
+        `_get_moves_raw_values` never builds a raw move for in the first place. The
+        filter matched nothing, the branch under it was dead, and the field returned
+        `product_qty` unchanged: 1000 producible against 7 components in stock.
+
+        `mrp_report_bom_structure._compute_current_production_capacity` is the same
+        question asked of the BoM, and it has always filtered on `is_storable`.
+        """
+        component, finished = self.env["product.product"].create(
+            [
+                {"name": "Capacity Component", "is_storable": True},
+                {"name": "Capacity Finished", "is_storable": True},
+            ]
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "type": "normal",
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 2.0})
+                ],
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "bom_id": bom.id, "product_qty": 1000.0}
+        )
+        warehouse = production.picking_type_id.warehouse_id
+        self.env["stock.quant"]._update_available_quantity(
+            component, warehouse.lot_stock_id, 14.0
+        )
+        self.env.flush_all()
+
+        self.assertEqual(
+            production.move_raw_ids.product_id,
+            component,
+            "the fixture must put a storable component on a raw move",
+        )
+        self.assertEqual(
+            production.production_capacity,
+            7.0,
+            "14 components at 2 per unit is 7 units, not the 1000 asked for",
+        )
+
+        # and it must follow the stock it is reporting on
+        self.env["stock.quant"]._update_available_quantity(
+            component, warehouse.lot_stock_id, 6.0
+        )
+        production.invalidate_recordset(["production_capacity"])
+        self.assertEqual(production.production_capacity, 10.0)
+
+    def test_changing_the_quantity_closes_a_work_order_that_is_already_done(self):
+        """`change.production.qty` decided a work order's state with `<` and `==`.
+
+        Those are not complements. A work order that has produced *more* than the
+        order now asks for -- which is exactly what cutting the quantity below what
+        is already made produces -- satisfied neither, so it stayed at `progress`
+        with nothing left to do and no way out. `mrp.workorder.is_produced` is the
+        model's own answer to the same question, rounded through the order's unit,
+        and the two branches are now its two sides.
+        """
+        component, finished = self.env["product.product"].create(
+            [
+                {"name": "Reopen Component", "is_storable": True},
+                {"name": "Reopen Finished", "is_storable": True},
+            ]
+        )
+        workcenter = self.env["mrp.workcenter"].create({"name": "Reopen WC"})
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "type": "normal",
+                "operation_ids": [
+                    Command.create(
+                        {
+                            "name": "op",
+                            "workcenter_id": workcenter.id,
+                            "time_cycle_manual": 10,
+                        }
+                    )
+                ],
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "bom_id": bom.id, "product_qty": 10.0}
+        )
+        production.action_confirm()
+        workorder = production.workorder_ids
+        workorder.qty_produced = 10.0
+        workorder.state = "progress"
+        self.env.flush_all()
+
+        self.env["change.production.qty"].create(
+            {"mo_id": production.id, "product_qty": 5.0}
+        ).change_prod_qty()
+
+        self.assertTrue(
+            workorder.is_produced,
+            "the fixture must leave the work order over its new target",
+        )
+        self.assertEqual(
+            workorder.state,
+            "done",
+            "a work order with nothing left to make must not sit at 'progress'",
+        )
+
+    def test_changing_the_quantity_reopens_a_work_order_that_is_not_done(self):
+        """The other side of the same predicate still fires."""
+        component, finished = self.env["product.product"].create(
+            [
+                {"name": "Reopen2 Component", "is_storable": True},
+                {"name": "Reopen2 Finished", "is_storable": True},
+            ]
+        )
+        workcenter = self.env["mrp.workcenter"].create({"name": "Reopen2 WC"})
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "type": "normal",
+                "operation_ids": [
+                    Command.create(
+                        {
+                            "name": "op",
+                            "workcenter_id": workcenter.id,
+                            "time_cycle_manual": 10,
+                        }
+                    )
+                ],
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "bom_id": bom.id, "product_qty": 5.0}
+        )
+        production.action_confirm()
+        workorder = production.workorder_ids
+        workorder.qty_produced = 5.0
+        workorder.state = "done"
+        self.env.flush_all()
+
+        self.env["change.production.qty"].create(
+            {"mo_id": production.id, "product_qty": 20.0}
+        ).change_prod_qty()
+
+        self.assertFalse(workorder.is_produced)
+        self.assertEqual(workorder.state, "progress")
+
+    def test_show_allocation_answers_the_same_thing_for_a_whole_list(self):
+        """`show_allocation` is now decided per (warehouse, acceptable states), not
+        per order — one `search_count(limit=1)` each was 50 of the 58 queries and
+        46 ms of the 46 for a list of fifty.
+
+        Six conditions had to survive the batching, and each gets its own order here
+        whose finished product carries exactly the moves that condition is about and
+        nothing else. Every one of them was checked by breaking the implementation in
+        that one way and confirming this test goes red.
+        """
+        warehouse = self.env["stock.warehouse"].search([], limit=1)
+        other_warehouse = self.env["stock.warehouse"].search(
+            [("id", "!=", warehouse.id), ("company_id", "=", warehouse.company_id.id)],
+            limit=1,
+        ) or self.env["stock.warehouse"].create(
+            {"name": "Allocation WH2", "code": "AL2", "company_id": warehouse.company_id.id}
+        )
+        customers = self.env.ref("stock.stock_location_customers")
+        self.env.user.group_ids = [
+            Command.link(self.env.ref("mrp.group_mrp_reception_report").id)
+        ]
+        component = self.env["product.product"].create(
+            {"name": "Allocation Component", "is_storable": True}
+        )
+        for house in (warehouse, other_warehouse):
+            self.env["stock.quant"]._update_available_quantity(
+                component, house.lot_stock_id, 100000.0
+            )
+
+        def make_order(tag, house):
+            finished = self.env["product.product"].create(
+                {"name": f"Allocation {tag}", "is_storable": True}
+            )
+            bom = self.env["mrp.bom"].create(
+                {
+                    "product_tmpl_id": finished.product_tmpl_id.id,
+                    "product_qty": 1.0,
+                    "type": "normal",
+                    "bom_line_ids": [
+                        Command.create({"product_id": component.id, "product_qty": 1.0})
+                    ],
+                }
+            )
+            picking_type = self.env["stock.picking.type"].search(
+                [("code", "=", "mrp_operation"), ("warehouse_id", "=", house.id)],
+                limit=1,
+            )
+            values = {
+                "product_id": finished.id,
+                "bom_id": bom.id,
+                "product_qty": 1.0,
+            }
+            if picking_type:
+                values["picking_type_id"] = picking_type.id
+            order = self.env["mrp.production"].create(values)
+            order.action_confirm()
+            return order, finished
+
+        def demand(product, house, origins=None, raw_of=None, assign=False):
+            move = self.env["stock.move"].create(
+                {
+                    "product_id": product.id,
+                    "product_uom_qty": 1.0,
+                    "location_id": house.lot_stock_id.id,
+                    "location_dest_id": customers.id,
+                    "company_id": house.company_id.id,
+                    **({"move_orig_ids": [Command.set(origins.ids)]} if origins else {}),
+                    **({"raw_material_production_id": raw_of.id} if raw_of else {}),
+                }
+            )
+            move._action_confirm()
+            if assign:
+                move._action_assign()
+            return move
+
+        def finished_lines(order):
+            return order.move_finished_ids.filtered(
+                lambda m: m.product_id.is_storable and m.state != "cancel"
+            )
+
+        expected = {}
+
+        free, free_product = make_order("free demand", warehouse)
+        demand(free_product, warehouse)
+        expected[free] = True
+
+        nothing, _ = make_order("no demand", warehouse)
+        expected[nothing] = False
+
+        own_raw, own_raw_product = make_order("own raw move", warehouse)
+        demand(own_raw_product, warehouse, raw_of=own_raw)
+        expected[own_raw] = False
+
+        elsewhere, elsewhere_product = make_order("demand elsewhere", warehouse)
+        demand(elsewhere_product, other_warehouse)
+        expected[elsewhere] = False
+
+        chained, chained_product = make_order("chained to itself", warehouse)
+        demand(chained_product, warehouse, origins=finished_lines(chained)[:1])
+        expected[chained] = True
+
+        borrower, borrower_product = make_order("chained elsewhere", warehouse)
+        lender, _ = make_order("lends its line", warehouse)
+        demand(borrower_product, warehouse, origins=finished_lines(lender)[:1])
+        expected[borrower] = False
+        expected[lender] = False
+
+        chained_own, chained_own_product = make_order("chained and owned", warehouse)
+        demand(
+            chained_own_product,
+            warehouse,
+            origins=finished_lines(chained_own)[:1],
+            raw_of=chained_own,
+        )
+        expected[chained_own] = False
+
+        wrong_product, _ = make_order("chained wrong product", warehouse)
+        demand(
+            self.env["product.product"].create(
+                {"name": "Allocation Unrelated", "is_storable": True}
+            ),
+            warehouse,
+            origins=finished_lines(wrong_product)[:1],
+        )
+        expected[wrong_product] = False
+
+        closed, closed_product = make_order("done with assigned", warehouse)
+        self.env["stock.quant"]._update_available_quantity(
+            closed_product, warehouse.lot_stock_id, 50.0
+        )
+        demand(closed_product, warehouse, assign=True)
+        closed.qty_producing = closed.product_qty
+        closed._set_qty_producing()
+        closed.button_mark_done()
+        expected[closed] = True
+
+        open_order, open_product = make_order("open with assigned", warehouse)
+        self.env["stock.quant"]._update_available_quantity(
+            open_product, warehouse.lot_stock_id, 50.0
+        )
+        demand(open_product, warehouse, assign=True)
+        expected[open_order] = False
+
+        second_house, second_product = make_order("second warehouse", other_warehouse)
+        demand(second_product, other_warehouse)
+        expected[second_house] = True
+
+        orders = self.env["mrp.production"].union(*expected)
+        self.env.flush_all()
+        orders.invalidate_recordset(["show_allocation"])
+
+        self.assertEqual(
+            {order.product_id.name: order.show_allocation for order in orders},
+            {order.product_id.name: value for order, value in expected.items()},
+        )
+        self.assertEqual(
+            closed.state, "done", "the done-state scenario must really be done"
+        )
+
+    def test_operation_durations_are_sampled_in_one_query_for_the_whole_bom(self):
+        """`time_cycle` averages each operation's last `time_mode_batch` work orders.
+
+        That is a top-N-per-group, and it used to be one `search(limit=N)` per
+        operation -- 50 of the 59 queries a list of fifty computed operations cost.
+        It is now `ROW_NUMBER() OVER (PARTITION BY operation_id ...)`, grouped by
+        `time_mode_batch` so N is constant inside each query: one query per distinct
+        batch size, which is one unless somebody changed the default.
+
+        The window has to reproduce `date_end desc, id desc` exactly, so the history
+        below carries ties on `date_end` and unset `date_end` values, and the batch
+        sizes differ per operation. Each of PARTITION BY, the sort direction, the id
+        tiebreak and the per-group N was checked by breaking it and confirming this
+        test goes red.
+        """
+        workcenter = self.env["mrp.workcenter"].create({"name": "Sampling WC"})
+        component, finished = self.env["product.product"].create(
+            [
+                {"name": "Sampling Component", "is_storable": True},
+                {"name": "Sampling Finished", "is_storable": True},
+            ]
+        )
+        batch_sizes = [10, 3, 1, 25]
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "type": "normal",
+                "operation_ids": [
+                    Command.create(
+                        {
+                            "name": f"sample op {index}",
+                            "workcenter_id": workcenter.id,
+                            "time_mode": "auto",
+                            "time_mode_batch": size,
+                        }
+                    )
+                    for index, size in enumerate(batch_sizes)
+                ],
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+            }
+        )
+        operations = bom.operation_ids
+        origin = datetime(2026, 1, 1)
+        for index, operation in enumerate(operations):
+            for step in range([14, 9, 6, 4][index]):
+                order = self.env["mrp.production"].create(
+                    {"product_id": finished.id, "bom_id": bom.id, "product_qty": 1.0}
+                )
+                workorder = order.workorder_ids.filtered(
+                    lambda w, operation=operation: w.operation_id == operation
+                )[:1]
+                if not workorder:
+                    continue
+                if step % 5 == 0:
+                    date_end = False
+                elif step % 3 == 0:
+                    date_end = origin
+                else:
+                    date_end = origin + timedelta(hours=step)
+                workorder.write(
+                    {
+                        "state": "done",
+                        "qty_produced": 1.0,
+                        "duration": 10.0 + step,
+                        "date_end": date_end,
+                    }
+                )
+        self.env.flush_all()
+
+        def per_operation_search():
+            Workorder = self.env["mrp.workorder"]
+            return {
+                operation.id: Workorder.search(
+                    [
+                        ("operation_id", "in", operation.ids),
+                        ("qty_produced", ">", 0),
+                        ("state", "=", "done"),
+                    ],
+                    limit=operation.time_mode_batch,
+                    order="date_end desc, id desc",
+                ).ids
+                for operation in operations
+            }
+
+        expected = per_operation_search()
+        self.assertTrue(
+            any(len(ids) == size for ids, size in zip(expected.values(), batch_sizes, strict=True)),
+            "the fixture must give at least one operation more history than its batch",
+        )
+        self.assertEqual(
+            {key: value.ids for key, value in operations._get_recent_workorders().items()},
+            expected,
+            "the windowed sample must be the same rows, in the same order",
+        )
+
+        # an operation with no history at all falls back to its manual duration
+        idle = self.env["mrp.routing.workcenter"].create(
+            {
+                "name": "sample op idle",
+                "bom_id": bom.id,
+                "workcenter_id": workcenter.id,
+                "time_mode": "auto",
+                "time_cycle_manual": 42.0,
+            }
+        )
+        self.env.flush_all()
+        self.assertEqual(idle._get_recent_workorders(), {idle.id: self.env["mrp.workorder"]})
+        self.assertEqual(idle.time_cycle, 42.0)
+
+        # The invariant is not "few queries" but "one per distinct batch size",
+        # which is what stops it scaling with the number of operations.
+        all_operations = bom.operation_ids
+        distinct_batches = set(all_operations.mapped("time_mode_batch"))
+        self.assertGreater(len(all_operations), len(distinct_batches))
+        sampling_queries = []
+        original_execute = type(self.env.cr).execute
+
+        def counting(cursor, query, params=None, log_exceptions=None):
+            if "ROW_NUMBER() OVER" in str(query):
+                sampling_queries.append(str(query))
+            if log_exceptions is None:
+                return original_execute(cursor, query, params)
+            return original_execute(cursor, query, params, log_exceptions=log_exceptions)
+
+        self.env.flush_all()
+        all_operations.invalidate_recordset(["time_cycle"])
+        self.patch(type(self.env.cr), "execute", counting)
+        all_operations.mapped("time_cycle")
+        self.assertEqual(
+            len(sampling_queries),
+            len(distinct_batches),
+            f"{len(all_operations)} operations across {len(distinct_batches)} batch "
+            f"sizes must cost {len(distinct_batches)} sampling queries",
+        )
+
+    def test_a_manufacturing_manager_is_not_narrowed_by_its_own_acl_row(self):
+        """`mrp.group_mrp_manager` implies `mrp.group_mrp_user`, and access rights
+        are a union, so a manager-scoped row that grants *less* than the user row
+        grants nothing at all.
+
+        Two such rows existed -- read-only `mrp.production` and read-only
+        `resource.calendar.leaves` for Administrator -- and they read as
+        restrictions on a manager while changing nothing. They are gone; this pins
+        what actually decides a manager's rights, so removing the *user* row on the
+        belief that the manager row covers it fails here.
+        """
+        manager = self.env["res.users"].create(
+            {
+                "name": "Rights Manager",
+                "login": "audit_rights_manager",
+                "group_ids": [Command.link(self.env.ref("mrp.group_mrp_manager").id)],
+            }
+        )
+        self.assertTrue(manager.has_group("mrp.group_mrp_user"))
+        for model in ("mrp.production", "resource.calendar.leaves"):
+            with self.subTest(model=model):
+                scoped = self.env[model].with_user(manager)
+                self.assertEqual(
+                    {
+                        operation: scoped.has_access(operation)
+                        for operation in ("read", "write", "create", "unlink")
+                    },
+                    dict.fromkeys(("read", "write", "create", "unlink"), True),
+                    f"a manufacturing manager must keep full rights on {model}",
+                )
+
+    def test_the_catalog_edits_a_bom_and_an_order_through_one_implementation(self):
+        """`mrp.bom` and `mrp.production` carried the same `_update_order_line_info`.
+
+        Both edit lines held in a child field named by the caller; only the field
+        that carries the quantity differed. That body now lives once on
+        `mixin.catalog.child.lines`, with the two hooks naming the quantity field,
+        and this exercises both consumers through it.
+
+        The ordering in `_inherit` is load-bearing: `mixin.product.catalog` leaves
+        `_update_order_line_info` a `return 0` stub, and the first entry wins the
+        method resolution order — listed the other way round, every call below
+        returns 0 and changes nothing.
+        """
+        first, second, finished = self.env["product.product"].create(
+            [
+                {"name": "Catalog First", "is_storable": True},
+                {"name": "Catalog Second", "is_storable": True, "standard_price": 3.5},
+                {"name": "Catalog Finished", "is_storable": True},
+            ]
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "type": "normal",
+                "bom_line_ids": [
+                    Command.create({"product_id": first.id, "product_qty": 1.0})
+                ],
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "bom_id": bom.id, "product_qty": 2.0}
+        )
+
+        for record, child_field, quantity_field in (
+            (bom, "bom_line_ids", "product_qty"),
+            (production, "move_raw_ids", "product_uom_qty"),
+        ):
+            with self.subTest(model=record._name):
+                self.assertEqual(
+                    record._update_order_line_info(first.id, 7.0, child_field=child_field),
+                    first.standard_price,
+                )
+                line = record[child_field].filtered(
+                    lambda l, first=first: l.product_id == first
+                )
+                self.assertEqual(line[quantity_field], 7.0, "an existing line is written")
+
+                self.assertEqual(
+                    record._update_order_line_info(
+                        second.id, 4.0, child_field=child_field
+                    ),
+                    3.5,
+                    "the price of the product just added comes back",
+                )
+                added = record[child_field].filtered(
+                    lambda l, second=second: l.product_id == second
+                )
+                # `stock.move.product_uom_qty` is computed and stored from
+                # `product_qty`, so a value passed to `create` is overwritten and
+                # only the write after it survives -- which is why the mixin does one.
+                self.assertEqual(added[quantity_field], 4.0, "a new line keeps its quantity")
+
+                record._update_order_line_info(second.id, 0.0, child_field=child_field)
+                self.assertFalse(
+                    record[child_field].filtered(
+                        lambda l, second=second: l.product_id == second
+                    ),
+                    "zero removes the line",
+                )
+
+                self.assertEqual(
+                    record._update_order_line_info(first.id, 1.0),
+                    0,
+                    "without a child field there is nothing to edit",
+                )
+                self.assertEqual(
+                    {
+                        product.id: len(lines)
+                        for product, lines in record._get_product_catalog_record_lines(
+                            [first.id], child_field=child_field
+                        ).items()
+                    },
+                    {first.id: 1},
+                )

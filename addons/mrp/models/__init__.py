@@ -3,9 +3,13 @@ from . import product_document
 from . import res_config_settings
 from . import mixin_bom_variant_line
 from . import mixin_bom_component
+from . import mixin_catalog_child_lines
 from . import mrp_bom
+from . import mrp_bom_line
+from . import mrp_bom_byproduct
 from . import mrp_routing
 from . import mrp_workcenter
+from . import mrp_production_group
 from . import mrp_production
 from . import stock_traceability
 from . import mrp_unbuild

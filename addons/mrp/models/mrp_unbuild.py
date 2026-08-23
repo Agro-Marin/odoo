@@ -160,13 +160,21 @@ class MrpUnbuild(models.Model):
 
     @api.depends("mo_id", "product_id", "company_id")
     def _compute_bom_id(self):
+        # `_bom_find` already answers for a whole recordset, and the answer depends
+        # on the company: grouping by it turns one search per order into one per
+        # company, which on a list of unbuild orders is one search flat.
+        orders_without_mo = self.filtered(lambda order: not order.mo_id)
+        boms_by_company = {
+            company.id: self.env["mrp.bom"]._bom_find(
+                orders.product_id, company_id=company.id
+            )
+            for company, orders in orders_without_mo.grouped("company_id").items()
+        }
         for order in self:
             if order.mo_id:
                 order.bom_id = order.mo_id.bom_id
             else:
-                order.bom_id = self.env["mrp.bom"]._bom_find(
-                    order.product_id, company_id=order.company_id.id
-                )[order.product_id]
+                order.bom_id = boms_by_company[order.company_id.id][order.product_id]
 
     @api.depends("mo_id")
     def _compute_product_id(self):
@@ -284,21 +292,21 @@ class MrpUnbuild(models.Model):
         ):
             raise UserError(error_message)
 
-        for finished_move in finished_moves:
-            if (
-                float_compare(
-                    finished_move.product_uom_qty,
-                    finished_move.quantity,
-                    precision_rounding=finished_move.product_uom_id.rounding,
-                )
-                > 0
-            ):
-                finished_move_line_vals = self._prepare_finished_move_line_vals(
-                    finished_move
-                )
-                self.env["stock.move.line"].create(finished_move_line_vals)
+        finished_line_vals = [
+            self._prepare_finished_move_line_vals(finished_move)
+            for finished_move in finished_moves
+            if float_compare(
+                finished_move.product_uom_qty,
+                finished_move.quantity,
+                precision_rounding=finished_move.product_uom_id.rounding,
+            )
+            > 0
+        ]
+        if finished_line_vals:
+            self.env["stock.move.line"].create(finished_line_vals)
 
         qty_already_used = defaultdict(float)
+        unbuild_lines = self.env["stock.move.line"]
         for move in produce_moves | consume_moves:
             if (
                 float_compare(
@@ -320,6 +328,7 @@ class MrpUnbuild(models.Model):
                 move.quantity = move.product_uom_id.round(move.product_uom_qty)
                 continue
             needed_quantity = move.product_uom_qty
+            move_line_vals_list = []
             moves_lines = original_move.mapped("move_line_ids")
             if move in produce_moves and self.lot_id:
                 moves_lines = moves_lines.filtered(
@@ -339,12 +348,15 @@ class MrpUnbuild(models.Model):
                     )
                     if move_line.owner_id:
                         move_line_vals["owner_id"] = move_line.owner_id.id
-                    unbuild_move_line = self.env["stock.move.line"].create(
-                        move_line_vals
-                    )
+                    move_line_vals_list.append(move_line_vals)
                     needed_quantity -= taken_quantity
                     qty_already_used[move_line] += taken_quantity
-                    unbuild_move_line._apply_putaway_strategy()
+            # Created per move, not per line and not deferred to the end: one
+            # INSERT instead of one per line, while `move.quantity` -- which is
+            # summed from exactly these lines -- is still what the `+=` below
+            # expects to read.
+            if move_line_vals_list:
+                unbuild_lines |= self.env["stock.move.line"].create(move_line_vals_list)
             if (
                 move in produce_moves
                 and float_compare(
@@ -353,6 +365,12 @@ class MrpUnbuild(models.Model):
                 > 0
             ):
                 move.quantity += needed_quantity
+
+        # One strategy run over every line this unbuild made. `_apply_putaway_strategy`
+        # seeds `excluded_smls` with the whole set it is given and discards each entry
+        # as it places it, so a line placed alone had all of its siblings counted
+        # against the destination rather than only the ones already placed.
+        unbuild_lines._apply_putaway_strategy()
 
         (finished_moves | consume_moves | produce_moves).picked = True
         finished_moves._action_done()

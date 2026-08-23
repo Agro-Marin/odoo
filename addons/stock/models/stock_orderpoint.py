@@ -1394,9 +1394,25 @@ class StockWarehouseOrderpoint(models.Model):
                     for procurement, error_msg in errors.procurement_exceptions
                 ]
                 failures += batch_failures
-                failed = self.concat(*[failure[0] for failure in batch_failures])
+                failed = self.browse().concat(
+                    *[failure[0] for failure in batch_failures]
+                )
                 if not failed:
-                    _logger.error("Unable to process orderpoints")
+                    # Only a procurement that names its orderpoint can be dropped
+                    # from the retry, and `_prepare_procurement_vals` records
+                    # `orderpoint_id` for *auto* rows only -- deliberately, see
+                    # `test_a_manual_orderpoint_is_told_what_its_order_created`. Every
+                    # caller that reaches this branch selects `trigger = auto`
+                    # (`stock.scheduler._replenish`, `stock_move._trigger_scheduler`)
+                    # or passes `raise_user_error=True` (`action_replenish`), so it
+                    # is unreachable today; a caller that broke that would land here,
+                    # and the savepoint has already discarded the batch's successes.
+                    _logger.error(
+                        "Unable to attribute a procurement failure to an orderpoint;"
+                        " %d orderpoints were rolled back and not retried: %s",
+                        len(orderpoints),
+                        "; ".join(msg for _op, msg in batch_failures),
+                    )
                     break
                 orderpoints -= failed
             except OperationalError as error:
