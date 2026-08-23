@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 
 from odoo import Command
 from odoo.exceptions import UserError, ValidationError
+from odoo.fields import Domain
 from odoo.tests import Form, tagged
 
 from .common import TestMrpCommon
@@ -1435,3 +1436,128 @@ class TestMrpAuditFixes(TestMrpCommon):
             "the body reads move.state and move.product_qty; it used to reach "
             "them only through reservation_state's own dependency list",
         )
+
+    def _audit_availability_population(self):
+        unit = self.env.ref("uom.product_uom_unit")
+        location = self.env["stock.warehouse"].search([], limit=1).lot_stock_id
+        start = datetime(2026, 9, 15, 8, 0, 0)
+        made = {}
+        for tag, stocked, incoming_days in (
+            ("avail", True, None),
+            ("short", False, None),
+            ("late", False, 20),
+            ("soon", False, -5),
+        ):
+            component = self.env["product.product"].create(
+                {"name": "Audit avail %s c" % tag, "is_storable": True}
+            )
+            finished = self.env["product.product"].create(
+                {"name": "Audit avail %s f" % tag, "is_storable": True}
+            )
+            if stocked:
+                self.env["stock.quant"]._update_available_quantity(
+                    component, location, 100
+                )
+            bom = self.env["mrp.bom"].create(
+                {
+                    "product_tmpl_id": finished.product_tmpl_id.id,
+                    "product_qty": 1.0,
+                    "product_uom_id": unit.id,
+                    "type": "normal",
+                    "bom_line_ids": [
+                        Command.create({"product_id": component.id, "product_qty": 1.0})
+                    ],
+                }
+            )
+            production = self.env["mrp.production"].create(
+                {
+                    "product_id": finished.id,
+                    "product_qty": 2.0,
+                    "bom_id": bom.id,
+                    "date_start": start,
+                }
+            )
+            production.action_confirm()
+            if stocked:
+                production.action_assign()
+            if incoming_days is not None:
+                incoming = self.env["stock.picking.type"].search(
+                    [("code", "=", "incoming")], limit=1
+                )
+                self.env["stock.move"].create(
+                    {
+                        "product_id": component.id,
+                        "product_uom_qty": 100,
+                        "product_uom_id": unit.id,
+                        "location_id": self.env.ref(
+                            "stock.stock_location_suppliers"
+                        ).id,
+                        "location_dest_id": location.id,
+                        "picking_type_id": incoming.id,
+                        "date": start + timedelta(days=incoming_days),
+                    }
+                )._action_confirm()
+            made[tag] = production
+        return made
+
+    def _availability_state_by_scan(self, value):
+        """What _search_components_availability_state did before it pre-filtered."""
+        open_orders = self.env["mrp.production"].search(
+            [("state", "in", ("confirmed", "progress", "to_close"))]
+        )
+        return set(
+            open_orders.filtered(lambda p: p.components_availability_state in value).ids
+        )
+
+    def test_availability_search_matches_a_full_scan_for_every_state(self):
+        made = self._audit_availability_population()
+        self.assertEqual(
+            {tag: p.components_availability_state for tag, p in made.items()},
+            {
+                "avail": "available",
+                "short": "unavailable",
+                "late": "late",
+                "soon": "expected",
+            },
+            "the fixture must cover all four states or the comparison is vacuous",
+        )
+
+        production = self.env["mrp.production"]
+        for value in (
+            ["available"],
+            ["unavailable"],
+            ["late"],
+            ["expected"],
+            ["available", "late"],
+            ["unavailable", "expected"],
+            ["available", "unavailable", "late", "expected"],
+        ):
+            self.assertEqual(
+                set(
+                    production.search(
+                        [("components_availability_state", "in", value)]
+                    ).ids
+                ),
+                self._availability_state_by_scan(value),
+                "the SQL pre-filter changed the answer for %s" % value,
+            )
+
+    def test_availability_search_skips_the_fully_reserved_orders(self):
+        made = self._audit_availability_population()
+        production = self.env["mrp.production"]
+        candidates = production.search(
+            production._components_availability_open_domain()
+            & Domain(
+                "move_raw_ids",
+                "any",
+                production._components_availability_unsettled_move_domain(),
+            )
+        )
+        self.assertNotIn(
+            made["avail"],
+            candidates,
+            "a fully reserved order can produce neither a shortage nor a forecast "
+            "date, so it must never reach the Python compute",
+        )
+        for tag in ("short", "late", "soon"):
+            self.assertIn(made[tag], candidates)

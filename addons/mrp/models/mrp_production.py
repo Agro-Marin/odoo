@@ -657,18 +657,47 @@ class MrpProduction(models.Model):
             )
 
     @api.model
+    def _components_availability_open_domain(self):
+        return Domain("state", "in", ("confirmed", "progress", "to_close"))
+
+    @api.model
+    def _components_availability_unsettled_move_domain(self):
+        return Domain("location_dest_usage", "!=", "inventory") & (
+            Domain("state", "!=", "assigned")
+            | Domain.custom(
+                to_sql=lambda model, alias, query: SQL(
+                    "%s < %s",
+                    SQL.identifier(alias, "quantity"),
+                    SQL.identifier(alias, "product_uom_qty"),
+                )
+            )
+        )
+
+    @api.model
     def _search_components_availability_state(self, operator, value):
         if operator != "in":
             return NotImplemented
 
-        current_productions = self.search(
-            [("state", "in", ("confirmed", "progress", "to_close"))]
+        open_orders = self._components_availability_open_domain()
+        unsettled = Domain(
+            "move_raw_ids", "any", self._components_availability_unsettled_move_domain()
         )
-        matching_productions = current_productions.filtered(
+        candidates = self.search(open_orders & unsettled)
+        matching = candidates.filtered(
             lambda production: production.components_availability_state in value
         )
+        matched = Domain("id", "in", matching.ids)
 
-        return [("id", "in", matching_productions.ids)]
+        if "available" not in value:
+            return matched
+        return matched | (
+            open_orders
+            & Domain(
+                "move_raw_ids",
+                "not any",
+                self._components_availability_unsettled_move_domain(),
+            )
+        )
 
     @api.depends(
         "state",
