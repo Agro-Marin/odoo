@@ -67,12 +67,6 @@ class PurchaseOrderLine(models.Model):
         help="Price from vendor/product. Compared with price_unit to detect manual overrides. "
         "When price_unit != price_unit_auto, the price is considered manually set.",
     )
-    price_unit_product_uom = fields.Float(
-        string="Unit Price Product UoM",
-        min_display_digits="Product Price",
-        compute="_compute_price_unit_product_uom",
-        help="The Price of one unit of the product's Unit of Measure",
-    )
     discount = fields.Float(
         aggregator="avg",
     )
@@ -327,18 +321,6 @@ class PurchaseOrderLine(models.Model):
                     line.date_commitment = new_date.strftime(
                         DEFAULT_SERVER_DATETIME_FORMAT
                     )
-
-    @api.depends("product_id.uom_id", "product_uom_id", "price_unit")
-    def _compute_price_unit_product_uom(self):
-        for line in self:
-            line.price_unit_product_uom = (
-                not line.display_type
-                and not line.is_downpayment
-                and line.product_uom_id._compute_price(
-                    line.price_unit,
-                    line.product_id.uom_id,
-                )
-            )
 
     @api.depends("product_qty", "price_unit", "discount", "tax_ids")
     def _compute_amounts(self):

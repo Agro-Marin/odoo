@@ -51,21 +51,20 @@ class ProductProduct(models.Model):
 
 
     @api.readonly
+    @api.readonly
     def action_view_sales(self):
+        # The line-level history, not the `sale.report` pivot the button used
+        # to open: purchase's twin has always answered "what did each document
+        # charge", and an aggregate view cannot. The pivot is still one click
+        # away -- it is the second view of this action.
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
-            "sale.action_sale_report_all_channels_sales",
+            "sale.action_sale_history",
         )
         action["domain"] = [
             ("state", "=", "done"),
             ("product_id", "in", self.ids),
         ]
-        action["context"] = {
-            "pivot_measures": ["product_uom_qty"],
-            "active_id": self.env.context.get("active_id"),
-            "search_default_Sales": 1,
-            "active_model": "sale.report",
-            "search_default_filter_order_date": 1,
-        }
+        action["display_name"] = _("Sales History for %s", self.display_name)
         return action
 
 

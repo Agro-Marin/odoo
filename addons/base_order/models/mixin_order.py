@@ -53,6 +53,16 @@ class MixinOrder(models.AbstractModel):
         string="Order Lines",
         copy=True,
     )
+    #: The list/pivot/graph history `action_price_comparison` opens, as an
+    #: xml id. Concrete order models set it.
+    _price_history_action = ""
+
+    show_comparison = fields.Boolean(
+        string="Show Comparison",
+        compute="_compute_show_comparison",
+        help="Whether any product on this order was also bought or sold on "
+        "another confirmed order, so a price comparison has something to show.",
+    )
     product_id = fields.Many2one(
         related="line_ids.product_id",
         comodel_name="product.product",
@@ -281,6 +291,39 @@ class MixinOrder(models.AbstractModel):
     has_archived_products = fields.Boolean(
         compute="_compute_has_archived_products",
     )
+
+    @api.depends("line_ids", "line_ids.product_id")
+    def _compute_show_comparison(self):
+        # `self.line_ids._name`, not a hardcoded model: sale and purchase both
+        # reach this compute and each must count its own lines.
+        line_groupby_product = self.env[self.line_ids._name]._read_group(
+            [
+                ("product_id", "in", self.line_ids.product_id.ids),
+                ("state", "=", "done"),
+            ],
+            ["product_id"],
+            ["order_id:array_agg"],
+        )
+        order_by_product = {p: set(o_ids) for p, o_ids in line_groupby_product}
+        for order in self:
+            order.show_comparison = any(
+                set(order.ids) != order_by_product[p]
+                for p in order.line_ids.product_id
+                if p in order_by_product
+            )
+
+    def action_price_comparison(self):
+        """Every other document carrying a product this order carries."""
+        self.ensure_one()
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            self._price_history_action,
+        )
+        action["display_name"] = _("Price Comparison for %s", self.display_name)
+        action["domain"] = [
+            ("state", "=", "done"),
+            ("product_id", "in", self.line_ids.product_id.ids),
+        ]
+        return action
 
     def _get_order_type(self):
         raise NotImplementedError(f"{self._name} must implement _get_order_type()")

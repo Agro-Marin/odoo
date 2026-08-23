@@ -37,6 +37,7 @@
         "report/purchase_quotation_templates.xml",
         "wizard/res_config_settings_views.xml",
         "wizard/bill_to_po_wizard_views.xml",
+        "wizard/purchase_order_line_price_history_views.xml",
         "wizard/mass_cancel_orders_views.xml",
         "data/purchase_tour.xml",
         "views/purchase_menus.xml",

@@ -260,6 +260,27 @@ class MixinOrderLineAmount(models.AbstractModel):
         min_display_digits="Product Price",
         compute="_compute_price_unit_discounted_taxinc",
     )
+    price_unit_product_uom = fields.Float(
+        string="Unit Price Product UoM",
+        min_display_digits="Product Price",
+        compute="_compute_price_unit_product_uom",
+        store=True,
+        precompute=True,
+        help="The price of one unit of the product's own unit of measure. "
+        "Comparable across lines that were bought or sold in different units.",
+    )
+    price_unit_discounted_taxexc_product_uom = fields.Float(
+        string="Net Unit Price Product UoM",
+        min_display_digits="Product Price",
+        compute="_compute_price_unit_discounted_taxexc_product_uom",
+        store=True,
+        precompute=True,
+        help="`price_unit_discounted_taxexc` expressed in the product's own "
+        "unit of measure: the discount applied, taxes excluded, units "
+        "normalized. The only per-line price that compares across both, which "
+        "is why it is stored rather than computed -- price statistics read it "
+        "with MIN/MAX in SQL instead of looping over a capped sample.",
+    )
 
     def _get_price_discounted(self):
         self.ensure_one()
@@ -281,6 +302,37 @@ class MixinOrderLineAmount(models.AbstractModel):
                 continue
             line.price_unit_discounted_taxinc = (
                 line.price_total / line.product_qty if line.product_qty else 0.0
+            )
+
+    @api.depends("product_id.uom_id", "product_uom_id", "price_unit")
+    def _compute_price_unit_product_uom(self):
+        for line in self:
+            if line.display_type or line.is_downpayment:
+                line.price_unit_product_uom = False
+                continue
+            # `_compute_price_report`, not the strict base method: this is a
+            # display value, and `_compute_product_uom_qty` above already
+            # degrades on the same legacy incompatible-unit rows rather than
+            # aborting the read that touched them.
+            line.price_unit_product_uom = line.product_uom_id._compute_price_report(
+                line.price_unit,
+                line.product_id.uom_id,
+            )
+
+    @api.depends("product_qty", "product_uom_qty", "price_subtotal")
+    def _compute_price_unit_discounted_taxexc_product_uom(self):
+        # From the subtotal rather than from `price_unit_discounted_taxexc`
+        # converted a second time: `price_subtotal / product_uom_qty` is the
+        # same quantity by construction, is already rounded the way the money
+        # on the document is, and keeps this field consistent with the
+        # SUM(price_subtotal) / SUM(product_uom_qty) weighted average that
+        # reads it -- two spellings of one number would drift.
+        for line in self:
+            if line.display_type or not line.product_uom_qty:
+                line.price_unit_discounted_taxexc_product_uom = False
+                continue
+            line.price_unit_discounted_taxexc_product_uom = (
+                line.price_subtotal / line.product_uom_qty
             )
 
     def _get_product_tax_field(self):

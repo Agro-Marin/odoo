@@ -51,3 +51,5 @@ access_sale_invoice_line_match_readonly,sale.invoice.line.match readonly,model_s
 access_sale_invoice_line_match_invoicing_payments,sale.invoice.line.match invoice,model_sale_invoice_line_match,account.group_account_invoice,1,1,0,0
 access_sale_invoice_match,sale.invoice.match user,model_sale_invoice_match,sales_team.group_sale_salesman,1,0,0,0
 access_invoice_to_so_wizard,invoice.to.so.wizard user,model_invoice_to_so_wizard,sales_team.group_sale_salesman,1,1,1,0
+access_sale_order_line_price_history,access.sale.order.line.price.history,model_sale_order_line_price_history,sales_team.group_sale_salesman,1,1,1,1
+access_sale_order_line_price_history_line,access.sale.order.line.price.history.line,model_sale_order_line_price_history_line,sales_team.group_sale_salesman,1,1,1,1

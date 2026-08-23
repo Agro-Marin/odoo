@@ -38,6 +38,8 @@ class PurchaseOrder(models.Model):
     def _get_order_type(self):
         return "purchase"
 
+    _price_history_action = "purchase.action_purchase_history"
+
     def _get_catalog_product_ok_field(self):
         return "purchase_ok"
 
@@ -130,10 +132,6 @@ class PurchaseOrder(models.Model):
     )
     printed_before = fields.Boolean(
         help="The RFQ has already been printed.",
-    )
-    show_comparison = fields.Boolean(
-        string="Show Comparison",
-        compute="_compute_show_comparison",
     )
     purchase_warning_text = fields.Text(
         string="Purchase Warning",
@@ -236,24 +234,6 @@ class PurchaseOrder(models.Model):
                 order.date_commitment = min(dates_list)
             else:
                 order.date_commitment = False
-
-    @api.depends("line_ids", "line_ids.product_id")
-    def _compute_show_comparison(self):
-        line_groupby_product = self.env["purchase.order.line"]._read_group(
-            [
-                ("product_id", "in", self.line_ids.product_id.ids),
-                ("state", "=", "done"),
-            ],
-            ["product_id"],
-            ["order_id:array_agg"],
-        )
-        order_by_product = {p: set(o_ids) for p, o_ids in line_groupby_product}
-        for order in self:
-            order.show_comparison = any(
-                set(order.ids) != order_by_product[p]
-                for p in order.line_ids.product_id
-                if p in order_by_product
-            )
 
     @api.depends_context("show_total_amount")
     @api.depends("currency_id", "name", "partner_ref", "amount_total")
@@ -401,15 +381,6 @@ class PurchaseOrder(models.Model):
 
     def _get_print_report_xmlid(self):
         return "purchase.report_purchase_quotation"
-
-    def action_purchase_comparison(self):
-        self.ensure_one()
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
-            "purchase.action_purchase_history",
-        )
-        action["display_name"] = _("Purchase Comparison for %s", self.display_name)
-        action["domain"] = [("product_id", "in", self.line_ids.product_id.ids)]
-        return action
 
     def action_send_rfq(self):
         self.ensure_one()

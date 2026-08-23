@@ -513,7 +513,7 @@
                             </div>
                         </button>
                         <button
-                            name="action_purchase_comparison"
+                            name="action_price_comparison"
                             type="object"
                             class="oe_stat_button" invisible="not show_comparison"
                             icon="fa-dollar">
@@ -672,6 +672,8 @@
                                         groups="uom.group_uom" />
                                     <field name="price_unit"
                                         readonly="qty_invoiced != 0" />
+                                    <widget name="price_history"
+                                        options="{'action': 'purchase.action_purchase_line_price_history'}" />
                                     <field name="tax_ids"
                                         widget="many2many_tax_tags"
                                         options="{'no_create': True}"

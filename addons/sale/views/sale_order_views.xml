@@ -538,6 +538,16 @@
                                 <span class="o_stat_text">Invoice Matching</span>
                             </div>
                         </button>
+                        <button
+                            name="action_price_comparison"
+                            type="object"
+                            class="oe_stat_button" invisible="not show_comparison"
+                            icon="fa-dollar">
+                            <div class="o_field_statinfo">
+                                <span class="o_stat_text">Price Comparison</span>
+                            </div>
+                            <field name="show_comparison" invisible="1" />
+                        </button>
                     </div>
                     <div class="badge rounded-pill text-bg-secondary float-end fs-6 border-0"
                         invisible="not locked">
@@ -739,6 +749,8 @@
                                         groups="uom.group_uom" />
                                     <field name="price_unit"
                                         readonly="qty_invoiced &gt; 0" />
+                                    <widget name="price_history"
+                                        options="{'action': 'sale.action_sale_line_price_history'}" />
                                     <field name="tax_ids"
                                         widget="many2many_tax_tags"
                                         options="{'no_create': True}"

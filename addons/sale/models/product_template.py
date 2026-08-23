@@ -207,17 +207,18 @@ class ProductTemplate(models.Model):
     @api.readonly
     def action_view_sales(self):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
-            "sale.action_sale_report_all_channels_sales"
+            "sale.action_sale_history"
         )
-        action["domain"] = [("product_tmpl_id", "in", self.ids)]
-        action["context"] = {
-            "pivot_measures": ["product_uom_qty"],
-            "active_id": self.env.context.get("active_id"),
-            "active_model": "sale.report",
-            "search_default_Sales": 1,
-            "search_default_filter_order_date": 1,
-            "search_default_group_by_date": 1,
-        }
+        action["domain"] = [
+            "&",
+            ("state", "=", "done"),
+            (
+                "product_id",
+                "in",
+                self.with_context(active_test=False).product_variant_ids.ids,
+            ),
+        ]
+        action["display_name"] = _("Sales History for %s", self.display_name)
         return action
 
     def _get_backend_root_menu_ids(self):

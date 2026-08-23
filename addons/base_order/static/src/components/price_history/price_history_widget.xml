@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="base_order.PriceHistoryWidget">
+        <button type="button"
+            class="btn btn-link p-0 text-muted"
+            tabindex="0"
+            title="Price history"
+            t-att-disabled="!isAvailable"
+            t-on-click.stop="openPriceHistory">
+            <i class="fa fa-history" role="img" aria-label="Price history" />
+        </button>
+    </t>
+
+</templates>

@@ -38,6 +38,8 @@ class SaleOrder(models.Model):
     def _get_order_type(self):
         return "sale"
 
+    _price_history_action = "sale.action_sale_history"
+
     def _get_catalog_product_ok_field(self):
         return "sale_ok"
 

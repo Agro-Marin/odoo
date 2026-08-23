@@ -24,3 +24,4 @@ from . import test_tax_usage
 from . import test_bill_line_match
 from . import test_product_uom_guard
 from . import test_account_move_create_purchase
+from . import test_purchase_price_history

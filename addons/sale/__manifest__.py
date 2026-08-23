@@ -36,6 +36,7 @@ This module contains all the common features of Sales Management and eCommerce.
         "wizard/res_config_settings_views.xml",
         "wizard/sale_make_invoice_advance_views.xml",
         "wizard/sale_order_discount_views.xml",
+        "wizard/sale_order_line_price_history_views.xml",
         "views/sale_order_views.xml",
         "views/account_move_views.xml",
         "views/crm_team_views.xml",
