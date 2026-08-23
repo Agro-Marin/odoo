@@ -7,7 +7,12 @@ from contextlib import suppress
 
 from psycopg import IntegrityError, OperationalError, errors
 
-from odoo.db.errors import PG_RETRY_EXCEPTIONS, PG_RETRY_SQLSTATES
+from odoo.db.errors import (
+    PG_RETRY_EXCEPTIONS,
+    PG_RETRY_SQLSTATES,
+    PG_STALE_PLAN_EXCEPTIONS,
+    is_stale_cached_plan,
+)
 from odoo.exceptions import ConcurrencyError, ValidationError
 from odoo.libs import backoff
 
@@ -115,7 +120,12 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
                 if not env.cr.closed:
                     env.cr.flush()
                 break
-            except (IntegrityError, OperationalError, ConcurrencyError) as exc:
+            except (
+                IntegrityError,
+                OperationalError,
+                ConcurrencyError,
+                *PG_STALE_PLAN_EXCEPTIONS,
+            ) as exc:
                 if env.cr.closed:
                     raise
                 with suppress(Exception):
@@ -132,6 +142,8 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
                     error = errors.lookup(exc.sqlstate).__name__
                 elif isinstance(exc, ConcurrencyError):
                     error = repr(exc)
+                elif is_stale_cached_plan(exc):
+                    error = "StaleCachedPlan"
                 else:
                     _logger.info(
                         "OperationalError not retryable: %s (sqlstate=%s)",

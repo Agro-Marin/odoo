@@ -38,7 +38,7 @@ def existing_tables(cr: Cursor, tablenames: Iterable[str]) -> list[str]:
            AND c.relnamespace = current_schema::regnamespace
     """,
             list(tablenames),
-            ["r", "v", "m"],
+            ["r", "v", "m", "p", "f"],
         )
     )
     return [row[0] for row in cr.fetchall()]
@@ -54,6 +54,7 @@ class TableKind(enum.Enum):
     View = "v"
     Materialized = "m"
     Foreign = "f"
+    Partitioned = "p"
     Other = None
 
 
@@ -265,12 +266,11 @@ def _convert_column(
 
 def drop_depending_views(cr: Cursor, table: str, column: str) -> None:
     for v, k in get_depending_views(cr, table, column):
-        quoted = '"%s"' % v.replace('"', '""')
         cr.execute(
             SQL(
                 "DROP %s IF EXISTS %s CASCADE",
                 SQL("MATERIALIZED VIEW" if k == "m" else "VIEW"),
-                SQL(quoted),
+                SQL.identifier(v),
             )
         )
         _schema.debug("Drop view %r", v)

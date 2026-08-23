@@ -20,7 +20,6 @@ __all__ = [
     "SYSTEM_DBS",
     "BaseCursor",
     "Connection",
-    "ConnectionBudget",
     "ConnectionPool",
     "Cursor",
     "PoolError",

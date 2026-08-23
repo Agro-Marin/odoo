@@ -131,3 +131,45 @@ class TestRestoresOrmStateIsDeclaredOnTheBase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestOneInvalidationMechanism(unittest.TestCase):
+    """`Savepoint.rollback` used to call `_on_rollback_to_savepoint` itself, on
+    top of `Cursor.execute` detecting the `ROLLBACK TO` it had just issued.
+    Counted per host flavour, that notify was never the thing doing the work:
+
+      * `Cursor`            -> 2 invocations, the scan already fired
+      * raw psycopg cursor  -> the attribute does not exist, no-op
+      * `TestCursor`        -> resolves to `BaseCursor`'s no-op, and
+        `TestCursor._close_savepoint` calls the real hook by hand anyway
+
+    The scan cannot be removed instead: addons issue raw
+    `ROLLBACK TO SAVEPOINT` (see `tests/contract/test_raw_savepoint_hook.py`),
+    so it is the only mechanism that covers every caller.
+    """
+
+    def test_rollback_does_not_notify_the_cursor_itself(self):
+        import inspect
+
+        src = inspect.getsource(Savepoint.rollback)
+        self.assertIn("ROLLBACK TO SAVEPOINT", src)
+        self.assertNotIn(
+            "_on_rollback_to_savepoint",
+            src,
+            "the execute-path scan is the single mechanism; a second one here "
+            "either double-fires or is a no-op depending on the host",
+        )
+
+    def test_rollback_still_issues_the_statement_through_the_host(self):
+        calls = []
+
+        class Host:
+            def execute(self, q, *a, **k):
+                calls.append(str(q))
+
+        sp = Savepoint(Host())
+        calls.clear()
+        sp.rollback()
+        self.assertEqual(len(calls), 1)
+        self.assertIn("ROLLBACK TO SAVEPOINT", calls[0])
+        self.assertIn(sp.name, calls[0])

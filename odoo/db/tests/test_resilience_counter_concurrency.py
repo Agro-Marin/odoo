@@ -5,7 +5,7 @@ import pytest
 
 from odoo.db.budget import ConnectionBudget
 from odoo.db.leaks import CheckoutTracker
-from odoo.db.stats import PoolStats
+from odoo.db.stats import _PROBE_OUTCOMES, PoolStats
 
 THREADS = 8
 ITERATIONS = 5_000
@@ -115,45 +115,87 @@ def test_checkout_tracker_length_matches_tracked_connections():
     assert len(tracker) == 0
 
 
-def test_pool_lock_covers_every_stats_mutation_or_none():
+def test_pool_never_mutates_a_counter_directly():
+    """Every PoolStats field is mutated through PoolStats, under its own lock.
+
+    This pin used to read `(2 locked, 13 unlocked)` and count how many of
+    `pool.py`'s raw `self.stats.x += 1` sites happened to sit inside a
+    `with self._lock:` block.  Both numbers were wrong -- the scan matched a
+    lock block that had already CLOSED above the statement -- and the shape it
+    described was the wrong one anyway: the pool's lock guards the pool's
+    `_pools` dict, not the counters, so a counter that happened to be under it
+    was protected by accident.
+
+    PoolStats now owns a lock and exposes one method per counter, so the
+    invariant is simply that `pool.py` contains no raw mutation at all.
+    """
     import pathlib
     import re
 
     pool_py = pathlib.Path(__file__).resolve().parents[1] / "pool.py"
-    lines = pool_py.read_text(encoding="utf-8").splitlines()
-
-    def indent(s: str) -> int:
-        return len(s) - len(s.lstrip())
-
-    locked: list[int] = []
-    unlocked: list[int] = []
-    for i, line in enumerate(lines):
-        if not re.search(r"self\.stats\.\w+ \+= 1", line):
-            continue
-        under_lock = False
-        for j in range(i - 1, max(i - 40, -1), -1):
-            prev = lines[j]
-            if not prev.strip():
-                continue
-            if indent(prev) < indent(line):
-                if "with self._lock" in prev:
-                    under_lock = True
-                    break
-                if re.match(r"\s*(def |class )", prev):
-                    break
-        (locked if under_lock else unlocked).append(i + 1)
-
-    assert locked or unlocked, "no stats mutations found in pool.py — scan broke"
-
-    assert (len(locked), len(unlocked)) == (2, 13), (
-        f"the PoolStats locking split moved: {len(locked)} locked "
-        f"(lines {locked}), {len(unlocked)} unlocked (lines {unlocked}); "
-        f"expected (2, 13).\n"
-        f"If you locked more of them: good — update this pin, and prefer "
-        f"finishing the job so `unlocked` reaches 0.\n"
-        f"If you added a new unlocked increment: that is one more counter that "
-        f"silently under-reports under the concurrency it exists to diagnose."
+    raw = re.findall(r"self\.stats\.\w+\s*[-+]=", pool_py.read_text(encoding="utf-8"))
+    assert not raw, (
+        f"{len(raw)} raw PoolStats mutation(s) in pool.py: {raw}. "
+        f"`x += 1` on an attribute is a non-atomic read-modify-write, so the "
+        f"counters that exist to diagnose concurrency are the ones that lose "
+        f"increments under it. Add a record_* method to PoolStats instead."
     )
+
+
+def test_every_counter_has_a_recorder_that_takes_the_lock():
+    import inspect
+
+    counters = {f for f in PoolStats.__slots__ if not f.startswith("_")}
+    # the probe recorder resolves its field through _PROBE_OUTCOMES, so the
+    # mapping is that recorder's declaration of what it covers
+    recorded = set(_PROBE_OUTCOMES.values())
+    for name, member in inspect.getmembers(PoolStats, inspect.isfunction):
+        if not name.startswith("record_"):
+            continue
+        src = inspect.getsource(member)
+        assert "self._lock" in src, f"PoolStats.{name} mutates without the lock"
+        recorded |= {c for c in counters if c in src}
+    missing = counters - recorded
+    assert not missing, (
+        f"PoolStats fields with no locked recorder: {sorted(missing)} -- "
+        f"whoever mutates them is doing it raw."
+    )
+
+
+def test_snapshot_reads_every_counter_under_the_lock():
+    import inspect
+
+    src = inspect.getsource(PoolStats.snapshot)
+    assert "with self._lock:" in src, (
+        "snapshot() renders the histogram alongside the total it summarises; "
+        "reading them unlocked lets health() report a histogram that does not "
+        "sum to its own borrow count"
+    )
+
+
+def test_the_histogram_still_agrees_with_the_total_under_load():
+    stats = PoolStats()
+    _hammer(lambda: stats.record_borrow(0.0))
+    assert stats.borrows == EXPECTED
+    assert sum(stats.borrow_wait_buckets) == stats.borrows
+
+
+def test_probe_outcomes_are_named_not_spelled():
+    stats = PoolStats()
+    stats.record_probe_outcome("permanent")
+    stats.record_probe_outcome("transient")
+    stats.record_probe_outcome("skipped_proven")
+    assert (
+        stats.probe_permanent,
+        stats.probe_transient,
+        stats.probe_skipped_proven,
+    ) == (1, 1, 1)
+    try:
+        stats.record_probe_outcome("nonsense")
+    except KeyError:
+        pass
+    else:
+        raise AssertionError("an unknown probe outcome must not silently vanish")
 
 
 if __name__ == "__main__":

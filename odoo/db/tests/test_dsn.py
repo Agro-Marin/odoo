@@ -2,7 +2,11 @@ import unittest
 
 import psycopg
 
-from odoo.db.dsn import _normalize_dsn_key, _translate_connect_error
+from odoo.db.dsn import (
+    _LOCALE_INDEPENDENT_AUTH_MARKERS,
+    _normalize_dsn_key,
+    _translate_connect_error,
+)
 
 
 class TestNormalizeDsnKey(unittest.TestCase):
@@ -123,3 +127,89 @@ class TestConnectErrorTranslation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestConnectErrorTranslationIsLocaleAware(unittest.TestCase):
+    """libpq gives connect failures no SQLSTATE (`sqlstate` and `diag` are both
+    None), so the message is the only signal -- and PostgreSQL translates it.
+    This workspace's server runs `lc_messages = es_ES.UTF-8`.
+
+    What can be made locale-proof is made locale-proof: `pg_hba.conf` is a
+    filename and survives every catalogue.  What cannot is stated, and measured:
+    an unrecognised auth failure costs the full `db_borrow_timeout` (30.00 s)
+    instead of 0.02 s.  The missing-database case does not depend on the text at
+    all, because `_probe_connectable` falls back to `_database_absent`, which
+    asks `pg_database`.
+    """
+
+    PG_HBA_IN_FOUR_LANGUAGES = (
+        ('FATAL:  no pg_hba.conf entry for host "1.2.3.4"'),
+        (
+            "FATAL:  no hay una l\u00ednea en pg_hba.conf para el servidor \u00ab1.2.3.4\u00bb"
+        ),
+        (
+            "FATAL:  aucune entr\u00e9e dans pg_hba.conf pour l'h\u00f4te \u00ab 1.2.3.4 \u00bb"
+        ),
+        ("FATAL:  keine pg_hba.conf-Eintrag f\u00fcr Host \u00bb1.2.3.4\u00ab"),
+    )
+
+    def test_pg_hba_is_recognised_in_every_language(self):
+        for msg in self.PG_HBA_IN_FOUR_LANGUAGES:
+            with self.subTest(msg=msg[:40]):
+                self.assertIsInstance(
+                    _translate_connect_error(psycopg.OperationalError(msg)),
+                    psycopg.errors.InvalidAuthorizationSpecification,
+                    "pg_hba.conf is a filename; no catalogue translates it, so "
+                    "this one must not depend on lc_messages",
+                )
+
+    def test_the_locale_proof_markers_contain_no_prose(self):
+        for marker in _LOCALE_INDEPENDENT_AUTH_MARKERS:
+            with self.subTest(marker=marker):
+                self.assertNotIn(
+                    " ",
+                    marker,
+                    "a marker with a space in it is a phrase, and phrases are "
+                    "translated -- keep this list to identifiers and filenames",
+                )
+
+    def test_a_transient_failure_is_still_transient(self):
+        for msg in (
+            "could not connect to server: Connection refused",
+            "server closed the connection unexpectedly",
+            "FATAL:  the database system is starting up",
+        ):
+            with self.subTest(msg=msg[:40]):
+                self.assertIsNone(
+                    _translate_connect_error(psycopg.OperationalError(msg)),
+                    "classifying a restart as permanent would make the pool "
+                    "give up on a server that is about to come back",
+                )
+
+    def test_english_auth_messages_are_still_recognised(self):
+        for msg in (
+            'FATAL:  password authentication failed for user "x"',
+            'FATAL:  role "x" does not exist',
+            'FATAL:  role "x" is not permitted to log in',
+        ):
+            with self.subTest(msg=msg[:40]):
+                self.assertIsInstance(
+                    _translate_connect_error(psycopg.OperationalError(msg)),
+                    psycopg.errors.InvalidAuthorizationSpecification,
+                )
+
+    def test_a_localised_password_failure_is_a_known_gap(self):
+        localised = (
+            "FATAL:  la autentificaci\u00f3n password fall\u00f3 para el usuario "
+            "\u00abx\u00bb"
+        )
+        self.assertIsNone(
+            _translate_connect_error(psycopg.OperationalError(localised)),
+            "This is the documented residual, pinned so it is not mistaken for "
+            "a regression: a localised password failure is NOT recognised, and "
+            "costs db_borrow_timeout. There is no client-side fix -- psycopg "
+            "exposes no SQLSTATE for connect errors, and `-c lc_messages=C` "
+            "cannot help because authentication precedes options processing. "
+            "If this ever starts passing, the fix is real and this test should "
+            "be inverted.",
+        )

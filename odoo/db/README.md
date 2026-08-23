@@ -12,7 +12,7 @@ carry the detailed invariants — this file is the map.
 | `__init__.py` | Public API: `db_connect`, `close_db`/`close_all`, `drain_db`/`drain_all`, `pool_health`, lazy process-wide R/W + read-only `ConnectionPool` pair, `sql_counter` via module `__getattr__` | no |
 | `cursor.py` | `BaseCursor` (hooks, flush convergence, savepoint seam) and `Cursor` (the `cr` object: execute/executemany/pipeline, DDL handling, close/commit/rollback guards) | no |
 | `pool.py` | `ConnectionPool` (per-DSN psycopg_pool registry, borrow/give_back, idle-pool reaper, stale-credential eviction, pre-flight probe + reachability proof, direct maintenance-DB path, `health()`) and `Connection` | no |
-| `budget.py` | `ConnectionBudget`: the shared `db_maxconn` cap, its permit semaphore and its saturation counter | yes |
+| `budget.py` | `ConnectionBudget`: the shared `db_maxconn` cap, its permit `Condition` and its saturation counter | yes |
 | `stats.py` | `PoolStats`: borrow-wait histogram, pool churn and probe-outcome counters behind `ConnectionPool.health()` | yes |
 | `reaper.py` | `IdlePoolReaper`: which quiet per-DSN pools to close and how often to look (the decision; the pool keeps the locking and teardown) | yes |
 | `leaks.py` | `CheckoutTracker`: which connections are out, since when, from which thread and borrow site | yes |
@@ -21,9 +21,9 @@ carry the detailed invariants — this file is the map.
 | `bulk.py` | `_BulkAccessMixin`: `copy_from` (COPY, optional binary + pre-generated ids), `execute_values` | no |
 | `savepoint.py` | `Savepoint` / `_FlushingSavepoint` (ORM state restore is injected by `odoo.orm.runtime.savepoint`) | yes |
 | `ddl.py` | DDL keyword detection + client-side param inlining (`$N` is rejected in DDL positions) | yes |
-| `schema.py` | Schema DDL operations executed against a `cr`: create/alter tables, columns, constraints, foreign keys, indexes, views; `TableKind`, `SQL_ORDER_BY_TYPE` (relocated from the former `tools/sql.py`, ADR-0004) | no |
+| `schema.py` | Schema DDL operations executed against a `cr`: create/alter tables, columns, constraints, foreign keys, indexes, views; `TableKind`, `SQL_ORDER_BY_TYPE` (relocated from the former `tools/sql.py`, ADR-0004). `existing_tables` and `TableKind` must admit the same relkinds — a partitioned table (`'p'`) reported as absent makes `_auto_init` issue `CREATE TABLE` over it and the registry fails to load with `DuplicateTable` | no |
 | `dsn.py` | DSN expansion/normalization (pool keys, password fingerprint), connect-error classification | yes |
-| `errors.py` | `CURSOR_LOGGER_NAME`, retry taxonomy (`PG_RETRY_*`), user-fault taxonomy (`PG_USER_FAULT_*`), `_log_sql_error`'s three log tiers | yes |
+| `errors.py` | `CURSOR_LOGGER_NAME`, retry taxonomy (`PG_RETRY_*`), user-fault taxonomy (`PG_USER_FAULT_*`), the stale-plan marker (`PG_STALE_PLAN_EXCEPTIONS`, `mark_stale_cached_plan`, `is_stale_cached_plan`), `reached_the_server`, `_log_sql_error`'s four log tiers | yes |
 | `lifecycle.py` | psycopg_pool `configure`/`reset`/`check` callbacks (adapters, prepare tuning, session reset, grace-windowed health check sized by `db_healthcheck_grace`) | no |
 | `schema_cache.py` | `TransactionSchemaCache`: per-cursor, transaction-lifetime catalog facts for `copy_from` (id sequences, column types) | yes |
 | `metrics.py` | `_MetricsMixin` (query counters, thread metrics, DEBUG per-table stats), `sql_counter` | yes* |
@@ -74,6 +74,21 @@ carry the detailed invariants — this file is the map.
   `ConnectionPool.borrow`/`_borrow_direct` and travels with the connection via
   the `_odoo_pool` marker; `give_back` claims the marker with an atomic
   `dict.pop` and releases exactly once. No helper touches the budget.
+  **A borrow ends exactly two ways, and each has one release site**:
+  `give_back` for a connection that reached the caller, `_unwind_failed_borrow`
+  for one that did not — the latter routing a *marked* connection back through
+  `give_back` and releasing directly only when the marker was never set. It
+  matters that **every step after the permit is taken sits inside that guard**.
+  The post-acquisition bookkeeping — the checkout tracker, the leak warning, the
+  borrow-wait histogram — used to run *after* the `except` that releases, so
+  anything raising there burned a permit and leaked the connection for the life
+  of the process; `maxconn` such failures leave every later borrow timing out on
+  "connection budget reached" with no way back. That is not hypothetical
+  bookkeeping: `_warn_about_leaks` reads `tools.config["db_leak_detection"]` on
+  every borrow, and this package is documented below as importable without
+  `odoo.init`, where that key need not exist. Pinned in
+  `tests/test_invariants.py::TestAFailedBorrowNeverKeepsItsPermit`, which
+  asserts structurally that nothing follows the guarded block.
 - **A saturated pool names its culprits**: every borrow records the connection
   in a `CheckoutTracker` with the holding thread and the borrow site, and every
   return removes it, so what is left is by definition still out. `db_maxconn`
@@ -155,8 +170,24 @@ carry the detailed invariants — this file is the map.
 - **DDL needs client-side params**: PostgreSQL rejects `$N` in DDL structural
   positions, so `Cursor.execute` detects DDL (`ddl.py`) and inlines params as
   quoted literals. Schema-changing DDL additionally clears this connection's
-  auto-prepared statements and this cursor's `TransactionSchemaCache`; *other*
-  workers' prepared statements are healed via registry signaling → `drain_db`.
+  auto-prepared statements and this cursor's `TransactionSchemaCache`, and
+  arms `_schema_changed` so that **`commit` drains this process's other pooled
+  connections** for that database; *other processes* are healed via registry
+  signaling → `drain_db`. The drain is taken at commit, not per statement, for
+  two reasons. An uncommitted schema change is invisible to every other
+  connection, so there is nothing to heal until it lands — and draining earlier
+  would hand out a fresh connection that then warms a plan against the *pre*-DDL
+  schema. And `psycopg_pool`'s `drain()` closes each idle connection **and
+  schedules a replacement**, so per-statement draining churns the whole pool once
+  per DDL statement: measured over a `base` install's 999 schema-changing
+  statements, 31.6 ms per-statement against 2.1 ms per-transaction. Without this,
+  a sibling connection that had auto-prepared `SELECT id, a FROM t` before an
+  `ALTER COLUMN a TYPE` keeps the stale plan and raises `FeatureNotSupported:
+  cached plan must not change result type` — *intermittently*, only when the next
+  borrow happens to draw that backend. A connection checked out by another thread
+  when the DDL commits stays poisoned for the rest of its transaction (which is
+  already racing a schema change), but cannot pool it: `drain()` stamps
+  `_drained_at`, so it is discarded on return.
   Two different questions, two functions: `_ddl_keyword` reports the **leading**
   keyword (all param inlining needs — psycopg cannot bind server-side params
   into a multi-statement string at all), while `_changes_schema` scans **every**
@@ -244,6 +275,91 @@ carry the detailed invariants — this file is the map.
   `idle_session_timeout` is still applied unconditionally: it is derived from
   `db_conn_max_idle` and is what keeps the server from reaping a connection the
   pool still considers warm.
+  **Maintenance connections are exempt from `db_session_gucs`, deliberately**,
+  and both borrow paths now render options through one `_connection_options`
+  where `_borrow_direct` passes `session_gucs=False`. They used to build the
+  string twice and the direct copy simply never gained `_session_gucs`, which
+  reads like drift — but applying them there "for consistency" is a regression,
+  measured: under `db_session_gucs = statement_timeout=50ms` a `CREATE DATABASE
+  … TEMPLATE` dies with `QueryCanceled`, and under
+  `default_transaction_read_only=on` a `DROP DATABASE` raises
+  `ReadOnlySqlTransaction`; both succeed without the GUCs. `statement_timeout`
+  is one of the commonest things an operator puts there and a template copy
+  legitimately runs for minutes, so a policy tuned for application queries must
+  not follow administrative DDL. The duplication was still worth removing: what
+  it cost was the ability to *see* the exemption. `idle_session_timeout` is
+  outside it and still applied to both.
+- **A stale cached plan is recoverable, and is recovered one layer up**: after a
+  committed schema change, a sibling connection re-executing an auto-prepared
+  statement gets `FeatureNotSupported: cached plan must not change result type`.
+  It **cannot** be retried where it happens — measured, the transaction is left
+  `INERROR`, so both a bare retry and a `discard_cached_plans()` + retry raise
+  `InFailedSqlTransaction`, and recovering inside `Cursor.execute` would need a
+  savepoint per statement: two extra round trips on every query in core. The
+  replay is safe (the plan check runs *before* execution, so a failing prepared
+  `INSERT` leaves no row) and it already exists in
+  `service.transaction.retrying`, so the cursor's only job is to **name** the
+  condition. It is the one place that can: SQLSTATE `0A000` also covers
+  permanent failures such as "cannot alter type of a column used by a view", and
+  the message text is translated under `lc_messages`. `_note_stale_cached_plan`
+  therefore marks the exception when the connection held auto-prepared
+  statements — the necessary condition — and clears them so the replay
+  re-prepares. Over-inclusion is bounded by the retry budget; under-inclusion is
+  impossible. `retrying` has to name `PG_STALE_PLAN_EXCEPTIONS` in its `except`
+  explicitly, because `FeatureNotSupported` is **not** an `OperationalError` and
+  was never caught at all. Measured, six readers against a writer altering a
+  column they read: **6832 failed requests → 0**.
+- **A statement that failed still cost a round trip**: `_record_metrics` ran
+  after the `try/except`, so every server-side failure counted as zero queries —
+  in `sql_log_count`, in the process-wide `sql_counter`, and therefore in
+  `assertQueryCount`, which reads the first. Any test wrapping a constraint
+  violation in `assertRaises` under-reported its cost. Client-side rejections
+  must stay uncounted, because psycopg raises before anything reaches the wire,
+  and `reached_the_server` is the discriminator that separates them: the server
+  supplies a SQLSTATE, psycopg's own errors do not. Blast radius was measured
+  before landing it — `/base` gained no query-count failure, and the mail suite,
+  which carries this fork's query-count debt, still reads 17 failed.
+- **The counters own their lock**: `PoolStats` exposes one `record_*` method per
+  counter and holds `_lock` for the whole update, and `pool.py` contains no raw
+  `self.stats.x += 1` at all. `x += 1` on an attribute is a non-atomic
+  read-modify-write, so the counters that exist to diagnose concurrency were the
+  ones losing increments, and the borrow-wait histogram could drift out of step
+  with the total it summarises because they were separate writes. `snapshot()`
+  reads them all under the same lock for the same reason. The pin that used to
+  record this counted how many raw sites happened to sit inside the *pool's*
+  lock — which guards `_pools`, not the counters, so any protection was
+  accidental — and it counted them wrongly besides.
+- **`ConnectionBudget` is a `Condition`, not a `BoundedSemaphore`**: `available`,
+  `in_use` and `exhausted` are exact and are read under the lock that hands the
+  permits out. The semaphore version derived them from
+  `threading.BoundedSemaphore._value`, a private CPython attribute read without
+  the semaphore's own lock, on the path that renders `db.pool_health()`. A
+  `BoundedSemaphore` is itself a `Condition` plus a counter, so this costs the
+  lock acquisition it always cost.
+- **Connect-error classification is locale-dependent, and that is bounded not
+  ignored**: libpq reports connect failures with **no SQLSTATE** (psycopg's
+  `sqlstate` and `diag` are both `None`), so message text is the only signal and
+  PostgreSQL translates it. What can be made locale-proof is:
+  `_LOCALE_INDEPENDENT_AUTH_MARKERS` keys on `pg_hba.conf`, a filename no
+  catalogue translates, and it classifies correctly in English, Spanish, French
+  and German. The missing-database case does not depend on text at all — the
+  probe falls back to `_database_absent`, which asks `pg_database`. What remains
+  is an **authentication** failure on a server with translations installed: it
+  is not recognised and costs the full `db_borrow_timeout` (measured, 0.02 s
+  against 30.00 s). There is no client-side fix — `options='-c lc_messages=C'`
+  cannot help, because authentication happens *before* the server processes
+  `options`, verified by pairing a bad password with an invalid GUC and getting
+  the password error. Deployments that care set `lc_messages = C` in
+  `postgresql.conf`.
+- **One mechanism invalidates the catalog cache on a savepoint rollback**: the
+  `ROLLBACK TO` detection in `Cursor.execute`. `Savepoint.rollback` used to call
+  the hook itself as well; counted per host flavour that call was never the one
+  doing the work — on a `Cursor` it double-fired behind the scan, on a raw
+  psycopg cursor the attribute does not exist, and on a `TestCursor` it resolved
+  to `BaseCursor`'s no-op while `TestCursor._close_savepoint` called the real
+  hook by hand. The scan cannot be dropped instead: addons issue raw
+  `ROLLBACK TO SAVEPOINT` (`tests/contract/test_raw_savepoint_hook.py` pins it),
+  so it is the only mechanism that covers every caller.
 - **Password hygiene**: every DSN consumer routes through
   `dsn._expand_conninfo`; pool keys carry only a BLAKE2s fingerprint, and
   `Connection.dsn` strips the secret before logging.
@@ -261,11 +377,20 @@ carry the detailed invariants — this file is the map.
   reaches a pool key, `conninfo_to_dict` has one caller, `_libpq_connect_timeout`
   never returns a value libpq would read as "wait forever", the budget is keyed
   on the resolved endpoint rather than the presence of `db_replica_host`, the
-  two schema-cache clears keep their distinct call sites, and `_changes_schema`
-  cannot miss a hidden statement. Each was verified to fail when its invariant is violated.
+  two schema-cache clears keep their distinct call sites, `_changes_schema`
+  cannot miss a hidden statement, a schema change arms a flag rather than
+  draining inline and only `commit` consumes it, both borrow paths render their
+  libpq options through the one `_connection_options` with only the maintenance
+  path opting out, nothing follows the guard that releases a permit, the cursor
+  names a stale cached plan rather than re-listing the family, and `pool.py`
+  contains no raw counter mutation at all. Each was verified to fail when its invariant is violated.
   Add the check here when you add an invariant above.
 
-- **Tier 1 (no DB, ms)** — `odoo/db/tests/` via `cd addons/odoo && pytest`:
+- **Tier 1 (no DB, ms)** — `odoo/db/tests/` via `cd odoo && pytest` from the
+  workspace root (the whole Tier-1 invocation, not this directory alone:
+  `pytest odoo/db/tests` on its own reports **22 failures** that are artefacts of
+  the suite's own `sys.modules` stubs shadowing the real `import odoo.db` a
+  handful of tests perform — they all pass in the full run):
   pure modules (`ddl`, `dsn`, `errors`, `schema_cache` bookkeeping, `savepoint`
   depth accounting, `bulk`'s argument validation and encoding cost model,
   `utils`' DSN/maintenance-db resolution, `budget`/`stats` accounting, `reaper`

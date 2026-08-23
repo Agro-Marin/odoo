@@ -18,9 +18,11 @@ from psycopg import IsolationLevel
 from psycopg.postgres import types as _pg_types
 from psycopg_pool import PoolTimeout
 
+import odoo
 from odoo import api
 from odoo.db import db_connect, insert_or_existing
 from odoo.db import pool as pool_module
+from odoo.db import schema as sql_schema
 from odoo.db import utils as _db_utils
 from odoo.db.cursor import (
     Cursor,
@@ -3882,6 +3884,613 @@ class TestDdlInvalidatesPreparedPlan(BaseCase):
                 cr.execute(f"DROP TABLE IF EXISTS {tbl}")
                 cr.commit()
             cr.close()
+
+
+class TestFailedStatementsAreCounted(BaseCase):
+    """A statement that raised still cost a round trip.
+
+    `_record_metrics` ran after the try/except, so every server-side failure
+    counted as zero queries -- in `sql_log_count`, in the process-wide
+    `sql_counter`, and therefore in `assertQueryCount`, which reads the former.
+    Any test wrapping a constraint violation in `assertRaises` was under-
+    reporting its real cost.
+
+    Client-side rejections stay uncounted: psycopg raises before anything
+    reaches the wire, and SQLSTATE is what tells the two apart.
+
+    Blast radius was measured before landing this: `/base` gained no
+    query-count failure (its 13 `Query count` lines are all "less than
+    expected" INFO), and the mail suite -- the one carrying this fork's
+    query-count debt -- still reads 17 failed, exactly as documented.
+    """
+
+    def _cr(self):
+        cr = db_connect(common.get_db_name()).cursor()
+        cr.execute("DROP TABLE IF EXISTS _test_count CASCADE")
+        cr.execute("CREATE TABLE _test_count (a int UNIQUE)")
+        cr.execute("INSERT INTO _test_count VALUES (1)")
+        cr.commit()
+        return cr
+
+    def _delta(self, cr, fn):
+        before, before_global = cr.sql_log_count, odoo.db.sql_counter
+        with contextlib.suppress(Exception):
+            fn()
+        delta = (cr.sql_log_count - before, odoo.db.sql_counter - before_global)
+        with contextlib.suppress(Exception):
+            cr.rollback()
+        return delta
+
+    def test_a_successful_statement_counts_one(self):
+        cr = self._cr()
+        try:
+            self.assertEqual(
+                self._delta(cr, lambda: cr.execute("SELECT 1")), (1, 1)
+            )
+        finally:
+            cr.rollback()
+            cr.close()
+
+    def test_server_side_failures_count(self):
+        cr = self._cr()
+        try:
+            for label, stmt in (
+                ("syntax error", "SELEKT 1"),
+                ("undefined table", "SELECT * FROM _no_such_table_xyz"),
+                ("unique violation", "INSERT INTO _test_count VALUES (1)"),
+            ):
+                with self.subTest(case=label):
+                    self.assertEqual(
+                        self._delta(
+                            cr, lambda s=stmt: cr.execute(s, log_exceptions=False)
+                        ),
+                        (1, 1),
+                        f"a {label} reached the server and cost a round trip",
+                    )
+        finally:
+            cr.rollback()
+            cr.close()
+
+    def test_a_failing_executemany_counts_its_rows(self):
+        cr = self._cr()
+        try:
+            self.assertEqual(
+                self._delta(
+                    cr,
+                    lambda: cr.executemany(
+                        "INSERT INTO _test_count VALUES (%s)",
+                        [(1,), (1,)],
+                        log_exceptions=False,
+                    ),
+                ),
+                (2, 2),
+            )
+        finally:
+            cr.rollback()
+            cr.close()
+
+    def test_client_side_rejections_still_count_zero(self):
+        cr = self._cr()
+        try:
+            self.assertEqual(
+                self._delta(
+                    cr,
+                    lambda: cr.execute("SELECT %s, %s", (1,), log_exceptions=False),
+                ),
+                (0, 0),
+                "psycopg raises before anything reaches the wire; counting it "
+                "would inflate every query budget",
+            )
+        finally:
+            cr.rollback()
+            cr.close()
+
+    def test_copy_is_counted_like_every_other_statement_entry_point(self):
+        cr = self._cr()
+        try:
+            before = cr.sql_log_count
+            with cr.copy("COPY _test_count (a) FROM STDIN") as cp:
+                cp.write("7\n8\n")
+            self.assertEqual(
+                cr.sql_log_count - before,
+                1,
+                "cr.copy() was the one marked statement entry point invisible "
+                "to query counting",
+            )
+        finally:
+            cr.rollback()
+            cr.close()
+
+
+class TestStaleCachedPlanIsRecoverable(BaseCase):
+    """`cached plan must not change result type` is recoverable, and used to
+    reach the user as a 500.
+
+    Three measurements shape the design.  (1) The failing statement has no side
+    effect -- the plan check runs before execution -- so replaying is safe.
+    (2) The transaction is left INERROR, so it cannot be retried in place; a
+    savepoint per statement would cost two round trips on every query in core.
+    (3) `FeatureNotSupported` is not an `OperationalError`, so `retrying()`
+    never even saw it.
+
+    So the cursor marks and the request layer replays.  End to end, six reader
+    threads against a writer altering a column they read: HEAD failed **6832**
+    requests, this passes **0**.
+    """
+
+    def _stale_plan(self, cr_a, cr_b, tbl):
+        cr_a.execute(f"DROP TABLE IF EXISTS {tbl} CASCADE")
+        cr_a.execute(f"CREATE TABLE {tbl} (id serial primary key, a int)")
+        cr_a.execute(f"INSERT INTO {tbl} (a) VALUES (1)")
+        cr_a.commit()
+        for _ in range(6):
+            cr_b.execute(f"SELECT id, a FROM {tbl}")
+            cr_b.fetchall()
+        cr_b.commit()
+        cr_a.execute(f"ALTER TABLE {tbl} ALTER COLUMN a TYPE bigint")
+        cr_a.commit()
+
+    def test_the_cursor_marks_it_and_a_replay_then_succeeds(self):
+        from odoo.db.errors import is_stale_cached_plan
+
+        db_name = common.get_db_name()
+        a, b = db_connect(db_name).cursor(), db_connect(db_name).cursor()
+        tbl = "_test_stale_plan"
+        try:
+            self.assertIsNot(a._cnx, b._cnx)
+            self._stale_plan(a, b, tbl)
+            for _attempt in range(8):
+                try:
+                    b.execute(f"SELECT id, a FROM {tbl}", log_exceptions=False)
+                    b.fetchall()
+                except psycopg.errors.FeatureNotSupported as exc:
+                    self.assertTrue(
+                        is_stale_cached_plan(exc),
+                        "the cursor must name this as a stale plan; nothing "
+                        "downstream can tell it from a permanent 0A000",
+                    )
+                    b.rollback()
+                    b.execute(f"SELECT id, a FROM {tbl}")
+                    self.assertEqual(b.fetchall(), [(1, 1)], "the replay must work")
+                    break
+                b.commit()
+            else:
+                self.skipTest("no borrow drew the poisoned backend in 8 attempts")
+        finally:
+            with contextlib.suppress(Exception):
+                b.rollback()
+                b.close()
+            with contextlib.suppress(Exception):
+                a.execute(f"DROP TABLE IF EXISTS {tbl}")
+                a.commit()
+                a.close()
+
+    def test_a_permanent_0A000_is_not_marked(self):
+        from odoo.db.errors import is_stale_cached_plan
+
+        cr = db_connect(common.get_db_name()).cursor()
+        try:
+            cr.execute("DROP TABLE IF EXISTS _test_perm CASCADE")
+            cr.execute("CREATE TABLE _test_perm (a int)")
+            cr.execute("CREATE VIEW _test_perm_v AS SELECT a FROM _test_perm")
+            cr.execute("SELECT a FROM _test_perm")
+            cr.fetchall()
+            with self.assertRaises(psycopg.errors.FeatureNotSupported) as caught:
+                cr.execute(
+                    "ALTER TABLE _test_perm ALTER COLUMN a TYPE bigint",
+                    log_exceptions=False,
+                )
+            self.assertFalse(
+                is_stale_cached_plan(caught.exception),
+                "a column-used-by-a-view failure is permanent; marking it "
+                "would spend the whole retry budget on a request that can "
+                "never succeed",
+            )
+        finally:
+            cr.rollback()
+            cr.close()
+
+    def test_retrying_names_the_family_and_the_marker(self):
+        from odoo.service.transaction import retrying
+
+        src = inspect.getsource(retrying)
+        self.assertIn(
+            "PG_STALE_PLAN_EXCEPTIONS",
+            src,
+            "FeatureNotSupported is not an OperationalError; the except clause "
+            "must name the family or the retry loop never sees it",
+        )
+        self.assertIn("is_stale_cached_plan", src)
+
+    def test_a_marked_exception_is_not_blanket_retryable_by_sqlstate(self):
+        from odoo.db.errors import PG_RETRY_SQLSTATES, PG_STALE_PLAN_EXCEPTIONS
+
+        for cls in PG_STALE_PLAN_EXCEPTIONS:
+            self.assertNotIn(cls.sqlstate, PG_RETRY_SQLSTATES)
+
+
+class TestDropDependingViewsQuoting(BaseCase):
+    """`drop_depending_views` was the one function in schema.py that quoted an
+    identifier by hand and passed the result as raw SQL text.  A view name
+    containing `%` then reached the parameter layer as a format marker:
+    `TypeError: not enough arguments for format string`, from a path reached
+    during an upgrade (`_convert_column`'s NotSupportedError fallback).
+    `SQL.identifier` -- used by every other function here -- refuses such a
+    name instead, naming it.  Both reject the pathological view; only one
+    says why.
+    """
+
+    def test_it_drops_a_normally_named_dependent_view(self):
+        cr = db_connect(common.get_db_name()).cursor()
+        try:
+            cr.execute("DROP TABLE IF EXISTS _test_dv CASCADE")
+            cr.execute("CREATE TABLE _test_dv (id serial primary key, a int)")
+            cr.execute("CREATE VIEW _test_dv_view AS SELECT a FROM _test_dv")
+            self.assertEqual(
+                [v for v, _ in sql_schema.get_depending_views(cr, "_test_dv", "a")],
+                ["_test_dv_view"],
+            )
+            sql_schema.drop_depending_views(cr, "_test_dv", "a")
+            self.assertEqual(sql_schema.get_depending_views(cr, "_test_dv", "a"), [])
+        finally:
+            cr.rollback()
+            cr.close()
+
+    def test_it_uses_the_house_identifier_helper(self):
+        src = inspect.getsource(sql_schema.drop_depending_views)
+        self.assertIn("SQL.identifier", src)
+        self.assertNotIn(
+            "replace(",
+            src,
+            "hand-rolled identifier quoting is back; it bypasses "
+            "SQL.identifier's validation and feeds raw text to the "
+            "parameter layer",
+        )
+
+    def test_a_view_name_that_is_not_an_identifier_is_named_in_the_error(self):
+        cr = db_connect(common.get_db_name()).cursor()
+        try:
+            cr.execute("DROP TABLE IF EXISTS _test_dv2 CASCADE")
+            cr.execute("CREATE TABLE _test_dv2 (id serial primary key, a int)")
+            cr.execute('CREATE VIEW "v%s_dep" AS SELECT a FROM _test_dv2')
+            with self.assertRaises(ValueError) as caught:
+                sql_schema.drop_depending_views(cr, "_test_dv2", "a")
+            self.assertIn("v%s_dep", str(caught.exception))
+        finally:
+            cr.rollback()
+            cr.close()
+
+
+class TestPartitionedTablesAreVisible(BaseCase):
+    """A partitioned table exists. `existing_tables` used to say it did not.
+
+    `pg_class.relkind` is 'p' for a partitioned table, and the filter admitted
+    only ('r','v','m').  `orm/models/mixins/schema.py` decides
+    `must_create_table = not sql.table_exists(...)`, so partitioning an Odoo
+    table — a standard move for `mail_message`, `stock_move_line`,
+    `account_move_line` — made the next upgrade issue `CREATE TABLE` over a
+    relation that already exists.  Measured end to end: the registry did not
+    just log, it failed to load —
+    `psycopg.errors.DuplicateTable: relation "..." already exists`, database
+    unusable.  With 'p' admitted, the same upgrade loads, and `ADD COLUMN` /
+    `ALTER COLUMN … TYPE` both propagate to the partitions normally.
+    """
+
+    def _partition(self, cr, tbl):
+        cr.execute(f"DROP TABLE IF EXISTS {tbl} CASCADE")
+        cr.execute(f"DROP TABLE IF EXISTS {tbl}_p0 CASCADE")
+        cr.execute(f"CREATE TABLE {tbl} (id int NOT NULL, a int) PARTITION BY RANGE (id)")
+        cr.execute(f"CREATE TABLE {tbl}_p0 PARTITION OF {tbl} FOR VALUES FROM (0) TO (1000)")
+
+    def test_a_partitioned_table_exists(self):
+        tbl = "_test_partitioned"
+        cr = db_connect(common.get_db_name()).cursor()
+        try:
+            self._partition(cr, tbl)
+            self.assertTrue(
+                sql_schema.table_exists(cr, tbl),
+                "a partitioned table exists; reporting otherwise makes "
+                "_auto_init CREATE TABLE over it and the registry fails to load",
+            )
+            self.assertEqual(sql_schema.existing_tables(cr, [tbl]), [tbl])
+        finally:
+            cr.rollback()
+            cr.close()
+
+    def test_table_exists_and_table_kind_agree(self):
+        tbl = "_test_partitioned_kind"
+        cr = db_connect(common.get_db_name()).cursor()
+        try:
+            self._partition(cr, tbl)
+            self.assertEqual(
+                sql_schema.table_kind(cr, tbl), sql_schema.TableKind.Partitioned
+            )
+            self.assertTrue(sql_schema.table_exists(cr, tbl))
+        finally:
+            cr.rollback()
+            cr.close()
+
+    def test_a_partitioned_table_is_not_Regular(self):
+        tbl = "_test_partitioned_regular"
+        cr = db_connect(common.get_db_name()).cursor()
+        try:
+            self._partition(cr, tbl)
+            self.assertNotEqual(
+                sql_schema.table_kind(cr, tbl),
+                sql_schema.TableKind.Regular,
+                "ir.model.fields.unlink gates DROP COLUMN on Regular; a "
+                "partitioned table must stay outside that gate",
+            )
+        finally:
+            cr.rollback()
+            cr.close()
+
+    def test_every_relkind_the_kind_enum_names_is_admitted_as_existing(self):
+        named = {k.value for k in sql_schema.TableKind if k.value} - {"t"}
+        cr = db_connect(common.get_db_name()).cursor()
+        try:
+            cr.execute("SELECT 1")
+            src = inspect.getsource(sql_schema.existing_tables)
+            for relkind in sorted(named):
+                self.assertIn(
+                    f'"{relkind}"',
+                    src,
+                    f"TableKind names relkind {relkind!r} but existing_tables "
+                    f"does not admit it, so table_kind and table_exists "
+                    f"disagree about that relation",
+                )
+        finally:
+            cr.close()
+
+
+class TestDdlDrainsSiblingConnections(BaseCase):
+    """A schema change poisons the prepared plans of OTHER pooled connections.
+
+    ``discard_cached_plans`` only heals the connection that ran the DDL.  A
+    sibling connection in the same process that had auto-prepared a statement
+    against the old schema keeps that plan, and PostgreSQL refuses to execute
+    it: ``FeatureNotSupported: cached plan must not change result type``.  It
+    is intermittent — it bites only when the next borrow happens to draw the
+    poisoned backend — which is exactly what makes it expensive to diagnose in
+    production.
+
+    The drain is taken at COMMIT, not per statement: an uncommitted schema
+    change is invisible to every other connection, so there is nothing to heal
+    until it lands, and draining per statement would close-and-reopen every
+    idle connection ~1000 times during a module install.
+    """
+
+    def _prepare_sibling(self, cr, tbl):
+        for _ in range(5):
+            cr.execute(f"SELECT id, a FROM {tbl}")
+            cr.fetchall()
+        cr.commit()
+
+    def test_committed_ddl_heals_an_idle_sibling_connection(self):
+        tbl = "_test_sibling_plan"
+        db_name = common.get_db_name()
+        writer = db_connect(db_name).cursor()
+        reader = db_connect(db_name).cursor()
+        try:
+            self.assertIsNot(
+                writer._cnx, reader._cnx, "the two cursors must hold distinct backends"
+            )
+            writer.execute(f"DROP TABLE IF EXISTS {tbl}")
+            writer.execute(f"CREATE TABLE {tbl} (id serial primary key, a int)")
+            writer.execute(f"INSERT INTO {tbl} (a) VALUES (1)")
+            writer.commit()
+
+            self._prepare_sibling(reader, tbl)
+            reader.close()  # back to the pool, idle, holding a warm plan
+
+            writer.execute(f"ALTER TABLE {tbl} ALTER COLUMN a TYPE bigint")
+            writer.commit()
+
+            for attempt in range(6):
+                probe = db_connect(db_name).cursor()
+                try:
+                    probe.execute(f"SELECT id, a FROM {tbl}")
+                    probe.fetchall()
+                except psycopg.errors.FeatureNotSupported as e:
+                    probe.rollback()
+                    self.fail(
+                        f"borrow #{attempt} drew a connection still holding a "
+                        f"plan from before the committed schema change: {e}. "
+                        f"Cursor.commit() must drain the sibling connections "
+                        f"when the transaction changed the schema."
+                    )
+                finally:
+                    probe.close()
+        finally:
+            with contextlib.suppress(Exception):
+                reader.close()
+            with contextlib.suppress(Exception):
+                writer.execute(f"DROP TABLE IF EXISTS {tbl}")
+                writer.commit()
+            writer.close()
+
+    def test_a_rolled_back_schema_change_does_not_drain(self):
+        db_name = common.get_db_name()
+        cr = db_connect(db_name).cursor()
+        try:
+            cr.execute("CREATE TABLE _test_rolled_back_ddl (a int)")
+            self.assertTrue(
+                cr._schema_changed, "schema-changing DDL must arm the drain flag"
+            )
+            with patch.object(
+                type(cr), "_drain_sibling_connections"
+            ) as drain:
+                cr.rollback()
+                drain.assert_not_called()
+            self.assertFalse(
+                cr._schema_changed,
+                "a rolled-back schema change never became visible to another "
+                "connection, so it must disarm the flag rather than drain on "
+                "the next unrelated commit",
+            )
+        finally:
+            cr.close()
+
+    def test_a_plain_commit_does_not_drain(self):
+        cr = db_connect(common.get_db_name()).cursor()
+        try:
+            cr.execute("SELECT 1")
+            cr.fetchall()
+            with patch.object(type(cr), "_drain_sibling_connections") as drain:
+                cr.commit()
+                drain.assert_not_called()
+        finally:
+            cr.close()
+
+    def test_many_ddl_statements_in_one_transaction_drain_once(self):
+        cr = db_connect(common.get_db_name()).cursor()
+        try:
+            for i in range(5):
+                cr.execute(f"DROP TABLE IF EXISTS _test_ddl_batch_{i}")
+            cr.commit()
+            with patch.object(type(cr), "_drain_sibling_connections") as drain:
+                for i in range(5):
+                    cr.execute(f"CREATE TABLE _test_ddl_batch_{i} (a int)")
+                cr.commit()
+                self.assertEqual(
+                    drain.call_count,
+                    1,
+                    "the drain is per transaction, not per statement: a module "
+                    "install issues ~1000 schema-changing statements and each "
+                    "drain closes and reopens every idle connection",
+                )
+        finally:
+            with contextlib.suppress(Exception):
+                for i in range(5):
+                    cr.execute(f"DROP TABLE IF EXISTS _test_ddl_batch_{i}")
+                cr.commit()
+            cr.close()
+
+
+class TestMaintenanceConnectionOptions(BaseCase):
+    """Maintenance connections are exempt from db_session_gucs, deliberately.
+
+    The two borrow paths used to assemble their libpq ``options`` string
+    independently, and the direct/maintenance copy never gained
+    ``_session_gucs``.  That looked like drift, and applying the GUCs there
+    "for consistency" is a REGRESSION, measured: with
+    ``db_session_gucs = statement_timeout=50ms`` a ``CREATE DATABASE …
+    TEMPLATE`` is killed by ``QueryCanceled``, and with
+    ``default_transaction_read_only=on`` a ``DROP DATABASE`` raises
+    ``ReadOnlySqlTransaction`` — both work at HEAD.  ``statement_timeout`` is
+    one of the commonest PostgreSQL hardening settings, and a template copy
+    legitimately runs for minutes.
+
+    So the exemption stays; what changed is that it is now *stated*
+    (``session_gucs=False``) instead of being an accident of a duplicated
+    string, and both paths share one assembler so nothing else can drift.
+    """
+
+    def test_both_borrow_paths_share_one_options_assembler(self):
+        for path in ("_get_or_create_pool", "_borrow_direct"):
+            src = inspect.getsource(getattr(ConnectionPool, path))
+            self.assertIn(
+                "_connection_options",
+                src,
+                f"{path} assembles libpq options by hand again; one assembler, "
+                f"or the exemption below goes back to being invisible.",
+            )
+
+    def test_the_maintenance_path_opts_out_in_the_open(self):
+        self.assertIn(
+            "session_gucs=False",
+            inspect.getsource(ConnectionPool._borrow_direct),
+            "the maintenance path must state its exemption at the call site",
+        )
+        self.assertNotIn(
+            "session_gucs",
+            inspect.getsource(ConnectionPool._get_or_create_pool),
+            "the pooled path takes the default and should not restate it",
+        )
+
+    def test_session_gucs_reach_a_pooled_connection(self):
+        from odoo.tools import config
+
+        saved = config["db_session_gucs"]
+        config["db_session_gucs"] = "work_mem=19MB"
+        pool = ConnectionPool(maxconn=4)
+        conn = None
+        try:
+            _, info = connection_info_for(common.get_db_name())
+            conn = pool.borrow(info)
+            self.assertEqual(conn.execute("SHOW work_mem").fetchone()[0], "19MB")
+        finally:
+            if conn is not None:
+                conn.rollback()
+                pool.give_back(conn)
+            pool.close_all()
+            config["db_session_gucs"] = saved
+
+    def test_session_gucs_do_not_reach_a_maintenance_connection(self):
+        from odoo.tools import config
+
+        saved = config["db_session_gucs"]
+        config["db_session_gucs"] = "work_mem=19MB"
+        pool = ConnectionPool(maxconn=4)
+        conn = None
+        try:
+            _, info = connection_info_for("postgres")
+            conn = pool.borrow(info)
+            self.assertNotEqual(
+                conn.execute("SHOW work_mem").fetchone()[0],
+                "19MB",
+                "an application-tuned session policy must not follow "
+                "administrative DDL onto the maintenance path — "
+                "statement_timeout there kills CREATE DATABASE",
+            )
+        finally:
+            if conn is not None:
+                conn.rollback()
+                pool.give_back(conn)
+            pool.close_all()
+            config["db_session_gucs"] = saved
+
+    def test_a_hostile_guc_does_not_break_database_creation(self):
+        from odoo.tools import config
+
+        saved = config["db_session_gucs"]
+        config["db_session_gucs"] = "statement_timeout=50ms"
+        pool = ConnectionPool(maxconn=4)
+        conn = None
+        name = "_test_guc_create_db"
+        try:
+            _, info = connection_info_for("postgres")
+            conn = pool.borrow(info)
+            conn.autocommit = True
+            conn.execute(f'DROP DATABASE IF EXISTS "{name}"')
+            conn.execute(f'CREATE DATABASE "{name}"')
+            conn.execute(f'DROP DATABASE "{name}"')
+        finally:
+            if conn is not None:
+                with contextlib.suppress(Exception):
+                    conn.execute(f'DROP DATABASE IF EXISTS "{name}"')
+                conn.autocommit = False
+                pool.give_back(conn)
+            pool.close_all()
+            config["db_session_gucs"] = saved
+
+    def test_idle_session_timeout_still_applies_to_maintenance(self):
+        pool = ConnectionPool(maxconn=4)
+        conn = None
+        try:
+            _, info = connection_info_for("postgres")
+            conn = pool.borrow(info)
+            self.assertEqual(
+                conn.execute("SHOW idle_session_timeout").fetchone()[0],
+                "15min",
+                "the exemption covers db_session_gucs only; the derived "
+                "idle_session_timeout is still applied unconditionally",
+            )
+        finally:
+            if conn is not None:
+                conn.rollback()
+                pool.give_back(conn)
+            pool.close_all()
 
 
 class TestReplicaConnectionInfo(BaseCase):

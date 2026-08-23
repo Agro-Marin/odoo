@@ -11,12 +11,16 @@ name: Free-threading (PEP 703)
 # shared state under real parallelism, and guards against new mutation-on-read
 # creeping back in.
 #
-# Scope: the PURE-PYTHON odoo/orm/components suites only. They need neither the
-# odoo_rust extension nor a real `import odoo`, so they run on a stock 3.14t
-# wheel with no extra build. The concurrency-critical case is
+# Scope: the PURE-PYTHON odoo/orm/components and odoo/db suites. They need
+# neither the odoo_rust extension nor a real `import odoo`, so they run on a
+# stock 3.14t wheel with no extra build. Two concurrency-critical cases:
 # test_model_graph_freethreading.py, which hammers a frozen graph from 16
 # threads — under the GIL it checks read-consistency, here it checks the race
-# is genuinely gone.
+# is genuinely gone — and odoo/db's test_resilience_counter_concurrency.py,
+# which is where the process-shared mutable state actually lives: the
+# ConnectionBudget permits, the PoolStats counters and their histogram, and the
+# CheckoutTracker. Those hold under the GIL today; this lane is the only thing
+# that will say so when it is removed.
 #
 # WARN-ONLY (Phase 1): continue-on-error keeps this informational while the
 # free-threaded toolchain/ecosystem stabilises. Flip to blocking (remove
@@ -29,6 +33,7 @@ on:
     paths:
       - 'odoo/orm/components/**'
       - 'odoo/orm/runtime/_registry_fields.py'
+      - 'odoo/db/**'
       - 'odoo/_testing_bootstrap.py'
       - 'pytest.ini'
       - '.github/workflows/freethreading.yml'
@@ -74,6 +79,21 @@ jobs:
         env:
           PYTHON_GIL: '0'
         run: python -m pytest odoo/orm/components/tests -q
+
+      - name: Run the db resilience counters under PYTHON_GIL=0
+        # odoo/db carries more process-shared mutable state than any other
+        # pure-Python package here — permits, counters, the borrow-wait
+        # histogram, the checkout map. Named as one file rather than the whole
+        # odoo/db/tests directory because that one file is the concurrency
+        # surface; the rest of the suite is single-threaded and would only add
+        # runtime. It must run from the repo root so pytest.ini's
+        # `-p odoo._testing_bootstrap` installs the sys.modules stubs its
+        # imports rely on.
+        env:
+          PYTHON_GIL: '0'
+        run: |
+          python -m pytest -q -p no:cacheprovider \
+            odoo/db/tests/test_resilience_counter_concurrency.py
 
       - name: Re-run the concurrency stress test under pressure
         # Repeat the racey case to widen the window for a regression to surface

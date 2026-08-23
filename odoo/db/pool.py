@@ -108,6 +108,18 @@ def _session_gucs(base_options: str) -> str:
     return " ".join(gucs)
 
 
+def _connection_options(
+    conninfo: str, kwargs: dict, idle_session_ms: int, *, session_gucs: bool = True
+) -> str:
+    base = _base_conn_options(conninfo, kwargs)
+    parts = [
+        base,
+        _session_gucs(base) if session_gucs else "",
+        f"-c idle_session_timeout={idle_session_ms}",
+    ]
+    return " ".join(p for p in parts if p)
+
+
 def _borrow_caller() -> str | None:
     frame: FrameType | None = sys._getframe(1)
     while frame is not None:
@@ -195,29 +207,29 @@ class ConnectionPool:
         probe_timeout = _libpq_connect_timeout(deadline, _PROBE_CONNECT_TIMEOUT)
         if not probe_timeout:
             return
-        self.stats.probe_run += 1
+        self.stats.record_probe_started()
         probe_kwargs = {**kwargs, "autocommit": True}
         probe_kwargs["connect_timeout"] = probe_timeout
         try:
             psycopg.connect(conninfo, **probe_kwargs).close()
         except _NON_RETRYABLE_CONNECT_ERRORS:
-            self.stats.probe_permanent += 1
+            self.stats.record_probe_outcome("permanent")
             raise
         except psycopg.OperationalError as e:
             translated = _translate_connect_error(e)
             if translated is not None:
-                self.stats.probe_permanent += 1
+                self.stats.record_probe_outcome("permanent")
                 raise translated from e
             if self._database_absent(conninfo, kwargs, deadline):
-                self.stats.probe_permanent += 1
+                self.stats.record_probe_outcome("permanent")
                 raise psycopg.errors.InvalidCatalogName(str(e)) from e
-            self.stats.probe_transient += 1
+            self.stats.record_probe_outcome("transient")
             _logger.debug(
                 "Pool pre-flight probe failed (treating as transient)",
                 exc_info=True,
             )
         except Exception:
-            self.stats.probe_transient += 1
+            self.stats.record_probe_outcome("transient")
             _logger.debug(
                 "Pool pre-flight probe failed (treating as transient)",
                 exc_info=True,
@@ -265,15 +277,11 @@ class ConnectionPool:
         conninfo = kwargs.pop("dsn", "")
         kwargs["autocommit"] = False
 
-        options = _base_conn_options(conninfo, kwargs)
         idle_session_ms = max(900, int(self._max_idle * 1.5)) * 1000
-        kwargs["options"] = (
-            f"{options} {_session_gucs(options)}"
-            f" -c idle_session_timeout={idle_session_ms}"
-        ).strip()
+        kwargs["options"] = _connection_options(conninfo, kwargs, idle_session_ms)
 
         if self._is_proven_reachable(key):
-            self.stats.probe_skipped_proven += 1
+            self.stats.record_probe_outcome("skipped_proven")
         else:
             self._probe_connectable(conninfo, kwargs, deadline)
 
@@ -300,7 +308,7 @@ class ConnectionPool:
             )
             note_activity(pool)
             self._pools[key] = pool
-            self.stats.pools_created += 1
+            self.stats.record_pool_created()
             self._debug("Created pool for %s", dict(key))
 
             ident = frozenset(t for t in key if t[0] != "password_fp")
@@ -320,7 +328,7 @@ class ConnectionPool:
         for sp in stale_pools:
             self._safe_close(sp)
         if stale_pools:
-            self.stats.pools_evicted_stale += len(stale_pools)
+            self.stats.record_pools_evicted_stale(len(stale_pools))
             _logger.info(
                 "%r: evicted %d stale-credential pool(s) after key change",
                 self,
@@ -329,7 +337,7 @@ class ConnectionPool:
         for rp in reaped_pools:
             self._safe_close(rp)
         if reaped_pools:
-            self.stats.pools_reaped += len(reaped_pools)
+            self.stats.record_pools_reaped(len(reaped_pools))
             _logger.info(
                 "%r: reaped %d idle pool(s) (>%.0fs since last borrow)",
                 self,
@@ -354,7 +362,7 @@ class ConnectionPool:
     def _close_reaped_pools(self, pools: list[_PsycopgPool]) -> None:
         for rp in pools:
             self._safe_close(rp)
-        self.stats.pools_reaped += len(pools)
+        self.stats.record_pools_reaped(len(pools))
         _logger.info(
             "%r: reaped %d idle pool(s) on return (>%.0fs since last borrow)",
             self,
@@ -375,11 +383,11 @@ class ConnectionPool:
         try:
             pool = self._get_or_create_pool(key, connection_info, deadline)
         except BaseException:
-            self.stats.borrows_failed += 1
+            self.stats.record_borrow_failed()
             raise
 
         if not self._budget.acquire(deadline - monotonic()):
-            self.stats.borrows_failed += 1
+            self.stats.record_borrow_failed()
             raise PoolError(
                 f"Could not acquire connection: connection budget "
                 f"({self._budget.maxconn}) reached, "
@@ -387,18 +395,25 @@ class ConnectionPool:
                 f"(+{self._direct_out} direct maintenance connection(s)). "
                 f"{self._checkouts.describe()}"
             )
+        conn = None
         try:
             conn, pool = self._getconn_with_retry(pool, key, connection_info, deadline)
             self._validate_borrowed_conn(conn, pool)
             self._mark_reachable(key)
+            self._checkouts.track(conn, _borrow_caller())
+            self._warn_about_leaks()
+            self.stats.record_borrow(started)
+            return conn
         except BaseException:
-            self._budget.release()
-            self.stats.borrows_failed += 1
+            self.stats.record_borrow_failed()
+            self._unwind_failed_borrow(conn)
             raise
-        self._checkouts.track(conn, _borrow_caller())
-        self._warn_about_leaks()
-        self.stats.record_borrow(started)
-        return conn
+
+    def _unwind_failed_borrow(self, conn: psycopg.Connection | None) -> None:
+        if conn is not None and "_odoo_pool" in conn.__dict__:
+            self.give_back(conn, keep_in_pool=False)
+        else:
+            self._budget.release()
 
     def _warn_about_leaks(self) -> None:
         threshold = tools.config["db_leak_detection"]
@@ -408,7 +423,7 @@ class ConnectionPool:
             return
         held = self._checkouts.describe(older_than=threshold)
         if held:
-            self.stats.leaks_reported += 1
+            self.stats.record_leak_report()
             _logger.warning(
                 "%r: connection(s) checked out longer than %ss; %s",
                 self,
@@ -422,12 +437,11 @@ class ConnectionPool:
         kwargs = dict(connection_info)
         conninfo = kwargs.pop("dsn", "")
         kwargs["autocommit"] = False
-        options = _base_conn_options(conninfo, kwargs)
-        kwargs["options"] = (
-            f"{options} -c idle_session_timeout={_DIRECT_IDLE_SESSION_TIMEOUT_MS}"
-        ).strip()
+        kwargs["options"] = _connection_options(
+            conninfo, kwargs, _DIRECT_IDLE_SESSION_TIMEOUT_MS, session_gucs=False
+        )
         if not self._budget.acquire(_remaining(deadline)):
-            self.stats.borrows_failed += 1
+            self.stats.record_borrow_failed()
             raise PoolError(
                 f"Could not acquire connection: connection budget "
                 f"({self._budget.maxconn}) reached, all connections are in use across "
@@ -440,7 +454,7 @@ class ConnectionPool:
                 deadline, int(kwargs.get("connect_timeout", _PROBE_CONNECT_TIMEOUT))
             )
             if not connect_timeout:
-                self._budget.release()
+                self._unwind_failed_borrow(None)
                 raise PoolError(
                     f"Could not acquire connection to maintenance database "
                     f"within the {self._borrow_timeout}s borrow budget"
@@ -449,22 +463,27 @@ class ConnectionPool:
         try:
             conn = psycopg.connect(conninfo, **kwargs)
         except BaseException:
-            self._budget.release()
+            self._unwind_failed_borrow(None)
             raise
         try:
             _configure_connection(conn)
             self._check_min_server_version(conn)
-            conn._odoo_pool = _DIRECT_CONNECTION
         except BaseException:
             with contextlib.suppress(Exception):
                 conn.close()
-            self._budget.release()
+            self._unwind_failed_borrow(None)
             raise
+        conn._odoo_pool = _DIRECT_CONNECTION
         with self._lock:
             self._direct_out += 1
-        self._checkouts.track(conn, _borrow_caller())
-        self.stats.borrows_direct += 1
-        return conn
+        try:
+            self._checkouts.track(conn, _borrow_caller())
+            self.stats.record_direct_borrow()
+            return conn
+        except BaseException:
+            self.stats.record_borrow_failed()
+            self._unwind_failed_borrow(conn)
+            raise
 
     @staticmethod
     def _check_min_server_version(conn: psycopg.Connection) -> None:
@@ -552,7 +571,7 @@ class ConnectionPool:
         note_activity(pool)
         try:
             if not keep_in_pool:
-                self.stats.connections_discarded += 1
+                self.stats.record_connection_discarded()
                 with contextlib.suppress(Exception):
                     connection.close()
 

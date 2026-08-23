@@ -69,13 +69,22 @@ class TestBudgetAccounting(unittest.TestCase):
         }
         self.assertEqual(acquirers, {"borrow", "_borrow_direct"})
 
-    def test_only_the_borrow_paths_and_give_back_release_a_permit(self):
+    def test_exactly_one_release_site_per_outcome(self):
         releasers = {
             m
             for m in _methods_calling(pool.ConnectionPool, "release")
             if not m.startswith("__")
         }
-        self.assertEqual(releasers, {"borrow", "_borrow_direct", "give_back"})
+        self.assertEqual(
+            releasers,
+            {"give_back", "_unwind_failed_borrow"},
+            "a borrow ends exactly two ways and each has one release site: "
+            "give_back for a connection that reached the caller, "
+            "_unwind_failed_borrow for one that did not. They used to be three "
+            "-- borrow and _borrow_direct released inline -- which is how the "
+            "post-acquisition bookkeeping ended up outside the guard and "
+            "leaked a permit per failure.",
+        )
 
     def test_the_getconn_helpers_never_touch_the_budget(self):
         for helper in ("_getconn_with_retry", "_validate_borrowed_conn"):
@@ -83,6 +92,121 @@ class TestBudgetAccounting(unittest.TestCase):
                 self.assertNotIn(
                     "_budget", _callees(getattr(pool.ConnectionPool, helper))
                 )
+
+
+class TestStalePlanIsRetriedAtTheRequestLayer(unittest.TestCase):
+    """A stale cached plan aborts the transaction, so it cannot be retried in
+    place.  Measured: `transaction_status` is INERROR after the failure, and
+    both a bare retry and a `discard_cached_plans()` + retry raise
+    `InFailedSqlTransaction`.  Recovering inside `Cursor.execute` would need a
+    savepoint per statement — two extra round trips on every query in core — so
+    the retry belongs where the rollback already happens: `retrying()`.
+
+    The cursor's job is only to *name* the condition, because it is the one
+    place that can: it saw the failure on a connection holding auto-prepared
+    statements.
+    """
+
+    def test_the_cursor_marks_it_on_the_execute_path(self):
+        self.assertIn(
+            "_note_stale_cached_plan",
+            _callees(cursor.Cursor.execute),
+            "nothing else can tell a recoverable 0A000 from a permanent one",
+        )
+
+    def test_the_marker_requires_prepared_statements(self):
+        src = inspect.getsource(cursor.Cursor._note_stale_cached_plan)
+        self.assertIn("_prepared", src)
+        self.assertIn("_names", src)
+        self.assertIn(
+            "PG_STALE_PLAN_EXCEPTIONS",
+            src,
+            "the family must come from errors.py, not be re-listed here",
+        )
+
+    def test_it_clears_the_plans_so_the_retry_re_prepares(self):
+        src = inspect.getsource(cursor.Cursor._note_stale_cached_plan)
+        self.assertIn("clear()", src)
+        self.assertNotIn(
+            "DEALLOCATE",
+            src,
+            "the transaction is already aborted here; issuing SQL would raise "
+            "InFailedSqlTransaction on top of the error being reported",
+        )
+
+    def test_the_family_is_exported_for_the_request_layer(self):
+        from odoo.db import errors as err
+
+        self.assertTrue(err.PG_STALE_PLAN_EXCEPTIONS)
+        self.assertTrue(callable(err.is_stale_cached_plan))
+        # that `retrying()` actually names both is pinned in the integration
+        # suite -- odoo/db/tests runs under sys.modules stubs and must not
+        # import odoo.service.
+
+
+class TestAFailedBorrowNeverKeepsItsPermit(unittest.TestCase):
+    """Every step after the permit is taken must be inside the release guard.
+
+    The bookkeeping that follows a successful getconn — the checkout tracker,
+    the leak warning, the borrow-wait histogram — used to sit AFTER the
+    try/except that releases the permit.  Anything raising there burned a
+    permit and leaked the connection, permanently: after `maxconn` such
+    failures every later borrow times out with "connection budget reached" and
+    only a process restart recovers it.
+
+    It is not hypothetical bookkeeping: `_warn_about_leaks` reads
+    `tools.config["db_leak_detection"]` on EVERY borrow, and `odoo.db` is
+    documented as importable without `odoo.init` (standalone scripts, tools),
+    where that key may not be registered.  Injected as a KeyError, four
+    borrows against `maxconn=4` killed the pool.
+    """
+
+    def _borrow_body(self):
+        return textwrap.dedent(inspect.getsource(pool.ConnectionPool.borrow))
+
+    def test_the_bookkeeping_is_inside_the_guard(self):
+        tree = ast.parse(self._borrow_body())
+        fn = tree.body[0]
+        guarded = set()
+        for node in ast.walk(fn):
+            if isinstance(node, ast.Try):
+                for sub in ast.walk(ast.Module(body=node.body, type_ignores=[])):
+                    if isinstance(sub, ast.Call) and isinstance(
+                        sub.func, ast.Attribute
+                    ):
+                        guarded.add(sub.func.attr)
+        for name in ("track", "_warn_about_leaks", "record_borrow"):
+            with self.subTest(call=name):
+                self.assertIn(
+                    name,
+                    guarded,
+                    f"{name}() runs outside the try that releases the permit; "
+                    f"if it raises, the permit and the connection are gone for "
+                    f"the life of the process",
+                )
+
+    def test_nothing_follows_the_guard(self):
+        fn = ast.parse(self._borrow_body()).body[0]
+        self.assertIsInstance(
+            fn.body[-1],
+            ast.Try,
+            "borrow must end with the guarded block; a statement after it is "
+            "by definition outside the release path",
+        )
+
+    def test_both_paths_unwind_through_one_helper(self):
+        for path in ("borrow", "_borrow_direct"):
+            with self.subTest(path=path):
+                self.assertIn(
+                    "_unwind_failed_borrow",
+                    _callees(getattr(pool.ConnectionPool, path)),
+                )
+
+    def test_the_unwind_distinguishes_a_marked_connection(self):
+        src = inspect.getsource(pool.ConnectionPool._unwind_failed_borrow)
+        self.assertIn("_odoo_pool", src)
+        self.assertIn("give_back", src)
+        self.assertIn("release", src)
 
 
 class TestMaintenanceDatabasesAreNeverPooled(unittest.TestCase):
@@ -252,6 +376,95 @@ class TestCursorSatisfiesItsMixinContracts(unittest.TestCase):
             | _instance_attrs(cursor.BaseCursor)
         )
         self.assertEqual(sorted(required - provided), [])
+
+
+class TestSchemaChangeDrainsAtCommit(unittest.TestCase):
+    """A committed schema change must heal this process's other connections.
+
+    ``discard_cached_plans`` only heals the connection that ran the DDL; a
+    sibling pooled connection keeps a plan built against the old schema and
+    raises ``FeatureNotSupported: cached plan must not change result type``.
+    The behaviour itself is pinned in the integration suite
+    (``TestDdlDrainsSiblingConnections``); these are the structural rules that
+    keep the seam where it belongs.
+    """
+
+    def test_ddl_arms_the_flag_rather_than_draining_inline(self):
+        src = inspect.getsource(cursor.Cursor._invalidate_caches_after_ddl)
+        self.assertIn("_schema_changed", src)
+        self.assertNotIn(
+            "_drain_sibling_connections",
+            src,
+            "draining per statement closes and reopens every idle connection "
+            "once per DDL statement — ~1000 times during a module install — "
+            "and an uncommitted schema change is invisible to the connections "
+            "it would be healing.",
+        )
+
+    def test_commit_is_the_only_thing_that_drains(self):
+        self.assertIn(
+            "_drain_sibling_connections",
+            _callees(cursor.Cursor.commit),
+            "commit is the moment the schema change becomes visible to other "
+            "connections, so it is the moment they must be drained",
+        )
+        for name in ("_do_rollback", "_on_rollback_to_savepoint", "_close"):
+            with self.subTest(method=name):
+                self.assertNotIn(
+                    "_drain_sibling_connections",
+                    _callees(getattr(cursor.Cursor, name)),
+                    f"{name} must not drain: nothing it undoes ever became "
+                    f"visible to another connection",
+                )
+
+    def test_rollback_disarms_the_flag(self):
+        self.assertIn(
+            "_schema_changed",
+            _instance_attrs(cursor.Cursor),
+            "the flag must be reset on rollback, or a rolled-back schema "
+            "change drains on the next unrelated commit",
+        )
+        self.assertIn("_schema_changed", inspect.getsource(cursor.Cursor._do_rollback))
+
+
+class TestOneConnectionOptionsAssembler(unittest.TestCase):
+    """One assembler, and the maintenance exemption is stated rather than implied.
+
+    The exemption is deliberate, not drift: `db_session_gucs` is tuned for
+    application queries, and `statement_timeout` — the commonest thing to put
+    there — kills `CREATE DATABASE … TEMPLATE`. Measured in
+    `TestMaintenanceConnectionOptions`. What the duplication cost was the
+    ability to see that, so the assembler is shared and the opt-out is a
+    keyword at the call site.
+    """
+
+    def test_both_borrow_paths_use_it(self):
+        for path in ("_get_or_create_pool", "_borrow_direct"):
+            with self.subTest(path=path):
+                self.assertIn(
+                    "_connection_options",
+                    _callees(getattr(pool.ConnectionPool, path)),
+                    "the two paths built the same libpq options string twice; "
+                    "one assembler, or the exemption goes back to being an "
+                    "accident nobody can see.",
+                )
+
+    def test_the_assembler_renders_the_session_gucs_by_default(self):
+        self.assertIn("_session_gucs", _callees(pool._connection_options))
+        self.assertIn(
+            "-c idle_session_timeout=",
+            inspect.getsource(pool._connection_options),
+        )
+
+    def test_only_the_maintenance_path_opts_out(self):
+        self.assertIn(
+            "session_gucs=False",
+            inspect.getsource(pool.ConnectionPool._borrow_direct),
+        )
+        self.assertNotIn(
+            "session_gucs",
+            inspect.getsource(pool.ConnectionPool._get_or_create_pool),
+        )
 
 
 class TestEveryCheckoutIsTracked(unittest.TestCase):

@@ -1,3 +1,4 @@
+import inspect
 import unittest
 
 from odoo.db.ddl import (
@@ -159,6 +160,65 @@ class TestDDLKeywordPrefixGate(unittest.TestCase):
                 gate(s),
                 regex(s),
                 f"prefix gate and regex disagree on {s!r} — derivation drifted",
+            )
+
+
+class TestRollbackPrefixGate(unittest.TestCase):
+    def test_prefixes_are_hoisted_not_rebuilt_per_call(self):
+        import odoo.db.ddl as ddl_mod
+
+        self.assertIsInstance(
+            ddl_mod._ROLLBACK_PREFIXES,
+            frozenset,
+            "the rollback prefix gate must be a module-level constant: it is "
+            "consulted on every non-DDL statement, which is every statement "
+            "the framework issues, so rebuilding it per call is ~70ns of pure "
+            "waste on the hottest path in core.",
+        )
+        self.assertNotIn(
+            "_COMMENT_PREFIXES)",
+            inspect.getsource(ddl_mod._is_rollback_to_savepoint),
+            "_is_rollback_to_savepoint rebuilds its prefix container per call "
+            "again; use the hoisted _ROLLBACK_PREFIXES.",
+        )
+
+    def test_prefixes_are_derived_from_the_same_sources_as_the_ddl_gate(self):
+        from odoo.db.ddl import _COMMENT_PREFIXES, _ROLLBACK_PREFIXES
+
+        self.assertEqual(_ROLLBACK_PREFIXES, frozenset(("RO",)) | _COMMENT_PREFIXES)
+
+    def test_gate_and_regex_never_disagree(self):
+        from odoo.db.ddl import _RE_ROLLBACK_TO_SAVEPOINT, _ROLLBACK_PREFIXES
+
+        def gate(qs):
+            head = qs[:32].lstrip()
+            if len(head) < 2 and len(qs) > 32:
+                head = qs.lstrip()
+            return (
+                head[:2].upper() in _ROLLBACK_PREFIXES
+                and _RE_ROLLBACK_TO_SAVEPOINT.match(qs) is not None
+            )
+
+        samples = [
+            'ROLLBACK TO SAVEPOINT "sp1"',
+            "ROLLBACK TO sp1",
+            "rollback to savepoint sp",
+            "  ROLLBACK  TO  SAVEPOINT x",
+            "-- lead\nROLLBACK TO x",
+            "/* lead */ ROLLBACK TO x",
+            " " * 30 + "ROLLBACK TO x",
+            " " * 32 + "ROLLBACK TO x",
+            " " * 40 + "ROLLBACK TO x",
+            "ROLLBACK",
+            "RELEASE SAVEPOINT sp1",
+            "SELECT 1",
+            "",
+        ]
+        for qs in samples:
+            self.assertEqual(
+                gate(qs),
+                _RE_ROLLBACK_TO_SAVEPOINT.match(qs) is not None,
+                f"prefix gate and regex disagree on {qs!r} — derivation drifted",
             )
 
 

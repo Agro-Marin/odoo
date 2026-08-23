@@ -50,9 +50,6 @@ class Savepoint:
                 f'Savepoint "{self.name}" is already closed; cannot roll back'
             )
         self._cr.execute(f'ROLLBACK TO SAVEPOINT "{self.name}"')
-        notify = getattr(self._cr, "_on_rollback_to_savepoint", None)
-        if notify is not None:
-            notify()
 
     def _close(self, rollback: bool) -> None:
         try:

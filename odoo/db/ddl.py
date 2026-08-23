@@ -41,13 +41,14 @@ _RE_ROLLBACK_TO_SAVEPOINT = _re.compile(
     r"^\s*(?:(?:--[^\n]*\n|/\*.*?\*/)\s*)*" r"ROLLBACK\s+TO\b",
     _re.IGNORECASE | _re.DOTALL,
 )
+_ROLLBACK_PREFIXES: frozenset[str] = frozenset(("RO",)) | _COMMENT_PREFIXES
 
 
 def _is_rollback_to_savepoint(qs: str) -> bool:
     head = qs[:32].lstrip()
     if len(head) < 2 and len(qs) > 32:
         head = qs.lstrip()
-    if head[:2].upper() not in ("RO", *_COMMENT_PREFIXES):
+    if head[:2].upper() not in _ROLLBACK_PREFIXES:
         return False
     return _RE_ROLLBACK_TO_SAVEPOINT.match(qs) is not None
 

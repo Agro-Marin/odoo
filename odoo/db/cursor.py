@@ -26,7 +26,12 @@ from .ddl import (
     _inline_ddl_params,
     _is_rollback_to_savepoint,
 )
-from .errors import _log_sql_error
+from .errors import (
+    PG_STALE_PLAN_EXCEPTIONS,
+    _log_sql_error,
+    mark_stale_cached_plan,
+    reached_the_server,
+)
 from .metrics import _MetricsMixin
 from .pool import ConnectionPool
 from .savepoint import Savepoint, _FlushingSavepoint
@@ -198,6 +203,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self.dbname = dbname
 
         self._schema_cache = TransactionSchemaCache()
+        self._schema_changed = False
 
         self._thread = threading.current_thread()
 
@@ -288,7 +294,19 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         writer: Any = None,
     ) -> Any:
         self._before_statement()
-        return self._obj.copy(statement, params, writer=writer)
+        hooks = getattr(self._thread, "query_hooks", None)
+        start = real_time() if hooks else 0.0
+        t0 = monotonic()
+        try:
+            return self._obj.copy(statement, params, writer=writer)
+        finally:
+            self._record_metrics(
+                monotonic() - t0,
+                query=statement,
+                params=params,
+                start=start,
+                hooks=hooks,
+            )
 
     def _refuse_copy(self) -> NoReturn:
         raise TypeError(
@@ -342,31 +360,19 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                     f"SQL query parameters should be a tuple, list or dict; got {params!r}"
                 )
 
-        if isinstance(query, bytes):
-            try:
-                qs = query.decode()
-            except UnicodeDecodeError:
-                qs = ""
-        else:
-            qs = query
-        ddl_kw = _ddl_keyword(qs)
-        is_ddl = ddl_kw is not None
-
-        if params and is_ddl:
-            query = _inline_ddl_params(qs, params, self._cnx)
-            params = None
-
-        if is_ddl and prepare is None:
-            prepare = False
+        query, params, prepare, qs, ddl_kw = self._resolve_ddl(query, params, prepare)
 
         debug = _logger.isEnabledFor(logging.DEBUG)
         hooks = getattr(self._thread, "query_hooks", None)
         start = real_time() if hooks else 0.0
         obj = self._obj
         t0 = monotonic()
+        failed = False
         try:
             obj.execute(query, params, prepare=prepare)
         except Exception as e:
+            failed = reached_the_server(e)
+            self._note_stale_cached_plan(e)
             if log_exceptions:
                 _log_sql_error(e, query)
             raise
@@ -377,6 +383,10 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                     "[%.3f ms] query: %s",
                     1000 * delay,
                     self._format(query, params),
+                )
+            if failed:
+                self._record_metrics(
+                    delay, query=query, params=params, start=start, hooks=hooks
                 )
 
         if _changes_schema(qs, ddl_kw):
@@ -391,6 +401,36 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         if debug:
             query_type, table = categorize_query(qs)
             self._record_sql_log(query_type, table, delay)
+
+    def _resolve_ddl(
+        self,
+        query: Any,
+        params: tuple | list | dict | None,
+        prepare: bool | None,
+    ) -> tuple[Any, tuple | list | dict | None, bool | None, str, str | None]:
+        """Decide what actually goes on the wire, and report the DDL verdict.
+
+        PostgreSQL rejects `$N` in DDL structural positions, so a DDL statement
+        has its parameters inlined as quoted literals here and is never
+        auto-prepared. `qs` and the leading keyword travel back out because the
+        caller needs them again afterwards, to decide whether the statement
+        changed the schema.
+        """
+        if isinstance(query, bytes):
+            try:
+                qs = query.decode()
+            except UnicodeDecodeError:
+                qs = ""
+        else:
+            qs = query
+        ddl_kw = _ddl_keyword(qs)
+        if ddl_kw is not None:
+            if params:
+                query = _inline_ddl_params(qs, params, self._cnx)
+                params = None
+            if prepare is None:
+                prepare = False
+        return query, params, prepare, qs, ddl_kw
 
     def discard_cached_plans(self) -> None:
         try:
@@ -409,8 +449,26 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
     def _on_rollback_to_savepoint(self) -> None:
         self._schema_cache.clear()
 
+    def _note_stale_cached_plan(self, exc: Exception) -> bool:
+        if not isinstance(exc, PG_STALE_PLAN_EXCEPTIONS):
+            return False
+        prepared = getattr(self._cnx, "_prepared", None)
+        if not getattr(prepared, "_names", None):
+            return False
+        with suppress(Exception):
+            prepared.clear()
+        self._schema_cache.clear_catalog_facts()
+        mark_stale_cached_plan(exc)
+        return True
+
+    def _drain_sibling_connections(self) -> None:
+        from . import drain_db
+
+        drain_db(self.dbname)
+
     def _invalidate_caches_after_ddl(self) -> None:
         self.discard_cached_plans()
+        self._schema_changed = True
 
     def executemany(
         self,
@@ -441,9 +499,11 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         start = real_time() if hooks else 0.0
         obj = self._obj
         t0 = monotonic()
+        failed = False
         try:
             obj.executemany(query, rows, returning=returning)
         except Exception as e:
+            failed = reached_the_server(e)
             if log_exceptions:
                 _log_sql_error(e, query)
             raise
@@ -455,6 +515,10 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                     1000 * delay,
                     len(rows),
                     query,
+                )
+            if failed:
+                self._record_metrics(
+                    delay, len(rows), query=query, start=start, hooks=hooks
                 )
 
         self._record_metrics(delay, len(rows), query=query, start=start, hooks=hooks)
@@ -507,6 +571,9 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self.flush()
         self._cnx.commit()
         self.commit_count += 1
+        if self._schema_changed:
+            self._schema_changed = False
+            self._drain_sibling_connections()
         self.clear()
         self._schema_cache.clear()
         self._now = None
@@ -531,6 +598,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             self.prerollback.run()
         finally:
             self._cnx.rollback()
+            self._schema_changed = False
             self._schema_cache.clear()
         self._now = None
         self.postrollback.run()
