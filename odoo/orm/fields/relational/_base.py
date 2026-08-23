@@ -11,7 +11,7 @@ from collections.abc import (
 from operator import attrgetter
 from typing import override
 
-from odoo.exceptions import MissingError
+from odoo.exceptions import AccessError, MissingError
 from odoo.tools import SQL, OrderedSet, Query, unique
 from odoo.tools.misc import PENDING, SENTINEL, unquote
 
@@ -530,11 +530,31 @@ class _RelationalMulti(_Relational):
         raise NotImplementedError
 
     def _check_sudo_commands(self, comodel: BaseModel) -> BaseModel:
-        if not comodel._allow_sudo_commands:
-            return comodel.sudo(False).with_user(
-                comodel.env.transaction.default_env.uid
+        if comodel._allow_sudo_commands:
+            return comodel
+        # `default_env` is only set for a *truthy* integer uid
+        # (runtime/environment.py), so a transaction whose environments were
+        # all built with uid 0 has none -- `Transaction.flush` already carries
+        # a fallback for exactly that state. This read had no guard, so an
+        # x2many write touching one of the ten models that set
+        # `_allow_sudo_commands = False` raised
+        # `AttributeError: 'NoneType' object has no attribute 'uid'` instead of
+        # doing the downgrade this method exists for. Downgrading to the
+        # superuser would be the wrong repair: the point is to stop a sudoed
+        # environment from writing these models, so with no real user to fall
+        # back to, refuse.
+        default_env = comodel.env.transaction.default_env
+        if default_env is None:
+            raise AccessError(
+                comodel.env._(
+                    "Cannot write %(field)s on %(model)s: the commands must run "
+                    "as a real user and this transaction has no default "
+                    "environment to name one.",
+                    field=str(self),
+                    model=comodel._name,
+                )
             )
-        return comodel
+        return comodel.sudo(False).with_user(default_env.uid)
 
     @override
     def condition_to_sql(
