@@ -34,6 +34,9 @@ class MrpProductionGroup(models.Model):
     production_ids = fields.One2many(
         "mrp.production", "production_group_id", string="Productions"
     )
+    move_ids = fields.One2many(
+        "stock.move", "production_group_id", string="Stock Moves"
+    )
     child_ids = fields.Many2many(
         "mrp.production.group",
         "mrp_production_group_rel",
@@ -669,9 +672,11 @@ class MrpProduction(models.Model):
 
     @api.depends(
         "state",
-        "reservation_state",
         "date_start",
         "move_raw_ids",
+        "move_raw_ids.product_id",
+        "move_raw_ids.state",
+        "move_raw_ids.product_qty",
         "move_raw_ids.forecast_availability",
         "move_raw_ids.date_planned_forecast",
     )
@@ -884,6 +889,7 @@ class MrpProduction(models.Model):
                     default=False,
                 )
 
+    @api.depends("state", "date_delay_alert", "move_raw_ids.date_delay_alert")
     def _compute_json_popover(self):
         production_no_alert = self.filtered(
             lambda m: m.state in ("done", "cancel") or not m.date_delay_alert
@@ -909,7 +915,7 @@ class MrpProduction(models.Model):
                 }
             )
 
-    @api.depends("state")
+    @api.depends("production_group_id.move_ids.picking_id")
     def _compute_picking_ids(self):
         move_per_production_group = self.env["stock.move"]._read_group(
             [("production_group_id", "in", self.production_group_id.ids)],
@@ -1218,8 +1224,10 @@ class MrpProduction(models.Model):
             )
 
     @api.depends(
-        "workorder_ids.state",
+        "product_id",
         "move_finished_ids",
+        "move_finished_ids.state",
+        "move_finished_ids.product_id",
         "move_finished_ids.quantity",
         "move_finished_ids.picked",
     )
@@ -1234,6 +1242,7 @@ class MrpProduction(models.Model):
                 done_moves.filtered(lambda m: m.picked).mapped("quantity")
             )
 
+    @api.depends("scrap_ids")
     def _compute_scrap_count(self):
         data = self.env["stock.scrap"]._read_group(
             [("production_id", "in", self.ids)], ["production_id"], ["__count"]
@@ -1540,7 +1549,7 @@ class MrpProduction(models.Model):
         )
         return [("id", operator, delayed_productions)]
 
-    @api.depends("date_delay_alert", "state", "date_deadline", "date_end")
+    @api.depends("state", "date_deadline", "date_end")
     def _compute_is_delayed(self):
         for record in self:
             record.is_delayed = bool(

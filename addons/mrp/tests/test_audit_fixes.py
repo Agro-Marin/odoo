@@ -1343,3 +1343,95 @@ class TestMrpAuditFixes(TestMrpCommon):
             "the deleted block only fired for flexible BoMs; if consumption ever "
             "changes the cancel outcome, it is a new rule and needs its own home",
         )
+
+    def _audit_one_production(self):
+        unit = self.env.ref("uom.product_uom_unit")
+        finished = self.env["product.product"].create(
+            {"name": "Audit depends finished", "is_storable": True}
+        )
+        component = self.env["product.product"].create(
+            {"name": "Audit depends component", "is_storable": True}
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "product_uom_id": unit.id,
+                "type": "normal",
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "product_qty": 3.0, "bom_id": bom.id}
+        )
+        production.action_confirm()
+        return production, component, unit
+
+    def test_scrap_count_follows_its_own_scraps(self):
+        production, component, unit = self._audit_one_production()
+        self.assertEqual(production.scrap_count, 0)
+
+        self.env["stock.scrap"].create(
+            {
+                "production_id": production.id,
+                "product_id": component.id,
+                "product_uom_id": unit.id,
+                "scrap_qty": 1,
+            }
+        )
+
+        self.assertEqual(len(production.scrap_ids), 1)
+        self.assertEqual(
+            production.scrap_count,
+            1,
+            "the compute declared no dependency at all, so the count stayed at "
+            "its first reading for the whole transaction",
+        )
+
+    def test_transfer_count_follows_the_groups_moves(self):
+        production, component, unit = self._audit_one_production()
+        self.assertEqual(production.count_transfer_outgoing, 0)
+
+        picking_type = self.env["stock.picking.type"].search(
+            [("code", "in", ("internal", "outgoing"))], limit=1
+        )
+        self.env["stock.picking"].create(
+            {
+                "picking_type_id": picking_type.id,
+                "location_id": production.location_src_id.id,
+                "location_dest_id": production.location_dest_id.id,
+                "move_ids": [
+                    Command.create(
+                        {
+                            "product_id": component.id,
+                            "product_uom_qty": 1,
+                            "product_uom_id": unit.id,
+                            "location_id": production.location_src_id.id,
+                            "location_dest_id": production.location_dest_id.id,
+                            "production_group_id": production.production_group_id.id,
+                        }
+                    )
+                ],
+            }
+        )
+
+        self.assertEqual(
+            production.count_transfer_outgoing,
+            1,
+            "the compute depended on `state`, which no part of it reads, so a "
+            "picking appearing in the group never invalidated it",
+        )
+
+    def test_availability_follows_its_moves_without_borrowing_reservation_state(self):
+        production, _component, _unit = self._audit_one_production()
+        self.assertEqual(production.components_availability_state, "unavailable")
+
+        production.move_raw_ids.product_uom_qty = 0
+        self.assertEqual(
+            production.components_availability_state,
+            "available",
+            "the body reads move.state and move.product_qty; it used to reach "
+            "them only through reservation_state's own dependency list",
+        )
