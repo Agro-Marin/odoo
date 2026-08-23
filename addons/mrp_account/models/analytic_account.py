@@ -4,34 +4,38 @@ from odoo import _, api, fields, models
 
 
 class AccountAnalyticAccount(models.Model):
-    _inherit = 'account.analytic.account'
-    _description = 'Analytic Account'
+    _inherit = "account.analytic.account"
+    _description = "Analytic Account"
 
-    production_ids = fields.Many2many('mrp.production')
+    production_ids = fields.Many2many("mrp.production")
     production_count = fields.Count("production_ids", "Manufacturing Orders Count")
-    bom_ids = fields.Many2many('mrp.bom')
+    bom_ids = fields.Many2many("mrp.bom")
     bom_count = fields.Count("bom_ids", "BoM Count")
-    workcenter_ids = fields.Many2many('mrp.workcenter')
-    workorder_count = fields.Integer("Work Order Count", compute='_compute_workorder_count')
+    workcenter_ids = fields.Many2many("mrp.workcenter")
+    workorder_count = fields.Integer(
+        "Work Order Count", compute="_compute_workorder_count"
+    )
 
-    @api.depends('workcenter_ids.order_ids', 'production_ids.workorder_ids')
+    @api.depends("workcenter_ids.order_ids", "production_ids.workorder_ids")
     def _compute_workorder_count(self):
         for account in self:
-            account.workorder_count = len(account.workcenter_ids.order_ids | account.production_ids.workorder_ids)
+            account.workorder_count = len(
+                account.workcenter_ids.order_ids | account.production_ids.workorder_ids
+            )
 
     def action_view_mrp_production(self):
         self.ensure_one()
         result = {
             "type": "ir.actions.act_window",
             "res_model": "mrp.production",
-            "domain": [['id', 'in', self.production_ids.ids]],
+            "domain": [["id", "in", self.production_ids.ids]],
             "name": _("Manufacturing Orders"),
-            'view_mode': 'list,form',
-            "context": {'default_analytic_account_id': self.id},
+            "view_mode": "list,form",
+            "context": {"default_analytic_account_id": self.id},
         }
         if len(self.production_ids) == 1:
-            result['view_mode'] = 'form'
-            result['res_id'] = self.production_ids.id
+            result["view_mode"] = "form"
+            result["res_id"] = self.production_ids.id
         return result
 
     def action_view_mrp_bom(self):
@@ -39,14 +43,14 @@ class AccountAnalyticAccount(models.Model):
         result = {
             "type": "ir.actions.act_window",
             "res_model": "mrp.bom",
-            "domain": [['id', 'in', self.bom_ids.ids]],
+            "domain": [["id", "in", self.bom_ids.ids]],
             "name": _("Bills of Materials"),
-            'view_mode': 'list,form',
-            "context": {'default_analytic_account_id': self.id},
+            "view_mode": "list,form",
+            "context": {"default_analytic_account_id": self.id},
         }
         if self.bom_count == 1:
-            result['view_mode'] = 'form'
-            result['res_id'] = self.bom_ids.id
+            result["view_mode"] = "form"
+            result["res_id"] = self.bom_ids.id
         return result
 
     def action_view_workorder(self):
@@ -54,26 +58,37 @@ class AccountAnalyticAccount(models.Model):
         return {
             "type": "ir.actions.act_window",
             "res_model": "mrp.workorder",
-            "domain": [['id', 'in', (self.workcenter_ids.order_ids | self.production_ids.workorder_ids).ids]],
+            "domain": [
+                [
+                    "id",
+                    "in",
+                    (
+                        self.workcenter_ids.order_ids
+                        | self.production_ids.workorder_ids
+                    ).ids,
+                ]
+            ],
             "context": {"create": False},
             "name": _("Work Orders"),
-            'view_mode': 'list',
+            "view_mode": "list",
         }
 
 
 class AccountAnalyticLine(models.Model):
-    _inherit = 'account.analytic.line'
+    _inherit = "account.analytic.line"
 
-    category = fields.Selection(selection_add=[('manufacturing_order', 'Manufacturing Order')])
+    category = fields.Selection(
+        selection_add=[("manufacturing_order", "Manufacturing Order")]
+    )
 
 
 class AccountAnalyticApplicability(models.Model):
-    _inherit = 'account.analytic.applicability'
+    _inherit = "account.analytic.applicability"
     _description = "Analytic Plan's Applicabilities"
 
     business_domain = fields.Selection(
         selection_add=[
-            ('manufacturing_order', 'Manufacturing Order'),
+            ("manufacturing_order", "Manufacturing Order"),
         ],
-        ondelete={'manufacturing_order': 'cascade'},
+        ondelete={"manufacturing_order": "cascade"},
     )

@@ -134,9 +134,7 @@ class MrpProduction(models.Model):
         string="Never attribute values",
     )
 
-    workcenter_id = fields.Many2one(
-        "mrp.workcenter", store=False
-    )
+    workcenter_id = fields.Many2one("mrp.workcenter", store=False)
     product_tracking = fields.Selection(related="product_id.tracking")
     product_tmpl_id = fields.Many2one(
         "product.template", "Product Template", related="product_id.product_tmpl_id"
@@ -422,9 +420,7 @@ class MrpProduction(models.Model):
         "JSON data for the popover widget", compute="_compute_json_popover"
     )
     scrap_ids = fields.One2many("stock.scrap", "production_id", "Scraps")
-    scrap_count = fields.Integer(
-        compute="_compute_scrap_count", string="Scrap Move"
-    )
+    scrap_count = fields.Integer(compute="_compute_scrap_count", string="Scrap Move")
     unbuild_ids = fields.One2many("mrp.unbuild", "mo_id", "Unbuilds")
     unbuild_count = fields.Count("unbuild_ids", string="Number of Unbuilds")
     is_locked = fields.Boolean("Is Locked", default=_default_is_locked, copy=False)
@@ -432,7 +428,9 @@ class MrpProduction(models.Model):
         "Its Operations are Planned", compute="_compute_is_planned", store=True
     )
 
-    show_final_lots = fields.Boolean("Show Final Lots", compute="_compute_show_final_lots")
+    show_final_lots = fields.Boolean(
+        "Show Final Lots", compute="_compute_show_final_lots"
+    )
     production_location_id = fields.Many2one(
         "stock.location",
         "Production Location",
@@ -3733,13 +3731,17 @@ class MrpProduction(models.Model):
 
     def action_view_move_scrap(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("stock.action_stock_scrap")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "stock.action_stock_scrap"
+        )
         action["domain"] = [("production_id", "=", self.id)]
         action["context"] = dict(self.env.context, default_origin=self.name)
         return action
 
     def action_view_reception_report(self):
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.mrp_reception_action")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "mrp.mrp_reception_action"
+        )
         action["context"] = dict(
             {"default_production_ids": self.ids}, **self.env.context
         )
@@ -3747,7 +3749,9 @@ class MrpProduction(models.Model):
 
     def action_view_mrp_production_unbuilds(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.mrp_unbuild")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "mrp.mrp_unbuild"
+        )
         action["domain"] = [("mo_id", "=", self.id)]
         context = eval_action_context(action["context"], self.env)
         context.update(self.env.context)
@@ -4675,7 +4679,6 @@ class MrpProduction(models.Model):
         elif "state" in init_values and self.state == "cancel":
             return self.env.ref("mrp.mrp_mo_in_cancelled")
         return super()._track_subtype(init_values)
-
 
     def _default_order_line_values(self, child_field=False):
         default_data = super()._default_order_line_values(child_field)

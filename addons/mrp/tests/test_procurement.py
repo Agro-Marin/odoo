@@ -34,7 +34,6 @@ class TestProcurement(TestMrpCommon):
 
         self.assertEqual(production_product_6.state, "confirmed")
 
-
         move_raw_product4 = production_product_6.move_raw_ids.filtered(
             lambda x: x.product_id == self.product_4
         )
@@ -72,7 +71,6 @@ class TestProcurement(TestMrpCommon):
             "Consume material not available",
         )
 
-
         mo_form = Form(produce_product_4)
         mo_form.qty_producing = produce_product_4.product_qty
         produce_product_4 = mo_form.save()
@@ -80,7 +78,6 @@ class TestProcurement(TestMrpCommon):
         self.assertEqual(
             produce_product_4.state, "done", "Production order should be in state done"
         )
-
 
         self.env["stock.quant"].with_context(inventory_mode=True).create(
             {
@@ -90,7 +87,6 @@ class TestProcurement(TestMrpCommon):
             }
         ).action_apply_inventory()
         production_product_6.action_assign()
-
 
         self.assertEqual(
             production_product_6.reservation_state,

@@ -415,9 +415,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             "quantity_forecasted": quantities_info.get("forecasted_qty") or 0,
             "free_to_manufacture_qty": quantities_info.get("free_to_manufacture_qty")
             or 0,
-            "base_bom_line_qty": bom_line.product_qty
-            if bom_line
-            else False,
+            "base_bom_line_qty": bom_line.product_qty if bom_line else False,
             "name": product.display_name or bom.product_tmpl_id.display_name,
             "uom": bom.product_uom_id if bom else product.uom_id,
             "uom_name": bom.product_uom_id.name if bom else product.uom_id.name,

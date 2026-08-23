@@ -1,129 +1,116 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 {
-    'name': "MRP Subcontracting",
-    'version': '0.1',
-    'summary': "Subcontract Productions",
-    'website': 'https://www.odoo.com/app/manufacturing',
-    'category': 'Supply Chain/Manufacturing',
-    'depends': ['mrp'],
-    'data': [
-        'data/mrp_subcontracting_data.xml',
-        'security/mrp_subcontracting_security.xml',
-        'security/ir.model.access.csv',
-        'views/mrp_bom_views.xml',
-        'views/res_partner_views.xml',
-        'views/stock_warehouse_views.xml',
-        'views/stock_move_views.xml',
-        'views/stock_quant_views.xml',
-        'views/stock_picking_views.xml',
-        'views/supplier_info_views.xml',
-        'views/mrp_production_views.xml',
-        'views/subcontracting_portal_views.xml',
-        'views/subcontracting_portal_templates.xml',
+    "name": "MRP Subcontracting",
+    "version": "0.1",
+    "summary": "Subcontract Productions",
+    "website": "https://www.odoo.com/app/manufacturing",
+    "category": "Supply Chain/Manufacturing",
+    "depends": ["mrp"],
+    "data": [
+        "data/mrp_subcontracting_data.xml",
+        "security/mrp_subcontracting_security.xml",
+        "security/ir.model.access.csv",
+        "views/mrp_bom_views.xml",
+        "views/res_partner_views.xml",
+        "views/stock_warehouse_views.xml",
+        "views/stock_move_views.xml",
+        "views/stock_quant_views.xml",
+        "views/stock_picking_views.xml",
+        "views/supplier_info_views.xml",
+        "views/mrp_production_views.xml",
+        "views/subcontracting_portal_views.xml",
+        "views/subcontracting_portal_templates.xml",
     ],
-    'demo': [
-        'data/mrp_subcontracting_demo.xml',
+    "demo": [
+        "data/mrp_subcontracting_demo.xml",
     ],
-    'assets': {
-        'web.assets_tests': [
-            'mrp_subcontracting/static/tests/tours/subcontracting_portal_tour.js',
+    "assets": {
+        "web.assets_tests": [
+            "mrp_subcontracting/static/tests/tours/subcontracting_portal_tour.js",
         ],
-        'web.assets_backend': [
-            'mrp_subcontracting/static/src/components/**/*',
-            'mrp_subcontracting/static/src/subcontracting_portal/move_list_view.js',
+        "web.assets_backend": [
+            "mrp_subcontracting/static/src/components/**/*",
+            "mrp_subcontracting/static/src/subcontracting_portal/move_list_view.js",
         ],
-        'web.assets_frontend': [
-            'mrp_subcontracting/static/src/scss/subcontracting_portal.scss',
+        "web.assets_frontend": [
+            "mrp_subcontracting/static/src/scss/subcontracting_portal.scss",
         ],
-        'mrp_subcontracting.webclient': [
-            ('include', 'web._assets_helpers'),
-            ('include', 'web._assets_backend_helpers'),
-
-            'web/static/src/scss/pre_variables.scss',
-            'web/static/lib/bootstrap/scss/_variables.scss',
-            'web/static/lib/bootstrap/scss/_variables-dark.scss',
-            'web/static/lib/bootstrap/scss/_maps.scss',
-
-            ('include', 'web._assets_bootstrap'),
-
-            'web/static/src/scss/tokens.scss',
-
-            'web/static/src/libs/fontawesome7/css/fontawesome.css',
-            'web/static/src/libs/fontawesome7/css/solid.css',
-            'web/static/src/libs/fontawesome7/css/regular.css',
-            'web/static/src/libs/fontawesome7/css/brands.css',
-            'web/static/lib/odoo_ui_icons/*',
-            'web/static/src/webclient/navbar/navbar.scss',
-            'web/static/src/scss/animation.scss',
-            'web/static/src/components/color_picker/color_picker.scss',
-            'web/static/src/scss/mimetypes.scss',
-            'web/static/src/scss/ui.scss',
-            'web/static/src/fields/translation_dialog.scss',
-            'web/static/src/scss/rtl_icon_flip.scss',
-            'web/static/src/session.js',
-
-            'web/static/src/libs/bootstrap.js',
-
-            'base/static/src/css/modules.css',
-
-            'web/static/src/core/**/*',
+        "mrp_subcontracting.webclient": [
+            ("include", "web._assets_helpers"),
+            ("include", "web._assets_backend_helpers"),
+            "web/static/src/scss/pre_variables.scss",
+            "web/static/lib/bootstrap/scss/_variables.scss",
+            "web/static/lib/bootstrap/scss/_variables-dark.scss",
+            "web/static/lib/bootstrap/scss/_maps.scss",
+            ("include", "web._assets_bootstrap"),
+            "web/static/src/scss/tokens.scss",
+            "web/static/src/libs/fontawesome7/css/fontawesome.css",
+            "web/static/src/libs/fontawesome7/css/solid.css",
+            "web/static/src/libs/fontawesome7/css/regular.css",
+            "web/static/src/libs/fontawesome7/css/brands.css",
+            "web/static/lib/odoo_ui_icons/*",
+            "web/static/src/webclient/navbar/navbar.scss",
+            "web/static/src/scss/animation.scss",
+            "web/static/src/components/color_picker/color_picker.scss",
+            "web/static/src/scss/mimetypes.scss",
+            "web/static/src/scss/ui.scss",
+            "web/static/src/fields/translation_dialog.scss",
+            "web/static/src/scss/rtl_icon_flip.scss",
+            "web/static/src/session.js",
+            "web/static/src/libs/bootstrap.js",
+            "base/static/src/css/modules.css",
+            "web/static/src/core/**/*",
             # The fork split web/static/src/core into components/, ui/ and
             # services/: without them the bundle misses their modules and
             # templates (e.g. web.Dialog, web.DropdownItem, web.TagsList) and
             # the subcontracting portal client dies at template setup.
-            'web/static/src/components/**/*',
-            ('remove', 'web/static/src/components/emoji_picker/emoji_data.js'),
-            'web/static/src/ui/**/*',
-            'web/static/src/search/**/*',
-            'web/static/src/views/*.js',
-            'web/static/src/views/*.xml',
-            'web/static/src/views/*.scss',
-            'web/static/src/fields/**/*',
-            'web/static/src/views/form/**/*',
-            'web/static/src/views/kanban/**/*',
-            'web/static/src/views/list/**/*',
-            'web/static/src/model/**/*',
-            'web/static/src/views/view_button/**/*',
-            'web/static/src/views/view_components/**/*',
-            'web/static/src/views/view_dialogs/**/*',
-            'web/static/src/views/widgets/**/*',
-            'web/static/src/webclient/**/*',
-            ('remove', 'web/static/src/webclient/clickbot/clickbot.js'),  # lazy loaded
-            ('remove', 'web/static/src/views/form/button_box/*.scss'),
-            ('remove', 'web/static/src/webclient/share_target/*'),
+            "web/static/src/components/**/*",
+            ("remove", "web/static/src/components/emoji_picker/emoji_data.js"),
+            "web/static/src/ui/**/*",
+            "web/static/src/search/**/*",
+            "web/static/src/views/*.js",
+            "web/static/src/views/*.xml",
+            "web/static/src/views/*.scss",
+            "web/static/src/fields/**/*",
+            "web/static/src/views/form/**/*",
+            "web/static/src/views/kanban/**/*",
+            "web/static/src/views/list/**/*",
+            "web/static/src/model/**/*",
+            "web/static/src/views/view_button/**/*",
+            "web/static/src/views/view_components/**/*",
+            "web/static/src/views/view_dialogs/**/*",
+            "web/static/src/views/widgets/**/*",
+            "web/static/src/webclient/**/*",
+            ("remove", "web/static/src/webclient/clickbot/clickbot.js"),  # lazy loaded
+            ("remove", "web/static/src/views/form/button_box/*.scss"),
+            ("remove", "web/static/src/webclient/share_target/*"),
             # A light bundle: the globs above reach web's dark siblings, which
             # would compile against the light palette and override the files
             # they answer.
-            ('remove', 'web/static/src/**/*.dark.scss'),
-
+            ("remove", "web/static/src/**/*.dark.scss"),
             # remove the report code and whitelist only what's needed
-            ('remove', 'web/static/src/webclient/actions/reports/**/*'),
-            'web/static/src/webclient/actions/reports/*.js',
-            'web/static/src/webclient/actions/reports/*.xml',
-
-            'web/static/src/env.js',
-
-            'base/static/src/scss/res_partner.scss',
-
+            ("remove", "web/static/src/webclient/actions/reports/**/*"),
+            "web/static/src/webclient/actions/reports/*.js",
+            "web/static/src/webclient/actions/reports/*.xml",
+            "web/static/src/env.js",
+            "base/static/src/scss/res_partner.scss",
             # Form style should be computed before
-            'web/static/src/views/form/button_box/*.scss',
-
-            'mrp_subcontracting/static/src/subcontracting_portal/*',
-            'web/static/src/boot/start.js',
-
-            'stock/static/src/widgets/*',
-            'stock/static/src/fields/*',
-            'mrp_subcontracting/static/src/components/subcontracting_production_form_controller.js',
-            'mrp_subcontracting/static/src/components/subcontracting_production_list_controller.js',
+            "web/static/src/views/form/button_box/*.scss",
+            "mrp_subcontracting/static/src/subcontracting_portal/*",
+            "web/static/src/boot/start.js",
+            "stock/static/src/widgets/*",
+            "stock/static/src/fields/*",
+            "mrp_subcontracting/static/src/components/subcontracting_production_form_controller.js",
+            "mrp_subcontracting/static/src/components/subcontracting_production_list_controller.js",
         ],
     },
-    'uninstall_hook': 'uninstall_hook',
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
-    'esm': {
-        'bundles': [
-            'mrp_subcontracting.webclient',
+    "uninstall_hook": "uninstall_hook",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "esm": {
+        "bundles": [
+            "mrp_subcontracting.webclient",
         ],
     },
 }

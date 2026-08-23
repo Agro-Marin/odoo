@@ -90,7 +90,6 @@ class TestMrpByProduct(common.TransactionCase):
             }
         )
 
-
         mnf_product_a_form = Form(self.env["mrp.production"])
         mnf_product_a_form.product_id = self.product_a
         mnf_product_a_form.bom_id = self.bom_byproduct

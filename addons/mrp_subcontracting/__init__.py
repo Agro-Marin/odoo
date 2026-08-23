@@ -16,7 +16,9 @@ def uninstall_hook(env):
     subcontracting_locations = companies.mapped("subcontracting_location_id")
     subcontracting_locations.active = False
     companies.write({"subcontracting_location_id": False})
-    operations_type_to_remove = (warehouses.subcontracting_resupply_type_id | warehouses.subcontracting_type_id)
+    operations_type_to_remove = (
+        warehouses.subcontracting_resupply_type_id | warehouses.subcontracting_type_id
+    )
     operations_type_to_remove.active = False
     # Fail unlink means that the route is used somewhere (e.g. route_id on stock.rule). In this case
     # we don't try to do anything.

@@ -47,7 +47,6 @@ class TestWorkcenterFirstAvailableSlot(common.TestMrpCommon):
             }
         )
 
-
     @freeze_time("2024-01-01 06:00:00")
     def test_forward_takes_the_start_of_an_empty_day(self):
         start, stop = self.workcenter._get_first_available_slot(
@@ -147,7 +146,6 @@ class TestWorkcenterFirstAvailableSlot(common.TestMrpCommon):
         self.assertEqual(start, datetime(2024, 1, 1, 8, 0))
         self.assertEqual(stop, datetime(2024, 1, 1, 8, 0, 1))
 
-
     @freeze_time("2024-01-01 06:00:00")
     def test_a_workcenter_that_never_works_reports_no_slot(self):
         idle = self.env["mrp.workcenter"].create(
@@ -176,7 +174,6 @@ class TestWorkcenterFirstAvailableSlot(common.TestMrpCommon):
         )
         self.assertFalse(start)
         self.assertIn("No available slot", message)
-
 
     @freeze_time("2024-01-01 06:00:00")
     def test_backward_takes_the_end_of_the_window(self):

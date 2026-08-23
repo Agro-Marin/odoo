@@ -4,12 +4,12 @@ from odoo import _, api, fields, models
 
 
 class ExpiryPickingConfirmation(models.TransientModel):
-    _inherit = 'expiry.picking.confirmation'
+    _inherit = "expiry.picking.confirmation"
 
-    production_ids = fields.Many2many('mrp.production', readonly=True)
-    workorder_id = fields.Many2one('mrp.workorder', readonly=True)
+    production_ids = fields.Many2many("mrp.production", readonly=True)
+    workorder_id = fields.Many2one("mrp.workorder", readonly=True)
 
-    @api.depends('lot_ids')
+    @api.depends("lot_ids")
     def _compute_descriptive_fields(self):
         if self.production_ids or self.workorder_id:
             # Shows expired lots only if we are more than one expired lot.
@@ -33,10 +33,10 @@ class ExpiryPickingConfirmation(models.TransientModel):
 
     def confirm_produce(self):
         ctx = dict(self.env.context, skip_expired=True)
-        ctx.pop('default_lot_ids')
+        ctx.pop("default_lot_ids")
         return self.production_ids.with_context(ctx).button_mark_done()
 
     def confirm_workorder(self):
         ctx = dict(self.env.context, skip_expired=True)
-        ctx.pop('default_lot_ids')
+        ctx.pop("default_lot_ids")
         return self.workorder_id.with_context(ctx).record_production()

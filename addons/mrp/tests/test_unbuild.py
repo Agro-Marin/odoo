@@ -49,7 +49,6 @@ class TestUnbuild(TestMrpCommon):
             "You should have consumed all the 5 product in stock",
         )
 
-
         x = Form(self.env["mrp.unbuild"])
         x.product_id = p_final
         x.bom_id = bom
@@ -162,7 +161,6 @@ class TestUnbuild(TestMrpCommon):
             0,
             "You should have consumed all the 5 product in stock",
         )
-
 
         with self.assertRaises(AssertionError):
             x = Form(self.env["mrp.unbuild"])
@@ -300,7 +298,6 @@ class TestUnbuild(TestMrpCommon):
             0,
             "You should have consumed all the 5 product in stock",
         )
-
 
         x = Form(self.env["mrp.unbuild"])
         x.product_id = p_final
@@ -472,7 +469,6 @@ class TestUnbuild(TestMrpCommon):
             0,
             "You should have consumed all the 5 product in stock",
         )
-
 
         x = Form(self.env["mrp.unbuild"])
         with self.assertRaises(AssertionError):
@@ -833,7 +829,6 @@ class TestUnbuild(TestMrpCommon):
 
         p1.tracking = "lot"
 
-
         x = Form(self.env["mrp.unbuild"])
         x.product_id = p_final
         x.mo_id = mo
@@ -962,7 +957,6 @@ class TestUnbuild(TestMrpCommon):
             0,
             "Table stand should not be available in stock",
         )
-
 
         x = Form(self.env["mrp.unbuild"])
         x.product_id = finshed_product

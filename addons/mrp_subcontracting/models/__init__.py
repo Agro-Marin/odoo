@@ -1,4 +1,3 @@
-
 from . import mrp_bom
 from . import product
 from . import res_company

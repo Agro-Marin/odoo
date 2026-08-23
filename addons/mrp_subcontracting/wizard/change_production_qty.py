@@ -4,7 +4,7 @@ from odoo import api, models
 
 
 class ChangeProductionQty(models.TransientModel):
-    _inherit = 'change.production.qty'
+    _inherit = "change.production.qty"
 
     @api.model
     def _need_quantity_propagation(self, move, qty):

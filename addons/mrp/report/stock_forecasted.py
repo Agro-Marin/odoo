@@ -51,9 +51,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
         domain = self._product_domain(product_template_ids, product_ids)
         domain += [("state", "=", "draft")]
 
-        in_domain = domain + [
-            ("location_dest_id", "in", wh_location_ids)
-        ]
+        in_domain = domain + [("location_dest_id", "in", wh_location_ids)]
         out_domain = domain + [
             ("raw_material_production_id", "!=", False),
             ("location_id", "in", wh_location_ids),

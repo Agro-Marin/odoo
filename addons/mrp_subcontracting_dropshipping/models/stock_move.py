@@ -36,7 +36,8 @@ class StockMove(models.Model):
     def _is_dropshipped_returned(self):
         res = super()._is_dropshipped_returned()
         return res or (
-                self.location_id.usage == 'customer'
-                and self.partner_id.property_stock_subcontractor.parent_path
-                and self.partner_id.property_stock_subcontractor.parent_path in self.location_dest_id.parent_path
+            self.location_id.usage == "customer"
+            and self.partner_id.property_stock_subcontractor.parent_path
+            and self.partner_id.property_stock_subcontractor.parent_path
+            in self.location_dest_id.parent_path
         )

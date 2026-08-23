@@ -266,9 +266,7 @@ class MrpWorkorder(models.Model):
     )
 
     scrap_ids = fields.One2many("stock.scrap", "workorder_id")
-    scrap_count = fields.Integer(
-        compute="_compute_scrap_count", string="Scrap Move"
-    )
+    scrap_count = fields.Integer(compute="_compute_scrap_count", string="Scrap Move")
     production_date = fields.Datetime(
         "Production Date", compute="_compute_production_date", store=True
     )
@@ -1393,7 +1391,9 @@ class MrpWorkorder(models.Model):
 
     def action_view_move_scrap(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("stock.action_stock_scrap")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "stock.action_stock_scrap"
+        )
         action["domain"] = [("workorder_id", "=", self.id)]
         return action
 

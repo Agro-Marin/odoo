@@ -431,7 +431,9 @@ class MrpWorkcenter(models.Model):
 
     def action_show_operations(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.mrp_routing_action")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "mrp.mrp_routing_action"
+        )
         action["domain"] = [("workcenter_id", "=", self.id)]
         action["context"] = {
             "default_workcenter_id": self.id,
@@ -440,12 +442,16 @@ class MrpWorkcenter(models.Model):
 
     def action_work_order(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.action_work_orders")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "mrp.action_work_orders"
+        )
         action["context"] = dict(self.env.context, search_default_workcenter_id=self.id)
         return action
 
     def action_work_order_alternatives(self):
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.mrp_workorder_todo")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "mrp.mrp_workorder_todo"
+        )
         action["domain"] = [
             ("workcenter_id.alternative_workcenter_ids", "in", self.ids)
         ]

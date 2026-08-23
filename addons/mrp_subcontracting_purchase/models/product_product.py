@@ -5,15 +5,19 @@ from odoo.fields import Domain
 
 
 class ProductProduct(models.Model):
-    _inherit = 'product.product'
+    _inherit = "product.product"
 
     @api.model
     def _get_monthly_demand_moves_location_domain(self):
         subcontracting_location_ids = self.env.companies.subcontracting_location_id.child_internal_location_ids.ids
-        return Domain.AND([
-            Domain.OR([
-                super()._get_monthly_demand_moves_location_domain(),
-                [('location_dest_id', 'in', subcontracting_location_ids)],
-            ]),
-            [('location_id', 'not in', subcontracting_location_ids)],
-        ])
+        return Domain.AND(
+            [
+                Domain.OR(
+                    [
+                        super()._get_monthly_demand_moves_location_domain(),
+                        [("location_dest_id", "in", subcontracting_location_ids)],
+                    ]
+                ),
+                [("location_id", "not in", subcontracting_location_ids)],
+            ]
+        )

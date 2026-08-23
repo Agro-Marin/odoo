@@ -247,9 +247,7 @@ class TestMrpOrder(TestMrpCommon):
         mo = mo_form.save()
         self.assertEqual(len(mo.workorder_ids), 3)
         self.assertListEqual(mo.workorder_ids.mapped("sequence"), [0, 1, 2])
-        self.assertEqual(
-            mo.workorder_ids[0].operation_id.bom_id.type, "phantom"
-        )
+        self.assertEqual(mo.workorder_ids[0].operation_id.bom_id.type, "phantom")
         with Form(mo) as mo_form_2:
             with mo_form_2.workorder_ids.new() as wo:
                 wo.name = "Do important stuff"
@@ -2572,7 +2570,6 @@ class TestMrpOrder(TestMrpCommon):
         precision = self.env.ref("uom.decimal_product_uom")
         precision.digits = 3
 
-
         uom_ml = self.env["uom.uom"].create(
             {
                 "name": "Test ml",
@@ -2782,9 +2779,7 @@ class TestMrpOrder(TestMrpCommon):
 
         mo_3.button_plan()
         self.assertEqual(mo_3.state, "confirmed")
-        self.assertEqual(
-            mo_3.workorder_ids[0].state, "ready"
-        )
+        self.assertEqual(mo_3.workorder_ids[0].state, "ready")
 
         mo_1 = Form(self.env["mrp.production"])
         mo_1.bom_id = self.bom_3
@@ -2994,9 +2989,7 @@ class TestMrpOrder(TestMrpCommon):
         mo.bom_id = bom
         mo = mo.save()
 
-        self.assertEqual(
-            list(mo.workorder_ids.mapped("state")), ["ready", "ready"]
-        )
+        self.assertEqual(list(mo.workorder_ids.mapped("state")), ["ready", "ready"])
 
         mo.action_confirm()
         mo.action_assign()
@@ -3517,12 +3510,8 @@ class TestMrpOrder(TestMrpCommon):
         workorder = mo.workorder_ids[0]
         expected_duration = workorder.duration_expected
         real_duration_under_expected = expected_duration / 2
-        real_duration_increased_above_expected = (
-            2 * expected_duration
-        )
-        real_duration_decreased = (
-            expected_duration * 0.75
-        )
+        real_duration_increased_above_expected = 2 * expected_duration
+        real_duration_decreased = expected_duration * 0.75
 
         workorder.duration = real_duration_under_expected
         self.assertEqual(
@@ -3676,7 +3665,6 @@ class TestMrpOrder(TestMrpCommon):
             }
         )
 
-
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = product.product_variant_id
         mo_form.product_qty = 20
@@ -3689,7 +3677,6 @@ class TestMrpOrder(TestMrpCommon):
         self.assertEqual(mo.state, "confirmed")
         self.assertEqual(wo_1.state, "ready")
         self.assertEqual(wo_1.duration_expected, 11 + 20 * 60)
-
 
         duration_expected = wo_1.duration_expected
         wo_1.button_start()
@@ -3728,7 +3715,6 @@ class TestMrpOrder(TestMrpCommon):
         self.assertEqual(wo_4.state, "cancel")
         self.assertEqual(wo_5.duration_expected, 12 + 15 * 60)
 
-
         wo_5.button_start()
         wo_5.qty_producing = 10
         self.assertEqual(mo_2.state, "progress")
@@ -3758,7 +3744,6 @@ class TestMrpOrder(TestMrpCommon):
         self.assertEqual(wo_7.state, "cancel")
         self.assertEqual(wo_8.state, "cancel")
         self.assertEqual(wo_9.duration_expected, 13 + 10 * 60)
-
 
         wo_9.button_start()
         wo_9.qty_producing = 10

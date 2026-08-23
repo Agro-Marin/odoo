@@ -300,9 +300,7 @@ class TestMrpReplenish(TestMrpCommon):
         route_manufacture = self.warehouse.manufacture_pull_id.route_id.id
         route_mto = self.warehouse.mto_pull_id.route_id.id
 
-        self.product_1.write(
-            {"route_ids": [(6, 0, [route_mto, route_manufacture])]}
-        )
+        self.product_1.write({"route_ids": [(6, 0, [route_mto, route_manufacture])]})
         self.product_4.write(
             {
                 "route_ids": [(6, 0, [route_manufacture])],

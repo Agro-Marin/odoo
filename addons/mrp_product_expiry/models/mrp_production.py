@@ -4,7 +4,7 @@ from odoo import _, models
 
 
 class MrpProduction(models.Model):
-    _inherit = 'mrp.production'
+    _inherit = "mrp.production"
 
     def pre_button_mark_done(self):
         confirm_expired_lots = self._check_expired_lots()
@@ -15,25 +15,29 @@ class MrpProduction(models.Model):
     def _check_expired_lots(self):
         # We use the 'skip_expired' context key to avoid to make the check when
         # user already confirmed the wizard about using expired lots.
-        if self.env.context.get('skip_expired'):
+        if self.env.context.get("skip_expired"):
             return False
-        expired_lot_ids = self.move_raw_ids.move_line_ids.filtered(lambda ml: ml.lot_id.product_expiry_alert).lot_id.ids
+        expired_lot_ids = self.move_raw_ids.move_line_ids.filtered(
+            lambda ml: ml.lot_id.product_expiry_alert
+        ).lot_id.ids
         if expired_lot_ids:
             return {
-                'name': _('Confirmation'),
-                'type': 'ir.actions.act_window',
-                'res_model': 'expiry.picking.confirmation',
-                'view_mode': 'form',
-                'views': [(False, 'form')],
-                'target': 'new',
-                'context': self._get_expired_context(expired_lot_ids),
+                "name": _("Confirmation"),
+                "type": "ir.actions.act_window",
+                "res_model": "expiry.picking.confirmation",
+                "view_mode": "form",
+                "views": [(False, "form")],
+                "target": "new",
+                "context": self._get_expired_context(expired_lot_ids),
             }
         return False
 
     def _get_expired_context(self, expired_lot_ids):
         context = dict(self.env.context)
-        context.update({
-            'default_lot_ids': [(6, 0, expired_lot_ids)],
-            'default_production_ids': self.ids,
-        })
+        context.update(
+            {
+                "default_lot_ids": [(6, 0, expired_lot_ids)],
+                "default_production_ids": self.ids,
+            }
+        )
         return context

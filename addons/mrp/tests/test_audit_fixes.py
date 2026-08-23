@@ -936,6 +936,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.env.flush_all()
 
         for field in ("bom_count", "used_in_bom_count"):
+
             def read_field(field=field):
                 products.invalidate_recordset([field])
                 products.mapped(field)

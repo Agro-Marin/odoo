@@ -72,9 +72,7 @@ class TestMrpProductionBackorder(TestMrpCommon):
             ),
             9,
         )
-        self.assertEqual(
-            mo_backorder.reserve_visible, False
-        )
+        self.assertEqual(mo_backorder.reserve_visible, False)
 
     def test_no_tracking_pbm_1(self):
         self.env.user.group_ids += self.env.ref("stock.group_adv_location")

@@ -354,7 +354,6 @@ class TestWarehouseMrp(common.TestMrpCommon):
         self.assertEqual(scrap_move.location_dest_id, scrap_id.scrap_location_id)
         self.assertEqual(scrap_move.price_unit, scrap_move.product_id.standard_price)
 
-
     def test_putaway_after_manufacturing_3(self):
         self.laptop.tracking = "serial"
         mo_laptop = self.new_mo_laptop()
