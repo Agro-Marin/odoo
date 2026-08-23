@@ -1,17 +1,19 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import datetime
-
-from freezegun import freeze_time
 from unittest.mock import patch
 
-from odoo.addons.mass_mailing.models.mixin_mail_thread import BLACKLIST_MAX_BOUNCED_LIMIT
-from odoo.addons.test_mass_mailing.tests import common
+from freezegun import freeze_time
+
+from odoo.db import Cursor
 from odoo.tests import tagged
 from odoo.tests.common import users
 from odoo.tools import mute_logger
-from odoo.db import Cursor
+
+from odoo.addons.mass_mailing.models.mixin_mail_thread import (
+    BLACKLIST_MAX_BOUNCED_LIMIT,
+)
+from odoo.addons.test_mass_mailing.tests import common
 
 
 @tagged('mail_blacklist')
@@ -19,7 +21,7 @@ class TestAutoBlacklist(common.TestMassMailCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestAutoBlacklist, cls).setUpClass()
+        super().setUpClass()
         cls.target_rec = cls._create_mailing_test_records()[0]
         cls.mailing_bl.write({'mailing_domain': [('id', 'in', cls.target_rec.ids)]})
 

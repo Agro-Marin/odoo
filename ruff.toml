@@ -783,6 +783,18 @@ ignore = [
 # that shape; renaming the second class would make the fixtures unidiomatic.
 "odoo/addons/test_*/models/**" = ["FURB152", "F811"]
 
+# Test-addon data/ modules are raw payloads, not code. test_mail/data/test_mail_data.py
+# is 27 top-level assignments, 26 of them a single string constant holding a verbatim
+# RFC 5322 message, and there the whitespace IS the syntax: the trailing space on
+# `Content-Disposition: attachment; ` (MAIL_MULTIPART_INVALID_ENCODING) precedes a
+# tab-folded `filename=` continuation, and the tab-indented lines inside MAIL_XHTML's
+# `Received:` are the same fold. The DKIM-Signature at 757 declares `c=simple/simple`,
+# DKIM's strictest canonicalisation, which signs header whitespace byte for byte --
+# so stripping it does not tidy the file, it invalidates the fixture. No comment can
+# suppress these: the offending lines are INSIDE a string literal, where a `# noqa`
+# would become part of the payload.
+"addons/test_*/data/*.py" = ["W291", "W293", "E101", "W191"]
+
 # __manifest__.py: Standalone dict expression is the whole file
 "**/__manifest__.py" = ["B018"]
 

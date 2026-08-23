@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime
@@ -12,7 +11,7 @@ class TestCrmFullCommon(TestCrmCommon, MockIAPReveal, MockVisitor):
 
     @classmethod
     def setUpClass(cls):
-        super(TestCrmFullCommon, cls).setUpClass()
+        super().setUpClass()
         cls._activate_multi_company()
 
         # Context data: dates
@@ -37,5 +36,5 @@ class TestCrmFullCommon(TestCrmCommon, MockIAPReveal, MockVisitor):
              'phone': '04560000%02d' % idx,
              'street': 'Super Street, %092d' % idx,
              'zip': '1400',
-            } for idx in range(0, 10)
+            } for idx in range(10)
         ])

@@ -1,18 +1,18 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from urllib.parse import parse_qsl, urlsplit
 
+from odoo.tests import tagged, users
+
 from odoo.addons.test_mail_full.tests.common import TestMailFullCommon
 from odoo.addons.test_mail_sms.tests.common import TestSMSRecipients
-from odoo.tests import tagged, users
 
 
 class TestMailThreadInternalsCommon(TestMailFullCommon, TestSMSRecipients):
 
     @classmethod
     def setUpClass(cls):
-        super(TestMailThreadInternalsCommon, cls).setUpClass()
+        super().setUpClass()
 
         cls.test_portal_records, cls.test_portal_partners = cls._create_records_for_batch(
             'mail.test.portal',

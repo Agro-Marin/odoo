@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import UTC, date, datetime, timedelta
@@ -23,7 +22,7 @@ from odoo.addons.test_mail.models.test_mail_models import MailTestActivity
 class TestActivityCommon(ActivityScheduleCase):
     @classmethod
     def setUpClass(cls):
-        super(TestActivityCommon, cls).setUpClass()
+        super().setUpClass()
         cls.test_record, cls.test_record_2 = cls.env["mail.test.activity"].create(
             [
                 {"name": "Test"},
@@ -348,7 +347,7 @@ class TestActivityRights(TestActivityCommon):
             side_effect=_employee_crash,
         ):
             with self.assertRaises(exceptions.AccessError):
-                activity = self.test_record.with_user(
+                self.test_record.with_user(
                     self.user_employee
                 ).activity_schedule(
                     "test_mail.mail_act_test_todo", user_id=self.user_admin.id
@@ -1021,7 +1020,7 @@ class TestActivitySystrayBusNotify(TestActivityCommon):
                     datetime(2024, 1, 1, 15, 0, 0),
                     datetime(2024, 1, 2, 15, 0, 0),
                 ),
-                ({"active": False}, {}, {}, {}),
+                ({"active": False}, {}, {}, {}), strict=True,
             )
         ]
 
@@ -1099,7 +1098,7 @@ class TestActivitySystrayBusNotify(TestActivityCommon):
             user,
             (expected_create_notif_channels, expected_create_notif_message_items),
             (expected_unlink_notif_channels, expected_unlink_notif_message_items),
-        ) in zip(users, expected_create_notifs, expected_unlink_notifs):
+        ) in zip(users, expected_create_notifs, expected_unlink_notifs, strict=True):
             user_activity_vals = [
                 vals | {"user_id": user.id} for vals in self.activity_vals
             ]
@@ -1293,7 +1292,7 @@ class TestActivitySystrayBusNotify(TestActivityCommon):
                     ],
                 )
                 for user, count_diff in zip(
-                    self.user_employee + self.user_employee_2, [-1, 1]
+                    self.user_employee + self.user_employee_2, [-1, 1], strict=True
                 )
             ],
             # same transfer, also pulling every deadline into the past: still one
@@ -1316,7 +1315,7 @@ class TestActivitySystrayBusNotify(TestActivityCommon):
                     ],
                 )
                 for user, count_diff in zip(
-                    self.user_employee + self.user_employee_2, [-1, 1]
+                    self.user_employee + self.user_employee_2, [-1, 1], strict=True
                 )
             ],
         ] + [
@@ -1333,14 +1332,14 @@ class TestActivitySystrayBusNotify(TestActivityCommon):
             [([], [])],  # no change -> no notif
             [([], [])],  # no change in "todo" count -> no notif
         ]
-        for write_vals, expected_notif_vals in zip(write_vals_all, expected_notifs):
+        for write_vals, expected_notif_vals in zip(write_vals_all, expected_notifs, strict=True):
             with self.subTest(vals=write_vals):
                 _past_archived, _past_active, _today, _tomorrow = activities = self.env[
                     "mail.activity"
                 ].create(self.activity_vals)
                 self._reset_bus()
                 if isinstance(write_vals, list):
-                    for activity, vals in zip(activities, write_vals):
+                    for activity, vals in zip(activities, write_vals, strict=True):
                         activity.write(vals)
                 else:
                     activities.write(write_vals)
@@ -2909,12 +2908,9 @@ class TestActivityDeadlineClock(ActivityScheduleCase):
             Doc.search([("activity_state", "=", "today")]),
             "the SQL path must see the same day the compute does",
         )
-        groups = dict(
-            (state, count)
-            for state, count in Doc._read_group(
+        groups = dict(Doc._read_group(
                 [("id", "=", self.record.id)], ["activity_state"], ["__count"]
-            )
-        )
+            ))
         self.assertEqual(list(groups), ["today"])
 
 

@@ -1,24 +1,25 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from dateutil.relativedelta import relativedelta
-from odoo.fields import Datetime
+
 from odoo import tests
+from odoo.fields import Datetime
 from odoo.tests.common import users
+
 from odoo.addons.website_slides.tests.test_ui_wslides import TestUICommon
 
 
 @tests.common.tagged('post_install', '-at_install')
 class TestUi(TestUICommon):
 
-    def setUp(cls):
+    def setUp(self):
         super().setUp()
 
         # =====================
         # CERTIFICATION SURVEY
         # =====================
 
-        cls.furniture_survey = cls.env['survey.survey'].create({
+        self.furniture_survey = self.env['survey.survey'].create({
             'title': 'Furniture Creation Certification',
             'access_token': '5632a4d7-48cf-aaaa-8c52-2174d58cf50b',
             'access_mode': 'public',
@@ -27,7 +28,7 @@ class TestUi(TestUICommon):
             'users_login_required': True,
             'scoring_type': 'scoring_with_answers',
             'certification': True,
-            'certification_mail_template_id': cls.env.ref('survey.mail_template_certification').id,
+            'certification_mail_template_id': self.env.ref('survey.mail_template_certification').id,
             'is_attempts_limited': True,
             'attempts_limit': 3,
             'description': "<p>Test your furniture knowledge!</p>",
@@ -101,7 +102,7 @@ class TestUi(TestUICommon):
         # ===============
         # COURSE PRODUCT
         # ===============
-        cls.furniture_course_product = cls.env['product.product'].create({
+        self.furniture_course_product = self.env['product.product'].create({
             'name': 'DIY Furniture Course',
             'list_price': 100.0,
             'type': 'service',
@@ -111,11 +112,11 @@ class TestUi(TestUICommon):
         # ===============
         # COURSE CHANNEL
         # ===============
-        cls.furniture_course = cls.env['slide.channel'].create({
+        self.furniture_course = self.env['slide.channel'].create({
             'name': 'DIY Furniture - TEST',
-            'user_id': cls.env.ref('base.user_admin').id,
+            'user_id': self.env.ref('base.user_admin').id,
             'enroll': 'payment',
-            'product_id': cls.furniture_course_product.id,
+            'product_id': self.furniture_course_product.id,
             'channel_type': 'training',
             'allow_comment': True,
             'promote_strategy': 'most_voted',
@@ -131,7 +132,7 @@ class TestUi(TestUICommon):
                     'is_published': True,
                     'is_preview': False,
                     'description': "It's time to test your knowledge!",
-                    'survey_id': cls.furniture_survey.id,
+                    'survey_id': self.furniture_survey.id,
                 })
             ]
         })

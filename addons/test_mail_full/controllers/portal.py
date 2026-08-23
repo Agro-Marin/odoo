@@ -15,8 +15,8 @@ class PortalTest(http.Controller):
         values = {
             "object": record,
             "token": kwargs.get("token"),
-            "hash": kwargs.get("hash", None),
-            "pid": kwargs.get("pid", None),
+            "hash": kwargs.get("hash"),
+            "pid": kwargs.get("pid"),
         }
         return request.render("test_mail_full.test_portal_template", values)
 

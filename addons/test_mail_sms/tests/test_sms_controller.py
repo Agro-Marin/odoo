@@ -1,9 +1,10 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command
-from odoo.addons.test_mail_sms.tests.test_sms_management import TestSMSActionsCommon
 from odoo.tests.common import JsonRpcException
 from odoo.tools import mute_logger
+
+from odoo.addons.test_mail_sms.tests.test_sms_management import TestSMSActionsCommon
 
 
 class TestSmsController(TestSMSActionsCommon):

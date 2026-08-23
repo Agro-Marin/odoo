@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from urllib.parse import urlsplit, parse_qsl
+from urllib.parse import parse_qsl, urlsplit
 
-from odoo.addons.test_mail_full.tests.common import TestMailFullCommon
+from odoo.tests import tagged
 from odoo.tests.common import users
 from odoo.tools import mute_logger
-from odoo.tests import tagged
+
+from odoo.addons.test_mail_full.tests.common import TestMailFullCommon
 
 
 @tagged('mass_mailing')

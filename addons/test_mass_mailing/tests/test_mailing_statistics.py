@@ -1,14 +1,14 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from lxml import html
 
+from odoo.tests import tagged
+from odoo.tests.common import users
+from odoo.tools import mute_logger
+
 from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.test_mass_mailing.data.mail_test_data import MAIL_TEMPLATE
 from odoo.addons.test_mass_mailing.tests.common import TestMassMailCommon
-from odoo.tests.common import users
-from odoo.tests import tagged
-from odoo.tools import mute_logger
 
 
 @tagged('digest', 'mass_mailing')
@@ -16,7 +16,7 @@ class TestMailingStatistics(TestMassMailCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestMailingStatistics, cls).setUpClass()
+        super().setUpClass()
 
         cls.user_marketing_2 = mail_new_test_user(
             cls.env,

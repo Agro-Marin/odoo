@@ -5,8 +5,8 @@ from datetime import datetime, timedelta
 from odoo import fields
 from odoo.tests import HttpCase, tagged
 
-from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
+from odoo.addons.mail.tests.common import mail_new_test_user
 
 
 @tagged('post_install', '-at_install')

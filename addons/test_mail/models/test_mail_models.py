@@ -1,4 +1,4 @@
-from odoo import api, fields, models, _
+from odoo import api, fields, models
 
 
 class MailTestSimple(models.Model):
@@ -14,13 +14,11 @@ class MailTestSimple(models.Model):
 
     def _message_compute_subject(self):
         """To ease mocks"""
-        _a = super()._message_compute_subject()
-        return _a
+        return super()._message_compute_subject()
 
     def _notify_by_email_get_final_mail_values(self, *args, **kwargs):
         """To ease mocks"""
-        _a = super()._notify_by_email_get_final_mail_values(*args, **kwargs)
-        return _a
+        return super()._notify_by_email_get_final_mail_values(*args, **kwargs)
 
     def _notify_by_email_get_headers(self, headers=None):
         headers = super()._notify_by_email_get_headers(headers=headers)
@@ -155,7 +153,7 @@ class MailTestGatewayGroups(models.Model):
     customer_id = fields.Many2one("res.partner", "Customer")
 
     def _alias_get_creation_values(self):
-        values = super(MailTestGatewayGroups, self)._alias_get_creation_values()
+        values = super()._alias_get_creation_values()
         values["alias_model_id"] = (
             self.env["ir.model"]._get("mail.test.gateway.groups").id
         )

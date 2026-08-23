@@ -1,14 +1,16 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from unittest.mock import PropertyMock, patch
+
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
-from unittest.mock import patch, PropertyMock
 
 from odoo import Command, fields
 from odoo.fields import Domain
+from odoo.tests.common import HttpCase, tagged, users, warmup
+
 from odoo.addons.mail.tests.common import MailCommon
 from odoo.addons.mail.tools.discuss import Store
-from odoo.tests.common import users, tagged, HttpCase, warmup
 
 
 @tagged('post_install', '-at_install', 'is_query_count')

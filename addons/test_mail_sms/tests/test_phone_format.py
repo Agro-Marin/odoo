@@ -35,8 +35,8 @@ class TestPhoneFormat(TransactionCase):
         expected_numbers = ['+12518428701', '+12518428701', '+447892164126', '+447892164126', '+32499000000']
         test_names = ['customer country', 'first guest country', 'second guest country', 'record country', 'existing prefix']
 
-        for partner_vals, record_vals, input_number, expected_number, test_name in zip(partner_vals_all, record_vals_all, input_numbers, expected_numbers, test_names):
-            for partner, base_vals, vals in zip(partners, base_partner_vals, partner_vals):
+        for partner_vals, record_vals, input_number, expected_number, test_name in zip(partner_vals_all, record_vals_all, input_numbers, expected_numbers, test_names, strict=True):
+            for partner, base_vals, vals in zip(partners, base_partner_vals, partner_vals, strict=True):
                 partner.write(base_vals | vals)
             test_record.write(base_record_vals | record_vals)
             with self.subTest(test_name=test_name):
@@ -68,7 +68,7 @@ class TestPhoneFormat(TransactionCase):
             'name': 'Phone Format Test Record',
             'customer_id': nocountry_p.id,
             'guest_ids': country_p.ids,
-        } for nocountry_p, country_p in zip(nocountry_partners, country_partners)])
+        } for nocountry_p, country_p in zip(nocountry_partners, country_partners, strict=True)])
 
         test_records.invalidate_recordset()
         (country_partners + nocountry_partners).invalidate_recordset()

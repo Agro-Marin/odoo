@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from freezegun import freeze_time
 
 from odoo import tests
+
 from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.test_event_full.tests.common import TestWEventCommon
 
@@ -22,15 +22,15 @@ class TestWEventRegister(TestWEventCommon):
         self.assertEqual(len(new_registrations), 2)
         self.assertEqual(
             set(new_registrations.mapped("name")),
-            set(["Raoulette Poiluchette", "Michel Tractopelle"])
+            {"Raoulette Poiluchette", "Michel Tractopelle"}
         )
         self.assertEqual(
             set(new_registrations.mapped("phone")),
-            set(["0456112233", "0456332211"])
+            {"0456112233", "0456332211"}
         )
         self.assertEqual(
             set(new_registrations.mapped("email")),
-            set(["raoulette@example.com", "michel@example.com"])
+            {"raoulette@example.com", "michel@example.com"}
         )
 
         # check visitor stored information

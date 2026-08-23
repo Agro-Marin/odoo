@@ -1,15 +1,16 @@
 import base64
-
-from markupsafe import Markup
 from unittest.mock import patch
 
+from markupsafe import Markup
+
 from odoo import SUPERUSER_ID
-from odoo.addons.mail.tests.common import mail_new_test_user, MailCommon
+from odoo.exceptions import AccessError
+from odoo.tests import HttpCase, tagged
+from odoo.tools import mute_logger
+
+from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
 from odoo.addons.test_mail.models.mail_test_access import MailTestAccess
 from odoo.addons.test_mail.models.test_mail_models import MailTestSimple
-from odoo.exceptions import AccessError
-from odoo.tools import mute_logger
-from odoo.tests import HttpCase, tagged
 
 
 class MessageAccessCommon(MailCommon, HttpCase):
@@ -1215,7 +1216,7 @@ class TestMailMessageAccess(MessageAccessCommon):
                 + msg_record_portal_internal
                 + msg_record_public
                 + msg_record_public_internal,
-            ],
+            ], strict=True,
         ):
             with self.subTest(test_user=test_user.name, add_domain=add_domain):
                 self.env.invalidate_all()

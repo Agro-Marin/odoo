@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import base64
@@ -6,19 +5,22 @@ import email
 import email.policy
 import itertools
 import socket
-
 from datetime import datetime, timedelta
-from unittest.mock import DEFAULT
-from unittest.mock import patch
+from unittest.mock import DEFAULT, patch
 
 from odoo import exceptions
+from odoo.db import Cursor
+from odoo.tests import Form, RecordCapturer, tagged
+from odoo.tools import mute_logger
+from odoo.tools.mail import email_normalize, email_split_and_format, formataddr
+
 from odoo.addons.mail.models.mail_message import MailMessage
 from odoo.addons.mail.models.mixin_mail_gateway import (
     MixinMailGateway,
     Route,
     RouteVerdict,
 )
-from odoo.addons.mail.tests.common import mail_new_test_user, MailCommon
+from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
 from odoo.addons.test_mail.data import test_mail_data
 from odoo.addons.test_mail.data.test_mail_data import (
     MAIL_TEMPLATE,
@@ -30,10 +32,6 @@ from odoo.addons.test_mail.models.test_mail_models import (
     MailTestGateway,
     MailTestGatewayGroups,
 )
-from odoo.db import Cursor
-from odoo.tests import Form, tagged, RecordCapturer
-from odoo.tools import mute_logger
-from odoo.tools.mail import email_normalize, email_split_and_format, formataddr
 
 
 @tagged("mail_gateway")
@@ -477,7 +475,7 @@ class TestMailgateway(MailGatewayCommon):
             self.assertIn(f"/web/image/{attachment.id}", message.body)
         self.assertEqual(
             set(message.attachment_ids.mapped("name")),
-            set(["rosaçée.gif", "verte!µ.gif", "orangée.gif"]),
+            {"rosaçée.gif", "verte!µ.gif", "orangée.gif"},
         )
 
     @mute_logger(
@@ -1786,7 +1784,7 @@ class TestMailgateway(MailGatewayCommon):
                 # and with a domain allowed
                 (test_domain, test_domain),
             ],
-            [True, True, False, True],
+            [True, True, False, True], strict=True,
         ):
             with self.subTest(
                 alias_right_part=alias_right_part, allowed_domain=allowed_domain
@@ -3742,7 +3740,7 @@ class TestMailGatewayLoops(MailGatewayCommon):
         self.assertSentEmail(
             f'"MAILER-DAEMON" <{self.alias_bounce}@{self.alias_domain}>',
             [customer_email],
-            subject=f"Re: Re: Re: Should Bounce (initial)",
+            subject="Re: Re: Re: Should Bounce (initial)",
         )
 
 
@@ -4337,7 +4335,7 @@ class TestMailGatewayRecipients(MailGatewayCommon):
                 self.test_partners[
                     2
                 ],  # case should not impact (lower versus stored upper)
-            ],
+            ], strict=True,
         ):
             with self.subTest(additional_to=additional_to):
                 with self.mock_mail_gateway():
@@ -4625,7 +4623,7 @@ class TestMailGatewayReplies(MailGatewayCommon):
                         }
                     )
                 )
-                composer_form.body = f'<p>Hello <t t-out="object.name"/></p>'
+                composer_form.body = '<p>Hello <t t-out="object.name"/></p>'
                 composer_form.reply_to_mode = reply_to_mode
                 if reply_to_mode == "new":
                     composer_form.reply_to = self.alias.display_name
@@ -4804,7 +4802,7 @@ class TestMailGatewayReplies(MailGatewayCommon):
 class TestMailThreadCC(MailCommon):
     @classmethod
     def setUpClass(cls):
-        super(TestMailThreadCC, cls).setUpClass()
+        super().setUpClass()
 
         cls.email_from = "Sylvie Lelitre <test.sylvie.lelitre@agrolait.com>"
         cls.alias = cls.env["mail.alias"].create(

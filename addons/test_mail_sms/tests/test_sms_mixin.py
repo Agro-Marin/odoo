@@ -1,6 +1,7 @@
+from odoo.tests import Form, tagged
+
 from odoo.addons.sms.tests.common import SMSCommon
 from odoo.addons.test_mail_sms.tests.common import TestSMSRecipients
-from odoo.tests import Form, tagged
 
 
 @tagged('sms_composer')
@@ -78,7 +79,7 @@ class TestSMSNoThread(SMSCommon, TestSMSRecipients):
                 composer._action_send_sms()
 
     def test_composer_comment_res_users(self):
-        for ctx, expected in [
+        for ctx, _expected in [
             ({}, {}),
             ({'default_number_field_name': 'mobile'}, {}),
         ]:

@@ -1,16 +1,17 @@
-# # -*- coding: utf-8 -*-
 # # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import datetime
 import json
 import sys
-from freezegun import freeze_time
 from unittest.mock import patch
 
+from freezegun import freeze_time
+
 from odoo import Command
-from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 from odoo.exceptions import AccessError, UserError, ValidationError
-from odoo.tests import Form, common, tagged, WhitespaceInsensitive
+from odoo.tests import Form, WhitespaceInsensitive, common, tagged
 from odoo.tools import mute_logger
+
+from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
 
 def create_automation(self, **kwargs):
@@ -45,7 +46,7 @@ def create_automation(self, **kwargs):
 @tagged('post_install', '-at_install')
 class BaseAutomationTest(TransactionCaseWithUserDemo):
     def setUp(self):
-        super(BaseAutomationTest, self).setUp()
+        super().setUp()
         self.user_root = self.env.ref('base.user_root')
         self.user_admin = self.env.ref('base.user_admin')
         self.lead_model = self.env.ref('test_base_automation.model_base_automation_lead_test')

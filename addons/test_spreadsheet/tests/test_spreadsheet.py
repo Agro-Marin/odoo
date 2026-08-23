@@ -1,7 +1,9 @@
 import base64
 import json
-from odoo.tests import Form, TransactionCase
+
 from odoo.exceptions import ValidationError
+from odoo.tests import Form, TransactionCase
+
 
 class ValidateSpreadsheetMixinData(TransactionCase):
     def test_onchange_json_data(self):
@@ -9,7 +11,7 @@ class ValidateSpreadsheetMixinData(TransactionCase):
 
         spreadsheet_form.spreadsheet_binary_data = base64.b64encode(json.dumps({'key': 'value'}).encode('utf-8'))
         with self.assertRaises(ValidationError, msg='Invalid JSON Data'):
-            spreadsheet_form.spreadsheet_binary_data = base64.b64encode('invalid json'.encode('utf-8'))
+            spreadsheet_form.spreadsheet_binary_data = base64.b64encode(b'invalid json')
 
     def test_spreadsheet_pivot(self):
         data = {

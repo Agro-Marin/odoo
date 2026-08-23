@@ -1,22 +1,23 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import lxml
 from datetime import datetime
 
+import lxml
+
 from odoo import http
-from odoo.addons.test_mail_full.tests.common import TestMailFullCommon
-from odoo.addons.test_mail_sms.tests.common import TestSMSRecipients
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase, users, warmup
 from odoo.tools import mute_logger
+
+from odoo.addons.test_mail_full.tests.common import TestMailFullCommon
+from odoo.addons.test_mail_sms.tests.common import TestSMSRecipients
 
 
 class TestRatingCommon(TestMailFullCommon, TestSMSRecipients):
 
     @classmethod
     def setUpClass(cls):
-        super(TestRatingCommon, cls).setUpClass()
+        super().setUpClass()
 
         cls.record_rating = cls.env['mail.test.rating'].create({
             'customer_id': cls.partner_1.id,

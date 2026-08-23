@@ -47,7 +47,7 @@ class TestResource(TestResourceCommon):
         self.resources_test = self.env['resource.test'].create([{
             'name': 'resource ' + str(i),
             'resource_calendar_id': calendars[i % calendars_len].id,
-        } for i in range(0, 50)])
+        } for i in range(50)])
 
         start = datetime(2021, 7, 7, 12, 0, 0).replace(tzinfo=UTC)
         end = datetime(2021, 7, 16, 23, 59, 59).replace(tzinfo=UTC)

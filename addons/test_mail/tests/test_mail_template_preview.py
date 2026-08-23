@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.test_mail.tests.test_mail_template import TestMailTemplateCommon
 from odoo.tests import Form, tagged, users
+
+from odoo.addons.test_mail.tests.test_mail_template import TestMailTemplateCommon
 
 
 @tagged("mail_template", "multi_lang")
@@ -142,7 +142,7 @@ class TestMailTemplateTools(TestMailTemplateCommon):
         self.assertEqual(form.email_to, self.test_template.email_to)
         self.assertEqual(form.email_cc, self.test_template.email_cc)
         self.assertEqual(
-            set(record.id for record in form.partner_ids),
+            {record.id for record in form.partner_ids},
             {int(pid) for pid in self.test_template.partner_to.split(",") if pid},
         )
 

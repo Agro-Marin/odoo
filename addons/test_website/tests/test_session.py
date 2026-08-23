@@ -1,13 +1,13 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from lxml import html
 from unittest.mock import patch
 
-from odoo import http
-from odoo.addons.website.models.website import Website
+from lxml import html
+
 import odoo.tests
+from odoo import http
 
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo
+from odoo.addons.website.models.website import Website
 
 
 @odoo.tests.common.tagged('post_install', '-at_install')

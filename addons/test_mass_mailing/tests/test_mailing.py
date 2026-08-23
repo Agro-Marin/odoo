@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
+
+from odoo.tests import tagged
+from odoo.tests.common import users
+from odoo.tools import email_normalize, mute_logger
 
 from odoo.addons.test_mass_mailing.data.mail_test_data import MAIL_TEMPLATE
 from odoo.addons.test_mass_mailing.tests.common import TestMassMailCommon
-from odoo.tests import tagged
-from odoo.tests.common import users
-from odoo.tools import mute_logger, email_normalize
 
 
 @tagged('mass_mailing')
@@ -43,7 +43,7 @@ class TestMassMailing(TestMassMailCommon):
     @mute_logger('odoo.addons.mail.models.mixin_mail_thread')
     def test_mailing_gateway_reply(self):
         customers = self.env['res.partner']
-        for x in range(0, 3):
+        for x in range(3):
             customers |= self.env['res.partner'].create({
                 'name': 'Customer_%02d' % x,
                 'email': '"Customer_%02d" <customer_%02d@test.example.com' % (x, x),
@@ -636,7 +636,7 @@ class TestMassMailing(TestMassMailCommon):
         mailing_contact_3 = self.env['mailing.contact'].create({'name': 'test 3', 'email': 'test3@test.example.com'})
         mailing_contact_4 = self.env['mailing.contact'].create({'name': 'test 4', 'email': 'test4@test.example.com'})
         mailing_contact_5 = self.env['mailing.contact'].create({'name': 'test 5', 'email': 'test5@test.example.com'})
-        records = mailing_contact_1 + mailing_contact_2 + mailing_contact_3 + mailing_contact_4 + mailing_contact_5
+        mailing_contact_1 + mailing_contact_2 + mailing_contact_3 + mailing_contact_4 + mailing_contact_5
 
         # create mailing list record
         mailing_list_1 = self.env['mailing.list'].create({

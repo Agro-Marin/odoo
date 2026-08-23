@@ -6,12 +6,17 @@ import io
 import pprint
 import unittest
 
-from PIL import Image
 import xlsxwriter
+from PIL import Image
 
-from odoo.tests.common import TransactionCase, can_import, RecordCapturer
-from odoo.tools import mute_logger, DEFAULT_SERVER_DATE_FORMAT, DEFAULT_SERVER_DATETIME_FORMAT
+from odoo.tests.common import RecordCapturer, TransactionCase, can_import
+from odoo.tools import (
+    DEFAULT_SERVER_DATE_FORMAT,
+    DEFAULT_SERVER_DATETIME_FORMAT,
+    mute_logger,
+)
 from odoo.tools.misc import file_open
+
 from odoo.addons.base_import.models.base_import import ImportValidationError
 
 
@@ -89,7 +94,7 @@ def generate_xlsx(data):
     :param dict data: keys are column headers, values are rows.
     :return bytes: the xls file as bytes.
     """
-    import openpyxl  # noqa: PLC0415
+    import openpyxl
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -177,7 +182,7 @@ class TestO2M(BaseImportCase):
 
     def test_shallow(self):
         self.assertEqualFields(
-            self.env['base_import.import'].get_fields_tree("import.o2m"), 
+            self.env['base_import.import'].get_fields_tree("import.o2m"),
             [
                 get_id_field("import.o2m"),
                 {'id': 'name', 'name': 'name', 'string': "Name", 'required': False, 'fields': [], 'type': 'char', 'model_name': 'import.o2m'},
@@ -328,7 +333,7 @@ class TestMatchHeadersMultiple(TransactionCase):
     def test_mixed(self):
         self.assertEqual(
             self.env['base_import.import']._get_mapping_suggestions(
-                'foo bar baz qux/corge'.split(),
+                ['foo', 'bar', 'baz', 'qux/corge'],
                 {
                     (0, 'foo'): ['int'],
                     (1, 'bar'): ['char'],
@@ -409,13 +414,12 @@ class TestColumnMapping(TransactionCase):
 class TestPreview(TransactionCase):
 
     def make_import(self):
-        import_wizard = self.env['base_import.import'].create({
+        return self.env['base_import.import'].create({
             'res_model': 'res.users',
             'file': "로그인,언어\nbob,1\n".encode('euc_kr'),
             'file_type': 'text/csv',
             'file_name': 'kr_data.csv',
         })
-        return import_wizard
 
     @mute_logger('odoo.addons.base_import.models.base_import')
     def test_encoding(self):

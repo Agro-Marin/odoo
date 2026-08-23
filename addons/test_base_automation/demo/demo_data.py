@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 """
@@ -28,7 +27,6 @@ def create_demo_time_based_automation(env):
     """
     _logger.info("Creating demo: Time-based lead reminder automation")
 
-    Lead = env["base.automation.lead.test"]
     model_lead = env["ir.model"]._get("base.automation.lead.test")
     date_field = env["ir.model.fields"]._get("base.automation.lead.test", "create_date")
 
@@ -64,7 +62,7 @@ record.write({
         }
     )
 
-    _logger.info(f"Created automation: {automation.name} (ID: {automation.id})")
+    _logger.info("Created automation: %s (ID: %s)", automation.name, automation.id)
     return automation
 
 
@@ -78,11 +76,7 @@ def create_demo_priority_escalation(env):
     """
     _logger.info("Creating demo: Priority escalation automation")
 
-    Lead = env["base.automation.lead.test"]
     model_lead = env["ir.model"]._get("base.automation.lead.test")
-    priority_field = env["ir.model.fields"]._get(
-        "base.automation.lead.test", "priority"
-    )
 
     automation = env["base.automation"].create(
         {
@@ -113,7 +107,7 @@ record.write({
         }
     )
 
-    _logger.info(f"Created automation: {automation.name} (ID: {automation.id})")
+    _logger.info("Created automation: %s (ID: %s)", automation.name, automation.id)
     return automation
 
 
@@ -128,7 +122,6 @@ def create_demo_state_transition(env):
     _logger.info("Creating demo: State transition automation")
 
     model_lead = env["ir.model"]._get("base.automation.lead.test")
-    state_field = env["ir.model.fields"]._get("base.automation.lead.test", "state")
 
     automation = env["base.automation"].create(
         {
@@ -158,7 +151,7 @@ else:
         }
     )
 
-    _logger.info(f"Created automation: {automation.name} (ID: {automation.id})")
+    _logger.info("Created automation: %s (ID: %s)", automation.name, automation.id)
     return automation
 
 
@@ -221,9 +214,9 @@ log(f"Processed webhook for: {record.name}, Customer: {customer_name}")
         }
     )
 
-    _logger.info(f"Created automation: {automation.name} (ID: {automation.id})")
+    _logger.info("Created automation: %s (ID: %s)", automation.name, automation.id)
     _logger.info(
-        f"Webhook URL will be: /base_automation/webhook/{automation.webhook_uuid}"
+        "Webhook URL will be: /base_automation/webhook/%s", automation.webhook_uuid
     )
     return automation
 
@@ -305,7 +298,7 @@ log(f"Lead onboarding complete: {record.name}, User: {record.user_id.name if rec
     )
 
     _logger.info(
-        f"Created automation: {automation.name} (ID: {automation.id}) with 3 actions"
+        "Created automation: %s (ID: %s) with 3 actions", automation.name, automation.id
     )
     return automation
 
@@ -385,7 +378,9 @@ log(f"Notification sent for approved request: {runtime.partner_id.name if runtim
     action_notify.write({"predecessor_ids": [(6, 0, [action_approve.id])]})
 
     _logger.info(
-        f"Created runtime workflow: {automation.name} (ID: {automation.id}) with 3-step DAG"
+        "Created runtime workflow: %s (ID: %s) with 3-step DAG",
+        automation.name,
+        automation.id,
     )
     return automation
 
@@ -430,7 +425,7 @@ if not record.user_id:
         }
     )
 
-    _logger.info(f"Created automation: {automation.name} (ID: {automation.id})")
+    _logger.info("Created automation: %s (ID: %s)", automation.name, automation.id)
     return automation
 
 
@@ -459,19 +454,21 @@ def _setup_demo_data(env):
 
         _logger.info("=" * 80)
         _logger.info(
-            f"DEMO DATA CREATED SUCCESSFULLY: {len(demo_automations)} automations"
+            "DEMO DATA CREATED SUCCESSFULLY: %s automations", len(demo_automations)
         )
         _logger.info("=" * 80)
         _logger.info("")
         _logger.info("Demo Automations:")
         for idx, automation in enumerate(demo_automations, 1):
-            _logger.info(f"  {idx}. {automation.name} (Trigger: {automation.trigger})")
+            _logger.info(
+                "  %s. %s (Trigger: %s)", idx, automation.name, automation.trigger
+            )
         _logger.info("")
         _logger.info(
             "Access automations: Settings > Technical > Automation > Automated Actions"
         )
         _logger.info("=" * 80)
 
-    except Exception as e:
-        _logger.error(f"Error creating demo data: {e}", exc_info=True)
+    except Exception:
+        _logger.exception("Error creating demo data")
         raise

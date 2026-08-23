@@ -1,19 +1,20 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import timedelta
+
 from freezegun import freeze_time
+
+from odoo.tests import Form, tagged, users, warmup
 
 from odoo.addons.test_event_full.tests.common import TestEventFullCommon
 from odoo.addons.website.tests.test_performance import UtilPerf
-from odoo.tests import Form, users, warmup, tagged
 
 
 @tagged('event_performance', 'post_install', '-at_install', '-standard')
 class EventPerformanceCase(TestEventFullCommon):
 
     def setUp(self):
-        super(EventPerformanceCase, self).setUp()
+        super().setUp()
         # patch registry to simulate a ready environment
         self.patch(self.env.registry, 'ready', True)
         # we don't use mock_mail_gateway thus want to mock smtp to test the stack
@@ -402,7 +403,7 @@ class TestOnlineEventPerformance(EventPerformanceCase, UtilPerf):
 
     @classmethod
     def setUpClass(cls):
-        super(TestOnlineEventPerformance, cls).setUpClass()
+        super().setUpClass()
         # if website_livechat is installed, disable it
         if 'channel_id' in cls.env['website']:
             cls.env['website'].search([]).channel_id = False
@@ -426,7 +427,7 @@ class TestOnlineEventPerformance(EventPerformanceCase, UtilPerf):
              'date_end': cls.reference_now + timedelta(days=5),
              'is_published': True,
             }
-            for idx in range(0, 50)
+            for idx in range(50)
         ])
 
     def _test_url_open(self, url):

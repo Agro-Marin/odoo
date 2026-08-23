@@ -1,11 +1,12 @@
+
 from lxml import html
 
-from odoo.tools import mute_logger
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import HttpCase, tagged
-import unittest
+from odoo.tools import mute_logger
 
 from odoo.addons.website.controllers.model_page import ModelPageController
+
 
 @tagged('post_install', '-at_install')
 class TestWebsiteControllerPage(HttpCase):
@@ -114,7 +115,7 @@ class TestWebsiteControllerPage(HttpCase):
         tree = html.fromstring(response.content.decode())
         rec_nodes = tree.xpath("//a[@class='test_record_listing']")
         self.assertEqual(len(rec_nodes), 2)
-        for n, record in zip(rec_nodes, self.exposed_records):
+        for n, record in zip(rec_nodes, self.exposed_records, strict=True):
             self.assertEqual(n.get("href"), f"/model/{self.listing_controller_page.name_slugified}/{slug(record)}")
 
         response = self.url_open(f"/model/{self.listing_controller_page.name_slugified}/{slug(self.exposed_records[0])}")

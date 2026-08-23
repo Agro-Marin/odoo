@@ -1,5 +1,6 @@
-from odoo.addons.test_mass_mailing.tests.common import TestMassSMSCommon
 from odoo.tools import mute_logger
+
+from odoo.addons.test_mass_mailing.tests.common import TestMassSMSCommon
 
 
 class TestSmsController(TestMassSMSCommon):
@@ -15,14 +16,13 @@ class TestSmsController(TestMassSMSCommon):
         with self.mockSMSGateway(moderated=moderated):
             self.mailing_sms.action_send_sms()
 
-        all_traces = self.assertSMSTraces(
+        return self.assertSMSTraces(
             [{'partner': record.customer_id,
               'number': '+32' + record.phone_nbr[1:],
               'trace_status': 'process' if moderated else 'pending',
               } for i, record in enumerate(self.recipients)],
             self.mailing_sms, self.recipients,
         )
-        return all_traces
 
     @mute_logger("odoo.addons.base.models.ir_http")
     def test_webhook_update_traces_pending_to_sent(self):

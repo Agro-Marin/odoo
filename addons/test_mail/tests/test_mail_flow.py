@@ -1,8 +1,9 @@
-from odoo.addons.mail.tests.common import mail_new_test_user, MailCommon
+from odoo.tests import tagged
+from odoo.tools.mail import formataddr
+
+from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
 from odoo.addons.test_mail.data.test_mail_data import MAIL_TEMPLATE, MAIL_TEMPLATE_SHORT
 from odoo.addons.test_mail.tests.common import TestRecipients
-from odoo.tools.mail import formataddr
-from odoo.tests import tagged
 
 
 @tagged("mail_gateway", "mail_flow", "post_install", "-at_install")
@@ -414,7 +415,7 @@ class TestMailFlow(MailCommon, TestRecipients):
                 "partner_id": partner_accounting.id,
             },
         ]
-        for suggested, expected in zip(suggested_all, expected_all):
+        for suggested, expected in zip(suggested_all, expected_all, strict=True):
             self.assertDictEqual(suggested, expected)
 
         # finally post the message with recipients

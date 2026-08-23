@@ -1,12 +1,14 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import lxml.html
 
-from odoo.addons.sms_twilio.tests.common import MockSmsTwilioApi
-from odoo.addons.test_mass_mailing.tests.common import TestMassMailCommon
-from odoo.addons.test_mass_mailing.tests.common import TestMassSMSCommon
-from odoo.tests.common import users, tagged
+from odoo.tests.common import tagged, users
 from odoo.tools import mute_logger
+
+from odoo.addons.sms_twilio.tests.common import MockSmsTwilioApi
+from odoo.addons.test_mass_mailing.tests.common import (
+    TestMassMailCommon,
+    TestMassSMSCommon,
+)
 
 
 @tagged('mailing_manage')

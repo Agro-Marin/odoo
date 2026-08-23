@@ -13,8 +13,6 @@ from datetime import UTC, datetime
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
-UTC = UTC
-
 
 @tagged("post_install", "-at_install")
 class TestSchedulingMixinArchive(TransactionCase):

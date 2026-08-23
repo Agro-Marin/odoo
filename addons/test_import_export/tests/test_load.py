@@ -3,10 +3,11 @@ import json
 from unittest.mock import patch
 
 from odoo import fields
-from odoo.addons.base.tests.common import SavepointCaseWithUserDemo
 from odoo.tests import common
 from odoo.tools.misc import file_open, mute_logger
 from odoo.tools.translate import code_translations
+
+from odoo.addons.base.tests.common import SavepointCaseWithUserDemo
 
 
 def message(msg, type_='error', from_=0, to_=0, record=0, field='value', **kwargs):
@@ -628,11 +629,11 @@ class test_selection(ImporterCase):
     def test_invalid(self):
         result = self.import_(['value'], [['Baz']])
         self.assertIs(result['ids'], False)
-        self.assertEqual(result['messages'], [message("Value 'Baz' not found in selection field 'Value'", moreinfo="Foo Bar Qux 4".split(), field_name='Value', field_path=['value'])])
+        self.assertEqual(result['messages'], [message("Value 'Baz' not found in selection field 'Value'", moreinfo=["Foo", "Bar", "Qux", "4"], field_name='Value', field_path=['value'])])
 
         result = self.import_(['value'], [['42']])
         self.assertIs(result['ids'], False)
-        self.assertEqual(result['messages'], [message("Value '42' not found in selection field 'Value'", moreinfo="Foo Bar Qux 4".split(), field_name='Value', field_path=['value'])])
+        self.assertEqual(result['messages'], [message("Value '42' not found in selection field 'Value'", moreinfo=["Foo", "Bar", "Qux", "4"], field_name='Value', field_path=['value'])])
 
 
 class test_selection_with_default(ImporterCase):
@@ -1205,7 +1206,7 @@ class test_o2m(ImporterCase):
 
         (b,) = self.browse()
         self.assertEqual(set(values(b.value.sorted())), {63, 64, 65, 66})
-        self.assertEqual(values(b.value.sorted(), 'str'), 'this is the rhythm'.split())
+        self.assertEqual(values(b.value.sorted(), 'str'), ['this', 'is', 'the', 'rhythm'])
 
     def test_subfields_fail_by_implicit_id(self):
         result = self.import_(['value/parent_id'], [['noxidforthat']])
@@ -1603,15 +1604,15 @@ class test_unique(ImporterCase):
         messages = result['messages']
         messages_messages = [m.pop('message') for m in messages]
         expected = [
-            dict(message="The value for 'value' (Value) already exists.",
-                 type='error', rows={'from': 1, 'to': 1},
-                 record=1, field='value'),
-            dict(message="The value for 'value' (Value) already exists.",
-                 type='error', rows={'from': 4, 'to': 4},
-                 record=4, field='value'),
+            {'message': "The value for 'value' (Value) already exists.",
+                 'type': 'error', 'rows': {'from': 1, 'to': 1},
+                 'record': 1, 'field': 'value'},
+            {'message': "The value for 'value' (Value) already exists.",
+                 'type': 'error', 'rows': {'from': 4, 'to': 4},
+                 'record': 4, 'field': 'value'},
         ]
         expected_messages = [m.pop('message') for m in expected]
-        for actual, expect in zip(messages_messages, expected_messages):
+        for actual, expect in zip(messages_messages, expected_messages, strict=True):
             self.assertIn(expect, actual)
         self.assertEqual(messages, expected)
 

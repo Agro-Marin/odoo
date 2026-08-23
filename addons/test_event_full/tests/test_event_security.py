@@ -1,14 +1,14 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime, timedelta
 
-from odoo.addons.test_event_full.tests.common import TestEventFullCommon
 from odoo.exceptions import AccessError
 from odoo.fields import Command
 from odoo.tests import tagged
 from odoo.tests.common import users
 from odoo.tools import mute_logger
+
+from odoo.addons.test_event_full.tests.common import TestEventFullCommon
 
 
 @tagged('security')

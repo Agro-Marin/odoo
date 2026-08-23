@@ -1,9 +1,10 @@
 import json
 
 from odoo import http
-from odoo.addons.mail.tests.common_controllers import MailControllerThreadCommon
 from odoo.tests import tagged
 from odoo.tools import mute_logger
+
+from odoo.addons.mail.tests.common_controllers import MailControllerThreadCommon
 
 
 @tagged("-at_install", "post_install", "mail_controller")

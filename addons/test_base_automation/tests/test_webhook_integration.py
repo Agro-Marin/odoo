@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 """Comprehensive tests for webhook automation triggers.
@@ -12,6 +11,7 @@ Tests cover:
 - Edge cases
 """
 
+import contextlib
 import logging
 
 from odoo.exceptions import ValidationError
@@ -677,10 +677,8 @@ record.write({'state': next_states.get(current, 'cancel')})
         )
 
         # Execute webhook - will fail
-        try:
+        with contextlib.suppress(ValidationError):
             automation._execute_webhook({})
-        except ValidationError:
-            pass
 
         # Should have logged error
         error_logs = (

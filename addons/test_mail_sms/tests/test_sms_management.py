@@ -1,18 +1,17 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command
+from odoo.tests import tagged, users
+
 from odoo.addons.sms.tests.common import SMSCommon
 from odoo.addons.test_mail_sms.tests.common import TestSMSRecipients
-from odoo.tests import tagged, users
-from odoo.tools import mute_logger
 
 
 class TestSMSActionsCommon(SMSCommon, TestSMSRecipients):
 
     @classmethod
     def setUpClass(cls):
-        super(TestSMSActionsCommon, cls).setUpClass()
+        super().setUpClass()
         cls.test_record = cls.env['mail.test.sms'].with_context(**cls._test_context).create({
             'name': 'Test',
             'customer_id': cls.partner_1.id,

@@ -3,6 +3,7 @@
 from urllib.parse import urlencode
 
 from odoo import tests
+
 from odoo.addons.test_mail_full.tests.test_portal import TestPortal
 
 

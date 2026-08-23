@@ -2,8 +2,9 @@
 
 from itertools import chain
 
-from odoo.addons.mail.tests.common import MailCommon
 from odoo.tests.common import HttpCase, tagged, warmup
+
+from odoo.addons.mail.tests.common import MailCommon
 
 
 @tagged("post_install", "-at_install", "is_query_count")

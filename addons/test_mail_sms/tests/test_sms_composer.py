@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
+
+from odoo.tests import Form, tagged, users
 
 from odoo.addons.sms.tests.common import SMSCommon
 from odoo.addons.sms_twilio.tests.common import MockSmsTwilioApi
 from odoo.addons.test_mail_sms.tests.common import TestSMSRecipients
-from odoo.tests import Form, tagged, users
 
 
 @tagged('post_install', '-at_install', 'sms_composer')
@@ -19,7 +19,7 @@ class TestSMSComposerComment(SMSCommon, TestSMSRecipients):
 
     @classmethod
     def setUpClass(cls):
-        super(TestSMSComposerComment, cls).setUpClass()
+        super().setUpClass()
         cls._test_body = 'VOID CONTENT'
 
         cls.test_record = cls.env['mail.test.sms'].with_context(**cls._test_context).create({
@@ -82,7 +82,7 @@ class TestSMSComposerComment(SMSCommon, TestSMSRecipients):
         expected_sent_numbers = ['+32456010203', '+32456040506', '+32456001122']
 
         for record_values, phone_field, expected_form_number, expected_sent_number in zip(
-            record_values_all, phone_fields, expected_form_numbers, expected_sent_numbers,
+            record_values_all, phone_fields, expected_form_numbers, expected_sent_numbers, strict=True,
         ):
             with self.subTest(phone_field=phone_field, record_number=record_values[phone_field]):
                 self.test_record.write(record_values)
@@ -303,7 +303,7 @@ class TestSMSComposerBatch(SMSCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestSMSComposerBatch, cls).setUpClass()
+        super().setUpClass()
         cls._test_body = 'Hello {{ object.name }} zizisse an SMS.'
 
         cls._create_records_for_batch('mail.test.sms', 3)
@@ -322,7 +322,7 @@ class TestSMSComposerBatch(SMSCommon):
             with self.mockSMSGateway():
                 messages = composer._action_send_sms()
 
-        for record, message in zip(self.records, messages):
+        for record, message in zip(self.records, messages, strict=True):
             self.assertSMSNotification(
                 [{'partner': record.customer_id}],
                 'Hello %s zizisse an SMS.' % record.name,
@@ -342,7 +342,7 @@ class TestSMSComposerBatch(SMSCommon):
             with self.mockSMSGateway():
                 messages = composer._action_send_sms()
 
-        for record, message in zip(self.records, messages):
+        for record, message in zip(self.records, messages, strict=True):
             self.assertSMSNotification(
                 [{'partner': record.customer_id}],
                 'Hello %s zizisse an SMS.' % record.name,
@@ -376,7 +376,7 @@ class TestSMSComposerBatchTwilio(SMSCommon, MockSmsTwilioApi):
         with self.mock_sms_twilio_gateway():
             messages = composer._action_send_sms()
 
-        for record, message in zip(self.records, messages):
+        for record, message in zip(self.records, messages, strict=True):
             self.assertSMSNotification(
                 [{'partner': record.customer_id}],
                 'Hello %s zizisse an SMS.' % record.name,
@@ -389,7 +389,7 @@ class TestSMSComposerMass(SMSCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestSMSComposerMass, cls).setUpClass()
+        super().setUpClass()
         cls._test_body = 'Hello {{ object.name }} zizisse an SMS.'
 
         cls._create_records_for_batch('mail.test.sms', 10)
@@ -409,7 +409,7 @@ class TestSMSComposerMass(SMSCommon):
             with self.mockSMSGateway():
                 composer.action_send_sms()
 
-        for partner, record in zip(self.partners, self.records):
+        for partner, record in zip(self.partners, self.records, strict=True):
             self.assertSMSOutgoing(
                 partner, None,
                 content='Hello %s zizisse an SMS.' % record.name
@@ -435,12 +435,12 @@ class TestSMSComposerMass(SMSCommon):
             with self.mockSMSGateway():
                 composer.action_send_sms()
 
-        for partner, record in zip(self.partners[5:], self.records[5:]):
+        for partner, record in zip(self.partners[5:], self.records[5:], strict=True):
             self.assertSMSOutgoing(
                 partner, partner.phone_sanitized,
                 content='Hello %s zizisse an SMS.' % record.name
             )
-        for partner, record in zip(self.partners[:5], self.records[:5]):
+        for partner, record in zip(self.partners[:5], self.records[:5], strict=True):
             self.assertSMSCanceled(
                 partner, partner.phone_sanitized,
                 failure_type='sms_blacklist',
@@ -467,7 +467,7 @@ class TestSMSComposerMass(SMSCommon):
             with self.mockSMSGateway():
                 composer.action_send_sms()
 
-        for partner, record in zip(self.partners, self.records):
+        for partner, record in zip(self.partners, self.records, strict=True):
             self.assertSMSOutgoing(
                 partner, partner.phone_sanitized,
                 content='Hello %s zizisse an SMS.' % record.name
@@ -502,20 +502,20 @@ class TestSMSComposerMass(SMSCommon):
             self.partners[5], self.partners[5].phone_sanitized,
             content='Hello %s zizisse an SMS.' % self.records[5].name
         )
-        for partner, record in zip(self.partners[8:], self.records[8:]):
+        for partner, record in zip(self.partners[8:], self.records[8:], strict=True):
             self.assertSMSOutgoing(
                 partner, partner.phone_sanitized,
                 content='Hello %s zizisse an SMS.' % record.name
             )
         # duplicates
-        for partner, record in zip(self.partners[6:8], self.records[6:8]):
+        for partner, record in zip(self.partners[6:8], self.records[6:8], strict=True):
             self.assertSMSCanceled(
                 partner, partner.phone_sanitized,
                 failure_type='sms_duplicate',
                 content='Hello %s zizisse an SMS.' % record.name
             )
         # blacklist
-        for partner, record in zip(self.partners[:5], self.records[:5]):
+        for partner, record in zip(self.partners[:5], self.records[:5], strict=True):
             self.assertSMSCanceled(
                 partner, partner.phone_sanitized,
                 failure_type='sms_blacklist',
@@ -700,7 +700,7 @@ class TestSMSComposerMassTwilio(SMSCommon, MockSmsTwilioApi):
         with self.mock_sms_twilio_gateway():
             composer.action_send_sms()
 
-        for partner, record in zip(self.partners, self.records):
+        for partner, record in zip(self.partners, self.records, strict=True):
             self.assertSMSOutgoing(
                 partner, None,
                 content='Hello %s zizisse an SMS.' % record.name

@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.test_event_full.tests.common import TestEventFullCommon
 from odoo.tests import tagged, users
+
+from odoo.addons.test_event_full.tests.common import TestEventFullCommon
 
 
 @tagged("event_crm")
@@ -10,7 +10,7 @@ class TestEventCrm(TestEventFullCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestEventCrm, cls).setUpClass()
+        super().setUpClass()
 
         cls.TICKET1_COUNT, cls.TICKET2_COUNT = 3, 1
         ticket1 = cls.test_event.event_ticket_ids[0]

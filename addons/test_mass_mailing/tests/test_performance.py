@@ -1,18 +1,18 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
+
+from odoo.tests import tagged
+from odoo.tests.common import users, warmup
+from odoo.tools import mute_logger
 
 from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.test_mail.tests.test_performance import BaseMailPerformance
-from odoo.tests.common import users, warmup
-from odoo.tests import tagged
-from odoo.tools import mute_logger
 
 
 class TestMassMailPerformanceBase(BaseMailPerformance):
 
     @classmethod
     def setUpClass(cls):
-        super(TestMassMailPerformanceBase, cls).setUpClass()
+        super().setUpClass()
 
         cls.user_marketing = mail_new_test_user(
             cls.env,
@@ -26,11 +26,11 @@ class TestMassMailPerformanceBase(BaseMailPerformance):
 class TestMassMailPerformance(TestMassMailPerformanceBase):
 
     def setUp(self):
-        super(TestMassMailPerformance, self).setUp()
+        super().setUp()
         values = [{
             'name': 'Recipient %s' % x,
             'email_from': 'Recipient <rec.%s@example.com>' % x,
-        } for x in range(0, 50)]
+        } for x in range(50)]
         self.mm_recs = self.env['mailing.performance'].create(values)
 
     @users('__system__', 'marketing')
@@ -66,11 +66,11 @@ class TestMassMailBlPerformance(TestMassMailPerformanceBase):
     def setUp(self):
         """ In this setup we prepare 20 blacklist entries. We therefore add
         20 recipients compared to first test in order to have comparable results. """
-        super(TestMassMailBlPerformance, self).setUp()
+        super().setUp()
         values = [{
             'name': 'Recipient %s' % x,
             'email_from': 'Recipient <rec.%s@example.com>' % x,
-        } for x in range(0, 62)]
+        } for x in range(62)]
         self.mm_recs = self.env['mailing.performance.blacklist'].create(values)
 
         for x in range(1, 13):

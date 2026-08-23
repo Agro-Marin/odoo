@@ -2,22 +2,18 @@
 
 import base64
 import socket
-
 from itertools import product
-from freezegun import freeze_time
 from unittest.mock import patch
 from urllib.parse import urlsplit
 
-from odoo.addons.mail.models.mail_message import MailMessage
-from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
-from odoo.addons.test_mail.models.test_mail_corner_case_models import (
-    MailTestMultiCompanyWithActivity,
-)
-from odoo.addons.test_mail.tests.common import TestRecipients
 from odoo.exceptions import AccessError
-from odoo.tests import tagged, users, HttpCase
+from odoo.tests import HttpCase, tagged, users
 from odoo.tests.common import JsonRpcException
 from odoo.tools import mute_logger
+
+from odoo.addons.mail.models.mail_message import MailMessage
+from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
+from odoo.addons.test_mail.tests.common import TestRecipients
 
 
 class TestMailMCCommon(MailCommon, TestRecipients):
@@ -391,7 +387,7 @@ class TestMultiCompanyControllers(TestMailMCCommon, HttpCase):
                 ),  # currently not really supported actually, should go through portal controllers
                 (False, True, True),
                 (True, True, True),
-            ),
+            ), strict=True,
         ):
             with self.subTest(user_name=test_user.name):
                 self.authenticate(test_user.login, test_user.login)

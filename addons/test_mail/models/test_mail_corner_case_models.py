@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
+from odoo import api, fields, models
 
 
 class MailPerformanceThread(models.Model):
@@ -66,7 +65,7 @@ class MailTestFieldType(models.Model):
         # Emulate an addon that alters the creation context, such as `crm`
         if not self.env.context.get("default_type"):
             self = self.with_context(default_type="first")
-        return super(MailTestFieldType, self).create(vals_list)
+        return super().create(vals_list)
 
 
 class MailTestLang(models.Model):

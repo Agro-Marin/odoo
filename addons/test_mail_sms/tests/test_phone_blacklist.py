@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo.addons.sms.tests.common import SMSCommon
@@ -10,7 +9,7 @@ class TestPhoneBlacklist(SMSCommon, TestSMSRecipients):
 
     @classmethod
     def setUpClass(cls):
-        super(TestPhoneBlacklist, cls).setUpClass()
+        super().setUpClass()
         cls._test_body = 'VOID CONTENT'
 
         cls.test_record = cls.env['mail.test.sms.bl'].with_context(**cls._test_context).create({

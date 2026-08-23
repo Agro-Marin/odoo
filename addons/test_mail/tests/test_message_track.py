@@ -1,14 +1,14 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from unittest.mock import patch
 
 from odoo import fields
+from odoo.tests import Form, tagged, users
+from odoo.tools import mute_logger
+
 from odoo.addons.mail.tests.common import MailCommon
 from odoo.addons.mail.tools.discuss import Store
 from odoo.addons.test_mail.data.test_mail_data import MAIL_TEMPLATE
-from odoo.tests import Form, tagged, users
-from odoo.tools import mute_logger
 
 
 @tagged("mail_track")
@@ -123,7 +123,6 @@ class TestTracking(MailCommon):
         """Check that tracked fields filtered for display are not present
         in the front-end and email formatting methods. See `_track_filter_for_display`"""
         field_dname = "Responsible"
-        field_name = "user_id"
         field_type = "many2one"
         original_user = self.user_admin
         new_user = self.user_employee
@@ -910,7 +909,7 @@ class TestTrackingInternals(MailCommon):
             new_message.sudo().tracking_value_ids._tracking_value_format()
         )
         for (field_name, field_type, _, _), formatted_vals in zip(
-            tracking_value_list, formatted_values_all
+            tracking_value_list, formatted_values_all, strict=True
         ):
             currency = (
                 self.env.ref("base.USD").id if field_type == "monetary" else False
@@ -1386,7 +1385,7 @@ class TestTrackingInternals(MailCommon):
 
         # check groups, as it depends on model
         for tracking, exp_groups in zip(
-            trackings, ["base.group_user", "base.group_system", "base.group_system"]
+            trackings, ["base.group_user", "base.group_system", "base.group_system"], strict=True
         ):
             groups = "base.group_system"
             if tracking.field_id:
@@ -1653,7 +1652,7 @@ class TestTrackingInternals(MailCommon):
                     "oldValue": values[0],
                 }
                 for tracking, field_info, values in zip(
-                    trackings_all_sorted, fields_info, values_info
+                    trackings_all_sorted, fields_info, values_info, strict=True
                 )
             ],
         )
@@ -1694,7 +1693,7 @@ class TestTrackingInternals(MailCommon):
                     "oldValue": values[0],
                 }
                 for tracking, field_info, values in zip(
-                    trackings_all_sorted, fields_info, values_info
+                    trackings_all_sorted, fields_info, values_info, strict=True
                 )
             ],
         )

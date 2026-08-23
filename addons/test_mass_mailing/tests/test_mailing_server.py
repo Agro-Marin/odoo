@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.test_mass_mailing.tests.common import TestMassMailCommon
 from odoo.exceptions import UserError
 from odoo.tests import tagged
 from odoo.tests.common import users
 from odoo.tools import mute_logger
+
+from odoo.addons.test_mass_mailing.tests.common import TestMassMailCommon
 
 
 @tagged('mass_mailing', 'mail_server')
@@ -13,7 +13,7 @@ class TestMassMailingServer(TestMassMailCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestMassMailingServer, cls).setUpClass()
+        super().setUpClass()
         cls.recipients = cls._create_mailing_test_records(model='mailing.test.optout', count=8)
 
     def test_mass_mailing_server_archived_usage_protection(self):

@@ -4,6 +4,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import Command, fields
 from odoo.tests.common import HttpCase, tagged
+
 from odoo.addons.mail.tests.common import MailCommon
 
 

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from email import message_from_string
 from functools import partial
 from pathlib import Path
-from socket import gaierror, timeout
+from socket import gaierror
 from unittest.mock import PropertyMock, call, patch
 
 from freezegun import freeze_time
@@ -16,7 +16,7 @@ from OpenSSL.SSL import Error as SSLError
 from odoo import SUPERUSER_ID, Command, api, fields
 from odoo.exceptions import AccessError, LockError
 from odoo.libs.datetime import timezone
-from odoo.tests import common, tagged, users
+from odoo.tests import tagged, users
 from odoo.tools import file_path, formataddr, mute_logger
 
 from odoo.addons.base.models.ir_mail_server import (
@@ -34,7 +34,7 @@ from odoo.addons.mail.tools.failure_type import (
 class TestMailMail(MailCommon):
     @classmethod
     def setUpClass(cls):
-        super(TestMailMail, cls).setUpClass()
+        super().setUpClass()
 
         cls.test_record = (
             cls.env["mail.test.gateway"]
@@ -462,7 +462,7 @@ class TestMailMail(MailCommon):
                     ).send()
                 # self.assertEqual(len(self.emails), len(exp_smtp))
                 for exp_smtp_to_lst, exp_msg_to_lst, exp_msg_cc_lst in zip(
-                    exp_smtp, exp_to, exp_cc
+                    exp_smtp, exp_to, exp_cc, strict=True
                 ):
                     self.assertSMTPEmailsSent(
                         msg_from=f"{self.user_root.name} <{self.default_from}@{self.alias_domain}>",
@@ -492,10 +492,7 @@ class TestMailMail(MailCommon):
         mail = self.env["mail.mail"].create(
             dict(
                 base_values,
-                **{
-                    "model": self.test_record._name,
-                    "res_id": self.test_record.id,
-                },
+                model=self.test_record._name, res_id=self.test_record.id,
             )
         )
         with self.mock_mail_gateway():
@@ -717,7 +714,7 @@ class TestMailMail(MailCommon):
         )
 
         for mail, expected_datetime, scheduled_datetime in zip(
-            mails, expected_datetimes, scheduled_datetimes
+            mails, expected_datetimes, scheduled_datetimes, strict=True
         ):
             self.assertEqual(
                 mail.scheduled_date,
@@ -729,7 +726,7 @@ class TestMailMail(MailCommon):
 
         with freeze_time(now), self.mock_mail_gateway():
             self.env["mail.mail"].process_email_queue()
-            for mail, expected_state in zip(mails, expected_states):
+            for mail, expected_state in zip(mails, expected_states, strict=True):
                 self.assertEqual(mail.state, expected_state)
 
     @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.tests")
@@ -894,7 +891,7 @@ class TestMailMail(MailCommon):
 
         # MailServer.send_email(): _prepare_email_message__: invalid To
         for email_to, failure_type in zip(
-            self.emails_invalid, ["mail_email_missing", "mail_email_missing"]
+            self.emails_invalid, ["mail_email_missing", "mail_email_missing"], strict=True
         ):
             with self.subTest(email_to=email_to):
                 self._reset_data(track_email=email_to)
@@ -1233,7 +1230,7 @@ class TestMailMail(MailCommon):
                 (smtplib.SMTPException("SMTPException"), "SMTPException"),
                 (SSLError("SSLError"), "SSLError"),
                 (gaierror("gaierror"), "gaierror"),
-                (timeout("timeout"), "timeout"),
+                (TimeoutError("timeout"), "timeout"),
             ]:
 
                 def _connect(*args, **kwargs):
@@ -1751,7 +1748,7 @@ class TestMailMailServer(MailCommon):
                     ),
                     ([], ['"UpCc" <uppercase.customer.cc@example.gov.uni>']),
                 ],
-            ],
+            ], strict=True,
         ):
             with self.subTest(values=recipient_values):
                 mail = self.env["mail.mail"].create(

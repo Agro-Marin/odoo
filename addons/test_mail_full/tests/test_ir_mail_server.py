@@ -1,11 +1,11 @@
 from contextlib import contextmanager
 from unittest.mock import patch
 
-from odoo.addons.mail.tests.common import MailCommon
+from odoo.exceptions import UserError, ValidationError
 from odoo.tests import tagged, users
 
 from odoo.addons.base.models.ir_mail_server import IrMail_Server
-from odoo.exceptions import UserError, ValidationError
+from odoo.addons.mail.tests.common import MailCommon
 
 
 @tagged('mail_server')

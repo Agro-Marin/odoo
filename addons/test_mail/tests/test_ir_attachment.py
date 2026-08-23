@@ -1,7 +1,8 @@
 import base64
 
-from odoo.addons.mail.tests.common import MailCommon
 from odoo.tests import tagged, users
+
+from odoo.addons.mail.tests.common import MailCommon
 
 
 @tagged("ir_attachment")
@@ -65,7 +66,7 @@ class TestAttachment(MailCommon):
             ]
         )
         attachments.register_as_main_attachment()
-        for record, attachment in zip(records_model1, attachments[:5]):
+        for record, attachment in zip(records_model1, attachments[:5], strict=True):
             self.assertEqual(record.message_main_attachment_id, attachment)
-        for record, attachment in zip(records_model2, attachments[5:10]):
+        for record, attachment in zip(records_model2, attachments[5:10], strict=True):
             self.assertEqual(record.message_main_attachment_id, attachment)

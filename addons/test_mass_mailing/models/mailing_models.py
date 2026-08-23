@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import api, fields, models
@@ -76,11 +75,10 @@ class MailingTestOptout(models.Model):
 
     def _mailing_get_opt_out_list(self, mailing):
         res_ids = mailing._get_recipients()
-        opt_out_contacts = set(self.search([
+        return set(self.search([
             ('id', 'in', res_ids),
             ('opt_out', '=', True)
         ]).mapped('email_normalized'))
-        return opt_out_contacts
 
 
 class MailingTestPartner(models.Model):

@@ -1,12 +1,15 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
-from odoo.addons.test_event_full.tests.common import TestEventFullCommon, TestEventMailCommon
 from odoo.tests import tagged, users
 from odoo.tools import formataddr
+
+from odoo.addons.test_event_full.tests.common import (
+    TestEventFullCommon,
+    TestEventMailCommon,
+)
 
 
 @tagged('event_mail', 'post_install', '-at_install')

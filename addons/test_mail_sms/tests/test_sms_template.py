@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo.addons.sms.tests.common import SMSCommon
@@ -9,7 +8,7 @@ class TestSmsTemplate(SMSCommon, TestSMSRecipients):
 
     @classmethod
     def setUpClass(cls):
-        super(TestSmsTemplate, cls).setUpClass()
+        super().setUpClass()
         cls.test_record = cls.env['mail.test.sms'].with_context(**cls._test_context).create({
             'name': 'Test',
             'customer_id': cls.partner_1.id,
@@ -17,7 +16,7 @@ class TestSmsTemplate(SMSCommon, TestSMSRecipients):
         cls.test_record = cls._reset_mail_context(cls.test_record)
 
         cls.body_en = 'Dear {{ object.display_name }} this is an SMS.'
-        cls.body_fr = u"Hello {{ object.display_name }} ceci est en français."
+        cls.body_fr = "Hello {{ object.display_name }} ceci est en français."
         cls.sms_template = cls._create_sms_template('mail.test.sms', body=cls.body_en)
 
     def test_sms_template_render(self):

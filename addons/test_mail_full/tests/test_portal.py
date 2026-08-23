@@ -1,16 +1,16 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+from odoo.exceptions import AccessError
+from odoo.tests import tagged, users
+from odoo.tests.common import HttpCase
+from odoo.tools import html_escape, mute_logger
 
 from odoo.addons.auth_signup.models.res_partner import ResPartner
 from odoo.addons.mail.tests.common import MailCommon
 from odoo.addons.test_mail_full.tests.common import TestMailFullCommon
 from odoo.addons.test_mail_sms.tests.common import TestSMSRecipients
-from odoo.exceptions import AccessError
-from odoo.tests import tagged, users
-from odoo.tests.common import HttpCase
-from odoo.tools import html_escape, mute_logger
 
 
 @tagged('portal')

@@ -1,7 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
+from unittest.mock import patch
+
 import odoo.tests
 from odoo.tools import mute_logger
-from unittest.mock import patch
 
 
 @odoo.tests.common.tagged('post_install', '-at_install')

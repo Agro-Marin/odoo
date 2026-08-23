@@ -1,16 +1,16 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
+
+from odoo.tests import tagged
 
 from odoo.addons.mail.tests.common import MailCommon
 from odoo.addons.test_mail.tests.common import TestRecipients
-from odoo.tests import tagged
 
 
 @tagged("mail_management")
 class TestMailManagement(MailCommon, TestRecipients):
     @classmethod
     def setUpClass(cls):
-        super(TestMailManagement, cls).setUpClass()
+        super().setUpClass()
         cls.test_record = (
             cls.env["mail.test.simple"]
             .with_context(cls._test_context)

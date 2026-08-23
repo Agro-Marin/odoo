@@ -2,7 +2,7 @@
 
 from lxml import html
 
-from odoo.tests import tagged, HttpCase
+from odoo.tests import HttpCase, tagged
 
 
 @tagged('post_install', '-at_install')

@@ -2,7 +2,7 @@ import itertools
 import pstats
 from cProfile import Profile
 
-from odoo import fields, Command
+from odoo import Command, fields
 from odoo.tests import common
 
 
@@ -147,10 +147,10 @@ class test_unbound_string_field(CreatorCase):
             ),
             [
                 [
-                    "We flew down weekly to meet with IBM, but they thought the "
+                    ("We flew down weekly to meet with IBM, but they thought the "
                     "way to measure software was the amount of code we wrote, "
                     "when really the better the software, the fewer lines of "
-                    "code."
+                    "code.")
                 ]
             ],
         )
@@ -224,7 +224,7 @@ class test_selection(CreatorCase):
         ir_field = self.env['ir.model.fields']._get('export.selection', 'value')
         selection = ir_field.selection_ids
         translations = dict(self.translations_fr)
-        for sel_fr, sel in zip(selection.with_context(lang='fr_FR'), selection):
+        for sel_fr, sel in zip(selection.with_context(lang='fr_FR'), selection, strict=True):
             sel_fr.name = translations.get(sel.name, sel_fr.name)
         self.assertEqual(self.export('2', context={'lang': 'fr_FR'}), [['titi']])
 

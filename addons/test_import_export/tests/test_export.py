@@ -5,6 +5,7 @@ from unittest.mock import patch
 from odoo import Command, http
 from odoo.tests import common, tagged, warmup
 from odoo.tools.misc import get_lang
+
 from odoo.addons.web.controllers.export import ExportXlsxWriter
 
 
@@ -39,7 +40,11 @@ class XlsxCreatorCase(common.HttpCase):
     def make(self, values, context=None):
         return self.model.with_context(**(context or {})).create(values)
 
-    def export(self, fields=[], params={}):
+    def export(self, fields=None, params=None):
+        if params is None:
+            params = {}
+        if fields is None:
+            fields = []
         self.worksheet = {}
 
         if fields and 'fields' not in params:
@@ -140,9 +145,9 @@ class TestExport(XlsxCreatorCase):
         res = json.loads(res.content)['result']
 
         model_fields = self.env['ir.model.fields'].search([('model', '=', test_model)])
-        expected_fields = set(f.name for f in model_fields.filtered(lambda field: field.readonly == False)) | {'id'}
+        expected_fields = {f.name for f in model_fields.filtered(lambda field: not field.readonly)} | {'id'}
 
-        self.assertEqual(expected_fields, set(field['id'] for field in res))
+        self.assertEqual(expected_fields, {field['id'] for field in res})
 
 
 @tagged('-at_install', 'post_install')

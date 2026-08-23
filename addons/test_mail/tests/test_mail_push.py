@@ -1,11 +1,16 @@
 import json
 import socket
-
 from datetime import datetime, timedelta
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from markupsafe import Markup
 
 import odoo
-
+from odoo.tests import tagged
+from odoo.tests.common import TransactionCase
 from odoo.tools.misc import mute_logger
+
 from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.mail.tools.jwt import InvalidVapidError
 from odoo.addons.mail.tools.web_push import (
@@ -14,11 +19,6 @@ from odoo.addons.mail.tools.web_push import (
 )
 from odoo.addons.sms.tests.common import SMSCommon
 from odoo.addons.test_mail.data.test_mail_data import MAIL_TEMPLATE
-from odoo.tests import tagged
-from odoo.tests.common import TransactionCase
-from markupsafe import Markup
-from unittest.mock import patch
-from types import SimpleNamespace
 
 
 @tagged("mail_push")
@@ -201,7 +201,7 @@ class TestWebPushNotification(SMSCommon):
         for channel, sender, notification_count in zip(
             (chat_channel + channel_channel + group_channel + group_channel),
             (self.user_email, self.user_email, self.user_email, self.guest),
-            (1, 0, 1, 2),
+            (1, 0, 1, 2), strict=True,
         ):
             with self.subTest(channel_type=channel.channel_type):
                 if sender == self.guest:
@@ -759,7 +759,7 @@ class TestWebPushNotification(SMSCommon):
         odoo.addons.mail.models.mixin_mail_thread.Session,
         "post",
         return_value=SimpleNamespace(
-            **{"status_code": 404, "text": "Device Unreachable"}
+            status_code=404, text="Device Unreachable"
         ),
     )
     def test_push_notifications_error_device_unreachable(self, post):
@@ -781,7 +781,7 @@ class TestWebPushNotification(SMSCommon):
     @patch.object(
         odoo.addons.mail.models.mixin_mail_thread.Session,
         "post",
-        return_value=SimpleNamespace(**{"status_code": 201, "text": "Ok"}),
+        return_value=SimpleNamespace(status_code=201, text="Ok"),
     )
     def test_push_notifications_error_encryption_simple(self, post):
         """Test to see if all parameters sent to the endpoint are present.
@@ -1115,7 +1115,7 @@ class TestWebPushNotification(SMSCommon):
                     ),  # length truncated to nearest full character (\u00f8)
                     offset * 1 + ((body_size_limit - offset) // 6) * 6,
                 )
-                for offset in range(0, 8)
+                for offset in range(8)
             ]
         )
 

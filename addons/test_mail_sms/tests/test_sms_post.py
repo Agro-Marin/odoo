@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import UTC, datetime, timedelta
 
+from odoo.tests import tagged
+
 from odoo.addons.base.tests.test_ir_cron import CronMixinCase
 from odoo.addons.sms.tests.common import SMSCommon
 from odoo.addons.test_mail_sms.tests.common import TestSMSRecipients
-from odoo.tests import tagged
 
 
 @tagged('sms_post')
@@ -18,7 +18,7 @@ class TestSMSPost(SMSCommon, TestSMSRecipients, CronMixinCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestSMSPost, cls).setUpClass()
+        super().setUpClass()
         cls._test_body = 'VOID CONTENT'
 
         cls.test_record = cls.env['mail.test.sms'].with_context(**cls._test_context).create({
@@ -371,7 +371,7 @@ class TestSMSPostException(SMSCommon, TestSMSRecipients):
 
     @classmethod
     def setUpClass(cls):
-        super(TestSMSPostException, cls).setUpClass()
+        super().setUpClass()
         cls._test_body = 'VOID CONTENT'
 
         cls.test_record = cls.env['mail.test.sms'].with_context(**cls._test_context).create({
@@ -510,7 +510,7 @@ class TestSMSApi(SMSCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestSMSApi, cls).setUpClass()
+        super().setUpClass()
         cls._test_body = 'Zizisse an SMS.'
 
         cls._create_records_for_batch('mail.test.sms', 3)

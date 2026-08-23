@@ -1,13 +1,20 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import json
+
 import werkzeug
 
 from odoo import http
+from odoo.exceptions import (
+    AccessDenied,
+    AccessError,
+    MissingError,
+    UserError,
+    ValidationError,
+)
 from odoo.http import request
+
 from odoo.addons.portal.controllers.web import Home
-from odoo.exceptions import UserError, ValidationError, AccessError, MissingError, AccessDenied
 
 
 class WebsiteTest(Home):
@@ -24,27 +31,27 @@ class WebsiteTest(Home):
 
     @http.route('/ignore_args/converteronly/<string:a>', type='http', auth="public", website=True, sitemap=False)
     def test_ignore_args_converter_only(self, a):
-        return request.make_response(json.dumps(dict(a=a, kw=None)))
+        return request.make_response(json.dumps({'a': a, 'kw': None}))
 
     @http.route('/ignore_args/none', type='http', auth="public", website=True, sitemap=False)
     def test_ignore_args_none(self):
-        return request.make_response(json.dumps(dict(a=None, kw=None)))
+        return request.make_response(json.dumps({'a': None, 'kw': None}))
 
     @http.route('/ignore_args/a', type='http', auth="public", website=True, sitemap=False)
     def test_ignore_args_a(self, a):
-        return request.make_response(json.dumps(dict(a=a, kw=None)))
+        return request.make_response(json.dumps({'a': a, 'kw': None}))
 
     @http.route('/ignore_args/kw', type='http', auth="public", website=True, sitemap=False)
     def test_ignore_args_kw(self, a, **kw):
-        return request.make_response(json.dumps(dict(a=a, kw=kw)))
+        return request.make_response(json.dumps({'a': a, 'kw': kw}))
 
     @http.route('/ignore_args/converter/<string:a>', type='http', auth="public", website=True, sitemap=False)
     def test_ignore_args_converter(self, a, b='youhou', **kw):
-        return request.make_response(json.dumps(dict(a=a, b=b, kw=kw)))
+        return request.make_response(json.dumps({'a': a, 'b': b, 'kw': kw}))
 
     @http.route('/ignore_args/converter/<string:a>/nokw', type='http', auth="public", website=True, sitemap=False)
     def test_ignore_args_converter_nokw(self, a, b='youhou'):
-        return request.make_response(json.dumps(dict(a=a, b=b)))
+        return request.make_response(json.dumps({'a': a, 'b': b}))
 
     @http.route('/multi_company_website', type='http', auth="public", website=True, sitemap=False)
     def test_company_context(self):
@@ -100,11 +107,11 @@ class WebsiteTest(Home):
 
     @http.route('/test_internal_error_json', type='jsonrpc', auth='public', website=True, sitemap=False)
     def test_internal_error_json(self, **kwargs):
-        raise werkzeug.exceptions.InternalServerError()
+        raise werkzeug.exceptions.InternalServerError
 
     @http.route('/test_internal_error_http', type='http', auth='public', website=True, sitemap=False)
     def test_internal_error_http(self, **kwargs):
-        raise werkzeug.exceptions.InternalServerError()
+        raise werkzeug.exceptions.InternalServerError
 
     @http.route('/test_access_denied_json', type='jsonrpc', auth='public', website=True, sitemap=False)
     def test_denied_error_json(self, **kwargs):
@@ -174,6 +181,7 @@ class WebsiteTest(Home):
         return request.make_response('ok')
 
     # Test Sitemap
+    @staticmethod
     def sitemap_test(env, rule, qs):
         if not qs or qs.lower() in '/test_website_sitemap':
             yield {'loc': '/test_website_sitemap'}

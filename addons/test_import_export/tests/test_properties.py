@@ -1,7 +1,7 @@
 import json
 
 from odoo.tests import new_test_user
-from odoo.tests.common import RecordCapturer, HttpCase
+from odoo.tests.common import HttpCase, RecordCapturer
 
 
 class TestPropertiesExportImport(HttpCase):
@@ -108,7 +108,7 @@ class TestPropertiesExportImport(HttpCase):
         )
         dict_fields = json.loads(res.content)['result']
         self.assertEqual(
-            [dict_field['id'] for dict_field in dict_fields], 
+            [dict_field['id'] for dict_field in dict_fields],
             [
                 'properties.bool_prop',
                 'id',
@@ -141,7 +141,7 @@ class TestPropertiesExportImport(HttpCase):
                 'properties.char_prop',
             ]
         )
-    
+
     def test_export_get_fields_inherits(self):
         self.authenticate('admin', 'admin')
 
@@ -160,7 +160,7 @@ class TestPropertiesExportImport(HttpCase):
         )
         dict_fields = json.loads(res.content)['result']
         self.assertEqual(
-            [dict_field['id'] for dict_field in dict_fields], 
+            [dict_field['id'] for dict_field in dict_fields],
             [
                 'properties.bool_prop',
                 'id',

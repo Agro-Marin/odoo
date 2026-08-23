@@ -1,16 +1,15 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
+from unittest.mock import patch
+
 from odoo.tests import HttpCase, tagged
 from odoo.tools import mute_logger
-
-from unittest.mock import patch
 
 
 @tagged('-at_install', 'post_install')
 class TestRedirect(HttpCase):
 
     def setUp(self):
-        super(TestRedirect, self).setUp()
+        super().setUp()
 
         self.user_portal = self.env['res.users'].with_context({'no_reset_password': True}).create({
             'name': 'Test Website Portal User',

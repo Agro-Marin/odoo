@@ -1,14 +1,14 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo.tests.common import users
+
 from odoo.addons.test_mass_mailing.tests import common
 
 
 class TestLinkTracker(common.TestMassMailCommon):
 
     def setUp(self):
-        super(TestLinkTracker, self).setUp()
+        super().setUp()
 
         self.link = self.env['link.tracker'].search_or_create([{
             'url': 'https://www.example.com'

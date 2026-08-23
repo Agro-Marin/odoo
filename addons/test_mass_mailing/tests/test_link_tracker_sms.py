@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.test_mass_mailing.tests.common import TestMassMailCommon
 from odoo.tests import tagged
+
+from odoo.addons.test_mass_mailing.tests.common import TestMassMailCommon
 
 
 @tagged('link_tracker')
@@ -10,7 +10,7 @@ class TestSMSPost(TestMassMailCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestSMSPost, cls).setUpClass()
+        super().setUpClass()
         cls._test_body = 'VOID CONTENT'
 
         cls.sms_all = cls.env['sms.sms']
@@ -33,7 +33,7 @@ class TestSMSPost(TestMassMailCommon):
         }
 
     def setUp(self):
-        super(TestSMSPost, self).setUp()
+        super().setUp()
         self._web_base_url = 'https://test.odoo.com'
         self.env['ir.config_parameter'].sudo().set_param('web.base.url', self._web_base_url)
 
@@ -112,7 +112,7 @@ class TestSMSPost(TestMassMailCommon):
         res = (sms_0 | sms_1 | sms_2 | sms_3 | sms_4)._update_body_short_links()
         self.assertEqual(res[sms_0.id], f'Welcome to {self._web_base_url}')
         self.assertEqual(res[sms_1.id], f'Welcome to {self._web_base_url}/r/RAOUL')
-        self.assertEqual(res[sms_2.id], f'Welcome to {self._web_base_url}/r/RAOUL/s/%s' % sms_2.id)
+        self.assertEqual(res[sms_2.id], f'Welcome to {self._web_base_url}/r/RAOUL/s/{sms_2.id}')
         self.assertEqual(res[sms_3.id], f'Welcome to {self._web_base_url}/leodagan/r/RAOUL')
         self.assertEqual(
             res[sms_4.id],

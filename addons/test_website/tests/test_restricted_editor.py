@@ -4,6 +4,7 @@ import unittest
 
 import odoo.tests
 from odoo.tools import mute_logger
+
 from odoo.addons.website.tests.common import HttpCaseWithWebsiteUser
 
 

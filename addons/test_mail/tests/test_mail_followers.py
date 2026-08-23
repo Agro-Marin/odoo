@@ -1,27 +1,26 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from unittest.mock import patch
 from urllib.parse import urlparse
 
+from markupsafe import Markup
 from psycopg.errors import IntegrityError
 
-from markupsafe import Markup
-
 from odoo import Command
-from odoo.addons.mail.tests.common import MailCommon
-from odoo.addons.mail.tools.discuss import Store
 from odoo.exceptions import AccessError
 from odoo.tests import tagged, users
 from odoo.tests.common import HttpCase
 from odoo.tools import mute_logger
+
+from odoo.addons.mail.tests.common import MailCommon
+from odoo.addons.mail.tools.discuss import Store
 
 
 @tagged("mail_followers")
 class BaseFollowersTest(MailCommon):
     @classmethod
     def setUpClass(cls):
-        super(BaseFollowersTest, cls).setUpClass()
+        super().setUpClass()
         cls.test_record = (
             cls.env["mail.test.simple"]
             .with_context(cls._test_context)
@@ -1100,7 +1099,7 @@ class FollowerAccessTest(MailCommon):
 class AdvancedFollowersTest(MailCommon):
     @classmethod
     def setUpClass(cls):
-        super(AdvancedFollowersTest, cls).setUpClass()
+        super().setUpClass()
         cls._create_portal_user()
 
         cls.test_track = (
@@ -1517,7 +1516,7 @@ class AdvancedFollowersTest(MailCommon):
 @tagged("mail_followers")
 class AdvancedResponsibleNotifiedTest(MailCommon):
     def setUp(self):
-        super(AdvancedResponsibleNotifiedTest, self).setUp()
+        super().setUp()
 
         # patch registry to simulate a ready environment so that _message_auto_subscribe_notify
         # will be executed with the associated notification
@@ -1657,7 +1656,7 @@ class RecipientsNotificationTest(MailCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(RecipientsNotificationTest, cls).setUpClass()
+        super().setUpClass()
 
         # portal user for testing share status / internal subtypes
         cls.user_portal = cls._create_portal_user()
@@ -1712,7 +1711,7 @@ class RecipientsNotificationTest(MailCommon):
             record_ids = records.ids
         else:
             records, record_ids = [False], [0]
-        for record, record_id in zip(records, record_ids):
+        for record, record_id in zip(records, record_ids, strict=True):
             record_data = recipients_data[record_id]
             self.assertEqual(set(record_data.keys()), set(partners.ids))
             for partner in partners:
@@ -2042,22 +2041,22 @@ class RecipientsNotificationTest(MailCommon):
             pids=self.partner_admin.ids,
         )
         # 0: portal is follower but does not follow comment + common partner (+ admin as pid)
-        recipients_data_1 = dict(
-            (r, recipients_data[r])
+        recipients_data_1 = {
+            r: recipients_data[r]
             for r in recipients_data
             if r in test_records[0:1].ids
-        )
+        }
         self.assertRecipientsData(
             recipients_data_1,
             test_records[0:1],
             self.env.user.partner_id + self.common_partner + self.partner_admin,
         )
         # 1: portal is follower with comment + common partner (+ admin as pid)
-        recipients_data_1 = dict(
-            (r, recipients_data[r])
+        recipients_data_1 = {
+            r: recipients_data[r]
             for r in recipients_data
             if r in test_records[1:2].ids
-        )
+        }
         self.assertRecipientsData(
             recipients_data_1,
             test_records[1:2],
@@ -2067,22 +2066,22 @@ class RecipientsNotificationTest(MailCommon):
             + self.partner_admin,
         )
         # 2-3: common partner (+ admin as pid)
-        recipients_data_2 = dict(
-            (r, recipients_data[r])
+        recipients_data_2 = {
+            r: recipients_data[r]
             for r in recipients_data
             if r in test_records[2:4].ids
-        )
+        }
         self.assertRecipientsData(
             recipients_data_2,
             test_records[2:4],
             self.env.user.partner_id + self.common_partner + self.partner_admin,
         )
         # 4+: env user partner (+ admin as pid)
-        recipients_data_3 = dict(
-            (r, recipients_data[r])
+        recipients_data_3 = {
+            r: recipients_data[r]
             for r in recipients_data
             if r in test_records[4:].ids
-        )
+        }
         self.assertRecipientsData(
             recipients_data_3,
             test_records[4:],
@@ -2369,7 +2368,7 @@ class UnfollowLinkTest(MailCommon, HttpCase):
                     test_record, test_partners
                 )
                 for test_partner, unfollow_url, has_url in zip(
-                    test_partners, unfollow_urls, exp_has_url
+                    test_partners, unfollow_urls, exp_has_url, strict=True
                 ):
                     self.assertEqual(bool(unfollow_url), has_url)
 
@@ -2395,7 +2394,7 @@ class UnfollowLinkTest(MailCommon, HttpCase):
                 unfollow_urls = self._message_post_and_get_unfollow_urls(
                     test_record, test_partners
                 )
-                for test_partner, unfollow_url in zip(test_partners, unfollow_urls):
+                for _test_partner, unfollow_url in zip(test_partners, unfollow_urls, strict=True):
                     self.assertFalse(unfollow_url)
 
     def test_unsubscribe_unreadable(self):

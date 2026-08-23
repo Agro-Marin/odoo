@@ -3,6 +3,7 @@ from datetime import date, timedelta
 from odoo import Command
 from odoo.tests import tagged, users
 from odoo.tests.common import HttpCase, new_test_user
+
 from odoo.addons.mail.tests.common import MailCommon
 
 

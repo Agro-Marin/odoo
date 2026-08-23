@@ -1,14 +1,16 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.base.tests.test_ir_cron import CronMixinCase
-from odoo.addons.mail.tests.common import MailCommon
-from odoo.addons.test_mail.models.mail_test_lead import MailTestTLead
-from odoo.addons.test_mail.tests.common import TestRecipients
+from unittest.mock import patch
+
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Datetime as FieldDatetime
 from odoo.tests import tagged, users
 from odoo.tools import mute_logger
-from unittest.mock import patch
+
+from odoo.addons.base.tests.test_ir_cron import CronMixinCase
+from odoo.addons.mail.tests.common import MailCommon
+from odoo.addons.test_mail.models.mail_test_lead import MailTestTLead
+from odoo.addons.test_mail.tests.common import TestRecipients
 
 
 @tagged("mail_scheduled_message")

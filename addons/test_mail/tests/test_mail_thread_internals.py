@@ -1,15 +1,16 @@
-from markupsafe import Markup
-from unittest.mock import patch
-from unittest.mock import DEFAULT
 import base64
+from unittest.mock import DEFAULT, patch
+
+from markupsafe import Markup
 
 from odoo import exceptions, tools
-from odoo.addons.mail.tests.common import mail_new_test_user, MailCommon
+from odoo.tests import Form, tagged, users, warmup
+from odoo.tools import mute_logger
+
+from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
+from odoo.addons.mail.tools.discuss import Store
 from odoo.addons.test_mail.models.test_mail_models import MailTestSimple
 from odoo.addons.test_mail.tests.common import TestRecipients
-from odoo.addons.mail.tools.discuss import Store
-from odoo.tests import Form, users, warmup, tagged
-from odoo.tools import mute_logger
 
 
 class ThreadRecipients(MailCommon, TestRecipients):
@@ -361,7 +362,7 @@ class TestAPI(ThreadRecipients):
             (self.test_partner, [{}]),
             (self.env["res.partner"], []),
         ]
-        for ticket, (exp_partners, exp_values_list) in zip(tickets, expected_all):
+        for ticket, (exp_partners, exp_values_list) in zip(tickets, expected_all, strict=True):
             partners = res[ticket.id]
             with self.subTest(ticket_name=ticket.name):
                 self.assertEqual(
@@ -371,7 +372,7 @@ class TestAPI(ThreadRecipients):
                 )
                 for partner, exp_values in zip(partners, exp_values_list, strict=True):
                     for fname, fvalue in exp_values.items():
-                        self.assertEqual(partners[fname], fvalue)
+                        self.assertEqual(partner[fname], fvalue)
 
     @users("employee")
     def test_mail_partner_find_from_emails_ordering(self):
@@ -1358,7 +1359,7 @@ class TestAPI(ThreadRecipients):
             set(message.mapped("attachment_ids.res_id")), set(ticket_record.ids)
         )
         self.assertEqual(
-            set(message.mapped("attachment_ids.res_model")), set([ticket_record._name])
+            set(message.mapped("attachment_ids.res_model")), {ticket_record._name}
         )
         self.assertEqual(message.body, "<p>Initial Body</p>")
         self.assertEqual(message.subtype_id, self.env.ref("mail.mt_note"))
@@ -1383,7 +1384,7 @@ class TestAPI(ThreadRecipients):
             set(message.mapped("attachment_ids.res_id")), set(ticket_record.ids)
         )
         self.assertEqual(
-            set(message.mapped("attachment_ids.res_model")), set([ticket_record._name])
+            set(message.mapped("attachment_ids.res_model")), {ticket_record._name}
         )
         self.assertEqual(
             message.body,
@@ -1541,7 +1542,7 @@ class TestAPI(ThreadRecipients):
 class TestChatterTweaks(ThreadRecipients):
     @classmethod
     def setUpClass(cls):
-        super(TestChatterTweaks, cls).setUpClass()
+        super().setUpClass()
         cls.test_record = (
             cls.env["mail.test.simple"]
             .with_context(cls._test_context)
@@ -1788,7 +1789,7 @@ class TestChatterTweaks(ThreadRecipients):
 class TestDiscuss(MailCommon, TestRecipients):
     @classmethod
     def setUpClass(cls):
-        super(TestDiscuss, cls).setUpClass()
+        super().setUpClass()
         cls.test_record = (
             cls.env["mail.test.simple"]
             .with_context(cls._test_context)

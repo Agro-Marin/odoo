@@ -1,6 +1,9 @@
 from odoo.tests import tagged
 from odoo.tools import mute_logger
 
+from odoo.tests import tagged
+from odoo.tools import mute_logger
+
 from odoo.addons.mail.tests.common import MailCommon
 from odoo.addons.test_mail.tests.common import TestRecipients
 

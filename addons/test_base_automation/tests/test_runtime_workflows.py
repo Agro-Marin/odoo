@@ -18,8 +18,8 @@ Tests cover:
 
 import logging
 
-from odoo.tests import common, tagged
 from odoo.exceptions import UserError
+from odoo.tests import common, tagged
 
 _logger = logging.getLogger(__name__)
 
@@ -196,7 +196,7 @@ class TestRuntimeWorkflows(common.TransactionCase):
         """Test that runtime auto-marks as done when all lines complete."""
         _logger.info("Testing runtime auto-completion")
 
-        action = self._create_runtime_action("Single Action")
+        self._create_runtime_action("Single Action")
 
         runtime = self.Runtime.create(
             {
@@ -276,11 +276,10 @@ class TestRuntimeWorkflows(common.TransactionCase):
         _logger.info("Testing runtime next step execution")
 
         # Create action that logs execution
-        execution_log = []
         # Record the effect somewhere observable. Arbitrary context keys are
         # not exposed as variables to a code action, so the old
         # `execution_log.append(...)` could only ever raise NameError.
-        action = self._create_runtime_action(
+        self._create_runtime_action(
             "Log Action",
             code=(
                 "env['ir.config_parameter'].sudo().set_param("
@@ -316,7 +315,7 @@ class TestRuntimeWorkflows(common.TransactionCase):
         _logger.info("Testing next_step with no ready actions")
 
         action_a = self._create_runtime_action("A")
-        action_b = self._create_runtime_action("B", predecessors=[action_a])
+        self._create_runtime_action("B", predecessors=[action_a])
 
         runtime = self.Runtime.create(
             {
@@ -340,7 +339,7 @@ class TestRuntimeWorkflows(common.TransactionCase):
         """Test that next_step requires runtime to be in_progress."""
         _logger.info("Testing next_step state requirement")
 
-        action = self._create_runtime_action("Action")
+        self._create_runtime_action("Action")
 
         runtime = self.Runtime.create(
             {
@@ -364,7 +363,7 @@ class TestRuntimeWorkflows(common.TransactionCase):
         _logger.info("Testing runtime cancellation")
 
         action_a = self._create_runtime_action("A")
-        action_b = self._create_runtime_action("B", predecessors=[action_a])
+        self._create_runtime_action("B", predecessors=[action_a])
 
         runtime = self.Runtime.create(
             {
@@ -391,7 +390,7 @@ class TestRuntimeWorkflows(common.TransactionCase):
         """Test that cancelling twice doesn't cause errors."""
         _logger.info("Testing cancel idempotency")
 
-        action = self._create_runtime_action("Action")
+        self._create_runtime_action("Action")
 
         runtime = self.Runtime.create(
             {
@@ -424,7 +423,7 @@ class TestRuntimeWorkflows(common.TransactionCase):
         # read the execution instance it belongs to. The result is written to a
         # real record: assigning to env.context is both a forbidden opcode
         # (STORE_ATTR) and meaningless, since the context is frozen.
-        action = self._create_runtime_action(
+        self._create_runtime_action(
             "Context Action",
             code="""
 env['ir.config_parameter'].sudo().set_param(
@@ -462,7 +461,7 @@ env['ir.config_parameter'].sudo().set_param(
         """Test that company context is available in runtime actions."""
         _logger.info("Testing multi-company context")
 
-        action = self._create_runtime_action(
+        self._create_runtime_action(
             "Company Action",
             code="""
 env['ir.config_parameter'].sudo().set_param(
@@ -554,7 +553,7 @@ env['ir.config_parameter'].sudo().set_param(
         """Test that runtime handles action errors gracefully."""
         _logger.info("Testing error handling")
 
-        action = self._create_runtime_action(
+        self._create_runtime_action(
             "Failing Action",
             code="raise Exception('Test error')",
         )
@@ -587,7 +586,7 @@ env['ir.config_parameter'].sudo().set_param(
         """Test multiple runtime instances running concurrently."""
         _logger.info("Testing concurrent runtimes")
 
-        action = self._create_runtime_action("Action")
+        self._create_runtime_action("Action")
 
         runtime1 = self.Runtime.create(
             {
@@ -632,7 +631,7 @@ env['ir.config_parameter'].sudo().set_param(
         """Test runtime with single action completes directly."""
         _logger.info("Testing single action runtime")
 
-        action = self._create_runtime_action("Only Action")
+        self._create_runtime_action("Only Action")
 
         runtime = self.Runtime.create(
             {
@@ -660,7 +659,7 @@ env['ir.config_parameter'].sudo().set_param(
         """Test that runtime instances get sequential names."""
         _logger.info("Testing sequence generation")
 
-        action = self._create_runtime_action("Action")
+        self._create_runtime_action("Action")
 
         runtime1 = self.Runtime.create(
             {

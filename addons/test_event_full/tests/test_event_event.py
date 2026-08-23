@@ -1,12 +1,13 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, timedelta
+from datetime import timedelta
+
 from freezegun import freeze_time
 
 from odoo import Command, exceptions
-from odoo.addons.test_event_full.tests.common import TestEventFullCommon
 from odoo.tests.common import users
+
+from odoo.addons.test_event_full.tests.common import TestEventFullCommon
 
 
 class TestEventEvent(TestEventFullCommon):
@@ -112,7 +113,7 @@ class TestEventEvent(TestEventFullCommon):
                      'event_ticket_id': ticket_1.id,
                      'name': 'Customer %d' % x,
                 }
-                for x in range(0, 9)
+                for x in range(9)
             ])
         # generated emails from scheduler
         self.assertEqual(len(self._new_mails), 9)
@@ -133,7 +134,7 @@ class TestEventEvent(TestEventFullCommon):
                      'event_ticket_id': ticket_1.id,
                      'name': 'Additional Customer %d' % x,
                 }
-                for x in range(0, 2)
+                for x in range(2)
             ])
 
         # make 20 registrations (on free ticket)
@@ -147,7 +148,7 @@ class TestEventEvent(TestEventFullCommon):
                      'event_ticket_id': ticket_2.id,
                      'name': 'Other Customer %d' % x,
                 }
-                for x in range(0, 20)
+                for x in range(20)
             ])
         # event and ticket seats update
         self.assertEqual(len(test_event.registration_ids), 29)
@@ -166,5 +167,5 @@ class TestEventEvent(TestEventFullCommon):
                      'event_ticket_id': ticket_2.id,
                      'name': 'Additional Customer %d' % x,
                 }
-                for x in range(0, 2)
+                for x in range(2)
             ])

@@ -1,11 +1,13 @@
 from datetime import datetime, timedelta
+
 from markupsafe import Markup
 
 from odoo import Command
-from odoo.addons.test_mail.tests.test_performance import BaseMailPostPerformance
-from odoo.tests.common import users, warmup
 from odoo.tests import tagged
+from odoo.tests.common import users, warmup
 from odoo.tools import mute_logger
+
+from odoo.addons.test_mail.tests.test_performance import BaseMailPostPerformance
 
 
 @tagged('mail_performance', 'post_install', '-at_install')
@@ -222,7 +224,7 @@ class TestPortalFormatPerformance(FullBaseMailPerformance):
                 'res_model_id': cls.env['ir.model']._get_id(message.model),
             }
             for rating_idx in range(2)
-            for message, record in zip(cls.messages_all, cls.messages_records)
+            for message, record in zip(cls.messages_all, cls.messages_records, strict=True)
         ])
 
     def test_assert_initial_values(self):
@@ -241,7 +243,7 @@ class TestPortalFormatPerformance(FullBaseMailPerformance):
 
         comment_subtype = self.env.ref('mail.mt_comment')
         self.assertEqual(len(res), len(messages_all))
-        for format_res, message, record in zip(res, messages_all, self.messages_records):
+        for format_res, message, record in zip(res, messages_all, self.messages_records, strict=True):
             self.assertEqual(len(format_res['attachment_ids']), 2)
             self.maxDiff = None
             self.assertEqual(
@@ -296,7 +298,7 @@ class TestPortalFormatPerformance(FullBaseMailPerformance):
             res = messages_all.portal_message_format(options={'rating_include': True})
 
         self.assertEqual(len(res), len(messages_all))
-        for format_res, _message, _record in zip(res, messages_all, self.messages_records):
+        for format_res, _message, _record in zip(res, messages_all, self.messages_records, strict=True):
             self.assertEqual(format_res['rating_id']['publisher_avatar'], f'/web/image/res.partner/{self.partner_admin.id}/avatar_128/50x50')
             self.assertEqual(format_res['rating_id']['publisher_comment'], 'Comment')
             self.assertEqual(format_res['rating_id']['publisher_id'], self.partner_admin.id)
@@ -386,8 +388,7 @@ class TestRatingPerformance(FullBaseMailPerformance):
         user_names = []
         with self.assertQueryCount(employee=4):  # tmf: 4
             ratings = self.record_ratings.with_env(self.env)
-            for rating in ratings:
-                user_names.append(rating._rating_get_operator().name)
+            user_names.extend(rating._rating_get_operator().name for rating in ratings)
         expected_names = ['Mitchell Admin', 'Ernest Employee', False] * 6 + ['Mitchell Admin', 'Ernest Employee']
         for partner_name, expected_name in zip(user_names, expected_names, strict=True):
             self.assertEqual(partner_name, expected_name)
@@ -398,8 +399,7 @@ class TestRatingPerformance(FullBaseMailPerformance):
         partner_names = []
         with self.assertQueryCount(employee=3):  # tmf: 3
             ratings = self.record_ratings.with_env(self.env)
-            for rating in ratings:
-                partner_names.append(rating._rating_get_partner().name)
+            partner_names.extend(rating._rating_get_partner().name for rating in ratings)
         for partner_name, expected in zip(partner_names, self.partners, strict=True):
             self.assertEqual(partner_name, expected.name)
 

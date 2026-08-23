@@ -1,12 +1,10 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
+
+import odoo.tests
+from odoo import http
 
 from odoo.addons.html_editor.controllers.main import HTML_Editor
 from odoo.addons.web_unsplash.controllers.main import Web_Unsplash
-
-import odoo.tests
-
-from odoo import http
 
 
 @odoo.tests.common.tagged('post_install', '-at_install')

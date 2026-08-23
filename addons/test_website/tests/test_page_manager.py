@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import odoo.tests
+
 from odoo.addons.website.tests.common import HttpCaseWithWebsiteUser
 
 
@@ -18,7 +18,7 @@ class TestWebsitePageManager(HttpCaseWithWebsiteUser):
             website2 = self.env['website'].search([], order='id desc', limit=1)
         self.env['test.model.multi.website'].create({'name': 'Test Model Multi Website 2', 'website_id': website2.id})
         self.assertTrue(
-            len(set([t.website_id.id for t in self.env['test.model.multi.website'].search([])])) >= 3,
+            len({t.website_id.id for t in self.env['test.model.multi.website'].search([])}) >= 3,
             "There should at least be one record without website_id and one for 2 different websites",
         )
         self.assertNotIn('website_id', self.env['test.model']._fields)

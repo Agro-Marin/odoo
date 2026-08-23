@@ -433,7 +433,7 @@ class TestCalendar(TestResourceCommon):
     def test_compute_work_time_with_two_weeks_calendar(self):
         """Test Case: check if the computation of the work time rate in the resource.calendar is correct."""
         def create_attendance_ids(attendance_list):
-            return [(0, 0, {'week_type': str(i), **attendance}) for i in range(0, 2) for attendance in attendance_list]
+            return [(0, 0, {'week_type': str(i), **attendance}) for i in range(2) for attendance in attendance_list]
 
         attendance_list = [
             {'name': 'Monday Morning', 'dayofweek': '0', 'hour_from': 8, 'hour_to': 12, 'day_period': 'morning'},

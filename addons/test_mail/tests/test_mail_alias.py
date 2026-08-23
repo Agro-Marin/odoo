@@ -1,18 +1,17 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import psycopg
 import random
-
 from ast import literal_eval
 
+import psycopg
+
 from odoo import exceptions
-from odoo.addons.mail.models.mail_alias import dot_atom_text
-from odoo.tools import SQL
-from odoo.addons.mail.tests.common import MailCommon
 from odoo.tests import tagged
 from odoo.tests.common import users
-from odoo.tools import formataddr, mute_logger
+from odoo.tools import SQL, formataddr, mute_logger
+
+from odoo.addons.mail.models.mail_alias import dot_atom_text
+from odoo.addons.mail.tests.common import MailCommon
 
 
 class TestMailAliasCommon(MailCommon):
@@ -344,10 +343,10 @@ class TestMailAlias(TestMailAliasCommon):
                 "alias, exactly like the purely non-latin case below"
             ),
             "Only a subset of unaccented latin chars are valid, others are replaced",
-            "Purely non-latin names are dropped to empty and rejected as False, "
-            'not turned into a garbage "?" alias',
+            ("Purely non-latin names are dropped to empty and rejected as False, "
+            'not turned into a garbage "?" alias'),
         ]
-        for alias_name, expected, msg in zip(alias_names, expected_names, msgs):
+        for alias_name, expected, msg in zip(alias_names, expected_names, msgs, strict=True):
             with self.subTest(alias_name=alias_name):
                 alias = self.env["mail.alias"].create(
                     {
@@ -366,7 +365,7 @@ class TestMailAlias(TestMailAliasCommon):
             }
         )
         # check at write
-        for alias_name, expected, msg in zip(alias_names, expected_names, msgs):
+        for alias_name, expected, msg in zip(alias_names, expected_names, msgs, strict=True):
             with self.subTest(alias_name=alias_name):
                 alias.write({"alias_name": alias_name})
                 self.assertEqual(alias.alias_name, expected, msg)
@@ -1089,7 +1088,7 @@ class TestMailAliasDomain(TestMailAliasCommon):
         However bounce / catchall should not clash with aliases."""
         alias_domain = self.mail_alias_domain.with_env(self.env)
 
-        for domain_config in {"bounce_alias", "catchall_alias"}:
+        for domain_config in ("bounce_alias", "catchall_alias"):
             with self.subTest(domain_config=domain_config):
                 with self.assertRaises(exceptions.ValidationError):
                     self.env["mail.alias.domain"].create(
@@ -1250,7 +1249,7 @@ class TestMailAliasDomain(TestMailAliasCommon):
                     f"catchall@{alias_domain.name}",
                     "notifications@valid.complete.com",
                 ),
-            ],
+            ], strict=True,
         ):
             with self.subTest(bounce_alias=bounce_alias):
                 alias_domain.write({"bounce_alias": bounce_alias})

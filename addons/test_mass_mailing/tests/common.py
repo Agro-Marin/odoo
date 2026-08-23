@@ -1,16 +1,14 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.phone_validation.tools import phone_validation
-
 from odoo.addons.mass_mailing_sms.tests.common import MassSMSCommon
+from odoo.addons.phone_validation.tools import phone_validation
 
 
 class TestMassMailCommon(MassSMSCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestMassMailCommon, cls).setUpClass()
+        super().setUpClass()
 
         cls.test_alias = cls.env['mail.alias'].create({
             'alias_name': 'test.alias',
@@ -87,7 +85,7 @@ class TestMassMailCommon(MassSMSCommon):
         partner_field = 'customer_id' if 'customer_id' in Model else 'partner_id'
 
         vals_list = []
-        for x in range(0, count):
+        for x in range(count):
             vals = {
                 'name': 'TestRecord_%02d' % x,
                 email_field: '"TestCustomer %02d" <test.record.%02d@test.example.com>' % (x, x),
@@ -104,7 +102,7 @@ class TestMassSMSCommon(TestMassMailCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestMassSMSCommon, cls).setUpClass()
+        super().setUpClass()
         cls._test_body = 'Mass SMS in your face'
 
         records = cls.env['mail.test.sms']
@@ -147,12 +145,10 @@ class TestMassSMSCommon(TestMassMailCommon):
             'name': f'Partner_{x}',
             'email': f'_test_partner_{x}@example.com',
             'country_id': country_be_id,
-            'phone': mobile_numbers[x]
+            'phone': mobile_number
         } for x, mobile_number in enumerate(mobile_numbers)])
-        records = cls.env['mail.test.sms'].with_context(**cls._test_context).create([{
+        return cls.env['mail.test.sms'].with_context(**cls._test_context).create([{
             'name': f'MassSMSTest_{x}',
             'customer_id': partner.id,
             'phone_nbr': mobile_number
-        } for x, (mobile_number, partner) in enumerate(zip(mobile_numbers, partners))])
-
-        return records
+        } for x, (mobile_number, partner) in enumerate(zip(mobile_numbers, partners, strict=True))])

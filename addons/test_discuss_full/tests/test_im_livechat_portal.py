@@ -1,4 +1,5 @@
 from odoo import Command, tests
+
 from odoo.addons.website_livechat.tests.test_chatbot_ui import TestLivechatChatbotUI
 
 

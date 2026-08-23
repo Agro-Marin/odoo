@@ -1,5 +1,5 @@
 
-from odoo import api, fields, models, _
+from odoo import api, fields, models
 from odoo.tools import email_normalize
 
 
@@ -71,13 +71,13 @@ class MailTestTicket(models.Model):
     def _creation_subtype(self):
         if self.container_id:
             return self.env.ref("test_mail.st_mail_test_ticket_container_upd")
-        return super(MailTestTicket, self)._creation_subtype()
+        return super()._creation_subtype()
 
     def _track_subtype(self, init_values):
         self.ensure_one()
         if "container_id" in init_values and self.container_id:
             return self.env.ref("test_mail.st_mail_test_ticket_container_upd")
-        return super(MailTestTicket, self)._track_subtype(init_values)
+        return super()._track_subtype(init_values)
 
     def _mail_get_customer_information(self):
         email_keys_to_values = super()._mail_get_customer_information()
