@@ -5,4 +5,5 @@ from . import test_l10n_in_fiscal_position
 from . import test_check_status
 from . import test_tds_tcs_alert
 from . import test_gstr_section
+from . import test_marin_gstr_section_on_create
 from . import test_invoice_label

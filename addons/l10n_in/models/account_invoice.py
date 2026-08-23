@@ -721,14 +721,16 @@ class AccountMove(models.Model):
 
     def _get_sync_stack(self, container):
         stack, update_containers = super()._get_sync_stack(container)
-        _tax_container, invoice_container, misc_container = update_containers()
-        moves = invoice_container['records'] + misc_container['records']
-        stack.append((9, self._sync_l10n_in_gstr_section(moves)))
+        stack.append(self._sync_l10n_in_gstr_section(update_containers))
         return stack, update_containers
 
     @contextmanager
-    def _sync_l10n_in_gstr_section(self, moves):
+    def _sync_l10n_in_gstr_section(self, update_containers):
         yield
+        # the containers are re-pointed while the sync runs, so they can only be read
+        # here: on create they are still empty when the stack is built
+        _tax_container, invoice_container, misc_container = update_containers()
+        moves = invoice_container['records'] + misc_container['records']
         tax_tags_dict = self.env['account.move.line']._get_l10n_in_tax_tag_ids()
         # we set the section on the invoice lines
         moves.line_ids._set_l10n_in_gstr_section(tax_tags_dict)
