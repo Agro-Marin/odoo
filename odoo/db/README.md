@@ -83,10 +83,16 @@ carry the detailed invariants — this file is the map.
   borrow-wait histogram — used to run *after* the `except` that releases, so
   anything raising there burned a permit and leaked the connection for the life
   of the process; `maxconn` such failures leave every later borrow timing out on
-  "connection budget reached" with no way back. That is not hypothetical
-  bookkeeping: `_warn_about_leaks` reads `tools.config["db_leak_detection"]` on
-  every borrow, and this package is documented below as importable without
-  `odoo.init`, where that key need not exist. Pinned in
+  "connection budget reached" with no way back. **No reachable trigger is known**
+  — an earlier revision of this note claimed one, that `_warn_about_leaks` reads
+  `tools.config["db_leak_detection"]` on every borrow and the option might be
+  unregistered outside `odoo.init`; re-checked, `configmanager` registers every
+  `db_*` option at import and it resolves to its default with no `parse_config`
+  at all. The `KeyError` that killed a `maxconn=4` pool in four borrows was an
+  injected demonstration of the mechanism, not an incident. The guard is kept on
+  its own terms: it costs nothing, the failure it prevents is unrecoverable
+  without a restart, and "nothing raises here today" is not a property anyone
+  can hold still. Pinned in
   `tests/test_invariants.py::TestAFailedBorrowNeverKeepsItsPermit`, which
   asserts structurally that nothing follows the guarded block.
 - **A saturated pool names its culprits**: every borrow records the connection

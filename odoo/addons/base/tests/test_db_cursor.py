@@ -3904,19 +3904,21 @@ class TestEvaluatedCodeKeepsItsDatabaseErrorClass(common.TransactionCase):
 
     def _duplicate_xmlid_action(self):
         model = self.env["ir.model"].search([("model", "=", "res.partner")], limit=1)
-        return self.env["ir.actions.server"].create({
-            "name": "duplicate xmlid",
-            "model_id": model.id,
-            "state": "code",
-            "code": (
-                "env['ir.model.data'].create({'module':'_t','name':'dup',"
-                "'model':'res.partner','res_id':1})\n"
-                "env.cr.flush()\n"
-                "env['ir.model.data'].create({'module':'_t','name':'dup',"
-                "'model':'res.partner','res_id':1})\n"
-                "env.cr.flush()\n"
-            ),
-        })
+        return self.env["ir.actions.server"].create(
+            {
+                "name": "duplicate xmlid",
+                "model_id": model.id,
+                "state": "code",
+                "code": (
+                    "env['ir.model.data'].create({'module':'_t','name':'dup',"
+                    "'model':'res.partner','res_id':1})\n"
+                    "env.cr.flush()\n"
+                    "env['ir.model.data'].create({'module':'_t','name':'dup',"
+                    "'model':'res.partner','res_id':1})\n"
+                    "env.cr.flush()\n"
+                ),
+            }
+        )
 
     def test_a_constraint_violated_by_a_server_action_keeps_its_class(self):
         action = self._duplicate_xmlid_action()
@@ -4045,9 +4047,7 @@ class TestFailedStatementsAreCounted(BaseCase):
     def test_a_successful_statement_counts_one(self):
         cr = self._cr()
         try:
-            self.assertEqual(
-                self._delta(cr, lambda: cr.execute("SELECT 1")), (1, 1)
-            )
+            self.assertEqual(self._delta(cr, lambda: cr.execute("SELECT 1")), (1, 1))
         finally:
             cr.rollback()
             cr.close()
@@ -4300,8 +4300,12 @@ class TestPartitionedTablesAreVisible(BaseCase):
     def _partition(self, cr, tbl):
         cr.execute(f"DROP TABLE IF EXISTS {tbl} CASCADE")
         cr.execute(f"DROP TABLE IF EXISTS {tbl}_p0 CASCADE")
-        cr.execute(f"CREATE TABLE {tbl} (id int NOT NULL, a int) PARTITION BY RANGE (id)")
-        cr.execute(f"CREATE TABLE {tbl}_p0 PARTITION OF {tbl} FOR VALUES FROM (0) TO (1000)")
+        cr.execute(
+            f"CREATE TABLE {tbl} (id int NOT NULL, a int) PARTITION BY RANGE (id)"
+        )
+        cr.execute(
+            f"CREATE TABLE {tbl}_p0 PARTITION OF {tbl} FOR VALUES FROM (0) TO (1000)"
+        )
 
     def test_a_partitioned_table_exists(self):
         tbl = "_test_partitioned"
@@ -4438,9 +4442,7 @@ class TestDdlDrainsSiblingConnections(BaseCase):
             self.assertTrue(
                 cr._schema_changed, "schema-changing DDL must arm the drain flag"
             )
-            with patch.object(
-                type(cr), "_drain_sibling_connections"
-            ) as drain:
+            with patch.object(type(cr), "_drain_sibling_connections") as drain:
                 cr.rollback()
                 drain.assert_not_called()
             self.assertFalse(
@@ -4767,6 +4769,106 @@ class TestTestCursorContainsBulkWrites(common.TransactionCase):
             ),
             0,
         )
+
+    def test_every_wire_level_write_is_marked(self):
+        """The reverse direction, which nothing checked.
+
+        `test_every_marked_entry_point_is_forwarded_by_the_wrapper` starts from
+        the methods that DO call `_before_statement()` and proves `TestCursor`
+        forwards each. A new method that puts a statement on the wire and simply
+        forgets the marker is invisible to it -- and that is the original bug:
+        the bulk APIs reached the real cursor through `__getattr__`, so their
+        writes landed outside the test's rollback savepoint and survived it.
+
+        `self._obj` is the line that matters: it is the cursor, i.e. the
+        transactional statement channel. `self._cnx` is the connection --
+        commit, rollback, DEALLOCATE -- which is not what a savepoint scopes.
+        The scan follows the `obj = self._obj` alias the hot methods use, or it
+        would see only `copy`.
+        """
+        import ast
+        import textwrap
+
+        from odoo.db import bulk
+
+        wire = {"execute", "executemany", "copy"}
+        unmarked = []
+        for owner, label in ((Cursor, "Cursor"), (bulk._BulkAccessMixin, "bulk")):
+            tree = ast.parse(textwrap.dedent(inspect.getsource(owner)))
+            for fn in ast.walk(tree):
+                if not isinstance(fn, ast.FunctionDef):
+                    continue
+                aliases = {
+                    node.targets[0].id
+                    for node in ast.walk(fn)
+                    if isinstance(node, ast.Assign)
+                    and len(node.targets) == 1
+                    and isinstance(node.targets[0], ast.Name)
+                    and isinstance(node.value, ast.Attribute)
+                    and node.value.attr == "_obj"
+                }
+                calls = [
+                    n
+                    for n in ast.walk(fn)
+                    if isinstance(n, ast.Call)
+                    and isinstance(n.func, ast.Attribute)
+                    and n.func.attr in wire
+                    and (
+                        (
+                            isinstance(n.func.value, ast.Name)
+                            and n.func.value.id in aliases
+                        )
+                        or (
+                            isinstance(n.func.value, ast.Attribute)
+                            and n.func.value.attr == "_obj"
+                        )
+                    )
+                ]
+                if not calls:
+                    continue
+                names = {
+                    x.func.attr
+                    for x in ast.walk(fn)
+                    if isinstance(x, ast.Call) and isinstance(x.func, ast.Attribute)
+                }
+                if "_before_statement" not in names:
+                    unmarked.append(f"{label}.{fn.name}")
+        self.assertEqual(
+            unmarked,
+            [],
+            "these put a statement on the wire without calling "
+            "_before_statement(), so TestCursor never opens its savepoint for "
+            "them and their writes survive the test's rollback",
+        )
+
+    def test_the_wire_scan_would_catch_an_unmarked_method(self):
+        """The scan above is only worth having if it can fail."""
+        import ast
+        import textwrap
+
+        src = textwrap.dedent(
+            "class X:\n"
+            "    def sneaky(self, q):\n"
+            "        obj = self._obj\n"
+            "        obj.execute(q)\n"
+        )
+        fn = next(n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.FunctionDef))
+        aliases = {
+            node.targets[0].id
+            for node in ast.walk(fn)
+            if isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and isinstance(node.value, ast.Attribute)
+            and node.value.attr == "_obj"
+        }
+        self.assertEqual(aliases, {"obj"}, "the alias walk is what makes it work")
+        names = {
+            x.func.attr
+            for x in ast.walk(fn)
+            if isinstance(x, ast.Call) and isinstance(x.func, ast.Attribute)
+        }
+        self.assertNotIn("_before_statement", names)
 
     def test_every_marked_entry_point_is_forwarded_by_the_wrapper(self):
         marked = {
@@ -5114,9 +5216,7 @@ class TestSavepointRollbackDropsRefilledRegistryCaches(BaseCase):
         except _Abort:
             pass
 
-        cr.execute(
-            "SELECT value FROM ir_config_parameter WHERE key = %s", (self.KEY,)
-        )
+        cr.execute("SELECT value FROM ir_config_parameter WHERE key = %s", (self.KEY,))
         row = cr.fetchone()
         self.assertEqual(row[0], "committed", "sanity: the row rolled back")
         self.assertEqual(

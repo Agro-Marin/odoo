@@ -198,5 +198,40 @@ def test_probe_outcomes_are_named_not_spelled():
         raise AssertionError("an unknown probe outcome must not silently vanish")
 
 
+def test_the_process_wide_sql_counter_is_not_lost():
+    """`sql_counter` is a module global that every cursor in the process
+    increments with `+=`, which is a non-atomic read-modify-write.
+
+    Under the GIL this holds today -- measured, 0 lost of 160000 across 8
+    threads -- so nothing is locked for it: a lock on `_record_metrics` is a
+    lock on the hottest path in core, and it would buy nothing measurable. What
+    this test buys is that the free-threading lane can SEE it: `odoo/db/**` is
+    in `freethreading.yml`'s paths and this file is the suite it runs, so if the
+    GIL goes away the answer changes here rather than silently in production
+    query counts.
+
+    `sql_log_count` is per-cursor and a cursor belongs to one thread, so it is
+    only checked for company.
+    """
+    from odoo.db import metrics
+
+    class _Host(metrics._MetricsMixin):
+        def __init__(self):
+            self._init_metrics_state()
+            self._thread = threading.current_thread()
+
+    host = _Host()
+    before = metrics.sql_counter
+    _hammer(lambda: host._record_metrics(0.0))
+    assert metrics.sql_counter - before == EXPECTED, (
+        f"lost {EXPECTED - (metrics.sql_counter - before)} of {EXPECTED} "
+        f"increments to the process-wide sql_counter. Every query-count "
+        f"measurement in the framework reads it -- odoo/tests/result.py, "
+        f"modules/loading.py, service/lifecycle.py -- so a lost increment is a "
+        f"query nobody was charged for."
+    )
+    assert host.sql_log_count == EXPECTED
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
