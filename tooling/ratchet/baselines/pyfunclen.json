@@ -1,4 +1,4 @@
 {
-  "count": 4042,
-  "note": "ir_model_data._process_end and _auto_init each gain a guard against judging removed schema from a partial registry: a -u of one module reflects only that module, so a constraint or column another module declares looks deleted. +3 excess lines, comments carrying the measured cost (39 indexes, 43 constraints per -u base)."
+  "count": 3574,
+  "note": "Merge of 19.0-marin with origin/19.0-marin: 3929 -> 3574 excess lines over the 80-line ceiling. The two parents split different long functions -- this branch the mrp/stock models, origin the base and orm ones -- so the composition carries both reductions. Neither parent's committed floor (3929 here, 4042 on origin) measures the merged tree."
 }
