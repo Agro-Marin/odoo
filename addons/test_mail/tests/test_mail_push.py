@@ -1178,23 +1178,30 @@ class TestWebPushNotification(SMSCommon):
         base_payload_size = len(base_payload)
         encryption_overhead = ENCRYPTION_HEADER_SIZE + ENCRYPTION_BLOCK_OVERHEAD
 
-        body = "BØDY"
+        # The overflow is taken out of the LONGEST field, so the body has to be
+        # the longest one for this to exercise UTF-8 truncation at all. A
+        # realistic title ("<author>: <record name>") escapes to more characters
+        # than "BØDY" alone, and would be the field trimmed instead -- which is
+        # correct behaviour (see TestWebPushPayloadBudget) but says nothing
+        # about multi-byte boundaries. The padding buys that, and nothing else.
+        pad = "X" * 40
+        body = pad + "BØDY"
         body_json = json.dumps(body)[1:-1]
         for size_limit, expected_body in (
             [
-                (base_payload_size + len(body_json), "BØDY"),
-                (base_payload_size + len(body_json) - 1, "BØD"),
-                (base_payload_size + len(body_json) - 2, "BØ"),
+                (base_payload_size + len(body_json), pad + "BØDY"),
+                (base_payload_size + len(body_json) - 1, pad + "BØD"),
+                (base_payload_size + len(body_json) - 2, pad + "BØ"),
             ]
             + [  # truncating anywhere in \u00d8 (Ø) should truncate to the nearest full character (B)
-                (base_payload_size + len(body_json) - n, "B") for n in range(3, 9)
+                (base_payload_size + len(body_json) - n, pad + "B") for n in range(3, 9)
             ]
             + [
-                (base_payload_size + len(body_json) - 9, ""),
+                (base_payload_size + len(body_json) - 9, pad),
                 (
                     base_payload_size + len(body_json) - 10,
-                    "",
-                ),  # should still work even if it would still be too big after truncate
+                    pad[:-1],
+                ),  # the body keeps giving once the multi-byte tail is gone
             ]
         ):
             with (
@@ -1231,9 +1238,13 @@ class TestWebPushNotification(SMSCommon):
                 self.assertEqual(
                     json.loads(payload_at_push)["options"]["body"], expected_body
                 )
-                if not expected_body:
-                    self.assertEqual(
-                        payload_before_encrypt,
-                        base_payload,
-                        "Only the contents of the body should be truncated, not the rest of the payload.",
-                    )
+                self.assertLessEqual(
+                    len(payload_before_encrypt),
+                    size_limit,
+                    "a trimmed payload must fit the budget it was trimmed for",
+                )
+                self.assertEqual(
+                    json.loads(payload_at_push)["title"],
+                    json.loads(base_payload.decode())["title"],
+                    "the body is the longest field here, so the title is untouched",
+                )

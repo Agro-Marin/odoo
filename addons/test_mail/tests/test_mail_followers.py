@@ -2230,7 +2230,7 @@ class UnfollowLinkTest(MailCommon, HttpCase):
             ("token", "0000000000000000000000000000000000000000"),
             ("model", "mail.test.gateway"),
             ("res_id", self.test_record_copy.id),
-            ("partner_id", self.partner_admin.id),
+            ("pid", self.partner_admin.id),
         ):
             with self.subTest(f"Tampered {param}"):
                 tampered_unfollow_url = self._url_update_query_parameters(
