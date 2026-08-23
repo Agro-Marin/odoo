@@ -1132,8 +1132,8 @@ Three checks when renaming ``[review]``:
 2.4.5 Converters
 ~~~~~~~~~~~~~~~~
 
-**``X_to_Y`` is the converter idiom, and ``to`` is the verb** ``[review]``. **100**
-definitions under **53** names are spelled that way and most are right: the name
+**``X_to_Y`` is the converter idiom, and ``to`` is the verb** ``[review]``. **101**
+definitions under **54** names are spelled that way and most are right: the name
 is the pair of representations, and it buys the searchable families ``_str_to_*``
 and ``_*_to_sql``. **``Y_from_X`` is the same idiom spelled backwards**, and
 almost every ``_from_`` name is innocent -- the verb leads and *from X* is a source
@@ -1406,7 +1406,7 @@ among them have been renamed to ``_get_``. Split by what the body does, the **28
 * **23** do something else entirely, and the verb flatters them
   (``_find_available_name`` appends ``(2)``, ``(3)`` until unused: a derivation).
 
-The third kind is gone. **The canonical is ``_get_or_create_*``**: **0** methods
+The third kind is gone. **The canonical is ``_get_or_create_*``**: **1** methods
 here still spell it ``_find_``, against **18** spelling it ``_get_``. ``_find_``
 is not in the abolished table, because classification needs the body: a pass keyed
 on the name scored both survivors as pure reads, and a check for ``create`` /
@@ -1484,7 +1484,7 @@ cleared; it is ``_sync_path_reservations``. Its own test was named
 ``test_the_reservation_follows_the_path``: **where a test and the method it covers
 disagree about what the operation is, prefer the test's word.**
 
-**``_post_`` is overloaded** ``[review]``. 106 definitions carry three unrelated
+**``_post_`` is overloaded** ``[review]``. 110 definitions carry three unrelated
 meanings -- ``account.move._post`` (accounting), ``message_post`` (mail) and HTTP
 handlers. Do not add a fourth: new code names the domain operation. The existing
 three are load-bearing.
