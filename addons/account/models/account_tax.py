@@ -699,7 +699,12 @@ class AccountTax(models.Model):
         return by_kind
 
     def _add_accounting_data_to_base_line_tax_details(
-        self, base_line, company, include_caba_tags=False, repartition_cache=None
+        self,
+        base_line,
+        company,
+        include_caba_tags=False,
+        repartition_cache=None,
+        rounded=True,
     ):
         is_refund = base_line["is_refund"]
         product = base_line["product_id"]
@@ -736,6 +741,7 @@ class AccountTax(models.Model):
                 tax_rep_sign,
                 company,
                 include_caba_tags=include_caba_tags,
+                rounded=rounded,
             )
 
         self._add_tax_repartition_tags_and_grouping_keys(
@@ -753,24 +759,28 @@ class AccountTax(models.Model):
         tax_rep_sign,
         company,
         include_caba_tags=False,
+        rounded=True,
     ):
+        # `rounded` says whether _round_base_lines_tax_details has already run over
+        # `tax_data`. It has to be told: before that pass tax_amount still holds the
+        # foreign-currency figure the computation produced, and the rounded
+        # *_currency keys do not exist at all.
         currency = base_line["currency_id"]
         company_currency = company.currency_id
-        use_raw = bool(self.env.context.get("compute_all_use_raw_base_lines"))
+        amount_prefix = "" if rounded else "raw_"
+        tax_amount_currency = tax_data[f"{amount_prefix}tax_amount_currency"]
+        tax_amount = tax_data[f"{amount_prefix}tax_amount"]
 
         total_tax_rep_amounts = {"tax_amount_currency": 0.0, "tax_amount": 0.0}
         tax_reps_data = tax_data["tax_reps_data"] = []
         for tax_rep in tax_reps:
-            tax_amount_currency = tax_data.get(
-                "raw_tax_amount_currency" if use_raw else "tax_amount_currency"
-            )
             tax_rep_data = {
                 "tax_rep": tax_rep,
                 "tax_amount_currency": currency.round(
                     tax_amount_currency * tax_rep.factor * tax_rep_sign
                 ),
                 "tax_amount": company_currency.round(
-                    tax_data["tax_amount"] * tax_rep.factor * tax_rep_sign
+                    tax_amount * tax_rep.factor * tax_rep_sign
                 ),
                 "account": tax_rep._get_aml_target_tax_account(
                     force_caba_exigibility=include_caba_tags
@@ -795,14 +805,20 @@ class AccountTax(models.Model):
             ("", company_currency),
         ):
             field = f"tax_amount{delta_suffix}"
-            tax_amount = tax_data.get(f"raw_{field}" if use_raw else field)
+            # Round the target before measuring the delta. On the unrounded path it is
+            # a raw figure, and the gap between a value and its own rounding is by
+            # definition under half a unit -- distributing that at unit precision can
+            # only yield 0 or +/-1 unit, so at the exact half it drags a correctly
+            # rounded seed a unit off. Rounded targets are already at this precision,
+            # so this is a no-op for them.
+            target_amount = delta_currency.round(tax_data[f"{amount_prefix}{field}"])
             target_factors = [
                 {"factor": tax_rep_data[field], "tax_rep_data": tax_rep_data}
                 for tax_rep_data in sorted_tax_reps_data
             ]
             amounts_to_distribute = self._distribute_delta_amount_smoothly(
                 precision_digits=delta_currency.decimal_places,
-                delta_amount=tax_amount - total_tax_rep_amounts[field],
+                delta_amount=target_amount - total_tax_rep_amounts[field],
                 target_factors=target_factors,
             )
             for target_factor, amount_to_distribute in zip(
@@ -847,7 +863,7 @@ class AccountTax(models.Model):
                 )["base"].tag_ids
 
     def _add_accounting_data_in_base_lines_tax_details(
-        self, base_lines, company, include_caba_tags=False
+        self, base_lines, company, include_caba_tags=False, rounded=True
     ):
         repartition_cache = {}
         for base_line in base_lines:
@@ -856,6 +872,7 @@ class AccountTax(models.Model):
                 company,
                 include_caba_tags=include_caba_tags,
                 repartition_cache=repartition_cache,
+                rounded=rounded,
             )
 
 
@@ -1000,14 +1017,14 @@ class AccountTax(models.Model):
                     agg_taxes_data[tax] = dict(tax_data)
         results["taxes_data"] = list(agg_taxes_data.values())
 
-        taxes_data_in_2 = {tax_data["tax"] for tax_data in tax_details_2["taxes_data"]}
-        not_discountable_taxes_data = {
+        taxes_in_2 = {tax_data["tax"] for tax_data in tax_details_2["taxes_data"]}
+        taxes_only_in_1 = {
             tax_data["tax"]
             for tax_data in tax_details_1["taxes_data"]
-            if tax_data["tax"] not in taxes_data_in_2
+            if tax_data["tax"] not in taxes_in_2
         }
         for tax_data in results["taxes_data"]:
-            if tax_data["tax"] in not_discountable_taxes_data:
+            if tax_data["tax"] in taxes_only_in_1:
                 for suffix in ("_currency", ""):
                     for prefix in ("raw_", ""):
                         tax_data[f"{prefix}base_amount{suffix}"] += tax_details_2[
@@ -1927,7 +1944,6 @@ class AccountTax(models.Model):
     @api.model
     def _match_returns_to_positive_lines(self, plus_base_lines, neg_base_lines):
         target_factors_per_neg_base_line = [[] for _neg in neg_base_lines]
-        target_factors_per_neg_base_line = [[] for _neg in neg_base_lines]
 
         iter_plus_base_lines = iter(plus_base_lines)
         plus_base_line = next(iter_plus_base_lines, None)
@@ -2095,12 +2111,12 @@ class AccountTax(models.Model):
         in_foreign_currency=True,
         precision_digits=None,
     ):
-        if (
-            precision_digits
+        if not raw_gross_total_excluded or (
+            precision_digits is not None
             and float_is_zero(
                 raw_gross_total_excluded, precision_digits=precision_digits
             )
-        ) or not raw_gross_total_excluded:
+        ):
             if in_foreign_currency:
                 raw_gross_price_unit = base_line["price_unit"]
             elif base_line["rate"]:
@@ -2551,10 +2567,8 @@ class AccountTax(models.Model):
         self._add_tax_details_in_base_line(
             base_line, company, rounding_method=rounding_method
         )
-        self.with_context(
-            compute_all_use_raw_base_lines=True,
-        )._add_accounting_data_to_base_line_tax_details(
-            base_line, company, include_caba_tags=include_caba_tags
+        self._add_accounting_data_to_base_line_tax_details(
+            base_line, company, include_caba_tags=include_caba_tags, rounded=False
         )
 
         tax_details = base_line["tax_details"]

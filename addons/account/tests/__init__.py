@@ -40,6 +40,7 @@ from . import test_taxes_tax_totals_summary
 from . import test_taxes_global_discount
 from . import test_taxes_downpayment
 from . import test_taxes_dispatching_base_lines
+from . import test_taxes_repartition_amounts
 from . import test_invoice_taxes
 from . import test_account_move_send
 from . import test_account_all_l10n
