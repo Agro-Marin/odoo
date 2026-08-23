@@ -48,7 +48,21 @@ class CopyMixin(_ModelStubs):
         fields_to_copy = {
             name: field
             for name, field in self._fields.items()
-            if field.copy and name not in default and name not in blacklist
+            if field.copy
+            and name not in default
+            and name not in blacklist
+            # A field the caller may not read is left to its default on the
+            # copy instead of raising.  Reading it here would break `copy()`
+            # for every user outside the group -- 107 stored, copied fields
+            # carry `groups` in this workspace, `ir.attachment.access_token`
+            # and `product.template`'s approval flags among them, so an
+            # inventory user duplicating a product hit `AccessError` on a
+            # field they never asked about.  Copying it under `sudo` is not
+            # the alternative: `copy_data` is public and RPC-reachable, so it
+            # would hand the caller the very value the group hides.  The
+            # many2many branch below already drops unreadable records the same
+            # way.
+            and self._has_field_access(field, "read")
         }
 
         seen_map = self.env.context["__copy_data_seen"]

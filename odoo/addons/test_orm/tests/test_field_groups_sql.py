@@ -121,3 +121,44 @@ class TestFieldGroupsInSql(TransactionCase):
         )
         model.search([("g_a_restricted", "=", 42)])
         model._read_group([], ["g_a_restricted"], ["__count"])
+
+    def test_copy_data_leaves_out_a_field_the_caller_cannot_read(self):
+        """Duplicating a record must not require reading what the group hides.
+
+        `copy_data` reads every copyable field off the source record, so a
+        stored, copied field carrying `groups` used to raise `AccessError` for
+        anyone outside that group -- for a field the caller never named, on an
+        operation they are otherwise allowed to perform. 107 fields in this
+        workspace are stored, copied and group-restricted,
+        `ir.attachment.access_token` among them, so this reached far past the
+        model under test here.
+
+        The field is left out of the vals rather than read under `sudo`:
+        `copy_data` is a public, RPC-reachable method, and putting the value in
+        what it returns would hand the caller exactly what the group hides. The
+        copy therefore gets the field's default, which is what the many2many
+        branch of the same method has always done with records the caller
+        cannot read.
+        """
+        source = self.env["test_orm.model.some_access"].create({"a": 42, "d": 7})
+        as_probe = source.with_user(self.probe_user)
+        self.assertFalse(
+            as_probe._has_field_access(as_probe._fields["d"], "read"),
+            "the probe user must not be able to read `d` for this to mean anything",
+        )
+
+        [vals] = as_probe.copy_data()
+
+        self.assertEqual(vals.get("a"), 42, "an accessible field must still be copied")
+        self.assertNotIn(
+            "d",
+            vals,
+            "a field the caller cannot read must not be copied, and must not "
+            "be returned to them either",
+        )
+
+    def test_copy_data_keeps_a_restricted_field_for_someone_who_may_read_it(self):
+        manager = self._create_user("erp_manager_copy", ["base.group_erp_manager"])
+        source = self.env["test_orm.model.some_access"].create({"a": 42, "d": 7})
+        [vals] = source.with_user(manager).copy_data()
+        self.assertEqual(vals.get("d"), 7, "the group's own members must still copy it")
