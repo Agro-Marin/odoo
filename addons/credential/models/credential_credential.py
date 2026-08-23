@@ -72,7 +72,7 @@ CATEGORY_REQUIRED_FIELDS = {
 
 class CredentialCredential(models.Model):
     _name = "credential.credential"
-    _inherit = "encryption.mixin"
+    _inherit = "mixin.encryption"
     _description = "Credential"
     _order = "company_id, sequence, name"
     _rec_name = "name"

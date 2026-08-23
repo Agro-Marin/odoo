@@ -43,14 +43,14 @@ FORBIDDEN_ON_THE_GATE = (
 @tagged("post_install", "-at_install")
 class TestGateMixinBoundary(TransactionCase):
     def test_the_gate_exists_and_inbound_inherits_it(self):
-        self.assertIn("inbound.gate.mixin", self.env)
-        self.assertIn("credential.auth.mixin", self.env)
+        self.assertIn("mixin.inbound.gate", self.env)
+        self.assertIn("mixin.credential.auth", self.env)
         inbound = self.env["api.endpoint.inbound"]
         for field in (*IDENTITY_FIELDS, *INBOUND_ONLY_FIELDS):
             self.assertIn(field, inbound._fields, field)
 
     def test_the_gate_carries_only_identity_and_admission(self):
-        gate_fields = set(self.env["inbound.gate.mixin"]._fields)
+        gate_fields = set(self.env["mixin.inbound.gate"]._fields)
         leaked = sorted(set(FORBIDDEN_ON_THE_GATE) & gate_fields)
         self.assertFalse(
             leaked,
@@ -67,18 +67,18 @@ class TestGateMixinBoundary(TransactionCase):
             leaked,
             f"api.endpoint.outbound acquired {leaked}. An outbound endpoint is "
             f"the caller: it has no allowlist to enforce, no replay window and "
-            f"no payload to cap. This is what `api.channel.mixin` inheriting "
-            f"the gate instead of `credential.auth.mixin` would look like.",
+            f"no payload to cap. This is what `mixin.api.channel` inheriting "
+            f"the gate instead of `mixin.credential.auth` would look like.",
         )
 
     def test_admission_is_declared_once_on_the_shared_ancestor(self):
-        ancestor = set(self.env["credential.auth.mixin"]._fields)
+        ancestor = set(self.env["mixin.credential.auth"]._fields)
         for field in SHARED_ADMISSION_FIELDS:
             self.assertIn(
                 field,
                 ancestor,
                 f"{field} is spent by an inbound gate and an outbound caller "
-                f"alike, so it belongs on credential.auth.mixin. Declaring it on "
+                f"alike, so it belongs on mixin.credential.auth. Declaring it on "
                 f"both mixins is what it looked like before, and api.endpoint."
                 f"inbound inherited both copies.",
             )
@@ -112,7 +112,7 @@ class TestGateMixinBoundary(TransactionCase):
                 field,
                 outbound_fields,
                 f"{field} is identity, which both directions need — it belongs "
-                f"on credential.auth.mixin, not on the gate",
+                f"on mixin.credential.auth, not on the gate",
             )
 
 

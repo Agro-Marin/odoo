@@ -13,7 +13,7 @@ _logger = logging.getLogger(__name__)
 
 class ApiEndpointOutbound(models.Model):
     _name = "api.endpoint.outbound"
-    _inherit = ["api.channel.mixin"]
+    _inherit = ["mixin.api.channel"]
     _description = "Outbound Endpoint"
     _api_event_direction = "outbound"
     _order = "sequence, name"

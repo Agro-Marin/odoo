@@ -181,7 +181,7 @@ def get_webhook_request_payload():
 
 class BaseAutomation(models.Model):
     _name = "base.automation"
-    _inherit = ["mixin.mail.thread", "mixin.mail.activity", "inbound.gate.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity", "mixin.inbound.gate"]
     _description = "Automation Rule"
     _order = "sequence, id"
 
@@ -289,7 +289,7 @@ class BaseAutomation(models.Model):
     # onto the shared gate by ADR-0017).
     #
     # The bare /web/hook/<uuid> endpoint authenticates only by the unguessable
-    # UUID; the `inbound.gate.mixin` fields add real request authentication and
+    # UUID; the `mixin.inbound.gate` fields add real request authentication and
     # abuse protection. Eleven `webhook_`-prefixed fields used to be declared
     # here, spelling the same things `api.endpoint.inbound` spelled without the
     # prefix -- one vocabulary for a rule and another for a record, and with
@@ -1141,7 +1141,7 @@ class BaseAutomation(models.Model):
         gate's fields; with the defaults this is a no-op and the endpoint keeps
         its historical UUID-only behaviour.
 
-        The checks are `inbound.gate.mixin._check_inbound_request` (ADR-0017),
+        The checks are `mixin.inbound.gate._check_inbound_request` (ADR-0017),
         the same ones every other inbound mechanism in the fork runs. This method
         stays as the name the controller and the tests already call.
 

@@ -205,7 +205,7 @@ class TestRotationMigrationGeneralization(TestHardeningFixesBase):
     def test_walker_discovers_consumers_not_the_mixin(self):
         models = self.env["credential.credential"]._get_encryption_migration_models()
         self.assertIn("credential.credential", models)
-        self.assertNotIn("encryption.mixin", models)
+        self.assertNotIn("mixin.encryption", models)
 
     def test_null_version_rows_are_eligible(self):
         self._grant_admin()

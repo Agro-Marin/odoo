@@ -11,7 +11,7 @@ _logger = logging.getLogger(__name__)
 
 class ApiEndpointInbound(models.AbstractModel):
     _name = "api.endpoint.inbound"
-    _inherit = ["api.channel.mixin", "inbound.gate.mixin"]
+    _inherit = ["mixin.api.channel", "mixin.inbound.gate"]
     _description = "Inbound Endpoint"
     _api_event_direction = "inbound"
 

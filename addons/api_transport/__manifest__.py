@@ -16,7 +16,7 @@ Models
 * ``api.endpoint.outbound`` -- REST and external service callers
 * ``api.event.log`` -- event log for both directions
 * ``api.response.cache`` -- outbound response cache
-* ``api.channel.mixin`` -- behaviour shared by both endpoint models
+* ``mixin.api.channel`` -- behaviour shared by both endpoint models
 
 Authentication
 --------------

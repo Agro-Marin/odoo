@@ -8,7 +8,7 @@ from odoo.tests import TransactionCase, tagged
 from odoo.tools import file_open
 
 from odoo.addons.base_encryption_mixin.models import (
-    encryption_mixin as mixin_mod,
+    mixin_encryption as mixin_mod,
 )
 
 PKCS12_PASSWORD = "example"
@@ -26,8 +26,8 @@ class TestCertificateEncryption(TransactionCase):
         )
         cls.env_patcher.start()
         cls.addClassCleanup(cls.env_patcher.stop)
-        mixin_mod.EncryptionMixin._invalidate_key_version_cache()
-        cls.addClassCleanup(mixin_mod.EncryptionMixin._invalidate_key_version_cache)
+        mixin_mod.MixinEncryption._invalidate_key_version_cache()
+        cls.addClassCleanup(mixin_mod.MixinEncryption._invalidate_key_version_cache)
 
         cls.company = cls.env.ref("base.main_company")
         with file_open(
@@ -345,7 +345,7 @@ class TestCertificateEncryption(TransactionCase):
             },
             clear=True,
         ):
-            mixin_mod.EncryptionMixin._invalidate_key_version_cache()
+            mixin_mod.MixinEncryption._invalidate_key_version_cache()
             self._rotate(key | certificate.private_key_id)
             self._rotate(certificate)
 
@@ -370,7 +370,7 @@ class TestCertificateEncryption(TransactionCase):
                 "rotation must not disturb the private key itself",
             )
 
-        mixin_mod.EncryptionMixin._invalidate_key_version_cache()
+        mixin_mod.MixinEncryption._invalidate_key_version_cache()
 
 
 @tagged("post_install", "-at_install")
@@ -381,8 +381,8 @@ class TestCertificateWithoutEncryptionKey(TransactionCase):
         cls.env_patcher = patch.dict(os.environ, {}, clear=True)
         cls.env_patcher.start()
         cls.addClassCleanup(cls.env_patcher.stop)
-        mixin_mod.EncryptionMixin._invalidate_key_version_cache()
-        cls.addClassCleanup(mixin_mod.EncryptionMixin._invalidate_key_version_cache)
+        mixin_mod.MixinEncryption._invalidate_key_version_cache()
+        cls.addClassCleanup(mixin_mod.MixinEncryption._invalidate_key_version_cache)
 
         cls.company = cls.env.ref("base.main_company")
         with file_open(
@@ -466,7 +466,7 @@ class TestCertificateWithoutEncryptionKey(TransactionCase):
 
         new_key = Fernet.generate_key().decode()
         with patch.dict(os.environ, {"ODOO_API_ENCRYPTION_KEY": new_key}, clear=True):
-            mixin_mod.EncryptionMixin._invalidate_key_version_cache()
+            mixin_mod.MixinEncryption._invalidate_key_version_cache()
             self.assertTrue(key._reencrypt_with_current_key())
             self.env.cr.flush()
 
@@ -487,4 +487,4 @@ class TestCertificateWithoutEncryptionKey(TransactionCase):
             self.assertEqual(key.password, secret)
             self.assertTrue(key._sign(b"payload"))
 
-        mixin_mod.EncryptionMixin._invalidate_key_version_cache()
+        mixin_mod.MixinEncryption._invalidate_key_version_cache()

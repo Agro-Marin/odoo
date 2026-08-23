@@ -2,9 +2,9 @@ from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
 
-class ApiChannelMixin(models.AbstractModel):
-    _name = "api.channel.mixin"
-    _inherit = ["credential.auth.mixin"]
+class MixinApiChannel(models.AbstractModel):
+    _name = "mixin.api.channel"
+    _inherit = ["mixin.credential.auth"]
     _description = "Communication Channel Mixin"
 
     name = fields.Char(
@@ -121,7 +121,7 @@ class ApiChannelMixin(models.AbstractModel):
     def _api_event_log_domain(self):
         if not self._api_event_direction:
             raise NotImplementedError(
-                f"{self._name} inherits api.channel.mixin without declaring "
+                f"{self._name} inherits mixin.api.channel without declaring "
                 "_api_event_direction, so its event log cannot be scoped",
             )
         return [

@@ -54,7 +54,7 @@ def migrate(cr, version):
     env = api.Environment(cr, SUPERUSER_ID, {})
     removed = _remove_persisted_pem_keys(env)
 
-    if not env["encryption.mixin"]._is_encryption_available():
+    if not env["mixin.encryption"]._is_encryption_available():
         _logger.info(
             "certificate: removed %d persisted private-key PEM(s); certificate "
             "and key material stays unencrypted because "
@@ -64,7 +64,7 @@ def migrate(cr, version):
         )
         return
 
-    key_version = env["encryption.mixin"]._get_current_encryption_key_version()
+    key_version = env["mixin.encryption"]._get_current_encryption_key_version()
     migrated = 0
     for spec in _MIGRATIONS:
         records = _encrypt_cleartext(env, spec)

@@ -5,7 +5,7 @@
 
 ## Context
 
-ADR-0017 consolidated inbound authentication into `inbound.gate.mixin`, shared
+ADR-0017 consolidated inbound authentication into `mixin.inbound.gate`, shared
 by `api.endpoint.inbound` and `base.automation`. Its claim that the divided
 audit trail closed was withdrawn the same day: the gate lives in
 `base_credential_manager` precisely so `base_automation` can reach it without
@@ -145,7 +145,7 @@ the ordinary success the opt-in keeps out of the table. The skip is keyed on the
   It gains no dependency.
 - A refusal costs a write. The rate-limit collapse bounds the pathological case;
   the ordinary case is bounded by refusals being rare.
-- Anything inheriting `inbound.gate.mixin` is audited from the moment it
+- Anything inheriting `mixin.inbound.gate` is audited from the moment it
   inherits, with no per-implementer work — the property that makes this a floor
   rather than a convention.
 

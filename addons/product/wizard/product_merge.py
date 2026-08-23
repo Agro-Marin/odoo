@@ -63,7 +63,7 @@ class ProductMergeWizard(models.TransientModel):
     """
 
     _name = "product.merge.wizard"
-    _inherit = ["merge.mixin"]
+    _inherit = ["mixin.merge"]
     _description = "Merge Products Wizard"
 
     # For safety: the same cap the contact merge applies, for the same reason

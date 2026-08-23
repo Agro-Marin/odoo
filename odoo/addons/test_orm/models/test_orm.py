@@ -2924,16 +2924,16 @@ class TestOrmCountLine(models.Model):
             record.stored_computed_container_id = record.container_id
 
 
-class TestOrmCountMixin(models.AbstractModel):
-    _name = "test_orm.count.mixin"
-    _description = "test_orm.count.mixin"
+class MixinTestOrmCount(models.AbstractModel):
+    _name = "mixin.test_orm.count"
+    _description = "mixin.test_orm.count"
 
     mixin_line_count = fields.Count("line_ids")
 
 
 class TestOrmCountContainer(models.Model):
     _name = "test_orm.count.container"
-    _inherit = ["test_orm.count.mixin"]
+    _inherit = ["mixin.test_orm.count"]
     _description = "test_orm.count.container"
 
     name = fields.Char()

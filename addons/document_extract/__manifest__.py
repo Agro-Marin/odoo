@@ -52,7 +52,7 @@ surcharge and total together while twenty-eight other fields came back and the
 parser reported success. Escalation is per field, so what a free strategy read
 is kept and only the gaps cost money.
 
-``document.extract.mixin``
+``mixin.document.extract``
 --------------------------
 What a record gets by inheriting it: a state, the result with its provenance,
 the fields nobody could read, a synchronous and a queued way to run, and a

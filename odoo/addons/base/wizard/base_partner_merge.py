@@ -24,7 +24,7 @@ class BasePartnerMergeLine(models.TransientModel):
 
 class BasePartnerMergeAutomaticWizard(models.TransientModel):
     _name = "base.partner.merge.automatic.wizard"
-    _inherit = ["merge.mixin"]
+    _inherit = ["mixin.merge"]
     _description = "Merge Partner Wizard"
 
     @api.model

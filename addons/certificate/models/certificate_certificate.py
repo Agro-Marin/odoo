@@ -12,7 +12,7 @@ from .certificate_key import STR_TO_HASH, _get_formatted_value
 
 class CertificateCertificate(models.Model):
     _name = "certificate.certificate"
-    _inherit = ["encryption.mixin"]
+    _inherit = ["mixin.encryption"]
     _description = "Certificate"
     _order = "date_end DESC"
     _check_company_auto = True

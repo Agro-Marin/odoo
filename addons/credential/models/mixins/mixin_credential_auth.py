@@ -9,8 +9,8 @@ from ...tools.endpoint_rate_limiter import EndpointRateLimiter
 _logger = logging.getLogger(__name__)
 
 
-class CredentialAuthMixin(models.AbstractModel):
-    _name = "credential.auth.mixin"
+class MixinCredentialAuth(models.AbstractModel):
+    _name = "mixin.credential.auth"
     _description = "Credential Authentication Mixin"
 
     rate_limit_enabled = fields.Boolean(

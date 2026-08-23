@@ -143,7 +143,7 @@ evidence: a webhook that dies at 100 authenticated calls an hour, a
 divided audit trail. Independent implementations of one security check do not
 stay in step; two of the three had already drifted before anyone compared them.
 
-**Fold the configuration surface into `api.channel.mixin`** — the option the
+**Fold the configuration surface into `mixin.api.channel`** — the option the
 first draft rejected, correctly. That mixin held 18 fields when measured on
 2026-08-14; inheriting it would put credentials, retry policy, `code`,
 `sequence`, `description`, `date_last_activity` and a *required* `name` onto
@@ -225,18 +225,18 @@ is designed yet, and this record does not decide it.
 The 2026-08-12 record decided "keep both, share nothing further" at `Accepted`.
 Revised rather than superseded because it was still a working draft. It sat at
 `Proposed` while the gate did not exist and returned to `Accepted` the same day
-once it did: `credential.auth.mixin` and `inbound.gate.mixin` are in
+once it did: `mixin.credential.auth` and `mixin.inbound.gate` are in
 `base_credential_manager`, `api.endpoint.inbound` and `base.automation` both
 inherit the gate, and the `webhook_`-prefixed field set is gone from
 `base.automation` bar a deprecated alias for each.
 
 Two things found in the building:
 
-- **The gate had to be two mixins, not one.** `api.channel.mixin` also backs
+- **The gate had to be two mixins, not one.** `mixin.api.channel` also backs
   `api.endpoint.outbound`, so a single gate would have put the allowlist, the
   replay window and the payload cap onto every *outbound* endpoint — the
-  pollution the first draft refused. Identity is `credential.auth.mixin` (both
-  directions authenticate something); admission is `inbound.gate.mixin` (only a
+  pollution the first draft refused. Identity is `mixin.credential.auth` (both
+  directions authenticate something); admission is `mixin.inbound.gate` (only a
   callee admits).
 - **`none` meant two different things.** `base_automation` read it as "no
   authentication configured", its documented default; `verify_signature` reads
@@ -252,7 +252,7 @@ What changed:
   split by concern. The rule-versus-record distinction is kept verbatim.
 - The **Alternatives** rejected one shared mixin on the ground that it would put
   the whole channel vocabulary onto every automation rule. Still true of
-  `api.channel.mixin`. What it did not establish, and this revision measured, is
+  `mixin.api.channel`. What it did not establish, and this revision measured, is
   that a mixin scoped to the gate carries none of those fields.
 - The **Consequences** named "teaching the webhook path to write
   `api.event.log`" as the thing to fix first if the decision were revisited. It

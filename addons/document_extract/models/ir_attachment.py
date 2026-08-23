@@ -19,7 +19,7 @@ from ..tools.source import DocumentSource
 
 class IrAttachment(models.Model):
     _name = "ir.attachment"
-    _inherit = ["ir.attachment", "document.extract.mixin"]
+    _inherit = ["ir.attachment", "mixin.document.extract"]
 
     extract_document_type = fields.Selection(
         selection="_selection_extract_document_type",

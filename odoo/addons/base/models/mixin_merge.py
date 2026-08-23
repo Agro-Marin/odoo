@@ -13,8 +13,8 @@ from odoo.tools import SQL, mute_logger
 _logger = logging.getLogger("odoo.addons.base.merge")
 
 
-class MergeMixin(models.AbstractModel):
-    _name = "merge.mixin"
+class MixinMerge(models.AbstractModel):
+    _name = "mixin.merge"
     _description = "Record Merge Engine"
 
     def _get_excluded_merge_tables(self, model: str) -> set[str]:

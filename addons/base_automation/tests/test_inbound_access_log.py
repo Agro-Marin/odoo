@@ -24,7 +24,7 @@ from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 from odoo.tools import mute_logger
 
-_GATE = "odoo.addons.credential.models.mixins.inbound_gate_mixin"
+_GATE = "odoo.addons.credential.models.mixins.mixin_inbound_gate"
 
 
 @tagged("post_install", "-at_install")

@@ -1,6 +1,6 @@
 """Carry the ``webhook_*`` gate columns over to the shared gate's names.
 
-ADR-0017 moves identity and admission onto ``inbound.gate.mixin``, which spells
+ADR-0017 moves identity and admission onto ``mixin.inbound.gate``, which spells
 these without the prefix. Renaming in ``pre-`` rather than ``post-`` for the
 reason ``api_transport``'s 19.0.1.10.0 gives: the schema update would otherwise
 create the new columns EMPTY beside the populated old ones, and every webhook
@@ -63,7 +63,7 @@ def migrate(cr, version):
     if renamed:
         _logger.info(
             "base_automation 1.3: renamed %s webhook gate column(s) onto "
-            "inbound.gate.mixin's names (ADR-0017); values preserved",
+            "mixin.inbound.gate's names (ADR-0017); values preserved",
             renamed,
         )
 

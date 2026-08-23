@@ -33,7 +33,7 @@ def _int_to_bytes(value, byteorder="big"):
 
 class CertificateKey(models.Model):
     _name = "certificate.key"
-    _inherit = ["encryption.mixin"]
+    _inherit = ["mixin.encryption"]
     _description = "Cryptographic Keys"
 
     _ENCRYPTED_FIELD_PAIRS = (

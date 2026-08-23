@@ -15,9 +15,9 @@ from ...tools.rate_limiter import get_caller_rate_limiter
 _logger = logging.getLogger(__name__)
 
 
-class InboundGateMixin(models.AbstractModel):
-    _name = "inbound.gate.mixin"
-    _inherit = ["credential.auth.mixin"]
+class MixinInboundGate(models.AbstractModel):
+    _name = "mixin.inbound.gate"
+    _inherit = ["mixin.credential.auth"]
     _description = "Inbound Request Gate Mixin"
 
     signature_header = fields.Char(

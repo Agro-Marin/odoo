@@ -1,2 +1,2 @@
-from . import credential_auth_mixin
-from . import inbound_gate_mixin
+from . import mixin_credential_auth
+from . import mixin_inbound_gate

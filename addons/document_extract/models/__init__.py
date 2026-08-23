@@ -1,2 +1,2 @@
-from . import extract_mixin
+from . import mixin_document_extract
 from . import ir_attachment

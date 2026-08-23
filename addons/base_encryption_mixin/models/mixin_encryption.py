@@ -23,8 +23,8 @@ _KEY_STATE: dict[str, Any] = {
 }
 
 
-class EncryptionMixin(models.AbstractModel):
-    _name = "encryption.mixin"
+class MixinEncryption(models.AbstractModel):
+    _name = "mixin.encryption"
     _description = "Encrypted Field Mixin"
 
     _ENCRYPTED_FIELD_PAIRS: tuple = ()
@@ -476,7 +476,7 @@ class EncryptionMixin(models.AbstractModel):
             model = self.env[name]
             if model._abstract or model._transient:
                 continue
-            if not isinstance(model, EncryptionMixin):
+            if not isinstance(model, MixinEncryption):
                 continue
             if not model._ENCRYPTED_FIELD_PAIRS:
                 continue

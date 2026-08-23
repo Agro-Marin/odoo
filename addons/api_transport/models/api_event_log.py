@@ -263,7 +263,7 @@ class ApiEventLog(models.Model):
 
     @api.model
     def _selection_channel_models(self):
-        mixin_cls = self.env.registry.get("api.channel.mixin")
+        mixin_cls = self.env.registry.get("mixin.api.channel")
         if not mixin_cls:
             return [("api.endpoint.outbound", "Outbound Service")]
 
@@ -273,7 +273,7 @@ class ApiEventLog(models.Model):
 
         while queue:
             child_name = queue.pop(0)
-            if child_name in visited or child_name == "api.channel.mixin":
+            if child_name in visited or child_name == "mixin.api.channel":
                 continue
             visited.add(child_name)
 

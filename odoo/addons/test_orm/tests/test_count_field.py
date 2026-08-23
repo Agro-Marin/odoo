@@ -272,7 +272,7 @@ class TestCountField(TransactionCase):
         self.assertEqual(container.computed_subset_line_count, expected)
 
     def test_a_mixin_may_count_a_collection_it_does_not_declare(self):
-        mixin = self.env["test_orm.count.mixin"]
+        mixin = self.env["mixin.test_orm.count"]
         self.assertTrue(mixin._abstract)
         self.assertIn("mixin_line_count", mixin._fields)
 

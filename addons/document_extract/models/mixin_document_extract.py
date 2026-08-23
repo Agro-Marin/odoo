@@ -53,8 +53,8 @@ STATES = [
 ]
 
 
-class DocumentExtractMixin(models.AbstractModel):
-    _name = "document.extract.mixin"
+class MixinDocumentExtract(models.AbstractModel):
+    _name = "mixin.document.extract"
     _description = "Document Extraction"
 
     # Which schema this model's documents follow. A model whose documents vary
@@ -207,7 +207,7 @@ class DocumentExtractMixin(models.AbstractModel):
         doc_type = self._get_extract_document_type()
         if not doc_type:
             raise ValueError(
-                f"{self._name} inherits document.extract.mixin without "
+                f"{self._name} inherits mixin.document.extract without "
                 "declaring _extract_document_type"
             )
         if doc_type not in known_schemas():
@@ -296,7 +296,7 @@ class DocumentExtractMixin(models.AbstractModel):
             if found:
                 stored = dict(record.extract_corrections or {})
                 stored.update(found)
-                super(DocumentExtractMixin, record.with_context(extracting=True)).write(
+                super(MixinDocumentExtract, record.with_context(extracting=True)).write(
                     {"extract_corrections": stored}
                 )
         return result

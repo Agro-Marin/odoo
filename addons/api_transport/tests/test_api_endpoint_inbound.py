@@ -317,7 +317,7 @@ class TestRateLimitStrictPosture(TransactionCase):
         return seen[0]
 
     def test_field_is_declared_on_the_mixin(self):
-        self.assertIn("rate_limit_strict", self.env["api.channel.mixin"]._fields)
+        self.assertIn("rate_limit_strict", self.env["mixin.api.channel"]._fields)
         self.assertIn("rate_limit_strict", self.env["api.endpoint.inbound"]._fields)
         self.assertIn("rate_limit_strict", self.env["api.endpoint.outbound"]._fields)
 
@@ -326,7 +326,7 @@ class TestRateLimitStrictPosture(TransactionCase):
         self.assertIs(defaults["rate_limit_strict"], True)
 
     def test_inbound_default_overrides_the_mixin(self):
-        mixin_defaults = self.env["api.channel.mixin"].default_get(
+        mixin_defaults = self.env["mixin.api.channel"].default_get(
             ["rate_limit_strict"]
         )
         self.assertIs(mixin_defaults["rate_limit_strict"], False)

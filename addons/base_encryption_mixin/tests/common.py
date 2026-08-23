@@ -1,6 +1,6 @@
 """A working Fernet key for any suite that touches encrypted material.
 
-Every model built on ``encryption.mixin`` refuses to store anything without
+Every model built on ``mixin.encryption`` refuses to store anything without
 ``ODOO_API_ENCRYPTION_KEY`` in the process environment -- deliberately, because the
 key must not live in the database. The consequence for tests is that a suite which
 does not provide one does not skip: it fails, once per test that stores a secret,
@@ -50,7 +50,7 @@ class EncryptionKeyCase:
             )
             # The key version is cached per process, so a suite that installs a key
             # after something already looked would otherwise keep the old answer.
-            cls.env["encryption.mixin"]._invalidate_key_version_cache()
+            cls.env["mixin.encryption"]._invalidate_key_version_cache()
             cls.addClassCleanup(
-                cls.env["encryption.mixin"]._invalidate_key_version_cache
+                cls.env["mixin.encryption"]._invalidate_key_version_cache
             )

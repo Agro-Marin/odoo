@@ -1,4 +1,4 @@
-from . import api_channel_mixin
+from . import mixin_api_channel
 from . import api_event_log
 from . import api_endpoint_inbound
 from . import api_endpoint_outbound

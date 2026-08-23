@@ -8,7 +8,7 @@
 Encrypted Field Mixin
 =====================
 
-``encryption.mixin`` encrypts named fields at rest with Fernet (AES-128), keyed
+``mixin.encryption`` encrypts named fields at rest with Fernet (AES-128), keyed
 from the ``ODOO_API_ENCRYPTION_KEY`` environment variable rather than from the
 database. Old keys stay readable through ``ODOO_API_ENCRYPTION_KEY_V<n>`` while
 a rotation is in flight, and ``encryption_key_version`` records which key each

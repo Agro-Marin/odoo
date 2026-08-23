@@ -27,13 +27,14 @@ class TestEncryptionMixin(TransactionCase):
         cls.env_patcher = patch.dict(os.environ, {"ODOO_API_ENCRYPTION_KEY": _KEY})
         cls.env_patcher.start()
         cls.addClassCleanup(cls.env_patcher.stop)
-        cls.mixin = cls.env["encryption.mixin"]
+        cls.mixin = cls.env["mixin.encryption"]
 
     def test_the_mixin_is_abstract_and_owns_no_table(self):
         self.assertTrue(self.mixin._abstract)
         self.env.cr.execute(
             "SELECT count(*) FROM information_schema.tables "
-            "WHERE table_schema = 'public' AND table_name = 'encryption_mixin'"
+            "WHERE table_schema = 'public' AND table_name = %s",
+            [self.mixin._name.replace(".", "_")],
         )
         self.assertEqual(self.env.cr.fetchone()[0], 0)
 
@@ -56,7 +57,7 @@ class TestEncryptionMixin(TransactionCase):
         self.assertFalse(self.mixin._encrypt_value(""))
         self.assertFalse(self.mixin._decrypt_value(b""))
 
-    @mute_logger("odoo.addons.base_encryption_mixin.models.encryption_mixin")
+    @mute_logger("odoo.addons.base_encryption_mixin.models.mixin_encryption")
     def test_a_foreign_key_cannot_read_the_token(self):
         token = self.mixin._encrypt_value("mine")
         with patch.dict(
@@ -71,7 +72,7 @@ class TestEncryptionMixin(TransactionCase):
 
     def test_the_walker_reports_consumers_never_the_mixin(self):
         discovered = self.mixin._get_encryption_migration_models()
-        self.assertNotIn("encryption.mixin", discovered)
+        self.assertNotIn("mixin.encryption", discovered)
         for name in discovered:
             self.assertFalse(
                 self.env[name]._abstract,

@@ -11,7 +11,7 @@ from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
 from odoo.addons.base_encryption_mixin.models import (
-    encryption_mixin as mixin_mod,
+    mixin_encryption as mixin_mod,
 )
 
 
@@ -307,7 +307,7 @@ class TestCredentialCredential(TransactionCase):
 
         with patch.dict(os.environ, {}, clear=True):
             with self.assertLogs(
-                "odoo.addons.base_encryption_mixin.models.encryption_mixin",
+                "odoo.addons.base_encryption_mixin.models.mixin_encryption",
                 level="WARNING",
             ) as first:
                 result = credential_model._decrypt_value(b"gAAAAA-not-a-real-token")
@@ -328,7 +328,7 @@ class TestCredentialCredential(TransactionCase):
 
             mixin_mod._KEY_STATE["missing_warning_last_at"] = latched_at - 10_000
             with self.assertLogs(
-                "odoo.addons.base_encryption_mixin.models.encryption_mixin",
+                "odoo.addons.base_encryption_mixin.models.mixin_encryption",
                 level="WARNING",
             ) as second:
                 credential_model._decrypt_value(b"gAAAAA-not-a-real-token")
