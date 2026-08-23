@@ -518,12 +518,7 @@ def _seed_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
             },
         )
         field = registry["res.users"]._fields.get("company_ids")
-        if (
-            field is not None
-            and field.type == "many2many"
-            and field.store
-            and field.relation
-        ):
+        if field is not None and field.is_many2many and field.store and field.relation:
             storage.insert_rows(
                 field.relation, [field.column1, field.column2], [(1, 1)]
             )

@@ -560,8 +560,6 @@ class CreateMixin(_ModelStubs):
 
         _fields = self._fields
         _field_inverses = self.pool.field_inverses
-        _x2m_html_types = frozenset(("one2many", "many2many", "html"))
-        _m2o_types = frozenset(("many2one", "many2one_reference"))
 
         vals_list = []
         set_vals_list = []
@@ -594,10 +592,12 @@ class CreateMixin(_ModelStubs):
         for vals, record in vals_list:
             for fname, value in vals.items():
                 field = _fields[fname]
-                if field.type not in _x2m_html_types:
+                if not (field.is_x2many or field.is_html):
                     cache_value = field.convert_to_cache(value, record)
                     field._update_cache(record, cache_value)
-                    if field.type in _m2o_types and _field_inverses[field]:
+                    if (
+                        field.is_many2one or field.is_many2one_reference
+                    ) and _field_inverses[field]:
                         inverses_update[(field, cache_value)].append(record.id)
 
         return records, inverses_update

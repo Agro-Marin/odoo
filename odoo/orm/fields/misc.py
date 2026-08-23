@@ -23,6 +23,7 @@ if typing.TYPE_CHECKING:
 
 class Boolean(Field[bool]):
     type = "boolean"
+    is_boolean = True
     cache_is_record_value = True
     cache_truthiness_matches = True
     cache_is_read_value = True

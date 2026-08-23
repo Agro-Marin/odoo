@@ -164,13 +164,13 @@ class RecomputeMixin(_ModelStubs):
             yield field, self, create
 
         for field, subtree in tree.items():
-            if create and field.type in ("many2one", "many2one_reference"):
+            if create and (field.is_many2one or field.is_many2one_reference):
                 continue
 
             model = self.env[field.model_name]
             for invf in model.pool.field_inverses[field]:
                 if not (invf.is_x2many and invf.domain):
-                    if invf.type == "many2one_reference":
+                    if invf.is_many2one_reference:
                         rec_ids = OrderedSet()
                         for rec in self:
                             try:

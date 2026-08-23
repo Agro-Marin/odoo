@@ -75,7 +75,7 @@ class SchemaMixin(_ModelStubs):
         else:
             value = None
         necessary = (
-            (value is not None) if field.type != "boolean" or field.required else value
+            (value is not None) if not field.is_boolean or field.required else value
         )
         if necessary:
             _logger.debug(

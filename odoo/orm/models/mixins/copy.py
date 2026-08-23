@@ -76,7 +76,7 @@ class CopyMixin(_ModelStubs):
             vals = default.copy()
 
             for name, field in fields_to_copy.items():
-                if field.type == "one2many":
+                if field.is_one2many:
                     lines = record[name].sorted(key="id")
                     lines = lines.filtered(
                         lambda line: line.id not in seen_map[line._name]
@@ -84,7 +84,7 @@ class CopyMixin(_ModelStubs):
                     vals[name] = [
                         Command.create(line) for line in lines.copy_data() if line
                     ]
-                elif field.type == "many2many":
+                elif field.is_many2many:
                     vals[name] = [
                         Command.set(record[name]._filtered_access("read").ids)
                     ]
@@ -116,7 +116,7 @@ class CopyMixin(_ModelStubs):
             ):
                 continue
 
-            if field.type == "one2many" and field.name not in excluded:
+            if field.is_one2many and field.name not in excluded:
                 old_lines = old[name].sorted(key="id")
                 new_lines = new[name].sorted(key="id")
                 if len(old_lines) != len(new_lines):

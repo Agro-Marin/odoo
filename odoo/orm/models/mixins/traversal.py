@@ -370,7 +370,7 @@ class TraversalMixin(_ModelStubs):
                 raise ValueError(
                     f"Invalid order on relational field {order_part!r} to sort"
                 )
-            elif field.type == "boolean":
+            elif field.is_boolean:
                 getter = field.expression_getter(field_expr)
             elif not property_name and not caches_lang_dicts(field, _env):
                 _cache_get = field._get_cache(_env).get
@@ -420,7 +420,7 @@ class TraversalMixin(_ModelStubs):
             raise ValueError(f"Invalid field_name: {field_name!r}")
 
         if not (
-            field.type in ("many2many", "many2one")
+            (field.is_many2many or field.is_many2one)
             and field.comodel_name == self._name
             and field.store
         ):
@@ -432,7 +432,7 @@ class TraversalMixin(_ModelStubs):
             return False
 
         self.flush_model([field_name])
-        if field.type == "many2many":
+        if field.is_many2many:
             assert (
                 field.relation is not None
                 and field.column1 is not None

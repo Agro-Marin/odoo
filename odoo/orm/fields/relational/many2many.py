@@ -35,6 +35,7 @@ _schema = logging.getLogger("odoo.schema")
 
 class Many2many(_RelationalMulti):
     type = "many2many"
+    is_many2many = True
 
     _explicit: bool = True
     relation: str | None = None

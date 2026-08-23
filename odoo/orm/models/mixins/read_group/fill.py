@@ -102,9 +102,7 @@ class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
         return list(result.values())
 
     def _read_group_fill_temporal_bound(self, field, granularity, days_offset, bound):
-        value = (Datetime.to_datetime if field.type == "datetime" else Date.to_date)(
-            bound
-        )
+        value = (Datetime.to_datetime if field.is_datetime else Date.to_date)(bound)
         if granularity == "hour":
             value = value.replace(minute=0, second=0, microsecond=0)
         else:

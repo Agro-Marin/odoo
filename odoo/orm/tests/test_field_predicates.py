@@ -22,6 +22,16 @@ PREDICATE_TYPES: dict[str, frozenset[str]] = {
     "is_temporal": frozenset({"date", "datetime"}),
     "is_properties": frozenset({"properties"}),
     "is_many2one": frozenset({"many2one"}),
+    "is_one2many": frozenset({"one2many"}),
+    "is_many2many": frozenset({"many2many"}),
+    "is_many2one_reference": frozenset({"many2one_reference"}),
+    "is_boolean": frozenset({"boolean"}),
+    "is_integer": frozenset({"integer"}),
+    "is_monetary": frozenset({"monetary"}),
+    "is_date": frozenset({"date"}),
+    "is_datetime": frozenset({"datetime"}),
+    "is_html": frozenset({"html"}),
+    "is_binary": frozenset({"binary"}),
 }
 
 UNCONVERTED: dict[str, str] = {}
@@ -109,6 +119,50 @@ class TestTheMigrationIsComplete(unittest.TestCase):
         )
 
 
+class TestTheDomainStubKeepsUp(unittest.TestCase):
+    """``domain/tests/test_optimize_unit.py`` restates this map, and must.
+
+    That suite is DB-free and cannot import ``odoo.orm.fields``:
+    ``fields/base.py`` imports ``odoo.orm.domain``, the package it is testing,
+    so asking the real classes there is a cycle. The copy is therefore
+    necessary -- but it silently fell behind the day a fifth predicate landed,
+    and the optimizer reached ``field.is_many2many`` on a stub that had never
+    heard of it. Read with ``ast`` rather than imported, for the same reason
+    the copy exists.
+    """
+
+    STUB = (
+        Path(__file__).resolve().parents[1]
+        / "domain"
+        / "tests"
+        / "test_optimize_unit.py"
+    )
+
+    def _stub_table(self) -> dict[str, set[str]]:
+        tree = ast.parse(self.STUB.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+            targets = [t.id for t in node.targets if isinstance(t, ast.Name)]
+            if "_PREDICATES_BY_TYPE" not in targets:
+                continue
+            table = {}
+            for key, value in zip(node.value.keys, node.value.values, strict=True):
+                table[key.value] = _string_operands(value.args[0])
+            return table
+        self.fail(f"no _PREDICATES_BY_TYPE assignment found in {self.STUB}")
+        raise AssertionError("unreachable")  # self.fail always raises
+
+    def test_the_stub_lists_every_predicate_with_the_same_types(self):
+        self.assertEqual(
+            self._stub_table(),
+            {name: set(types) for name, types in PREDICATE_TYPES.items()},
+            f"{self.STUB.name}'s _PREDICATES_BY_TYPE has drifted from "
+            f"PREDICATE_TYPES; a stub field that does not answer a predicate "
+            f"raises AttributeError from inside the optimizer",
+        )
+
+
 class TestNoFlagLeaksThroughAResetType(unittest.TestCase):
     def _resetting_classes(self):
         for type_name, cls in sorted(Field._by_type__.items()):
@@ -131,12 +185,18 @@ class TestNoFlagLeaksThroughAResetType(unittest.TestCase):
     def test_no_predicate_flag_is_inherited_across_a_reset_type(self):
         for cls, parent, type_name, parent_type in self._resetting_classes():
             for predicate, want_types in PREDICATE_TYPES.items():
+                if not getattr(parent, predicate, False):
+                    continue
+                if type_name in want_types:
+                    continue
+                # The parent claims it and the child's type is not covered, so
+                # the child has to say so. Checked on the child rather than on
+                # the parent: a parent declaring a predicate its subclasses do
+                # not share is fine -- what is not fine is the subclass staying
+                # silent about it.
                 with self.subTest(cls=cls.__name__, predicate=predicate):
-                    if not getattr(parent, predicate, False):
-                        continue
-                    self.assertIn(
-                        type_name,
-                        want_types,
+                    self.assertFalse(
+                        getattr(cls, predicate, False),
                         f"{cls.__name__} (type={type_name!r}) inherits "
                         f"{predicate} from {parent.__name__} "
                         f"(type={parent_type!r}), which is exactly the leak "

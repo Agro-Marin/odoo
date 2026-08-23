@@ -64,7 +64,7 @@ class Cache:
                 data[field] = {
                     key: {
                         Starred(id_) if id_ in dirty_ids else id_: (
-                            val if field.type != "binary" else "<binary>"
+                            val if not field.is_binary else "<binary>"
                         )
                         for id_, val in key_cache.items()
                     }
@@ -73,7 +73,7 @@ class Cache:
             else:
                 data[field] = {
                     Starred(id_) if id_ in dirty_ids else id_: (
-                        val if field.type != "binary" else "<binary>"
+                        val if not field.is_binary else "<binary>"
                     )
                     for id_, val in field_cache.items()
                 }
@@ -237,7 +237,7 @@ class Cache:
             query = Query(env, model._table, model._table_sql)
             sql_id = SQL.identifier(model._table, "id")
             sql_field = model._field_to_sql(model._table, field.name, query)
-            if field.type == "binary" and (
+            if field.is_binary and (
                 model.env.context.get("bin_size")
                 or model.env.context.get("bin_size_" + field.name)
             ):

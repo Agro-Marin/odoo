@@ -168,6 +168,11 @@ class Reference(Selection):
 
 class Many2oneReference(Integer):
     type = "many2one_reference"
+    is_many2one_reference = True
+    is_integer = False
+    """Reset: Integer declares it, and this stores an id, not a number. The
+    sites asking `is_integer` mean arithmetic -- `_increment_fields_skiplock`
+    above all, which would happily increment a foreign key."""
     # Integer declares all four; this caches an id and hands back an id, but
     # read() and the sorter treat it as a pointer, not as a number.
     cache_is_record_value = False

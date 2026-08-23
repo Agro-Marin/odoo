@@ -159,7 +159,7 @@ class ReadMixin(_ModelStubs):
 
         for name in record_fnames:
             field = _fields[name]
-            if field.type in ("properties", "many2one"):
+            if field.is_properties or field.is_many2one:
                 if field.store:
                     field.ensure_computed(self)
                 values_list = []
@@ -363,7 +363,7 @@ class ReadMixin(_ModelStubs):
             sql_terms = [SQL.identifier(self._table, "id")]
             for field in column_fields:
                 sql = self._field_to_sql(self._table, field.name, query)
-                if field.type == "binary" and (
+                if field.is_binary and (
                     context.get("bin_size") or context.get("bin_size_" + field.name)
                 ):
                     sql = SQL("pg_size_pretty(length(%s)::bigint)", sql)

@@ -48,7 +48,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
         field = self._fields[fname]
         self._check_field_access(field, "read")
         if func == "sum_currency":
-            if field.type != "monetary":
+            if not field.is_monetary:
                 raise ValueError(
                     f'Aggregator "sum_currency" only works on currency field for {fname!r}'
                 )
@@ -155,16 +155,12 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 query,
             )
 
-        elif granularity and field.type not in (
-            "datetime",
-            "date",
-            "properties",
-        ):
+        elif granularity and not (field.is_temporal or field.is_properties):
             raise ValueError(
                 f"Granularity set on a no-datetime field or property: {groupby_spec!r}"
             )
 
-        elif field.type == "many2many":
+        elif field.is_many2many:
             if field.related and not field.store:
                 access_model, field, alias = self._traverse_related_sql(
                     alias, field, query
@@ -211,7 +207,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
             sql_expr = self._read_group_groupby_temporal(
                 sql_expr, field, granularity, seq_fnames, groupby_spec, alias, query
             )
-        elif field.type == "boolean":
+        elif field.is_boolean:
             sql_expr = SQL("COALESCE(%s, FALSE)", sql_expr)
         elif field.is_text:
             sql_expr = SQL("NULLIF(%s, '')", sql_expr)
@@ -256,7 +252,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 )
         elif granularity in READ_GROUP_NUMBER_GRANULARITY:
             sql_expr = field.property_to_sql(sql_expr, granularity, self, alias, query)
-        elif field.type == "datetime":
+        elif field.is_datetime:
             sql_expr = field.property_to_sql(sql_expr, "tz", self, alias, query)
 
         if granularity == "week":
@@ -276,7 +272,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 sql_expr,
             )
 
-        if field.type == "date" and granularity not in READ_GROUP_NUMBER_GRANULARITY:
+        if field.is_date and granularity not in READ_GROUP_NUMBER_GRANULARITY:
             sql_expr = SQL("%s::date", sql_expr)
 
         return sql_expr

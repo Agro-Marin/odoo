@@ -276,7 +276,7 @@ class LoadMixin(_ModelStubs):
                 for index, fnames in enumerate(field_paths)
                 if (fname0 := fnames[0]) is not None
                 and fname0 in fields
-                and fields[fname0].type == "one2many"
+                and fields[fname0].is_one2many
             ]
         )
         get_nono2m_values = itemgetter_tuple(
@@ -285,7 +285,7 @@ class LoadMixin(_ModelStubs):
                 for index, fnames in enumerate(field_paths)
                 if (fname0 := fnames[0]) is None
                 or fname0 not in fields
-                or fields[fname0].type != "one2many"
+                or not fields[fname0].is_one2many
             ]
         )
 

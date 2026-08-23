@@ -196,6 +196,55 @@ class Field[T](
     ``int4`` to a float.
     """
 
+    is_one2many: bool = False
+    """Whether the field is the *many* side of a one2many/many2one pair."""
+
+    is_many2many: bool = False
+    """Whether the field is a many2many through a relation table."""
+
+    is_many2one_reference: bool = False
+    """Whether the field names one record as an id paired with a model name.
+
+    ``Many2oneReference`` only, and deliberately disjoint from
+    :attr:`is_many2one`: this is an ``Integer`` column with no foreign key, so
+    it cannot be joined or grouped like one. A site that wants "names exactly
+    one record, however it stores it" asks for both.
+    """
+
+    is_boolean: bool = False
+    """Whether the field holds a tri-state ``bool`` column."""
+
+    is_integer: bool = False
+    """Whether the field holds a plain integer.
+
+    Reset on ``Many2oneReference``, which subclasses ``Integer`` and stores an
+    id: the column is an ``int4`` but the value is a pointer, and the sites
+    asking this question mean arithmetic.
+    """
+
+    is_monetary: bool = False
+    """Whether the field holds an amount paired with a currency field."""
+
+    is_date: bool = False
+    """Whether the field holds a date with no time part."""
+
+    is_datetime: bool = False
+    """Whether the field holds a date *and* a time.
+
+    :attr:`is_temporal` is the union of this and :attr:`is_date`; both exist
+    because most sites that branch on one need to tell them apart, and a
+    ``not is_date`` spelling of this would invert on a third temporal type.
+    """
+
+    is_html: bool = False
+    """Whether the field holds sanitised markup.
+
+    Narrower than :attr:`is_text`, which ``BaseString`` sets for ``Char`` too.
+    """
+
+    is_binary: bool = False
+    """Whether the field holds bytes, in the column or in an attachment."""
+
     is_properties: bool = False
 
     @property
@@ -707,7 +756,7 @@ class Field[T](
                 if not (field is self and not index):
                     yield tuple(field_seq)
 
-                if field.type == "one2many":
+                if field.is_one2many:
                     for inv_field in Model.pool.field_inverses[field]:
                         yield tuple(field_seq) + (inv_field,)
 

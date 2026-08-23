@@ -855,7 +855,7 @@ def _operator_hierarchy(condition, model):
         value = [v for v in value if v is not False]
     coids, other_values = partition(lambda v: isinstance(v, int), value)
     search_domain = _FALSE_DOMAIN
-    if field.type == "many2many":
+    if field.is_many2many:
         search_domain |= DomainCondition("id", "in", coids)
         coids = []
     if other_values:
@@ -1006,7 +1006,7 @@ def _canonicalize_numeric_sets(
 @nary_condition_optimization(operators=("in", "not in"))
 def _optimize_merge_set_conditions_mono_value(cls: type[DomainNary], conditions, model):
     field = conditions[0]._field(model)
-    if field.type in ("many2many", "one2many", "properties"):
+    if field.is_x2many or field.is_properties:
         return conditions
     if field.type in ("integer", "float", "monetary") and (
         field.name != "id" or model._auto

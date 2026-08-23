@@ -99,11 +99,11 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
                 return lambda value: value.day
             case "day_of_week":
                 return lambda value: value.isoweekday() % 7
-            case "hour_number" if self.type == "datetime":
+            case "hour_number" if self.is_datetime:
                 return lambda value: value.hour
-            case "minute_number" if self.type == "datetime":
+            case "minute_number" if self.is_datetime:
                 return lambda value: value.minute
-            case "second_number" if self.type == "datetime":
+            case "second_number" if self.is_datetime:
                 return lambda value: value.second
             case "hour_number" | "minute_number" | "second_number":
                 return lambda value: 0
@@ -124,7 +124,7 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
         query: Query,
     ) -> SQL:
         sql_expr = field_sql
-        if self.type == "datetime" and (tz_name := model.env.context.get("tz")):
+        if self.is_datetime and (tz_name := model.env.context.get("tz")):
             if sql_tz := _sql_timezone_name(model.env, tz_name):
                 sql_expr = SQL(
                     "timezone(%s, timezone('UTC', %s))",
@@ -157,6 +157,7 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
 
 class Date(BaseDate[date]):
     type = "date"
+    is_date = True
     cache_is_record_value = True
     cache_truthiness_matches = True
     cache_is_orderable = True
@@ -227,6 +228,7 @@ class Date(BaseDate[date]):
 
 class Datetime(BaseDate[datetime]):
     type = "datetime"
+    is_datetime = True
     cache_is_record_value = True
     cache_truthiness_matches = True
     cache_is_orderable = True

@@ -18,6 +18,31 @@ _UNSET = object()
 
 
 class _StubField:
+    _PREDICATES_BY_TYPE = {
+        "is_many2one": frozenset({"many2one"}),
+        "is_x2many": frozenset({"many2many", "one2many"}),
+        "is_temporal": frozenset({"date", "datetime"}),
+        "is_properties": frozenset({"properties"}),
+        "is_one2many": frozenset({"one2many"}),
+        "is_many2many": frozenset({"many2many"}),
+        "is_many2one_reference": frozenset({"many2one_reference"}),
+        "is_boolean": frozenset({"boolean"}),
+        "is_integer": frozenset({"integer"}),
+        "is_monetary": frozenset({"monetary"}),
+        "is_date": frozenset({"date"}),
+        "is_datetime": frozenset({"datetime"}),
+        "is_html": frozenset({"html"}),
+        "is_binary": frozenset({"binary"}),
+    }
+    """Mirrors ``PREDICATE_TYPES`` in ``orm/tests/test_field_predicates.py``.
+
+    A second copy, and deliberately so: this suite is DB-free and cannot import
+    ``odoo.orm.fields`` -- ``fields/base.py`` imports ``odoo.orm.domain``, which
+    is the package under test here, so asking the real classes would be a cycle.
+    ``TestTheDomainStubKeepsUp`` over there reads this table with ``ast`` and
+    fails when the two disagree, which is how the copy is kept honest.
+    """
+
     _FALSY_BY_TYPE = {
         "char": "",
         "text": "",
@@ -26,13 +51,6 @@ class _StubField:
         "float": 0.0,
         "monetary": 0.0,
         "boolean": False,
-    }
-
-    _PREDICATES_BY_TYPE = {
-        "is_many2one": frozenset({"many2one"}),
-        "is_x2many": frozenset({"many2many", "one2many"}),
-        "is_temporal": frozenset({"date", "datetime"}),
-        "is_properties": frozenset({"properties"}),
     }
 
     def __init__(

@@ -139,7 +139,7 @@ class _QueryMixin(_ModelStubs):
             return SQL(", ").join(terms)
 
         sql_field = self._field_to_sql(alias, field_name, query)
-        if field.type == "boolean":
+        if field.is_boolean:
             sql_field = SQL("COALESCE(%s, FALSE)", sql_field)
 
         if query._any_value_orderby:

@@ -114,7 +114,7 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
                     locale = get_lang(self.env).code
                     fmt = (
                         DEFAULT_SERVER_DATETIME_FORMAT
-                        if field.type == "datetime"
+                        if field.is_datetime
                         else DEFAULT_SERVER_DATE_FORMAT
                     )
                     interval = READ_GROUP_TIME_GRANULARITY[granularity]
@@ -132,7 +132,7 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
                     value = value.id
 
                 additional_domain: list
-                if not value and field.type == "many2many":
+                if not value and field.is_many2many:
                     additional_domain = [(field_name, "not any", [])]
                 else:
                     additional_domain = [(field_name, "=", value)]
@@ -141,7 +141,7 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
                     if value and isinstance(value, datetime.date):
                         range_start = value
                         range_end = value + interval
-                        if field.type == "datetime":
+                        if field.is_datetime:
                             assert isinstance(range_start, datetime.datetime)
                             assert isinstance(range_end, datetime.datetime)
                             tzinfo = None

@@ -918,7 +918,7 @@ class DomainCondition(Domain):
             if field.search and field.name == self.field_expr:
                 if field.related and not field.store:
                     model._check_field_access(field, "read")
-                if field.type == "boolean":
+                if field.is_boolean:
                     for opt in _OPTIMIZATIONS_FOR[level].get("boolean", ()):
                         collapsed = opt(self, model)
                         if isinstance(collapsed, DomainBool):

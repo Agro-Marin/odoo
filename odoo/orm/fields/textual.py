@@ -862,6 +862,7 @@ class Text(BaseString):
 
 class Html(BaseString):
     type = "html"
+    is_html = True
     cache_truthiness_matches = True
     """Only this one: convert_to_record wraps the value in ``Markup``, which
     compares equal to the str but is not it, and read() must hand out the

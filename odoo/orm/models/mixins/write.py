@@ -40,7 +40,7 @@ class WriteMixin(_ModelStubs):
             return False
 
         for field in fields:
-            if self._fields[field].type != "integer":
+            if not self._fields[field].is_integer:
                 raise ValueError(
                     f"_increment_fields_skiplock: field {field!r} is not an integer"
                 )

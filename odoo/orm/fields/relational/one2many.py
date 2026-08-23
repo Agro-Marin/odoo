@@ -31,6 +31,7 @@ if typing.TYPE_CHECKING:
 
 class One2many(_RelationalMulti):
     type = "one2many"
+    is_one2many = True
 
     inverse_name: str | None = None
     copy: bool = False
@@ -95,7 +96,7 @@ class One2many(_RelationalMulti):
         if self.comodel_name and self.inverse_name:
             comodel = env.registry[self.comodel_name]
             inverse_field = comodel._fields[self.inverse_name]
-            if inverse_field.type == "many2one_reference":
+            if inverse_field.is_many2one_reference:
                 return Domain(inverse_field.model_field, "=", self.model_name)
         return Domain.TRUE
 

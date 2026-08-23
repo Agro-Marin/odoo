@@ -27,6 +27,7 @@ def _is_exact_number(value) -> bool:
 
 class Integer(Field[int]):
     type = "integer"
+    is_integer = True
     _column_type = ("int4", "int4")
     falsy_value = 0
     cache_is_record_value = True
@@ -245,6 +246,7 @@ class Float(Field[float]):
 
 class Monetary(Field[float]):
     type = "monetary"
+    is_monetary = True
     cache_is_record_value = True
     cache_truthiness_matches = True
     cache_is_orderable = True

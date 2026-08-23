@@ -202,7 +202,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                 self.env[field.comodel_name], property_name
             )
 
-        return field.type == "many2many"
+        return field.is_many2many
 
     def _read_grouping_sets_dispatch_rows(
         self,
