@@ -11,6 +11,12 @@ _logger = logging.getLogger(__name__)
 
 _profile_data = threading.local()
 
+#: `profile_methods` patches the *shared* registry model class, so the wrapper
+#: is installed for every thread in the process while `_profile_data.enabled`
+#: is thread-local. A thread that is not profiling still pays the wrapper: one
+#: thread-local lookup and a branch per call. That is the cost of the design and
+#: it is why this is a development tool, not something to leave switched on.
+
 
 def _get_data():
     if not hasattr(_profile_data, "methods"):
@@ -42,7 +48,7 @@ def _wrap_method(model_name, method_name, original_method):
         thread = threading.current_thread()
 
         start_time = time.perf_counter()
-        start_queries = cr.sql_log_count if hasattr(cr, "sql_log_count") else 0
+        start_queries = getattr(cr, "sql_log_count", 0)
         start_query_time = getattr(thread, "query_time", 0.0)
 
         data.call_stack.append(0.0)
@@ -51,9 +57,7 @@ def _wrap_method(model_name, method_name, original_method):
             result = original_method(self, *args, **kwargs)
         finally:
             elapsed = time.perf_counter() - start_time
-            queries = (
-                cr.sql_log_count if hasattr(cr, "sql_log_count") else 0
-            ) - start_queries
+            queries = getattr(cr, "sql_log_count", 0) - start_queries
             query_time = getattr(thread, "query_time", 0.0) - start_query_time
 
             child_time = data.call_stack.pop()
@@ -73,7 +77,7 @@ def _wrap_method(model_name, method_name, original_method):
                     {
                         "time": elapsed * 1000,
                         "queries": queries,
-                        "records": len(self) if hasattr(self, "__len__") else 1,
+                        "records": len(self),
                     }
                 )
 

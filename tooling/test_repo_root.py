@@ -93,6 +93,7 @@ class TestEveryToolAgrees:
         ("architecture", "worker_thread_surface_check"): "REPO_ROOT",
         ("architecture", "mixin_coupling_check"): "ROOT",
         ("architecture", "libs_facade_check"): "REPO_ROOT",
+        ("architecture", "facade_surface_check"): "REPO_ROOT",
         ("architecture", "mail_hook_keyword_check"): "ROOT",
         ("architecture", "package_index_check"): "REPO_ROOT",
         ("architecture", "subsystem_map_check"): "REPO_ROOT",

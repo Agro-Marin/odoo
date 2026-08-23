@@ -1451,7 +1451,7 @@ class configmanager:
         args: list[str] | None = None,
         *,
         setup_logging: bool | None = None,
-    ) -> None:
+    ) -> optparse.Values:
         from odoo import modules
         from odoo.logutils import init_logger
 

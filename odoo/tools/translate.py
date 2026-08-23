@@ -12,8 +12,9 @@ import re
 import tarfile
 import typing
 from collections import defaultdict
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import suppress
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from itertools import batched
 from pathlib import Path
@@ -183,8 +184,19 @@ def translate_format_string_expression(term: str, callback: object) -> str | Non
 
 
 def translate_xml_node(
-    node: etree._Element, callback: object, parse: object, serialize: object
+    node: etree._Element,
+    callback: Callable[[str], str | None],
+    serialize: Callable[[etree._Element], str],
 ) -> etree._Element:
+    """Walk ``node``, handing each translatable run of markup to ``callback``.
+
+    The round-trip of a translated fragment is re-parsed with ``parse_html``,
+    deliberately and for both dialects: translators write ``<br>``, which is
+    legal HTML and not well-formed XML, so parsing the result strictly would
+    turn an ordinary translation into an ``XMLSyntaxError``. This used to take a
+    ``parse`` argument that all three call sites supplied and the body never
+    read -- an unused parameter that invited exactly the "fix" that breaks it.
+    """
 
     def nonspace(text):
         return bool(text) and not space_pattern.fullmatch(text)
@@ -308,7 +320,7 @@ MODIFIER_ATTRS = {
 }
 
 
-def xml_term_adapter(term_en: str) -> object:
+def xml_term_adapter(term_en: str) -> Callable[[str], str | None]:
     orig_node = parse_xml(f"<div>{term_en}</div>")
 
     def same_struct_iter(left, right):
@@ -357,17 +369,19 @@ def serialize_html(node: etree._Element) -> str:
     return etree.tostring(node, method="html", encoding="unicode")
 
 
-def xml_translate(callback: object, value: str | None) -> str | None:
+def _xml_translate(
+    callback: Callable[[str], str | None], value: str | None
+) -> str | None:
     if not value:
         return value
 
     try:
         root = parse_xml(value)
-        result = translate_xml_node(root, callback, parse_xml, serialize_xml)
+        result = translate_xml_node(root, callback, serialize_xml)
         return serialize_xml(result)
     except etree.ParseError:
         root = parse_html("<div>%s</div>" % value)
-        result = translate_xml_node(root, callback, parse_xml, serialize_xml)
+        result = translate_xml_node(root, callback, serialize_xml)
         return serialize_xml(result)[5:-6]
 
 
@@ -377,13 +391,15 @@ def xml_term_converter(value: str) -> str:
     return etree.tostring(root[0][0], encoding="unicode")[5:-6]
 
 
-def html_translate(callback: object, value: str | None) -> str | None:
+def _html_translate(
+    callback: Callable[[str], str | None], value: str | None
+) -> str | None:
     if not value:
         return value
 
     try:
         root = parse_html("<div>%s</div>" % value)
-        result = translate_xml_node(root, callback, parse_html, serialize_html)
+        result = translate_xml_node(root, callback, serialize_html)
         value = serialize_html(result)[5:-6].replace("\xa0", "&nbsp;")
     except ValueError:
         _logger.exception("Cannot translate malformed HTML, using source value instead")
@@ -406,16 +422,55 @@ def is_text(term: str) -> bool:
     return len(html.fromstring(f"<div>{term}</div>")) == 0
 
 
-xml_translate.get_text_content = get_text_content
-html_translate.get_text_content = get_text_content
+@dataclass(frozen=True)
+class TranslationDialect:
+    """Everything one markup language needs in order to be translated.
 
-xml_translate.term_converter = xml_term_converter
-html_translate.term_converter = html_term_converter
+    These five used to be attributes bolted onto the two translate *functions*,
+    which made the set open-ended and its members optional-by-accident:
+    ``xml_translate`` carried a ``term_adapter`` and ``html_translate`` did not,
+    and the only statement of that fact anywhere was a ``hasattr`` in the ORM's
+    translation write path. Spelled as a field with a default, the asymmetry is
+    declared rather than discovered.
 
-xml_translate.is_text = is_text
-html_translate.is_text = is_text
+    Instances are callable so that ``field.translate(callback, value)`` -- and
+    ``callable(field.translate)``, which the ORM tests to tell a dialect from a
+    plain ``translate=True`` -- keep working unchanged.
+    """
 
-xml_translate.term_adapter = xml_term_adapter
+    name: str
+    translate: Callable[[Callable[[str], str | None], str | None], str | None]
+    get_text_content: Callable[[str], str]
+    term_converter: Callable[[str], str]
+    is_text: Callable[[str], bool]
+    #: Only the XML dialect can adapt a term to a changed structure.
+    term_adapter: Callable[[str], Callable[[str], str | None]] | None = None
+
+    def __call__(
+        self, callback: Callable[[str], str | None], value: str | None
+    ) -> str | None:
+        return self.translate(callback, value)
+
+    def __repr__(self) -> str:
+        return f"<TranslationDialect {self.name}>"
+
+
+xml_translate = TranslationDialect(
+    name="xml_translate",
+    translate=_xml_translate,
+    get_text_content=get_text_content,
+    term_converter=xml_term_converter,
+    is_text=is_text,
+    term_adapter=xml_term_adapter,
+)
+
+html_translate = TranslationDialect(
+    name="html_translate",
+    translate=_html_translate,
+    get_text_content=get_text_content,
+    term_converter=html_term_converter,
+    is_text=is_text,
+)
 
 FIELD_TRANSLATE["html_translate"] = html_translate
 FIELD_TRANSLATE["xml_translate"] = xml_translate
@@ -940,9 +995,20 @@ def TranslationFileWriter(
 _writer = codecs.getwriter("utf-8")
 
 
+class _UnixDialect(csv.excel):
+    """Excel's quoting, LF line endings.
+
+    Neither stdlib dialect is this: `excel` writes CRLF, `unix` quotes every
+    field. It is ours, so it lives with its one caller rather than in the
+    stdlib registry under a global name.
+    """
+
+    lineterminator = "\n"
+
+
 class CSVFileWriter:
     def __init__(self, target: object) -> None:
-        self.writer = csv.writer(_writer(target), dialect="UNIX")
+        self.writer = csv.writer(_writer(target), dialect=_UnixDialect)
         self.writer.writerow(
             ("module", "type", "name", "res_id", "src", "value", "comments")
         )

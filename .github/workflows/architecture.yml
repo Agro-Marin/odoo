@@ -329,6 +329,32 @@ jobs:
           echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
+      - name: Run façade surface check
+        id: facade_surface
+        # `odoo.tools.misc` is imported by 461 files and forwards names that
+        # live in `odoo.libs`, so its surface is a contract with no owner:
+        # `__all__` states one set, the module exposes another, and a name in
+        # neither fails at *module import* -- at install, in one addon, for
+        # whoever installs it next. Nothing here could see that.
+        #
+        # Three such imports were live when this gate was written, all in
+        # enterprise and all real ImportErrors:
+        #   l10n_au_hr_payroll_api  from odoo.tools.misc import ..., itemgetter
+        #   l10n_nl_reports         from odoo.tools import zeep
+        #   l10n_se_sie_import      from odoo.tools import ..., mimetypes, ...
+        # The first sat behind an earlier `werkzeug.urls.url_join` failure in
+        # the same module, which is exactly why a static check and not an
+        # import: the addon is unimportable for an unrelated reason, and the
+        # second break would only surface once the first was fixed.
+        run: |
+          set +e
+          python tooling/architecture/facade_surface_check.py --check \
+            | tee /tmp/facade_surface.log
+          GATE_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+          exit "${GATE_EXIT}"
+
       - name: Run mail hook keyword-surface check
         id: mail_hook_keywords
         # mail is a framework, and its own suite cannot reach the addons that

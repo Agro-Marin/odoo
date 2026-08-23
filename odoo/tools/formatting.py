@@ -131,7 +131,8 @@ def format_date(
     if not date_format:
         date_format = posix_to_ldml(lang.date_format, locale=locale)
 
-    assert isinstance(value, datetime.date)
+    if not isinstance(value, datetime.date):
+        raise TypeError(f"format_date() expects a date, got {type(value).__name__}")
     return babel.dates.format_date(value, format=date_format, locale=locale)
 
 
@@ -172,7 +173,7 @@ def format_datetime(
 
     lang = get_lang(env, lang_code)
 
-    locale = babel_locale_parse(lang.code or lang_code)
+    locale = babel_locale_parse(lang.code)
     if not dt_format or dt_format == "medium":
         date_format = posix_to_ldml(lang.date_format, locale=locale)
         time_format = posix_to_ldml(lang.time_format, locale=locale)
@@ -198,7 +199,10 @@ def format_time(
             from odoo.fields import Datetime
 
             value = Datetime.from_string(value)
-        assert isinstance(value, datetime.datetime)
+        if not isinstance(value, datetime.datetime):
+            raise TypeError(
+                f"format_time() expects a datetime, got {type(value).__name__}"
+            )
         tz_name = tz or env.user.tz or "UTC"
         utc_datetime = value.replace(tzinfo=utc)
         try:
@@ -223,14 +227,12 @@ def _format_time_ago(
     lang_code: str | None = None,
     add_direction: bool = True,
 ) -> str:
-    if not lang_code:
-        langs: list[str] = [code for code, _ in env["res.lang"].get_installed()]
-        if (ctx_lang := env.context.get("lang")) in langs:
-            lang_code = ctx_lang
-        else:
-            lang_code = env.user.company_id.partner_id.lang or langs[0]
-        assert isinstance(lang_code, str)
-    locale = babel_locale_parse(lang_code)
+    # `get_lang` is the one place that resolves a language. This used to walk
+    # installed languages itself and got it subtly wrong: no `en_US` preference,
+    # no `with_context(lang="en_US")` on the company read, an IndexError with no
+    # language installed, and -- the one that showed -- no check that the
+    # company's language is installed at all before handing it to babel.
+    locale = babel_locale_parse(lang_code or get_lang(env).code)
     return babel.dates.format_timedelta(
         -time_delta, add_direction=add_direction, locale=locale
     )
@@ -270,8 +272,8 @@ def format_amount(
 
     formatted_amount = (
         format_number(fmt, currency.round(amount), lang, grouping=True)
-        .replace(r" ", "\N{NO-BREAK SPACE}")
-        .replace(r"-", "-\N{ZERO WIDTH NO-BREAK SPACE}")
+        .replace(" ", "\N{NO-BREAK SPACE}")
+        .replace("-", "-\N{ZERO WIDTH NO-BREAK SPACE}")
     )
 
     if not trailing_zeroes and currency.decimal_places:

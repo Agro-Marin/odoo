@@ -681,16 +681,11 @@ class BaseString(Field[str | typing.Literal[False]]):
             if term_text := self.get_text_content(term):
                 text2terms[term_text].append(term)
 
-        is_text = (
-            self.translate.is_text
-            if hasattr(self.translate, "is_text")
-            else lambda term: True
-        )
-        term_adapter = (
-            self.translate.term_adapter
-            if hasattr(self.translate, "term_adapter")
-            else None
-        )
+        # `self.translate` is a TranslationDialect for a markup field, and a
+        # bare callable for a field that supplied its own translate function.
+        # Only the dialect declares these, and only the XML one has an adapter.
+        is_text = getattr(self.translate, "is_text", None) or (lambda term: True)
+        term_adapter = getattr(self.translate, "term_adapter", None)
         for old_term in list(translation_dictionary.keys()):
             if old_term not in new_terms:
                 old_term_text = self.get_text_content(old_term)

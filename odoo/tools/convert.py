@@ -84,9 +84,10 @@ def _eval_xml(self: Any, node: etree._Element, env: Environment) -> Any:
             f_name = node.get("name")
             context = _get_eval_context(self, env, f_model)
             q = safe_eval(f_search, context)
-            ids = env[f_model].search(q).ids
+            records = env[f_model].search(q)
+            ids = records.ids
             if f_use != "id":
-                ids = [x[f_use] for x in env[f_model].browse(ids).read([f_use])]
+                ids = [x[f_use] for x in records.read([f_use])]
             _fields = env[f_model]._fields
             if (f_name in _fields) and _fields[f_name].type == "many2many":
                 return ids
@@ -197,10 +198,8 @@ def _eval_xml(self: Any, node: etree._Element, env: Environment) -> Any:
         if "context" in kwargs:
             model = model.with_context(**kwargs.pop("context"))
         method = getattr(model, method_name)
-        is_model_method = getattr(method, "_api_model", False)
-        if is_model_method:
-            pass
-        else:
+        if not getattr(method, "_api_model", False):
+            # A record method takes its recordset from the first argument.
             record_ids, *args = args
             model = model.browse(record_ids)
             method = getattr(model, method_name)
@@ -727,6 +726,8 @@ def convert_file(
         elif ext == ".xml":
             convert_xml_import(env, module, fp, idref, mode, noupdate)
         elif ext == ".js":
+            # Listed in a manifest's `data` by some modules; the asset pipeline
+            # loads it, not the data importer. Nothing to do here.
             pass
         else:
             msg = "Can't load unknown file type %s."
@@ -754,7 +755,10 @@ def convert_csv_import(
 
     if not (mode == "init" or "id" in fields):
         _logger.error(
-            "Import specification does not contain 'id' and we are in init mode, Cannot continue."
+            "Import specification for %s does not contain 'id', and this is an "
+            "update rather than an initial install, so existing records cannot "
+            "be matched. Cannot continue.",
+            fname,
         )
         return
 
@@ -805,7 +809,6 @@ def convert_xml_import(
     idref: IdRef | None = None,
     mode: ConvertMode = "init",
     noupdate: bool = False,
-    report: Any = None,
 ) -> None:
     doc = etree.parse(xmlfile)
     schema, relaxng = _get_import_relaxng()

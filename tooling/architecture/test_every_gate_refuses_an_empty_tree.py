@@ -68,6 +68,7 @@ GATES = {
     "mail_hook_keyword_check": ["--check"],
     "sql_placeholder": ["--check"],
     "libs_facade_check": ["--check"],
+    "facade_surface_check": ["--check"],
     "py_cycle_check": ["--check"],
     "package_index_check": ["--check"],
     "subsystem_map_check": ["--check"],

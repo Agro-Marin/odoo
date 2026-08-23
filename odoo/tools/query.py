@@ -67,7 +67,12 @@ class Query:
         self._ids: tuple[int, ...] | None = None
 
     def _invalidate_ids(self) -> None:
-        self._ids = self._ids and None
+        # An empty result stays empty: nothing this class can add -- a join, a
+        # filter, a limit, an order -- turns zero rows into more than zero. Only
+        # a non-empty cache is dropped. Written as `self._ids and None` this
+        # said none of that, and read as a typo.
+        if self._ids:
+            self._ids = None
 
     @staticmethod
     def make_alias(alias: str, link: str) -> str:
@@ -232,7 +237,11 @@ class Query:
             SQL(" GROUP BY %s", self.groupby) if self.groupby else SQL.EMPTY,
             SQL(" HAVING %s", self.having) if self.having else SQL.EMPTY,
             SQL(" ORDER BY %s", self._order) if self._order else SQL.EMPTY,
-            SQL(" LIMIT %s", self.limit) if self.limit else SQL.EMPTY,
+            # `is not None`, not truthiness: `_search` deliberately admits a
+            # limit of 0 (`if limit is not None and limit is not False`), and a
+            # truthiness test here dropped it again -- so `search(limit=0)`
+            # asked for no rows and got every row.
+            SQL(" LIMIT %s", self.limit) if self.limit is not None else SQL.EMPTY,
             SQL(" OFFSET %s", self.offset) if self.offset else SQL.EMPTY,
         )
 
@@ -248,7 +257,7 @@ class Query:
                 return SQL("(SELECT 1 WHERE FALSE)")
             return SQL("%s", self._ids)
 
-        if self.limit or self.offset:
+        if self.limit is not None or self.offset:
             return SQL("(%s)", self.select(*args))
 
         sql_args = map(SQL, args) if args else [SQL.identifier(self.table, "id")]
@@ -265,7 +274,7 @@ class Query:
         return self._ids
 
     def set_result_ids(self, ids: Iterable[int], ordered: bool = True) -> None:
-        if self._joins or self._where_clauses or self.limit or self.offset:
+        if self._joins or self._where_clauses or self.limit is not None or self.offset:
             raise ValueError(
                 "Method set_result_ids() can only be called on a virgin Query"
             )
@@ -296,7 +305,7 @@ class Query:
 
     def __len__(self) -> int:
         if self._ids is None:
-            if self.limit or self.offset or self.groupby or self.having:
+            if self.limit is not None or self.offset or self.groupby or self.having:
                 sql = SQL("SELECT COUNT(*) FROM (%s) t", self.select(""))
             else:
                 sql = self.select("COUNT(*)")
@@ -304,6 +313,13 @@ class Query:
         return len(self.get_result_ids())
 
     def count_matching(self, limit: int | None = None) -> int:
+        """Count the rows the query matches, ignoring its own limit/offset.
+
+        Deliberately different from ``len(self)``, which counts what the query
+        would *return*. Subclasses override this to count differently again --
+        see ``mail.tools.access_scan._RescannedCountQuery`` -- so the two are
+        not redundant and must not be collapsed into one another.
+        """
         if self.groupby or self.having or limit:
             parts = [SQL("SELECT FROM %s", self.from_clause)]
             if self._where_clauses:

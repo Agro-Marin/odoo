@@ -28,7 +28,13 @@ def hmac(
         msg = "Non-empty scope required"
         raise ValueError(msg)
 
-    secret = env["ir.config_parameter"].get_param("database.secret")
+    # sudo here, not at every call site. `database.secret` is a server-side
+    # secret, never scoped to the reader, but `get_param` runs `check_access`
+    # and the ACL grants `ir.config_parameter` to `group_system` alone -- so an
+    # un-sudoed call raises AccessError for portal and public users only. Tests
+    # run as admin and cannot see it, which made "works in the test, AccessError
+    # in production" the default outcome of forgetting `su=True`.
+    secret = env(su=True)["ir.config_parameter"].get_param("database.secret")
     if not secret:
         raise ValueError(
             "The 'database.secret' configuration parameter is missing or empty; "
@@ -50,8 +56,12 @@ def hash_sign(
     expiration: datetime.datetime | datetime.timedelta | None = None,
     expiration_hours: float | None = None,
 ) -> str:
-    assert not (expiration and expiration_hours)
-    assert message_values is not None
+    if expiration and expiration_hours:
+        msg = "hash_sign() takes expiration or expiration_hours, not both"
+        raise ValueError(msg)
+    if message_values is None:
+        msg = "hash_sign() requires a message to sign"
+        raise ValueError(msg)
 
     if expiration_hours:
         expiration = datetime.datetime.now() + datetime.timedelta(
@@ -83,23 +93,24 @@ def verify_hash_signed(env: Environment, scope: str, payload: str) -> typing.Any
         token = base64.urlsafe_b64decode(payload.encode() + b"===")
         if token[:1] != b"\x01":
             return None
-        expiration_value, hash_value, message = (
+        expiration_bytes, hash_value, message = (
             token[1:9],
             token[9:41].hex(),
             token[41:].decode(),
         )
     except ValueError, TypeError:
         return None
-    expiration_value = int.from_bytes(expiration_value, byteorder="little")
+    expiration_timestamp = int.from_bytes(expiration_bytes, byteorder="little")
     hash_value_expected = hmac(
         env,
         scope,
-        f"1:{message}:{expiration_value}",
+        f"1:{message}:{expiration_timestamp}",
         hash_function=hashlib.sha256,
     )
 
     if consteq(hash_value, hash_value_expected) and (
-        expiration_value == 0 or datetime.datetime.now().timestamp() < expiration_value
+        expiration_timestamp == 0
+        or datetime.datetime.now().timestamp() < expiration_timestamp
     ):
         return json_loads(message)
     return None

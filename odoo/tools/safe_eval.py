@@ -11,13 +11,14 @@ from types import CodeType
 
 import dateutil
 import werkzeug
+from markupsafe import EscapeFormatter
 from psycopg import OperationalError
 
 import odoo.exceptions
 from odoo.libs.datetime import tz as _tz_module
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
 
 unsafe_eval = eval  # noqa: S307  the raw builtin, kept so safe_eval can wrap it
 
@@ -311,14 +312,44 @@ def assert_no_dunder_format_field(code_obj: CodeType, expr: str) -> None:
 _FORMAT_METHOD_NAMES = frozenset(("format", "format_map"))
 
 
+_field_name_split = string._string.formatter_field_name_split
+
+
+def _reject_attribute_fields(field_name: str) -> None:
+    """Refuse ``{0.attr}``. Indexing -- ``{0[key]}`` -- stays allowed."""
+    _first, rest = _field_name_split(field_name)
+    for is_attr, key in rest:
+        if is_attr:
+            raise ValueError(
+                f"attribute access is not allowed in a format field (.{key})"
+            )
+
+
 class _StrictFormatter(string.Formatter):
+    """``str.format`` semantics, minus attribute access.
+
+    The rejection lives in ``get_field`` rather than in a scan of the template
+    because ``vformat`` recurses into a *nested* replacement field -- the one in
+    ``{0:{1.attr}}`` is only ever seen by ``get_field``. A pre-scan of the
+    template with ``Formatter.parse`` does not descend into a format spec, so it
+    reads that payload as an opaque string and lets it through.
+    """
+
     def get_field(self, field_name, args, kwargs):
-        _first, rest = string._string.formatter_field_name_split(field_name)
-        for is_attr, key in rest:
-            if is_attr:
-                raise ValueError(
-                    f"attribute access is not allowed in a format field (.{key})"
-                )
+        _reject_attribute_fields(field_name)
+        return super().get_field(field_name, args, kwargs)
+
+
+class _StrictEscapeFormatter(EscapeFormatter):
+    """:class:`_StrictFormatter` for a receiver that escapes its own output.
+
+    ``Markup.format`` runs markupsafe's ``EscapeFormatter``; formatting a
+    ``Markup`` through the plain formatter would silently drop the escaping,
+    turning a guard against attribute reads into an injection.
+    """
+
+    def get_field(self, field_name, args, kwargs):
+        _reject_attribute_fields(field_name)
         return super().get_field(field_name, args, kwargs)
 
 
@@ -335,10 +366,45 @@ class _GuardedStr(str):
         return _STRICT_FORMATTER.vformat(self, (), mapping)
 
 
+class _GuardedFormat:
+    """Guards ``.format`` on a receiver while preserving what it *is*.
+
+    The receiver cannot simply be rebuilt as a :class:`_GuardedStr`: every
+    ``str`` subclass in an evaluation context would lose its behaviour, and
+    ``markupsafe.Markup`` -- what every ``html`` field reads back as -- would
+    lose its auto-escaping. So the guard wraps rather than converts, and hands
+    the value to the formatter its own type would have used.
+    """
+
+    __slots__ = ("_recv",)
+
+    def __init__(self, recv: str) -> None:
+        self._recv = recv
+
+    def _formatter(self) -> tuple[string.Formatter, Callable[[str], typing.Any]]:
+        recv = self._recv
+        if hasattr(recv, "__html__"):
+            return _StrictEscapeFormatter(recv.escape), type(recv)
+        return _STRICT_FORMATTER, str
+
+    def format(self, *args, **kwargs):
+        formatter, rewrap = self._formatter()
+        return rewrap(formatter.vformat(self._recv, args, kwargs))
+
+    def format_map(self, mapping):
+        formatter, rewrap = self._formatter()
+        return rewrap(formatter.vformat(self._recv, (), mapping))
+
+
 def _guard_format(recv: typing.Any) -> typing.Any:
-    if type(recv) is str:
-        return _GuardedStr(recv)
-    if recv is str:
+    # isinstance, not `type(recv) is str`: a str *subclass* is the case that
+    # matters. `assert_no_dunder_format_field` only reads the template out of
+    # co_consts, so it covers a literal written in the expression and nothing
+    # else; a Markup reached through an ordinary field read arrives here, and
+    # under an exact-type test went through unguarded.
+    if isinstance(recv, str):
+        return _GuardedFormat(recv)
+    if isinstance(recv, type) and issubclass(recv, str):
         return _GuardedStr
     return recv
 

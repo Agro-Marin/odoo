@@ -192,10 +192,13 @@ class SQLCollector(Collector):
     def summary(self) -> str:
         entries = self.processed_entries if self._processed else self._entries
         total_time = sum(entry["time"] for entry in entries) or 1
-        sql_entries = ""
+        sql_entries = []
         for entry in entries:
-            sql_entries += f"\n{'-' * 100}'\n'{entry['time']}  {'*' * int(entry['time'] / total_time * 100)}'\n'{entry['full_query']}"
-        return super().summary() + sql_entries
+            bar = "*" * int(entry["time"] / total_time * 100)
+            sql_entries.append(
+                f"\n{'-' * 100}\n{entry['time']}  {bar}\n{entry['full_query']}"
+            )
+        return super().summary() + "".join(sql_entries)
 
 
 class _BasePeriodicCollector(Collector):
@@ -329,18 +332,23 @@ class SyncCollector(Collector):
     name = "traces_sync"
 
     def start(self):
-        if sys.gettrace() is not None:
-            _logger.error(
-                "Cannot start SyncCollector, settrace already set: %s",
-                sys.gettrace(),
+        # Refuse rather than displace. This used to log the clash and call
+        # settrace anyway, silently unhooking whatever held it -- a debugger,
+        # coverage -- and stop() then set None instead of putting it back.
+        if (existing := sys.gettrace()) is not None:
+            msg = (
+                f"Cannot start SyncCollector: sys.settrace is already set to "
+                f"{existing!r}. Profiling would silently disable it."
             )
-        assert not self._processed, (
-            "You cannot start SyncCollector after accessing entries."
-        )
+            raise RuntimeError(msg)
+        if self._processed:
+            msg = "You cannot start SyncCollector after accessing entries."
+            raise RuntimeError(msg)
         sys.settrace(self.hook)
 
     def stop(self):
-        sys.settrace(None)
+        if sys.gettrace() is self.hook:
+            sys.settrace(None)
 
     def hook(self, _frame, event, _arg=None):
         if event == "line":
@@ -541,9 +549,10 @@ class QwebCollector(Collector):
                     }
                     results.append(data)
                     stack.append(data)
+                elif event == "leave":
+                    stack.pop()
                 else:
-                    assert event == "leave"
-                    data = stack.pop()
+                    raise ValueError(f"unexpected qweb event {event!r}")
 
         self.add({"results": {"archs": archs, "data": results}})
         super().post_process()

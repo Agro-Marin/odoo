@@ -30,7 +30,7 @@ def _declared_external_libs() -> dict[str, str]:
     for manifest in sorted(_REPO_ROOT.glob("addons/*/__manifest__.py")):
         try:
             data = ast.literal_eval(manifest.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, SyntaxError, ValueError):
+        except OSError, UnicodeDecodeError, SyntaxError, ValueError:
             continue
         if isinstance(data, dict):
             declared.update((data.get("esm") or {}).get("external_libs") or {})

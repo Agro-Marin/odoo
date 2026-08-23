@@ -23,6 +23,10 @@ if typing.TYPE_CHECKING:
 unsafe_eval = eval  # noqa: S307  ormcache key expressions built from code, not user input
 
 _logger = logging.getLogger(__name__)
+
+#: Reserved parameter-name prefix; see `ormcache.determine_key`.
+_RESERVED = "__ormcache_"
+_METHOD_NAME = f"{_RESERVED}method"
 _logger_lock = threading.RLock()
 _logger_state: typing.Literal["wait", "abort", "run"] = "wait"
 
@@ -101,7 +105,7 @@ def _render_signature(method: Callable) -> tuple[str, dict[str, Any]]:
         elif param.default is Parameter.empty:
             rendered.append(param.name)
         else:
-            placeholder = f"__ormcache_default_{index}"
+            placeholder = f"{_RESERVED}default_{index}"
             arg_globals[placeholder] = param.default
             rendered.append(f"{param.name}={placeholder}")
         prev_kind = param.kind
@@ -119,7 +123,6 @@ class ormcache:
         *args: str,
         cache: str = "default",
         skiparg: int | None = None,
-        **kwargs: Any,
     ) -> None:
         self.args = args
         self.skiparg = skiparg
@@ -178,17 +181,20 @@ class ormcache:
 
                 tx_first = False
                 try:
-                    tx_key = tuple(map(hash, key))
+                    # hash(key), not the key itself: the set must not pin the
+                    # cached objects alive for the transaction. A per-element
+                    # hash tuple did the same job while colliding more.
+                    tx_key = hash(key)
                     tx_first = tx_key not in tx_lookups
                     if tx_first:
                         tx_lookups.add(tx_key)
                     r = d[key]
                     counter.hit += 1
-                    counter.tx_hit += tx_first
+                    counter.tx_hit += int(tx_first)
                     return r
                 except KeyError:
                     counter.miss += 1
-                    counter.tx_miss += tx_first
+                    counter.tx_miss += int(tx_first)
                 except TypeError:
                     _warn("cache lookup error on %r", key, exc_info=True)
                     counter.err += 1
@@ -233,16 +239,27 @@ class ormcache:
             )
             return
         args, arg_globals = _render_signature(self.method)
-        first_param = next(iter(signature(self.method).parameters), "self")
-        values = [f"{first_param}._name", "method", *self.args]
+        parameters = signature(self.method).parameters
+        first_param = next(iter(parameters), "self")
+        # The key expression names the decorated function, and each defaulted
+        # parameter, through a global. A parameter sharing one of those names
+        # would shadow it, and the cache would silently key on the argument
+        # instead. The whole `_ormcache_` prefix is reserved so that one check
+        # covers the method name and every generated default alike.
+        if colliding := sorted(p for p in parameters if p.startswith(_RESERVED)):
+            msg = (
+                f"@ormcache cannot decorate {self.method.__qualname__}: its "
+                f"parameter(s) {', '.join(colliding)} use the reserved "
+                f"{_RESERVED!r} prefix and would shadow the cache key."
+            )
+            raise ValueError(msg)
+        values = [f"{first_param}._name", _METHOD_NAME, *self.args]
         code = f"lambda {args}: ({''.join(a for arg in values for a in (arg, ','))})"
-        self.key = unsafe_eval(code, {"method": self.method, **arg_globals})
+        self.key = unsafe_eval(code, {_METHOD_NAME: self.method, **arg_globals})
 
 
 class ormcache_context(ormcache):
-    def __init__(
-        self, *args: str, keys: tuple[str, ...], skiparg: None = None, **kwargs: Any
-    ) -> None:
+    def __init__(self, *args: str, keys: tuple[str, ...], skiparg: None = None) -> None:
         assert skiparg is None, "ormcache_context() no longer supports skiparg"
         warnings.warn(
             "Since 19.0, use ormcache directly, context values are available as `self.env.context.get`",
@@ -250,7 +267,7 @@ class ormcache_context(ormcache):
             stacklevel=2,
         )
         self.keys = keys
-        super().__init__(*args, **kwargs)
+        super().__init__(*args)
 
     def determine_key(self) -> None:
         assert self.method is not None

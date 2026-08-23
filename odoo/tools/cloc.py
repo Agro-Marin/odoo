@@ -116,6 +116,12 @@ class Cloc:
             self.max_width = max(self.max_width, len(module), len(item) + 4)
 
     def count_path(self, path: str, exclude: set[str] | None = None) -> None:
+        """Count one module tree.
+
+        ``exclude`` is read, never written: it used to be updated in place, so a
+        caller's set grew -- except when it was empty, where a fresh one was
+        substituted and the caller saw nothing. One of those had to be a bug.
+        """
         path = path.rstrip("/")
         exclude_list = []
         for i in odoo.modules.module.MANIFEST_NAMES:
@@ -123,14 +129,16 @@ class Cloc:
             try:
                 manifest = Path(manifest_path).read_bytes()
                 exclude_list.extend(DEFAULT_EXCLUDE)
-                d = ast.literal_eval(manifest.decode("latin1"))
+                # utf-8: manifests are utf-8, and every accented l10n manifest
+                # decoded as latin1 turns into mojibake -- including the paths
+                # in `cloc_exclude`, which then match nothing.
+                d = ast.literal_eval(manifest.decode("utf-8"))
                 for j in ["cloc_exclude", "demo", "demo_xml"]:
                     exclude_list.extend(d.get(j, []))
                 break
             except Exception:  # noqa: S110  absent/unparsable manifest just means "try the next name"
                 pass
-        if not exclude:
-            exclude = set()
+        exclude = set(exclude or ())
         for i in filter(None, exclude_list):
             if ".." in i:
                 raise ValueError(

@@ -1,8 +1,10 @@
 import base64
 import contextlib
 import logging
+import typing
 import zipfile
 from io import BytesIO
+from typing import IO, Literal
 
 import requests
 from lxml import etree
@@ -23,11 +25,19 @@ __all__ = [
     "validate_xml_from_attachment",
 ]
 
+if typing.TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from odoo.api import Environment
+    from odoo.orm._typing import BaseModel
+
+type XmlSource = etree._Element | str | bytes
+
 _logger = logging.getLogger(__name__)
 
 
 class odoo_resolver(etree.Resolver):
-    def __init__(self, env: object, prefix: str) -> None:
+    def __init__(self, env: Environment, prefix: str | None) -> None:
         super().__init__()
         self.env = env
         self.prefix = prefix
@@ -42,7 +52,12 @@ class odoo_resolver(etree.Resolver):
         return None
 
 
-def _check_xml(env: object, url: str | None, path: str | None, xmls: object) -> None:
+def _check_xml(
+    env: Environment,
+    url: str | None,
+    path: str | None,
+    xmls: XmlSource | list[XmlSource],
+) -> None:
     xsd_attachment = env["ir.attachment"]
     if path:
         with file_open(path, filter_ext=(".xsd",)) as file:
@@ -53,7 +68,18 @@ def _check_xml(env: object, url: str | None, path: str | None, xmls: object) -> 
         }
         xsd_attachment = env["ir.attachment"].create(attachment_vals)
     elif url:
-        xsd_attachment = load_xsd_files_from_url(env, url)
+        # `load_xsd_files_from_url` answers False for any network failure or an
+        # empty body. Reaching `.name` on that raised AttributeError, and the
+        # `finally` below turned it into a second one from inside the cleanup --
+        # so a network blip surfaced as `'bool' object has no attribute
+        # 'unlink'` from a test helper, naming nothing.
+        xsd_attachment = load_xsd_files_from_url(env, url) or env["ir.attachment"]
+
+    if not xsd_attachment:
+        raise FileNotFoundError(
+            f"No XSD could be loaded from {url or path!r}; refusing to report "
+            f"the document as validated."
+        )
 
     if not isinstance(xmls, list):
         xmls = [xmls]
@@ -66,9 +92,9 @@ def _check_xml(env: object, url: str | None, path: str | None, xmls: object) -> 
 
 
 def _check_with_xsd(
-    tree_or_str: etree._Element | str | bytes,
-    stream: object,
-    env: object = None,
+    tree_or_str: XmlSource,
+    stream: str | IO[bytes],
+    env: Environment | None = None,
     prefix: str | None = None,
 ) -> None:
     if not isinstance(tree_or_str, etree._Element):
@@ -132,15 +158,14 @@ def cleanup_xml_node(
 
 
 def load_xsd_files_from_url(
-    env: object,
+    env: Environment,
     url: str,
     file_name: str | None = None,
-    force_reload: bool = False,
     request_max_timeout: int = 10,
     xsd_name_prefix: str = "",
     xsd_names_filter: list[str] | None = None,
-    modify_xsd_content: object = None,
-) -> object:
+    modify_xsd_content: Callable[[bytes], bytes] | None = None,
+) -> BaseModel | Literal[False]:
     try:
         _logger.info("Fetching file/archive from given URL: %s", url)
         response = requests.get(url, timeout=request_max_timeout)
@@ -244,20 +269,37 @@ def load_xsd_files_from_url(
 
 
 def validate_xml_from_attachment(
-    env: object,
-    xml_content: object,
+    env: Environment,
+    xml_content: etree._Element | str | bytes,
     xsd_name: str,
-    reload_files_function: object = None,
     prefix: str | None = None,
+    *,
+    required: bool = True,
 ) -> None:
+    """Validate ``xml_content`` against the stored XSD named ``xsd_name``.
 
+    A missing XSD used to be logged at INFO and swallowed, so "validated" and
+    "never checked" were indistinguishable in a default-verbosity log -- for
+    e-invoicing callers, the difference between a document a tax authority will
+    accept and one it will reject. It now raises. `required=False` restores the
+    old behaviour for a caller that genuinely treats the schema as optional, and
+    warns rather than informs so the skip is visible.
+    """
     prefixed_xsd_name = f"{prefix}.{xsd_name}" if prefix else xsd_name
     try:
         _logger.info("Validating with XSD...")
         _check_with_xsd(xml_content, prefixed_xsd_name, env, prefix)
         _logger.info("XSD validation successful!")
     except FileNotFoundError:
-        _logger.info("XSD file not found, skipping validation")
+        if required:
+            raise FileNotFoundError(
+                f"XSD {prefixed_xsd_name!r} is not available, so the document "
+                f"could not be validated. Load the schema, or pass "
+                f"required=False to accept an unvalidated document."
+            ) from None
+        _logger.warning(
+            "XSD %r not found; the document was NOT validated", prefixed_xsd_name
+        )
     except etree.XMLSchemaParseError as e:
         _logger.error("XSD file not valid: ")
         for arg in e.args:

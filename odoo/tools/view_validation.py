@@ -241,10 +241,17 @@ def get_dict_asts(expr: str | ast.AST) -> dict[str, ast.AST]:
 
 
 def valid_view(arch: etree._Element, **kwargs: object) -> bool:
-    for pred in _validators[arch.tag]:
-        check = pred(arch, **kwargs)
-        if not check:
-            _logger.warning("Invalid XML: %s", pred.__doc__)
+    # `.get`, not `[]`: `_validators` is a defaultdict, so indexing it with a
+    # view's root tag inserted an empty list for every tag ever asked about.
+    for pred in _validators.get(arch.tag, ()):
+        if not pred(arch, **kwargs):
+            # __doc__ alone logged "Invalid XML: None" for any validator
+            # without a docstring -- which was every validator there is.
+            _logger.warning(
+                "Invalid XML for view type %r: %s",
+                arch.tag,
+                pred.__doc__ or pred.__name__,
+            )
             return False
     return True
 
@@ -275,6 +282,7 @@ def relaxng(view_type: str) -> etree.RelaxNG | None:
 
 @validate("calendar", "graph", "pivot", "search", "list", "activity")
 def schema_valid(arch, **kwargs):
+    """the view does not match its RelaxNG schema"""
     validator = relaxng(arch.tag)
     if validator and not validator.validate(arch):
         for error in validator.error_log:
@@ -344,8 +352,6 @@ def check_fa_class_accessibility(node, description):
         return []
 
     def contains_description(node, depth=0):
-        if depth > 2:
-            _logger.warning("excessive depth in fa")
         if any(node.get(attr) for attr in valid_t_attrs):
             return True
         if has_title_or_aria_label(node):
