@@ -51,6 +51,28 @@ def _func(src: str):
         ("self.user_id.name", set()),
         # a local named env still counts: the receiver is not always `self`
         ("env.user.partner_id", {"uid"}),
+        # --- lang -------------------------------------------------------
+        ("get_lang(self.env).code", {"lang"}),
+        ("get_lang(self.env).week_start", {"lang"}),
+        ("format_date(self.env, self.date)", {"lang"}),
+        ("format_amount(self.env, 1.0, self.currency_id)", {"lang"}),
+        ("format_list(self.env, [1, 2])", {"lang"}),
+        # format_datetime resolves the language too; its tz read is a
+        # separate key this gate does not measure yet
+        ("format_datetime(self.env, self.date)", {"lang"}),
+        # the labels are translated, so building a lookup off them is a read
+        ('dict(self._fields["state"]._description_selection(self.env))', {"lang"}),
+        # ... but the keys are the same string in every language
+        (
+            'list(dict(self._fields["state"]._description_selection(self.env)))',
+            set(),
+        ),
+        (
+            'dict(self._fields["state"]._description_selection(self.env)).keys()',
+            set(),
+        ),
+        # a formatter that takes no env cannot resolve a language
+        ("format_duration(self.duration)", set()),
     ],
 )
 def test_read_keys(body, expected):
@@ -92,6 +114,29 @@ def _write(tmp_path: Path, name: str, src: str) -> Path:
     path = root / name
     path.write_text(textwrap.dedent(src), encoding="utf-8")
     return path
+
+
+def test_a_declared_lang_is_quiet(tmp_path):
+    (tmp_path / "m.py").write_text(
+        textwrap.dedent("""
+            class M:
+                @api.depends_context("lang")
+                def _compute_label(self):
+                    self.label = get_lang(self.env).code
+        """)
+    )
+    assert measure([tmp_path]) == []
+
+
+def test_a_lang_read_and_a_uid_read_are_two_findings(tmp_path):
+    (tmp_path / "m.py").write_text(
+        textwrap.dedent("""
+            class M:
+                def _compute_label(self):
+                    self.label = get_lang(self.env).code + self.env.user.name
+        """)
+    )
+    assert [v.key for v in measure([tmp_path])] == ["lang", "uid"]
 
 
 def test_measure_flags_an_undeclared_read(tmp_path):

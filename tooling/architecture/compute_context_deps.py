@@ -33,14 +33,49 @@ invisible to a registry-based gate. Matching on ``_compute_*`` methods over the
 source tree sees every addon whether it is installed or not, at the cost of
 false positives — which is what a ratchet is for.
 
-Two keys, both with a demonstrated failure behind them:
+Three keys, each with a demonstrated failure behind it:
 
-===============================  ===============
-read in the body                 key it needs
-===============================  ===============
-``env.user`` / ``env.uid``       ``uid``
-``_get_guest_from_context``      ``guest``
-===============================  ===============
+===================================  ===============
+read in the body                     key it needs
+===================================  ===============
+``env.user`` / ``env.uid``           ``uid``
+``_get_guest_from_context``          ``guest``
+``get_lang``, the ``format_*``       ``lang``
+helpers that take an ``env``, and
+``_description_selection``
+===================================  ===============
+
+``lang`` was added after a compute shipped the defect in a file where the gate
+could not see it. ``mrp.workcenter.kanban_dashboard_graph`` reaches ``get_lang``
+twice through its week-range helper -- once for the locale of the labels and
+once for ``week_start``, which decides the bucket *boundaries* -- and declared
+nothing. Two readers in one transaction::
+
+    en first -> en ['9 - 15 Aug',   'This Week',     '23 - 29 Aug', ...]
+             -> fr ['9 - 15 Aug',   'This Week',     '23 - 29 Aug', ...]
+    fr first -> fr ['10 - 16 aout', 'Cette semaine', '24 - 30 aout', ...]
+             -> en ['10 - 16 aout', 'Cette semaine', '24 - 30 aout', ...]
+
+The ``env.user`` read that would have caught it sits one call deep inside
+``get_lang``, and this check is deliberately syntactic, so the file scored zero.
+Naming the helpers rather than following them into ``odoo.tools`` keeps it that
+way.
+
+Worth saying why a compute needs the key at all when translated *fields* already
+carry ``lang`` in theirs: for a computed field ``Field.get_depends`` reads
+``depends_context`` from the compute methods alone. A *related* field inherits
+its chain's keys; **a compute inherits nothing** from the fields it reads. So a
+compute that resolves the language, or reads a translated field, holds one cache
+entry for the whole transaction unless it says so.
+
+``_description_selection`` reduced to its keys is not a language read -- the keys
+are the same string in every language -- so ``list(dict(...))`` and
+``dict(...).keys()`` are excluded. Measured, that is 2 of the 12 occurrences
+under a ``_compute_``; the other 10 build a label lookup and are real.
+
+``format_datetime`` additionally resolves ``env.user.tz``. A ``tz`` gate is the
+next move on this list and a separate one: different key, different argument
+about which computes may legitimately read it.
 
 ``env.company`` is deliberately **not** measured. It reads the same way
 syntactically and does not mean the same thing: a compute resolving
@@ -95,7 +130,20 @@ ENV_READS = {
 #: context key -> the call names that require it.
 CALL_READS = {
     "guest": ("_get_guest_from_context",),
+    "lang": (
+        "get_lang",
+        "format_amount",
+        "format_date",
+        "format_datetime",
+        "format_list",
+        "_description_selection",
+    ),
 }
+
+#: ``_description_selection`` reduced to its keys is not a language read.  The
+#: labels are translated; the keys are the same string in every language, and
+#: ``list(dict(...))`` / ``dict(...).keys()`` is how a compute asks for the keys.
+KEY_ONLY_WRAPPERS = ("list", "keys", "tuple", "set", "sorted")
 
 
 @dataclass(frozen=True)
@@ -145,9 +193,34 @@ def declared_keys(node: ast.FunctionDef) -> set[str]:
     return keys
 
 
+def _parents(node: ast.FunctionDef) -> dict[ast.AST, ast.AST]:
+    return {
+        child: parent
+        for parent in ast.walk(node)
+        for child in ast.iter_child_nodes(parent)
+    }
+
+
+def _reads_labels(call: ast.Call, parents: dict[ast.AST, ast.AST]) -> bool:
+    """True unless the selection is immediately reduced to its keys."""
+    wrapper = parents.get(call)
+    if not (isinstance(wrapper, ast.Call) and _called_name(wrapper) == "dict"):
+        return True
+    outer = parents.get(wrapper)
+    if isinstance(outer, ast.Call) and _called_name(outer) in KEY_ONLY_WRAPPERS:
+        return False
+    return not (isinstance(outer, ast.Attribute) and outer.attr in KEY_ONLY_WRAPPERS)
+
+
+def _called_name(call: ast.Call) -> str:
+    func = call.func
+    return func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+
+
 def read_keys(node: ast.FunctionDef) -> set[str]:
     """Context keys the method's body implies it depends on."""
     keys: set[str] = set()
+    parents = _parents(node)
     for sub in ast.walk(node):
         if isinstance(sub, ast.Attribute):
             # `<anything>.env.<attr>`: the receiver is `self` in a compute, but
@@ -162,15 +235,15 @@ def read_keys(node: ast.FunctionDef) -> set[str]:
                     if sub.attr in attrs:
                         keys.add(key)
         elif isinstance(sub, ast.Call):
-            func = sub.func
-            called = (
-                func.attr
-                if isinstance(func, ast.Attribute)
-                else getattr(func, "id", "")
-            )
+            called = _called_name(sub)
             for key, names in CALL_READS.items():
-                if called in names:
-                    keys.add(key)
+                if called not in names:
+                    continue
+                if called == "_description_selection" and not _reads_labels(
+                    sub, parents
+                ):
+                    continue
+                keys.add(key)
     return keys
 
 
