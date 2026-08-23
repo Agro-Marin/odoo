@@ -4,7 +4,6 @@ from odoo import api, fields, models
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
-
     purchase_line_ids = fields.Many2many(
         comodel_name="purchase.order.line",
         relation="account_move_line_purchase_order_line_rel",
@@ -17,14 +16,12 @@ class AccountMoveLine(models.Model):
         compute="_compute_purchase_line_warn_msg",
     )
 
-
     @api.depends("product_id.purchase_line_warn_msg")
     def _compute_purchase_line_warn_msg(self):
         self._compute_warn_msg_from_product(
             "purchase_line_warn_msg",
             "purchase.group_warning_purchase",
         )
-
 
     def _get_fields_order_line_link(self):
         return [*super()._get_fields_order_line_link(), "purchase_line_ids"]

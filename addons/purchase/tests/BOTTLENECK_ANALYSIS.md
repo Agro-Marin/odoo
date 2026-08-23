@@ -24,8 +24,11 @@ dominates performance for large orders. The main bottlenecks are:
 ### Code Analysis
 ```python
 @api.depends(
-    "partner_id", "date_order", "product_id",
-    "product_id.seller_ids", "product_id.seller_ids.partner_id",
+    "partner_id",
+    "date_order",
+    "product_id",
+    "product_id.seller_ids",
+    "product_id.seller_ids.partner_id",
     # ... 12+ dependencies
 )
 def _compute_selected_seller_id(self):
@@ -66,7 +69,7 @@ def _compute_selected_seller_id(self):
     seller_cache = {}
 
     # Group lines by product to reduce lookups
-    for product, lines in self.grouped('product_id').items():
+    for product, lines in self.grouped("product_id").items():
         if not product:
             continue
         # Single seller lookup per product (for same partner/date)
@@ -120,12 +123,9 @@ def _compute_date_planned(self):
         product = line.product_id
         if product.id not in product_seller_dates:
             product_seller_dates[product.id] = {
-                line._get_date_planned(seller).date()
-                for seller in product.seller_ids
+                line._get_date_planned(seller).date() for seller in product.seller_ids
             }
-            product_seller_dates[product.id].add(
-                line._get_date_planned(False).date()
-            )
+            product_seller_dates[product.id].add(line._get_date_planned(False).date())
 
     for line in self:
         # ... use precomputed set for O(1) lookup ...
@@ -190,12 +190,18 @@ only one matches the criteria.
 def _get_filtered_sellers_optimized(self, partner_id, quantity, date, uom_id, params):
     # Use SQL for initial filtering
     domain = [
-        ('product_tmpl_id', '=', self.product_tmpl_id.id),
-        '|', ('date_start', '=', False), ('date_start', '<=', date),
-        '|', ('date_end', '=', False), ('date_end', '>=', date),
-        '|', ('partner_id', '=', False),
-            '|', ('partner_id', '=', partner_id.id),
-                 ('partner_id', '=', partner_id.parent_id.id),
+        ("product_tmpl_id", "=", self.product_tmpl_id.id),
+        "|",
+        ("date_start", "=", False),
+        ("date_start", "<=", date),
+        "|",
+        ("date_end", "=", False),
+        ("date_end", ">=", date),
+        "|",
+        ("partner_id", "=", False),
+        "|",
+        ("partner_id", "=", partner_id.id),
+        ("partner_id", "=", partner_id.parent_id.id),
     ]
     # Then do quantity/UoM filtering in Python (requires conversion)
 ```

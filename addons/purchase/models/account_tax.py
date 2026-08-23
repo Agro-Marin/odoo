@@ -4,7 +4,6 @@ from odoo import models
 class AccountTax(models.Model):
     _inherit = "account.tax"
 
-
     def _get_used_tax_ids(self, tax_ids):
         used_taxes = super()._get_used_tax_ids(tax_ids)
         remaining_ids = tax_ids - used_taxes

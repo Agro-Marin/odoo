@@ -117,10 +117,7 @@ class PurchaseOrder(models.Model):
             "skip_alternative_check", False
         ):
             alternative_po_ids = self.alternative_po_ids.filtered(
-                lambda po: (
-                    po.state == "draft"
-                    and po.id not in self.ids
-                )
+                lambda po: po.state == "draft" and po.id not in self.ids
             )
             if alternative_po_ids:
                 view = self.env.ref(

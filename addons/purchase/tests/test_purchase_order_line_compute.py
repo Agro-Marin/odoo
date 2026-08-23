@@ -61,7 +61,6 @@ class TestPurchaseOrderLineCompute(AccountTestInvoicingCommon):
             }
         )
 
-
     def test_selected_seller_id_stored(self):
         po = self.env["purchase.order"].create(
             {
@@ -179,7 +178,6 @@ class TestPurchaseOrderLineCompute(AccountTestInvoicingCommon):
         self.assertEqual(line.price_unit, 100.0)
         self.assertEqual(line.discount, 0.0)
 
-
     def test_price_unit_auto_tracks_computed_price(self):
         po = self.env["purchase.order"].create(
             {
@@ -293,7 +291,6 @@ class TestPurchaseOrderLineCompute(AccountTestInvoicingCommon):
         line.product_qty = 0.5
         self.assertEqual(line.discount, 0.0)
 
-
     def test_name_computed_from_seller(self):
         po_form = Form(self.env["purchase.order"])
         po_form.partner_id = self.partner_a
@@ -333,7 +330,6 @@ class TestPurchaseOrderLineCompute(AccountTestInvoicingCommon):
         line.product_qty = 15
 
         self.assertEqual(line.name, custom_name)
-
 
     @freeze_time("2024-01-15")
     def test_date_commitment_computed_from_seller_delay(self):
@@ -403,7 +399,6 @@ class TestPurchaseOrderLineCompute(AccountTestInvoicingCommon):
 
         self.assertEqual(line.date_commitment.date(), custom_date.date())
 
-
     def test_form_price_computation_flow(self):
         po_form = Form(self.env["purchase.order"])
         po_form.partner_id = self.partner_a
@@ -440,7 +435,6 @@ class TestPurchaseOrderLineCompute(AccountTestInvoicingCommon):
 
         self.assertEqual(po.line_ids.price_unit, 12.0)
         self.assertIn("PROD-B", po.line_ids.name)
-
 
     def test_display_type_lines_ignored(self):
         po = self.env["purchase.order"].create(
@@ -488,7 +482,6 @@ class TestPurchaseOrderLineCompute(AccountTestInvoicingCommon):
         line = po.line_ids
 
         self.assertTrue(line.selected_seller_id)
-
 
     @freeze_time("2024-01-15")
     def test_date_is_manual_initially_false(self):

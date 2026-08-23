@@ -6,9 +6,13 @@ from odoo.exceptions import ValidationError
 
 
 class PurchaseOrder(models.Model):
-    _inherit = 'purchase.order'
+    _inherit = "purchase.order"
 
-    report_grids = fields.Boolean(string="Print Variant Grids", default=True, help="If set, the matrix of configurable products will be shown on the report of this order.")
+    report_grids = fields.Boolean(
+        string="Print Variant Grids",
+        default=True,
+        help="If set, the matrix of configurable products will be shown on the report of this order.",
+    )
 
     """ Matrix loading and update: fields and methods :
 
@@ -20,11 +24,22 @@ class PurchaseOrder(models.Model):
         To force the loading, a 'hack' of the js framework would have been needed...
     """
 
-    grid_product_tmpl_id = fields.Many2one('product.template', store=False, help="Technical field for product_matrix functionalities.")
-    grid_update = fields.Boolean(default=False, store=False, help="Whether the grid field contains a new matrix to apply or not.")
-    grid = fields.Char(store=False, help="Technical storage of grid. \nIf grid_update, will be loaded on the PO. \nIf not, represents the matrix to open.")
+    grid_product_tmpl_id = fields.Many2one(
+        "product.template",
+        store=False,
+        help="Technical field for product_matrix functionalities.",
+    )
+    grid_update = fields.Boolean(
+        default=False,
+        store=False,
+        help="Whether the grid field contains a new matrix to apply or not.",
+    )
+    grid = fields.Char(
+        store=False,
+        help="Technical storage of grid. \nIf grid_update, will be loaded on the PO. \nIf not, represents the matrix to open.",
+    )
 
-    @api.onchange('grid_product_tmpl_id')
+    @api.onchange("grid_product_tmpl_id")
     def _set_grid_up(self):
         if self.grid_product_tmpl_id:
             self.grid_update = False
@@ -33,29 +48,41 @@ class PurchaseOrder(models.Model):
     def _must_delete_date_planned(self, field_name):
         return super()._must_delete_date_planned(field_name) or field_name == "grid"
 
-    @api.onchange('grid')
+    @api.onchange("grid")
     def _apply_grid(self):
         if self.grid and self.grid_update:
             grid = json.loads(self.grid)
-            product_template = self.env['product.template'].browse(grid['product_template_id'])
+            product_template = self.env["product.template"].browse(
+                grid["product_template_id"]
+            )
             product_ids = set()
-            dirty_cells = grid['changes']
-            Attrib = self.env['product.template.attribute.value']
+            dirty_cells = grid["changes"]
+            Attrib = self.env["product.template.attribute.value"]
             default_po_line_vals = {}
             new_lines = []
             for cell in dirty_cells:
-                combination = Attrib.browse(cell['ptav_ids'])
-                no_variant_attribute_values = combination - combination._without_no_variant_attributes()
+                combination = Attrib.browse(cell["ptav_ids"])
+                no_variant_attribute_values = (
+                    combination - combination._without_no_variant_attributes()
+                )
 
                 # create or find product variant from combination
                 product = product_template._create_product_variant(combination)
                 # TODO replace the check on product_id by a first check on the ptavs and pnavs?
                 # and only create/require variant after no line has been found ???
-                order_lines = self.line_ids.filtered(lambda line: (line._origin or line).product_id == product and (line._origin or line).product_no_variant_attribute_value_ids == no_variant_attribute_values)
+                order_lines = self.line_ids.filtered(
+                    lambda line: (
+                        (line._origin or line).product_id == product
+                        and (
+                            line._origin or line
+                        ).product_no_variant_attribute_value_ids
+                        == no_variant_attribute_values
+                    )
+                )
 
                 # if product variant already exist in order lines
-                old_qty = sum(order_lines.mapped('product_qty'))
-                qty = cell['qty']
+                old_qty = sum(order_lines.mapped("product_qty"))
+                qty = cell["qty"]
                 diff = qty - old_qty
 
                 if not diff:
@@ -65,12 +92,12 @@ class PurchaseOrder(models.Model):
 
                 if order_lines:
                     if qty == 0:
-                        if self.state in ['draft', 'sent']:
+                        if self.state in ["draft", "sent"]:
                             # Remove lines if qty was set to 0 in matrix
                             # only if PO state = draft/sent
                             self.line_ids -= order_lines
                         else:
-                            order_lines.update({'product_qty': 0.0})
+                            order_lines.update({"product_qty": 0.0})
                     else:
                         """
                         When there are multiple lines for same product and its quantity was changed in the matrix,
@@ -84,7 +111,11 @@ class PurchaseOrder(models.Model):
                         Therefore, it only raises an Error for now.
                         """
                         if len(order_lines) > 1:
-                            raise ValidationError(_("You cannot change the quantity of a product present in multiple purchase lines."))
+                            raise ValidationError(
+                                _(
+                                    "You cannot change the quantity of a product present in multiple purchase lines."
+                                )
+                            )
                         order_lines[0].product_qty = qty
                         # If we want to support multiple lines edition:
                         # removal of other lines.
@@ -94,24 +125,34 @@ class PurchaseOrder(models.Model):
                         #     self.line_ids -= order_lines[1:]
                 else:
                     if not default_po_line_vals:
-                        OrderLine = self.env['purchase.order.line']
-                        default_po_line_vals = OrderLine.default_get(OrderLine._fields.keys())
+                        OrderLine = self.env["purchase.order.line"]
+                        default_po_line_vals = OrderLine.default_get(
+                            OrderLine._fields.keys()
+                        )
                     last_sequence = self.line_ids[-1:].sequence
                     if last_sequence:
-                        default_po_line_vals['sequence'] = last_sequence
-                    new_lines.append((0, 0, dict(
-                        default_po_line_vals,
-                        product_id=product.id,
-                        product_qty=qty,
-                        product_no_variant_attribute_value_ids=no_variant_attribute_values.ids)
-                    ))
+                        default_po_line_vals["sequence"] = last_sequence
+                    new_lines.append(
+                        (
+                            0,
+                            0,
+                            dict(
+                                default_po_line_vals,
+                                product_id=product.id,
+                                product_qty=qty,
+                                product_no_variant_attribute_value_ids=no_variant_attribute_values.ids,
+                            ),
+                        )
+                    )
             if product_ids:
                 if new_lines:
                     # Add new PO lines
-                    self.update({'line_ids': new_lines})
+                    self.update({"line_ids": new_lines})
 
                 # Recompute prices for new/modified lines:
-                for line in self.line_ids.filtered(lambda line: line.product_id.id in product_ids):
+                for line in self.line_ids.filtered(
+                    lambda line: line.product_id.id in product_ids
+                ):
                     line._product_id_change()
 
     def _get_matrix(self, product_template):
@@ -121,36 +162,48 @@ class PurchaseOrder(models.Model):
             pav = pnav + ptav
             pav.sort()
             return pav == sorted_attr_ids
+
         matrix = product_template._get_template_matrix(
-            company_id=self.company_id,
-            currency_id=self.currency_id)
+            company_id=self.company_id, currency_id=self.currency_id
+        )
         if self.line_ids:
-            lines = matrix['matrix']
-            order_lines = self.line_ids.filtered(lambda line: line.product_template_id == product_template)
+            lines = matrix["matrix"]
+            order_lines = self.line_ids.filtered(
+                lambda line: line.product_template_id == product_template
+            )
             for line in lines:
                 for cell in line:
-                    if not cell.get('name', False):
-                        line = order_lines.filtered(lambda line: has_ptavs(line, cell['ptav_ids']))
+                    if not cell.get("name", False):
+                        line = order_lines.filtered(
+                            lambda line: has_ptavs(line, cell["ptav_ids"])
+                        )
                         if line:
-                            cell.update({
-                                'qty': sum(line.mapped('product_qty'))
-                            })
+                            cell.update({"qty": sum(line.mapped("product_qty"))})
         return matrix
 
     def get_report_matrixes(self):
         """Reporting method."""
         matrixes = []
         if self.report_grids:
-            grid_configured_templates = self.line_ids.filtered('is_configurable_product').product_template_id
+            grid_configured_templates = self.line_ids.filtered(
+                "is_configurable_product"
+            ).product_template_id
             # TODO is configurable product and product_variant_count > 1
             # configurable products are only configured through the matrix in purchase, so no need to check product_add_mode.
             for template in grid_configured_templates:
-                if len(self.line_ids.filtered(lambda line: line.product_template_id == template)) > 1:
+                if (
+                    len(
+                        self.line_ids.filtered(
+                            lambda line: line.product_template_id == template
+                        )
+                    )
+                    > 1
+                ):
                     matrix = self._get_matrix(template)
-                    matrix['matrix'] = [
+                    matrix["matrix"] = [
                         row
-                        for row in matrix['matrix']
-                        if any(column['qty'] != 0 for column in row[1:])
+                        for row in matrix["matrix"]
+                        if any(column["qty"] != 0 for column in row[1:])
                     ]
                     matrixes.append(matrix)
         return matrixes
@@ -159,15 +212,36 @@ class PurchaseOrder(models.Model):
 class PurchaseOrderLine(models.Model):
     _inherit = "purchase.order.line"
 
-    product_template_id = fields.Many2one('product.template', string='Product Template', related="product_id.product_tmpl_id", domain=[('purchase_ok', '=', True)])
-    is_configurable_product = fields.Boolean('Is the product configurable?', related="product_template_id.has_configurable_attributes")
-    product_template_attribute_value_ids = fields.Many2many(related='product_id.product_template_attribute_value_ids', readonly=True)
-    product_no_variant_attribute_value_ids = fields.Many2many('product.template.attribute.value', string='Product attribute values that do not create variants', ondelete='restrict')
+    product_template_id = fields.Many2one(
+        "product.template",
+        string="Product Template",
+        related="product_id.product_tmpl_id",
+        domain=[("purchase_ok", "=", True)],
+    )
+    is_configurable_product = fields.Boolean(
+        "Is the product configurable?",
+        related="product_template_id.has_configurable_attributes",
+    )
+    product_template_attribute_value_ids = fields.Many2many(
+        related="product_id.product_template_attribute_value_ids", readonly=True
+    )
+    product_no_variant_attribute_value_ids = fields.Many2many(
+        "product.template.attribute.value",
+        string="Product attribute values that do not create variants",
+        ondelete="restrict",
+    )
 
     def _get_product_purchase_description(self, product):
         name = super()._get_product_purchase_description(product)
-        product_lang_no_variant_attribute_value_ids = self.with_context(product.env.context).product_no_variant_attribute_value_ids
+        product_lang_no_variant_attribute_value_ids = self.with_context(
+            product.env.context
+        ).product_no_variant_attribute_value_ids
         for no_variant_attribute_value in product_lang_no_variant_attribute_value_ids:
-            name += "\n" + no_variant_attribute_value.attribute_id.name + ': ' + no_variant_attribute_value.name
+            name += (
+                "\n"
+                + no_variant_attribute_value.attribute_id.name
+                + ": "
+                + no_variant_attribute_value.name
+            )
 
         return name

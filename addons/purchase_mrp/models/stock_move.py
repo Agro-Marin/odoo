@@ -5,54 +5,88 @@ from odoo.exceptions import UserError
 
 
 class StockMove(models.Model):
-    _inherit = 'stock.move'
+    _inherit = "stock.move"
 
     def _get_cost_ratio(self, quantity):
         self.ensure_one()
         if self.bom_line_id.bom_id.type == "phantom":
-            uom_quantity = self.product_uom_id._compute_quantity(self.quantity, self.product_id.uom_id)
+            uom_quantity = self.product_uom_id._compute_quantity(
+                self.quantity, self.product_id.uom_id
+            )
             if not self.product_uom_id.is_zero(uom_quantity):
                 unit_kit_purchase = 1
                 if self.purchase_line_id:
-                    active_moves = self.purchase_line_id.move_ids.filtered(lambda m:
-                        m.state != 'cancel' and m.product_id == self.product_id and m.picking_id != self.picking_id,
+                    active_moves = self.purchase_line_id.move_ids.filtered(
+                        lambda m: (
+                            m.state != "cancel"
+                            and m.product_id == self.product_id
+                            and m.picking_id != self.picking_id
+                        ),
                     )
-                    active_quantity = quantity + sum(active_moves.mapped('quantity'))
+                    active_quantity = quantity + sum(active_moves.mapped("quantity"))
                     if active_quantity:
-                        unit_kit_purchase = (quantity / active_quantity) * self.purchase_line_id.product_qty
-                return (self.cost_share / 100) * (quantity / uom_quantity) * unit_kit_purchase
+                        unit_kit_purchase = (
+                            quantity / active_quantity
+                        ) * self.purchase_line_id.product_qty
+                return (
+                    (self.cost_share / 100)
+                    * (quantity / uom_quantity)
+                    * unit_kit_purchase
+                )
         return super()._get_cost_ratio(quantity)
 
     def _get_value_from_bill(self, aml):
         value = super()._get_value_from_bill(aml)
         if self.bom_line_id.bom_id.type == "phantom":
-            value *= (self.cost_share / 100)
+            value *= self.cost_share / 100
         return value
 
     def _get_quantity_from_bill(self, aml, quantity):
         self.ensure_one()
         if self.bom_line_id.bom_id.type == "phantom":
-            return aml.product_uom_id._compute_quantity(quantity, self.product_id.uom_id)
+            return aml.product_uom_id._compute_quantity(
+                quantity, self.product_id.uom_id
+            )
         return super()._get_quantity_from_bill(aml, quantity)
 
     def _prepare_phantom_move_vals(self, bom_line, product_qty, quantity_done):
         vals = super()._prepare_phantom_move_vals(bom_line, product_qty, quantity_done)
         if self.purchase_line_id:
-            vals['purchase_line_id'] = self.purchase_line_id.id
+            vals["purchase_line_id"] = self.purchase_line_id.id
         return vals
 
     def _get_valuation_price_and_qty(self, related_aml, to_curr):
-        valuation_price_unit_total, valuation_total_qty = super()._get_valuation_price_and_qty(related_aml, to_curr)
-        boms = self.env['mrp.bom']._bom_find(related_aml.product_id, company_id=related_aml.company_id.id, bom_type='phantom')
+        valuation_price_unit_total, valuation_total_qty = (
+            super()._get_valuation_price_and_qty(related_aml, to_curr)
+        )
+        boms = self.env["mrp.bom"]._bom_find(
+            related_aml.product_id,
+            company_id=related_aml.company_id.id,
+            bom_type="phantom",
+        )
         if related_aml.product_id in boms:
             kit_bom = boms[related_aml.product_id]
-            order_qty = related_aml.product_id.uom_id._compute_quantity(related_aml.quantity, kit_bom.product_uom_id)
+            order_qty = related_aml.product_id.uom_id._compute_quantity(
+                related_aml.quantity, kit_bom.product_uom_id
+            )
             filters = {
-                'incoming_moves': lambda m: m.location_id.usage == 'supplier' and (not m.origin_returned_move_id or (m.origin_returned_move_id and m.to_refund)),
-                'outgoing_moves': lambda m: m.location_id.usage != 'supplier' and m.to_refund
+                "incoming_moves": lambda m: (
+                    m.location_id.usage == "supplier"
+                    and (
+                        not m.origin_returned_move_id
+                        or (m.origin_returned_move_id and m.to_refund)
+                    )
+                ),
+                "outgoing_moves": lambda m: (
+                    m.location_id.usage != "supplier" and m.to_refund
+                ),
             }
-            valuation_total_qty = self._get_kit_quantity(related_aml.product_id, order_qty, kit_bom, filters)
-            valuation_total_qty = kit_bom.product_uom_id._compute_quantity(valuation_total_qty, related_aml.product_id.uom_id)
+            valuation_total_qty = self._get_kit_quantity(
+                related_aml.product_id, order_qty, kit_bom, filters
+            )
+            valuation_total_qty = kit_bom.product_uom_id._compute_quantity(
+                valuation_total_qty, related_aml.product_id.uom_id
+            )
             # The `or` here used to pick a rounding *source*:
             #   float_is_zero(qty, precision_rounding=aml.product_uom_id.rounding
             #                                         or aml.product_id.uom_id.rounding)
@@ -61,5 +95,10 @@ class StockMove(models.Model):
             # every kit bill line raised. `rounding` is a single global value
             # now, so both operands of that fallback are equal and one is enough.
             if related_aml.product_id.uom_id.is_zero(valuation_total_qty):
-                raise UserError(_('Odoo is not able to generate the anglo saxon entries. The total valuation of %s is zero.', related_aml.product_id.display_name))
+                raise UserError(
+                    _(
+                        "Odoo is not able to generate the anglo saxon entries. The total valuation of %s is zero.",
+                        related_aml.product_id.display_name,
+                    )
+                )
         return valuation_price_unit_total, valuation_total_qty

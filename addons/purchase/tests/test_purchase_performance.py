@@ -502,6 +502,7 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
         line_counts = [5, 10, 25, 50, 100]
 
         for line_count in line_counts:
+
             def create_po(lc=line_count):
                 return self.env["purchase.order"].create(
                     {
@@ -557,6 +558,7 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
 
         results = []
         for po_count in po_counts:
+
             def create_batch(pc=po_count):
                 return self.env["purchase.order"].create(
                     [
@@ -741,6 +743,7 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
         line_counts = [200, 500]
 
         for line_count in line_counts:
+
             def create_large_po(lc=line_count):
                 return self.env["purchase.order"].create(
                     {
@@ -808,6 +811,7 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
         lines_per_po = 10
 
         for batch_size in batch_sizes:
+
             def create_batch(bs=batch_size):
                 return self.env["purchase.order"].create(
                     [
@@ -912,6 +916,7 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
         line_counts = [50, 100, 200]
 
         for line_count in line_counts:
+
             def create_po_with_sellers(lc=line_count):
                 return self.env["purchase.order"].create(
                     {

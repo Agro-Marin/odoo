@@ -28,7 +28,6 @@ class TestPurchaseOrderWriteValidation(AccountTestInvoicingCommon):
             }
         )
 
-
     def test_legal_transitions_via_actions(self):
         po = self._new_po()
         self.assertEqual(po.state, "draft")
@@ -65,7 +64,6 @@ class TestPurchaseOrderWriteValidation(AccountTestInvoicingCommon):
         po = self._new_po()
         po.write({"state": "draft"})
         self.assertEqual(po.state, "draft")
-
 
     def test_locked_blocks_business_field(self):
         po = self._new_po()
@@ -105,7 +103,6 @@ class TestPurchaseOrderWriteValidation(AccountTestInvoicingCommon):
         po.action_confirm()
         self.assertEqual(po.state, "done")
         self.assertTrue(po.locked)
-
 
     def test_frozen_fields_empty_map_allows_done_write(self):
         po = self._new_po()

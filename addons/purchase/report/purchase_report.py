@@ -10,7 +10,6 @@ class PurchaseReport(models.Model):
     _auto = False
     _order = "date_order desc, price_total desc"
 
-
     order_reference = fields.Reference(
         string="Order",
         selection=[("purchase.order", "Purchase Order")],
@@ -92,7 +91,6 @@ class PurchaseReport(models.Model):
         aggregator="avg",
         help="Amount of time between date planned and order by date for each purchase order line.",
     )
-
 
     def _get_fields_select(self) -> dict:
         return {

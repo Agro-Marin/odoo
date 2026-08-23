@@ -809,7 +809,6 @@ class TestPurchaseMailTemplate(AccountTestInvoicingCommon):
             },
         )
 
-
     def test_returns_a_record_not_an_id(self):
         template = self._make_po()._get_mail_template()
         self.assertEqual(template._name, "mail.template")
@@ -856,7 +855,6 @@ class TestPurchaseMailTemplate(AccountTestInvoicingCommon):
             action["context"]["default_template_id"],
             self.env.ref("purchase.email_template_edi_purchase").id,
         )
-
 
     def test_template_language_wins(self):
         self.env["res.lang"]._activate_lang("fr_FR")

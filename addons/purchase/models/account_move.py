@@ -17,7 +17,6 @@ _logger = logging.getLogger(__name__)
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-
     purchase_vendor_bill_id = fields.Many2one(
         comodel_name="purchase.bill.match",
         string="Auto-complete",
@@ -48,7 +47,6 @@ class AccountMove(models.Model):
         compute="_compute_purchase_warning_text",
         help="Internal warning for the partner or the products as set by the user.",
     )
-
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -87,7 +85,6 @@ class AccountMove(models.Model):
                 ).join(refs)
                 move.message_post(body=message)
         return res
-
 
     @api.depends("move_type", "partner_id")
     def _compute_invoice_user_id(self):
@@ -163,7 +160,6 @@ class AccountMove(models.Model):
                     warnings.add(product.display_name + " - " + product_msg)
             move.purchase_warning_text = "\n".join(warnings)
 
-
     @api.onchange("purchase_vendor_bill_id", "purchase_id")
     def _onchange_purchase_auto_complete(self):
         if self.purchase_vendor_bill_id.move_id:
@@ -192,9 +188,7 @@ class AccountMove(models.Model):
         )
         del invoice_vals["company_id"]
         if self.move_type == invoice_vals["move_type"]:
-            del invoice_vals[
-                "move_type"
-            ]
+            del invoice_vals["move_type"]
         self.update(invoice_vals)
         self.currency_id = new_currency_id
 
@@ -244,7 +238,6 @@ class AccountMove(models.Model):
             self.currency_id = currency_id
 
         return res
-
 
     def action_purchase_matching(self):
         self.ensure_one()
@@ -320,7 +313,6 @@ class AccountMove(models.Model):
                     vals,
                 )
         return True
-
 
     def _find_and_set_purchase_orders(
         self,
@@ -612,7 +604,6 @@ class AccountMove(models.Model):
                     ]
                     invoice.purchase_id = purchase_order
                     invoice._onchange_purchase_auto_complete()
-
 
     def _prepare_purchase_order_vals(self) -> dict:
         self.ensure_one()

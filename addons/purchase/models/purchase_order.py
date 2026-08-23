@@ -34,7 +34,6 @@ class PurchaseOrder(models.Model):
     def _get_fields_rec_search_base(self):
         return ["name", "partner_ref"]
 
-
     def _get_order_type(self):
         return "purchase"
 
@@ -42,7 +41,6 @@ class PurchaseOrder(models.Model):
 
     def _get_catalog_product_ok_field(self):
         return "purchase_ok"
-
 
     partner_id = fields.Many2one(
         string="Vendor",
@@ -152,7 +150,6 @@ class PurchaseOrder(models.Model):
         readonly=False,
     )
 
-
     def copy(self, default=None):
         ctx = dict(self.env.context)
         ctx.pop("default_product_id", None)
@@ -164,7 +161,6 @@ class PurchaseOrder(models.Model):
                     line.selected_seller_id
                 )
         return new_orders
-
 
     def _get_confirmed_type_name(self):
         return _("Purchase Order")
@@ -272,7 +268,6 @@ class PurchaseOrder(models.Model):
     def _compute_purchase_warning_text(self):
         self._compute_warning_text("purchase_warning_text")
 
-
     def _get_is_late_search_domain(self, domain, positive):
         lines_domain = Domain("order_id", "any", domain) & Domain.custom(
             to_sql=lambda model, alias, query: SQL(
@@ -282,7 +277,6 @@ class PurchaseOrder(models.Model):
             ),
         )
         return Domain("line_ids", "any", lines_domain)
-
 
     def onchange(self, values, field_names, fields_spec):
         result = super().onchange(values, field_names, fields_spec)
@@ -320,7 +314,6 @@ class PurchaseOrder(models.Model):
     def _onchange_fiscal_position_id(self):
         self.line_ids._compute_tax_ids()
 
-
     def action_bill_matching(self):
         self.ensure_one()
         product_ids = self.line_ids.product_id.ids
@@ -346,7 +339,6 @@ class PurchaseOrder(models.Model):
             ],
         }
 
-
     def _action_confirm(self):
         for order in self:
             order._create_supplier_to_product()
@@ -358,7 +350,6 @@ class PurchaseOrder(models.Model):
 
     def action_lock(self):
         self.write({"locked": True, "priority": "0"})
-
 
     def _merge_validate_selection(self, orders):
         if len(orders) < 2:
@@ -440,7 +431,6 @@ class PurchaseOrder(models.Model):
         action["context"] = context
         return action
 
-
     def _create_update_date_activity(self, updated_dates):
         note = Markup("<p>%s</p>\n") % _(
             "%s modified receipt dates for the following products:",
@@ -521,7 +511,6 @@ class PurchaseOrder(models.Model):
                 new_receipt_date=date.date(),
             )
 
-
     def action_add_from_catalog(self):
         res = super().action_add_from_catalog()
         kanban_view_id = self.env.ref(
@@ -573,13 +562,11 @@ class PurchaseOrder(models.Model):
     def _get_catalog_line_price(self, line):
         return line.price_unit_discounted_taxexc
 
-
     def _get_import_template_label(self):
         return _("Import Template for Requests for Quotation")
 
     def _get_import_template_path(self):
         return "/purchase/static/xls/requests_for_quotation_import_template.xlsx"
-
 
     def _create_downpayments(self, line_vals):
         return self._create_down_payment_lines(line_vals)
@@ -722,7 +709,6 @@ class PurchaseOrder(models.Model):
         return (
             self.env.ref(xmlid, raise_if_not_found=False) or self.env["mail.template"]
         )
-
 
     @api.model
     def _get_orders_to_remind(self):
@@ -1062,7 +1048,6 @@ class PurchaseOrder(models.Model):
 
         for line, date in updated_dates:
             line._update_date_commitment(date)
-
 
     def _can_confirm_analytic_distribution(self):
         if not self.env.context.get("validate_analytic"):

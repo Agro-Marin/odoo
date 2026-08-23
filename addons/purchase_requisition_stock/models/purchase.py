@@ -4,11 +4,11 @@ from odoo import api, fields, models
 
 
 class PurchaseOrder(models.Model):
-    _inherit = 'purchase.order'
+    _inherit = "purchase.order"
 
     on_time_rate_perc = fields.Float(string="OTD", compute="_compute_on_time_rate_perc")
 
-    @api.depends('on_time_rate')
+    @api.depends("on_time_rate")
     def _compute_on_time_rate_perc(self):
         for po in self:
             if po.on_time_rate >= 0:
@@ -16,7 +16,7 @@ class PurchaseOrder(models.Model):
             else:
                 po.on_time_rate_perc = -1
 
-    @api.onchange('requisition_id')
+    @api.onchange("requisition_id")
     def _onchange_requisition_id(self):
         super()._onchange_requisition_id()
         if self.requisition_id:
@@ -24,6 +24,6 @@ class PurchaseOrder(models.Model):
 
 
 class PurchaseOrderLine(models.Model):
-    _inherit = 'purchase.order.line'
+    _inherit = "purchase.order.line"
 
     on_time_rate_perc = fields.Float(string="OTD", related="order_id.on_time_rate_perc")

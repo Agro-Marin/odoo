@@ -40,7 +40,6 @@ class ResConfigSettings(models.TransientModel):
     module_purchase_requisition = fields.Boolean(string="Purchase Agreements")
     module_purchase_product_matrix = fields.Boolean(string="Purchase Grid Entry")
 
-
     @api.onchange("group_product_variant")
     def _onchange_group_product_variant_purchase(self):
         if self.module_purchase_product_matrix and not self.group_product_variant:
@@ -57,7 +56,6 @@ class ResConfigSettings(models.TransientModel):
             "po_quotation_validity_days",
             _("RFQ Validity"),
         )
-
 
     def set_values(self):
         super().set_values()

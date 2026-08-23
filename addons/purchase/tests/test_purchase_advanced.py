@@ -19,7 +19,6 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
             }
         )
 
-
     def test_merge_purchase_orders_with_sections(self):
         po1 = self.env["purchase.order"].create(
             {
@@ -201,7 +200,6 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
         self.assertEqual(len(note_lines), 1, "Note line should be preserved")
         self.assertEqual(note_lines.name, "Important note for PO1")
 
-
     def test_duplicate_order_detection(self):
         vendor_ref = "VENDOR-REF-001"
 
@@ -222,9 +220,7 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
         )
         po1.action_confirm()
 
-        po2 = self.env[
-            "purchase.order"
-        ].create(
+        po2 = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
                 "partner_ref": vendor_ref,
@@ -284,7 +280,6 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
             "PO with different products should not be a duplicate",
         )
 
-
     def test_purchase_order_acknowledge(self):
         po = self.env["purchase.order"].create(
             {
@@ -306,7 +301,6 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
         po.action_acknowledge()
 
         self.assertTrue(po.acknowledged, "PO should be acknowledged after action")
-
 
     def test_section_line_has_null_product_fields(self):
         po = self.env["purchase.order"].create(
@@ -381,7 +375,6 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
         self.assertEqual(len(subsection), 1)
         self.assertEqual(subsection.name, "Subsection")
 
-
     def test_lock_prevents_modification(self):
         po = self.env["purchase.order"].create(
             {
@@ -426,7 +419,6 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
 
         self.assertFalse(po.locked, "PO should be unlocked")
 
-
     def test_currency_from_partner_property(self):
         eur = self.env.ref("base.EUR")
         self.partner_a.property_purchase_currency_id = eur
@@ -449,7 +441,6 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
         self.assertEqual(
             po.currency_id, eur, "PO currency should match partner's purchase currency"
         )
-
 
     def test_invoice_state_no_invoice(self):
         po = self.env["purchase.order"].create(
@@ -515,7 +506,6 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
             "partial",
             "Invoice state should be 'partial' when partially invoiced",
         )
-
 
     def test_amount_computation_with_taxes(self):
         tax_15 = self.env["account.tax"].create(

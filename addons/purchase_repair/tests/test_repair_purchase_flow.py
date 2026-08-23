@@ -6,9 +6,8 @@ from odoo.tests import tagged
 from odoo.addons.purchase_stock.tests.common import PurchaseTestCommon
 
 
-@tagged('post_install', '-at_install')
+@tagged("post_install", "-at_install")
 class TestRepairPurchaseFlow(PurchaseTestCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -22,36 +21,48 @@ class TestRepairPurchaseFlow(PurchaseTestCommon):
         and quantity, and ensures proper linking via the procurement group.
         """
         self.route_mto.active = True
-        rule = self.route_mto.rule_ids.filtered(lambda r: r.picking_type_id.code == 'repair_operation')
-        rule.update({'procure_method': 'make_to_order'})
+        rule = self.route_mto.rule_ids.filtered(
+            lambda r: r.picking_type_id.code == "repair_operation"
+        )
+        rule.update({"procure_method": "make_to_order"})
 
-        seller = self.env['res.partner'].create({
-            'name': 'Vendor',
-        })
+        seller = self.env["res.partner"].create(
+            {
+                "name": "Vendor",
+            }
+        )
 
         product = self.product
-        product.write({
-            'route_ids': [Command.set([self.route_mto.id, self.route_buy.id])],
-            'seller_ids': [
-                Command.create({
-                    'partner_id': seller.id,
-                    'min_qty': 1,
-                    'price': 150,
-                }),
-            ],
-        })
-
-        repair = self.env['repair.order'].create([
+        product.write(
             {
-                'move_ids': [
-                    Command.create({
-                        'repair_line_type': 'add',
-                        'product_id': product.id,
-                        'product_uom_qty': 1.0,
-                    })
-                ]
+                "route_ids": [Command.set([self.route_mto.id, self.route_buy.id])],
+                "seller_ids": [
+                    Command.create(
+                        {
+                            "partner_id": seller.id,
+                            "min_qty": 1,
+                            "price": 150,
+                        }
+                    ),
+                ],
             }
-        ])
+        )
+
+        repair = self.env["repair.order"].create(
+            [
+                {
+                    "move_ids": [
+                        Command.create(
+                            {
+                                "repair_line_type": "add",
+                                "product_id": product.id,
+                                "product_uom_qty": 1.0,
+                            }
+                        )
+                    ]
+                }
+            ]
+        )
 
         repair.action_validate()
 

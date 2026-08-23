@@ -78,7 +78,6 @@ class CustomerPortal(portal.CustomerPortal, OrderPortalMixin):
     def _purchase_prepare_orders_domain(self, partner, page_key):
         return list(self._purchase_get_page_state_domain(page_key))
 
-
     def _prepare_home_portal_values(self, counters):
         values = super()._prepare_home_portal_values(counters)
         return self._order_portal_home_counters(
@@ -87,7 +86,6 @@ class CustomerPortal(portal.CustomerPortal, OrderPortalMixin):
             self._purchase_get_order_model(),
             self._purchase_get_portal_counters(),
         )
-
 
     def _purchase_prepare_order_portal_rendering_values(self, page_key, **kwargs):
         partner = request.env.user.partner_id
@@ -99,7 +97,6 @@ class CustomerPortal(portal.CustomerPortal, OrderPortalMixin):
             searchbar_filters=self._purchase_get_order_searchbar_filters(page_key),
             **kwargs,
         )
-
 
     def _purchase_resize_to_48(self, source):
         if not source:
@@ -123,7 +120,6 @@ class CustomerPortal(portal.CustomerPortal, OrderPortalMixin):
             **kwargs,
         )
 
-
     @http.route(
         ["/my/rfq", "/my/rfq/page/<int:page>"],
         type="http",
@@ -143,7 +139,6 @@ class CustomerPortal(portal.CustomerPortal, OrderPortalMixin):
     def portal_my_purchase_orders(self, **kw):
         values = self._purchase_prepare_order_portal_rendering_values("purchase", **kw)
         return request.render("purchase.portal_my_purchase_orders", values)
-
 
     @http.route(
         ["/my/purchase/<int:order_id>"],
@@ -188,7 +183,6 @@ class CustomerPortal(portal.CustomerPortal, OrderPortalMixin):
                 "purchase.portal_my_purchase_order_update_date", values
             )
         return request.render("purchase.portal_my_purchase_order", values)
-
 
     @http.route(
         ["/my/purchase/<int:order_id>/update"],

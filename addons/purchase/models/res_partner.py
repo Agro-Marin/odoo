@@ -5,7 +5,6 @@ from odoo.tools.translate import _
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-
     user_purchase_id = fields.Many2one(
         comodel_name="res.users",
         string="Buyer",
@@ -44,7 +43,6 @@ class ResPartner(models.Model):
         help="Number of days to send reminder email before the promised receipt date",
     )
 
-
     @api.depends("parent_id")
     def _compute_user_purchase_id(self):
         for partner in self.filtered(
@@ -74,7 +72,6 @@ class ResPartner(models.Model):
             _("Purchases"),
             "o_tag_color_5",
         )
-
 
     @api.model
     def _get_purchase_order_domain_count(self):

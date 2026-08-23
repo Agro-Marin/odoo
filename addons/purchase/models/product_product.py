@@ -4,7 +4,6 @@ from odoo import _, api, fields, models
 class ProductProduct(models.Model):
     _inherit = "product.product"
 
-
     purchased_product_qty = fields.Float(
         string="Purchased",
         digits="Product Unit",
@@ -14,7 +13,6 @@ class ProductProduct(models.Model):
         compute="_compute_is_in_purchase_order",
         search="_search_is_in_purchase_order",
     )
-
 
     def _compute_purchased_product_qty(self):
         self._compute_ordered_qty(
@@ -29,12 +27,10 @@ class ProductProduct(models.Model):
     def _compute_is_in_purchase_order(self):
         self._compute_is_in_order("purchase.order.line", "is_in_purchase_order")
 
-
     def _search_is_in_purchase_order(self, operator, value):
         if operator != "in":
             return NotImplemented
         return self._search_is_in_order("purchase.order.line")
-
 
     @api.onchange("type")
     def _onchange_type_purchase_warn(self):
@@ -49,7 +45,6 @@ class ProductProduct(models.Model):
             }
         return None
 
-
     @api.readonly
     def action_view_po(self):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
@@ -61,7 +56,6 @@ class ProductProduct(models.Model):
         ]
         action["display_name"] = _("Purchase History for %s", self.display_name)
         return action
-
 
     def _get_backend_root_menu_ids(self):
         return super()._get_backend_root_menu_ids() + [

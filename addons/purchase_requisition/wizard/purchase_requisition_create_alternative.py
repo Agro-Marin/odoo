@@ -145,8 +145,7 @@ class PurchaseRequisitionCreateAlternative(models.TransientModel):
             "analytic_distribution": order_line.analytic_distribution,
             **(
                 {"name": order_line.name}
-                if order_line.display_type
-                in NON_ACCOUNTABLE_DISPLAY_TYPES
+                if order_line.display_type in NON_ACCOUNTABLE_DISPLAY_TYPES
                 or not has_product_description
                 else {}
             ),

@@ -5,12 +5,10 @@ from odoo.tools.translate import _
 class AccountAnalyticAccount(models.Model):
     _inherit = "account.analytic.account"
 
-
     purchase_order_count = fields.Integer(
         string="Purchase Order Count",
         compute="_compute_purchase_order_count",
     )
-
 
     @api.depends("line_ids")
     def _compute_purchase_order_count(self):
@@ -29,7 +27,6 @@ class AccountAnalyticAccount(models.Model):
                 if account.plan_id
                 else 0
             )
-
 
     def action_view_purchase_orders(self):
         self.ensure_one()

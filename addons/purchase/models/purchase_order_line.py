@@ -29,7 +29,6 @@ class PurchaseOrderLine(models.Model):
     def _get_merge_date_field(self):
         return "date_commitment"
 
-
     order_id = fields.Many2one(comodel_name="purchase.order")
     partner_id = fields.Many2one(string="Vendor")
     user_id = fields.Many2one(string="Buyer")
@@ -101,7 +100,6 @@ class PurchaseOrderLine(models.Model):
     )
     qty_invoiced_at_date = fields.Float(string="Billed")
 
-
     def _get_display_type_nullify_vals(self):
         return {**super()._get_display_type_nullify_vals(), "date_commitment": False}
 
@@ -140,7 +138,6 @@ class PurchaseOrderLine(models.Model):
                     state_label,
                 ),
             )
-
 
     @api.depends("product_id.purchase_line_warn_msg")
     def _compute_purchase_line_warn_msg(self):
@@ -408,7 +405,6 @@ class PurchaseOrderLine(models.Model):
     def _compute_invoice_state(self):
         return super()._compute_invoice_state()
 
-
     @api.onchange("date_commitment")
     def _onchange_date_commitment(self):
         if (
@@ -416,7 +412,6 @@ class PurchaseOrderLine(models.Model):
             and self.date_commitment != self._origin.date_commitment
         ):
             self.date_is_manual = True
-
 
     def _convert_to_middle_of_day(self, date):
         return (
@@ -838,7 +833,6 @@ class PurchaseOrderLine(models.Model):
                     )
                 return
 
-
     def _sum_invoiced_amounts(self, invoice_lines):
         qty = 0.0
         amount_taxexc = 0.0
@@ -895,7 +889,6 @@ class PurchaseOrderLine(models.Model):
 
     def _update_date_commitment(self, updated_date):
         self.date_commitment = updated_date
-
 
     def _has_discount_differences(self, invoice_lines):
         return any(inv_line.discount != self.discount for inv_line in invoice_lines)
