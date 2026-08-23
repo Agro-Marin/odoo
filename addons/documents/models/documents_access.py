@@ -101,6 +101,17 @@ class DocumentsAccess(models.Model):
         member_sudo = self.browse(member_id).sudo().exists()
         if not member_sudo or not member_sudo._is_signup_available():
             return False
+        # `consteq` is `hmac.compare_digest`, which raises TypeError on a `str`
+        # holding non-ASCII. `token` is the raw, public, attacker-controlled
+        # `member_signup_token` query parameter, so without this guard any
+        # non-ASCII value turned `/documents/<anything>` into an
+        # unauthenticated HTTP 500 -- no valid document token needed, only a
+        # `documents.access` id, which is a small guessable integer. A real
+        # token is `tools.hmac` output (hex), so non-ASCII simply never matches.
+        # This is the same guard `documents.ShareRoute._from_access_token`
+        # already applies to `document_token`; this call site was missed.
+        if not isinstance(token, str) or not token.isascii():
+            return False
         if not consteq(member_sudo._get_member_signup_token(), token):
             return False
         return member_sudo

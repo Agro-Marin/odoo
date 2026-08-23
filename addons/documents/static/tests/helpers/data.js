@@ -115,6 +115,7 @@ export class DocumentsDocument extends models.Model {
         compute: "_compute_alias_email",
     });
     alias_name = fields.Char();
+    alias_email = fields.Char();
     alias_tag_ids = fields.Many2many({ relation: "documents.tag" });
     mail_alias_domain_count = fields.Integer();
     create_activity_type_id = fields.Many2one({ relation: "mail.activity.type" });

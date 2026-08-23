@@ -1566,6 +1566,18 @@ class TestOrmModel_Many2one_Reference(models.Model):
     res_model = fields.Char("Resource Model")
     res_id = fields.Many2oneReference("Resource ID", model_field="res_model")
     const = fields.Boolean(default=True)
+    # A non-stored compute reading through the reference: the shape
+    # `ir.attachment.res_name` and `documents.document.res_name` both have, and
+    # the only way the cache invalidation around a deleted target is observable.
+    res_name = fields.Char(compute="_compute_res_name")
+
+    @api.depends("res_model", "res_id")
+    def _compute_res_name(self):
+        for record in self:
+            record.res_name = False
+            if record.res_model and record.res_id:
+                target = self.env[record.res_model].browse(record.res_id).exists()
+                record.res_name = target.display_name if target else False
 
 
 class TestOrmInverse_M2o_Ref(models.Model):

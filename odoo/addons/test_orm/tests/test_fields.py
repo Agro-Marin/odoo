@@ -4540,6 +4540,32 @@ class TestRequiredMany2oneTransient(TransactionCase):
 
 @tagged("m2oref")
 class TestMany2oneReference(TransactionExpressionCase):
+    def test_deleting_the_target_clears_a_compute_over_the_reference(self):
+        """A compute reading through a reference must not survive the target.
+
+        A `Many2oneReference` names its model in a sibling column, so it has no
+        `comodel_name` and the registry's comodel index -- which is what a
+        scoped `unlink` invalidation walks -- cannot see it. `unlink` used to
+        invalidate the whole cache and covered this by accident; once the
+        invalidation was scoped, a compute reading through a reference went on
+        serving the deleted record's name for the rest of the transaction.
+
+        `ir.attachment.res_name` and `documents.document.res_name` are the two
+        shipped fields with exactly this shape.
+        """
+        partner = self.env["res.partner"].create({"name": "gone soon"})
+        reference = self.env["test_orm.model_many2one_reference"].create(
+            {"res_model": "res.partner", "res_id": partner.id}
+        )
+        self.assertEqual(reference.res_name, "gone soon")
+
+        partner.unlink()
+
+        self.assertFalse(
+            reference.res_name,
+            "the compute still names a record deleted in this transaction",
+        )
+
     def test_delete_m2o_reference_records(self):
         m = self.env["test_orm.model_many2one_reference"]
         self.env.cr.execute("SELECT max(id) FROM test_orm_model_many2one_reference")

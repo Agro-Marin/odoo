@@ -343,3 +343,106 @@ class TestDegenerateMessages:
             < result.body.index("TWO")
             < result.body.index("THREE")
         )
+
+
+EMBEDDED_INVOICE = (
+    b"Subject: invoice 4711\r\n"
+    b"From: <supplier@example.com>\r\n"
+    b"To: <me@example.com>\r\n"
+    b'Content-Type: multipart/mixed; boundary="INNER"\r\n'
+    b"\r\n"
+    b"--INNER\r\n"
+    b"Content-Type: text/plain; charset=utf-8\r\n"
+    b"\r\n"
+    b"Here is your invoice.\r\n"
+    b"--INNER\r\n"
+    b'Content-Type: application/pdf; name="invoice.pdf"\r\n'
+    b'Content-Disposition: attachment; filename="invoice.pdf"\r\n'
+    b"\r\n"
+    b"%PDF-1.4 fake\r\n"
+    b"--INNER--\r\n"
+)
+
+FORWARDED = (
+    b'Content-Type: message/rfc822; name="forwarded.eml"\r\n'
+    b'Content-Disposition: attachment; filename="forwarded.eml"\r\n'
+    b"\r\n" + EMBEDDED_INVOICE
+)
+
+
+class TestEmbeddedMessage:
+    """A forwarded ``.eml`` carries files, and they must survive the parse.
+
+    Handing back only the envelope is what "treat ``message/rfc822`` as one
+    opaque leaf" does, and it silently turns "forward the invoice to the folder
+    alias" into "file an ``.eml`` nobody opens".
+    """
+
+    def names(self, raw: bytes, **kwargs):
+        return [a.fname for a in payload(raw, **kwargs).attachments]
+
+    def test_a_forwarded_file_is_extracted_beside_the_envelope(self):
+        raw = HEADERS + multipart(b"mixed", b"OUTER", PLAIN + b"FYI", FORWARDED)
+        assert self.names(raw) == ["forwarded.eml", "invoice.pdf"]
+
+    def test_the_embedded_body_is_not_filed_as_an_attachment(self):
+        """The old walk-based parser filed it, under the name "attachment"."""
+        raw = HEADERS + multipart(b"mixed", b"OUTER", PLAIN + b"FYI", FORWARDED)
+        assert "attachment" not in self.names(raw)
+
+    def test_the_embedded_body_does_not_leak_into_the_outer_body(self):
+        """The old parser replaced the outer body with the embedded one."""
+        raw = HEADERS + multipart(b"mixed", b"OUTER", PLAIN + b"FYI", FORWARDED)
+        body = payload(raw).body
+        assert "FYI" in body
+        assert "Here is your invoice." not in body
+
+    def test_an_embedded_message_without_files_yields_only_the_envelope(self):
+        inner = (
+            b"Subject: hello\r\n"
+            b"Content-Type: text/plain; charset=utf-8\r\n"
+            b"\r\n"
+            b"just text\r\n"
+        )
+        raw = HEADERS + multipart(
+            b"mixed",
+            b"OUTER",
+            PLAIN + b"FYI",
+            b'Content-Type: message/rfc822; name="q.eml"\r\n'
+            b'Content-Disposition: attachment; filename="q.eml"\r\n'
+            b"\r\n" + inner,
+        )
+        assert self.names(raw) == ["q.eml"]
+
+    def test_a_forward_of_a_forward_is_walked_to_the_bottom(self):
+        outer_eml = (
+            b"Subject: fwd\r\n"
+            b'Content-Type: multipart/mixed; boundary="MID"\r\n'
+            b"\r\n"
+            b"--MID\r\n"
+            b"Content-Type: text/plain; charset=utf-8\r\n"
+            b"\r\n"
+            b"see below\r\n"
+            b"--MID\r\n" + FORWARDED + b"--MID--\r\n"
+        )
+        raw = HEADERS + multipart(
+            b"mixed",
+            b"OUTER",
+            PLAIN + b"FYI",
+            b'Content-Type: message/rfc822; name="outer.eml"\r\n'
+            b'Content-Disposition: attachment; filename="outer.eml"\r\n'
+            b"\r\n" + outer_eml,
+        )
+        assert self.names(raw) == ["outer.eml", "forwarded.eml", "invoice.pdf"]
+
+    def test_a_bounce_keeps_the_failed_mail_s_files_out_of_the_report(self):
+        """The embedded message is the mail that failed, not this one.
+
+        The embedded part comes first here on purpose: a bounce parse stops at
+        the first body, so with the usual ordering the part is never reached and
+        the test would pass without exercising the rule at all.
+        """
+        raw = HEADERS + multipart(b"mixed", b"OUTER", FORWARDED, PLAIN + b"FYI")
+        assert self.names(raw, is_bounce=True) == ["forwarded.eml"]
+        # the very same mail, parsed as an ordinary one, does carry the file
+        assert self.names(raw) == ["forwarded.eml", "invoice.pdf"]

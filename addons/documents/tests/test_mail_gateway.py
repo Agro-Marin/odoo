@@ -17,6 +17,45 @@ from odoo.addons.test_mail.data.test_mail_data import (
     MAIL_TEMPLATE_EXTRA_HTML,
 )
 
+#: A mail forwarding a supplier invoice as ``.eml`` -- the way an invoice
+#: actually reaches a Documents folder alias. The file people mean is the one
+#: *inside* the forward.
+MAIL_FORWARDED_ATTACHMENT = """Subject: {subject}
+From: {email_from}
+To: {to}
+References: {references}
+Message-ID: {msg_id}
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="OUTER"
+
+--OUTER
+Content-Type: text/plain; charset=utf-8
+
+Please find the forwarded supplier invoice.
+--OUTER
+Content-Type: message/rfc822; name="forwarded.eml"
+Content-Disposition: attachment; filename="forwarded.eml"
+
+Subject: invoice 4711
+From: supplier@example.com
+To: me@example.com
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="INNER"
+
+--INNER
+Content-Type: text/plain; charset=utf-8
+
+Here is your invoice.
+--INNER
+Content-Type: application/pdf; name="invoice_4711.pdf"
+Content-Disposition: attachment; filename="invoice_4711.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKJSVFT0Y=
+--INNER--
+--OUTER--
+"""
+
 
 class TestMailGateway(MailCommon):
 
@@ -49,6 +88,13 @@ class TestMailGateway(MailCommon):
         cls.pre_existing_partner = cls.env["res.partner"].get_or_create(
             "existing@test.com"
         )
+        # `MAIL_EML_ATTACHMENT` carries exactly one file: the embedded
+        # `original_msg.eml`. The second name this used to list, "attachment",
+        # was never a file anyone sent -- it was the embedded message's own
+        # `text/plain` body, which the pre-2026-08 walk-based parser filed as an
+        # attachment under the default name. A mail that really does carry a
+        # file inside a forward is covered by
+        # `test_forwarded_attachment_becomes_its_own_document`.
         cls.email_filenames = ["original_msg.eml"]
         cls.document = (
             cls.env["documents.document"]
@@ -120,6 +166,49 @@ class TestMailGateway(MailCommon):
         self.assertEqual(len(documents), len(self.email_filenames))
         return documents
 
+    def test_forwarded_attachment_becomes_its_own_document(self):
+        """Forwarding a mail files the file it carries, not just the envelope.
+
+        This is the whole point of a folder alias for invoices and receipts:
+        people forward the supplier's mail. Parsing ``message/rfc822`` as one
+        opaque leaf files ``forwarded.eml`` -- which nobody opens -- and drops
+        the PDF, silently and with no error anywhere.
+        """
+        before = (
+            self.env["documents.document"]
+            .with_context(active_test=False)
+            .search([])
+            .ids
+        )
+        with self.mock_mail_gateway():
+            self.format_and_process(
+                MAIL_FORWARDED_ATTACHMENT,
+                self.pre_existing_partner.email,
+                f"inbox-test@{self.alias_domain}",
+                subject="Fwd: invoice 4711",
+                target_model="documents.document",
+                references="<f3b9f8f8-28fa-2543-cab2-7aa68f679ebb@odoo.com>",
+                msg_id="<fwd-invoice@odoo.com>",
+            )
+        created = (
+            self.env["documents.document"]
+            .with_context(active_test=False)
+            .search([("id", "not in", before)])
+        )
+        self.assertIn(
+            "invoice_4711.pdf",
+            created.mapped("name"),
+            "the forwarded invoice did not become a document",
+        )
+        self.assertIn(
+            "forwarded.eml",
+            created.mapped("name"),
+            "the forwarded mail itself is kept as the record of what arrived",
+        )
+        invoice = created.filtered(lambda d: d.name == "invoice_4711.pdf")
+        self.assertEqual(invoice.folder_id, self.folder)
+        self.assertEqual(invoice.mimetype, "application/pdf")
+
     def test_initial_values(self):
         self.assertFalse(
             self.env["res.partner"].search([("email", "=", self.email_with_no_partner)])
@@ -167,8 +256,8 @@ class TestMailGateway(MailCommon):
                     ("res_model", "=", self.document._name),
                 ]
             ),
-            2,
-            "the document's own file, plus the single one the reply carried",
+            # the document's own `file.gif`, plus the one file the reply carries
+            1 + len(self.email_filenames),
         )
         doc_messages = self.env["mail.message"].search(
             [("res_id", "=", self.document.id), ("model", "=", self.document._name)]
@@ -203,9 +292,9 @@ class TestMailGateway(MailCommon):
             self.env["documents.document"]
             .with_context(active_test=False)
             .search_count([]),
-            documents_count + 2,
-            "1 attachment in the email, so 1 document is created, "
-            "and 1 archived with the default values",
+            documents_count + len(self.email_filenames) + 1,
+            "one document per file the email carries, plus the archived "
+            "thread document the gateway creates from the mail itself",
         )
 
     @mute_logger(
@@ -232,9 +321,9 @@ class TestMailGateway(MailCommon):
             self.env["documents.document"]
             .with_context(active_test=False)
             .search_count([]),
-            documents_count + 2,
-            "1 attachment in the email, so 1 document is created, "
-            "and 1 archived with the default values",
+            documents_count + len(self.email_filenames) + 1,
+            "one document per file the email carries, plus the archived "
+            "thread document the gateway creates from the mail itself",
         )
 
     @mute_logger(

@@ -764,6 +764,23 @@ class DocumentsDocument(models.Model):
                         (4, record.attachment_id.id, False)
                     ]
                     versioned |= record
+                elif "attachment_id" in vals and not attachment_id:
+                    # Detaching the file outright. This used to keep no version
+                    # at all: the document went empty, the outgoing attachment
+                    # stayed behind pointing at it, and the history panel
+                    # offered nothing to go back to -- unlike every other way of
+                    # replacing the content. Emptying a document IS replacing
+                    # its content, which is how the lock guard above already
+                    # reads it.
+                    #
+                    # The attachment itself becomes the previous version, not a
+                    # copy of it: nothing is overwriting it here, so the copy
+                    # the branch below makes would archive a duplicate and leave
+                    # the original dangling.
+                    record.previous_attachment_ids = [
+                        (4, record.attachment_id.id, False)
+                    ]
+                    versioned |= record
                 elif writes_content:
                     old_attachment = record.attachment_id.with_context(
                         no_document=True

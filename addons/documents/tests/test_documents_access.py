@@ -41,6 +41,42 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             document.with_user(self.doc_user).action_change_owner(self.doc_user.id)
         self.assertEqual(document.owner_id, self.document_manager)
 
+    def test_noop_access_update_queues_no_tracking_work(self):
+        """An update that changes nothing must not wake the tracking cron.
+
+        The queue is drained by `ir_cron_documents_access_tracking`, which
+        `_create_access_tracking` triggers. Triggering it for an update that
+        produced no change wakes it to drain an empty queue, and `_trigger`
+        does not de-duplicate, so every such call leaves its own row behind.
+        """
+        Tracking = self.env["documents.access.tracking"]
+        Trigger = self.env["ir.cron.trigger"]
+        folder = self.folder_a
+
+        # settle on a known value, then ask for the value it already has
+        folder.action_update_access_rights(access_internal="view")
+        self.env.flush_all()
+        before = (Tracking.search_count([]), Trigger.search_count([]))
+
+        folder.action_update_access_rights(access_internal="view")
+        self.env.flush_all()
+        self.assertEqual(
+            (Tracking.search_count([]), Trigger.search_count([])),
+            before,
+            "a no-op update queued tracking work or woke the cron",
+        )
+
+        # ...and a real change still queues both, so the guard above cannot be
+        # satisfied by simply not tracking anything any more.
+        folder.action_update_access_rights(access_internal="edit")
+        self.env.flush_all()
+        self.assertGreater(
+            Tracking.search_count([]), before[0], "a real change was not tracked"
+        )
+        self.assertGreater(
+            Trigger.search_count([]), before[1], "the tracking cron was not woken"
+        )
+
     def test_move_into_unreadable_non_folder_reports_invalid_folder(self):
         hidden = self.env["documents.document"].create(
             {
@@ -476,13 +512,33 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.folder_a.action_update_access_rights(access_internal="view")
         test_authorized_users(self.document_manager)
 
-    def _reset_caches_for_query_count(self) -> None:
-        self.env.invalidate_all()
-        self.env["res.groups"]._get_group_definitions()
-        for xmlid in ("base.group_user", "base.group_portal", "base.group_public"):
-            self.env.ref(xmlid)
-
     @mute_logger("odoo.addons.base.models.ir_rule")
+    def _settled_caches(self):
+        """Start every pinned block below from ONE known cache state.
+
+        `invalidate_all()` drops the field cache. It does not reset the
+        environment's cached `user`/`companies`, nor the registry LRUs behind
+        `has_group`, `env.ref` and `get_param` -- but a rolled-back savepoint
+        resets all of them. So a block that happened to follow an
+        `assertRaises` started colder than one that did not, and the *same*
+        call measured 9 queries in one place and 15 in another: the pins were
+        reading the history in front of each block rather than the cost of the
+        operation.
+
+        The warm-up runs the operation itself, on a throwaway folder, so the
+        caches involved are whatever `action_update_access_rights` actually
+        touches -- a named list would have to be kept in step with it. The
+        field cache is dropped afterwards, so each pin still measures a cold
+        read against warm registry caches, which is the state a real request
+        reaches this code in.
+        """
+        scratch = self.env["documents.document"].create(
+            {"type": "folder", "name": "cache warm-up"}
+        )
+        scratch.action_update_access_rights(access_internal="view")
+        self.env.flush_all()
+        self.env.invalidate_all()
+
     def test_action_update_access_rights_partners(self):
         self._assert_no_members(self.folder_a)
         portal_user_2 = self.portal_user.copy()
@@ -497,8 +553,18 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             self.portal_user.partner_id.id: ("view", False),
             portal_user_2.partner_id.id: ("view", IN_ONE_DAY),
         }
-        self._reset_caches_for_query_count()
-        with self.assertQueryCount(16):
+        self._settled_caches()
+        # `user_permission` is a projection of `_search_user_permission` rather
+        # than a second Python implementation of it, so the compute flushes what
+        # the domain reads (required -- without it it reads stale rows and
+        # disagrees with the record rules) and evaluates the domain in SQL. The
+        # read path improved with it (kanban page 5 -> 4 queries, 200-document
+        # compute 2 -> 1).
+        #
+        # Every pin in this method is measured from `_settled_caches()`, not
+        # from a bare `invalidate_all()`: see its docstring for why the two are
+        # not the same measurement.
+        with self.assertQueryCount(10):
             self.folder_a.action_update_access_rights(partners=partners)
         folder_a_as_portal.check_access("read")
         folder_a_as_portal_2.check_access("read")
@@ -510,14 +576,15 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.assertEqual(len(portal_2_a_a_access), 1)
         self.assertEqual(portal_2_a_a_access.expiration_date, IN_ONE_DAY)
         IN_12_H = IN_ONE_DAY - datetime.timedelta(hours=12)
-        self._reset_caches_for_query_count()
+        self._settled_caches()
         with self.assertQueryCount(10):
             self.folder_a.action_update_access_rights(
                 partners={portal_user_2.partner_id: ("view", IN_12_H)}
             )
         self.assertEqual(portal_2_a_a_access.expiration_date, IN_12_H)
 
-        self._reset_caches_for_query_count()
+        # Update role+expiration via parent
+        self._settled_caches()
         with self.assertQueryCount(10):
             self.folder_a.action_update_access_rights(
                 partners={portal_user_2.partner_id: ("edit", IN_ONE_DAY)}
@@ -525,7 +592,8 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.assertEqual(portal_2_a_a_access.expiration_date, IN_ONE_DAY)
         self.assertEqual(portal_2_a_a_access.role, "edit")
 
-        self._reset_caches_for_query_count()
+        # Update role alone via parent
+        self._settled_caches()
         with self.assertQueryCount(10):
             self.folder_a.action_update_access_rights(
                 partners={portal_user_2.partner_id: ("view", None)}
@@ -535,7 +603,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
         partners = {self.portal_user.partner_id.id: (False, None)}
 
-        self._reset_caches_for_query_count()
+        self._settled_caches()
         with self.assertQueryCount(12):
             self.folder_a.action_update_access_rights(partners=partners)
             self.assertFalse(
@@ -554,14 +622,14 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         )
 
         partners = {self.portal_user.partner_id.id: ("view", False)}
-        self._reset_caches_for_query_count()
-        with self.assertQueryCount(15):
+        self._settled_caches()
+        with self.assertQueryCount(9):
             folder_a_a_p.action_update_access_rights(partners=partners)
 
         partners = dict.fromkeys(
             (self.portal_user | self.internal_user).partner_id.ids, ("edit", False)
         )
-        self._reset_caches_for_query_count()
+        self._settled_caches()
         with self.assertQueryCount(10):
             self.folder_a.action_update_access_rights(partners=partners)
         folder_a_as_portal.check_access("write")
@@ -572,15 +640,16 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self._assert_raises_check_access_rule(folder_a_as_portal_2, "write")
 
         portal_2_partner_id = portal_user_2.partner_id.id
-        self._reset_caches_for_query_count()
-        with self.assertQueryCount(15):
+        self._settled_caches()
+        with self.assertQueryCount(9):
             self.folder_a.action_update_access_rights(
                 partners={portal_2_partner_id: (False, False)}
             )
         self._assert_raises_check_access_rule(folder_a_as_portal_2)
 
-        self._reset_caches_for_query_count()
-        with self.assertQueryCount(15):
+        # Add portal 2 access to 1st level child and remove from 2nd
+        self._settled_caches()
+        with self.assertQueryCount(9):
             self.folder_a_a.action_update_access_rights(
                 partners={portal_2_partner_id: ("view", False)}
             )

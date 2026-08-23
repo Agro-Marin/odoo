@@ -92,19 +92,89 @@ class _Fragment(NamedTuple):
     html: bool
 
 
-def _leaf(part: EmailMessage) -> _Fragment:
+def _attachment_from(part: EmailMessage, filename: str | None, content) -> Attachment:
+    """Name a part and carry its ``content`` as an :class:`Attachment`.
+
+    *filename* is passed in rather than read here: `repair_part_headers` may
+    replace an unusable ``Content-Type`` outright, and the replacement carries
+    no ``name=`` parameter, so a filename read after the repair is lost.
+    """
+    info = {"encoding": part.get_content_charset()}
+    if content_id := part.get("content-id"):
+        info["cid"] = content_id.strip("><")
+    return Attachment(filename or "attachment", content, info)
+
+
+def _part_attachment(part: EmailMessage) -> Attachment:
+    """Read a part that has been judged an attachment, repairing it first."""
+    filename = part.get_filename()
+    repair_part_headers(part)
+    return _attachment_from(part, filename, part_content(part))
+
+
+def _is_carried_file(part: EmailMessage) -> bool:
+    """Whether a part *inside an embedded message* is a file someone sent.
+
+    Stricter than :func:`_is_attachment`, which answers "not body text" and so
+    also claims every non-``text`` part. Inside an embedded message that is the
+    wrong question: the embedded message's own ``text/plain`` and ``text/html``
+    parts are its *body*, not files, and treating them as attachments is what
+    the pre-2026-08 parser did -- it filed the quoted body of a forwarded mail
+    as an attachment literally named "attachment". A real carried file names
+    itself, either through ``filename=`` or an explicit attachment disposition.
+    """
+    return bool(part.get_filename()) or part.get(
+        "content-disposition", ""
+    ).strip().startswith("attachment")
+
+
+def _embedded_attachments(part: EmailMessage) -> list[Attachment]:
+    """Files carried *inside* an embedded ``message/rfc822`` part.
+
+    Forwarding a mail as ``.eml`` is how people send an invoice on to a
+    Documents folder alias or an expense to its inbox, and the file they mean is
+    the one inside. Handing back only the ``.eml`` -- which is what treating the
+    part as a single opaque leaf does -- files the envelope and drops the
+    letter.
+
+    The envelope is still returned by the caller, so the bytes are kept twice.
+    That is deliberate: the ``.eml`` is the record of what arrived, and the
+    extracted file is the thing anyone actually opens.
+
+    Only genuine carried files are taken (see :func:`_is_carried_file`), and
+    nothing here touches the outer body -- the two ways the old walk-based
+    parser got this wrong.
+    """
+    payload = part.get_payload()
+    inner = payload[0] if isinstance(payload, list) and payload else None
+    if not isinstance(inner, EmailMessage):
+        return []
+    return [
+        _part_attachment(sub)
+        # `inner.walk()` yields `inner` first, then descends; skipping it drops
+        # the embedded message itself, whose body is not a carried file. The
+        # walk is recursive, so a file inside a forward of a forward is found
+        # too, and a nested `.eml` is returned alongside its own contents.
+        for sub in inner.walk()
+        if sub is not inner
+        and sub.get_content_maintype() != "multipart"
+        and _is_carried_file(sub)
+    ]
+
+
+def _leaf(part: EmailMessage, stop_at_first_body: bool = False) -> _Fragment:
     filename = part.get_filename()
     repair_part_headers(part)
     content = part_content(part)
-    info = {"encoding": part.get_content_charset()}
-
-    if content_id := part.get("content-id"):
-        info["cid"] = content_id.strip("><")
 
     if _is_attachment(part, filename):
-        return _Fragment(
-            "", [Attachment(filename or "attachment", content, info)], False
-        )
+        attachments = [_attachment_from(part, filename, content)]
+        # Not for a bounce: there the embedded message is the mail that failed
+        # to arrive, and its files belong to that mail, not to the delivery
+        # report being parsed.
+        if not stop_at_first_body and part.get_content_type() == "message/rfc822":
+            attachments += _embedded_attachments(part)
+        return _Fragment("", attachments, False)
     if part.get_content_type() == "text/html":
         return _Fragment(content, [], True)
     return _Fragment(append_content_to_html("", content, preserve=True), [], False)
@@ -143,7 +213,7 @@ def _sequence(parts: list[EmailMessage], stop_at_first_body: bool) -> _Fragment:
 
 def _assemble(part: EmailMessage, stop_at_first_body: bool) -> _Fragment:
     if part.get_content_maintype() != "multipart":
-        return _leaf(part)
+        return _leaf(part, stop_at_first_body)
     if part.get_content_type() == "multipart/alternative":
         return _alternative(part, stop_at_first_body)
     return _sequence(_children(part), stop_at_first_body)

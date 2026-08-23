@@ -2,6 +2,7 @@ import base64
 import json
 import zipfile
 from io import BytesIO
+from urllib.parse import quote
 
 from reportlab.pdfgen import canvas
 
@@ -518,6 +519,52 @@ class TestDocumentsPublicRouteInput(HttpCase, TransactionCaseDocuments):
             allow_redirects=False,
         )
         self.assertEqual(res.status_code, 400)
+
+    def test_non_ascii_signup_token_is_not_a_server_error(self):
+        """A non-ASCII `member_signup_token` must be rejected, not raise.
+
+        `consteq` is `hmac.compare_digest`, which raises TypeError on a `str`
+        holding non-ASCII, and the parameter is public and attacker-controlled.
+        The route reaches the comparison without a valid document token -- any
+        path segment does, since `_from_access_token` simply answers "no
+        document" for a bad one -- so the only thing needed is a
+        `documents.access` id, a small guessable integer.
+        """
+        invitee = self.env["res.partner"].create(
+            {"name": "audit_invitee", "email": "audit_invitee@t.test"}
+        )
+        private = self.env["documents.document"].create(
+            {
+                "type": "binary",
+                "name": "audit_private.txt",
+                "folder_id": self.folder.id,
+                "access_via_link": "none",
+                "access_internal": "none",
+            }
+        )
+        member = self.env["documents.access"].create(
+            {"document_id": private.id, "partner_id": invitee.id, "role": "view"}
+        )
+        self.assertTrue(
+            member._is_signup_available(),
+            "the invitation has to be live, or the token is never compared",
+        )
+        self.env.flush_all()
+
+        for token, label in (
+            ("caf\u00e9-\u00fcn\u00efcode", "non-ascii"),
+            ("wrongtoken", "ascii"),
+        ):
+            with self.subTest(token=label):
+                res = self.url_open(
+                    f"/documents/not-a-real-token?member_id={member.id}"
+                    f"&member_signup_token={quote(token)}",
+                    allow_redirects=False,
+                )
+                self.assertNotEqual(
+                    res.status_code, 500, "a bad token is not a server error"
+                )
+                self.assertEqual(res.status_code, 404)
 
     def test_c4_pdf_first_page_rejects_non_pdf(self):
         res = self.url_open(

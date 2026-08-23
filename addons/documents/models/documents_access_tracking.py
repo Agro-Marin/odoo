@@ -23,6 +23,16 @@ class DocumentsAccessTracking(models.Model):
 
     @api.model
     def _create_access_tracking(self, changes_by_document_dict: dict) -> None:
+        # Nothing changed -> nothing to track, and nothing for the cron to
+        # drain. `action_update_access_rights` reaches here unconditionally, so
+        # without this an update that changed nothing (the value was already the
+        # one asked for, a propagation that matched no row, a dialog saved
+        # untouched) still read `documents.tracking_batch_size`, resolved the
+        # cron and inserted an `ir_cron_trigger` row -- waking the cron to drain
+        # an empty queue. `_trigger` does not de-duplicate, so a bulk sharing
+        # pass queued one such row per call.
+        if not changes_by_document_dict:
+            return
         documents_by_changes = defaultdict(list)
         for document_id, changes in changes_by_document_dict.items():
             documents_by_changes[frozendict(changes)].append(document_id)
