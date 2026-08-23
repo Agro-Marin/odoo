@@ -1048,21 +1048,30 @@ class PropertiesDefinition(Field):
                     % ", ".join(invalid_keys),
                 )
 
+            # Truthiness, not presence, and *before* the name is read. This is
+            # the exact test convert_to_record applies when it decides which
+            # definitions to hand back (`all(definition.get(key) for key in
+            # REQUIRED_KEYS)`), so a definition this method accepts is one that
+            # method returns. Checking presence let ``{"name": "a", "type": ""}``
+            # through: it was stored, and every later read returned ``[]``,
+            # because "" is present but falsy. The name half was already checked
+            # for truthiness below and the type half was not, which is why an
+            # empty name was refused and an empty type was not.
+            missing_keys = [
+                key for key in self.REQUIRED_KEYS if not property_definition.get(key)
+            ]
+            if missing_keys:
+                raise ValueError(
+                    "Some keys are missing or empty for a properties definition [%s]."
+                    % ", ".join(missing_keys),
+                )
+
             check_property_field_value_name(property_definition["name"])
 
-            required_keys = set(self.REQUIRED_KEYS) - property_definition_keys
-            if required_keys:
-                raise ValueError(
-                    "Some key are missing for a properties definition [%s]."
-                    % ", ".join(required_keys),
-                )
-
-            property_type = property_definition.get("type")
-            property_name = property_definition.get("name")
-            if not property_name or property_name in properties_names:
-                raise ValueError(
-                    f"The property name {property_name!r} is not set or duplicated."
-                )
+            property_type = property_definition["type"]
+            property_name = property_definition["name"]
+            if property_name in properties_names:
+                raise ValueError(f"The property name {property_name!r} is duplicated.")
             properties_names.add(property_name)
 
             if property_type == "html" and not property_name.endswith("_html"):
@@ -1073,7 +1082,7 @@ class PropertiesDefinition(Field):
                 msg = "Only HTML properties can have the `_html` suffix."
                 raise ValueError(msg)
 
-            if property_type and property_type not in Properties.ALLOWED_TYPES:
+            if property_type not in Properties.ALLOWED_TYPES:
                 raise ValueError(f"Wrong property type {property_type!r}.")
 
             if property_type == "html" and (

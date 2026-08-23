@@ -4411,3 +4411,82 @@ class PropertiesRecordsetWriteCase(TestPropertiesMixin):
             self.message_1.attributes = {"mym2o": self.partner}
             self.env.flush_all()
         self.assertIn("mym2o", str(capture.exception))
+
+
+class PropertiesDefinitionRoundTripCase(TestPropertiesMixin):
+    """What ``write()`` accepts, a read must give back.
+
+    ``convert_to_record`` drops any definition entry whose ``name`` or ``type``
+    is falsy, so a definition the validator lets through with an empty ``type``
+    was stored and then read back as ``[]`` -- a silent, total loss of the
+    field's value. The validator now applies that same truthiness test.
+    """
+
+    def _definition_entry(self, **overrides):
+        entry = {"name": "prop_a", "type": "char", "string": "A"}
+        entry.update(overrides)
+        return [entry]
+
+    def test_a_falsy_type_is_refused_rather_than_silently_dropped(self):
+        for bad_type in ("", False, None):
+            with self.subTest(type=bad_type), self.assertRaises(ValueError) as capture:
+                self.discussion_1.attributes_definition = self._definition_entry(
+                    type=bad_type
+                )
+                self.env.flush_all()
+            self.assertIn("type", str(capture.exception))
+
+    def test_a_falsy_name_is_refused(self):
+        for bad_name in ("", False, None):
+            with self.subTest(name=bad_name), self.assertRaises(ValueError) as capture:
+                self.discussion_1.attributes_definition = self._definition_entry(
+                    name=bad_name
+                )
+                self.env.flush_all()
+            self.assertIn("name", str(capture.exception))
+
+    def test_a_missing_key_names_itself_instead_of_raising_KeyError(self):
+        for missing in ("name", "type"):
+            entry = self._definition_entry()
+            del entry[0][missing]
+            with self.subTest(missing=missing), self.assertRaises(ValueError) as capture:
+                self.discussion_1.attributes_definition = entry
+                self.env.flush_all()
+            self.assertIn(missing, str(capture.exception))
+
+    def test_every_accepted_definition_survives_the_round_trip(self):
+        accepted = []
+        candidates = [
+            self._definition_entry(),
+            self._definition_entry(type="integer"),
+            self._definition_entry(type="boolean"),
+            self._definition_entry(name="prop_b", type="char", default="x"),
+            self._definition_entry(type="", string="empty type"),
+            self._definition_entry(name="", string="empty name"),
+        ]
+        for definition in candidates:
+            try:
+                self.discussion_1.attributes_definition = definition
+                self.env.flush_all()
+            except ValueError:
+                continue
+            accepted.append(definition)
+            self.env.invalidate_all()
+            self.assertEqual(
+                len(self.discussion_1.attributes_definition),
+                len(definition),
+                f"write() accepted {definition!r} but reading it back dropped "
+                f"entries; the validator and convert_to_record disagree",
+            )
+        self.assertTrue(accepted, "test premise: some definitions must be accepted")
+
+    def test_filtered_agrees_with_the_field_on_an_accepted_definition(self):
+        self.discussion_1.attributes_definition = self._definition_entry()
+        self.env.flush_all()
+        self.env.invalidate_all()
+        discussions = self.discussion_1 | self.discussion_2
+        self.assertEqual(
+            discussions.filtered("attributes_definition"),
+            discussions.filtered(lambda d: d.attributes_definition),
+            "the filtered() cache fast path disagrees with reading the field",
+        )
