@@ -19,6 +19,10 @@ if typing.TYPE_CHECKING:
 
 class Selection(Field[str | typing.Literal[False]]):
     type = "selection"
+    cache_is_record_value = True
+    cache_truthiness_matches = True
+    cache_is_orderable = True
+    cache_is_read_value = True
     _column_type = ("varchar", pg_varchar())
 
     selection: (

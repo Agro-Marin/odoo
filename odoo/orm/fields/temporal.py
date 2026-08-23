@@ -157,6 +157,10 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
 
 class Date(BaseDate[date]):
     type = "date"
+    cache_is_record_value = True
+    cache_truthiness_matches = True
+    cache_is_orderable = True
+    cache_is_read_value = True
     _column_type = ("date", "date")
 
     if not typing.TYPE_CHECKING:
@@ -223,6 +227,10 @@ class Date(BaseDate[date]):
 
 class Datetime(BaseDate[datetime]):
     type = "datetime"
+    cache_is_record_value = True
+    cache_truthiness_matches = True
+    cache_is_orderable = True
+    cache_is_read_value = True
     _column_type = ("timestamp", "timestamp")
 
     if not typing.TYPE_CHECKING:

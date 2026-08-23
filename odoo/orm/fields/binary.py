@@ -27,6 +27,7 @@ _SVG_MAGIC_BYTES = frozenset({b"P", b"<"})
 
 class Binary(Field[bytes | typing.Literal[False]]):
     type = "binary"
+    cache_truthiness_matches = True
 
     prefetch = False
     _depends_context = ("bin_size",)

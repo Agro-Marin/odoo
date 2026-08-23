@@ -800,6 +800,10 @@ class BaseString(Field[str | typing.Literal[False]]):
 
 class Char(BaseString):
     type = "char"
+    cache_is_record_value = True
+    cache_truthiness_matches = True
+    cache_is_orderable = True
+    cache_is_read_value = True
     trim: bool = True
 
     def _setup_attrs__(self, model_class: type[BaseModel], name: str) -> None:
@@ -849,11 +853,19 @@ class Char(BaseString):
 
 class Text(BaseString):
     type = "text"
+    cache_is_record_value = True
+    cache_truthiness_matches = True
+    cache_is_orderable = True
+    cache_is_read_value = True
     _column_type = ("text", "text")
 
 
 class Html(BaseString):
     type = "html"
+    cache_truthiness_matches = True
+    """Only this one: convert_to_record wraps the value in ``Markup``, which
+    compares equal to the str but is not it, and read() must hand out the
+    Markup rather than the cached string."""
     _column_type = ("text", "text")
 
     if not typing.TYPE_CHECKING:

@@ -20,6 +20,12 @@ REFERENCE_VERIFIED_CACHE_KEY = "reference.verified_pairs"
 
 class Reference(Selection):
     type = "reference"
+    # Selection declares all four; a Reference caches "model,id" and hands back
+    # a recordset, so only the truthiness survives -- and only because an empty
+    # reference is cached as NULL rather than as a string naming id 0.
+    cache_is_record_value = False
+    cache_is_orderable = False
+    cache_is_read_value = False
 
     _column_type = ("varchar", pg_varchar())
 
@@ -162,6 +168,11 @@ class Reference(Selection):
 
 class Many2oneReference(Integer):
     type = "many2one_reference"
+    # Integer declares all four; this caches an id and hands back an id, but
+    # read() and the sorter treat it as a pointer, not as a number.
+    cache_is_record_value = False
+    cache_is_orderable = False
+    cache_is_read_value = False
 
     model_field = None
     aggregator = None

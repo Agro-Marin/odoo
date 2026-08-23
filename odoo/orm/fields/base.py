@@ -156,6 +156,46 @@ class Field[T](
 
     is_many2one: bool = False
 
+    cache_is_record_value: bool = False
+    """Whether ``convert_to_record`` returns the cached value unchanged.
+
+    ``None`` is exempt: every scan that relies on this computes
+    ``convert_to_record(None, ...)`` once and substitutes it. What the flag
+    promises is that *no other* cached value is rewritten on the way out --
+    so ``mapped()``, ``grouped()`` and ``sorted()`` may read the cache dict
+    instead of going through the descriptor.
+
+    Declared here at ``False`` so a field type that says nothing gets no fast
+    path; see ``models/mixins/_cache_scan.py`` for why this is a class
+    attribute and not a table of type strings.
+    """
+
+    cache_truthiness_matches: bool = False
+    """Whether ``bool(cache value)`` answers ``bool(record value)``.
+
+    Weaker than :attr:`cache_is_record_value` and separately declared, because
+    ``filtered(fname)`` needs only this. ``Binary``, ``Html`` and ``Json``
+    rewrite their value but never across the truthiness boundary, so they set
+    this and not the one above.
+    """
+
+    cache_is_orderable: bool = False
+    """Whether sorting the cached values orders the records correctly.
+
+    Distinct from :attr:`cache_is_record_value` because it also asserts the
+    values are mutually comparable: ``Binary`` is identity-valued but ``bytes``
+    against ``None`` is not an ordering anyone asked for.
+    """
+
+    cache_is_read_value: bool = False
+    """Whether the cached value is what ``read()`` should return.
+
+    Asserts ``convert_to_read(convert_to_record(v)) == v``, which is a
+    different claim from the two above: ``Html`` is truthiness-preserving but
+    wraps its value in ``Markup``, and ``Integer`` widens a value outside
+    ``int4`` to a float.
+    """
+
     is_properties: bool = False
 
     @property

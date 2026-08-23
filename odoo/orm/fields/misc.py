@@ -23,6 +23,23 @@ if typing.TYPE_CHECKING:
 
 class Boolean(Field[bool]):
     type = "boolean"
+    cache_is_record_value = True
+    cache_truthiness_matches = True
+    cache_is_read_value = True
+
+    cache_is_orderable = False
+    """Not this one, and not for lack of trying.
+
+    ``sort_ids_by_cache`` groups *falsy* cache values with NULL so that an
+    in-memory sort reproduces PostgreSQL's null ordering (ASC NULLS LAST). For
+    every other scannable type the falsy value *is* the null -- ``""`` for a
+    Char, ``None`` for a Date -- so the two are interchangeable. For a Boolean
+    they are not: ``False`` is a value, and lumping it with NULL puts it at the
+    far end from where it belongs. Measured on four records
+    (True, False, True, NULL): the cache sort ascending returns
+    ``[True, True, False, NULL]`` where the field returns
+    ``[False, NULL, True, True]``.
+    """
     _column_type = ("bool", "bool")
     falsy_value = False
 
@@ -82,6 +99,7 @@ class Boolean(Field[bool]):
 
 class Json(Field):
     type = "json"
+    cache_truthiness_matches = True
     _column_type = ("jsonb", "jsonb")
 
     @override
@@ -119,6 +137,10 @@ class Json(Field):
 
 class Id(Field[IdType | typing.Literal[False]]):
     type = "integer"
+    cache_is_record_value = True
+    cache_truthiness_matches = True
+    cache_is_orderable = True
+    cache_is_read_value = True
     _register_type = False
     column_type = ("int4", "int4")
 

@@ -4,6 +4,7 @@ from . import (
     test_autovacuum,
     test_backend_differential,
     test_cache_dead_pending,
+    test_cache_scan_equivalence,
     test_company_checks,
     test_create_access_batching,
     test_count_field,

@@ -29,6 +29,10 @@ class Integer(Field[int]):
     type = "integer"
     _column_type = ("int4", "int4")
     falsy_value = 0
+    cache_is_record_value = True
+    cache_truthiness_matches = True
+    cache_is_orderable = True
+    cache_is_read_value = True
 
     aggregator = "sum"
 
@@ -107,6 +111,10 @@ class Integer(Field[int]):
 
 class Float(Field[float]):
     type = "float"
+    cache_is_record_value = True
+    cache_truthiness_matches = True
+    cache_is_orderable = True
+    cache_is_read_value = True
     _digits: str | tuple[int, int] | None = None
     _min_display_digits: str | int | None = None
     falsy_value = 0.0
@@ -237,6 +245,10 @@ class Float(Field[float]):
 
 class Monetary(Field[float]):
     type = "monetary"
+    cache_is_record_value = True
+    cache_truthiness_matches = True
+    cache_is_orderable = True
+    cache_is_read_value = True
     write_sequence = 10
     _column_type = ("numeric", "numeric")
     falsy_value = 0.0
