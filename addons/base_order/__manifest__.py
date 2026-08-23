@@ -1,6 +1,6 @@
 {
     "name": "Base Order Management",
-    "version": "19.0.3.2.0",
+    "version": "19.0.3.3.0",
     "category": "Hidden",
     "summary": "Foundation mixins for sale and purchase order types",
     "description": """
@@ -50,4 +50,12 @@ amount_taxexc_invoiced, etc.) for drop-in adoption.
     "author": "Odoo Community",
     "website": "https://www.odoo.com",
     "license": "LGPL-3",
+    "assets": {
+        "web.assets_backend": [
+            "base_order/static/src/components/**/*",
+        ],
+        "web.assets_unit_tests": [
+            "base_order/static/tests/**/*.test.js",
+        ],
+    },
 }

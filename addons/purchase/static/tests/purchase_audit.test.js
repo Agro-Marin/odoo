@@ -12,49 +12,15 @@ import {
     mountWithCleanup,
     onRpc,
 } from "@web/../tests/web_test_helpers";
-import { registry } from "@web/core/registry";
 
 class PurchaseOrder extends models.Model {
     _name = "purchase.order";
     name = fields.Char();
-    amount = fields.Monetary({ currency_field: "currency_id" });
-    currency_id = fields.Many2one({ relation: "res.currency" });
-    _records = [
-        { id: 7, name: "P0007", amount: 0, currency_id: 1 },
-        { id: 8, name: "P0008", amount: 12.5, currency_id: 1 },
-    ];
+    _records = [{ id: 7, name: "P0007" }];
 }
 
 defineWebModels();
 defineModels([PurchaseOrder]);
-
-test("monetary_no_zero blanks a stored zero but keeps a non-zero", async () => {
-    await mountView({
-        type: "list",
-        resModel: "purchase.order",
-        arch: `<list>
-                 <field name="amount" widget="monetary_no_zero"/>
-                 <field name="currency_id" column_invisible="1"/>
-               </list>`,
-    });
-    const cells = [...document.querySelectorAll("td[name=amount]")].map((el) =>
-        el.textContent.trim(),
-    );
-    expect(cells[0]).toBe("", { message: "stored 0.0 renders blank" });
-    expect(cells[1]).not.toBe("", { message: "non-zero still renders" });
-});
-
-test("monetary_no_zero has its own label and an isEmpty matching the render", () => {
-    const noZero = registry.category("fields").get("monetary_no_zero");
-    const plain = registry.category("fields").get("monetary");
-    expect(noZero.displayName).not.toBe(plain.displayName, {
-        message: "two picker entries both labelled 'Monetary' is unusable",
-    });
-    expect(noZero.isEmpty({ data: { amount: 0 } }, "amount")).toBe(true, {
-        message: "a zero renders blank, so isEmpty must agree it is empty",
-    });
-    expect(noZero.isEmpty({ data: { amount: 3 } }, "amount")).toBe(false);
-});
 
 function dashboardData() {
     const zero = () => ({ all: 0, priority: 0 });

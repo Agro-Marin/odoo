@@ -6,7 +6,7 @@
         editable list that opens a document instead of entering edit mode, so it
         has to be reachable by keyboard and has to look actionable.
     -->
-    <t t-name="purchase.OpenMatchLineField">
+    <t t-name="base_order.OpenMatchLineField">
         <button type="button" class="btn btn-link p-0 text-start text-truncate"
                 t-att-title="value"
                 t-on-click.prevent.stop="openMatchLine"

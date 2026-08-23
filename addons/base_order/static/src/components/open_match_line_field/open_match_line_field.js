@@ -6,7 +6,7 @@ import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class OpenMatchLineField extends Component {
-    static template = "purchase.OpenMatchLineField";
+    static template = "base_order.OpenMatchLineField";
     static props = { ...standardFieldProps };
 
     setup() {
@@ -22,7 +22,7 @@ export class OpenMatchLineField extends Component {
             type: "object",
             resId: this.props.record.resId,
             name: "action_open_line",
-            resModel: "purchase.bill.line.match",
+            resModel: this.props.record.resModel,
         });
     }
 }
