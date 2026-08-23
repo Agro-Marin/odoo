@@ -487,6 +487,44 @@ _BUBBLEUP_EXCEPTIONS = (
 )
 
 
+def _is_classified_db_error(exc: BaseException) -> bool:
+    """True for a database error the framework already has a policy for.
+
+    Wrapping one in ``ValueError`` below destroys the class every one of those
+    policies keys on, and the list above only covered the subset that happens to
+    be an ``OperationalError``. Measured, raised from inside evaluated code:
+    ``SerializationFailure``, ``DeadlockDetected`` and ``LockNotAvailable``
+    survived, while ``UniqueViolation``, ``ForeignKeyViolation``,
+    ``ReadOnlySqlTransaction`` and ``FeatureNotSupported`` did not -- so a
+    constraint violated by a server action reached the user as
+    ``ValueError: UniqueViolation(...) while evaluating ...`` instead of the
+    ``ValidationError`` ``retrying()`` translates it into, and a stale cached
+    plan could not be retried at all.
+
+    The taxonomy is read out of ``sys.modules`` rather than imported, and that
+    is deliberate rather than lazy. ``odoo.db``'s package ``__init__`` imports
+    ``odoo.tools``, so importing ``odoo.db.errors`` from here is a cycle --
+    measured, ``ImportError: cannot import name 'SQL' from 'odoo.tools'`` from a
+    partially initialised module. Raising THAT from inside an exception handler
+    would replace the database error being reported with an import error, which
+    is a worse failure than the one this function exists to prevent. A lookup
+    cannot fail, costs nothing, and a running server always has the module
+    loaded (``odoo.db`` is imported during startup). Anywhere it genuinely is
+    not, this returns False and the wrapper behaves exactly as it did before.
+    """
+    errors = sys.modules.get("odoo.db.errors")
+    if errors is None:
+        return False
+    return isinstance(
+        exc,
+        (
+            *errors.PG_RECOVERABLE_EXCEPTIONS,
+            *errors.PG_STALE_PLAN_EXCEPTIONS,
+            *errors.PG_USER_FAULT_EXCEPTIONS,
+        ),
+    )
+
+
 def safe_eval(
     expr: str | bytes,
     /,
@@ -516,6 +554,8 @@ def safe_eval(
         raise
 
     except Exception as e:
+        if _is_classified_db_error(e):
+            raise
         raise ValueError("%r while evaluating\n%r" % (e, expr)) from e
 
     finally:

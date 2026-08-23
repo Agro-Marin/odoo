@@ -3886,6 +3886,127 @@ class TestDdlInvalidatesPreparedPlan(BaseCase):
             cr.close()
 
 
+class TestEvaluatedCodeKeepsItsDatabaseErrorClass(common.TransactionCase):
+    """The framework's error policies all key on the exception class, and
+    `safe_eval` used to destroy it for most database errors.
+
+    Measured before the fix, raised inside evaluated code: `SerializationFailure`,
+    `DeadlockDetected` and `LockNotAvailable` survived (they happen to be
+    `OperationalError`, the one entry in `_BUBBLEUP_EXCEPTIONS`), while
+    `UniqueViolation`, `ForeignKeyViolation`, `ReadOnlySqlTransaction` and
+    `FeatureNotSupported` did not.
+
+    The visible consequence: a server action that violated a constraint reached
+    the user as `ValueError: UniqueViolation(...) while evaluating ...` instead
+    of the `ValidationError` `retrying()` translates it into. This is that
+    translation, end to end.
+    """
+
+    def _duplicate_xmlid_action(self):
+        model = self.env["ir.model"].search([("model", "=", "res.partner")], limit=1)
+        return self.env["ir.actions.server"].create({
+            "name": "duplicate xmlid",
+            "model_id": model.id,
+            "state": "code",
+            "code": (
+                "env['ir.model.data'].create({'module':'_t','name':'dup',"
+                "'model':'res.partner','res_id':1})\n"
+                "env.cr.flush()\n"
+                "env['ir.model.data'].create({'module':'_t','name':'dup',"
+                "'model':'res.partner','res_id':1})\n"
+                "env.cr.flush()\n"
+            ),
+        })
+
+    def test_a_constraint_violated_by_a_server_action_keeps_its_class(self):
+        action = self._duplicate_xmlid_action()
+        with (
+            self.assertRaises(psycopg.IntegrityError) as caught,
+            mute_logger("odoo.sql_db", "odoo.db.cursor"),
+            self.env.cr.savepoint(flush=False),
+        ):
+            action.run()
+        self.assertNotIsInstance(
+            caught.exception,
+            ValueError,
+            "a wrapped IntegrityError never reaches retrying()'s "
+            "IntegrityError -> ValidationError translation, so the user sees "
+            "the raw psycopg repr instead of a message. Measured end to end "
+            "before this fix: ValueError: UniqueViolation(...) while "
+            "evaluating; after: ValidationError: The operation cannot be "
+            "completed: duplicate key value violates unique constraint ...",
+        )
+
+    def test_safe_eval_consults_the_taxonomy(self):
+        from odoo.db import errors as db_errors
+        from odoo.tools.safe_eval import _is_classified_db_error
+
+        for cls in (
+            *db_errors.PG_RECOVERABLE_EXCEPTIONS,
+            *db_errors.PG_STALE_PLAN_EXCEPTIONS,
+            *db_errors.PG_USER_FAULT_EXCEPTIONS,
+        ):
+            with self.subTest(cls=cls.__name__):
+                self.assertTrue(_is_classified_db_error(cls("boom")))
+
+    def test_an_unclassified_database_error_is_still_wrapped(self):
+        from odoo.tools.safe_eval import _is_classified_db_error
+
+        self.assertFalse(
+            _is_classified_db_error(psycopg.errors.UndefinedTable("x")),
+            "an UndefinedTable in a server action is a bug in the action, not a "
+            "condition the framework recovers from",
+        )
+
+
+class TestCronsRecoverLikeRequests(common.TransactionCase):
+    """A cron's work runs outside `retrying()`, so every recoverable database
+    error was charged to the job as a FAILURE -- and
+    `MIN_FAILURE_COUNT_BEFORE_DEACTIVATION` of those DEACTIVATE the cron and
+    notify an admin.
+
+    Measured with a cron whose action reads a column another connection keeps
+    altering: **19 of 25 callbacks failed** at HEAD, every one a recoverable
+    stale cached plan; 0 of 25 through `retrying()`.  Nothing about that is the
+    job's fault, and replaying is exactly what a request does.
+    """
+
+    def test_the_callback_goes_through_retrying(self):
+        cls = type(self.env["ir.cron"])
+        runner = inspect.getsource(cls._run_callback)
+        self.assertIn(
+            "retrying(",
+            runner,
+            "without it a deadlock, a serialization failure or a stale cached "
+            "plan counts against the cron's deactivation budget",
+        )
+        self.assertIn("_callback", runner)
+        self.assertIn(
+            "_run_callback",
+            inspect.getsource(cls._run_job.__func__),
+            "the run loop must go through the wrapped runner, not call "
+            "_callback directly",
+        )
+
+    def test_a_recoverable_error_is_in_the_retry_taxonomy(self):
+        from odoo.db.errors import PG_RETRY_EXCEPTIONS, PG_STALE_PLAN_EXCEPTIONS
+
+        self.assertTrue(PG_RETRY_EXCEPTIONS)
+        self.assertTrue(PG_STALE_PLAN_EXCEPTIONS)
+
+    def test_deactivation_is_still_reachable_for_a_genuinely_broken_cron(self):
+        from odoo.addons.base.models.ir_cron import (
+            MIN_FAILURE_COUNT_BEFORE_DEACTIVATION,
+        )
+
+        self.assertGreater(
+            MIN_FAILURE_COUNT_BEFORE_DEACTIVATION,
+            0,
+            "retrying recoverable errors must not remove the ability to "
+            "deactivate a cron that is actually broken",
+        )
+
+
 class TestFailedStatementsAreCounted(BaseCase):
     """A statement that raised still cost a round trip.
 
