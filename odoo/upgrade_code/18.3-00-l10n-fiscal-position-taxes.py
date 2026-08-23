@@ -2196,6 +2196,40 @@ FP_LOOKUP = {
 }
 
 
+NEW_TAX_COLUMNS = ("fiscal_position_ids", "original_tax_ids")
+
+
+def tax_fieldnames(fieldnames: list[str], is_primary_tax: bool) -> list[str]:
+    """Header for a rewritten `account.tax-*.csv`.
+
+    Only the columns the file does not already carry. Appending them
+    unconditionally made a second run emit a header with
+    `fiscal_position_ids` and `original_tax_ids` twice, and `csv.DictReader`
+    keeps the last of each — so every earlier value was dropped. Nothing stops
+    a second run: the CLI keeps no record of what it has applied.
+    """
+    existing = [fn for fn in fieldnames if fn]
+    if not is_primary_tax:
+        return existing
+    return existing + [fn for fn in NEW_TAX_COLUMNS if fn not in existing]
+
+
+def tax_row_values(
+    tax_row: dict[str, str], new_fp: str, new_alts: str
+) -> dict[str, str]:
+    """A rewritten tax row, where a computed blank never overwrites a stored value.
+
+    On a second run the fiscal-position CSV has already lost the
+    `tax_ids/tax_src_id` columns this derivation reads, so both arguments come
+    back empty — and writing them would erase what the FIRST run derived.
+    """
+    return {
+        **tax_row,
+        "fiscal_position_ids": new_fp or tax_row.get("fiscal_position_ids", ""),
+        "original_tax_ids": new_alts or tax_row.get("original_tax_ids", ""),
+    }
+
+
 def upgrade(file_manager: FileManager) -> None:
     log = logging.getLogger(__name__)
 
@@ -2359,8 +2393,7 @@ def upgrade(file_manager: FileManager) -> None:
         buffer = StringIO()
         writer = csv.DictWriter(
             buffer,
-            fieldnames=[fn for fn in csv_file.fieldnames if fn]
-            + (["fiscal_position_ids", "original_tax_ids"] if is_primary_tax else []),
+            fieldnames=tax_fieldnames(csv_file.fieldnames, is_primary_tax),
             delimiter=",",
             quotechar='"',
             quoting=csv.QUOTE_ALL,
@@ -2378,13 +2411,7 @@ def upgrade(file_manager: FileManager) -> None:
                 new_alts = ",".join(tax_info.get("replaces", []))
                 if not new_fp:
                     new_fp = FP_LOOKUP.get((coa_name, tax_id), "")
-                writer.writerow(
-                    {
-                        **tax_row,
-                        "fiscal_position_ids": new_fp,
-                        "original_tax_ids": new_alts,
-                    }
-                )
+                writer.writerow(tax_row_values(tax_row, new_fp, new_alts))
             else:
                 writer.writerow(tax_row)
         file.content = buffer.getvalue()

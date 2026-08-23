@@ -3,11 +3,17 @@ import difflib
 import re
 import typing
 from collections import defaultdict
-from io import StringIO
+from io import BytesIO, StringIO
 
 import polib
 from lxml import etree
 from lxml.builder import E
+
+# Input comes from `file.content`, never from `file.path`: `migrate()` runs
+# every selected script against ONE FileManager and flushes only at the end, so
+# a disk read returns the pre-run bytes. Worse here than stale — the rewrite
+# ndiffs the parsed tree against `file.content`, so the two disagreeing would
+# splice two different documents together. See README.md.
 
 if typing.TYPE_CHECKING:
     from odoo.cli.upgrade_code import FileManager
@@ -95,8 +101,8 @@ def upgrade(file_manager: FileManager) -> None:
         file_manager.print_progress(i, nb_translation_files + nb_data_files, file.path)
         module_name = file.path.parts[-3]
         lang = file.path.stem
-        pofile = polib.pofile(str(file.path))
-        original_pofile = polib.pofile(str(file.path))
+        pofile = polib.pofile(file.content)
+        original_pofile = polib.pofile(file.content)
         for entry in pofile:
             if file.path.suffix == ".po":
                 for occurence in entry.occurrences:
@@ -135,7 +141,7 @@ def upgrade(file_manager: FileManager) -> None:
         )
         module_name = data_file_module_name(file)
         if file.path.suffix == ".xml":
-            tree = etree.parse(str(file.path))
+            tree = etree.parse(BytesIO(file.content.encode()))
             for record_node in tree.xpath(
                 f"""//record[{" or ".join(f"@model='{m}'" for m in MODELS)}]"""
             ):

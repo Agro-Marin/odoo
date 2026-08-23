@@ -37,5 +37,16 @@ def upgrade(file_manager: FileManager) -> None:
         content = file.content
         content = redacted_text_re.sub(r'"\g<text>"', content)
         content = strings_re.sub(r"'\g<string>'", content)
+        # NO `file.content = content`, on purpose, and it is not an oversight to
+        # correct — that was tried on 2026-08-23 and reverted the same hour. Two
+        # tests in `base/tests/test_cli.py` pin this script as inert
+        # (`test_upgrade_code_example` asserts a `--dry-run` prints nothing,
+        # `test_upgrade_code_standalone_runs` asserts it exits 0, which
+        # `--dry-run` only does when no file is dirty), because it is the
+        # fixture the CLI's own tests run against. Its substitutions are a
+        # demonstration of the API — they swap quote styles and would fight
+        # `ruff format` — so a version range that swept it up would mangle every
+        # `models/*.py` in the checkout for nothing. What a real script does
+        # with `content` is assign it back; see any other file here.
 
         file_manager.print_progress(fileno, len(files))

@@ -48,11 +48,29 @@ have since been audited were found to corrupt the tree they were run on:
   have broken ``db/savepoint.py``, ``tools/translate.py`` and
   ``web/controllers/json_helpers.py``.
 
-Both are fixed and now have tests (``odoo/tools/tests/
-test_upgrade_code_sql_constraint.py`` and
-``…_deprecated_properties.py``). The remaining seven scripts are **still
-untested**, and the two audited ones were not unusual — they are text
-substitutions standing in for code transformations.
+Both are fixed and now have tests. So do the rest, as of 2026-08-23: every
+script in the directory is held to a shared floor by
+``odoo/tools/tests/test_upgrade_code_scripts.py`` — discoverable by name,
+exposes ``upgrade``, survives an empty selection, leaves parseable Python and
+XML, is **idempotent**, and actually rewrites something in the corpus.
+
+Idempotence is what found the next two, in a 2,390-line script nobody had
+audited: ``18.3-00-l10n-fiscal-position-taxes.py`` appended its two new CSV
+columns unconditionally, so a second run emitted a duplicated header — and
+``csv.DictReader`` keeps the last of each, dropping every earlier value — and
+a second run then erased the values the first run had derived. Nothing stops a
+second run: this command keeps no record of what it has applied.
+
+Three scripts also read their input back from ``file.path`` instead of
+``file.content``. ``migrate()`` builds ONE ``FileManager``, runs every selected
+script against it and flushes only at the end, so a disk read returns the
+pre-run bytes; in two of the three the parsed tree is then ``ndiff``-ed against
+``file.content``, which would splice two different documents together rather
+than merely lose an edit.
+
+Four of the five scripts audited so far were defective. They are text
+substitutions standing in for code transformations, and the floor above is
+a floor, not a proof.
 
 So, in order:
 

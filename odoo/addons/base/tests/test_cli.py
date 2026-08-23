@@ -1613,3 +1613,76 @@ class TestCommand(BaseCase):
         for stdin in (None, NoFileno()):
             with mock.patch.object(sys, "stdin", stdin):
                 self.assertFalse(Shell._stdin_is_a_tty())
+
+    def test_obfuscate_json_transform_only_touches_string_values(self):
+        """`->>` reads text and `to_jsonb(text)` writes a JSON string, so the
+        transform is faithful for a string and lossy for anything else.
+
+        Measured against PostgreSQL 18.4 before the guard: a nested object came
+        back from the round trip as the string `'{"deep": "nested"}'` and an
+        integer as `"42"`. Odoo's translated columns are `{lang: text}`, which
+        is why it survived; `--fields` on any other jsonb column does not.
+        """
+        from odoo.cli.obfuscate import Obfuscate
+
+        ob = Obfuscate()
+        executed = []
+
+        class FakeCur:
+            def execute(self, query, params=None):
+                executed.append(getattr(query, "code", query))
+
+            def fetchall(self):
+                return [("en_US",)]
+
+            def fetchone(self):
+                return (0,)
+
+        ob.cr = FakeCur()
+        ob._field_kinds = {("t", "val"): "json"}
+        ob._field_widths = {}
+        ob.convert_table("t", ["val"], "pw")
+        update = executed[-1]
+        self.assertIn("jsonb_typeof", update)
+        self.assertIn("= 'string'", update)
+        self.assertIn("jsonb_typeof(\"val\") = 'object'", update)
+
+    def test_obfuscate_json_key_probe_skips_non_object_rows(self):
+        """`jsonb_object_keys` raises `cannot call jsonb_object_keys on an
+        array` for one offending row and took the whole run with it — mid-way
+        through under `--pertablecommit`."""
+        from odoo.cli.obfuscate import Obfuscate
+
+        ob = Obfuscate()
+        executed = []
+
+        class FakeCur:
+            def execute(self, query, params=None):
+                executed.append(getattr(query, "code", query))
+
+            def fetchone(self):
+                return (2,)
+
+            def fetchall(self):
+                return [("en_US",)]
+
+        ob.cr = FakeCur()
+        with self.assertLogs("odoo.cli.obfuscate", level="WARNING") as logs:
+            self.assertEqual(ob._json_keys("t", "val"), ["en_US"])
+        self.assertIn("not an object", logs.output[0])
+        self.assertIn("<> 'object'", executed[0], msg="the non-object count")
+        self.assertIn("= 'object'", executed[1], msg="the guarded key probe")
+
+    def test_db_load_validates_the_name_before_downloading(self):
+        from odoo.cli import db as dbmod
+
+        ns = mock.Mock(
+            database="bad name!", dump_file="http://example.invalid/d.zip", force=False
+        )
+        with (
+            mock.patch.object(dbmod.requests, "get") as get_mock,
+            self.assertRaises(SystemExit) as ctx,
+        ):
+            dbmod.Db().load(ns)
+        get_mock.assert_not_called()
+        self.assertIn("bad name!", str(ctx.exception.code))

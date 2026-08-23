@@ -4,9 +4,14 @@ import logging
 import re
 import typing
 from collections import defaultdict
-from io import StringIO
+from io import BytesIO, StringIO
 
 from lxml import etree
+
+# Input comes from `file.content`, never from `file.path`: `migrate()` runs
+# every selected script against ONE FileManager and flushes only at the end, so
+# a disk read returns the pre-run bytes, and the rewrite below ndiffs the
+# parsed tree against `file.content`. See README.md.
 
 if typing.TYPE_CHECKING:
     from collections.abc import Iterator
@@ -50,17 +55,6 @@ def tag_factor(tax_rows: list[dict[str, str]]) -> defaultdict:
             for tag in tags.split("||"):
                 tag2factor[document_type][tag] += factor_percent
     return tag2factor
-
-
-def test_tag_signs(tag_signs: dict[str, dict[str, int | str]]) -> None:
-    assert tag_signs["base.be"]["03"] == -1, tag_signs["base.be"]
-    assert tag_signs["base.be"]["49"] == 1, tag_signs["base.be"]
-    assert tag_signs["base.be"]["54"] == -1, tag_signs["base.be"]
-    assert tag_signs["base.be"]["62"] == 1, tag_signs["base.be"]
-    assert tag_signs["base.be"]["64"] == 1, tag_signs["base.be"]
-    assert tag_signs["base.be"]["81"] == 1, tag_signs["base.be"]
-    assert tag_signs["base.be"]["85"] == -1, tag_signs["base.be"]
-    assert tag_signs["base.it"]["4v"] == -1, tag_signs["base.it"]
 
 
 def remove_sign(
@@ -193,7 +187,7 @@ def upgrade(file_manager: FileManager) -> None:
             nb_template_files + nb_report_files,
             file.path,
         )
-        tree = etree.parse(str(file.path))
+        tree = etree.parse(BytesIO(file.content.encode()))
         touch = False
         for report_node in tree.xpath("//record[@model='account.report']"):
             country_node = report_node.find("field[@name='country_id']")

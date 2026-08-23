@@ -82,8 +82,7 @@ def _select_fields(opt: argparse.Namespace) -> list[tuple[str, str]]:
         if opt.allfields:
             _logger.warning("--allfields is set: ignoring --file")
         else:
-            with pathlib.Path(opt.file).open(encoding="utf-8") as f:
-                fields += [_parse_field_spec(line) for line in f if line.strip()]
+            fields += list(_read_field_file(opt.file))
     if opt.exclude:
         if opt.allfields:
             _logger.warning("--allfields is set: ignoring --exclude")
@@ -91,6 +90,16 @@ def _select_fields(opt: argparse.Namespace) -> list[tuple[str, str]]:
             excluded = {_parse_field_spec(e) for e in opt.exclude.split(",")}
             fields = [f for f in fields if f not in excluded]
     return fields
+
+
+@functools.cache
+def _read_field_file(path: str) -> tuple[tuple[str, str], ...]:
+    """Parse a ``--file`` selection, once per path per run.
+
+    :raises ValueError: on a malformed ``table.column`` line
+    """
+    with pathlib.Path(path).open(encoding="utf-8") as f:
+        return tuple(_parse_field_spec(line) for line in f if line.strip())
 
 
 def _ensure_cr(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -280,6 +289,13 @@ class Obfuscate(DatabaseCommand):
         return unfittable
 
     def get_all_fields(self) -> list[tuple[str, str]]:
+        """Every string/json column outside the ``ir_*`` framework tables.
+
+        ``_resolve_targets`` filters ``ir_*`` again for the selections that do
+        not come through here; the two are not redundant, they cover different
+        inputs — this one keeps the catalog scan small, that one reports what
+        the user asked for and cannot have.
+        """
         self.cr.execute(
             f"{self._CATALOG_COLUMNS}"
             " AND NOT starts_with(table_name, 'ir_')"
@@ -319,18 +335,19 @@ class Obfuscate(DatabaseCommand):
                     )
             elif field_type == "json":
                 new_field_value = sql_field
-                self.cr.execute(
-                    SQL(
-                        "SELECT DISTINCT jsonb_object_keys(%s) FROM %s",
-                        sql_field,
-                        SQL.identifier(table),
-                    )
-                )
-                keys = [k[0] for k in self.cr.fetchall()]
-                for key in keys:
+                for key in self._json_keys(table, field):
                     cypher_query = cyph_fct(SQL("%s->>%s", sql_field, key), pwd)
+                    # `jsonb_typeof(...) = 'string'`, not merely NOT NULL. The
+                    # transform reads a value with `->>` (text) and writes it
+                    # back with `to_jsonb(text)` (a JSON string), so it is
+                    # faithful for a string and LOSSY for anything else: a
+                    # nested object came back from the round trip as the string
+                    # `'{"deep": "secret"}'`, an integer as `"42"`. Odoo's
+                    # translated columns are `{lang: text}` and never hit it,
+                    # which is why it survived; `--fields` on any other jsonb
+                    # column does.
                     new_field_value = SQL(
-                        "CASE WHEN %s->>%s IS NOT NULL "
+                        "CASE WHEN jsonb_typeof(%s->%s) = 'string' "
                         "THEN jsonb_set(%s, array[%s], to_jsonb(%s)::jsonb, FALSE) "
                         "ELSE %s END",
                         sql_field,
@@ -341,7 +358,7 @@ class Obfuscate(DatabaseCommand):
                         new_field_value,
                     )
                 cypherings.append(SQL("%s=%s", sql_field, new_field_value))
-                conditions.append(SQL("%s IS NOT NULL", sql_field))
+                conditions.append(SQL("jsonb_typeof(%s) = 'object'", sql_field))
 
         if cypherings:
             query = SQL(
@@ -353,6 +370,48 @@ class Obfuscate(DatabaseCommand):
             self.cr.execute(query)
             if with_commit:
                 self.commit()
+
+    def _json_keys(self, table: str, field: str) -> list[str]:
+        """Return the object keys present in ``table.field``.
+
+        Guarded by ``jsonb_typeof(...) = 'object'``: ``jsonb_object_keys``
+        raises ``cannot call jsonb_object_keys on an array`` (or on a scalar)
+        for a single offending row, which aborted the whole run — mid-way
+        through it under ``--pertablecommit``.
+
+        Non-object rows are counted rather than ignored, because this command
+        exists to make data unreadable and a row it silently declines to
+        process is a row that stays readable.
+        """
+        sql_field = SQL.identifier(field)
+        sql_table = SQL.identifier(table)
+        self.cr.execute(
+            SQL(
+                "SELECT count(*) FROM %s WHERE %s IS NOT NULL"
+                " AND jsonb_typeof(%s) <> 'object'",
+                sql_table,
+                sql_field,
+                sql_field,
+            )
+        )
+        if skipped := self.cr.fetchone()[0]:
+            _logger.warning(
+                "%s.%s: %d row(s) hold a jsonb value that is not an object "
+                "(an array or a scalar); they are left as they are.",
+                table,
+                field,
+                skipped,
+            )
+        self.cr.execute(
+            SQL(
+                "SELECT DISTINCT jsonb_object_keys(%s) FROM %s"
+                " WHERE jsonb_typeof(%s) = 'object'",
+                sql_field,
+                sql_table,
+                sql_field,
+            )
+        )
+        return [row[0] for row in self.cr.fetchall()]
 
     def _vacuum_tables(self, tables: dict[str, set[str]]) -> None:
         """Run ``VACUUM FULL`` per table on a dedicated autocommit connection.
@@ -594,13 +653,17 @@ class Obfuscate(DatabaseCommand):
     @staticmethod
     def _explicitly_requested(opt: argparse.Namespace) -> set[tuple[str, str]]:
         """The ``(table, column)`` pairs the user named, as opposed to the
-        ones that came from :data:`DEFAULT_FIELDS`."""
+        ones that came from :data:`DEFAULT_FIELDS`.
+
+        Reuses ``_read_field_file``'s cache so ``--file`` is read once per run
+        rather than once here and once in ``_select_fields`` — and, more to the
+        point, so the two cannot disagree if the file changes underneath.
+        """
         requested: set[tuple[str, str]] = set()
         if opt.fields:
             requested |= {_parse_field_spec(f) for f in opt.fields.split(",")}
         if opt.file:
-            with pathlib.Path(opt.file).open(encoding="utf-8") as f:
-                requested |= {_parse_field_spec(line) for line in f if line.strip()}
+            requested |= set(_read_field_file(opt.file))
         return requested
 
     @staticmethod

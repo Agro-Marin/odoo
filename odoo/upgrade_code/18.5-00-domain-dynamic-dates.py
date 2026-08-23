@@ -304,38 +304,3 @@ def upgrade(file_manager: FileManager) -> None:
             flags=re.MULTILINE | re.DOTALL,
         )
         file.content = content
-
-
-def test(domain: str, result: str = "") -> None:
-    output = UpgradeDomainTransformer().transform(domain)
-    _logger.debug("%s", output)
-    if result:
-        assert output == result, (
-            f"Failed to parse {domain!r}; got {output!r} instead of {result!r}"
-        )
-    else:
-        assert output != domain, f"Failed to change {domain!r}"
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-    test("[('dt', '>', context_today())]", "[('dt', '>', 'now')]")
-    test(
-        "[('dt', '>', context_today() - relativedelta(days=3))]",
-        "[('dt', '>', '-3d')]",
-    )
-    test(
-        "[('dt', '>', (context_today() + relativedelta(months=-1)).strftime('%Y-%m-%d'))]",
-        "[('dt', '>', 'today -1m')]",
-    )
-    test(
-        "[('dt', '>=', context_today() - relativedelta(day=1))]",
-        "[('dt', '>=', '=1d')]",
-    )
-    test(
-        "[('dt', '>', (datetime.datetime.combine(context_today() + relativedelta(days=1,weekday=0), datetime.time(0,0,0)).to_utc()))]",
-        "[('dt', '>', '=monday')]",
-    )
-    test(
-        "['|', ('start_date', 'in', [context_today().strftime('%Y-%m-01'), (context_today() - relativedelta(months=1)).strftime('%Y-%m-01')]), '&', '&', ('start_date', '>=', (context_today() - relativedelta(months=5)).strftime('%Y-%m-01')), ('end_date', '<', (context_today() + relativedelta(months=3)).strftime('%Y-%m-01')), ('periodicity', '=', 'trimester')]"
-    )
