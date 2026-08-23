@@ -145,18 +145,30 @@ def get_fiscal_year[D: (date, datetime)](
     return date_from, date_to
 
 
+#: The `relativedelta` keyword each granularity maps onto.  Naming the keyword
+#: rather than a built `relativedelta` is the point: the dict this replaced held
+#: values, so every call constructed all five and threw four away.
+_RELATIVEDELTA_ARGUMENT = {
+    "hour": "hours",
+    "day": "days",
+    "week": "weeks",
+    "month": "months",
+    "year": "years",
+}
+
+
 def get_timedelta(
     qty: int,
     granularity: Literal["hour", "day", "week", "month", "year"],
 ) -> relativedelta:
-    switch = {
-        "hour": relativedelta(hours=qty),
-        "day": relativedelta(days=qty),
-        "week": relativedelta(weeks=qty),
-        "month": relativedelta(months=qty),
-        "year": relativedelta(years=qty),
-    }
-    return switch[granularity]
+    try:
+        argument = _RELATIVEDELTA_ARGUMENT[granularity]
+    except KeyError:
+        # A named error, as `start_of` and `end_of` raise for the same mistake;
+        # indexing the dict directly surfaced a bare KeyError instead.
+        msg = f"Granularity must be hour, day, week, month or year, got {granularity!r}"
+        raise ValueError(msg) from None
+    return relativedelta(**{argument: qty})
 
 
 def start_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
