@@ -154,7 +154,10 @@ class AccountTax(models.Model):
             )
         return super().name_search(name, domain, operator, limit)
 
-    def _hook_compute_is_used(self, tax_to_compute):
+    def _get_used_tax_ids(self, tax_ids):
+        # Modules that hold taxes on their own records extend this. Return the subset
+        # of `tax_ids` this layer can see in use; do NOT modify `tax_ids` itself --
+        # every caller in the chain still needs the full candidate set.
         return set()
 
     @api.depends(
@@ -231,7 +234,7 @@ class AccountTax(models.Model):
                 taxes_to_compute -= used_taxes
 
             if taxes_to_compute:
-                used_taxes.update(self._hook_compute_is_used(taxes_to_compute))
+                used_taxes.update(self._get_used_tax_ids(taxes_to_compute))
 
         for tax in self:
             tax.is_used = tax._origin.id in used_taxes
@@ -426,7 +429,7 @@ class AccountTax(models.Model):
             return self.env["account.account"].browse(value).display_name
         return value
 
-    def _message_log_repartition_lines(self, old_values_str, new_values_str):
+    def _prepare_repartition_lines_log_body(self, old_values_str, new_values_str):
         self.ensure_one()
         old_line_values_dict = ast.literal_eval(old_values_str or "{}")
         new_line_values_dict = ast.literal_eval(new_values_str)
@@ -442,6 +445,7 @@ class AccountTax(models.Model):
             for line in old_line_values_dict.keys() ^ new_line_values_dict.keys()
         ]
 
+        fragments = []
         for (document_type, sequence), old_value, new_value in modified_lines:
             diff_keys = [
                 key
@@ -477,7 +481,7 @@ class AccountTax(models.Model):
                         ]
                     ),
                 )
-                super()._message_log_batch({self.id: body})
+                fragments.append(body)
 
         for (document_type, sequence), operation, value in added_and_deleted_lines:
             body = Markup(
@@ -502,7 +506,9 @@ class AccountTax(models.Model):
                     ]
                 ),
             )
-            super()._message_log_batch({self.id: body})
+            fragments.append(body)
+
+        return Markup().join(fragments)
 
     def _message_log_batch(self, bodies, **kwargs):
         tracking_values = kwargs.get("tracking_values") or {}
@@ -512,31 +518,51 @@ class AccountTax(models.Model):
 
         loggable_ids = []
         kept_per_id = dict(tracking_values)
+        repartition_bodies = {}
         for tax in self:
             if not tax.is_used:
                 kept_per_id.pop(tax.id, None)
                 continue
 
             kept = []
+            fragments = []
             for command in tracking_values.get(tax.id) or []:
                 if command[2]["field_id"] == snapshot_field_id:
-                    tax._message_log_repartition_lines(
-                        command[2]["old_value_char"],
-                        command[2]["new_value_char"],
+                    fragments.append(
+                        tax._prepare_repartition_lines_log_body(
+                            command[2]["old_value_char"],
+                            command[2]["new_value_char"],
+                        )
                     )
                 else:
                     kept.append(command)
             kept_per_id[tax.id] = kept
+            if body := Markup().join(fragments):
+                repartition_bodies[tax.id] = body
 
-            if kept or bodies.get(tax.id):
+            if kept or bodies.get(tax.id) or tax.id in repartition_bodies:
                 loggable_ids.append(tax.id)
 
         if not loggable_ids:
             return self.env["mail.message"]
         return super(AccountTax, self.browse(loggable_ids))._message_log_batch(
-            {id_: bodies.get(id_, "") for id_ in loggable_ids},
+            {
+                id_: self._concat_log_bodies(
+                    bodies.get(id_), repartition_bodies.get(id_)
+                )
+                for id_ in loggable_ids
+            },
             **{**kwargs, "tracking_values": kept_per_id},
         )
+
+    @api.model
+    def _concat_log_bodies(self, *bodies):
+        present = [body for body in bodies if body]
+        if not present:
+            return ""
+        if len(present) == 1:
+            return present[0]
+        return Markup().join(Markup(body) for body in present)
 
     def _default_repartition_lines(self, document_type):
         return [

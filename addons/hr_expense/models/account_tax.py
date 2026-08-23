@@ -1,18 +1,16 @@
-# -*- coding: utf-8 -*-
-
 from odoo import models
 
 
 class AccountTax(models.Model):
     _inherit = "account.tax"
 
-    def _hook_compute_is_used(self, taxes_to_compute):
+    def _get_used_tax_ids(self, tax_ids):
         # OVERRIDE in order to fetch taxes used in expenses
 
-        used_taxes = super()._hook_compute_is_used(taxes_to_compute)
-        taxes_to_compute -= used_taxes
+        used_taxes = super()._get_used_tax_ids(tax_ids)
+        remaining_ids = tax_ids - used_taxes
 
-        if taxes_to_compute:
+        if remaining_ids:
             self.env['hr.expense'].flush_model(['tax_ids'])
             self.env.cr.execute("""
                 SELECT id
@@ -23,7 +21,7 @@ class AccountTax(models.Model):
                     WHERE tax_id = ANY(%s)
                     AND account_tax.id = exp.tax_id
                 )
-            """, [list(taxes_to_compute)])
+            """, [list(remaining_ids)])
 
             used_taxes.update([tax[0] for tax in self.env.cr.fetchall()])
 

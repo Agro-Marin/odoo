@@ -1,4 +1,4 @@
-from odoo import Command
+from odoo import Command, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import tagged
 
@@ -15,6 +15,11 @@ class TestAccountTax(AccountTestInvoicingCommon):
     @classmethod
     def default_env_context(cls):
         return {}
+
+    def _last_message_text(self, record):
+        """`preview` renders the body but truncates it; these bodies are longer."""
+        body = record.message_ids[0].body
+        return " ".join(tools.mail.html_to_inner_content(body).split())
 
     def set_up_and_use_tax(self):
         self.env["account.move"].create(
@@ -131,14 +136,15 @@ class TestAccountTax(AccountTestInvoicingCommon):
         )
         self.flush_tracking()
 
-        previews = self.company_data["default_tax_sale"].message_ids.mapped("preview")
+        # Both lines belong to one write, so both belong to one message.
+        preview = self._last_message_text(self.company_data["default_tax_sale"])
         self.assertIn(
             "New Invoice repartition line 4: -100.0 (Factor Percent) None (Account) None (Tax Grids) False (Use in tax closing)",
-            previews,
+            preview,
         )
         self.assertIn(
             "New Refund repartition line 4: -100.0 (Factor Percent) None (Account) None (Tax Grids) False (Use in tax closing)",
-            previews,
+            preview,
         )
 
     def test_logging_of_repartition_lines_update_when_tax_is_used(self):
@@ -181,14 +187,15 @@ class TestAccountTax(AccountTestInvoicingCommon):
         )
         self.flush_tracking()
 
-        previews = self.company_data["default_tax_sale"].message_ids.mapped("preview")
+        # Both lines belong to one write, so both belong to one message.
+        preview = self._last_message_text(self.company_data["default_tax_sale"])
         self.assertIn(
             "Invoice repartition line 3: 0.0 -100.0 (Factor Percent) None ['TaxTag12345'] (Tax Grids)",
-            previews,
+            preview,
         )
         self.assertIn(
             "Refund repartition line 3: 0.0 -100.0 (Factor Percent) None 131000 Tax Paid (Account) False True (Use in tax closing)",
-            previews,
+            preview,
         )
 
     def test_logging_of_repartition_lines_reordering_when_tax_is_used(self):
@@ -217,13 +224,12 @@ class TestAccountTax(AccountTestInvoicingCommon):
         )
         self.flush_tracking()
 
-        previews = self.company_data["default_tax_sale"].message_ids.mapped("preview")
-        self.assertIn(
-            "Invoice repartition line 1: 100.0 0.0 (Factor Percent)", previews
-        )
+        # Both lines belong to one write, so both belong to one message.
+        preview = self._last_message_text(self.company_data["default_tax_sale"])
+        self.assertIn("Invoice repartition line 1: 100.0 0.0 (Factor Percent)", preview)
         self.assertIn(
             "Invoice repartition line 3: 0.0 100.0 (Factor Percent) None 251000 Tax Received (Account) False True (Use in tax closing)",
-            previews,
+            preview,
         )
 
     def test_logging_of_repartition_lines_removal_when_tax_is_used(self):
@@ -248,14 +254,15 @@ class TestAccountTax(AccountTestInvoicingCommon):
         )
         self.flush_tracking()
 
-        previews = self.company_data["default_tax_sale"].message_ids.mapped("preview")
+        # Both lines belong to one write, so both belong to one message.
+        preview = self._last_message_text(self.company_data["default_tax_sale"])
         self.assertIn(
             "Removed Invoice repartition line 3: 0.0 (Factor Percent) None (Account) None (Tax Grids) False (Use in tax closing)",
-            previews,
+            preview,
         )
         self.assertIn(
             "Removed Refund repartition line 3: 0.0 (Factor Percent) None (Account) None (Tax Grids) False (Use in tax closing)",
-            previews,
+            preview,
         )
 
     def test_tax_is_used_when_in_transactions(self):
@@ -469,19 +476,48 @@ class TestAccountTax(AccountTestInvoicingCommon):
             "{('invoice', 1): {'factor_percent': 100.0, 'account': 'X', "
             "'tax_grids': None, 'use_in_tax_closing': True}}"
         )
-        tax._message_log_repartition_lines(old_translated, new_neutral)
+        # A snapshot written under another language must not break the diff.
+        tax._prepare_repartition_lines_log_body(old_translated, new_neutral)
 
-        tax.message_ids.unlink()
         old_neutral = (
             "{('invoice', 1): {'factor_percent': 50.0, 'account': 'X', "
             "'tax_grids': None, 'use_in_tax_closing': False}}"
         )
-        tax._message_log_repartition_lines(old_neutral, new_neutral)
-        joined = " ".join(tax.message_ids.mapped("preview"))
-        self.assertIn("Factor Percent", joined)
-        self.assertIn("50.0", joined)
-        self.assertIn("100.0", joined)
-        self.assertIn("Use in tax closing", joined)
+        body = tax._prepare_repartition_lines_log_body(old_neutral, new_neutral)
+        self.assertIn("Factor Percent", body)
+        self.assertIn("50.0", body)
+        self.assertIn("100.0", body)
+        self.assertIn("Use in tax closing", body)
+
+    def test_one_write_logs_one_message(self):
+        """Repartition-line changes used to post a message each, mid-loop.
+
+        Odoo's convention is one message per write: two ordinary tracked fields
+        produce one, and so must a tracked field changed alongside a repartition
+        line.
+        """
+        self.set_up_and_use_tax()
+        tax = self.company_data["default_tax_sale"]
+        rep_line = tax.invoice_repartition_line_ids.filtered(
+            lambda line: line.repartition_type == "tax"
+        )[:1]
+        other_account = self.env["account.account"].search(
+            [("id", "!=", rep_line.account_id.id)], limit=1
+        )
+
+        before = len(tax.message_ids)
+        tax.write(
+            {
+                "name": "renamed alongside its repartition",
+                "invoice_repartition_line_ids": [
+                    Command.update(rep_line.id, {"account_id": other_account.id})
+                ],
+            }
+        )
+        self.env.flush_all()
+        self.env.cr.precommit.run()
+        tax.invalidate_recordset(["message_ids"])
+        self.assertEqual(len(tax.message_ids) - before, 1)
 
     def test_compute_all_rounds_per_tax_base_under_round_globally(self):
         company = self.env.company

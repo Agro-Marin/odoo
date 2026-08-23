@@ -5,11 +5,11 @@ class AccountTax(models.Model):
     _inherit = "account.tax"
 
 
-    def _hook_compute_is_used(self, taxes_to_compute):
-        used_taxes = super()._hook_compute_is_used(taxes_to_compute)
-        taxes_to_compute -= used_taxes
+    def _get_used_tax_ids(self, tax_ids):
+        used_taxes = super()._get_used_tax_ids(tax_ids)
+        remaining_ids = tax_ids - used_taxes
 
-        if taxes_to_compute:
+        if remaining_ids:
             self.env["purchase.order.line"].flush_model(["tax_ids"])
             self.env.cr.execute(
                 """
@@ -23,7 +23,7 @@ class AccountTax(models.Model):
                 )
                 AND id = ANY(%s)
                 """,
-                [list(taxes_to_compute)],
+                [list(remaining_ids)],
             )
 
             used_taxes.update([tax[0] for tax in self.env.cr.fetchall()])

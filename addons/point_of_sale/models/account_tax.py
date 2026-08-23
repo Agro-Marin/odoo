@@ -42,10 +42,10 @@ class AccountTax(models.Model):
                 )
         return super().write(vals)
 
-    def _hook_compute_is_used(self, tax_to_compute):
-        used_taxes = super()._hook_compute_is_used(tax_to_compute)
-        tax_to_compute -= used_taxes
-        if tax_to_compute:
+    def _get_used_tax_ids(self, tax_ids):
+        used_taxes = super()._get_used_tax_ids(tax_ids)
+        remaining_ids = tax_ids - used_taxes
+        if remaining_ids:
             self.env["pos.order.line"].flush_model(["tax_ids"])
             self.env.cr.execute(
                 """
@@ -53,7 +53,7 @@ class AccountTax(models.Model):
                 FROM account_tax_pos_order_line_rel
                 WHERE account_tax_id = ANY(%s)
                 """,
-                [list(tax_to_compute)],
+                [list(remaining_ids)],
             )
             used_taxes.update(tax[0] for tax in self.env.cr.fetchall())
         return used_taxes
