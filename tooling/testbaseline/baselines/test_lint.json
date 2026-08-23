@@ -1,14 +1,13 @@
 {
   "expected": {
     "test_lint/PrettyXmlLinter.test_xml_formatting": "FAIL",
-    "test_lint/TestPythonLint.test_batch_queries": "FAIL",
     "test_lint/TestPythonLint.test_gettext_repr": "FAIL",
     "test_lint/TestPythonLint.test_gettext_variable": "FAIL",
     "test_lint/XmlRecordLinter.test_xml_record_field_order": "FAIL"
   },
-  "note": "All five are ratchet assertions inside test_lint itself, not broken checkers -- the tree and the committed floors disagree, in both directions:\n\n  PrettyXmlLinter.test_xml_formatting          3659 vs floor 3658   (+1)\n  XmlRecordLinter.test_xml_record_field_order   791 vs floor  789   (+2)\n  TestPythonLint.test_gettext_repr                9 vs floor    8   (+1)\n  TestPythonLint.test_gettext_variable            2 vs floor    1   (+1)\n  TestPythonLint.test_batch_queries             393 vs floor  394   (-1)\n\ntest_batch_queries is the one worth reading twice: the debt went DOWN and the gate\nfails anyway, because these floors are exact in both directions. Someone paid off an\nn-plus-one and did not bank it. The other four are unbanked increases. None of them\nis a new defect and none of them is one person to fix: each unit belongs to whichever\nchange moved it, and banking them here would credit that work to a passer-by.\n\nMeasured at 5a70ea39d23 in a detached worktree at the CI scope (odoo/addons + addons,\nno enterprise), because the shared checkout was carrying two other sessions\nuncommitted work. Confirmed identical at c461acce242 earlier the same day -- same five\nnames, same five numbers -- so this set is standing, not a moment.\n\nThe run spec matters here for a different reason than /base: test_lint scans the\naddons_path it is given, so a workspace that also carries enterprise/ measures a\nlarger tree and reports floors that cannot pass in CI.",
+  "note": "Four ratchet assertions inside test_lint itself, the tree and the committed floors disagreeing:\n\n  PrettyXmlLinter.test_xml_formatting          3659 vs floor 3658   (+1)\n  XmlRecordLinter.test_xml_record_field_order   791 vs floor  789   (+2)\n  TestPythonLint.test_gettext_repr                9 vs floor    8   (+1)\n  TestPythonLint.test_gettext_variable            2 vs floor    1   (+1)\n\nDown from five. TestPythonLint.test_batch_queries left the set, and NOT because anyone\npaid the debt: the floor is untouched at 394, the tree measured 393 when this baseline\nwas first recorded at 5a70ea39d23, and it measures 394 again now. Something in the eight\ncommits since put an n-plus-one back and the exact ratchet went green because the count\ndrifted toward the floor. Do not read that line as progress.\n\nNone of the four is one person to fix -- each unit belongs to whichever change moved it,\nand banking them here would credit that work to a passer-by.\n\nMeasured at the CI scope (odoo/addons + addons, no enterprise) in the shared checkout,\non the run that also checked this session account.pot export; that export contributed\n0 new failures.",
   "run_spec": "--addons-path=<repo>/odoo/addons,<repo>/addons -i test_lint --test-enable --test-tags /test_lint --stop-after-init --no-http",
   "suite": "/test_lint",
   "tests_total": 246,
-  "verified_at": "5a70ea39d23"
+  "verified_at": "43d8aa5af99"
 }
