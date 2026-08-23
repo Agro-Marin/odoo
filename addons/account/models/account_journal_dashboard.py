@@ -1054,13 +1054,6 @@ class AccountJournal(models.Model):
             "context": self._get_move_action_context(),
         }
 
-    def _prepare_no_journal_error_msg(self, company_name, journal_types):
-        return _(
-            "No journal could be found in company %(company_name)s for any of those types: %(journal_types)s",
-            company_name=company_name,
-            journal_types=", ".join(journal_types),
-        )
-
     @api.model
     def is_sample_action_available(self):
         return bool(self.env.ref("base.res_partner_2", raise_if_not_found=False))

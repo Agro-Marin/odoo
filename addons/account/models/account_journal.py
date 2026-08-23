@@ -1440,6 +1440,13 @@ class AccountJournal(models.Model):
             .setting_init_bank_account_action()
         )
 
+    def _prepare_no_journal_error_msg(self, company_name, journal_types):
+        return _(
+            "No journal could be found in company %(company_name)s for any of those types: %(journal_types)s",
+            company_name=company_name,
+            journal_types=", ".join(journal_types),
+        )
+
     def _create_document_from_attachment(self, attachment_ids):
         if not self:
             self = self.env["account.journal"].browse(
