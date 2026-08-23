@@ -168,6 +168,27 @@ class TestHelpers(unittest.TestCase):
     def test_invert_full_cover(self):
         self.assertEqual(invert_intervals([(0, 10)], 0, 10), [])
 
+    def test_invert_merges_gaps_a_zero_length_interval_splits(self):
+        """A degenerate input must not split one gap into two touching ones.
+
+        `(4, 4)` moves nothing, so the accumulator emits `(0, 4)` and then
+        `(4, 10)`.  They are adjacent, and the result has to be `(0, 10)`.
+        This is the case the `Intervals` round trip used to cover; it is why
+        the replacement merges rather than just filtering empties.
+        """
+        self.assertEqual(invert_intervals([(4, 4)], 0, 10), [(0, 10)])
+        self.assertEqual(invert_intervals([(2, 2), (5, 5)], 0, 10), [(0, 10)])
+
+    def test_invert_drops_empty_gaps(self):
+        self.assertEqual(invert_intervals([(0, 5), (5, 10)], 0, 10), [])
+
+    def test_invert_with_touching_inputs_keeps_the_outer_gaps(self):
+        self.assertEqual(invert_intervals([(2, 4), (4, 6)], 0, 10), [(0, 2), (6, 10)])
+
+    def test_invert_empty_range(self):
+        self.assertEqual(invert_intervals([], 5, 5), [])
+        self.assertEqual(invert_intervals([(1, 2)], 5, 5), [])
+
 
 if __name__ == "__main__":
     unittest.main()

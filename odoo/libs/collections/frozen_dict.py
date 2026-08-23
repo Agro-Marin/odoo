@@ -7,7 +7,11 @@ from typing import Any, NoReturn
 def freehash(arg: Any) -> int:
     try:
         return hash(arg)
-    except Exception:
+    except TypeError:
+        # Only unhashability falls through to the structural fallbacks below.
+        # A bare `except Exception` also swallowed bugs *inside* a __hash__ and
+        # turned them into an id(), which is a cache key that silently never
+        # matches anything again.
         if isinstance(arg, Mapping):
             return hash(frozendict(arg))
         elif isinstance(arg, Iterable):

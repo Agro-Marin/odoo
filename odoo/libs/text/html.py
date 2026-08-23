@@ -614,12 +614,18 @@ def html_sanitize(
     return markupsafe.Markup(sanitized)
 
 
+#: A fragment, interpolated into the two patterns below -- not a pattern itself.
 URL_SKIP_PROTOCOL_REGEX = r"mailto:|tel:|sms:"
 URL_REGEX = rf"""(\bhref=['"](?!{URL_SKIP_PROTOCOL_REGEX})([^'"]+)['"])"""
 TEXT_URL_REGEX = r"https?://[\w@:%.+&~#=/-]+(?:\?\S+)?"
 HTML_TAG_URL_REGEX = URL_REGEX + r"([^<>]*>([^<>]+)<\/)?"
 HTML_TAGS_REGEX = re.compile(r"<[^>]*>")
 HTML_NEWLINES_REGEX = re.compile(r"<(div|p|br|tr)[^>]*>|\n")
+
+_RUNS_OF_SPACE_RE = re.compile(r" {2,}")
+_RUNS_OF_NEWLINE_RE = re.compile(r"\n{2,}")
+_CLOSING_BODY_RE = re.compile(r"</body\s*>", re.IGNORECASE)
+_CLOSING_HTML_RE = re.compile(r"</html\s*>", re.IGNORECASE)
 
 _ICON_RE = re.compile(
     r'<\s*(i|span)\b(\s+[A-Za-z_-][A-Za-z0-9-_]*(\s*=\s*[\'"][^"\']*[\'"])?)*\s*\bclass\s*=\s*["\'][^"\']*\b(fa|fab|fad|far|oi)\b'
@@ -757,14 +763,19 @@ def html2plaintext(
     html_str = re.sub(r"</p\s*>", "\n", html_str)
     html_str = re.sub(r"<br\s*/?>", "\n", html_str)
     html_str = re.sub(r"<[^>]*>", " ", html_str)
-    html_str = html_str.replace(" " * 2, " ")
+    html_str = _RUNS_OF_SPACE_RE.sub(" ", html_str)
+    # lxml has already decoded every entity in the source; serialising re-escapes
+    # exactly these three, so this list is the whole of what can be here.  A
+    # `&nbsp;` substitution used to follow, and could only ever fire on text the
+    # `&amp;` line above had just manufactured: `&amp;nbsp;` -- a body that says
+    # the literal characters "&nbsp;" -- became U+00A0, and the strip below then
+    # deleted it.  No input reaches this point with a real `&nbsp;` in it.
     html_str = html_str.replace("&gt;", ">")
     html_str = html_str.replace("&lt;", "<")
     html_str = html_str.replace("&amp;", "&")
-    html_str = html_str.replace("&nbsp;", "\N{NO-BREAK SPACE}")
 
     html_str = "\n".join([x.strip() for x in html_str.splitlines()])
-    html_str = html_str.replace("\n" * 2, "\n")
+    html_str = _RUNS_OF_NEWLINE_RE.sub("\n", html_str)
 
     if url_index:
         html_str += "\n\n"
@@ -816,14 +827,14 @@ def append_content_to_html(
     else:
         content = re.sub(r"(?i)(</?(?:html|body|head|!\s*DOCTYPE)[^>]*>)", "", content)
         content = f"\n{content}\n"
-    html_body = re.sub(
-        r"(</?)(\w+)([ >])", lambda m: f"{m[1]}{m[2].lower()}{m[3]}", html_body
-    )
-    insert_location = html_body.find("</body>")
-    if insert_location == -1:
-        insert_location = html_body.find("</html>")
-    if insert_location == -1:
+    # Locating the closing tag must not rewrite the document.  Lowercasing every
+    # tag to make a literal `find("</body>")` work mangled `<A HREF=...>` into
+    # `<a HREF=...>` -- and still missed `</body >`, because the literal has no
+    # room for the space the lowercasing left behind.
+    closing = _CLOSING_BODY_RE.search(html_body) or _CLOSING_HTML_RE.search(html_body)
+    if closing is None:
         return markupsafe.Markup(f"{html_body}{content}")
+    insert_location = closing.start()
     return markupsafe.Markup(
         f"{html_body[:insert_location]}{content}{html_body[insert_location:]}"
     )
@@ -833,12 +844,10 @@ def prepend_html_content(html_body: str, html_content: str | markupsafe.Markup) 
     replacement = re.sub(
         r"(?i)(</?(?:html|body|head|!\s*DOCTYPE)[^>]*>)", "", html_content
     )
-    html_content = (
-        markupsafe.Markup(replacement)
-        if isinstance(html_content, markupsafe.Markup)
-        else replacement
-    )
-    html_content = html_content.strip()
+    # Deliberately str, not Markup: the joined result is `str` either way, and
+    # `html_body` is not always trusted -- a plain-str body carrying unescaped
+    # user text would be marked safe by a Markup wrapper it never earned.
+    html_content = replacement.strip()
 
     body_match = re.search(r"<body[^>]*>", html_body) or re.search(
         r"<html[^>]*>", html_body

@@ -20,8 +20,6 @@ def _to_ms(ns: float) -> float:
 
 
 def _timing_gc_callback(event: str, info: dict[str, Any]) -> None:
-    if _gc_time is None:
-        return
     global _gc_start  # noqa: PLW0603  gc callbacks run on the collecting thread and own this state
     gen = info["generation"]
     if event == "start":

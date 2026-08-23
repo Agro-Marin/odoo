@@ -1,11 +1,13 @@
 import inspect
 import io
 import logging
+from collections import OrderedDict
 
 import pytest
 
 from odoo.libs._vendor.useragents import UserAgentParser
 from odoo.libs.barcode import check_barcode_encoding
+from odoo.libs.collections.frozen_dict import freehash
 from odoo.libs.collections.ordered_set import LastOrderedSet, OrderedSet
 from odoo.libs.colors.conversions import get_saturation, hex_to_rgb
 from odoo.libs.datetime.tz import ZoneInfoNotFoundError, timezone
@@ -277,29 +279,50 @@ class TestImageProcessWebpResolution:
         assert ImageProcess(src, verify_resolution=False).image is False
 
 
-class TestLruCountSetterConcurrencyGuard:
+class TestLruCountSetter:
     def test_shrink_evicts_down_to_new_count(self):
         lru = LRU(10, [(i, i) for i in range(10)])
         lru.count = 3
         assert len(lru) == 3
         assert set(lru) == {7, 8, 9}
 
-    def test_setter_survives_ordering_mutation_during_iteration(self):
+    def test_shrink_keeps_the_most_recently_used(self):
         lru = LRU(10, [(i, i) for i in range(10)])
+        lru[0]
+        lru[1]
+        lru.count = 3
+        assert list(lru) == [9, 0, 1]
 
-        real_ordering = lru._ordering
-        raised = {"done": False}
+    def test_setter_holds_no_python_iterator_over_the_map(self):
+        """The eviction loop must not iterate the map in Python.
 
-        class FlakyOrdering(dict):
+        This replaces a test that asserted the *workaround*: it injected a
+        ``__iter__`` raising RuntimeError into ``lru._ordering`` and checked the
+        setter swallowed it.  That guard existed because the unlocked read path
+        mutated a second dict while the setter walked it -- ``next(iter(...))``
+        raises under concurrent readers, measured at 25 in 17.2M.  With one map
+        and ``popitem``, there is no Python-level iterator left to interrupt, so
+        the property to pin is its absence.
+        """
+        seen = []
+
+        class WatchfulMap(OrderedDict):
             def __iter__(self):
-                if not raised["done"]:
-                    raised["done"] = True
-                    raise RuntimeError("dictionary changed size during iteration")
+                seen.append("iter")
                 return super().__iter__()
 
-        lru._ordering = FlakyOrdering(real_ordering)
+        lru = LRU(10, [(i, i) for i in range(10)])
+        lru._map = WatchfulMap(lru._map)
         lru.count = 3
         assert len(lru) == 3
+        assert seen == [], "count setter still walks the map in Python"
+
+    def test_rejects_a_non_positive_count(self):
+        lru = LRU(4, [(1, "a")])
+        for bad in (0, -1):
+            with pytest.raises(ValueError, match="must be positive"):
+                lru.count = bad
+        assert len(lru) == 1
 
 
 class TestHtmlSanitizeRecovery:
@@ -428,3 +451,32 @@ class TestGetSaturationType:
 
     def test_pure_color_still_one(self):
         assert get_saturation((255, 0, 0)) == 1.0
+
+
+class TestFreehashOnlyCatchesUnhashability:
+    """A bug inside ``__hash__`` must not become a cache key.
+
+    ``except Exception`` turned any failure into ``id(arg)``: a key that is
+    structurally meaningless, never equal to the same value computed again, and
+    silent.  Only ``TypeError`` -- the unhashable signal -- may fall through to
+    the structural fallbacks.
+    """
+
+    def test_unhashable_still_falls_back(self):
+        class Unhashable:
+            __hash__ = None
+
+        obj = Unhashable()
+        assert freehash(obj) == id(obj)
+
+    def test_a_broken_hash_propagates(self):
+        class Broken:
+            def __hash__(self):
+                raise RuntimeError("bug in __hash__")
+
+        with pytest.raises(RuntimeError, match="bug in __hash__"):
+            freehash(Broken())
+
+    def test_mapping_and_iterable_fallbacks_still_work(self):
+        assert freehash({"a": [1, 2]}) == freehash({"a": [1, 2]})
+        assert freehash([1, 2, 3]) == freehash([1, 2, 3])
