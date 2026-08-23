@@ -89,13 +89,61 @@ invisible tag survives.
 **Add an `absorb_source_values=` parameter to `_merge`.** Rejected because the
 value has to reach `_get_excluded_merge_tables`, three calls down through
 `_update_foreign_keys_generic` and `_get_relations_to_repoint`, both `@api.model`
-methods shared with `product.merge`. Threading a parameter through them changes
+methods shared with `product.merge.wizard`. Threading a parameter through them changes
 signatures for a wizard that does not have the notion. A field plus a policy
 hook leaves those signatures alone.
 
 **Give the partner wizard a `_get_fields_excluded_value()` hook and stop
-there.** This is the shape `product.merge` already uses, and the hook is added
+there.** This is the shape `product.merge.wizard` already uses, and the hook is added
 here — it is the right seam for "this particular field must not travel". It is
 not enough on its own: excluding every field one by one is not a mode, it does
 not reach the m2m relation tables or the bank accounts, and the list would have
 to be recomputed whenever a module adds a field.
+
+## Consequences
+
+**A source's bank accounts are deleted, not moved, when the mode is off.**
+Excluding `res_partner_bank` from re-pointing leaves its rows to
+`ondelete='cascade'`, and the row is gone with the partner. For sweeping dormant
+records into a bucket that is the point; for any other use of the mode it is the
+first thing to check. It is pinned by
+`test_not_absorbing_leaves_the_source_bank_account_behind`.
+
+**Stored many2many stop travelling when the mode is off, and that includes
+memberships.** `discuss.channel` reaches a partner through
+`discuss_channel_member`, so a bucket no longer joins the channels its sources
+were in. This is intended and it is a behaviour change for anyone who turns the
+mode off expecting only scalars to stop.
+
+**The default path is unchanged.** The company-dependent copy runs in the same
+order relative to the ORM write as it did before the split, so a merge with the
+mode left alone writes what it always wrote.
+`TestMergePartnerCompanyDependent`, which predates this record, is what says so.
+
+**A wizard that never heard of the mode is unaffected.** `product.merge.wizard`
+inherits `_merge_absorbs_source_values()` returning `True` and behaves exactly as
+before, including the company-dependent copy it used to receive from the
+reference pass and now receives from the value phase.
+
+## Enforcement
+
+No new gate. What this record constrains is which phase a value copy belongs to,
+which is a judgement about a method's name matching its work — not a code shape
+a checker can recognise.
+
+It is pinned by tests instead. `TestMergePartnerAbsorbSourceValues`, in
+`odoo/addons/base/tests/test_res_partner_merge.py`,
+asserts both directions on one fixture: with the mode on the destination absorbs
+the source's `vat` and tags, with it off the destination keeps its own `vat`,
+`street`, `barcode`, tags and bank accounts while the source's attachment is
+still re-pointed. `TestMergePartnerCompanyDependent` pins the copy that moved.
+In the consumer repository, marin's own
+test_general_partner_merge pins the flow that needed the mode and fails on two
+subtests without it — named in plain prose because CI checks this repository out
+alone, so no path to it can resolve here.
+
+The regression this record exists to prevent is a future contributor moving the
+company-dependent copy back into `_update_reference_fields_generic` because that
+is where the flush already is. The `barcode` assertion in
+`test_not_absorbing_keeps_the_destination_identity` is what would catch it: that
+column is only reachable through the phase that moved.
