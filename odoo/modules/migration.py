@@ -105,11 +105,26 @@ def _warn_unstaged_scripts(directory: Path, files: list[str]) -> None:
 
 
 def _convert_version(version: str) -> str:
+    """Give ``version`` its server-series prefix, if it does not already carry one.
+
+    The series check is what ``adapt_version`` in ``modules.module`` does, and
+    the two must agree because this function is handed that one's output as the
+    upgrade target. Without it a version that is *already* prefixed but has
+    fewer than three dots -- ``19.0`` or ``19.0.1``, both of which
+    ``check_version`` accepts and installs -- was prefixed a second time into
+    ``19.0.19.0``. The inflated target then compared greater than every
+    migration script the module owns, so `-u` replayed all of them, on every
+    run, for a module nothing had changed. See
+    ``TestVersionAlreadyCarryingTheSeries``.
+    """
     if version == "0.0.0":
+        return version
+    serie = release.major_version
+    if version == serie or version.startswith(serie + "."):
         return version
     if version.count(".") > 2:
         return version
-    return f"{release.major_version}.{version}"
+    return f"{serie}.{version}"
 
 
 def _migration_applies(
