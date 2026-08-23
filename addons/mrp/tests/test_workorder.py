@@ -7,7 +7,7 @@ the other reading is the one someone will reach for next.
 
 from datetime import datetime
 
-from odoo import Command
+from odoo import Command, fields
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
@@ -76,9 +76,45 @@ class TestWorkorderAudit(TransactionCase):
             "replanning a work order that conflicts with nothing moved it",
         )
 
+    def _open_timers(self, workorders):
+        """One open timer per work order, for the acting user.
+
+        Not `button_start()`.  Whether starting a work order opens a timer at
+        all is the layer's decision, and `mrp` spells that decision out as
+        `_should_start_timer()`: `mrp` answers True and opens one for
+        `self.env.user`, `mrp_workorder` answers False and opens one per
+        logged-in *employee* from the shop floor instead.  That module is
+        `auto_install: ["mrp"]`, so it is installed in every database of this
+        workspace, and a test that reaches the timers through the button is
+        really asserting which modules are installed.
+
+        What these tests pin is what `mrp` does with the timers once they
+        exist, which holds in both layers, so they open them through the model.
+        `test_button_start_opens_a_timer_when_the_layer_wants_one` below is
+        where the button's own contract is pinned.
+        """
+        return self.env["mrp.workcenter.productivity"].create(
+            [
+                wo._prepare_timeline_vals(wo.duration, fields.Datetime.now())
+                for wo in workorders
+            ]
+        )
+
+    def test_button_start_opens_a_timer_when_the_layer_wants_one(self):
+        mo = self._mo(tag="B")
+        wo = mo.workorder_ids
+        wo.button_start()
+        self.env.flush_all()
+        self.assertEqual(
+            bool(wo.time_ids.filtered(lambda time: not time.date_end)),
+            wo._should_start_timer(),
+            "button_start and _should_start_timer disagreed on whether this "
+            "work order is being timed for the acting user",
+        )
+
     def test_pausing_many_workorders_closes_every_timer(self):
         mo = self._mo(n_ops=3, tag="P")
-        mo.workorder_ids.button_start()
+        self._open_timers(mo.workorder_ids)
         self.env.flush_all()
         productivity = self.env["mrp.workcenter.productivity"]
         domain = [
@@ -97,7 +133,7 @@ class TestWorkorderAudit(TransactionCase):
     def test_is_user_working_is_per_user(self):
         mo = self._mo(tag="U")
         wo = mo.workorder_ids
-        wo.button_start()
+        self._open_timers(wo)
         self.env.flush_all()
         other = self.env["res.users"].create(
             {
@@ -112,15 +148,15 @@ class TestWorkorderAudit(TransactionCase):
             "is_user_working leaked another user's timer (no depends_context('uid'))",
         )
 
-    def test_is_user_working_refreshes_after_starting(self):
+    def test_is_user_working_refreshes_when_a_timer_opens(self):
         mo = self._mo(tag="W")
         wo = mo.workorder_ids
         self.assertFalse(wo.is_user_working)
-        wo.button_start()
+        self._open_timers(wo)
         self.env.flush_all()
         self.assertTrue(
             wo.is_user_working,
-            "is_user_working is stale after button_start (no @api.depends)",
+            "is_user_working is stale after a timer opened (no @api.depends)",
         )
 
     def test_scrap_count_refreshes(self):
