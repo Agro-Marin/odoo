@@ -141,3 +141,22 @@ def test_multi_move_no_cross_contamination():
 def test_filter_trivial():
     mapping = {"a": frozendict(id=1), "b": K1}
     assert filter_trivial(mapping) == {"b": K1}
+
+
+def test_plan_never_writes_a_line_it_also_deletes():
+    for existing_before, existing_after in (
+        ({"a": K1, "b": K1}, {"a": K1, "b": K2}),
+        ({"b": K1, "a": K1}, {"b": K2, "a": K1}),
+    ):
+        to_delete, _to_create, to_write = plan(
+            existing_before, existing_after, {K1: V1}, {K2: V2}
+        )
+        assert not set(to_delete) & set(to_write)
+
+
+def test_plan_does_not_depend_on_mapping_order():
+    forward = plan({"a": K1, "b": K1}, {"a": K1, "b": K2}, {K1: V1}, {K2: V2})
+    reverse = plan({"b": K1, "a": K1}, {"b": K2, "a": K1}, {K1: V1}, {K2: V2})
+    assert sorted(forward[0]) == sorted(reverse[0])
+    assert forward[1] == reverse[1]
+    assert forward[2] == reverse[2]

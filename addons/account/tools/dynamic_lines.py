@@ -9,12 +9,6 @@ def plan_dynamic_line_sync(
     needed_after,
     values_differ,
 ):
-    before2after = {
-        before: existing_after[line]
-        for line, before in existing_before.items()
-        if line in existing_after
-    }
-
     if needed_after == needed_before:
         return None
     if not needed_before and (
@@ -31,7 +25,7 @@ def plan_dynamic_line_sync(
         for line, key in existing_before.items()
         if key not in needed_after
         and key in lines_by_after_key
-        and before2after.get(key) not in needed_after
+        and existing_after.get(line) not in needed_after
     ]
     to_delete_set = set(to_delete)
     to_delete.extend(
