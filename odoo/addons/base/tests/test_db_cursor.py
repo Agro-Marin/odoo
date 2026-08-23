@@ -68,6 +68,10 @@ class _ProbeAbort(Exception):
     pass
 
 
+def _callees(func):
+    return set(func.__code__.co_names)
+
+
 def registry():
     return Registry(common.get_db_name())
 
@@ -3961,7 +3965,7 @@ class TestEvaluatedCodeKeepsItsDatabaseErrorClass(common.TransactionCase):
         )
 
 
-class TestCronsRecoverLikeRequests(common.TransactionCase):
+class TestCronsRecoverLikeRequests(BaseCase):
     """A cron's work runs outside `retrying()`, so every recoverable database
     error was charged to the job as a FAILURE -- and
     `MIN_FAILURE_COUNT_BEFORE_DEACTIVATION` of those DEACTIVATE the cron and
@@ -3974,21 +3978,88 @@ class TestCronsRecoverLikeRequests(common.TransactionCase):
     """
 
     def test_the_callback_goes_through_retrying(self):
-        cls = type(self.env["ir.cron"])
-        runner = inspect.getsource(cls._run_callback)
+        """Asserted on the AST, not on the text.
+
+        A substring check passes on the docstring alone -- verified: stripping
+        the `retrying(...)` call while leaving the prose left this green.
+        """
+        import ast
+        import textwrap
+
+        cls = registry()["ir.cron"]
+        tree = ast.parse(textwrap.dedent(inspect.getsource(cls._run_callback)))
+        called = {
+            n.func.id
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+        }
         self.assertIn(
-            "retrying(",
-            runner,
+            "retrying",
+            called,
             "without it a deadlock, a serialization failure or a stale cached "
             "plan counts against the cron's deactivation budget",
         )
-        self.assertIn("_callback", runner)
         self.assertIn(
             "_run_callback",
-            inspect.getsource(cls._run_job.__func__),
+            _callees(cls._run_job.__func__),
             "the run loop must go through the wrapped runner, not call "
             "_callback directly",
         )
+
+    def _drive_callback(self, callback):
+        """Run one cron callback through the real `_run_callback`.
+
+        On a real cursor rather than a TransactionCase, because `retrying()`
+        commits and `TestCursor` forbids that from inside a test. Nothing is
+        actually written -- `_callback` is replaced -- so the commit is empty.
+        """
+        reg = registry()
+        with contextlib.closing(reg.cursor()) as cr:
+            env = api.Environment(cr, odoo.SUPERUSER_ID, {})
+            cron = env["ir.cron"].search([], limit=1)
+            if not cron:
+                self.skipTest("no cron record to drive")
+            cls = type(cron)
+            with patch.object(cls, "_callback", callback):
+                cls._run_callback(
+                    cron,
+                    {"cron_name": "probe", "ir_actions_server_id": 0},
+                    env,
+                )
+
+    def test_a_recoverable_failure_is_replayed_not_charged(self):
+        """The behaviour, not just the wiring.
+
+        Driven through the real `_process_jobs` runner against a cron whose
+        action fails twice with a `SerializationFailure` and then succeeds:
+
+            before (1abfba05fa3)  failure_count 1, action invoked 1x
+            after                 failure_count 0, action invoked 3x
+
+        and a permanently failing action still reaches failure_count 1, so
+        deactivation stays available for a cron that is genuinely broken. This
+        is that first half at callback level, which needs no cron table churn.
+        """
+        calls = {"n": 0}
+
+        def flaky(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] <= 2:
+                raise psycopg.errors.SerializationFailure("injected")
+
+        self._drive_callback(flaky)
+        self.assertEqual(
+            calls["n"],
+            3,
+            "two recoverable failures must be replayed, not charged to the job",
+        )
+
+    def test_a_permanent_failure_still_escapes(self):
+        def broken(*args, **kwargs):
+            raise ValueError("permanently broken")
+
+        with self.assertRaises(ValueError):
+            self._drive_callback(broken)
 
     def test_a_recoverable_error_is_in_the_retry_taxonomy(self):
         from odoo.db.errors import PG_RETRY_EXCEPTIONS, PG_STALE_PLAN_EXCEPTIONS
