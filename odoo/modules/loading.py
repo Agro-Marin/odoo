@@ -194,7 +194,15 @@ def load_demo(
 
 
 def force_demo(env: Environment) -> None:
-    env.cr.execute("UPDATE ir_module_module SET demo=True")
+    """Load demo data into every loaded module, and record which ones took it.
+
+    `demo` says the module *has* demo data loaded, so it is written from what
+    `load_demo` reports, exactly as `load_module_graph` does. Setting the whole
+    column true up front and discarding the return value recorded a module whose
+    demo XML had just raised as carrying demo data -- and set the flag on every
+    uninstalled and uninstallable module in the table as well, 654 of 671 rows on
+    a fresh database, none of which is ever a candidate for it.
+    """
     env.cr.execute(
         "SELECT name FROM ir_module_module WHERE state IN ('installed', 'to upgrade', 'to remove')"
     )
@@ -202,9 +210,12 @@ def force_demo(env: Environment) -> None:
     graph = ModuleGraph(env.cr, mode="load")
     graph.extend(module_list)
 
-    for package in graph:
-        load_demo(env, package, {}, "init")
+    loaded = [package.name for package in graph if load_demo(env, package, {}, "init")]
 
+    env.cr.execute(
+        "UPDATE ir_module_module SET demo = (name = ANY(%s)) WHERE name = ANY(%s)",
+        [loaded, module_list],
+    )
     env["ir.module.module"].invalidate_model(["demo"])
 
 
@@ -413,8 +424,6 @@ def load_module_graph(
                     report.update(test_results)
                     test_time = time.time() - tests_t0
                     test_queries = odoo.db.sql_counter - tests_q0
-
-                    module = env["ir.module.module"].browse(module_id)
 
             extra_queries = (
                 odoo.db.sql_counter - module_extra_query_count - test_queries

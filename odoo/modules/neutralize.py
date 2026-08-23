@@ -22,7 +22,14 @@ def get_installed_modules(cursor: Cursor) -> list[str]:
     return [result[0] for result in cursor.fetchall()]
 
 
-def get_neutralization_queries(modules: Iterable[str]) -> Iterator[str]:
+def iter_neutralization_queries(modules: Iterable[str]) -> Iterator[tuple[str, str]]:
+    """Yield ``(module, sql)`` for every module shipping a non-empty neutralize.sql.
+
+    The module name travels with its SQL so a failure can name the file it came
+    from. Each query is a whole `.sql` file executed as one statement batch, so
+    the driver error alone -- a bare syntax error or a missing relation -- says
+    nothing about which of the installed modules produced it.
+    """
     for module in modules:
         if Manifest.for_addon(module, display_warning=False) is None:
             _logger.warning(
@@ -36,12 +43,19 @@ def get_neutralization_queries(modules: Iterable[str]) -> Iterator[str]:
         with suppress(FileNotFoundError):
             with file_open(filename) as file:
                 if content := file.read().strip():
-                    yield content
+                    yield module, content
+
+
+def get_neutralization_queries(modules: Iterable[str]) -> Iterator[str]:
+    for _module, query in iter_neutralization_queries(modules):
+        yield query
 
 
 def neutralize_database(cursor: Cursor) -> None:
-    installed_modules = get_installed_modules(cursor)
-    queries = get_neutralization_queries(installed_modules)
-    for query in queries:
-        cursor.execute(query)
+    for module, query in iter_neutralization_queries(get_installed_modules(cursor)):
+        try:
+            cursor.execute(query)
+        except Exception as exc:
+            exc.add_note(f"while neutralizing {module} ({module}/data/neutralize.sql)")
+            raise
     _logger.info("Neutralization finished")
