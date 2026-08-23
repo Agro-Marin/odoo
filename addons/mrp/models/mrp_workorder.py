@@ -379,7 +379,9 @@ class MrpWorkorder(models.Model):
                 continue
             if wo.state == "progress":
                 wo.button_pending()
-            elif wo.state in ("done", "cancel") and state == "progress":
+            elif wo.state == "cancel" and state == "progress":
+                # `"done"` stood here too and could never be reached: the
+                # `continue` three lines above excludes it.
                 wo.write({"state": "ready"})
             ids_to_update.append(wo.id)
 
@@ -596,9 +598,7 @@ class MrpWorkorder(models.Model):
                 )
 
     def unlink(self):
-        (self.mapped("move_raw_ids") | self.mapped("move_finished_ids")).write(
-            {"workorder_id": False}
-        )
+        (self.move_raw_ids | self.move_finished_ids).write({"workorder_id": False})
         mo_dirty = self.production_id.filtered(
             lambda mo: mo.state in ("confirmed", "progress", "to_close")
         )
@@ -1087,6 +1087,11 @@ class MrpWorkorder(models.Model):
         to_confirm = res.filtered(
             lambda wo: wo.production_id.state in ("confirmed", "progress", "to_close")
         )
+        # Widened to every work order of the affected orders on purpose, not by
+        # accident: `_action_confirm` below reads only `.production_id`, but
+        # `mrp_workorder` overrides it and creates quality checks for `self`,
+        # so narrowing this to `res` would silently stop generating them for
+        # the work orders that were already there.
         to_confirm = to_confirm.production_id.workorder_ids
         to_confirm._action_confirm()
         return res
@@ -1593,7 +1598,7 @@ class MrpWorkorder(models.Model):
 
     def _should_estimate_cost(self):
         self.ensure_one()
-        return (
+        return bool(
             self.state in ("progress", "done")
             and self.duration_expected
             and self.cost_mode == "estimated"

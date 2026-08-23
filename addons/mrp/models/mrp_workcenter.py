@@ -5,7 +5,7 @@ from datetime import timedelta
 from babel.dates import format_date
 from dateutil import relativedelta
 
-from odoo import _, api, fields, models
+from odoo import _, api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.datetime import timezone
@@ -770,8 +770,30 @@ class MrpWorkcenterProductivityLoss(models.Model):
         return self.loss_type not in self.WALL_CLOCK_LOSS_TYPES
 
     @api.model
+    @tools.ormcache("loss_type")
+    def _get_loss_of_type_id(self, loss_type):
+        """Id of a productivity loss in ``loss_type``, cached per registry.
+
+        Cached because the callers ask per record: `_prepare_timeline_vals`
+        runs once per work order started, and `_close` once per timer closed,
+        each issuing the same `search` for a configuration record that changes
+        about never. Measured before this: ten identical
+        `mrp_workcenter_productivity_loss` selects for ten work orders.
+
+        The cache holds the id rather than the recordset, because a recordset
+        carries an environment and an ormcache outlives the transaction that
+        filled it.  Invalidated by `create`/`write`/`unlink` below.
+        """
+        loss = self.sudo().search([("loss_type", "=", loss_type)], limit=1)
+        return loss.id
+
     def _get_loss_of_type(self, loss_type):
-        loss = self.search([("loss_type", "=", loss_type)], limit=1)
+        # `browse`, not `browse(...).exists()`: the existence check would put
+        # back exactly the query the cache is here to remove.  A cached id can
+        # only go stale through a create, write or unlink of these records,
+        # and all three clear the cache below.  An id of `False` -- nothing
+        # configured -- caches fine and raises through the branch below.
+        loss = self.browse(self._get_loss_of_type_id(loss_type))
         if not loss:
             labels = dict(self._fields["loss_type"]._description_selection(self.env))
             raise UserError(
@@ -816,6 +838,21 @@ class MrpWorkcenterProductivityLoss(models.Model):
             ):
                 durations[index] = duration
         return durations
+
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        self.env.registry.clear_cache()
+        return super().create(vals_list)
+
+    def write(self, vals):
+        if "loss_id" in vals or "loss_type" in vals:
+            self.env.registry.clear_cache()
+        return super().write(vals)
+
+    def unlink(self):
+        self.env.registry.clear_cache()
+        return super().unlink()
 
 
 class MrpWorkcenterProductivity(models.Model):
