@@ -358,9 +358,7 @@ class SassEmbeddedCompiler:
                 canon_resp.id = req.id
                 if importer is not None:
                     try:
-                        canonical_url = importer.canonicalize(
-                            req.url, req.from_import
-                        )
+                        canonical_url = importer.canonicalize(req.url, req.from_import)
                         if canonical_url is not None:
                             canon_resp.url = canonical_url
                     except Exception as e:

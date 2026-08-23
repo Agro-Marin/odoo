@@ -267,9 +267,10 @@ def valid_view(arch: etree._Element, **kwargs: object) -> bool:
     return True
 
 
-def validate(*view_types: str) -> object:
+def validate(*view_types: str) -> Callable[[Validator], Validator]:
+    """Register a predicate as a validator for each of ``view_types``."""
 
-    def decorator(fn):
+    def decorator(fn: Validator) -> Validator:
         for arch in view_types:
             _validators[arch].append(fn)
         return fn

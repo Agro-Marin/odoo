@@ -1878,11 +1878,36 @@ class configmanager:
         self._load_file_options(self["config"])
 
     def _load_file_options(self, rcfile: str) -> None:
+        """Read ``rcfile`` into ``self._file_options``.
+
+        The reading and the parsing are guarded separately, and that separation
+        is the point. An absent or unreadable rc file is not an error -- there
+        may not be one -- but an OSError raised while *parsing* a value is a
+        different animal: ``_check_addons_path`` calls ``Path.iterdir()``, which
+        raises PermissionError on a directory it cannot read. With one ``try``
+        over both, that aborted the loop and left the whole file unread, with no
+        warning: one chmod on one addons directory silently discarded
+        ``http_port``, ``db_name`` and everything else, and the server came up on
+        defaults. Measured before this split -- three options in the file, zero
+        loaded, zero warnings.
+        """
         self._file_options.clear()
         p = configparser.RawConfigParser(inline_comment_prefixes=("#", ";"))
         try:
             p.read([rcfile])
-            for name, value in p.items("options"):
+        except OSError:
+            return
+        except configparser.Error as exc:
+            self.parser.error(f"malformed configuration file {rcfile!r}: {exc}")
+            return
+
+        try:
+            items = p.items("options")
+        except configparser.NoSectionError:
+            return
+
+        try:
+            for name, value in items:
                 if name == "without_demo":
                     name = "with_demo"
                     value = str(self._check_without_demo(None, "without_demo", value))
@@ -1919,15 +1944,11 @@ class configmanager:
                     continue
                 try:
                     self._file_options[name] = self.parse(name, value)
-                except (ValueError, optparse.OptionValueError) as exc:
+                except (ValueError, optparse.OptionValueError, OSError) as exc:
                     raise ValueError(
                         f"Invalid value for option {name!r} in the config file "
                         f"at {rcfile}: {exc}"
                     ) from exc
-        except OSError:
-            pass
-        except configparser.NoSectionError:
-            pass
         except configparser.Error as exc:
             self.parser.error(f"malformed configuration file {rcfile!r}: {exc}")
 
