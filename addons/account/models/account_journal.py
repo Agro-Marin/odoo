@@ -127,7 +127,7 @@ class AccountJournal(models.Model):
     def _default_outbound_payment_methods(self):
         return self.env.ref("account.account_payment_method_manual_out")
 
-    def _get_bank_statements_available_sources(self):
+    def _selection_bank_statements_source(self):
         return [("undefined", _("Undefined Yet"))]
 
     def _default_invoice_reference_model(self):
@@ -356,7 +356,7 @@ class AccountJournal(models.Model):
         domain="[('partner_id','=', company_partner_id)]",
     )
     bank_statements_source = fields.Selection(
-        selection=_get_bank_statements_available_sources,
+        selection="_selection_bank_statements_source",
         string="Bank Feeds",
         default="undefined",
         help="Defines how the bank statements will be registered",
