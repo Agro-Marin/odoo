@@ -361,32 +361,22 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         gap_date = moves[3].date
 
         moves[:8].action_post()
-        self.assertFalse(
-            journal._query_has_sequence_holes()
-        )
+        self.assertFalse(journal._query_has_sequence_holes())
 
         moves[2:4].action_draft()
-        self.assertTrue(
-            journal._query_has_sequence_holes()
-        )
+        self.assertTrue(journal._query_has_sequence_holes())
         moves[3].unlink()
-        self.assertTrue(
-            journal._query_has_sequence_holes()
-        )
+        self.assertTrue(journal._query_has_sequence_holes())
 
         moves[2].action_post()
         self.company_data["company"].write(
             {"fiscalyear_lock_date": gap_date + relativedelta(days=1)}
         )
-        self.assertFalse(
-            journal._query_has_sequence_holes()
-        )
+        self.assertFalse(journal._query_has_sequence_holes())
 
         moves[6].action_draft()
         moves[6].action_cancel()
-        self.assertTrue(
-            journal._query_has_sequence_holes()
-        )
+        self.assertTrue(journal._query_has_sequence_holes())
 
     def test_bank_journal_with_default_account_as_outstanding_account_payments(self):
         bank_journal = self.company_data["default_journal_bank"].copy()
@@ -683,29 +673,44 @@ class TestAccountJournalDashboardSigns(TestAccountJournalDashboardCommon):
         cls.par_currency = cls.setup_other_currency("GBP", rates=[("1900-01-01", 1.0)])
 
     def _journal_in(self, jtype, code, currency):
-        return self.env["account.journal"].create({
-            "name": code, "code": code, "type": jtype,
-            "company_id": self.env.company.id,
-            "currency_id": currency.id if currency else False,
-        })
+        return self.env["account.journal"].create(
+            {
+                "name": code,
+                "code": code,
+                "type": jtype,
+                "company_id": self.env.company.id,
+                "currency_id": currency.id if currency else False,
+            }
+        )
 
     def _post(self, journal, move_type, amount, currency):
         account = self.company_data[
-            "default_account_revenue" if move_type.startswith("out") else "default_account_expense"
+            "default_account_revenue"
+            if move_type.startswith("out")
+            else "default_account_expense"
         ]
-        move = self.env["account.move"].create({
-            "move_type": move_type,
-            "journal_id": journal.id,
-            "partner_id": self.partner_a.id,
-            "currency_id": currency.id,
-            "invoice_date": "2019-01-01",
-            "date": "2019-01-01",
-            "invoice_date_due": "2019-01-01",
-            "invoice_line_ids": [Command.create({
-                "name": "l", "quantity": 1, "price_unit": amount,
-                "account_id": account.id, "tax_ids": [],
-            })],
-        })
+        move = self.env["account.move"].create(
+            {
+                "move_type": move_type,
+                "journal_id": journal.id,
+                "partner_id": self.partner_a.id,
+                "currency_id": currency.id,
+                "invoice_date": "2019-01-01",
+                "date": "2019-01-01",
+                "invoice_date_due": "2019-01-01",
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "l",
+                            "quantity": 1,
+                            "price_unit": amount,
+                            "account_id": account.id,
+                            "tax_ids": [],
+                        }
+                    )
+                ],
+            }
+        )
         move.action_post()
         return move
 
@@ -737,12 +742,8 @@ class TestAccountJournalDashboardSigns(TestAccountJournalDashboardCommon):
 
         _waiting, control_late = self._sums(control)
         _waiting, foreign_late = self._sums(foreign)
-        self.assertEqual(
-            control_late, format_amount(self.env, 700, company_currency)
-        )
-        self.assertEqual(
-            foreign_late, format_amount(self.env, 700, self.par_currency)
-        )
+        self.assertEqual(control_late, format_amount(self.env, 700, company_currency))
+        self.assertEqual(foreign_late, format_amount(self.env, 700, self.par_currency))
 
     @freeze_time("2019-06-01")
     def test_vendor_receipt_adds_in_a_foreign_currency_journal(self):
@@ -775,3 +776,68 @@ class TestAccountJournalDashboardSigns(TestAccountJournalDashboardCommon):
                     self._sums(journal)[1],
                     format_amount(self.env, display, self.par_currency),
                 )
+
+    def test_the_negative_residual_set_is_the_outbound_set(self):
+        """The dashboard signs amount_residual from get_outbound_types rather than a
+        literal, so this pins the two together: a move type added to one without the
+        other is what produced the mis-signed sum this class was written for.
+        """
+        self.assertEqual(
+            sorted(self.env["account.move"].get_outbound_types()),
+            ["in_invoice", "in_receipt", "out_refund"],
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestAccountJournalEntryPresence(TestAccountJournalDashboardCommon):
+    """has_entries and has_posted_entries drive whether the kanban card renders its
+    empty-journal helper at all, and nothing else asserted them.
+    """
+
+    def _journal(self, code):
+        return self.env["account.journal"].create(
+            {
+                "name": code,
+                "code": code,
+                "type": "sale",
+                "company_id": self.env.company.id,
+            }
+        )
+
+    def _invoice(self, journal):
+        return self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "journal_id": journal.id,
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2019-01-01",
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "l",
+                            "quantity": 1,
+                            "price_unit": 100,
+                            "account_id": self.company_data[
+                                "default_account_revenue"
+                            ].id,
+                            "tax_ids": [],
+                        }
+                    )
+                ],
+            }
+        )
+
+    def test_entry_presence_distinguishes_draft_from_posted(self):
+        empty, drafted, posted = (self._journal(c) for c in ("EP1", "EP2", "EP3"))
+        self._invoice(drafted)
+        self._invoice(posted).action_post()
+
+        # one recordset, so a batching mistake shows up as a crossed answer
+        (empty + drafted + posted).invalidate_recordset()
+        self.assertEqual(
+            [(j.has_entries, j.has_posted_entries) for j in (empty, drafted, posted)],
+            [(False, False), (True, False), (True, True)],
+        )
+
+    def test_entry_presence_on_an_empty_recordset(self):
+        self.assertEqual(self.env["account.journal"].browse().mapped("has_entries"), [])

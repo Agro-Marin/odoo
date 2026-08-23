@@ -229,35 +229,35 @@ class AccountJournal(models.Model):
         sql_query = SQL(
             """
                        SELECT j.id,
-                              has_posted_entries.val,
-                              has_entries.val
+                              posted.val,
+                              any_entry.val
                          FROM account_journal j
             LEFT JOIN LATERAL (
-                                  SELECT bool(m.id) as val
+                                  SELECT TRUE AS val
                                     FROM account_move m
                                    WHERE m.journal_id = j.id
                                      AND m.state = 'posted'
                                    LIMIT 1
-                              ) AS has_posted_entries ON true
+                              ) AS posted ON TRUE
             LEFT JOIN LATERAL (
-                                  SELECT bool(m.id) as val
+                                  SELECT TRUE AS val
                                     FROM account_move m
                                    WHERE m.journal_id = j.id
                                    LIMIT 1
-                              ) AS has_entries ON true
-                        WHERE j.id in %(journal_ids)s
+                              ) AS any_entry ON TRUE
+                        WHERE j.id = ANY(%(journal_ids)s)
             """,
-            journal_ids=tuple(self.ids),
+            journal_ids=self.ids,
         )
         self.env.cr.execute(sql_query)
-        res = {
-            journal_id: (has_posted, has_entries)
-            for journal_id, has_posted, has_entries in self.env.cr.fetchall()
+        presence = {
+            journal_id: (bool(has_posted), bool(has_any))
+            for journal_id, has_posted, has_any in self.env.cr.fetchall()
         }
         for journal in self:
-            r = res.get(journal.id, (False, False))
-            journal.has_posted_entries = bool(r[0])
-            journal.has_entries = bool(r[1])
+            journal.has_posted_entries, journal.has_entries = presence.get(
+                journal.id, (False, False)
+            )
 
     def _graph_title_and_key(self):
         if self.type in ["sale", "purchase"]:
@@ -558,7 +558,7 @@ class AccountJournal(models.Model):
 
         for journal in bank_cash_journals:
             currency = journal._dashboard_currency()
-            has_outstanding, outstanding_pay_account_balance = (
+            nb_outstanding_payments, outstanding_pay_account_balance = (
                 outstanding_pay_account_balances[journal.id]
             )
             to_check_balance, number_to_check = to_check.get(journal, (0, 0))
@@ -601,7 +601,7 @@ class AccountJournal(models.Model):
                     "outstanding_pay_account_balance": currency.format(
                         outstanding_pay_account_balance
                     ),
-                    "nb_lines_outstanding_pay_account_balance": has_outstanding,
+                    "nb_lines_outstanding_pay_account_balance": nb_outstanding_payments,
                     "last_balance": currency.format(
                         journal.last_statement_id.balance_end_real
                     ),
@@ -814,8 +814,9 @@ class AccountJournal(models.Model):
             SQL("invoice_date_due < %s AS late", fields.Date.context_today(self)),
             SQL("SUM(amount_residual_signed) AS amount_total_company"),
             SQL(
-                "SUM((CASE WHEN move_type IN ('in_invoice', 'out_refund', 'in_receipt')"
-                " THEN -1 ELSE 1 END) * amount_residual) AS amount_total"
+                "SUM((CASE WHEN move_type = ANY(%s) THEN -1 ELSE 1 END)"
+                " * amount_residual) AS amount_total",
+                self.env["account.move"].get_outbound_types(),
             ),
             SQL("COUNT(*)"),
             to_pay_select,
@@ -862,10 +863,13 @@ class AccountJournal(models.Model):
             ],
             bypass_access=True,
         )
+        # deliberately not _get_to_pay_select: an unreviewed document needs review
+        # whether or not it is releasable to pay, so account_3way_match's gate on
+        # release_to_pay must not narrow this one
         return query, self._get_sale_purchase_aggregation_selects(SQL("TRUE AS to_pay"))
 
-    def _count_results_and_sum_amounts(self, results_dict, target_currency):
-        if not results_dict:
+    def _count_results_and_sum_amounts(self, rows, target_currency):
+        if not rows:
             return 0, 0
 
         total_amount = 0
@@ -874,7 +878,7 @@ class AccountJournal(models.Model):
         today = fields.Date.context_today(self)
         ResCurrency = self.env["res.currency"]
         ResCompany = self.env["res.company"]
-        for result in results_dict:
+        for result in rows:
             document_currency = ResCurrency.browse(result.get("currency"))
             document_company = ResCompany.browse(result.get("company_id")) or company
             date = result.get("invoice_date") or today
