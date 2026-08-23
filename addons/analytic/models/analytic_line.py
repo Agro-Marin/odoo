@@ -1,6 +1,6 @@
 from dateutil.relativedelta import relativedelta
 
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class AccountAnalyticLine(models.Model):
@@ -131,3 +131,75 @@ class AccountAnalyticLine(models.Model):
         return [
             ("date", ">=", fiscalyear_date_range["date_from"] - relativedelta(years=1))
         ]
+
+    # ------------------------------------------------------------------
+    # Keeping the accounts' balances coherent
+    #
+    # `account.analytic.account.debit`, `credit` and `balance` aggregate these
+    # rows with `_read_group`, and declare `@api.depends("line_ids.amount")`.
+    # That declaration cannot fire: `line_ids`'s inverse is `auto_account_id`,
+    # a context-dependent compute with no column, so the ORM has no trigger
+    # from a line back to the accounts it names.  Measured before this hook --
+    # one account, one line, all three reads in one transaction:
+    #
+    #     create line, amount -100   -> debit 100   (first read, nothing cached)
+    #     write  line, amount -250   -> debit 100   (250 after invalidate_all)
+    #     create a second line, -10  -> debit 250   (260 after invalidate_all)
+    #     unlink that second line    -> debit 260   (250 after invalidate_all)
+    #
+    # so every write after the first read was invisible, in either direction.
+    # The dependency the compute really has is on rows of *this* model, which
+    # `@api.depends` has no way to spell, so the line states it instead.
+    # ------------------------------------------------------------------
+
+    #: what `_compute_debit_credit_balance` reads off a line, besides the plan
+    #: columns: the amount it sums, the currency and company it converts
+    #: through, and the date its `from_date`/`to_date` context filters on.
+    _ACCOUNT_BALANCE_TRIGGERS = frozenset(
+        {"amount", "company_id", "currency_id", "date"}
+    )
+    _ACCOUNT_BALANCE_FIELDS = ("balance", "credit", "debit")
+
+    def _get_balance_accounts(self):
+        """Every analytic account these lines name, across every plan.
+
+        `mapped`, not `self[fname]`: this runs over whole batches, and reading
+        a field off a multi-record set goes through `ensure_one`.
+        """
+        accounts = self.env["account.analytic.account"]
+        for fname in self._get_plan_fnames():
+            accounts |= self.mapped(fname)
+        return accounts
+
+    def _notify_balance_accounts(self, accounts):
+        if not accounts:
+            return
+        # Both halves are needed: `invalidate_recordset` drops the stale
+        # values, `modified` tells whatever depends on them.  `modified` alone
+        # only walks the dependents of the three fields, never the fields.
+        accounts.invalidate_recordset(self._ACCOUNT_BALANCE_FIELDS)
+        accounts.modified(self._ACCOUNT_BALANCE_FIELDS)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        lines = super().create(vals_list)
+        lines._notify_balance_accounts(lines._get_balance_accounts())
+        return lines
+
+    def write(self, vals):
+        if not self._ACCOUNT_BALANCE_TRIGGERS.isdisjoint(vals) or not set(
+            self._get_plan_fnames()
+        ).isdisjoint(vals):
+            # The accounts on both sides of the write: repointing a line at
+            # another account leaves the old one holding a stale sum too.
+            accounts = self._get_balance_accounts()
+            res = super().write(vals)
+            self._notify_balance_accounts(accounts | self._get_balance_accounts())
+            return res
+        return super().write(vals)
+
+    def unlink(self):
+        accounts = self._get_balance_accounts()
+        res = super().unlink()
+        self._notify_balance_accounts(accounts)
+        return res

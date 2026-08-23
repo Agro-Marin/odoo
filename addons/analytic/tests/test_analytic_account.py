@@ -596,3 +596,48 @@ class TestAnalyticAccount(AnalyticCommon):
         self.assertEqual(
             misses, 1, "identical argument sets must hit the cache after the first"
         )
+
+    def test_the_balance_follows_its_lines_in_one_transaction(self):
+        """Reading `debit` once must not freeze it for the transaction.
+
+        `debit`, `credit` and `balance` are computed by `_read_group` over
+        `account.analytic.line` and declare `@api.depends("line_ids.amount")`.
+        That declaration cannot fire: `line_ids`'s inverse is
+        `auto_account_id`, a context-dependent compute with no column, so the
+        ORM has no trigger from a line back to the accounts it names. Measured
+        before `account.analytic.line` started announcing the change itself,
+        every read after the first returned the value the first one cached --
+        for a write, a create and an unlink alike, in both directions.
+
+        Each step below asserts without an explicit invalidation on purpose:
+        an `invalidate_all()` between them makes the whole test vacuous.
+        """
+        account = self.analytic_account_3
+        column = account.plan_id._column_name()
+        Line = self.env["account.analytic.line"]
+
+        line = Line.create({"name": "first", "amount": -100.0, column: account.id})
+        self.assertEqual(account.debit, 100.0)
+
+        line.amount = -250.0
+        self.assertEqual(account.debit, 250.0, "a write to amount was not seen")
+
+        second = Line.create({"name": "second", "amount": -10.0, column: account.id})
+        self.assertEqual(account.debit, 260.0, "a new line was not seen")
+
+        second.unlink()
+        self.assertEqual(account.debit, 250.0, "an unlinked line was still counted")
+
+        line[column] = self.analytic_account_4.id
+        self.assertEqual(
+            (account.debit, self.analytic_account_4.debit),
+            (0.0, 250.0),
+            "moving a line between accounts must be seen on both of them",
+        )
+
+        line.amount = 40.0
+        self.assertEqual(
+            (self.analytic_account_4.credit, self.analytic_account_4.balance),
+            (40.0, 40.0),
+            "credit and balance are computed with debit and move with it",
+        )
