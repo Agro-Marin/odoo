@@ -8,8 +8,8 @@ from odoo.fields import Domain
 
 
 class HrVersion(models.Model):
-    _inherit = 'hr.version'
-    _description = 'Employee Contract'
+    _inherit = "hr.version"
+    _description = "Employee Contract"
 
     # override to add work_entry_type from leave
     def _get_leave_work_entry_type(self, leave):
@@ -23,7 +23,7 @@ class HrVersion(models.Model):
         for leave in leaves:
             if interval[0] >= leave[0] and interval[1] <= leave[1]:
                 if leave[2].holiday_id.id:
-                    result.append(('leave_id', leave[2].holiday_id.id))
+                    result.append(("leave_id", leave[2].holiday_id.id))
                     break
         return result
 
@@ -33,21 +33,32 @@ class HrVersion(models.Model):
         # Overridden in hr_work_entry_holidays to select the
         # global time off first (e.g. Public Holiday > Home Working)
         self.ensure_one()
-        if 'work_entry_type_id' in interval[2]:
+        if "work_entry_type_id" in interval[2]:
             work_entry_types = interval[2].work_entry_type_id
             if work_entry_types and work_entry_types[:1].code in bypassing_codes:
                 return work_entry_types[:1]
 
         interval_start = interval[0].astimezone(UTC).replace(tzinfo=None)
         interval_stop = interval[1].astimezone(UTC).replace(tzinfo=None)
-        including_rcleaves = [l[2] for l in leaves if l[2] and interval_start >= l[2].date_from and interval_stop <= l[2].date_to]
+        including_rcleaves = [
+            l[2]
+            for l in leaves
+            if l[2]
+            and interval_start >= l[2].date_from
+            and interval_stop <= l[2].date_to
+        ]
         including_global_rcleaves = [l for l in including_rcleaves if not l.holiday_id]
         including_holiday_rcleaves = [l for l in including_rcleaves if l.holiday_id]
         rc_leave = False
 
         # In CP200, Long term sick > Public Holidays (which is global)
         if bypassing_codes:
-            bypassing_rc_leave = [l for l in including_holiday_rcleaves if l.holiday_id.holiday_status_id.work_entry_type_id.code in bypassing_codes]
+            bypassing_rc_leave = [
+                l
+                for l in including_holiday_rcleaves
+                if l.holiday_id.holiday_status_id.work_entry_type_id.code
+                in bypassing_codes
+            ]
         else:
             bypassing_rc_leave = []
 
@@ -58,14 +69,18 @@ class HrVersion(models.Model):
         elif including_holiday_rcleaves:
             rc_leave = including_holiday_rcleaves[0]
         if rc_leave:
-            return self._get_leave_work_entry_type_dates(rc_leave, interval_start, interval_stop, self.employee_id)
-        return self.env.ref('hr_work_entry.work_entry_type_leave')
+            return self._get_leave_work_entry_type_dates(
+                rc_leave, interval_start, interval_stop, self.employee_id
+            )
+        return self.env.ref("hr_work_entry.work_entry_type_leave")
 
     def _get_sub_leave_domain(self):
         # see https://github.com/odoo/enterprise/pull/15091
-        return super()._get_sub_leave_domain() | Domain('holiday_id.employee_id', 'in', self.employee_id.ids)
+        return super()._get_sub_leave_domain() | Domain(
+            "holiday_id.employee_id", "in", self.employee_id.ids
+        )
 
     @api.model
     def _generate_work_entries_postprocess_adapt_to_calendar(self, vals):
         res = super()._generate_work_entries_postprocess_adapt_to_calendar(vals)
-        return res or (not 'work_entry_type_id' not in vals and vals.get('leave_id'))
+        return res or (not "work_entry_type_id" not in vals and vals.get("leave_id"))

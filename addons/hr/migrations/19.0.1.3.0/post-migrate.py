@@ -55,7 +55,9 @@ def migrate(cr, version):
         if column_exists(cr, "hr_version", c) and column_exists(cr, "hr_employee", c)
     ]
     if not columns:
-        _logger.warning("hr: no personal columns left on hr_version, nothing to harvest")
+        _logger.warning(
+            "hr: no personal columns left on hr_version, nothing to harvest"
+        )
         return
 
     divergent = " OR ".join(f"v.{c} IS DISTINCT FROM o.{c}" for c in columns)

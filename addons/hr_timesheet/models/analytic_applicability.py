@@ -4,12 +4,12 @@ from odoo import fields, models
 
 
 class AccountAnalyticApplicability(models.Model):
-    _inherit = 'account.analytic.applicability'
+    _inherit = "account.analytic.applicability"
     _description = "Analytic Plan's Applicabilities"
 
     business_domain = fields.Selection(
         selection_add=[
-            ('timesheet', 'Timesheet'),
+            ("timesheet", "Timesheet"),
         ],
-        ondelete={'timesheet': 'cascade'},
+        ondelete={"timesheet": "cascade"},
     )

@@ -6,25 +6,27 @@ from odoo.tools import SQL
 
 
 class AccountAnalyticApplicability(models.Model):
-    _inherit = 'account.analytic.applicability'
+    _inherit = "account.analytic.applicability"
     _description = "Analytic Plan's Applicabilities"
 
     business_domain = fields.Selection(
         selection_add=[
-            ('expense', 'Expense'),
+            ("expense", "Expense"),
         ],
-        ondelete={'expense': 'cascade'},
+        ondelete={"expense": "cascade"},
     )
 
-    @api.depends('business_domain')
+    @api.depends("business_domain")
     def _compute_display_account_prefix(self):
         super()._compute_display_account_prefix()
-        for applicability in self.filtered(lambda rec: rec.business_domain == 'expense'):
+        for applicability in self.filtered(
+            lambda rec: rec.business_domain == "expense"
+        ):
             applicability.display_account_prefix = True
 
 
 class AccountAnalyticAccount(models.Model):
-    _inherit = 'account.analytic.account'
+    _inherit = "account.analytic.account"
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_account_in_analytic_distribution(self):
@@ -36,9 +38,11 @@ class AccountAnalyticAccount(models.Model):
                 LIMIT 1
                 """,
                 [str(account_id) for account_id in self.ids],
-                self.env['hr.expense']._query_analytic_accounts(),
+                self.env["hr.expense"]._query_analytic_accounts(),
             )
         )
         expense_ids = self.env.cr.fetchall()
         if expense_ids:
-            raise UserError(_("You cannot delete an analytic account that is used in an expense."))
+            raise UserError(
+                _("You cannot delete an analytic account that is used in an expense.")
+            )

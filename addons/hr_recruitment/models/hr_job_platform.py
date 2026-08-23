@@ -5,28 +5,33 @@ from odoo.tools import email_normalize
 
 
 class HrJobPlatform(models.Model):
-    _name = 'hr.job.platform'
-    _description = 'Job Platforms'
+    _name = "hr.job.platform"
+    _description = "Job Platforms"
 
     name = fields.Char(required=True)
-    email = fields.Char(required=True, help="Applications received from this Email won't be linked to a contact."
-                                            "There will be no email address set on the Applicant either.")
-    regex = fields.Char(help="The regex facilitates to extract information from the subject or body "
-                             "of the received email to autopopulate the Applicant's name field")
+    email = fields.Char(
+        required=True,
+        help="Applications received from this Email won't be linked to a contact."
+        "There will be no email address set on the Applicant either.",
+    )
+    regex = fields.Char(
+        help="The regex facilitates to extract information from the subject or body "
+        "of the received email to autopopulate the Applicant's name field"
+    )
 
     _email_uniq = models.Constraint(
-        'unique (email)',
-        'The Email must be unique, this one already corresponds to another Job Platform.',
+        "unique (email)",
+        "The Email must be unique, this one already corresponds to another Job Platform.",
     )
 
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
-            if vals.get('email'):
-                vals['email'] = email_normalize(vals['email']) or vals['email']
+            if vals.get("email"):
+                vals["email"] = email_normalize(vals["email"]) or vals["email"]
         return super().create(vals_list)
 
     def write(self, vals):
-        if vals.get('email'):
-            vals['email'] = email_normalize(vals['email']) or vals['email']
+        if vals.get("email"):
+            vals["email"] = email_normalize(vals["email"]) or vals["email"]
         return super().write(vals)

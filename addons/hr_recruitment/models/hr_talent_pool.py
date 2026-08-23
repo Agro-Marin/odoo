@@ -29,7 +29,9 @@ class HrTalentPool(models.Model):
         store=True,
         readonly=False,
     )
-    talent_ids = fields.Many2many(comodel_name="hr.applicant", string="Talent", groups="base.group_user")
+    talent_ids = fields.Many2many(
+        comodel_name="hr.applicant", string="Talent", groups="base.group_user"
+    )
     no_of_talents = fields.Integer(
         compute="_compute_no_of_talents",
         string="# Talents",
@@ -46,7 +48,9 @@ class HrTalentPool(models.Model):
 
     def _compute_no_of_talents(self):
         talents = self.env["hr.applicant"]._read_group(
-            domain=[("talent_pool_ids", "in", self.ids)], groupby=["talent_pool_ids"], aggregates=["__count"]
+            domain=[("talent_pool_ids", "in", self.ids)],
+            groupby=["talent_pool_ids"],
+            aggregates=["__count"],
         )
         talent_data = {talent_pool.id: count for talent_pool, count in talents}
         for pool in self:

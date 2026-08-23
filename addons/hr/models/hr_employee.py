@@ -803,7 +803,9 @@ class HrEmployee(models.Model):
         states = None
         for employee in self:
             if employee.private_country_id:
-                employee.allowed_country_state_ids = employee.private_country_id.state_ids
+                employee.allowed_country_state_ids = (
+                    employee.private_country_id.state_ids
+                )
             else:
                 if states is None:
                     states = self.env["res.country.state"].search([])
@@ -2406,9 +2408,11 @@ We can redirect you to the public employee list."""
             # those searches for exact effective-window queries; this is one.
             start_date, stop_date = start.date(), stop.date()
             versions = self.version_ids.filtered(
-                lambda version: version.date_start
-                and version.date_start <= stop_date
-                and (not version.date_end or version.date_end >= start_date)
+                lambda version: (
+                    version.date_start
+                    and version.date_start <= stop_date
+                    and (not version.date_end or version.date_end >= start_date)
+                )
             )
         for version in versions:
             # if employee is under fully flexible contract, use timezone of the employee
@@ -2690,7 +2694,6 @@ We can redirect you to the public employee list."""
 
     def _phone_get_number_fields(self):
         return ["mobile_phone"]
-
 
     def action_open_versions(self):
         self.ensure_one()

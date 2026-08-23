@@ -1,4 +1,3 @@
-
 from datetime import UTC, datetime
 from unittest.mock import patch
 
@@ -8,25 +7,29 @@ from odoo.tests import Form, new_test_user
 from odoo.tests.common import TransactionCase, tagged
 
 
-@tagged('attendance_process')
+@tagged("attendance_process")
 class TestHrAttendance(TransactionCase):
     """Test for presence validity"""
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.user = new_test_user(cls.env, login='fru', groups='base.group_user')
-        cls.user_no_pin = new_test_user(cls.env, login='gru', groups='base.group_user')
-        cls.test_employee = cls.env['hr.employee'].create({
-            'name': "François Russie",
-            'user_id': cls.user.id,
-            'pin': '1234',
-            'ruleset_id': False,
-        })
-        cls.employee_kiosk = cls.env['hr.employee'].create({
-            'name': "Machiavel",
-            'pin': '5678',
-        })
+        cls.user = new_test_user(cls.env, login="fru", groups="base.group_user")
+        cls.user_no_pin = new_test_user(cls.env, login="gru", groups="base.group_user")
+        cls.test_employee = cls.env["hr.employee"].create(
+            {
+                "name": "François Russie",
+                "user_id": cls.user.id,
+                "pin": "1234",
+                "ruleset_id": False,
+            }
+        )
+        cls.employee_kiosk = cls.env["hr.employee"].create(
+            {
+                "name": "Machiavel",
+                "pin": "5678",
+            }
+        )
 
     def setUp(self):
         super().setUp()
@@ -35,73 +38,94 @@ class TestHrAttendance(TransactionCase):
 
     def test_employee_state(self):
         # Make sure the attendance of the employee will display correctly
-        assert self.test_employee.attendance_state == 'checked_out'
+        assert self.test_employee.attendance_state == "checked_out"
         self.test_employee._attendance_action_change()
-        assert self.test_employee.attendance_state == 'checked_in'
+        assert self.test_employee.attendance_state == "checked_in"
         self.test_employee._attendance_action_change()
-        assert self.test_employee.attendance_state == 'checked_out'
+        assert self.test_employee.attendance_state == "checked_out"
 
     def test_employee_group_id(self):
         # Create attendance for one of them
-        self.env['hr.attendance'].create({
-            'employee_id': self.employee_kiosk.id,
-            'check_in': '2025-08-01 08:00:00',
-            'check_out': '2025-08-01 17:00:00',
-        })
-        context = self.env.context.copy()
-        context['read_group_expand'] = True
-
-        groups = self.env['hr.attendance'].with_context(**context).web_read_group(
-            domain=[],
-            groupby=['employee_id']
+        self.env["hr.attendance"].create(
+            {
+                "employee_id": self.employee_kiosk.id,
+                "check_in": "2025-08-01 08:00:00",
+                "check_out": "2025-08-01 17:00:00",
+            }
         )
-        groups = groups['groups']
+        context = self.env.context.copy()
+        context["read_group_expand"] = True
 
-        grouped_employee_ids = [g['employee_id'][0] for g in groups]
+        groups = (
+            self.env["hr.attendance"]
+            .with_context(**context)
+            .web_read_group(domain=[], groupby=["employee_id"])
+        )
+        groups = groups["groups"]
+
+        grouped_employee_ids = [g["employee_id"][0] for g in groups]
 
         self.assertNotIn(self.test_employee.id, grouped_employee_ids)
         self.assertIn(self.employee_kiosk.id, grouped_employee_ids)
 
         # Specific to gantt view.
-        context['gantt_start_date'] = fields.Datetime.now()
-        context['allowed_company_ids'] = [self.env.company.id]
+        context["gantt_start_date"] = fields.Datetime.now()
+        context["allowed_company_ids"] = [self.env.company.id]
 
-        groups = self.env['hr.attendance'].with_context(**context).web_read_group(
-            domain=[],
-            groupby=['employee_id']
+        groups = (
+            self.env["hr.attendance"]
+            .with_context(**context)
+            .web_read_group(domain=[], groupby=["employee_id"])
         )
-        groups = groups['groups']
+        groups = groups["groups"]
 
-        grouped_employee_ids = [g['employee_id'][0] for g in groups]
+        grouped_employee_ids = [g["employee_id"][0] for g in groups]
 
         # Check that both employees appears
         self.assertIn(self.test_employee.id, grouped_employee_ids)
         self.assertIn(self.employee_kiosk.id, grouped_employee_ids)
 
     def test_hours_today(self):
-        """ Test day start is correctly computed according to the employee's timezone """
+        """Test day start is correctly computed according to the employee's timezone"""
 
         def tz_datetime(year, month, day, hour, minute):
-            tz = timezone('Europe/Brussels')
-            return datetime(year, month, day, hour, minute).replace(tzinfo=tz).astimezone(UTC).replace(tzinfo=None)
+            tz = timezone("Europe/Brussels")
+            return (
+                datetime(year, month, day, hour, minute)
+                .replace(tzinfo=tz)
+                .astimezone(UTC)
+                .replace(tzinfo=None)
+            )
 
-        employee = self.env['hr.employee'].create({'name': 'Cunégonde', 'tz': 'Europe/Brussels'})
-        self.env['hr.attendance'].create({
-            'employee_id': employee.id,
-            'check_in': tz_datetime(2019, 3, 1, 22, 0),  # should count from midnight in the employee's timezone (=the previous day in utc!)
-            'check_out': tz_datetime(2019, 3, 2, 2, 0),
-        })
-        self.env['hr.attendance'].create({
-            'employee_id': employee.id,
-            'check_in': tz_datetime(2019, 3, 2, 11, 0),
-        })
+        employee = self.env["hr.employee"].create(
+            {"name": "Cunégonde", "tz": "Europe/Brussels"}
+        )
+        self.env["hr.attendance"].create(
+            {
+                "employee_id": employee.id,
+                "check_in": tz_datetime(
+                    2019, 3, 1, 22, 0
+                ),  # should count from midnight in the employee's timezone (=the previous day in utc!)
+                "check_out": tz_datetime(2019, 3, 2, 2, 0),
+            }
+        )
+        self.env["hr.attendance"].create(
+            {
+                "employee_id": employee.id,
+                "check_in": tz_datetime(2019, 3, 2, 11, 0),
+            }
+        )
 
         # now = 2019/3/2 14:00 in the employee's timezone
-        with patch.object(fields.Datetime, 'now', lambda: tz_datetime(2019, 3, 2, 14, 0).astimezone(UTC).replace(tzinfo=None)):
+        with patch.object(
+            fields.Datetime,
+            "now",
+            lambda: tz_datetime(2019, 3, 2, 14, 0).astimezone(UTC).replace(tzinfo=None),
+        ):
             self.assertEqual(employee.hours_today, 5, "It should have counted 5 hours")
 
     def test_remove_check_in_value_from_attendance(self):
-        attendance_form = Form(self.env['hr.attendance'])
+        attendance_form = Form(self.env["hr.attendance"])
         attendance_form.employee_id = self.test_employee
         attendance_form.check_in = False
         with self.assertRaises(AssertionError):

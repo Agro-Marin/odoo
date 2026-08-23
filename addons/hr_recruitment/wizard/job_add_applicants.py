@@ -5,28 +5,47 @@ class JobAddApplicants(models.TransientModel):
     _name = "job.add.applicants"
     _description = "Add applicants to a job"
 
-    applicant_ids = fields.Many2many("hr.applicant", string="Applications", required=True)
+    applicant_ids = fields.Many2many(
+        "hr.applicant", string="Applications", required=True
+    )
     job_ids = fields.Many2many("hr.job", string="Job Positions", required=True)
 
     def _add_applicants_to_job(self):
-        applicant_data = self.with_context(no_copy_in_partner_name=True).applicant_ids.copy_data()
+        applicant_data = self.with_context(
+            no_copy_in_partner_name=True
+        ).applicant_ids.copy_data()
         new_applicants_vals = []
-        stage_per_job = dict(self.env['hr.recruitment.stage']._read_group(
-            domain=[('job_ids', 'in', self.job_ids.ids + [False]), ('fold', '=', False)],
-            groupby=['job_ids'],
-            aggregates=['id:recordset'],
-        ))
+        stage_per_job = dict(
+            self.env["hr.recruitment.stage"]._read_group(
+                domain=[
+                    ("job_ids", "in", self.job_ids.ids + [False]),
+                    ("fold", "=", False),
+                ],
+                groupby=["job_ids"],
+                aggregates=["id:recordset"],
+            )
+        )
         for applicant in applicant_data:
             for job in self.job_ids:
-                job_stages = ((stage_per_job.get(job) or self.env['hr.recruitment.stage']) +
-                              (stage_per_job.get(self.env['hr.job']) or self.env['hr.recruitment.stage']))
-                stage = min(job_stages, key=lambda s: s.sequence) if job_stages else self.env['hr.recruitment.stage']
-                new_applicants_vals.append({
-                    **applicant,
-                    'job_id': job.id,
-                    'talent_pool_ids': False,
-                    'stage_id': stage.id,
-                })
+                job_stages = (
+                    stage_per_job.get(job) or self.env["hr.recruitment.stage"]
+                ) + (
+                    stage_per_job.get(self.env["hr.job"])
+                    or self.env["hr.recruitment.stage"]
+                )
+                stage = (
+                    min(job_stages, key=lambda s: s.sequence)
+                    if job_stages
+                    else self.env["hr.recruitment.stage"]
+                )
+                new_applicants_vals.append(
+                    {
+                        **applicant,
+                        "job_id": job.id,
+                        "talent_pool_ids": False,
+                        "stage_id": stage.id,
+                    }
+                )
         return self.env["hr.applicant"].create(new_applicants_vals)
 
     def action_add_applicants_to_job(self):

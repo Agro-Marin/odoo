@@ -4,7 +4,6 @@ from odoo.addons.hr_work_entry.tests.common import TestWorkEntryBase
 
 
 class TestWorkEntryHolidaysBase(TestWorkEntryBase, TestHolidayContract):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

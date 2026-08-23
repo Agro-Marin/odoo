@@ -4,23 +4,26 @@ from odoo import fields, models
 
 
 class HrAttendanceOvertimeRuleset(models.Model):
-    _name = 'hr.attendance.overtime.ruleset'
+    _name = "hr.attendance.overtime.ruleset"
     _description = "Overtime Ruleset"
 
     name = fields.Char(required=True)
     description = fields.Html()
-    rule_ids = fields.One2many('hr.attendance.overtime.rule', 'ruleset_id')
-    company_id = fields.Many2one('res.company', "Company", default=lambda self: self.env.company)
+    rule_ids = fields.One2many("hr.attendance.overtime.rule", "ruleset_id")
+    company_id = fields.Many2one(
+        "res.company", "Company", default=lambda self: self.env.company
+    )
     country_id = fields.Many2one(
-        'res.country',
+        "res.country",
         default=lambda self: self.env.company.country_id,
     )
-    rate_combination_mode = fields.Selection([
-            ('max', "Maximum Rate"),
-            ('sum', "Sum of all rates"),
+    rate_combination_mode = fields.Selection(
+        [
+            ("max", "Maximum Rate"),
+            ("sum", "Sum of all rates"),
         ],
         required=True,
-        default='max',
+        default="max",
         string="Rate Combination Mode",
         help=(
             "Controls how the rates from the different rules that apply are combined.\n"
@@ -34,13 +37,17 @@ class HrAttendanceOvertimeRuleset(models.Model):
 
     def _attendances_to_regenerate_for(self):
         self.ensure_one()
-        elligible_version = self.env['hr.version'].search([('ruleset_id', '=', self.id)])
+        elligible_version = self.env["hr.version"].search(
+            [("ruleset_id", "=", self.id)]
+        )
         if not elligible_version:
-            return self.env['hr.attendance']
-        return self.env['hr.attendance'].search([
-            ('employee_id', 'in', elligible_version.employee_id.ids),
-            ('date', '>=', min(elligible_version.mapped('date_version'))),
-        ])
+            return self.env["hr.attendance"]
+        return self.env["hr.attendance"].search(
+            [
+                ("employee_id", "in", elligible_version.employee_id.ids),
+                ("date", ">=", min(elligible_version.mapped("date_version"))),
+            ]
+        )
 
     def action_regenerate_overtimes(self):
         self._attendances_to_regenerate_for()._update_overtime()

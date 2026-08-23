@@ -6,7 +6,7 @@ from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 
 class HrRecruitmentDegree(models.Model):
-    _name = 'hr.recruitment.degree'
+    _name = "hr.recruitment.degree"
     _description = "Applicant Degree"
 
     name = fields.Char("Degree Name", required=True, translate=True)
@@ -14,9 +14,9 @@ class HrRecruitmentDegree(models.Model):
     sequence = fields.Integer("Sequence", default=1)
 
     _name_src_uniq = name_uniq_index(
-        message='The name of the Degree of Recruitment must be unique!',
+        message="The name of the Degree of Recruitment must be unique!",
     )
     _score_range = models.Constraint(
-        'check(score >= 0 and score <= 1)',
-        'Score should be between 0 and 100%',
+        "check(score >= 0 and score <= 1)",
+        "Score should be between 0 and 100%",
     )

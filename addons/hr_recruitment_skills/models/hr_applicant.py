@@ -29,13 +29,19 @@ class HrApplicant(models.Model):
         string="Missing Skills",
         compute="_compute_matching_skill_ids",
     )
-    matching_score = fields.Integer(string="Matching Score", compute="_compute_matching_skill_ids")
+    matching_score = fields.Integer(
+        string="Matching Score", compute="_compute_matching_skill_ids"
+    )
 
     @api.depends("applicant_skill_ids")
     def _compute_current_applicant_skill_ids(self):
-        current_applicant_skill_by_applicant = self.applicant_skill_ids._get_current_skills_by_applicant()
+        current_applicant_skill_by_applicant = (
+            self.applicant_skill_ids._get_current_skills_by_applicant()
+        )
         for applicant in self:
-            applicant.current_applicant_skill_ids = current_applicant_skill_by_applicant[applicant.id]
+            applicant.current_applicant_skill_ids = (
+                current_applicant_skill_by_applicant[applicant.id]
+            )
 
     @api.depends("applicant_skill_ids.skill_id")
     def _compute_skill_ids(self):
@@ -43,7 +49,13 @@ class HrApplicant(models.Model):
             applicant.skill_ids = applicant.applicant_skill_ids.skill_id
 
     @api.depends_context("matching_job_id")
-    @api.depends("current_applicant_skill_ids", "type_id", "job_id", "job_id.job_skill_ids", "job_id.expected_degree")
+    @api.depends(
+        "current_applicant_skill_ids",
+        "type_id",
+        "job_id",
+        "job_id.job_skill_ids",
+        "job_id.expected_degree",
+    )
     def _compute_matching_skill_ids(self):
         matching_job_id = self.env.context.get("matching_job_id")
         matching_job = self.env["hr.job"].browse(matching_job_id)
@@ -64,13 +76,20 @@ class HrApplicant(models.Model):
             )
             applicant_degree = applicant.type_id.score * 100 if job_degree > 1 else 0
             applicant_total = (
-                sum(min(skill.level_progress, job_skill_map[skill.skill_id] * 2) for skill in matching_applicant_skills)
+                sum(
+                    min(skill.level_progress, job_skill_map[skill.skill_id] * 2)
+                    for skill in matching_applicant_skills
+                )
                 + applicant_degree
             )
 
             matching_skill_ids = matching_applicant_skills.mapped("skill_id")
-            missing_skill_ids = job_skills.mapped("skill_id") - matching_applicant_skills.mapped("skill_id")
-            matching_score = round(applicant_total / job_total * 100) if job_total else 0
+            missing_skill_ids = job_skills.mapped(
+                "skill_id"
+            ) - matching_applicant_skills.mapped("skill_id")
+            matching_score = (
+                round(applicant_total / job_total * 100) if job_total else 0
+            )
 
             applicant.matching_skill_ids = matching_skill_ids
             applicant.missing_skill_ids = missing_skill_ids
@@ -100,8 +119,12 @@ class HrApplicant(models.Model):
         # has a distinct hr.applicant.skill id per applicant, so the commands cannot be written straight onto
         # pool_applicant_id; each tuple is rewritten to carry the matching record ID on the talent applicant.
         applicant_skills = {a.id: a.skill_id.id for a in self.applicant_skill_ids}
-        applicant_skills_type = {a.id: a.skill_type_id.id for a in self.applicant_skill_ids}
-        talent_skills = {a.skill_id.id: a.id for a in self.pool_applicant_id.applicant_skill_ids}
+        applicant_skills_type = {
+            a.id: a.skill_type_id.id for a in self.applicant_skill_ids
+        }
+        talent_skills = {
+            a.skill_id.id: a.id for a in self.pool_applicant_id.applicant_skill_ids
+        }
         mapped_commands = []
         for command in vals.get("applicant_skill_ids"):
             command_number = command[0]
@@ -109,7 +132,9 @@ class HrApplicant(models.Model):
             if command_number == Command.UPDATE:
                 values = command[2]
                 if applicant_skills[record_id] in talent_skills:
-                    mapped_command = Command.update(talent_skills[applicant_skills[record_id]], values)
+                    mapped_command = Command.update(
+                        talent_skills[applicant_skills[record_id]], values
+                    )
                     mapped_commands.append(mapped_command)
                 else:
                     mapped_command = Command.create(
@@ -122,7 +147,9 @@ class HrApplicant(models.Model):
                     mapped_commands.append(mapped_command)
             elif command_number == Command.DELETE:
                 if applicant_skills[record_id] in talent_skills:
-                    mapped_command = Command.delete(talent_skills[applicant_skills[record_id]])
+                    mapped_command = Command.delete(
+                        talent_skills[applicant_skills[record_id]]
+                    )
                     mapped_commands.append(mapped_command)
             else:
                 mapped_commands.append(command)
@@ -131,11 +158,15 @@ class HrApplicant(models.Model):
     def action_add_to_job(self):
         self.with_context(just_moved=True).write(
             {
-                "job_id": self.env["hr.job"].browse(self.env.context.get("matching_job_id")).id,
+                "job_id": self.env["hr.job"]
+                .browse(self.env.context.get("matching_job_id"))
+                .id,
                 "stage_id": self.env.ref("hr_recruitment.stage_job0").id,
             }
         )
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("hr_recruitment.action_hr_job_applications")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "hr_recruitment.action_hr_job_applications"
+        )
         action["context"] = eval_action_context(
             action["context"], self.env, active_id=self.job_id.id
         )
@@ -147,18 +178,30 @@ class HrApplicant(models.Model):
             # This is required for the talent pool mechanism to work. Duplicating an hr.applicant record without this
             # check will cause the skills to not be duplicated or disappear randomly.
             for vals in vals_list:
-                vals["applicant_skill_ids"] = vals.pop("current_applicant_skill_ids", []) + vals.get("applicant_skill_ids", [])
+                vals["applicant_skill_ids"] = vals.pop(
+                    "current_applicant_skill_ids", []
+                ) + vals.get("applicant_skill_ids", [])
         return super().create(vals_list)
 
     def write(self, vals):
         if "current_applicant_skill_ids" in vals or "applicant_skill_ids" in vals:
-            skills = vals.pop("current_applicant_skill_ids", []) + vals.get("applicant_skill_ids", [])
+            skills = vals.pop("current_applicant_skill_ids", []) + vals.get(
+                "applicant_skill_ids", []
+            )
             original_vals = vals.copy()
             original_vals["applicant_skill_ids"] = skills
-            vals["applicant_skill_ids"] = self.env["hr.applicant.skill"]._get_transformed_commands(skills, self)
+            vals["applicant_skill_ids"] = self.env[
+                "hr.applicant.skill"
+            ]._get_transformed_commands(skills, self)
             for applicant in self:
                 # Modify the skill values for the talent if it exists
                 if applicant.pool_applicant_id and (not applicant.is_pool_applicant):
-                    mapped_skills = applicant._map_applicant_skill_ids_to_talent_skill_ids(original_vals)
-                    applicant.pool_applicant_id.write({"applicant_skill_ids": mapped_skills})
+                    mapped_skills = (
+                        applicant._map_applicant_skill_ids_to_talent_skill_ids(
+                            original_vals
+                        )
+                    )
+                    applicant.pool_applicant_id.write(
+                        {"applicant_skill_ids": mapped_skills}
+                    )
         return super().write(vals)

@@ -8,7 +8,7 @@ from odoo.tests import tagged
 from odoo.addons.hr_calendar.tests.common import TestHrCalendarCommon
 
 
-@tagged('event_interval')
+@tagged("event_interval")
 class TestEventInterval(TestHrCalendarCommon):
     @classmethod
     def setUpClass(cls):
@@ -16,56 +16,90 @@ class TestEventInterval(TestHrCalendarCommon):
         cls.company_A.resource_calendar_id = cls.calendar_35h
 
     def test_empty_event(self):
-        event, allday_event = self.env['calendar.event'].with_context(company_id=self.company_A.id).create([
-            {
-                'start': datetime(2024, 7, 12),
-                'stop': datetime(2024, 7, 12),
-                'name': "Event"
-            },
-            {
-                'start': datetime(2024, 7, 12),
-                'stop': datetime(2024, 7, 12),
-                'allday': True,
-                'name': "Event all day"
-            }
-        ])
+        event, allday_event = (
+            self.env["calendar.event"]
+            .with_context(company_id=self.company_A.id)
+            .create(
+                [
+                    {
+                        "start": datetime(2024, 7, 12),
+                        "stop": datetime(2024, 7, 12),
+                        "name": "Event",
+                    },
+                    {
+                        "start": datetime(2024, 7, 12),
+                        "stop": datetime(2024, 7, 12),
+                        "allday": True,
+                        "name": "Event all day",
+                    },
+                ]
+            )
+        )
         result = (event + allday_event)._get_events_interval()
         self.assertEqual(result.get(event)._items, [])
-        self.assertEqual(result.get(allday_event)._items, [
-            (
-                datetime(2024, 7, 12, 8, 0, 0).replace(tzinfo=timezone('Europe/Brussels')),
-                datetime(2024, 7, 12, 12, 0, 0).replace(tzinfo=timezone('Europe/Brussels')),
-                self.env['resource.calendar']
-            ),
-            (
-                datetime(2024, 7, 12, 13, 0, 0).replace(tzinfo=timezone('Europe/Brussels')),
-                datetime(2024, 7, 12, 16, 0, 0).replace(tzinfo=timezone('Europe/Brussels')),
-                self.env['resource.calendar']
-            )
-        ])
+        self.assertEqual(
+            result.get(allday_event)._items,
+            [
+                (
+                    datetime(2024, 7, 12, 8, 0, 0).replace(
+                        tzinfo=timezone("Europe/Brussels")
+                    ),
+                    datetime(2024, 7, 12, 12, 0, 0).replace(
+                        tzinfo=timezone("Europe/Brussels")
+                    ),
+                    self.env["resource.calendar"],
+                ),
+                (
+                    datetime(2024, 7, 12, 13, 0, 0).replace(
+                        tzinfo=timezone("Europe/Brussels")
+                    ),
+                    datetime(2024, 7, 12, 16, 0, 0).replace(
+                        tzinfo=timezone("Europe/Brussels")
+                    ),
+                    self.env["resource.calendar"],
+                ),
+            ],
+        )
 
     def test_allday_event_during_working_day(self):
-        event = self.env['calendar.event'].with_context(company_id=self.company_A.id).create([
-            {
-                'start': datetime(2024, 7, 12),
-                'stop': datetime(2024, 7, 12, 23, 59, 59),
-                'allday': True,
-                'name': "Event 1"
-            }
-        ])
-        result = event._get_events_interval()
-        self.assertEqual(result.get(event)._items, [
-            (
-                datetime(2024, 7, 12, 8, 0, 0).replace(tzinfo=timezone('Europe/Brussels')),
-                datetime(2024, 7, 12, 12, 0, 0).replace(tzinfo=timezone('Europe/Brussels')),
-                self.env['resource.calendar']
-            ),
-            (
-                datetime(2024, 7, 12, 13, 0, 0).replace(tzinfo=timezone('Europe/Brussels')),
-                datetime(2024, 7, 12, 16, 0, 0).replace(tzinfo=timezone('Europe/Brussels')),
-                self.env['resource.calendar']
+        event = (
+            self.env["calendar.event"]
+            .with_context(company_id=self.company_A.id)
+            .create(
+                [
+                    {
+                        "start": datetime(2024, 7, 12),
+                        "stop": datetime(2024, 7, 12, 23, 59, 59),
+                        "allday": True,
+                        "name": "Event 1",
+                    }
+                ]
             )
-        ])
+        )
+        result = event._get_events_interval()
+        self.assertEqual(
+            result.get(event)._items,
+            [
+                (
+                    datetime(2024, 7, 12, 8, 0, 0).replace(
+                        tzinfo=timezone("Europe/Brussels")
+                    ),
+                    datetime(2024, 7, 12, 12, 0, 0).replace(
+                        tzinfo=timezone("Europe/Brussels")
+                    ),
+                    self.env["resource.calendar"],
+                ),
+                (
+                    datetime(2024, 7, 12, 13, 0, 0).replace(
+                        tzinfo=timezone("Europe/Brussels")
+                    ),
+                    datetime(2024, 7, 12, 16, 0, 0).replace(
+                        tzinfo=timezone("Europe/Brussels")
+                    ),
+                    self.env["resource.calendar"],
+                ),
+            ],
+        )
 
     def test_allday_event_during_no_working_day(self):
         """
@@ -77,49 +111,64 @@ class TestEventInterval(TestHrCalendarCommon):
         # B : Friday - Saturday
         # C : Sunday - Monday
         # D : Friday - Saturday - Sunday - Monday
-        events = self.env['calendar.event'].with_context(company_id=self.company_A.id).create([
-            {
-                'start': datetime(2024, 7, 13),
-                'stop': datetime(2024, 7, 13, 23, 59, 59),
-                'allday': True,
-                'name': "Event A"
-            },
-            {
-                'start': datetime(2024, 7, 12),
-                'stop': datetime(2024, 7, 13, 23, 59, 59),
-                'allday': True,
-                'name': "Event B"
-            },
-            {
-                'start': datetime(2024, 7, 14),
-                'stop': datetime(2024, 7, 15, 23, 59, 59),
-                'allday': True,
-                'name': "Event C"
-            },
-            {
-                'start': datetime(2024, 7, 12),
-                'stop': datetime(2024, 7, 15, 23, 59, 59),
-                'allday': True,
-                'name': "Event D"
-            }
-        ])
+        events = (
+            self.env["calendar.event"]
+            .with_context(company_id=self.company_A.id)
+            .create(
+                [
+                    {
+                        "start": datetime(2024, 7, 13),
+                        "stop": datetime(2024, 7, 13, 23, 59, 59),
+                        "allday": True,
+                        "name": "Event A",
+                    },
+                    {
+                        "start": datetime(2024, 7, 12),
+                        "stop": datetime(2024, 7, 13, 23, 59, 59),
+                        "allday": True,
+                        "name": "Event B",
+                    },
+                    {
+                        "start": datetime(2024, 7, 14),
+                        "stop": datetime(2024, 7, 15, 23, 59, 59),
+                        "allday": True,
+                        "name": "Event C",
+                    },
+                    {
+                        "start": datetime(2024, 7, 12),
+                        "stop": datetime(2024, 7, 15, 23, 59, 59),
+                        "allday": True,
+                        "name": "Event D",
+                    },
+                ]
+            )
+        )
         result = events._get_events_interval()
         for interval in result.values():
             self.assertEqual(interval._items, [])
 
     def test_event_during_working_day(self):
-        event = self.env['calendar.event'].with_context(company_id=self.company_A.id).create([
-            {
-                'start': datetime(2024, 7, 12, 8, 30, 0),
-                'stop': datetime(2024, 7, 12, 9, 30, 0),
-                'name': "Event 3"
-            }
-        ])
-        result = event._get_events_interval()
-        self.assertEqual(result.get(event)._items, [
-            (
-                datetime(2024, 7, 12, 8, 30, 0).replace(tzinfo=timezone('UTC')),
-                datetime(2024, 7, 12, 9, 30, 0).replace(tzinfo=timezone('UTC')),
-                self.env['resource.calendar']
+        event = (
+            self.env["calendar.event"]
+            .with_context(company_id=self.company_A.id)
+            .create(
+                [
+                    {
+                        "start": datetime(2024, 7, 12, 8, 30, 0),
+                        "stop": datetime(2024, 7, 12, 9, 30, 0),
+                        "name": "Event 3",
+                    }
+                ]
             )
-        ])
+        )
+        result = event._get_events_interval()
+        self.assertEqual(
+            result.get(event)._items,
+            [
+                (
+                    datetime(2024, 7, 12, 8, 30, 0).replace(tzinfo=timezone("UTC")),
+                    datetime(2024, 7, 12, 9, 30, 0).replace(tzinfo=timezone("UTC")),
+                    self.env["resource.calendar"],
+                )
+            ],
+        )

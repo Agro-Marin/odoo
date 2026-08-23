@@ -93,8 +93,10 @@ class TestMenuRemoval(common.TransactionCase):
             self.env["ir.ui.menu"]
             .browse(sorted(loaded_ids))
             .filtered(
-                lambda menu: menu != hr_config
-                and menu.parent_path.startswith(hr_config.parent_path)
+                lambda menu: (
+                    menu != hr_config
+                    and menu.parent_path.startswith(hr_config.parent_path)
+                )
             )
         )
         # Vacuity guard: an empty branch would satisfy the loop below for the

@@ -5,8 +5,8 @@ from . import models
 
 
 def post_init_hook(env):
-    env['res.company']._check_hr_presence_control(True)
+    env["res.company"]._check_hr_presence_control(True)
 
 
 def uninstall_hook(env):
-    env['res.company']._check_hr_presence_control(False)
+    env["res.company"]._check_hr_presence_control(False)

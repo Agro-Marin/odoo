@@ -4,12 +4,12 @@ from odoo import SUPERUSER_ID, api
 def migrate(cr, version):
     env = api.Environment(cr, SUPERUSER_ID, {})
     xml_ids = [
-        'hr_expense.mt_expense_approved',
-        'hr_expense.mt_expense_refused',
-        'hr_expense.mt_expense_paid',
-        'hr_expense.mt_expense_reset',
-        'hr_expense.mt_expense_entry_delete',
-        'hr_expense.mt_expense_entry_draft',
+        "hr_expense.mt_expense_approved",
+        "hr_expense.mt_expense_refused",
+        "hr_expense.mt_expense_paid",
+        "hr_expense.mt_expense_reset",
+        "hr_expense.mt_expense_entry_delete",
+        "hr_expense.mt_expense_entry_draft",
     ]
 
     subtype_ids = []
@@ -19,9 +19,11 @@ def migrate(cr, version):
             subtype_ids.append(record.id)
 
     if subtype_ids:
-        cr.execute("""
+        cr.execute(
+            """
             UPDATE mail_message_subtype
                SET "default" = false
              WHERE id = ANY(%s)
         """,
-        (list(subtype_ids),))
+            (list(subtype_ids),),
+        )

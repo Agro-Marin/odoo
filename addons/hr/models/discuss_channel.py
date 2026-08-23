@@ -36,10 +36,8 @@ class DiscussChannel(models.Model):
             # sudo: department members are hr.employee records (ACL-restricted);
             # a non-HR user editing the channel must still resolve them to
             # subscribe. Only ids are used from the traversal.
-            department_partners = (
-                channel.subscription_department_ids.sudo().member_ids.user_id.partner_id.filtered(
-                    lambda p: p.active
-                )
+            department_partners = channel.subscription_department_ids.sudo().member_ids.user_id.partner_id.filtered(
+                lambda p: p.active
             )
             new_members[channel.id] = list(
                 set(new_members[channel.id])

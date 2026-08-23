@@ -26,18 +26,23 @@ class TestRecruitmentTalentPool(TransactionCase):
                 {"name": "Job 3"},
             ]
         )
-        cls.mail_template = cls.env['mail.template'].create({
-            'name': 'Test stage template',
-            'model_id': cls.env['ir.model']._get_id('hr.applicant'),
-            'subject': 'Job application test',
-        })
+        cls.mail_template = cls.env["mail.template"].create(
+            {
+                "name": "Test stage template",
+                "model_id": cls.env["ir.model"]._get_id("hr.applicant"),
+                "subject": "Job application test",
+            }
+        )
 
     def test_add_applicant_to_one_talent_pool(self):
         """
         Test that a applicant is duplicated and linked to a pool when creating a talent.
         """
         talent_pool_applicant = self.t_talent_pool_1.talent_ids
-        self.assertFalse(talent_pool_applicant, "There should not be any applicants in the talent pool")
+        self.assertFalse(
+            talent_pool_applicant,
+            "There should not be any applicants in the talent pool",
+        )
 
         wizard = Form(self.env["talent.pool.add.applicants"])
         wizard.talent_pool_ids = self.t_talent_pool_1
@@ -45,10 +50,13 @@ class TestRecruitmentTalentPool(TransactionCase):
         talent_pool_applicant = wizard.save()._add_applicants_to_pool()
 
         self.assertTrue(
-            talent_pool_applicant, "An applicant('talent') should be created when adding an applicant to a pool"
+            talent_pool_applicant,
+            "An applicant('talent') should be created when adding an applicant to a pool",
         )
         self.assertNotEqual(
-            self.t_applicant_1, talent_pool_applicant, "The 'talent' and the applicant should be two different records"
+            self.t_applicant_1,
+            talent_pool_applicant,
+            "The 'talent' and the applicant should be two different records",
         )
         self.assertEqual(
             talent_pool_applicant.talent_pool_ids,
@@ -57,14 +65,24 @@ class TestRecruitmentTalentPool(TransactionCase):
         )
 
     def test_create_talent_in_pool(self):
-        talent = self.env["hr.applicant"].with_context(default_talent_pool_ids=self.t_talent_pool_1.ids).create({
-            'partner_name': 'Talent in a pool',
-        })
+        talent = (
+            self.env["hr.applicant"]
+            .with_context(default_talent_pool_ids=self.t_talent_pool_1.ids)
+            .create(
+                {
+                    "partner_name": "Talent in a pool",
+                }
+            )
+        )
 
         self.assertEqual(talent.talent_pool_ids, self.t_talent_pool_1)
         self.assertEqual(talent.pool_applicant_id, talent)
 
-        job_wizard = Form(self.env["job.add.applicants"].with_context({"default_applicant_ids": talent.ids}))
+        job_wizard = Form(
+            self.env["job.add.applicants"].with_context(
+                {"default_applicant_ids": talent.ids}
+            )
+        )
         job_wizard.job_ids = self.t_job_1
         job_1_applicant = job_wizard.save()._add_applicants_to_job()
 
@@ -81,10 +99,13 @@ class TestRecruitmentTalentPool(TransactionCase):
         talent_pool_applicant = wizard.save()._add_applicants_to_pool()
 
         self.assertTrue(
-            talent_pool_applicant, "An applicant('talent') should be created when adding an applicant to a pool"
+            talent_pool_applicant,
+            "An applicant('talent') should be created when adding an applicant to a pool",
         )
         self.assertEqual(
-            len(talent_pool_applicant), 1, "Exactly one 'talent' should be created when adding an applicant to a pool"
+            len(talent_pool_applicant),
+            1,
+            "Exactly one 'talent' should be created when adding an applicant to a pool",
         )
         self.assertEqual(
             talent_pool_applicant.talent_pool_ids,
@@ -96,8 +117,13 @@ class TestRecruitmentTalentPool(TransactionCase):
         """
         Test that multiple applicants are only duplicated once and linked to multiple pools when creating talents.
         """
-        talent_pool_applicants = self.t_talent_pool_1.talent_ids | self.t_talent_pool_2.talent_ids
-        self.assertFalse(talent_pool_applicants, "There should not be any applicants in the talent pools")
+        talent_pool_applicants = (
+            self.t_talent_pool_1.talent_ids | self.t_talent_pool_2.talent_ids
+        )
+        self.assertFalse(
+            talent_pool_applicants,
+            "There should not be any applicants in the talent pools",
+        )
 
         with Form(self.env["talent.pool.add.applicants"]) as wizard:
             wizard.talent_pool_ids.add(self.t_talent_pool_1)
@@ -108,7 +134,8 @@ class TestRecruitmentTalentPool(TransactionCase):
         talent_pool_applicants = wizard.record._add_applicants_to_pool()
 
         self.assertTrue(
-            talent_pool_applicants, "An applicant('talent') should be created when adding an applicant to a pool"
+            talent_pool_applicants,
+            "An applicant('talent') should be created when adding an applicant to a pool",
         )
         self.assertEqual(
             len(talent_pool_applicants),
@@ -131,9 +158,14 @@ class TestRecruitmentTalentPool(TransactionCase):
             wizard.applicant_ids = self.t_applicant_1
         tp_applicant_1 = wizard.record._add_applicants_to_pool()
 
-        self.assertTrue(tp_applicant_1, "An applicant('talent') should be created when adding an applicant to a pool")
+        self.assertTrue(
+            tp_applicant_1,
+            "An applicant('talent') should be created when adding an applicant to a pool",
+        )
         self.assertEqual(
-            len(tp_applicant_1), 1, "Exactly one 'talent' should be created when adding an applicant to a pool"
+            len(tp_applicant_1),
+            1,
+            "Exactly one 'talent' should be created when adding an applicant to a pool",
         )
 
         # Try adding the same applicant to a different pool
@@ -143,14 +175,21 @@ class TestRecruitmentTalentPool(TransactionCase):
         wizard.talent_pool_ids = self.t_talent_pool_2
         wizard.applicant_ids = self.t_applicant_1
         tp_applicant_2 = wizard.save()._add_applicants_to_pool()
-        self.assertFalse(tp_applicant_2, "A second talent for the same applicant should not have been created")
+        self.assertFalse(
+            tp_applicant_2,
+            "A second talent for the same applicant should not have been created",
+        )
 
         wizard = Form(self.env["talent.pool.add.applicants"])
         wizard.talent_pool_ids = self.t_talent_pool_2
         wizard.applicant_ids = tp_applicant_1
         tp_applicant_2 = wizard.save()._add_applicants_to_pool()
 
-        self.assertEqual(tp_applicant_1, tp_applicant_2, "tp_applicant_1 and tp_applicant_2 should be the same record")
+        self.assertEqual(
+            tp_applicant_1,
+            tp_applicant_2,
+            "tp_applicant_1 and tp_applicant_2 should be the same record",
+        )
         self.assertEqual(
             tp_applicant_1.talent_pool_ids,
             self.t_talent_pool_1 | self.t_talent_pool_2,
@@ -175,9 +214,14 @@ class TestRecruitmentTalentPool(TransactionCase):
             ._add_applicants_to_pool()
         )
         self.assertTrue(talent_pool_applicant, "A 'talent' should have been created")
-        self.assertFalse(self.t_applicant_1.categ_ids, "The original applicant should not have any linked tags")
+        self.assertFalse(
+            self.t_applicant_1.categ_ids,
+            "The original applicant should not have any linked tags",
+        )
         self.assertEqual(
-            talent_pool_applicant.categ_ids, tag, "The 'talent' should have the tag 'Test Tag' linked to it"
+            talent_pool_applicant.categ_ids,
+            tag,
+            "The 'talent' should have the tag 'Test Tag' linked to it",
         )
 
     def test_add_talent_to_one_job(self):
@@ -189,25 +233,33 @@ class TestRecruitmentTalentPool(TransactionCase):
         pool_wizard.applicant_ids = self.t_applicant_1
         talent_pool_applicant = pool_wizard.save()._add_applicants_to_pool()
 
-        recuritment_stage = self.env["hr.recruitment.stage"].create({
-            "name": "Recruitment Stage",
-            "job_ids": self.t_job_2.ids,
-            "template_id": self.mail_template.id,
-            "sequence": 0,
-        })
+        recuritment_stage = self.env["hr.recruitment.stage"].create(
+            {
+                "name": "Recruitment Stage",
+                "job_ids": self.t_job_2.ids,
+                "template_id": self.mail_template.id,
+                "sequence": 0,
+            }
+        )
 
         self.assertEqual(
-            len(talent_pool_applicant), 1, "Exactly one 'talent' should be created when adding an applicant to a pool"
+            len(talent_pool_applicant),
+            1,
+            "Exactly one 'talent' should be created when adding an applicant to a pool",
         )
 
         job_wizard = Form(
-            self.env["job.add.applicants"].with_context({"default_applicant_ids": talent_pool_applicant.ids})
+            self.env["job.add.applicants"].with_context(
+                {"default_applicant_ids": talent_pool_applicant.ids}
+            )
         )
         job_wizard.job_ids = self.t_job_2
         job_2_applicant = job_wizard.save()._add_applicants_to_job()
         self.flush_tracking()
 
-        all_applications = self.env["hr.applicant"].search(Domain("partner_name", "=", "Test Applicant 1"))
+        all_applications = self.env["hr.applicant"].search(
+            Domain("partner_name", "=", "Test Applicant 1")
+        )
         self.assertEqual(
             len(all_applications),
             3,
@@ -219,13 +271,17 @@ class TestRecruitmentTalentPool(TransactionCase):
             "Job_2_applicant, created through the wizard, should be linked to Job 2",
         )
         self.assertNotEqual(
-            job_2_applicant, talent_pool_applicant, "Job_2_applicant and the talent should not be the same record"
+            job_2_applicant,
+            talent_pool_applicant,
+            "Job_2_applicant and the talent should not be the same record",
         )
 
         # Make sure that the stage was populated correctly during creation not in compute,
         # If it was passed in creation the record will have the mail linked to the stage
         self.assertEqual(job_2_applicant.stage_id, recuritment_stage)
-        self.assertEqual(job_2_applicant.message_ids[0].subject, self.mail_template.subject)
+        self.assertEqual(
+            job_2_applicant.message_ids[0].subject, self.mail_template.subject
+        )
 
     def test_add_talent_to_multiple_jobs(self):
         """
@@ -238,17 +294,23 @@ class TestRecruitmentTalentPool(TransactionCase):
 
         talent_pool_applicant = self.t_talent_pool_1.talent_ids
         self.assertEqual(
-            len(talent_pool_applicant), 1, "Exactly one 'talent' should be created when adding an applicant to a pool"
+            len(talent_pool_applicant),
+            1,
+            "Exactly one 'talent' should be created when adding an applicant to a pool",
         )
 
         job_wizard = Form(
-            self.env["job.add.applicants"].with_context({"default_applicant_ids": talent_pool_applicant.ids})
+            self.env["job.add.applicants"].with_context(
+                {"default_applicant_ids": talent_pool_applicant.ids}
+            )
         )
         job_wizard.job_ids.add(self.t_job_2)
         job_wizard.job_ids.add(self.t_job_3)
         new_job_applicants = job_wizard.save()._add_applicants_to_job()
 
-        all_applications = self.env["hr.applicant"].search(Domain("partner_name", "=", "Test Applicant 1"))
+        all_applications = self.env["hr.applicant"].search(
+            Domain("partner_name", "=", "Test Applicant 1")
+        )
         self.assertEqual(
             len(all_applications),
             4,
@@ -270,18 +332,26 @@ class TestRecruitmentTalentPool(TransactionCase):
         pool_wizard.applicant_ids.add(self.t_applicant_2)
         talent_pool_applicants = pool_wizard.save()._add_applicants_to_pool()
         self.assertEqual(
-            len(talent_pool_applicants), 2, "Exactly two 'talents' should be created when adding an applicant to a pool"
+            len(talent_pool_applicants),
+            2,
+            "Exactly two 'talents' should be created when adding an applicant to a pool",
         )
 
         job_wizard = Form(
-            self.env["job.add.applicants"].with_context({"default_applicant_ids": talent_pool_applicants.ids})
+            self.env["job.add.applicants"].with_context(
+                {"default_applicant_ids": talent_pool_applicants.ids}
+            )
         )
         job_wizard.job_ids.add(self.t_job_2)
         job_wizard.job_ids.add(self.t_job_3)
         new_job_applicants = job_wizard.save()._add_applicants_to_job()
 
-        all_a_1_applications = self.env["hr.applicant"].search(Domain("partner_name", "=", "Test Applicant 1"))
-        all_a_2_applications = self.env["hr.applicant"].search(Domain("partner_name", "=", "Test Applicant 2"))
+        all_a_1_applications = self.env["hr.applicant"].search(
+            Domain("partner_name", "=", "Test Applicant 1")
+        )
+        all_a_2_applications = self.env["hr.applicant"].search(
+            Domain("partner_name", "=", "Test Applicant 2")
+        )
         self.assertEqual(
             len(all_a_1_applications),
             4,
@@ -292,7 +362,9 @@ class TestRecruitmentTalentPool(TransactionCase):
             4,
             """There should be four applications with the name 'Test Applicant 2' - The original, the talent and one each for job_2 and job_3, created through the wizard""",
         )
-        new_job_applicants = new_job_applicants.mapped(lambda a: {"name": a.partner_name, "job": a.job_id})
+        new_job_applicants = new_job_applicants.mapped(
+            lambda a: {"name": a.partner_name, "job": a.job_id}
+        )
         expected = [
             {"name": "Test Applicant 1", "job": self.t_job_2},
             {"name": "Test Applicant 1", "job": self.t_job_3},
@@ -309,10 +381,12 @@ class TestRecruitmentTalentPool(TransactionCase):
         """
         Test that an applicant's fields (e.g., email) can still be updated after adding them to a talent pool.
         """
-        self.env["talent.pool.add.applicants"].create({
-            "applicant_ids": self.t_applicant_1.ids,
-            "talent_pool_ids": self.t_talent_pool_1,
-        }).action_add_applicants_to_pool()
+        self.env["talent.pool.add.applicants"].create(
+            {
+                "applicant_ids": self.t_applicant_1.ids,
+                "talent_pool_ids": self.t_talent_pool_1,
+            }
+        ).action_add_applicants_to_pool()
 
         new_email = "updated@gmail.com"
         self.t_applicant_1.write({"email_from": new_email})
@@ -334,6 +408,6 @@ class TestRecruitmentTalentPool(TransactionCase):
             talent.write({"talent_pool_ids": [(5, 0, 0)]})
 
     def flush_tracking(self):
-        """ Force the creation of tracking values. """
+        """Force the creation of tracking values."""
         self.env.flush_all()
         self.cr.flush()

@@ -7,100 +7,121 @@ from odoo.fields import Domain
 from odoo.tests import Form, TransactionCase, tagged
 
 
-@tagged('recruitment')
+@tagged("recruitment")
 class TestRecruitment(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
 
-        cls.company = cls.env['res.company'].create({
-            'name': 'Company Test',
-            'country_id': cls.env.ref('base.us').id,
-        })
+        cls.company = cls.env["res.company"].create(
+            {
+                "name": "Company Test",
+                "country_id": cls.env.ref("base.us").id,
+            }
+        )
         cls.env.user.company_id = cls.company
         cls.env.user.company_ids = [Command.set(cls.company.ids)]
 
-        cls.TEXT = base64.b64encode(bytes("hr_recruitment", 'utf-8'))
-        cls.Attachment = cls.env['ir.attachment']
+        cls.TEXT = base64.b64encode(bytes("hr_recruitment", "utf-8"))
+        cls.Attachment = cls.env["ir.attachment"]
 
     def test_infer_applicant_lang_from_context(self):
         # Prerequisites
-        self.env['res.lang']._activate_lang('pl_PL')
-        self.env['res.lang']._activate_lang('en_US')
-        self.env['ir.default'].set('res.partner', 'lang', 'en_US')
+        self.env["res.lang"]._activate_lang("pl_PL")
+        self.env["res.lang"]._activate_lang("en_US")
+        self.env["ir.default"].set("res.partner", "lang", "en_US")
 
         # Creating an applicant will create a partner (email_from inverse)
-        applicant = self.env['hr.applicant'].sudo().with_context(lang='pl_PL').create({
-            'partner_name': 'Test Applicant',
-            'email_from': "test_aplicant@example.com"
-        })
-        self.assertEqual(applicant.partner_id.lang, 'pl_PL', 'Context langague not used for partner creation')
+        applicant = (
+            self.env["hr.applicant"]
+            .sudo()
+            .with_context(lang="pl_PL")
+            .create(
+                {
+                    "partner_name": "Test Applicant",
+                    "email_from": "test_aplicant@example.com",
+                }
+            )
+        )
+        self.assertEqual(
+            applicant.partner_id.lang,
+            "pl_PL",
+            "Context langague not used for partner creation",
+        )
 
     def test_duplicate_email(self):
         # Tests that duplicate email matching is case insensitive
-        dup1, dup2, no_dup = self.env['hr.applicant'].create([
-            {
-                'partner_name': 'Application 1',
-                'email_from': 'laurie.poiret@aol.ru',
-            },
-            {
-                'partner_name': 'Application 2',
-                'email_from': 'laurie.POIRET@aol.ru',
-            },
-            {
-                'partner_name': 'Application 3',
-                'email_from': 'laure.poiret@aol.ru',
-            },
-        ])
+        dup1, dup2, no_dup = self.env["hr.applicant"].create(
+            [
+                {
+                    "partner_name": "Application 1",
+                    "email_from": "laurie.poiret@aol.ru",
+                },
+                {
+                    "partner_name": "Application 2",
+                    "email_from": "laurie.POIRET@aol.ru",
+                },
+                {
+                    "partner_name": "Application 3",
+                    "email_from": "laure.poiret@aol.ru",
+                },
+            ]
+        )
         self.assertEqual(dup1.application_count, 2)
         self.assertEqual(dup2.application_count, 2)
         self.assertEqual(no_dup.application_count, 1)
 
     def test_similar_applicants_count(self):
         """Test that we find same applicant based on similar mail or phone."""
-        A, B, C, D, E, F, _ = self.env['hr.applicant'].create([
-            {
-                'active': False,  # Refused/archived application should still count
-                'partner_name': 'Application A',
-                'email_from': 'abc@odoo.com',
-                'partner_phone': '123',
-            },
-            {
-                'partner_name': 'Application B',
-                'partner_phone': '456',
-            },
-            {
-                'partner_name': 'Application C',
-                'email_from': 'def@odoo.com',
-                'partner_phone': '123',
-            },
-            {
-                'partner_name': 'Application D',
-                'email_from': 'abc@odoo.com',
-                'partner_phone': '456',
-            },
-            {
-                'partner_name': 'Application E',
-                'partner_phone': '',
-            },
-            {
-                'partner_name': 'Application F',
-                'email_from': 'ghi@odoo.com',
-                'partner_phone': '789',
-            },
-            {
-                'partner_name': 'Application G',
-            },
-        ])
+        A, B, C, D, E, F, _ = self.env["hr.applicant"].create(
+            [
+                {
+                    "active": False,  # Refused/archived application should still count
+                    "partner_name": "Application A",
+                    "email_from": "abc@odoo.com",
+                    "partner_phone": "123",
+                },
+                {
+                    "partner_name": "Application B",
+                    "partner_phone": "456",
+                },
+                {
+                    "partner_name": "Application C",
+                    "email_from": "def@odoo.com",
+                    "partner_phone": "123",
+                },
+                {
+                    "partner_name": "Application D",
+                    "email_from": "abc@odoo.com",
+                    "partner_phone": "456",
+                },
+                {
+                    "partner_name": "Application E",
+                    "partner_phone": "",
+                },
+                {
+                    "partner_name": "Application F",
+                    "email_from": "ghi@odoo.com",
+                    "partner_phone": "789",
+                },
+                {
+                    "partner_name": "Application G",
+                },
+            ]
+        )
         self.assertEqual(A.application_count, 3)  # A, C, D
         self.assertEqual(B.application_count, 2)  # B, D
         self.assertEqual(C.application_count, 2)  # C, A
         self.assertEqual(D.application_count, 3)  # D, A, B
-        self.assertEqual(E.application_count, 0)  # Should not match with E and G as there is no data to use for matching.
+        self.assertEqual(
+            E.application_count, 0
+        )  # Should not match with E and G as there is no data to use for matching.
         self.assertEqual(F.application_count, 1)  # F
 
     def test_talent_pool_count(self):
-        tp_A, tp_B = self.env["hr.talent.pool"].create([{"name": "Cool Pool"}, {"name": "Other Pool"}])
+        tp_A, tp_B = self.env["hr.talent.pool"].create(
+            [{"name": "Cool Pool"}, {"name": "Other Pool"}]
+        )
         t_A, t_B = self.env["hr.applicant"].create(
             [
                 {
@@ -248,50 +269,68 @@ class TestRecruitment(TransactionCase):
         #       is not tested first which is why these two tests are in one test.
         applicant = self.env["hr.applicant"]
         in_pool_domain = applicant._search_is_applicant_in_pool("in", [True])
-        in_pool_applicants = applicant.search(Domain.AND([in_pool_domain, [("company_id", "=", self.env.company.id)]]))
-        out_of_pool_applicants = applicant.search(Domain.AND([~Domain(in_pool_domain), [("company_id", "=", self.env.company.id)]]))
+        in_pool_applicants = applicant.search(
+            Domain.AND([in_pool_domain, [("company_id", "=", self.env.company.id)]])
+        )
+        out_of_pool_applicants = applicant.search(
+            Domain.AND(
+                [~Domain(in_pool_domain), [("company_id", "=", self.env.company.id)]]
+            )
+        )
         self.assertCountEqual(in_pool_applicants, A | B | C | D | E | G | H)
         self.assertCountEqual(out_of_pool_applicants, F)
 
     def test_application_no_partner_duplicate(self):
-        """ Test that when applying, the existing partner
-            doesn't get duplicated.
+        """Test that when applying, the existing partner
+        doesn't get duplicated.
         """
         applicant_data = {
-            'partner_name': 'Test',
-            'email_from': 'test@thisisatest.com',
+            "partner_name": "Test",
+            "email_from": "test@thisisatest.com",
         }
         # First application, a partner should be created
-        self.env['hr.applicant'].create(applicant_data)
-        partner_count = self.env['res.partner'].search_count([('email', '=', 'test@thisisatest.com')])
+        self.env["hr.applicant"].create(applicant_data)
+        partner_count = self.env["res.partner"].search_count(
+            [("email", "=", "test@thisisatest.com")]
+        )
         self.assertEqual(partner_count, 1)
         # Second application, no partner should be created
-        self.env['hr.applicant'].create(applicant_data)
-        partner_count = self.env['res.partner'].search_count([('email', '=', 'test@thisisatest.com')])
+        self.env["hr.applicant"].create(applicant_data)
+        partner_count = self.env["res.partner"].search_count(
+            [("email", "=", "test@thisisatest.com")]
+        )
         self.assertEqual(partner_count, 1)
 
     def test_target_on_application_hiring(self):
         """
         Test that the target is updated when hiring an applicant
         """
-        job = self.env['hr.job'].create({
-            'name': 'Test Job',
-            'no_of_recruitment': 1,
-        })
-        applicant = self.env['hr.applicant'].create({
-            'partner_name': 'Test Applicant',
-            'job_id': job.id,
-        })
-        stage_new = self.env['hr.recruitment.stage'].create({
-            'name': 'New',
-            'sequence': 0,
-            'hired_stage': False,
-        })
-        stage_hired = self.env['hr.recruitment.stage'].create({
-            'name': 'Hired',
-            'sequence': 1,
-            'hired_stage': True,
-        })
+        job = self.env["hr.job"].create(
+            {
+                "name": "Test Job",
+                "no_of_recruitment": 1,
+            }
+        )
+        applicant = self.env["hr.applicant"].create(
+            {
+                "partner_name": "Test Applicant",
+                "job_id": job.id,
+            }
+        )
+        stage_new = self.env["hr.recruitment.stage"].create(
+            {
+                "name": "New",
+                "sequence": 0,
+                "hired_stage": False,
+            }
+        )
+        stage_hired = self.env["hr.recruitment.stage"].create(
+            {
+                "name": "Hired",
+                "sequence": 1,
+                "hired_stage": True,
+            }
+        )
         self.assertEqual(job.no_of_recruitment, 1)
         applicant.stage_id = stage_hired
         self.assertEqual(job.no_of_recruitment, 0)
@@ -301,94 +340,130 @@ class TestRecruitment(TransactionCase):
 
     def test_open_refuse_applicant_wizard_without_partner_name(self):
         """Test opening the refuse wizard when the applicant has no partner_name."""
-        applicant = self.env['hr.applicant'].create({
-            'partner_phone': '123',
-        })
-        wizard = Form(self.env['applicant.get.refuse.reason'].with_context(
-            default_applicant_ids=[applicant.id], active_test=False))
+        applicant = self.env["hr.applicant"].create(
+            {
+                "partner_phone": "123",
+            }
+        )
+        wizard = Form(
+            self.env["applicant.get.refuse.reason"].with_context(
+                default_applicant_ids=[applicant.id], active_test=False
+            )
+        )
 
         wizard_applicant = wizard.applicant_ids[0]
         self.assertFalse(wizard_applicant.partner_name)
 
     def test_applicant_refuse_reason(self):
 
-        refuse_reason = self.env['hr.applicant.refuse.reason'].create([{'name': 'Fired'}])
+        refuse_reason = self.env["hr.applicant.refuse.reason"].create(
+            [{"name": "Fired"}]
+        )
 
-        app_1, app_2 = self.env['hr.applicant'].create([
-            {
-                'partner_name': 'Laurie Poiret',
-                'email_from': 'laurie.poiret@aol.ru',
-            },
-            {
-                'partner_name': 'Mitchell Admin',
-                'email_from': 'mitchell_admin@example.com',
-            },
-        ])
+        app_1, app_2 = self.env["hr.applicant"].create(
+            [
+                {
+                    "partner_name": "Laurie Poiret",
+                    "email_from": "laurie.poiret@aol.ru",
+                },
+                {
+                    "partner_name": "Mitchell Admin",
+                    "email_from": "mitchell_admin@example.com",
+                },
+            ]
+        )
 
-        applicant_get_refuse_reason = self.env['applicant.get.refuse.reason'].create([{
-            'refuse_reason_id': refuse_reason.id,
-            'applicant_ids': [app_1.id],
-            'duplicates': True
-        }])
+        applicant_get_refuse_reason = self.env["applicant.get.refuse.reason"].create(
+            [
+                {
+                    "refuse_reason_id": refuse_reason.id,
+                    "applicant_ids": [app_1.id],
+                    "duplicates": True,
+                }
+            ]
+        )
         applicant_get_refuse_reason.action_refuse_reason_apply()
-        self.assertFalse(self.env['hr.applicant'].search([('email_from', 'ilike', 'laurie.poiret@aol.ru')]))
+        self.assertFalse(
+            self.env["hr.applicant"].search(
+                [("email_from", "ilike", "laurie.poiret@aol.ru")]
+            )
+        )
         self.assertEqual(
-            self.env['hr.applicant'].search([('email_from', 'ilike', 'mitchell_admin@example.com')]),
-            app_2
+            self.env["hr.applicant"].search(
+                [("email_from", "ilike", "mitchell_admin@example.com")]
+            ),
+            app_2,
         )
 
     def test_applicant_refuse_mail_from_template(self):
-        mail_template = self.env['mail.template'].create({
-            'name': 'Test template',
-            'model_id': self.env['ir.model']._get('hr.applicant').id,
-            'email_from': 'test@test.test',
-        })
-        refuse_reason = self.env['hr.applicant.refuse.reason'].create({
-            'name': 'Not good',
-        })
-        applicant = self.env['hr.applicant'].create({
-            'partner_name': 'Laurie Poiret',
-            'email_from': 'laurie.poiret@aol.ru',
-        })
-        applicant_get_refuse_reason = self.env['applicant.get.refuse.reason'].create([{
-            'refuse_reason_id': refuse_reason.id,
-            'applicant_ids': applicant.ids,
-            'duplicates': True,
-        }])
+        mail_template = self.env["mail.template"].create(
+            {
+                "name": "Test template",
+                "model_id": self.env["ir.model"]._get("hr.applicant").id,
+                "email_from": "test@test.test",
+            }
+        )
+        refuse_reason = self.env["hr.applicant.refuse.reason"].create(
+            {
+                "name": "Not good",
+            }
+        )
+        applicant = self.env["hr.applicant"].create(
+            {
+                "partner_name": "Laurie Poiret",
+                "email_from": "laurie.poiret@aol.ru",
+            }
+        )
+        applicant_get_refuse_reason = self.env["applicant.get.refuse.reason"].create(
+            [
+                {
+                    "refuse_reason_id": refuse_reason.id,
+                    "applicant_ids": applicant.ids,
+                    "duplicates": True,
+                }
+            ]
+        )
         mail_values = applicant_get_refuse_reason._prepare_mail_values(applicant)
-        self.assertEqual(mail_values['email_from'], self.env.user.email_formatted)
+        self.assertEqual(mail_values["email_from"], self.env.user.email_formatted)
 
-        refuse_reason_template = self.env['hr.applicant.refuse.reason'].create({
-            'name': 'Fired',
-            'template_id': mail_template.id,
-        })
+        refuse_reason_template = self.env["hr.applicant.refuse.reason"].create(
+            {
+                "name": "Fired",
+                "template_id": mail_template.id,
+            }
+        )
         applicant_get_refuse_reason.refuse_reason_id = refuse_reason_template
         mail_values = applicant_get_refuse_reason._prepare_mail_values(applicant)
-        self.assertEqual(mail_values['email_from'], 'test@test.test')
+        self.assertEqual(mail_values["email_from"], "test@test.test")
 
     def test_copy_attachments_while_creating_employee(self):
         """
         Test that attachments are copied when creating an employee from an applicant
         """
-        applicant_1 = self.env['hr.applicant'].create({
-            'partner_name': 'Applicant 1',
-            'email_from': 'test_applicant@example.com'
-        })
-        applicant_attachment = self.Attachment.create({
-            'datas': self.TEXT,
-            'name': 'textFile.txt',
-            'mimetype': 'text/plain',
-            'res_model': applicant_1._name,
-            'res_id': applicant_1.id
-        })
+        applicant_1 = self.env["hr.applicant"].create(
+            {"partner_name": "Applicant 1", "email_from": "test_applicant@example.com"}
+        )
+        applicant_attachment = self.Attachment.create(
+            {
+                "datas": self.TEXT,
+                "name": "textFile.txt",
+                "mimetype": "text/plain",
+                "res_model": applicant_1._name,
+                "res_id": applicant_1.id,
+            }
+        )
 
         employee_applicant = applicant_1.create_employee_from_applicant()
-        self.assertTrue(employee_applicant['res_id'])
-        attachment_employee_applicant = self.Attachment.search([
-            ('res_model', '=', employee_applicant['res_model']),
-            ('res_id', '=', employee_applicant['res_id']),
-        ])
-        self.assertEqual(applicant_attachment['datas'], attachment_employee_applicant['datas'])
+        self.assertTrue(employee_applicant["res_id"])
+        attachment_employee_applicant = self.Attachment.search(
+            [
+                ("res_model", "=", employee_applicant["res_model"]),
+                ("res_id", "=", employee_applicant["res_id"]),
+            ]
+        )
+        self.assertEqual(
+            applicant_attachment["datas"], attachment_employee_applicant["datas"]
+        )
 
     def test_other_applications_count(self):
         """
@@ -414,7 +489,9 @@ class TestRecruitment(TransactionCase):
             "Application_count should not change when archiving a linked application",
         )
         # Refuse A3
-        refuse_reason = self.env["hr.applicant.refuse.reason"].create([{"name": "Fired"}])
+        refuse_reason = self.env["hr.applicant.refuse.reason"].create(
+            [{"name": "Fired"}]
+        )
         applicant_get_refuse_reason = self.env["applicant.get.refuse.reason"].create(
             [
                 {
@@ -442,18 +519,38 @@ class TestRecruitment(TransactionCase):
         )
 
         res = A1.action_open_applications()
-        self.assertEqual(len(res['domain'][0][2]), 3, "The list view should display 3 applications")
+        self.assertEqual(
+            len(res["domain"][0][2]), 3, "The list view should display 3 applications"
+        )
 
     def test_applicant_modify_email_number(self):
-        applicant = self.env['hr.applicant'].create({
-            'partner_name': 'Mary Applicant',
-            'email_from': 'applicant@example.com',
-            'partner_phone': '123456789',
-        })
-        self.assertEqual(applicant.partner_id.email, 'applicant@example.com', "Email should have been set on the partner.")
-        self.assertEqual(applicant.partner_id.phone, '123456789', "Phone should have been set on the partner.")
+        applicant = self.env["hr.applicant"].create(
+            {
+                "partner_name": "Mary Applicant",
+                "email_from": "applicant@example.com",
+                "partner_phone": "123456789",
+            }
+        )
+        self.assertEqual(
+            applicant.partner_id.email,
+            "applicant@example.com",
+            "Email should have been set on the partner.",
+        )
+        self.assertEqual(
+            applicant.partner_id.phone,
+            "123456789",
+            "Phone should have been set on the partner.",
+        )
 
-        applicant.email_from = 'applicant_diff@example.com'
-        self.assertEqual(applicant.partner_id.email, 'applicant_diff@example.com', "Email should have been updated on the partner.")
-        applicant.partner_phone = '987654321'
-        self.assertEqual(applicant.partner_id.phone, '987654321', "Phone should have been updated on the partner.")
+        applicant.email_from = "applicant_diff@example.com"
+        self.assertEqual(
+            applicant.partner_id.email,
+            "applicant_diff@example.com",
+            "Email should have been updated on the partner.",
+        )
+        applicant.partner_phone = "987654321"
+        self.assertEqual(
+            applicant.partner_id.phone,
+            "987654321",
+            "Phone should have been updated on the partner.",
+        )

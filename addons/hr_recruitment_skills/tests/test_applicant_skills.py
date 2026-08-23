@@ -14,20 +14,49 @@ class TestApplicantSkills(TransactionCase):
 
         cls.t_job = cls.env["hr.job"].create({"name": "Test Job"})
         cls.t_skill_type, cls.t_cert_type = cls.env["hr.skill.type"].create(
-            [{"name": "Skills for tests"}, {"name": "Certification for tests", "is_certification": True}],
-        )
-        cls.t_skill_level_1, cls.t_skill_level_2, cls.t_skill_level_3, cls.t_cert_level_1, cls.t_cert_level_2 = cls.env[
-            "hr.skill.level"
-        ].create(
             [
-                {"name": "Level 1", "skill_type_id": cls.t_skill_type.id, "level_progress": 34},
-                {"name": "Level 2", "skill_type_id": cls.t_skill_type.id, "level_progress": 68},
-                {"name": "Level 3", "skill_type_id": cls.t_skill_type.id, "level_progress": 100},
-                {"name": "Half Certified", "skill_type_id": cls.t_cert_type.id, "level_progress": 50},
-                {"name": "Fully Certified", "skill_type_id": cls.t_cert_type.id, "level_progress": 100},
+                {"name": "Skills for tests"},
+                {"name": "Certification for tests", "is_certification": True},
             ],
         )
-        cls.t_skill_1, cls.t_skill_2, cls.t_skill_3, cls.t_cert_1 = cls.env["hr.skill"].create(
+        (
+            cls.t_skill_level_1,
+            cls.t_skill_level_2,
+            cls.t_skill_level_3,
+            cls.t_cert_level_1,
+            cls.t_cert_level_2,
+        ) = cls.env["hr.skill.level"].create(
+            [
+                {
+                    "name": "Level 1",
+                    "skill_type_id": cls.t_skill_type.id,
+                    "level_progress": 34,
+                },
+                {
+                    "name": "Level 2",
+                    "skill_type_id": cls.t_skill_type.id,
+                    "level_progress": 68,
+                },
+                {
+                    "name": "Level 3",
+                    "skill_type_id": cls.t_skill_type.id,
+                    "level_progress": 100,
+                },
+                {
+                    "name": "Half Certified",
+                    "skill_type_id": cls.t_cert_type.id,
+                    "level_progress": 50,
+                },
+                {
+                    "name": "Fully Certified",
+                    "skill_type_id": cls.t_cert_type.id,
+                    "level_progress": 100,
+                },
+            ],
+        )
+        cls.t_skill_1, cls.t_skill_2, cls.t_skill_3, cls.t_cert_1 = cls.env[
+            "hr.skill"
+        ].create(
             [
                 {"name": "Test Skill 1", "skill_type_id": cls.t_skill_type.id},
                 {"name": "Test Skill 3", "skill_type_id": cls.t_skill_type.id},
@@ -107,13 +136,17 @@ class TestApplicantSkills(TransactionCase):
         self.assertTrue(new_skill)
         self.assertEqual(len(self.t_applicant.applicant_skill_ids.ids), 6)
         self.assertEqual(new_skill.valid_from, date.today())
-        self.assertEqual(self.t_applicant_skill_1.valid_to, date.today() - relativedelta(days=1))
+        self.assertEqual(
+            self.t_applicant_skill_1.valid_to, date.today() - relativedelta(days=1)
+        )
 
     def test_edit_skill_1_level_2_to_level_3(self):
         """Editing a skill archives the edited record and creates a new one whose valid_from is reset to today."""
         applicant_form = Form(self.t_applicant)
         old_applicant_skills = self.t_applicant.applicant_skill_ids
-        index = self.t_applicant.current_applicant_skill_ids.ids.index(self.t_applicant_skill_1.id)
+        index = self.t_applicant.current_applicant_skill_ids.ids.index(
+            self.t_applicant_skill_1.id
+        )
         with applicant_form.current_applicant_skill_ids.edit(index) as cas:
             cas.skill_level_id = self.t_skill_level_3
         applicant_form.save()
@@ -122,13 +155,17 @@ class TestApplicantSkills(TransactionCase):
         self.assertTrue(new_skill)
         self.assertEqual(len(self.t_applicant.applicant_skill_ids.ids), 6)
         self.assertEqual(new_skill.valid_from, date.today())
-        self.assertEqual(self.t_applicant_skill_1.valid_to, date.today() - relativedelta(days=1))
+        self.assertEqual(
+            self.t_applicant_skill_1.valid_to, date.today() - relativedelta(days=1)
+        )
 
     def test_edit_cert_1_level_1_to_level_2(self):
         """Editing a certification archives the edited record and creates a new one keeping the original valid_from and valid_to."""
         applicant_form = Form(self.t_applicant)
         old_applicant_skills = self.t_applicant.applicant_skill_ids
-        index = self.t_applicant.current_applicant_skill_ids.ids.index(self.t_applicant_cert_1.id)
+        index = self.t_applicant.current_applicant_skill_ids.ids.index(
+            self.t_applicant_cert_1.id
+        )
         with applicant_form.current_applicant_skill_ids.edit(index) as cas:
             cas.skill_level_id = self.t_cert_level_2
         applicant_form.save()
@@ -143,7 +180,9 @@ class TestApplicantSkills(TransactionCase):
         """Editing only the validity stop date of a certification updates it in place: no new record is created and none is deleted."""
         applicant_form = Form(self.t_applicant)
         old_applicant_skills = self.t_applicant.applicant_skill_ids
-        index = self.t_applicant.current_applicant_skill_ids.ids.index(self.t_applicant_cert_1.id)
+        index = self.t_applicant.current_applicant_skill_ids.ids.index(
+            self.t_applicant_cert_1.id
+        )
         with applicant_form.current_applicant_skill_ids.edit(index) as cas:
             cas.valid_to = date.today() + relativedelta(months=2)
         applicant_form.save()
@@ -156,7 +195,9 @@ class TestApplicantSkills(TransactionCase):
         """Editing a certification into a skill archives the certification and creates the new skill."""
         applicant_form = Form(self.t_applicant)
         old_applicant_skills = self.t_applicant.applicant_skill_ids
-        index = self.t_applicant.current_applicant_skill_ids.ids.index(self.t_applicant_cert_1.id)
+        index = self.t_applicant.current_applicant_skill_ids.ids.index(
+            self.t_applicant_cert_1.id
+        )
         with applicant_form.current_applicant_skill_ids.edit(index) as cas:
             cas.skill_type_id = self.t_skill_type
             cas.skill_id = self.t_skill_1
@@ -175,7 +216,9 @@ class TestApplicantSkills(TransactionCase):
         """Editing a skill into a certification archives the skill and creates the new certification."""
         applicant_form = Form(self.t_applicant)
         old_applicant_skills = self.t_applicant.applicant_skill_ids
-        index = self.t_applicant.current_applicant_skill_ids.ids.index(self.t_applicant_skill_2.id)
+        index = self.t_applicant.current_applicant_skill_ids.ids.index(
+            self.t_applicant_skill_2.id
+        )
         with applicant_form.current_applicant_skill_ids.edit(index) as cas:
             cas.skill_type_id = self.t_cert_type
             cas.skill_id = self.t_cert_1
@@ -186,8 +229,12 @@ class TestApplicantSkills(TransactionCase):
         new_skill = self.t_applicant.applicant_skill_ids - old_applicant_skills
 
         self.assertTrue(new_skill)
-        self.assertEqual(self.t_applicant_skill_2.valid_to, date.today() - relativedelta(days=1))
-        self.assertEqual(self.t_applicant_skill_2.valid_from, self.today - relativedelta(months=2))
+        self.assertEqual(
+            self.t_applicant_skill_2.valid_to, date.today() - relativedelta(days=1)
+        )
+        self.assertEqual(
+            self.t_applicant_skill_2.valid_from, self.today - relativedelta(months=2)
+        )
         self.assertEqual(new_skill.valid_from, date.today() - relativedelta(months=5))
         self.assertEqual(new_skill.valid_to, date.today() + relativedelta(months=7))
 
@@ -204,7 +251,9 @@ class TestApplicantSkills(TransactionCase):
         applicant_form.save()
         new_skill = self.t_applicant.applicant_skill_ids - old_applicant_skills
 
-        self.assertFalse(new_skill, "A certificate with the exact same values already exists")
+        self.assertFalse(
+            new_skill, "A certificate with the exact same values already exists"
+        )
         self.assertEqual(len(self.t_applicant.applicant_skill_ids), 5)
 
     def test_add_cert_level_2_from_4_mar_to_infinity(self):
@@ -252,7 +301,9 @@ class TestApplicantSkills(TransactionCase):
 
         self.assertEqual(new_skill.valid_from, date.today())
         self.assertFalse(new_skill.valid_to)
-        self.assertEqual(self.t_applicant_skill_1.valid_to, date.today() - relativedelta(days=1))
+        self.assertEqual(
+            self.t_applicant_skill_1.valid_to, date.today() - relativedelta(days=1)
+        )
         self.assertEqual(len(self.t_applicant.applicant_skill_ids), 6)
 
     def test_add_skill_1_level_1_and_edit_it_after_to_skill_1_level_2(self):
@@ -291,7 +342,9 @@ class TestApplicantSkills(TransactionCase):
             "The test applicant should start with 5 skills.",
         )
 
-        index = self.t_applicant.current_applicant_skill_ids.ids.index(self.t_applicant_skill_1.id)
+        index = self.t_applicant.current_applicant_skill_ids.ids.index(
+            self.t_applicant_skill_1.id
+        )
         applicant_form.current_applicant_skill_ids.remove(index=index)
         applicant_form.save()
         self.assertEqual(
@@ -337,7 +390,9 @@ class TestApplicantSkills(TransactionCase):
             "The test applicant should start with 5 skills.",
         )
 
-        index = self.t_applicant.current_applicant_skill_ids.ids.index(self.t_applicant_cert_1.id)
+        index = self.t_applicant.current_applicant_skill_ids.ids.index(
+            self.t_applicant_cert_1.id
+        )
         applicant_form.current_applicant_skill_ids.remove(index=index)
         applicant_form.save()
         self.assertEqual(
@@ -389,7 +444,11 @@ class TestApplicantSkills(TransactionCase):
 
     def test_multiple_same_skill_different_level_are_deduplicated_before_creation(self):
         """Adding multiple entries of the same skill but different levels creates only one applicant skill."""
-        skill_levels = [self.t_skill_level_1, self.t_skill_level_2, self.t_skill_level_3]
+        skill_levels = [
+            self.t_skill_level_1,
+            self.t_skill_level_2,
+            self.t_skill_level_3,
+        ]
         applicant_form = Form(self.t_applicant)
         old_applicant_skills = self.t_applicant.applicant_skill_ids
         for level in skill_levels:
@@ -453,9 +512,11 @@ class TestApplicantSkills(TransactionCase):
         self.assertEqual(len(self.t_applicant.current_applicant_skill_ids), 4)
 
     def test_job_with_no_skills_and_degree_with_score_zero(self):
-        self.t_job.expected_degree = self.env["hr.recruitment.degree"].create({
-            "name": "Degree",
-            "score": 0,
-        })
+        self.t_job.expected_degree = self.env["hr.recruitment.degree"].create(
+            {
+                "name": "Degree",
+                "score": 0,
+            }
+        )
 
         self.assertEqual(self.t_applicant.matching_score, 0)

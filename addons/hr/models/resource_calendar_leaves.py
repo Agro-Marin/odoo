@@ -43,7 +43,9 @@ class ResourceCalendarLeaves(models.Model):
             )
             # only modify leaves that fall under the active contract
             leaves.filtered(
-                lambda leave, start_dt=start_dt, end_dt=end_dt: leave.date_from and start_dt <= leave.date_from < end_dt
+                lambda leave, start_dt=start_dt, end_dt=end_dt: (
+                    leave.date_from and start_dt <= leave.date_from < end_dt
+                )
             ).calendar_id = contract.resource_calendar_id
 
         super(ResourceCalendarLeaves, remaining)._compute_calendar_id()

@@ -6,7 +6,7 @@ from odoo.addons.mail.tools.discuss import Store
 
 
 class ResPartner(models.Model):
-    _inherit = 'res.partner'
+    _inherit = "res.partner"
 
     leave_date_to = fields.Date(compute="_compute_leave_date_to")
 
@@ -22,24 +22,27 @@ class ResPartner(models.Model):
         absent_now = self._get_on_leave_ids()
         for partner in self:
             if partner.id in absent_now:
-                if partner.im_status == 'online':
-                    partner.im_status = 'leave_online'
-                elif partner.im_status == 'away':
-                    partner.im_status = 'leave_away'
-                elif partner.im_status == 'busy':
-                    partner.im_status = 'leave_busy'
-                elif partner.im_status == 'offline':
-                    partner.im_status = 'leave_offline'
+                if partner.im_status == "online":
+                    partner.im_status = "leave_online"
+                elif partner.im_status == "away":
+                    partner.im_status = "leave_away"
+                elif partner.im_status == "busy":
+                    partner.im_status = "leave_busy"
+                elif partner.im_status == "offline":
+                    partner.im_status = "leave_offline"
 
     @api.model
     def _get_on_leave_ids(self):
-        return self.env['res.users']._get_on_leave_ids(partner=True)
+        return self.env["res.users"]._get_on_leave_ids(partner=True)
 
     def _to_store_defaults(self, target):
         defaults = super()._to_store_defaults(target)
         if target.is_internal(self.env):
             # sudo: res.users - to access other company's portal user leave date
             defaults.append(
-                Store.One("main_user_id", Store.Many("employee_ids", "leave_date_to", sudo=True)),
+                Store.One(
+                    "main_user_id",
+                    Store.Many("employee_ids", "leave_date_to", sudo=True),
+                ),
             )
         return defaults

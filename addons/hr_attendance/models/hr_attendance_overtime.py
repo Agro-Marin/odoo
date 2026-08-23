@@ -4,34 +4,43 @@ from odoo import api, fields, models
 
 
 class HrAttendanceOvertimeLine(models.Model):
-    _name = 'hr.attendance.overtime.line'
+    _name = "hr.attendance.overtime.line"
     _description = "Attendance Overtime Line"
-    _rec_name = 'employee_id'
-    _order = 'time_start'
+    _rec_name = "employee_id"
+    _order = "time_start"
 
     employee_id = fields.Many2one(
-        'hr.employee', string="Employee",
-        required=True, ondelete='cascade', index=True)
-    company_id = fields.Many2one(related='employee_id.company_id')
+        "hr.employee", string="Employee", required=True, ondelete="cascade", index=True
+    )
+    company_id = fields.Many2one(related="employee_id.company_id")
 
-    date = fields.Date(string='Day', index=True, required=True)
-    status = fields.Selection([
-            ('to_approve', "To Approve"),
-            ('approved', "Approved"),
-            ('refused', "Refused")
+    date = fields.Date(string="Day", index=True, required=True)
+    status = fields.Selection(
+        [
+            ("to_approve", "To Approve"),
+            ("approved", "Approved"),
+            ("refused", "Refused"),
         ],
-        compute='_compute_status',
-        required=True, store=True, readonly=False, precompute=True,
+        compute="_compute_status",
+        required=True,
+        store=True,
+        readonly=False,
+        precompute=True,
     )
-    duration = fields.Float(string='Extra Hours', default=0.0, required=True)
+    duration = fields.Float(string="Extra Hours", default=0.0, required=True)
     manual_duration = fields.Float(  # TODO -> real_duration for easier upgrade
-        string='Extra Hours (encoded)',
-        compute='_compute_manual_duration',
-        store=True, readonly=False,
+        string="Extra Hours (encoded)",
+        compute="_compute_manual_duration",
+        store=True,
+        readonly=False,
     )
 
-    time_start = fields.Datetime(string='Start')  # time_start will be equal to attendance.check_in
-    time_stop = fields.Datetime(string='Stop')  # time_stop will be equal to attendance.check_out
+    time_start = fields.Datetime(
+        string="Start"
+    )  # time_start will be equal to attendance.check_in
+    time_stop = fields.Datetime(
+        string="Stop"
+    )  # time_stop will be equal to attendance.check_out
     amount_rate = fields.Float("Overtime pay rate", required=True, default=1.0)
 
     is_manager = fields.Boolean(compute="_compute_is_manager")
@@ -54,55 +63,59 @@ class HrAttendanceOvertimeLine(models.Model):
     #     "Employee cannot have overlapping overtimes",
     # )
     _overtime_start_before_end = models.Constraint(
-        'CHECK (time_stop > time_start)',
-        'Starting time should be before end time.',
+        "CHECK (time_stop > time_start)",
+        "Starting time should be before end time.",
     )
 
-    @api.depends('employee_id')
+    @api.depends("employee_id")
     def _compute_status(self):
         for overtime in self:
             if not overtime.status:
-                overtime.status = 'to_approve' if overtime.employee_id.company_id.attendance_overtime_validation == 'by_manager' else 'approved'
+                overtime.status = (
+                    "to_approve"
+                    if overtime.employee_id.company_id.attendance_overtime_validation
+                    == "by_manager"
+                    else "approved"
+                )
 
-    @api.depends('duration')
+    @api.depends("duration")
     def _compute_manual_duration(self):
         for overtime in self:
             overtime.manual_duration = overtime.duration
 
-    @api.depends('employee_id')
+    @api.depends("employee_id")
     def _compute_is_manager(self):
-        has_manager_right = self.env.user.has_group('hr_attendance.group_hr_attendance_manager')
-        has_officer_right = self.env.user.has_group('hr_attendance.group_hr_attendance_officer')
+        has_manager_right = self.env.user.has_group(
+            "hr_attendance.group_hr_attendance_manager"
+        )
+        has_officer_right = self.env.user.has_group(
+            "hr_attendance.group_hr_attendance_officer"
+        )
         for overtime in self:
-            overtime.is_manager = (
-                has_manager_right or
-                (
-                    has_officer_right
-                    and overtime.employee_id.attendance_manager_id == self.env.user
-                )
+            overtime.is_manager = has_manager_right or (
+                has_officer_right
+                and overtime.employee_id.attendance_manager_id == self.env.user
             )
 
     def action_approve(self):
-        self.write({'status': 'approved'})
+        self.write({"status": "approved"})
 
     def action_refuse(self):
-        self.write({'status': 'refused'})
+        self.write({"status": "refused"})
 
     def _linked_attendances(self):
-        return self.env['hr.attendance'].search([
-            ('check_in', 'in', self.mapped('time_start')),
-            ('employee_id', 'in', self.employee_id.ids),
-        ])
+        return self.env["hr.attendance"].search(
+            [
+                ("check_in", "in", self.mapped("time_start")),
+                ("employee_id", "in", self.employee_id.ids),
+            ]
+        )
 
     def write(self, vals):
-        if any(key in vals for key in ['status', 'manual_duration']):
+        if any(key in vals for key in ["status", "manual_duration"]):
             attendances = self._linked_attendances()
+            self.env.add_to_compute(attendances._fields["overtime_status"], attendances)
             self.env.add_to_compute(
-                 attendances._fields['overtime_status'],
-                 attendances
-            )
-            self.env.add_to_compute(
-                 attendances._fields['validated_overtime_hours'],
-                 attendances
+                attendances._fields["validated_overtime_hours"], attendances
             )
         return super().write(vals)

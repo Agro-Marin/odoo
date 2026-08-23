@@ -10,35 +10,39 @@ class HrEmployee(models.Model):
     def _get_deductible_employee_overtime(self):
         # return dict {employee: number of hours}
         diff_by_employee = defaultdict(lambda: 0)
-        for employee, hours in self.env['hr.attendance.overtime.line'].sudo()._read_group(
-            domain=[
-                ('compensable_as_leave', '=', True),
-                ('employee_id', 'in', self.ids),
-                ('status', '=', 'approved'),
-            ],
-            groupby=['employee_id'],
-            aggregates=['manual_duration:sum'],
+        for employee, hours in (
+            self.env["hr.attendance.overtime.line"]
+            .sudo()
+            ._read_group(
+                domain=[
+                    ("compensable_as_leave", "=", True),
+                    ("employee_id", "in", self.ids),
+                    ("status", "=", "approved"),
+                ],
+                groupby=["employee_id"],
+                aggregates=["manual_duration:sum"],
+            )
         ):
             diff_by_employee[employee] += hours
-        for employee, hours in self.env['hr.leave']._read_group(
+        for employee, hours in self.env["hr.leave"]._read_group(
             domain=[
-                ('holiday_status_id.overtime_deductible', '=', True),
-                ('holiday_status_id.requires_allocation', '=', False),
-                ('employee_id', 'in', self.ids),
-                ('state', 'not in', ['refuse', 'cancel']),
+                ("holiday_status_id.overtime_deductible", "=", True),
+                ("holiday_status_id.requires_allocation", "=", False),
+                ("employee_id", "in", self.ids),
+                ("state", "not in", ["refuse", "cancel"]),
             ],
-            groupby=['employee_id'],
-            aggregates=['number_of_hours:sum'],
+            groupby=["employee_id"],
+            aggregates=["number_of_hours:sum"],
         ):
             diff_by_employee[employee] -= hours
-        for employee, hours in self.env['hr.leave.allocation']._read_group(
+        for employee, hours in self.env["hr.leave.allocation"]._read_group(
             domain=[
-                ('holiday_status_id.overtime_deductible', '=', True),
-                ('employee_id', 'in', self.ids),
-                ('state', 'in', ['confirm', 'validate', 'validate1']),
+                ("holiday_status_id.overtime_deductible", "=", True),
+                ("employee_id", "in", self.ids),
+                ("state", "in", ["confirm", "validate", "validate1"]),
             ],
-            groupby=['employee_id'],
-            aggregates=['number_of_hours_display:sum'],
+            groupby=["employee_id"],
+            aggregates=["number_of_hours_display:sum"],
         ):
             diff_by_employee[employee] -= hours
         return diff_by_employee
@@ -61,22 +65,20 @@ class HrEmployee(models.Model):
 
         unspent_overtime = self._get_deductible_employee_overtime()
         for employee in unspent_overtime:
-            overtime_data[employee.id]['unspent_compensable_overtime'] += max(
+            overtime_data[employee.id]["unspent_compensable_overtime"] += max(
                 0, unspent_overtime[employee]
             )
 
-        all_overtimes = self.env['hr.attendance.overtime.line']._read_group(
+        all_overtimes = self.env["hr.attendance.overtime.line"]._read_group(
             domain=[
-                ('employee_id', 'in', self.ids),
+                ("employee_id", "in", self.ids),
             ],
             groupby=["employee_id", "compensable_as_leave"],
             aggregates=["duration:sum"],
         )
         for employee, is_compensable, amount in all_overtimes:
             overtime_type = (
-                'compensable_overtime'
-                if is_compensable
-                else 'not_compensable_overtime'
+                "compensable_overtime" if is_compensable else "not_compensable_overtime"
             )
             overtime_data[employee.id][overtime_type] += amount
 

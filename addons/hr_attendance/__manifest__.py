@@ -2,113 +2,105 @@
 
 
 {
-    'name': 'Attendances',
-    'version': '2.0',
-    'category': 'Human Resources/Attendances',
-    'sequence': 240,
-    'summary': 'Track employee attendance',
-    'description': """
+    "name": "Attendances",
+    "version": "2.0",
+    "category": "Human Resources/Attendances",
+    "sequence": 240,
+    "summary": "Track employee attendance",
+    "description": """
 This module aims to manage employee's attendances.
 ==================================================
 
 Keeps account of the attendances of the employees on the basis of the
 actions(Check in/Check out) performed by them.
        """,
-    'website': 'https://www.odoo.com/app/employees',
-    'depends': ['hr', 'barcodes', 'base_geolocalize'],
-    'data': [
-        'data/hr_attendance_overtime_ruleset_data.xml',
-        'data/hr_attendance_overtime_rule_data.xml',
-        'data/hr_attendance_data.xml',
-        'security/hr_attendance_security.xml',
-        'security/hr_attendance_overtime_ruleset_security.xml',
-        'security/ir.model.access.csv',
-        'views/hr_attendance_view.xml',
-        'views/hr_department_view.xml',
-        'views/hr_employee_view.xml',
-        'views/hr_employee_public_views.xml',
-        'views/res_config_settings_views.xml',
-        'views/hr_attendance_kiosk_templates.xml',
-        'views/hr_attendance_overtime_rule_views.xml',
+    "website": "https://www.odoo.com/app/employees",
+    "depends": ["hr", "barcodes", "base_geolocalize"],
+    "data": [
+        "data/hr_attendance_overtime_ruleset_data.xml",
+        "data/hr_attendance_overtime_rule_data.xml",
+        "data/hr_attendance_data.xml",
+        "security/hr_attendance_security.xml",
+        "security/hr_attendance_overtime_ruleset_security.xml",
+        "security/ir.model.access.csv",
+        "views/hr_attendance_view.xml",
+        "views/hr_department_view.xml",
+        "views/hr_employee_view.xml",
+        "views/hr_employee_public_views.xml",
+        "views/res_config_settings_views.xml",
+        "views/hr_attendance_kiosk_templates.xml",
+        "views/hr_attendance_overtime_rule_views.xml",
     ],
-    'demo': [
-        'data/hr_attendance_demo.xml'
-    ],
-    'installable': True,
-    'application': True,
-    'assets': {
-        'web.assets_backend': [
-            'hr_attendance/static/src/**/*.js',
-            'hr_attendance/static/src/**/*.xml',
-            'hr_attendance/static/src/scss/views/*.scss'
+    "demo": ["data/hr_attendance_demo.xml"],
+    "installable": True,
+    "application": True,
+    "assets": {
+        "web.assets_backend": [
+            "hr_attendance/static/src/**/*.js",
+            "hr_attendance/static/src/**/*.xml",
+            "hr_attendance/static/src/scss/views/*.scss",
         ],
-        'web.assets_unit_tests': [
-            'hr_attendance/static/tests/*.test.js',
+        "web.assets_unit_tests": [
+            "hr_attendance/static/tests/*.test.js",
         ],
-        'hr_attendance.assets_public_attendance': [
+        "hr_attendance.assets_public_attendance": [
             # Define attendance variables (takes priority)
-            'hr_attendance/static/src/scss/kiosk/primary_variables.scss',
-
+            "hr_attendance/static/src/scss/kiosk/primary_variables.scss",
             # Front-end libraries
-            ('include', 'web._assets_helpers'),
-            ('include', 'web._assets_primary_variables'),
-            'hr_attendance/static/src/scss/kiosk/bootstrap_overridden.scss',
-            ('include', 'web._assets_frontend_helpers'),
-            'web/static/src/scss/pre_variables.scss',
-            'web/static/lib/bootstrap/scss/_variables.scss',
-            'web/static/lib/bootstrap/scss/_variables-dark.scss',
-            'web/static/lib/bootstrap/scss/_maps.scss',
-            ('include', 'web._assets_bootstrap_frontend'),
-            ('include', 'web._assets_bootstrap_backend'),
-            '/web/static/lib/odoo_ui_icons/*',
-            '/web/static/lib/bootstrap/scss/_functions.scss',
-            '/web/static/lib/bootstrap/scss/_mixins.scss',
-            '/web/static/lib/bootstrap/scss/utilities/_api.scss',
-            'web/static/src/libs/fontawesome7/css/fontawesome.css',
-            'web/static/src/libs/fontawesome7/css/solid.css',
-            'web/static/src/libs/fontawesome7/css/regular.css',
-            'web/static/src/libs/fontawesome7/css/brands.css',
+            ("include", "web._assets_helpers"),
+            ("include", "web._assets_primary_variables"),
+            "hr_attendance/static/src/scss/kiosk/bootstrap_overridden.scss",
+            ("include", "web._assets_frontend_helpers"),
+            "web/static/src/scss/pre_variables.scss",
+            "web/static/lib/bootstrap/scss/_variables.scss",
+            "web/static/lib/bootstrap/scss/_variables-dark.scss",
+            "web/static/lib/bootstrap/scss/_maps.scss",
+            ("include", "web._assets_bootstrap_frontend"),
+            ("include", "web._assets_bootstrap_backend"),
+            "/web/static/lib/odoo_ui_icons/*",
+            "/web/static/lib/bootstrap/scss/_functions.scss",
+            "/web/static/lib/bootstrap/scss/_mixins.scss",
+            "/web/static/lib/bootstrap/scss/utilities/_api.scss",
+            "web/static/src/libs/fontawesome7/css/fontawesome.css",
+            "web/static/src/libs/fontawesome7/css/solid.css",
+            "web/static/src/libs/fontawesome7/css/regular.css",
+            "web/static/src/libs/fontawesome7/css/brands.css",
             # web._assets_core carries the component stylesheets that read the
             # `--o-*` palette, and an unresolvable var() voids the declaration
             # rather than falling back to a colour.
-            'web/static/src/scss/tokens.scss',
-            ('include', 'web._assets_core'),
-
+            "web/static/src/scss/tokens.scss",
+            ("include", "web._assets_core"),
             # Public Kiosk app and its components
             "hr_attendance/static/src/public_kiosk/**/*",
-            'hr_attendance/static/src/components/**/*',
-            ('remove', 'hr_attendance/static/src/components/attendance_menu/**/*'),
-
-            'hr_attendance/static/src/scss/kiosk/hr_attendance.scss',
+            "hr_attendance/static/src/components/**/*",
+            ("remove", "hr_attendance/static/src/components/attendance_menu/**/*"),
+            "hr_attendance/static/src/scss/kiosk/hr_attendance.scss",
             "web/static/src/core/formatters.js",
-
             # document link
             "web/static/src/session.js",
             "web/static/src/views/widgets/standard_widget_props.js",
             "web/static/src/views/widgets/documentation_link/*",
-
             # Barcode reader utils
             "barcodes/static/src/components/barcode_scanner.js",
             "barcodes/static/src/components/barcode_scanner.xml",
             "barcodes/static/src/components/barcode_scanner.scss",
             "barcodes/static/src/barcode_service.js",
-
-        ]
+        ],
     },
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
-    'post_init_hook': 'post_init_hook',
-    'uninstall_hook': 'uninstall_hook',
-    'esm': {
-        'bundles': [
-            'hr_attendance.assets_public_attendance',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "post_init_hook": "post_init_hook",
+    "uninstall_hook": "uninstall_hook",
+    "esm": {
+        "bundles": [
+            "hr_attendance.assets_public_attendance",
         ],
         # The attendance kiosk page renders web.assets_tests after this app
         # bundle in test mode; declare it a secondary so the served import map
         # carries the singleton-preserving bridges (browser/registry/…) the test
         # bundle externalises. See web.assets_tests / the 2026-07 split note.
-        'secondary_import_map_includes': {
-            'hr_attendance.assets_public_attendance': ['web.assets_tests'],
+        "secondary_import_map_includes": {
+            "hr_attendance.assets_public_attendance": ["web.assets_tests"],
         },
     },
 }

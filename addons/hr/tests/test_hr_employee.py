@@ -992,9 +992,7 @@ class TestVersionCron(TransactionCase):
         change their version.
         """
         with freeze_time("2023-10-06"):
-            self.employee.create_version(
-                {"date_version": "2023-10-07", "wage": 4000}
-            )
+            self.employee.create_version({"date_version": "2023-10-07", "wage": 4000})
 
         # Saving current employee data to compare later on
         employee_values = {}
@@ -1025,9 +1023,7 @@ class TestVersionCron(TransactionCase):
         their version.
         """
         with freeze_time("2023-10-06"):
-            self.employee.create_version(
-                {"date_version": "2023-10-07", "wage": 4000}
-            )
+            self.employee.create_version({"date_version": "2023-10-07", "wage": 4000})
         current_wage = self.employee.wage
         current_version = self.employee.current_version_id
         # Should change to new version

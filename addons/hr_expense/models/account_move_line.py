@@ -7,36 +7,55 @@ from odoo.tools import SQL
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
-    expense_id = fields.Many2one('hr.expense', string='Expense', copy=True, index='btree_not_null')  # copy=True, else we don't know price is tax incl.
+    expense_id = fields.Many2one(
+        "hr.expense", string="Expense", copy=True, index="btree_not_null"
+    )  # copy=True, else we don't know price is tax incl.
 
     def _compute_partner_id(self):
         # EXTENDS account to ensure the partner is correctly set on all the move lines, preventing wrong bank accounts on payments
-        expense_lines = self.filtered('move_id.expense_ids')  # Can't use expense_id because the payment terms line may not have it set
+        expense_lines = self.filtered(
+            "move_id.expense_ids"
+        )  # Can't use expense_id because the payment terms line may not have it set
         super(AccountMoveLine, self - expense_lines)._compute_partner_id()
         for line in expense_lines:
-            line.partner_id = line.move_id.partner_id  # The employee partner is correctly set on the move
+            line.partner_id = (
+                line.move_id.partner_id
+            )  # The employee partner is correctly set on the move
 
-    @api.constrains('account_id', 'display_type')
+    @api.constrains("account_id", "display_type")
     def _check_payable_receivable(self):
-        super(AccountMoveLine, self.filtered(lambda line: line.expense_id.payment_mode != 'company_account'))._check_payable_receivable()
+        super(
+            AccountMoveLine,
+            self.filtered(
+                lambda line: line.expense_id.payment_mode != "company_account"
+            ),
+        )._check_payable_receivable()
 
     def _get_attachment_domains(self):
         attachment_domains = super()._get_attachment_domains()
         if self.expense_id:
-            attachment_domains.append([('res_model', '=', 'hr.expense'), ('res_id', 'in', self.expense_id.ids)])
+            attachment_domains.append(
+                [
+                    ("res_model", "=", "hr.expense"),
+                    ("res_id", "in", self.expense_id.ids),
+                ]
+            )
         return attachment_domains
 
     @api.model
     def _get_attachment_by_record(self, id_model2attachments, move_line):
-        return (
-            super()._get_attachment_by_record(id_model2attachments, move_line)
-            or id_model2attachments.get(('hr.expense', move_line.expense_id.id))
-        )
+        return super()._get_attachment_by_record(
+            id_model2attachments, move_line
+        ) or id_model2attachments.get(("hr.expense", move_line.expense_id.id))
 
     def _compute_totals(self):
-        expenses = self.filtered('expense_id')
-        super(AccountMoveLine, expenses.with_context(force_price_include=True))._compute_totals()
+        expenses = self.filtered("expense_id")
+        super(
+            AccountMoveLine, expenses.with_context(force_price_include=True)
+        )._compute_totals()
         super(AccountMoveLine, self - expenses)._compute_totals()
 
     def _get_extra_query_base_tax_line_mapping(self) -> SQL:
-        return SQL(' AND (base_line.expense_id IS NULL OR account_move_line.expense_id = base_line.expense_id)')
+        return SQL(
+            " AND (base_line.expense_id IS NULL OR account_move_line.expense_id = base_line.expense_id)"
+        )
