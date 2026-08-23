@@ -1948,3 +1948,26 @@ class TestMrpAuditFixes(TestMrpCommon):
             "byproduct line and opened with a search_count every time. N=2 cost "
             "%d, N=20 cost %d, marginal %.2f" % (small, large, marginal),
         )
+
+    def test_marking_a_batch_done_stamps_one_end_date(self):
+        productions, _unit = self._audit_confirmed_orders(6, "markdone")
+        for production in productions:
+            production.qty_producing = production.product_qty
+            production._set_qty_producing()
+        self.env.flush_all()
+
+        productions.with_context(
+            skip_backorder=True, skip_consumption=True
+        ).button_mark_done()
+        productions.invalidate_recordset()
+
+        self.assertEqual(
+            set(productions.mapped("state")),
+            {"done"},
+        )
+        self.assertEqual(
+            len(set(productions.mapped("date_end"))),
+            1,
+            "one click closes one batch, so it ends at one instant; the loop used "
+            "to call fields.Datetime.now() once per order",
+        )

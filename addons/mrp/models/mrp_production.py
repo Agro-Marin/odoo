@@ -23,7 +23,7 @@ from odoo.addons.base.models.ir_actions import eval_action_context
 from odoo.addons.stock.models.stock_move import PROCUREMENT_PRIORITIES
 from odoo.addons.web.controllers.utils import clean_action
 
-SIZE_BACK_ORDER_NUMERING = 3
+SIZE_BACK_ORDER_NUMBERING = 3
 
 
 class MrpProductionGroup(models.Model):
@@ -2971,7 +2971,7 @@ class MrpProduction(models.Model):
             return name
         seq_back = (
             "-"
-            + "0" * (SIZE_BACK_ORDER_NUMERING - 1 - int(math.log10(sequence)))
+            + "0" * (SIZE_BACK_ORDER_NUMBERING - 1 - int(math.log10(sequence)))
             + str(sequence)
         )
         regex = re.compile(r"-\d+$")
@@ -3358,15 +3358,14 @@ class MrpProduction(models.Model):
                 "product_uom_qty": 0.0,
             }
         )
-        for production in self:
-            production.write(
-                {
-                    "date_end": fields.Datetime.now(),
-                    "priority": "0",
-                    "is_locked": True,
-                    "state": "done",
-                }
-            )
+        self.write(
+            {
+                "date_end": fields.Datetime.now(),
+                "priority": "0",
+                "is_locked": True,
+                "state": "done",
+            }
+        )
 
         backorders_to_assign = backorders.filtered(
             lambda order: order.picking_type_id.reservation_method == "at_confirm"
