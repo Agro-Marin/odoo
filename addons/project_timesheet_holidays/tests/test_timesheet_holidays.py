@@ -1,16 +1,16 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+import time
 from datetime import datetime
+
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 
-from odoo import fields, SUPERUSER_ID
-
+from odoo import SUPERUSER_ID, fields
 from odoo.exceptions import UserError
 from odoo.tests import common, new_test_user
+
 from odoo.addons.hr_timesheet.tests.test_timesheet import TestCommonTimesheet
-import time
 
 
 class TestTimesheetHolidaysCreate(common.TransactionCase):

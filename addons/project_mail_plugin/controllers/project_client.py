@@ -1,5 +1,5 @@
 
-from odoo import Command, http, _
+from odoo import Command, _, http
 from odoo.http import request
 
 

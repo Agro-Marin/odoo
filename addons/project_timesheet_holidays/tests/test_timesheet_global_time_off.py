@@ -1,13 +1,13 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from collections import defaultdict
 from datetime import datetime, timedelta
+
 from freezegun import freeze_time
 
 from odoo import Command
-from odoo.tests import common
 from odoo.exceptions import UserError
+from odoo.tests import common
+
 
 class TestTimesheetGlobalTimeOff(common.TransactionCase):
 
@@ -427,9 +427,6 @@ class TestTimesheetGlobalTimeOff(common.TransactionCase):
         hr_leave_end_datetime = hr_leave_start_datetime + timedelta(days=4, hours=9) # friday next week
 
         self.env = self.env(context=dict(self.env.context, allowed_company_ids=self.test_company.ids))
-
-        internal_project = self.test_company.internal_project_id
-        internal_task_leaves = self.test_company.leave_timesheet_task_id
 
         hr_leave_type_with_ts = self.env['hr.leave.type'].create({
             'name': 'Leave Type with timesheet generation',

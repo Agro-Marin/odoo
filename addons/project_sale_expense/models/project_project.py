@@ -1,9 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import json
+from collections import defaultdict
 
 from odoo import models
-from collections import defaultdict
 
 
 class ProjectProject(models.Model):
@@ -97,6 +97,6 @@ class ProjectProject(models.Model):
         )
         if not expenses_read_group:
             return move_line_ids
-        for sale_order, count in expenses_read_group:
+        for sale_order, _count in expenses_read_group:
             move_line_ids.extend(sale_order.invoice_ids.mapped('invoice_line_ids').ids)
         return move_line_ids

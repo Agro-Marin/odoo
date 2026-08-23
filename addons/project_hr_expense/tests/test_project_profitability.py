@@ -1,8 +1,11 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.hr_expense.tests.common import TestExpenseCommon
-from odoo.addons.project.tests.test_project_profitability import TestProjectProfitabilityCommon
 from odoo.tests.common import tagged
+
+from odoo.addons.hr_expense.tests.common import TestExpenseCommon
+from odoo.addons.project.tests.test_project_profitability import (
+    TestProjectProfitabilityCommon,
+)
 
 
 class TestProjectHrExpenseProfitabilityCommon(TestExpenseCommon):

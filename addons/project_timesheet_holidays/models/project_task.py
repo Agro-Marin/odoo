@@ -2,7 +2,6 @@
 
 from odoo import fields, models
 from odoo.fields import Domain
-from odoo.tools import OrderedSet
 
 
 class ProjectTask(models.Model):
