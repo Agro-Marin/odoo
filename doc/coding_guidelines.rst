@@ -926,7 +926,7 @@ free-standing form.
 The Validation row governs the spelling and **502** already carry ``_check_``. The
 rest are names the ratchet counts (``_validate_``, ``_ensure_``, ``_verify_``) and
 the localisation namespace with the verb behind it
-(``_l10n_se_check_payment_reference``). That leaves **47** spelled with a first
+(``_l10n_se_check_payment_reference``). That leaves **53** spelled with a first
 token carrying no rule anywhere: ``_constrains_``, ``_constraint_``,
 ``_limit_available_currency_ids``, and twice the misspelling ``_contrains_``.
 
@@ -1132,8 +1132,8 @@ Three checks when renaming ``[review]``:
 2.4.5 Converters
 ~~~~~~~~~~~~~~~~
 
-**``X_to_Y`` is the converter idiom, and ``to`` is the verb** ``[review]``. **99**
-definitions under **52** names are spelled that way and most are right: the name
+**``X_to_Y`` is the converter idiom, and ``to`` is the verb** ``[review]``. **100**
+definitions under **53** names are spelled that way and most are right: the name
 is the pair of representations, and it buys the searchable families ``_str_to_*``
 and ``_*_to_sql``. **``Y_from_X`` is the same idiom spelled backwards**, and
 almost every ``_from_`` name is innocent -- the verb leads and *from X* is a source
@@ -1403,7 +1403,7 @@ among them have been renamed to ``_get_``. Split by what the body does, the **28
 
 * **6** perform an ORM read -- and both also **write**, which is why they were
   left (``_find_existing_rule_or_create`` searches then creates);
-* **22** do something else entirely, and the verb flatters them
+* **23** do something else entirely, and the verb flatters them
   (``_find_available_name`` appends ``(2)``, ``(3)`` until unused: a derivation).
 
 The third kind is gone. **The canonical is ``_get_or_create_*``**: **0** methods
