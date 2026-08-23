@@ -708,6 +708,8 @@ class AccountAccount(models.Model):
         if not move_type:
             return super().name_search(name, domain, operator, limit)
 
+        # domain defaults to None, and every Domain.AND below would reject that
+        domain = domain or []
         partner = self.env.context.get("partner_id")
         suggested_accounts = (
             self._order_accounts_by_frequency_for_partner(
@@ -723,7 +725,7 @@ class AccountAccount(models.Model):
             display_by_id = {
                 record.id: record.display_name
                 for record in self.search_fetch(
-                    Domain.AND([[("id", "in", suggested_accounts)], domain or []]),
+                    Domain.AND([[("id", "in", suggested_accounts)], domain]),
                     ["display_name"],
                 )
             }

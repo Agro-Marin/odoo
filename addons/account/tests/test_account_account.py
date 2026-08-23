@@ -820,6 +820,26 @@ class TestAccountAccount(TestAccountMergeCommon):
             "Archived account should NOT appear in account suggestions",
         )
 
+    def test_name_search_under_a_move_type_accepts_the_default_domain(self):
+        # domain defaults to None, and the move_type branch feeds it to Domain.AND
+        results = (
+            self.env["account.account"]
+            .with_context(move_type="out_invoice")
+            .name_search("Product Sales")
+        )
+
+        self.assertIsInstance(results, list)
+
+    def test_name_search_under_a_move_type_still_honours_a_given_domain(self):
+        revenue = self.company_data["default_account_revenue"]
+        Account = self.env["account.account"].with_context(move_type="out_invoice")
+
+        unfiltered = Account.name_search(revenue.name)
+        filtered = Account.name_search(revenue.name, domain=[("id", "!=", revenue.id)])
+
+        self.assertIn(revenue.id, [record_id for record_id, _label in unfiltered])
+        self.assertNotIn(revenue.id, [record_id for record_id, _label in filtered])
+
     def test_placeholder_code(self):
         def get_placeholder_code_via_sql(account):
             account_query = account._as_query()
