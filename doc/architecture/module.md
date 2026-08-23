@@ -332,7 +332,7 @@ per composition. Measured by a live run of that gate:
 
 | Composition | Units | Edges | `cyclic_edges` | `unowned_shared_state` | Root dominates its leaves? |
 |---|---:|---:|---:|---:|---|
-| `BaseModel` (`orm/models/`) | 31 | 104 | 0 | 4 | no |
+| `BaseModel` (`orm/models/`) | 31 | 105 | 0 | 4 | no |
 | `Field` (`orm/fields/`) | 5 | 8 | 0 | 1 | **yes** |
 | `Registry` (`orm/runtime/`) | 6 | 9 | 0 | 0 | **yes** |
 | `Request` (`http/request_class.py`) | 4 | 1 | 0 | 8 | no |
@@ -369,7 +369,7 @@ Under assignment-site ownership `BaseModel` still shows a 2-cycle,
 *one class*, so calling a sibling's method on another recordset of the same
 model couples exactly as much as calling it on `self`. Following locals bound
 from `self.browse(…)`, `self.filtered(…)`, `self.sudo()` and the rest
-(`RECORDSET_PRODUCERS`) adds 8 edges — 104 → 112 — and is ratcheted separately
+(`RECORDSET_PRODUCERS`) adds 8 edges — 105 → 113 — and is ratcheted separately
 (`recordset_max_scc` 1, `recordset_cyclic_edges` 0,
 `recordset_scc_without_base` 1). A cycle spelled through a recordset therefore
 fails CI even where the `self`-only numbers stay clean. The other four are

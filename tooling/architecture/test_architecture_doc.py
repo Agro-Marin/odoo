@@ -2144,22 +2144,46 @@ class TestPinnedCyclesAndRemovals(unittest.TestCase):
         self.assertEqual(orm, [], "the ORM has a cycle; the page says it has none")
         self.assertIn("**The ORM has none.**", DOC_FLAT)
 
-    def test_removed_module_count_and_names(self) -> None:
+    def test_the_removed_table_is_why_scoping_is_needed(self) -> None:
+        """Both halves of the page's reason for scoping are real.
 
+        ``gates.md`` explains that ``package_index_check`` reads one *section*
+        rather than the whole README, because *Recently Removed* names ``.py``
+        files that an unscoped scan would misreport. That reason holds only if
+        the table really contains both kinds of row: one naming a file that is
+        gone, one retiring a patch from a file that is still there.
+
+        Asserted as those two properties. It used to pin ``len(rows) == 8``,
+        ``len(gone) == 6``, the six names, and a sentence restating them -- so it
+        failed on the commit that removed ``site``, ``smtplib`` and ``stdnum``,
+        which is to say on the commit that did the right thing and wrote down
+        why. Adding a row to a retirement log is not a regression.
+        """
         readme = ROOT / "odoo" / "_monkeypatches" / "README.md"
         section = readme.read_text(encoding="utf-8").split("## Recently Removed", 1)[1]
         section = section.split("\n## ", 1)[0]
         rows = re.findall(r"^\| `([\w.]+\.py)`", section, re.MULTILINE)
-        gone = sorted(
+        self.assertTrue(rows, "the Recently Removed table is gone or reshaped")
+
+        gone = [
             name
             for name in rows
             if not (ROOT / "odoo" / "_monkeypatches" / name).exists()
+        ]
+        still_there = [name for name in rows if name not in gone]
+
+        self.assertTrue(
+            gone,
+            "no row names a file that is actually gone, so an unscoped scan "
+            "would not misreport anything and the page's reason for scoping to "
+            "a section no longer holds — rewrite it or retire the gate",
         )
-        self.assertEqual(len(rows), 8)
-        self.assertEqual(len(gone), 6)
-        for name in gone:
-            self.assertIn(f"`{name.removesuffix('.py')}`", DOC)
-        self.assertIn("names eight patches, six of which are", DOC_FLAT)
+        self.assertTrue(
+            still_there,
+            "no row retires a patch from a file that survives, so the page's "
+            "'others retire a patch from a file that is still there' is stale",
+        )
+        self.assertIn("Recently Removed", DOC)
 
     def test_the_backtick_note_is_not_reinstated(self) -> None:
         readme = (ROOT / "odoo" / "_monkeypatches" / "README.md").read_text(

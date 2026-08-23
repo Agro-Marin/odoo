@@ -198,14 +198,19 @@ such as `18.1-00-sql-constraint`, not importable identifiers).
 forces every core README into it or into `READMES_WITHOUT_AN_INDEX`.
 
 The check is scoped to the inventory **section**. The READMEs carry other tables
-that name `.py` files: `_monkeypatches`' *Recently Removed* table names eight
-patches, six of which are modules that no longer exist (`urllib3`, `lxml`,
-`xlrd`, `zeep`, `pytz`, `xlwt`); the other two retire a *patch* from a file that
-is still there. An unscoped scan reports all six as failures against a document
-that is exactly right — pinned by `test_section_scoping_is_load_bearing`, by
-name rather than by count. A backticked path in this repo asserts the file
-exists, so only *where on the page* a name sits distinguishes a citation from an
-assertion.
+that name `.py` files: `_monkeypatches`' *Recently Removed* table records every
+retired patch and why. Some of its rows name a module that no longer exists;
+others retire a *patch* from a file that is still there. An unscoped scan reports
+the first kind as failures against a document that is exactly right, which is
+what makes the scoping load-bearing — pinned by
+`test_section_scoping_is_load_bearing` and
+`test_the_removed_table_is_why_scoping_is_needed`, **as properties, not as a
+count or a list of names**. Both were pinned by name and count once, and both
+then failed on the commits that did the right thing: retiring a patch is exactly
+when a row is added. A restated number is a second copy that drifts, and a
+retirement log is the last place to keep one. A backticked path in this repo
+asserts the file exists, so only *where on the page* a name sits distinguishes a
+citation from an assertion.
 
 ### Checkers outside the forty-nine
 

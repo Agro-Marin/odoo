@@ -278,7 +278,7 @@ class MrpBom(models.Model):
         visited = set()
 
         def _walk(components, finished_products):
-            self._fill_subcomponents(components, subcomponents)
+            self._add_missing_subcomponents(components, subcomponents)
             for component in components:
                 if component in finished_products:
                     raise ValidationError(
@@ -296,8 +296,13 @@ class MrpBom(models.Model):
 
         _walk(components, finished_products)
 
-    def _fill_subcomponents(self, products, subcomponents):
-        """Resolve, in one search, what each unseen product is made of."""
+    def _add_missing_subcomponents(self, products, subcomponents):
+        """Add to *subcomponents* what each *products* entry it lacks is made of.
+
+        One ``_bom_find`` for the whole unknown set, so a walk that revisits a
+        product costs nothing: "missing" is what makes it safe to call on every
+        step of the recursion.
+        """
         unknown = products.filtered(lambda p: p not in subcomponents)
         if not unknown:
             return

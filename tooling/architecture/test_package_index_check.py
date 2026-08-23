@@ -268,7 +268,19 @@ class LiveRepositoryTest(unittest.TestCase):
         self.assertEqual(overlap, set(), f"both gated and excused: {sorted(overlap)}")
 
     def test_section_scoping_is_load_bearing(self):
+        """Reading the whole README would list names that are not modules.
 
+        The claim is that ``extract_section`` earns its place: the Patch Index
+        names only real modules, while the file as a whole also names ones that
+        were retired or are merely discussed.
+
+        It used to pin the exact out-of-section set, which made it a snapshot of
+        a *retirement log* -- the table that records each deleted patch and why.
+        Deleting a patch is exactly when someone adds a row to it, so the gate
+        fired on the commit that did the right thing: ``site``, ``smtplib`` and
+        ``stdnum`` were removed in 2026-08 and their rows broke this test.
+        Membership was never the claim; that the two reads differ is.
+        """
         pkg = pic.CORE_ROOT / "_monkeypatches"
         text = (pkg / "README.md").read_text(encoding="utf-8")
         actual = pic.actual_modules(pkg)
@@ -276,10 +288,22 @@ class LiveRepositoryTest(unittest.TestCase):
         unscoped = pic.listed_modules(text.splitlines())
         scoped = pic.listed_modules(pic.extract_section(text, "## Patch Index"))
 
-        self.assertEqual(sorted(scoped - actual), [])
         self.assertEqual(
-            sorted(unscoped - actual),
-            ["lxml", "pytz", "urllib3", "xlrd", "xlwt", "zeep"],
+            sorted(scoped - actual),
+            [],
+            "the Patch Index names a module that does not exist",
+        )
+        self.assertTrue(
+            scoped < unscoped,
+            "the Patch Index and the whole file now read the same, so scoping "
+            "changes nothing here and this live check proves nothing — point it "
+            "at a README that still discusses non-modules, or retire it. The "
+            "extract_section unit tests above keep covering the mechanism.",
+        )
+        self.assertTrue(
+            unscoped - actual,
+            "every name in the README is now a real module, so an unscoped read "
+            "would be just as correct — same verdict as above.",
         )
 
     def test_row_regex_agrees_with_actual_modules(self):

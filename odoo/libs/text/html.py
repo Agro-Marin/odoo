@@ -720,6 +720,83 @@ def create_link(url: str, label: str) -> Markup:
     ).format(url, label)
 
 
+def _number_references(tree: etree._Element) -> list[str]:
+    """Turn every ``<a>`` and ``<img>`` into a numbered marker, in tree order.
+
+    Mutates *tree* in place -- each element becomes a ``<span>`` carrying its
+    label plus ``[n]`` -- and returns the urls in the order those numbers were
+    handed out, so the caller can print the footnote list. Links and images
+    share one counter because they share one list.
+    """
+    url_index: list[str] = []
+    linkrefs = itertools.count(1)
+
+    for link in tree.findall(".//a"):
+        if url := link.get("href"):
+            link.tag = "span"
+            label = link.text or ""
+            link.text = (
+                f"{label} [{next(linkrefs)}]" if label else f"[{next(linkrefs)}]"
+            )
+            url_index.append(url)
+
+    for img in tree.findall(".//img"):
+        if src := img.get("src"):
+            img.tag = "span"
+            if src.startswith("data:"):
+                img_name = None
+            else:
+                img_name = re.search(r"[^/]+(?=\.[a-zA-Z]+(?:\?|$))", src)
+            img.text = f"{img_name[0] if img_name else 'Image'} [{next(linkrefs)}]"
+            url_index.append(src)
+
+    return url_index
+
+
+def _markup_to_structured_text(tree: etree._Element) -> str:
+    """Serialise *tree* and reduce its markup to structured plain text.
+
+    "Structured" is the whole distinction from :func:`html_to_inner_content`:
+    what comes out keeps paragraph gaps and line breaks, so the runs below are
+    *halved*, never collapsed.
+    """
+    html_str = etree.tostring(tree, encoding="unicode")
+    html_str = html_str.replace("&#13;", "")
+
+    for tag, marker in (
+        ("strong", "*"),
+        ("b", "*"),
+        ("h3", "*"),
+        ("h2", "**"),
+        ("h1", "**"),
+        ("em", "/"),
+    ):
+        html_str = re.sub(rf"</?{tag}\b[^>]*>", marker, html_str)
+    html_str = re.sub(r"<tr\b[^>]*>", "\n", html_str)
+    html_str = re.sub(r"</p\s*>", "\n", html_str)
+    html_str = re.sub(r"<br\s*/?>", "\n", html_str)
+    html_str = re.sub(r"<[^>]*>", " ", html_str)
+    # Halving, not collapsing, and the same below for newlines: a run of breaks
+    # is a paragraph gap and a single one is a line break.
+    # `html_to_inner_content` collapses runs to one because it emits a single
+    # line and has no structure to keep -- the two look like the same
+    # normalisation and are not.
+    html_str = html_str.replace(" " * 2, " ")
+    # lxml has already decoded every entity in the source; serialising re-escapes
+    # exactly these three, so this list is the whole of what can be here.  A
+    # `&nbsp;` substitution used to follow, and could only ever fire on text the
+    # `&amp;` line above had just manufactured: `&amp;nbsp;` -- a body that says
+    # the literal characters "&nbsp;" -- became U+00A0, and the strip in
+    # `html2plaintext` then deleted it.  No input reaches this point with a real
+    # `&nbsp;` in it.
+    html_str = html_str.replace("&gt;", ">")
+    html_str = html_str.replace("&lt;", "<")
+    html_str = html_str.replace("&amp;", "&")
+
+    html_str = "\n".join([x.strip() for x in html_str.splitlines()])
+    return html_str.replace("\n" * 2, "\n")
+
+
 def html2plaintext(
     html_content: str | markupsafe.Markup | Literal[False] | None,
     body_id: str | None = None,
@@ -749,62 +826,8 @@ def html2plaintext(
     if len(source):
         tree = source[0]
 
-    url_index = []
-    linkrefs = itertools.count(1)
-    if include_references:
-        for link in tree.findall(".//a"):
-            if url := link.get("href"):
-                link.tag = "span"
-                label = link.text or ""
-                link.text = (
-                    f"{label} [{next(linkrefs)}]" if label else f"[{next(linkrefs)}]"
-                )
-                url_index.append(url)
-
-        for img in tree.findall(".//img"):
-            if src := img.get("src"):
-                img.tag = "span"
-                if src.startswith("data:"):
-                    img_name = None
-                else:
-                    img_name = re.search(r"[^/]+(?=\.[a-zA-Z]+(?:\?|$))", src)
-                img.text = f"{img_name[0] if img_name else 'Image'} [{next(linkrefs)}]"
-                url_index.append(src)
-
-    html_str = etree.tostring(tree, encoding="unicode")
-    html_str = html_str.replace("&#13;", "")
-
-    for tag, marker in (
-        ("strong", "*"),
-        ("b", "*"),
-        ("h3", "*"),
-        ("h2", "**"),
-        ("h1", "**"),
-        ("em", "/"),
-    ):
-        html_str = re.sub(rf"</?{tag}\b[^>]*>", marker, html_str)
-    html_str = re.sub(r"<tr\b[^>]*>", "\n", html_str)
-    html_str = re.sub(r"</p\s*>", "\n", html_str)
-    html_str = re.sub(r"<br\s*/?>", "\n", html_str)
-    html_str = re.sub(r"<[^>]*>", " ", html_str)
-    # Halving, not collapsing, and the same below for newlines: this function
-    # emits structured plain text, where a run of breaks is a paragraph gap and
-    # a single one is a line break.  `html_to_inner_content` collapses runs to
-    # one because it emits a single line and has no structure to keep -- the two
-    # look like the same normalisation and are not.
-    html_str = html_str.replace(" " * 2, " ")
-    # lxml has already decoded every entity in the source; serialising re-escapes
-    # exactly these three, so this list is the whole of what can be here.  A
-    # `&nbsp;` substitution used to follow, and could only ever fire on text the
-    # `&amp;` line above had just manufactured: `&amp;nbsp;` -- a body that says
-    # the literal characters "&nbsp;" -- became U+00A0, and the strip below then
-    # deleted it.  No input reaches this point with a real `&nbsp;` in it.
-    html_str = html_str.replace("&gt;", ">")
-    html_str = html_str.replace("&lt;", "<")
-    html_str = html_str.replace("&amp;", "&")
-
-    html_str = "\n".join([x.strip() for x in html_str.splitlines()])
-    html_str = html_str.replace("\n" * 2, "\n")
+    url_index = _number_references(tree) if include_references else []
+    html_str = _markup_to_structured_text(tree)
 
     if url_index:
         html_str += "\n\n"
