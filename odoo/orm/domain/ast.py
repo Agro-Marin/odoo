@@ -185,6 +185,25 @@ def _optimize_nary_sort_key(
         return "~", "~", domain.__class__.__name__, _nary_subtree_tiebreak(domain)
 
 
+def _leaf_to_domain(item: tuple | list, internal: bool) -> Domain:
+    """Build the condition for one ``(field, operator, value)`` triple.
+
+    Was written out twice in ``Domain.__new__`` -- once for the
+    single-item shortcut and once inside the parsing loop -- sixteen identical
+    lines including the ``internal`` branch and the rejection of the operators
+    only the optimizer may produce.
+    """
+    if not isinstance(item[1], str):
+        raise ValueError(f"Domain() invalid item in domain: {item!r}")
+    op = item[1].lower()
+    if internal:
+        if op in SUBDOMAIN_OPERATORS and isinstance(item[2], (list, tuple)):
+            item = (item[0], item[1], Domain(item[2], internal=True))
+    elif op in INTERNAL_CONDITION_OPERATORS:
+        raise ValueError(f"Domain() invalid item in domain: {item!r}")
+    return Domain(*item)
+
+
 class Domain:
     __slots__ = ("_opt",)
     _opt: tuple[OptimizationLevel, str | None]
@@ -224,40 +243,14 @@ class Domain:
         if len(arg) == 1:
             item = arg[0]
             if isinstance(item, (tuple, list)) and len(item) == 3:
-                if not isinstance(item[1], str):
-                    raise ValueError(f"Domain() invalid item in domain: {item!r}")
-                op = item[1].lower()
-                if internal:
-                    if op in SUBDOMAIN_OPERATORS and isinstance(item[2], (list, tuple)):
-                        item = (
-                            item[0],
-                            item[1],
-                            Domain(item[2], internal=True),
-                        )
-                elif op in INTERNAL_CONDITION_OPERATORS:
-                    raise ValueError(f"Domain() invalid item in domain: {item!r}")
-                return Domain(*item)
+                return _leaf_to_domain(item, internal)
             if isinstance(item, Domain):
                 return item
         stack: list[Domain] = []
         try:
             for item in reversed(arg):
                 if isinstance(item, (tuple, list)) and len(item) == 3:
-                    if not isinstance(item[1], str):
-                        raise ValueError(f"Domain() invalid item in domain: {item!r}")
-                    op = item[1].lower()
-                    if internal:
-                        if op in SUBDOMAIN_OPERATORS and isinstance(
-                            item[2], (list, tuple)
-                        ):
-                            item = (
-                                item[0],
-                                item[1],
-                                Domain(item[2], internal=True),
-                            )
-                    elif op in INTERNAL_CONDITION_OPERATORS:
-                        raise ValueError(f"Domain() invalid item in domain: {item!r}")
-                    stack.append(Domain(*item))
+                    stack.append(_leaf_to_domain(item, internal))
                 elif item == DomainAnd.OPERATOR:
                     stack.append(stack.pop() & stack.pop())
                 elif item == DomainOr.OPERATOR:

@@ -300,6 +300,8 @@ class Field[T](
     change_default = False
 
     related_field: Field | None = None
+    _related_field_seq: tuple[Field, ...] = ()
+    """The fields `related` names, hop by hop, resolved once by `setup_related`."""
     aggregator: str | None = None
     group_expand: (
         str | Callable[[ModelLike, typing.Any, DomainType], typing.Any] | None
@@ -571,6 +573,11 @@ class Field[T](
             field_seq.append(field)
             model_name = field.comodel_name
 
+        # Kept: `_search_related` walked `_related_names` again on every call to
+        # rebuild exactly this, and setup is the only place that can prove each
+        # hop resolves.
+        self._related_field_seq = tuple(field_seq)
+
         if self.type != field.type:
             raise TypeError(
                 f"Type of related field {self} is inconsistent with {field}"
@@ -664,13 +671,7 @@ class Field[T](
         if operator in Domain.NEGATIVE_OPERATORS and not value_is_null:
             return NotImplemented
 
-        field_seq = []
-        model_name = self.model_name
-        for fname in self._related_names:
-            field = records.env[model_name]._fields[fname]
-            field_seq.append(field)
-            model_name = field.comodel_name
-
+        field_seq = self._related_field_seq
         domain = Domain(field_seq[-1].name, operator, value)
         for field in reversed(field_seq[:-1]):
             domain = Domain(field.name, "any!" if self.compute_sudo else "any", domain)

@@ -383,9 +383,15 @@ class CreateMixin(_ModelStubs):
         ids = records._ids
         if not ids:
             return
+        # Only the fields the scratch records actually touched. This walked
+        # every field on the model -- 200+ on the wide ones -- to reach a
+        # handful, and `_invalidate_cache` still has to resolve the storage
+        # layout before it can decide there is nothing to drop.
         env = self.env
+        core = env._core
         for field in self._fields.values():
-            field._invalidate_cache(env, ids)
+            if core.get_field_data_or_none(field) is not None:
+                field._invalidate_cache(env, ids)
 
     def _build_insert_rows(
         self, stored_list: list, columns: list[str], col_fields: list[Field]
