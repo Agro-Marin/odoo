@@ -1,3 +1,5 @@
+import contextlib
+import copy
 import os
 import re
 import subprocess as sp
@@ -17,6 +19,36 @@ from odoo.cli.command import (
 from odoo.db import SYSTEM_DBS
 from odoo.tests import BaseCase
 from odoo.tools import config, file_path
+
+_CONFIG_LAYERS = (
+    "_default_options",
+    "_file_options",
+    "_env_options",
+    "_cli_options",
+    "_override_options",
+    "_runtime_options",
+)
+
+
+@contextlib.contextmanager
+def isolated_config():
+    """Snapshot and restore the process-global configuration.
+
+    A command's ``run()`` parses the configuration, and parsing *replaces*
+    every layer of the singleton — config file, ``db_name``, ``db_template``,
+    ``addons_path``. In a test process that singleton is the test runner's own
+    configuration, so an in-process ``run()`` leaves every later test reading
+    ``~/.odoorc`` instead. Measured: a bare ``config._parse_config([])`` takes
+    ``db_template`` from ``tpl_x`` to ``template0`` and ``addons_path`` from
+    five entries to none.
+    """
+    saved = {name: copy.deepcopy(getattr(config, name)) for name in _CONFIG_LAYERS}
+    try:
+        yield
+    finally:
+        for name, layer in saved.items():
+            getattr(config, name).clear()
+            getattr(config, name).update(layer)
 
 
 class TestCommand(BaseCase):
@@ -535,12 +567,8 @@ class TestCommand(BaseCase):
                         "main",
                         lambda cmdargs: captured.update(args=list(cmdargs)),
                     ),
-                    mock.patch.object(
-                        start_mod,
-                        "_create_empty_database",
-                        mock.Mock(side_effect=start_mod.DatabaseExists()),
-                    ),
                     mock.patch.dict(os.environ, {"VIRTUAL_ENV": tmp}),
+                    isolated_config(),
                 ):
                     start_mod.Start().run(["-p", ".", "-d", "mydb"])
             finally:
@@ -682,7 +710,7 @@ class TestCommand(BaseCase):
     def test_start_db_filter_escapes_regex(self):
         src = (Path(__file__).parents[3] / "cli/start.py").read_text()
         self.assertIn(
-            "re.escape(args.db_name)",
+            "re.escape(db_name)",
             src,
             msg="--db-filter built without re.escape — regex meta-chars in "
             "db names would let unrelated databases through.",
@@ -753,12 +781,8 @@ class TestCommand(BaseCase):
                     "main",
                     lambda cmdargs: captured.update(args=list(cmdargs)),
                 ),
-                mock.patch.object(
-                    start_mod,
-                    "_create_empty_database",
-                    mock.Mock(side_effect=start_mod.DatabaseExists()),
-                ),
                 mock.patch.object(odoo.cli, "BOOTSTRAP_ADDONS_PATH", "/custom/addons"),
+                isolated_config(),
             ):
                 start_mod.Start().run(["--path", str(proj), "-d", "mydb"])
             flags = [a for a in captured["args"] if a.startswith("--addons-path=")]
@@ -783,11 +807,7 @@ class TestCommand(BaseCase):
                     "main",
                     lambda cmdargs: captured.update(args=list(cmdargs)),
                 ),
-                mock.patch.object(
-                    start_mod,
-                    "_create_empty_database",
-                    mock.Mock(side_effect=start_mod.DatabaseExists()),
-                ),
+                isolated_config(),
             ):
                 start_mod.Start().run([f"-p{proj}", "-d", "mydb"])
             leaked = [
@@ -883,10 +903,11 @@ class TestCommand(BaseCase):
 
             def fetchall(self):
                 return [
-                    ("res_partner", "name", "varchar"),
-                    ("res_partner", "email", "varchar"),
-                    ("res_partner", "extra", "jsonb"),
-                    ("res_partner", "active", "bool"),
+                    ("res_partner", "name", "varchar", None),
+                    ("res_partner", "email", "varchar", None),
+                    ("res_partner", "extra", "jsonb", None),
+                    ("res_partner", "active", "bool", None),
+                    ("res_partner", "ref", "varchar", 8),
                 ]
 
         ob.cr = FakeCur()
@@ -905,6 +926,11 @@ class TestCommand(BaseCase):
             len(executed),
             before,
             msg="check_field issued a catalog query despite the prefetch",
+        )
+        self.assertEqual(
+            ob.find_narrow_fields([("res_partner", "name"), ("res_partner", "ref")]),
+            [(("res_partner", "ref"), 8)],
+            msg="the same catalog read must carry the column width",
         )
 
     @unittest.skipIf(os.name != "posix", "`os.openpty` only available on POSIX systems")
@@ -999,48 +1025,121 @@ class TestCommand(BaseCase):
                     cmd.rename(mock.Mock(source=name, target="tgt", force=True))
                 with self.assertRaises(SystemExit, msg=f"duplicate onto {name}"):
                     cmd.duplicate(mock.Mock(source="src", target=name, force=True))
-            for name in ("postgres", "template0", "template1"):
+            for name in protected:
                 with self.assertRaises(SystemExit, msg=f"dump {name} not refused"):
                     cmd.dump(mock.Mock(database=name))
-            if config["db_template"] not in dbmod.SYSTEM_DBS:
-                with mock.patch.object(dbmod, "dump_db") as dump_mock:
-                    cmd.dump(
-                        mock.Mock(
-                            database=config["db_template"],
-                            dump_path="-",
-                            dump_format="zip",
-                            filestore=True,
-                        )
-                    )
-                dump_mock.assert_called_once()
         drop_mock.assert_not_called()
         create_mock.assert_not_called()
         rename_mock.assert_not_called()
         duplicate_mock.assert_not_called()
 
-    def _assert_start_refuses_db_name(self, db_name):
+    def _assert_start_hands_db_name_to_the_server(self, db_name):
         from odoo.cli import start as startmod
 
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / db_name
             proj.mkdir()
+            captured = {}
             with (
-                mock.patch.object(startmod, "_create_empty_database") as create_mock,
-                self.assertRaises(SystemExit) as ctx,
+                mock.patch.object(
+                    startmod,
+                    "main",
+                    lambda cmdargs: captured.update(args=list(cmdargs)),
+                ),
+                isolated_config(),
             ):
                 startmod.Start().run(["-p", str(proj)])
-        create_mock.assert_not_called()
-        message = str(ctx.exception.code)
-        self.assertIn("Refusing to use", message)
-        self.assertIn(db_name, message)
+        args = captured["args"]
+        self.assertEqual(
+            args[args.index("-d") + 1],
+            db_name,
+            msg=f"start did not hand the resolved name to the server: {args}",
+        )
 
-    def test_start_refuses_system_database_names(self):
-        for db_name in SYSTEM_DBS:
+    def test_start_hands_protected_names_to_the_servers_guard(self):
+        """`start` no longer creates the database or vets its name.
+
+        It used to do both *before* parsing the configuration, which made the
+        template check compare against `template0` whatever `db_template`
+        said, and made the creation ignore `db_host`/`db_port`/`db_user` from
+        `-c`. `server.main` already does all of it after the parse, so what
+        `start` owes is the name on argv — `test_server_refuses_system_database`
+        pins the refusal itself.
+        """
+        for db_name in (*SYSTEM_DBS, config["db_template"]):
             with self.subTest(db_name=db_name):
-                self._assert_start_refuses_db_name(db_name)
+                self._assert_start_hands_db_name_to_the_server(db_name)
 
-    def test_start_refuses_the_configured_db_template(self):
-        self._assert_start_refuses_db_name(config["db_template"])
+    def test_start_marks_base_for_install_via_the_server(self):
+        """A `start` that creates a database must leave it usable.
+
+        `Start.run` used to set `config["init"]["base"] = True` itself, and
+        `main`'s own `parse_config` threw it away — `_postprocess_options`
+        rebuilds `_runtime_options["init"]` from the CLI/file/env layers — so
+        every database `start` created was then served uninitialized. The
+        creation now happens inside `main`, after the parse, where the same
+        assignment survives.
+        """
+        from odoo.cli import server as server_mod
+
+        with (
+            mock.patch.object(config, "parse_config"),
+            mock.patch.object(server_mod, "check_postgres_user"),
+            mock.patch.object(server_mod, "report_configuration"),
+            mock.patch.object(server_mod, "setup_pid_file"),
+            mock.patch.object(server_mod.db, "_create_empty_database"),
+            mock.patch.object(server_mod.server, "start", return_value=0),
+            mock.patch.dict(config._runtime_options, {"init": {}}, clear=False),
+            isolated_config(),
+        ):
+            config._runtime_options["db_name"] = ["freshdb"]
+            with self.assertRaises(SystemExit):
+                server_mod.main([])
+            self.assertEqual(
+                config["init"],
+                {"base": True},
+                msg="a freshly created database was not marked for bootstrap",
+            )
+
+    def test_start_rejects_a_path_that_is_not_a_directory(self):
+        """`-p` is `--path` here and `--http-port` everywhere else.
+
+        `start -p 8070` used to resolve `8070` as a project directory, invent a
+        database of that name, create it, and serve on the default port.
+        """
+        from odoo.cli import start as startmod
+
+        with (
+            mock.patch.object(startmod, "main") as main_mock,
+            self.assertRaises(SystemExit) as ctx,
+            isolated_config(),
+        ):
+            startmod.Start().run(["-p", "8070"])
+        main_mock.assert_not_called()
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_start_prefers_the_configured_db_name_over_the_directory(self):
+        """A `db_name` in `-c`'s file used to lose to the project directory."""
+        from odoo.cli import start as startmod
+
+        with tempfile.TemporaryDirectory() as tmp:
+            conf = Path(tmp) / "start.conf"
+            conf.write_text("[options]\ndb_name = configured_db\n")
+            proj = Path(tmp) / "named_after_the_directory"
+            proj.mkdir()
+            captured = {}
+            with (
+                mock.patch.object(
+                    startmod,
+                    "main",
+                    lambda cmdargs: captured.update(args=list(cmdargs)),
+                ),
+                isolated_config(),
+            ):
+                startmod.Start().run(["-p", str(proj), "-c", str(conf)])
+        args = captured["args"]
+        self.assertEqual(args[args.index("-d") + 1], "configured_db", msg=str(args))
+        self.assertIn("--db-filter=^configured_db$", args)
 
     def test_db_list_prints_databases(self):
         import contextlib
@@ -1262,3 +1361,188 @@ class TestCommand(BaseCase):
         with contextlib.redirect_stderr(stderr):
             fm.clear_progress()
         self.assertEqual(stderr.getvalue(), "", msg="must be silent off-tty")
+
+    def test_module_subcommands_exit_nonzero_when_nothing_resolved(self):
+        """`module install typo && restart` must not redeploy after a typo.
+
+        The three subcommands used to log a warning and return, which every
+        caller chaining on `&&` reads as success. Measured before the fix:
+        `install`, `uninstall` and `upgrade` of a name that exists nowhere all
+        exited 0.
+        """
+        from odoo.cli.module import Module
+
+        cmd = Module()
+        for sub, method in (
+            ("install", cmd._install),
+            ("uninstall", cmd._uninstall),
+            ("upgrade", cmd._upgrade),
+        ):
+            with self.subTest(sub=sub):
+                env = mock.MagicMock()
+                empty = mock.MagicMock()
+                empty.__bool__.return_value = False
+                empty.mapped.return_value = []
+                empty.filtered.return_value = empty
+                env.__getitem__.return_value.search.return_value = empty
+                ns = mock.Mock(db_name="db", modules=["no_such_module"], outdated=False)
+                with (
+                    mock.patch("odoo.cli.module.odoo_env") as env_ctx,
+                    self.assertRaises(SystemExit) as ctx,
+                ):
+                    env_ctx.return_value.__enter__.return_value = env
+                    method(ns)
+                self.assertNotEqual(ctx.exception.code, 0)
+
+    def test_database_commands_forward_server_options(self):
+        """A database command must accept the server options its work needs.
+
+        `module`/`i18n`/`populate`/`neutralize`/`obfuscate` used to reject
+        everything but `-c`/`-d`/`-D`, so `module -d db install base
+        --log-level=warn` died with `unrecognized arguments`. A typo is still
+        caught, one layer down, by the config parser.
+        """
+        from odoo.cli.module import Module
+
+        parsed, unknown = Module().parse_args(
+            ["-d", "db", "install", "base", "--log-level=warn"]
+        )
+        self.assertEqual(parsed.modules, ["base"])
+        self.assertEqual(unknown, ["--log-level=warn"])
+
+    def test_bootstrap_swallows_addons_path_before_any_command_sees_it(self):
+        """Nothing may declare `--addons-path` and expect it to arrive.
+
+        `main()`'s bootstrap parser consumes it wherever it appears in argv, so
+        a per-command declaration is unreachable — `db` carried one on its
+        parent parser and all seven subparsers.
+        """
+        from odoo.cli.db import Db
+
+        parser = build_bootstrap_parser()
+        for argv in (
+            ["db", "init", "foo", "--addons-path=/x"],
+            ["db", "--addons-path=/x", "list"],
+            ["upgrade_code", "--script", "s", "--addons-path", "/a,/b"],
+        ):
+            with self.subTest(argv=argv):
+                bootstrap, rest = parser.parse_known_args(argv)
+                self.assertIsNotNone(bootstrap.addons_path)
+                self.assertNotIn("--addons-path", " ".join(rest))
+        self.assertNotIn(
+            "addons_path",
+            Db._connection_dest_flags(),
+            msg="db re-declares a flag the bootstrap parser always eats first",
+        )
+
+    def test_obfuscate_skips_columns_too_narrow_for_ciphertext(self):
+        """Ciphertext is hundreds of characters whatever the input.
+
+        `--fields res_country.code` (varchar(2) on any database) used to abort
+        the UPDATE with `value too long for type character varying(2)` partway
+        through the run, leaving `--pertablecommit` runs half obfuscated.
+        """
+        from odoo.cli.obfuscate import Obfuscate
+
+        ob = Obfuscate()
+
+        class FakeCur:
+            def execute(self, query, params=None):
+                pass
+
+            def fetchall(self):
+                return [
+                    ("res_country", "code", "varchar", 2),
+                    ("res_country", "name", "jsonb", None),
+                ]
+
+        ob.cr = FakeCur()
+        ob._prefetch_field_kinds({"res_country"})
+        fields = [("res_country", "code"), ("res_country", "name")]
+        self.assertEqual(
+            ob._drop_narrow_fields(fields),
+            [("res_country", "name")],
+            msg="a length-limited varchar must not reach the UPDATE",
+        )
+
+    def test_obfuscate_reports_user_named_fields_apart_from_the_defaults(self):
+        """A default-list field absent because its module is not installed is
+        the normal case (17 of 28 on a base-only database) and used to be
+        logged at ERROR, alongside the user's actual typo."""
+        from odoo.cli.obfuscate import Obfuscate
+
+        opt = mock.Mock(fields="typo.column", file=None)
+        self.assertEqual(Obfuscate._explicitly_requested(opt), {("typo", "column")})
+        opt = mock.Mock(fields=None, file=None)
+        self.assertEqual(Obfuscate._explicitly_requested(opt), set())
+
+    def test_commands_declare_their_arguments_on_construction(self):
+        """Every command's parser must be complete without running it.
+
+        Half of them built the parser inside `run()`, so the option set could
+        not be read (by a test, a docs generator, a completion script) without
+        executing the command, and a second `run()` on one instance raised
+        `argparse.ArgumentError` on the re-registration.
+        """
+        load_internal_commands()
+        expected = {
+            "cloc": "--path",
+            "db": "--db_host",
+            "deploy": "--login",
+            "i18n": "-c",
+            "module": "-d",
+            "neutralize": "--stdout",
+            "obfuscate": "--pwd",
+            "populate": "--factors",
+            "scaffold": "--template",
+            "shell": "--shell-interface",
+            "start": "--path",
+            "upgrade_code": "--glob",
+        }
+        for name, flag in expected.items():
+            with self.subTest(name=name):
+                strings = {
+                    option
+                    for action in commands[name]().parser._actions
+                    for option in action.option_strings
+                }
+                self.assertIn(flag, strings)
+
+    def test_help_renders_one_commands_own_help(self):
+        """`odoo-bin help <command>` answered with the index of all of them."""
+        proc = self.run_command("help", "db", check=False)
+        self.assertIn("usage:", proc.stdout)
+        self.assertIn("duplicate", proc.stdout)
+        self.assertNotIn("Available commands:", proc.stdout)
+        proc = self.run_command("help", "nosuchcommand", check=False)
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("Unknown command", proc.stderr)
+
+    def test_maintenance_db_rule_has_one_spelling(self):
+        """`start`, `server`, `db` and `get_single_database` phrased the same
+        refusal four ways, and `db` kept its own copy of the protected set."""
+        from odoo.cli.command import (
+            MAINTENANCE_DB_MESSAGE,
+            refuse_maintenance_db,
+        )
+
+        with self.assertRaises(SystemExit) as ctx:
+            refuse_maintenance_db("postgres")
+        self.assertEqual(
+            str(ctx.exception.code),
+            MAINTENANCE_DB_MESSAGE.format(db_name="postgres"),
+        )
+        refuse_maintenance_db("a_perfectly_ordinary_database")
+
+    def test_shell_tolerates_a_stdin_without_a_fileno(self):
+        """`os.isatty(sys.stdin.fileno())` raises under capture and when stdin
+        is detached; neither is a terminal and neither is a traceback."""
+        from odoo.cli.shell import Shell
+
+        class NoFileno:
+            def fileno(self):
+                raise ValueError("I/O operation on closed file")
+
+        for stdin in (None, NoFileno()):
+            with mock.patch.object(sys, "stdin", stdin):
+                self.assertFalse(Shell._stdin_is_a_tty())

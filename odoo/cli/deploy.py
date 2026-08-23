@@ -72,6 +72,51 @@ class Deploy(Command):
     def __init__(self) -> None:
         super().__init__()
         self.session = requests.Session()
+        parser = self.parser
+        parser.add_argument("path", help="Path of the module to deploy")
+        parser.add_argument(
+            "url",
+            nargs="?",
+            help="Url of the server (default=http://localhost:8069)",
+            default="http://localhost:8069",
+        )
+        parser.add_argument(
+            "--db",
+            dest="db",
+            default="",
+            help="Database to use if server does not use db-filter.",
+        )
+        parser.add_argument(
+            "--login",
+            dest="login",
+            default="admin",
+            help="Login (default=admin)",
+        )
+        parser.add_argument(
+            "--password",
+            dest="password",
+            default="admin",
+            help="Password (default=admin)",
+        )
+        parser.add_argument(
+            "--no-verify-ssl",
+            dest="verify_ssl",
+            action="store_false",
+            default=True,
+            help="Do NOT verify the server's SSL certificate (insecure: "
+            "credentials are sent in the request body)",
+        )
+        parser.add_argument(
+            "--verify-ssl",
+            dest="verify_ssl",
+            action="store_true",
+            help=argparse.SUPPRESS,
+        )
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help='Force init even if module is already installed. (will update `noupdate="1"` records)',
+        )
 
     def deploy_module(
         self,
@@ -175,53 +220,7 @@ class Deploy(Command):
         return temp
 
     def run(self, cmdargs: list[str]) -> None:
-        parser = self.parser
-        parser.add_argument("path", help="Path of the module to deploy")
-        parser.add_argument(
-            "url",
-            nargs="?",
-            help="Url of the server (default=http://localhost:8069)",
-            default="http://localhost:8069",
-        )
-        parser.add_argument(
-            "--db",
-            dest="db",
-            default="",
-            help="Database to use if server does not use db-filter.",
-        )
-        parser.add_argument(
-            "--login",
-            dest="login",
-            default="admin",
-            help="Login (default=admin)",
-        )
-        parser.add_argument(
-            "--password",
-            dest="password",
-            default="admin",
-            help="Password (default=admin)",
-        )
-        parser.add_argument(
-            "--no-verify-ssl",
-            dest="verify_ssl",
-            action="store_false",
-            default=True,
-            help="Do NOT verify the server's SSL certificate (insecure: "
-            "credentials are sent in the request body)",
-        )
-        parser.add_argument(
-            "--verify-ssl",
-            dest="verify_ssl",
-            action="store_true",
-            help=argparse.SUPPRESS,
-        )
-        parser.add_argument(
-            "--force",
-            action="store_true",
-            help='Force init even if module is already installed. (will update `noupdate="1"` records)',
-        )
-
-        args = parser.parse_args(args=cmdargs)
+        args = self.parser.parse_args(args=cmdargs)
 
         try:
             if not args.url.lower().startswith(("http://", "https://")):
@@ -244,14 +243,15 @@ class Deploy(Command):
 
                     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-            result = self.deploy_module(
-                args.path,
-                args.url,
-                args.login,
-                args.password,
-                args.db,
-                force=args.force,
-            )
+            with self.session:
+                result = self.deploy_module(
+                    args.path,
+                    args.url,
+                    args.login,
+                    args.password,
+                    args.db,
+                    force=args.force,
+                )
             print(result or "Module deployed successfully.")
         except Exception as e:
             _logger.debug("deploy failed", exc_info=True)

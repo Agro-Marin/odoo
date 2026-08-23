@@ -2,9 +2,8 @@ import secrets
 import sys
 import textwrap
 
-from odoo.libs.password import pbkdf2_sha512_hash
-
 from odoo.cli import Command
+from odoo.libs.password import pbkdf2_sha512_hash
 from odoo.tools import config
 
 
@@ -19,9 +18,13 @@ class GenProxyToken(Command):
     def run(self, cmdargs):
         self.parser.add_argument('-c', '--config', type=str, help="Specify an alternate config file")
         self.parser.add_argument('--token-length', type=int, help="Token Length", default=16)
-        args, _ = self.parser.parse_known_args()
+        # `cmdargs`, not the implicit sys.argv[1:]: the latter still carries
+        # the command name and every global flag `main()` stripped, so this
+        # parsed argv the dispatcher had already consumed.
+        args, _ = self.parser.parse_known_args(cmdargs)
         if args.config:
-            config.rcfile = args.config
+            # `config.rcfile` is the pre-19.0 spelling; its setter warns.
+            config['config'] = args.config
         token = self.generate_token(length=args.token_length)
         config['proxy_access_token'] = pbkdf2_sha512_hash(token)
         config.save()

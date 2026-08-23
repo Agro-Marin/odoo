@@ -1,5 +1,7 @@
 import argparse
+import functools
 import logging
+import sys
 import textwrap
 import zipfile
 from pathlib import Path
@@ -13,6 +15,19 @@ from odoo.tools import OrderedSet, parse_version
 from . import DatabaseCommand, odoo_env
 
 _logger = logging.getLogger(__name__)
+
+
+def _exit_nothing_done(verb: str, requested: list[str] | set[str]) -> None:
+    """Exit non-zero when a subcommand matched none of the names it was given.
+
+    A warning and status 0 read as success to every caller that chains on
+    ``&&`` — `module install my_addon && restart` used to redeploy after a
+    typo'd name installed nothing at all.
+    """
+    sys.exit(
+        f"Nothing to {verb}: none of the requested modules "
+        f"({', '.join(sorted(requested))}) could be resolved."
+    )
 
 
 class Module(DatabaseCommand):
@@ -95,11 +110,19 @@ class Module(DatabaseCommand):
         )
 
     def run(self, cmdargs: list[str]) -> None:
-        parsed_args = self.parser.parse_args(args=cmdargs)
-        self.bootstrap_config(parsed_args)
+        parsed_args, unknown = self.parse_args(cmdargs)
+        self.bootstrap_config(parsed_args, extra_args=unknown)
         parsed_args.func(parsed_args)
 
-    def _get_zip_path(self, path: str) -> Path | None:
+    @staticmethod
+    @functools.cache
+    def _get_zip_path(path: str) -> Path | None:
+        """Resolve ``path`` to a readable zip archive, or None.
+
+        Cached: ``_install`` asks the same question of the same names three
+        times (validation, then the importable/unknown split), and each miss
+        used to re-open and re-parse the archive's central directory.
+        """
         fullpath = Path(path).resolve()
         if (
             fullpath.is_file()
@@ -157,6 +180,8 @@ class Module(DatabaseCommand):
                     len(unknown_modules),
                     ", ".join(unknown_modules),
                 )
+            if not installable_modules and not importable_zipfiles:
+                _exit_nothing_done("install", unknown_modules)
             if importable_zipfiles:
                 if "imported" not in env["ir.module.module"]._fields:
                     _logger.warning(
@@ -187,8 +212,12 @@ class Module(DatabaseCommand):
                         parse_version(x.manifest_version) > parse_version(x.db_version)
                     ),
                 )
-            if upgradable_modules:
-                upgradable_modules.button_immediate_upgrade()
+            if not upgradable_modules:
+                if parsed_args.outdated:
+                    _logger.info("Nothing to upgrade: every module is up to date.")
+                    return
+                _exit_nothing_done("upgrade", parsed_args.modules)
+            upgradable_modules.button_immediate_upgrade()
 
     def _uninstall(self, parsed_args: argparse.Namespace) -> None:
         with odoo_env(parsed_args.db_name, new_registry=True) as env:
@@ -197,8 +226,9 @@ class Module(DatabaseCommand):
                 _logger.warning(
                     "Ignoring unknown modules: %s", ", ".join(sorted(unknown))
                 )
-            if modules:
-                modules.button_immediate_uninstall()
+            if not modules:
+                _exit_nothing_done("uninstall", parsed_args.modules)
+            modules.button_immediate_uninstall()
 
     def _force_demo(self, parsed_args: argparse.Namespace) -> None:
         with odoo_env(parsed_args.db_name, new_registry=True) as env:

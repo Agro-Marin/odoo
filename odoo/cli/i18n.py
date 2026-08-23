@@ -18,6 +18,8 @@ from . import DatabaseCommand, odoo_env
 
 _logger = logging.getLogger(__name__)
 
+type _SubParsers = argparse._SubParsersAction[argparse.ArgumentParser]
+
 EXPORT_EXTENSIONS = [".po", ".pot", ".tgz", ".csv"]
 IMPORT_EXTENSIONS = [".po", ".csv"]
 
@@ -30,34 +32,28 @@ class SubcommandHelpFormatter(argparse.RawTextHelpFormatter):
 class I18n(DatabaseCommand):
     """Import, export, setup languages and internationalization files"""
 
+    _EPILOG = textwrap.dedent("""\
+        Language codes must follow the XPG (POSIX) locale format.
+        see: https://www.gnu.org/software/libc/manual/html_node/Locale-Names.html
+
+        To list available codes, you can search them querying the database:
+            $ psql -d <dbname> -c "SELECT iso_code FROM res_lang ORDER BY iso_code"
+
+        Examples:
+            odoo-bin i18n loadlang -l en         # English (U.S.)
+            odoo-bin i18n loadlang -l es es_AR   # Spanish (Spain, Argentina)
+            odoo-bin i18n loadlang -l sr@latin   # Serbian (Latin)
+    """)
+
     def __init__(self) -> None:
         super().__init__()
         self.add_config_arguments(self.parser)
         subparsers = self.parser.add_subparsers(
             dest="subcommand", required=True, help="Subcommands help"
         )
-
-        self.import_parser = subparsers.add_parser(
-            "import",
-            help="Import i18n files",
-            description="Imports provided translation files",
-            formatter_class=SubcommandHelpFormatter,
-        )
-        self.import_parser.set_defaults(func=self._import)
-        self.export_parser = subparsers.add_parser(
-            "export",
-            help="Export i18n files",
-            description="Exports language files into the i18n folder of each module",
-            formatter_class=SubcommandHelpFormatter,
-        )
-        self.export_parser.set_defaults(func=self._export)
-        self.loadlang_parser = subparsers.add_parser(
-            "loadlang",
-            help="Load languages",
-            description="Loads languages",
-            formatter_class=SubcommandHelpFormatter,
-        )
-        self.loadlang_parser.set_defaults(func=self._loadlang)
+        self.import_parser = self._add_import_parser(subparsers)
+        self.export_parser = self._add_export_parser(subparsers)
+        self.loadlang_parser = self._add_loadlang_parser(subparsers)
 
         for parser in (
             self.import_parser,
@@ -65,40 +61,47 @@ class I18n(DatabaseCommand):
             self.loadlang_parser,
         ):
             self.add_config_arguments(parser, on_subparser=True)
-            parser.epilog = textwrap.dedent("""\
-                Language codes must follow the XPG (POSIX) locale format.
-                see: https://www.gnu.org/software/libc/manual/html_node/Locale-Names.html
+            parser.epilog = self._EPILOG
 
-                To list available codes, you can search them querying the database:
-                    $ psql -d <dbname> -c "SELECT iso_code FROM res_lang ORDER BY iso_code"
+    def _add_subparser(
+        self, subparsers: _SubParsers, name: str, help_text: str, description: str
+    ) -> argparse.ArgumentParser:
+        return subparsers.add_parser(
+            name,
+            help=help_text,
+            description=description,
+            formatter_class=SubcommandHelpFormatter,
+        )
 
-                Examples:
-                    odoo-bin i18n loadlang -l en         # English (U.S.)
-                    odoo-bin i18n loadlang -l es es_AR   # Spanish (Spain, Argentina)
-                    odoo-bin i18n loadlang -l sr@latin   # Serbian (Latin)
-            """)
-
-        self.import_parser.add_argument(
+    def _add_import_parser(self, subparsers: _SubParsers) -> argparse.ArgumentParser:
+        parser = self._add_subparser(
+            subparsers,
+            "import",
+            "Import i18n files",
+            "Imports provided translation files",
+        )
+        parser.set_defaults(func=self._import)
+        parser.add_argument(
             "files",
             nargs="+",
             metavar="FILE",
             type=Path,
             help=f"files to be imported. Allowed extensions: {', '.join(IMPORT_EXTENSIONS)}\n",
         )
-        self.import_parser.add_argument(
+        parser.add_argument(
             "-w",
             "--overwrite",
             action="store_true",
             help="overwrite existing terms; records flagged noupdate in "
             "ir_model_data keep theirs (see --force-overwrite)",
         )
-        self.import_parser.add_argument(
+        parser.add_argument(
             "--force-overwrite",
             action="store_true",
             help="overwrite existing terms even on noupdate records "
             "(implies --overwrite)",
         )
-        self.import_parser.add_argument(
+        parser.add_argument(
             "-l",
             "--language",
             dest="language",
@@ -106,8 +109,17 @@ class I18n(DatabaseCommand):
             required=True,
             help="language code",
         )
+        return parser
 
-        self.export_parser.add_argument(
+    def _add_export_parser(self, subparsers: _SubParsers) -> argparse.ArgumentParser:
+        parser = self._add_subparser(
+            subparsers,
+            "export",
+            "Export i18n files",
+            "Exports language files into the i18n folder of each module",
+        )
+        parser.set_defaults(func=self._export)
+        parser.add_argument(
             "-l",
             "--languages",
             dest="languages",
@@ -116,13 +128,13 @@ class I18n(DatabaseCommand):
             metavar="LANG",
             help="list of language codes, 'pot' for template (default)",
         )
-        self.export_parser.add_argument(
+        parser.add_argument(
             "modules",
             nargs="+",
             metavar="MODULE",
             help="modules to be exported",
         )
-        self.export_parser.add_argument(
+        parser.add_argument(
             "-o",
             "--output",
             metavar="FILE",
@@ -134,8 +146,14 @@ class I18n(DatabaseCommand):
                 "only one language is allowed when this option is active"
             ),
         )
+        return parser
 
-        self.loadlang_parser.add_argument(
+    def _add_loadlang_parser(self, subparsers: _SubParsers) -> argparse.ArgumentParser:
+        parser = self._add_subparser(
+            subparsers, "loadlang", "Load languages", "Loads languages"
+        )
+        parser.set_defaults(func=self._loadlang)
+        parser.add_argument(
             "-l",
             "--languages",
             dest="languages",
@@ -144,10 +162,11 @@ class I18n(DatabaseCommand):
             metavar="LANG",
             help="List of language codes to install",
         )
+        return parser
 
     def run(self, cmdargs: list[str]) -> None:
-        parsed_args = self.parser.parse_args(args=cmdargs)
-        self.bootstrap_config(parsed_args)
+        parsed_args, unknown = self.parse_args(cmdargs)
+        self.bootstrap_config(parsed_args, extra_args=unknown)
         parsed_args.func(parsed_args)
 
     def _get_languages(

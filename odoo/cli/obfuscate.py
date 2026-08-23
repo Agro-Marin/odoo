@@ -114,6 +114,8 @@ class Obfuscate(DatabaseCommand):
         self.cr: Cursor | None = None
         self.dbname: str = ""
         self._field_kinds: dict[tuple[str, str], str] | None = None
+        self._field_widths: dict[tuple[str, str], int] | None = None
+        self.add_arguments()
 
     @_ensure_cr
     def _ensure_pgcrypto(self) -> None:
@@ -182,6 +184,23 @@ class Obfuscate(DatabaseCommand):
             return "json"
         return None
 
+    _CATALOG_COLUMNS = (
+        "SELECT table_name, column_name, udt_name, character_maximum_length"
+        " FROM information_schema.columns"
+        " WHERE table_schema = current_schema"
+        "   AND udt_name IN ('text', 'varchar', 'jsonb')"
+    )
+
+    def _index_rows(self, rows: list[tuple]) -> None:
+        """Index catalog rows into the kind and column-width caches."""
+        self._field_kinds = {}
+        self._field_widths = {}
+        for table, column, udt, max_length in rows:
+            if kind := self._kind_of(udt):
+                self._field_kinds[table, column] = kind
+                if max_length is not None:
+                    self._field_widths[table, column] = max_length
+
     def _prefetch_field_kinds(self, tables: set[str] | list[str]) -> None:
         """Cache the obfuscation kind of every text/varchar/jsonb column of
         ``tables`` in one catalog query, so ``check_field`` becomes a dict
@@ -190,21 +209,14 @@ class Obfuscate(DatabaseCommand):
         per-field query's "absent or unsupported".
         """
         self._field_kinds = {}
+        self._field_widths = {}
         if not tables:
             return
         self.cr.execute(
-            "SELECT table_name, column_name, udt_name"
-            " FROM information_schema.columns"
-            " WHERE table_schema = current_schema"
-            "   AND table_name = ANY(%s)"
-            "   AND udt_name IN ('text', 'varchar', 'jsonb')",
+            f"{self._CATALOG_COLUMNS} AND table_name = ANY(%s)",
             [list(tables)],
         )
-        self._field_kinds = {
-            (table, column): kind
-            for table, column, udt in self.cr.fetchall()
-            if (kind := self._kind_of(udt))
-        }
+        self._index_rows(self.cr.fetchall())
 
     def check_field(self, table: str, field: str) -> str | None:
         """Return the processing kind for ``table.column``: ``'string'``,
@@ -217,22 +229,35 @@ class Obfuscate(DatabaseCommand):
             return self._kind_of(self.cr.fetchone()[0])
         return None
 
+    def find_narrow_fields(
+        self, fields: list[tuple[str, str]]
+    ) -> list[tuple[tuple[str, str], int]]:
+        """Return the ``((table, column), width)`` pairs too narrow to hold
+        ciphertext, so obfuscation can refuse them before it writes anything.
+
+        ``pgp_sym_encrypt`` output, base64-encoded and prefixed, runs to
+        hundreds of characters whatever the input, so a ``varchar(n)`` column
+        raises ``value too long for type character varying(n)`` mid-``UPDATE``.
+        That aborted the run partway: with ``--pertablecommit`` the tables
+        already processed stayed obfuscated and the password marker stayed
+        committed, with nothing recording where the run stopped.
+        ``res_country.code`` is ``varchar(2)`` on any database.
+        """
+        return [
+            (field, self._field_widths[field])
+            for field in fields
+            if field in (self._field_widths or {})
+        ]
+
     def get_all_fields(self) -> list[tuple[str, str]]:
-        qry = (
-            "SELECT table_name, column_name, udt_name FROM information_schema.columns"
-            " WHERE table_schema = current_schema"
-            " AND udt_name IN ('text', 'varchar', 'jsonb')"
+        self.cr.execute(
+            f"{self._CATALOG_COLUMNS}"
             " AND NOT starts_with(table_name, 'ir_')"
             " ORDER BY 1, 2"
         )
-        self.cr.execute(qry)
         rows = self.cr.fetchall()
-        self._field_kinds = {
-            (table, column): kind
-            for table, column, udt in rows
-            if (kind := self._kind_of(udt))
-        }
-        return [(table, column) for table, column, _udt in rows]
+        self._index_rows(rows)
+        return [(table, column) for table, column, _udt, _len in rows]
 
     def convert_table(
         self,
@@ -365,7 +390,14 @@ class Obfuscate(DatabaseCommand):
             )
         return pwd
 
-    def run(self, cmdargs: list[str]) -> None:
+    def add_arguments(self) -> None:
+        """Declare the command's options on ``self.parser``.
+
+        In ``__init__`` rather than in ``run`` so the parser is complete on a
+        constructed command: a test (or a completion/doc generator) can read
+        the option set without executing an obfuscation run, and calling
+        ``run`` twice on one instance no longer raises ``ArgumentError``.
+        """
         parser = self.parser
         self.add_config_arguments(parser)
         pwd_group = parser.add_mutually_exclusive_group()
@@ -431,117 +463,33 @@ class Obfuscate(DatabaseCommand):
             help="Don't ask for manual confirmation.",
         )
 
-        opt = parser.parse_args(cmdargs)
-
+    def run(self, cmdargs: list[str]) -> None:
+        opt, unknown = self.parse_args(cmdargs)
         if opt.allfields and not opt.unobfuscate:
-            parser.error("--allfields can only be used in unobfuscate mode")
+            self.parser.error("--allfields can only be used in unobfuscate mode")
         if opt.no_default_fields and not (opt.fields or opt.file or opt.allfields):
-            parser.error(
+            self.parser.error(
                 "--no-default-fields leaves nothing to process; add --fields or --file"
             )
 
-        self.dbname = self.bootstrap_config(opt)
+        self.dbname = self.bootstrap_config(opt, extra_args=unknown)
         pwd = self._resolve_password(opt)
 
         try:
             with db_connect(self.dbname).cursor() as cr:
                 self.cr = cr
                 self._ensure_pgcrypto()
-                if self.check_pwd(pwd):
-                    try:
-                        fields = _select_fields(opt)
-                    except ValueError as e:
-                        parser.error(str(e))
-
-                    if opt.allfields:
-                        fields = self.get_all_fields()
-                    else:
-                        self._prefetch_field_kinds({t for t, _ in fields})
-                        invalid_fields = [
-                            f for f in fields if not self.check_field(f[0], f[1])
-                        ]
-                        if invalid_fields:
-                            _logger.error(
-                                "Invalid fields: %s",
-                                ", ".join([f"{f[0]}.{f[1]}" for f in invalid_fields]),
-                            )
-                            fields = [f for f in fields if f not in invalid_fields]
-
-                    if not opt.unobfuscate and not opt.yes:
-                        self.confirm_not_secure()
-
-                    _logger.info(
-                        "Processing fields: %s",
-                        ", ".join([f"{f[0]}.{f[1]}" for f in fields]),
-                    )
-                    tables = defaultdict(set)
-                    skipped_system = []
-
-                    for t, f in fields:
-                        if t.startswith("ir_"):
-                            skipped_system.append((t, f))
-                        else:
-                            tables[t].add(f)
-
-                    if skipped_system:
-                        _logger.warning(
-                            "Refusing to obfuscate Odoo internal tables "
-                            "(ir_* is reserved for framework state, obfuscating "
-                            "it would corrupt the database). Skipping: %s",
-                            ", ".join(f"{t}.{f}" for t, f in skipped_system),
-                        )
-
-                    if opt.unobfuscate:
-                        _logger.info("Unobfuscating datas")
-                        for table in tables:
-                            _logger.info("Unobfuscating table %s", table)
-                            self.convert_table(
-                                table,
-                                tables[table],
-                                pwd,
-                                opt.pertablecommit,
-                                True,
-                            )
-
-                        partial_run = (
-                            bool(opt.fields or opt.file or opt.exclude)
-                            and not opt.allfields
-                        )
-                        if partial_run:
-                            _logger.warning(
-                                "Partial unobfuscation: keeping the stored "
-                                "password marker; run without --fields/"
-                                "--file/--exclude (or with --allfields) to "
-                                "remove it."
-                            )
-
-                        if opt.vacuum:
-                            self.commit()
-                            self._vacuum_tables(tables)
-                        if not partial_run:
-                            self.clear_pwd()
-                    else:
-                        _logger.info("Obfuscating datas")
-                        if opt.vacuum:
-                            _logger.warning(
-                                "--vacuum only applies in unobfuscate mode; ignoring it"
-                            )
-                        self.set_pwd(pwd)
-                        for table in tables:
-                            _logger.info("Obfuscating table %s", table)
-                            self.convert_table(
-                                table,
-                                tables[table],
-                                pwd,
-                                opt.pertablecommit,
-                            )
-
-                    self.commit()
-                else:
+                if not self.check_pwd(pwd):
                     self.rollback()
                     sys.exit(
                         "ERROR: invalid password (the database is encrypted with a different one)."
                     )
+                tables = self._resolve_targets(opt)
+                if opt.unobfuscate:
+                    self._unobfuscate(opt, pwd, tables)
+                else:
+                    self._obfuscate(opt, pwd, tables)
+                self.commit()
 
         except psycopg.errors.ExternalRoutineInvocationException as e:
             _logger.debug("Decryption failure", exc_info=True)
@@ -555,3 +503,132 @@ class Obfuscate(DatabaseCommand):
         finally:
             self.cr = None
             self._field_kinds = None
+            self._field_widths = None
+
+    def _resolve_targets(self, opt: argparse.Namespace) -> dict[str, set[str]]:
+        """Resolve the CLI selection into ``{table: {column, ...}}``.
+
+        Everything that can disqualify a column happens here, before a single
+        row is written: absent from the schema, an ``ir_*`` table, or (when
+        obfuscating) too narrow to hold ciphertext.
+        """
+        try:
+            fields = _select_fields(opt)
+        except ValueError as e:
+            self.parser.error(str(e))
+
+        if opt.allfields:
+            fields = self.get_all_fields()
+        else:
+            requested = self._explicitly_requested(opt)
+            self._prefetch_field_kinds({t for t, _ in fields})
+            absent = [f for f in fields if not self.check_field(f[0], f[1])]
+            if absent:
+                # A default-list field missing because its module is not
+                # installed is the normal case on any small database — 17 of
+                # the 28 on a base-only one — and was reported at ERROR, which
+                # trained the reader to skip the line that also reports the
+                # typo they made in --fields.
+                self._report_absent(
+                    [f for f in absent if f in requested], level=logging.ERROR
+                )
+                self._report_absent(
+                    [f for f in absent if f not in requested], level=logging.INFO
+                )
+                fields = [f for f in fields if f not in absent]
+            if not opt.unobfuscate:
+                fields = self._drop_narrow_fields(fields)
+
+        _logger.info(
+            "Processing fields: %s", ", ".join([f"{f[0]}.{f[1]}" for f in fields])
+        )
+        tables: defaultdict[str, set[str]] = defaultdict(set)
+        skipped_system = []
+        for table, column in fields:
+            if table.startswith("ir_"):
+                skipped_system.append((table, column))
+            else:
+                tables[table].add(column)
+
+        if skipped_system:
+            _logger.warning(
+                "Refusing to obfuscate Odoo internal tables "
+                "(ir_* is reserved for framework state, obfuscating "
+                "it would corrupt the database). Skipping: %s",
+                ", ".join(f"{t}.{f}" for t, f in skipped_system),
+            )
+        return tables
+
+    @staticmethod
+    def _explicitly_requested(opt: argparse.Namespace) -> set[tuple[str, str]]:
+        """The ``(table, column)`` pairs the user named, as opposed to the
+        ones that came from :data:`DEFAULT_FIELDS`."""
+        requested: set[tuple[str, str]] = set()
+        if opt.fields:
+            requested |= {_parse_field_spec(f) for f in opt.fields.split(",")}
+        if opt.file:
+            with pathlib.Path(opt.file).open(encoding="utf-8") as f:
+                requested |= {_parse_field_spec(line) for line in f if line.strip()}
+        return requested
+
+    @staticmethod
+    def _report_absent(fields: list[tuple[str, str]], *, level: int) -> None:
+        if fields:
+            _logger.log(
+                level,
+                "Skipping %d field(s) absent from this database (or of an "
+                "unsupported column type): %s",
+                len(fields),
+                ", ".join(f"{t}.{c}" for t, c in fields),
+            )
+
+    def _drop_narrow_fields(
+        self, fields: list[tuple[str, str]]
+    ) -> list[tuple[str, str]]:
+        """Drop the columns whose declared width cannot hold ciphertext."""
+        narrow = self.find_narrow_fields(fields)
+        if narrow:
+            _logger.warning(
+                "Skipping %d column(s) too narrow to hold ciphertext (the "
+                "UPDATE would fail with 'value too long' partway through the "
+                "run): %s",
+                len(narrow),
+                ", ".join(f"{t}.{c} varchar({width})" for (t, c), width in narrow),
+            )
+        narrow_fields = {field for field, _width in narrow}
+        return [f for f in fields if f not in narrow_fields]
+
+    def _obfuscate(
+        self, opt: argparse.Namespace, pwd: str, tables: dict[str, set[str]]
+    ) -> None:
+        if not opt.yes:
+            self.confirm_not_secure()
+        _logger.info("Obfuscating datas")
+        if opt.vacuum:
+            _logger.warning("--vacuum only applies in unobfuscate mode; ignoring it")
+        self.set_pwd(pwd)
+        for table, columns in tables.items():
+            _logger.info("Obfuscating table %s", table)
+            self.convert_table(table, columns, pwd, opt.pertablecommit)
+
+    def _unobfuscate(
+        self, opt: argparse.Namespace, pwd: str, tables: dict[str, set[str]]
+    ) -> None:
+        _logger.info("Unobfuscating datas")
+        for table, columns in tables.items():
+            _logger.info("Unobfuscating table %s", table)
+            self.convert_table(table, columns, pwd, opt.pertablecommit, True)
+
+        partial_run = bool(opt.fields or opt.file or opt.exclude) and not opt.allfields
+        if partial_run:
+            _logger.warning(
+                "Partial unobfuscation: keeping the stored "
+                "password marker; run without --fields/"
+                "--file/--exclude (or with --allfields) to "
+                "remove it."
+            )
+        if opt.vacuum:
+            self.commit()
+            self._vacuum_tables(tables)
+        if not partial_run:
+            self.clear_pwd()

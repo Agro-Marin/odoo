@@ -9,11 +9,11 @@ from psycopg.errors import InsufficientPrivilege
 
 import odoo
 import odoo.release  # noqa: F401  binds the submodule so `odoo.release.version` resolves below
-from odoo.db import is_maintenance_db
 from odoo.service import db, server
 from odoo.tools import config
 
 from . import Command
+from .command import refuse_maintenance_db
 
 _logger = logging.getLogger("odoo")
 
@@ -96,8 +96,7 @@ def main(args: list[str]) -> None:
     report_configuration()
 
     for db_name in config["db_name"]:
-        if is_maintenance_db(db_name):
-            sys.exit(f"Refusing to serve from system or template database {db_name}.")
+        refuse_maintenance_db(db_name)
 
     for db_name in config["db_name"]:
         try:
@@ -111,6 +110,8 @@ def main(args: list[str]) -> None:
             )
         except db.DatabaseExists:
             pass
+        except Exception as err:
+            sys.exit(f"Could not create database {db_name!r}. ({err})")
 
     stop = config["stop_after_init"]
 

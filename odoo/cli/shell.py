@@ -65,6 +65,28 @@ class Shell(Command):
     supported_shells = ("ipython", "ptpython", "bpython", "python")
     _REPL_MODULES = {"ipython": "IPython", "ptpython": "ptpython", "bpython": "bpython"}
 
+    def __init__(self) -> None:
+        super().__init__()
+        # Bound here, not only in `init()`: `console()` reads both, so a Shell
+        # driven straight from Python (a test, an embedding) used to raise
+        # AttributeError instead of falling back to the defaults.
+        self._shell_file: str = ""
+        self._shell_interface: str | None = None
+        self.parser.add_argument(
+            "--shell-file",
+            dest="shell_file",
+            default="",
+            help="Specify a python script to be run after the start of the shell. "
+            "Overrides the env variable PYTHONSTARTUP.",
+        )
+        self.parser.add_argument(
+            "--shell-interface",
+            dest="shell_interface",
+            choices=self.supported_shells,
+            help="Specify a preferred REPL to use in shell mode. "
+            f"Supported REPLs are: {self.supported_shells}",
+        )
+
     @classmethod
     def _repl_available(cls, shell: str) -> bool:
         """True when ``shell``'s implementation module is importable.
@@ -82,22 +104,7 @@ class Shell(Command):
             return False
 
     def init(self, args: list[str]) -> None:
-        parser = self.parser
-        parser.add_argument(
-            "--shell-file",
-            dest="shell_file",
-            default="",
-            help="Specify a python script to be run after the start of the shell. "
-            "Overrides the env variable PYTHONSTARTUP.",
-        )
-        parser.add_argument(
-            "--shell-interface",
-            dest="shell_interface",
-            choices=self.supported_shells,
-            help="Specify a preferred REPL to use in shell mode. "
-            f"Supported REPLs are: {self.supported_shells}",
-        )
-        parsed_args, remaining = parser.parse_known_args(args)
+        parsed_args, remaining = self.parser.parse_known_args(args)
         self._shell_file = parsed_args.shell_file
         self._shell_interface = parsed_args.shell_interface
 
@@ -106,8 +113,21 @@ class Shell(Command):
         server.start(preload=[], stop=True)
         signal.signal(signal.SIGINT, raise_keyboard_interrupt)
 
+    @staticmethod
+    def _stdin_is_a_tty() -> bool:
+        """True when stdin is an interactive terminal.
+
+        ``sys.stdin`` is not always a real file: it is None under `pythonw`,
+        and a captured/replaced object raises ``io.UnsupportedOperation`` from
+        ``fileno()``. Neither is a terminal, and neither should be a traceback.
+        """
+        try:
+            return sys.stdin is not None and os.isatty(sys.stdin.fileno())
+        except AttributeError, OSError, ValueError:
+            return False
+
     def console(self, local_vars: dict[str, Any]) -> None:
-        if not os.isatty(sys.stdin.fileno()):
+        if not self._stdin_is_a_tty():
             local_vars["__name__"] = "__main__"
             exec(sys.stdin.read(), local_vars)  # noqa: S102  piped-in script IS what `odoo shell` runs
             return None

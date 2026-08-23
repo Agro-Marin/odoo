@@ -10,6 +10,7 @@ from typing import NoReturn
 
 import odoo.cli
 import odoo.init  # noqa: F401  imported for the bootstrap side effect (gc, monkeypatches)
+from odoo.db import is_maintenance_db
 from odoo.modules import initialize_sys_path, load_script
 from odoo.tools import config
 
@@ -19,6 +20,8 @@ COMMAND_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*\Z")
 PROG_NAME = Path(sys.argv[0]).name
 DEFAULT_COMMAND = "server"
 """Command dispatched when argv names none; also rendered by ``help``."""
+MAINTENANCE_DB_MESSAGE = "Refusing to use system or template database {db_name}."
+"""One wording for the one rule :func:`refuse_maintenance_db` enforces."""
 commands: dict[str, type[Command]] = {}
 """All loaded commands"""
 
@@ -82,13 +85,35 @@ def get_single_database(
         return None
 
     db_name = db_names[0]
-    from odoo.db import is_maintenance_db
-
     if is_maintenance_db(db_name):
-        error_handler(f"Refusing to use system or template database {db_name}.")
+        error_handler(MAINTENANCE_DB_MESSAGE.format(db_name=db_name))
         return None
 
     return db_name
+
+
+def refuse_maintenance_db(
+    db_name: str,
+    *,
+    error_handler: Callable[[str], NoReturn] | None = None,
+) -> None:
+    """Abort when ``db_name`` is a PostgreSQL system database or the configured
+    creation template.
+
+    The single spelling of a rule four call sites used to phrase four ways.
+    Opening a registry on one of these initializes Odoo tables inside it
+    (``load_modules`` bootstraps any uninitialized database) and dropping one
+    takes out either the maintenance database every client tool connects to by
+    default or the template every future creation copies.
+
+    ``config['db_template']`` is part of the answer, so the **config must be
+    parsed before calling** — an unparsed config answers ``template0`` and the
+    guard silently covers less than it reads as covering.
+    """
+    if error_handler is None:
+        error_handler = sys.exit
+    if is_maintenance_db(db_name):
+        error_handler(MAINTENANCE_DB_MESSAGE.format(db_name=db_name))
 
 
 @contextlib.contextmanager
@@ -251,11 +276,24 @@ class DatabaseCommand(Command, register=False):
             **extra,
         )
 
+    def parse_args(self, args: list[str]) -> tuple[argparse.Namespace, list[str]]:
+        """Parse ``args``, letting server options through to the config parser.
+
+        ``parse_known_args`` rather than ``parse_args`` so a command that
+        operates on a database accepts the *server* options that database work
+        needs — ``--log-level``, ``--db_host``, ``--upgrade-path``,
+        ``--without-demo`` — instead of rejecting everything but ``-c``/``-d``/
+        ``-D``. Typos still fail: :meth:`bootstrap_config` hands the remainder
+        to ``config.parse_config``, which errors on an option it does not know.
+        """
+        return self.parser.parse_known_args(args)
+
     def bootstrap_config(
         self,
         parsed_args: argparse.Namespace,
         *,
         allow_none: bool = False,
+        extra_args: list[str] | None = None,
     ) -> str | None:
         """Parse config from ``parsed_args`` and return the database name.
 
@@ -263,14 +301,18 @@ class DatabaseCommand(Command, register=False):
             (as produced by ``add_config_arguments``)
         :param bool allow_none: when True, a missing database returns None
             instead of exiting
+        :param extra_args: leftover argv (the second half of
+            :meth:`parse_args`) forwarded verbatim to the config parser
         :return: the single validated database name (also written back to
             ``parsed_args.db_name``)
         """
-        extra_args = None
+        forwarded = list(extra_args or [])
         if getattr(parsed_args, "data_dir", None):
-            extra_args = ["-D", parsed_args.data_dir]
+            forwarded = ["-D", parsed_args.data_dir, *forwarded]
         config_args = build_config_args(
-            parsed_args.config, parsed_args.db_name, extra_args=extra_args
+            parsed_args.config,
+            parsed_args.db_name,
+            extra_args=forwarded or None,
         )
         config.parse_config(config_args, setup_logging=True)
         return self.require_single_database(parsed_args, allow_none=allow_none)

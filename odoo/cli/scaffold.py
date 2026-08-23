@@ -29,8 +29,6 @@ class Scaffold(Command):
             if templates
             else "No built-in templates found (templates/ directory missing)."
         )
-
-    def run(self, cmdargs: list[str]) -> None:
         parser = self.parser
         parser.add_argument(
             "-t",
@@ -48,6 +46,8 @@ class Scaffold(Command):
             help="Directory to create the module in (default: %(default)s)",
         )
 
+    def run(self, cmdargs: list[str]) -> None:
+        parser = self.parser
         args = parser.parse_args(args=cmdargs)
 
         try:

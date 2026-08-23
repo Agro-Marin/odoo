@@ -304,6 +304,11 @@ class UpgradeCode(Command):
             metavar="PATH,...",
             help="specify additional addons paths (separated by commas)",
         )
+        # Under `odoo-bin` this argument never fires: `main()`'s bootstrap
+        # parser consumes `--addons-path` out of argv wherever it appears and
+        # feeds it to the config, which is what the `default` above then reads.
+        # It is declared for the standalone entry point at the bottom of this
+        # file, which runs with no odoo package and therefore no config.
 
     def run(self, cmdargs: list[str]) -> None:
         options = self.parser.parse_args(cmdargs)

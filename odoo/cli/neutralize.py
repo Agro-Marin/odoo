@@ -12,18 +12,19 @@ _logger = logging.getLogger(__name__)
 class Neutralize(DatabaseCommand):
     """Neutralize a production database for testing: no emails sent, etc."""
 
-    def run(self, args: list[str]) -> None:
-        parser = self.parser
-        self.add_config_arguments(parser)
-        parser.add_argument(
+    def __init__(self) -> None:
+        super().__init__()
+        self.add_config_arguments(self.parser)
+        self.parser.add_argument(
             "--stdout",
             action="store_true",
             dest="to_stdout",
             help="Output the neutralization SQL instead of applying it",
         )
-        parsed_args = parser.parse_args(args)
 
-        dbname = self.bootstrap_config(parsed_args)
+    def run(self, args: list[str]) -> None:
+        parsed_args, unknown = self.parse_args(args)
+        dbname = self.bootstrap_config(parsed_args, extra_args=unknown)
 
         _logger.info("Starting %s database neutralization", dbname)
 

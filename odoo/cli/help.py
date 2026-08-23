@@ -1,3 +1,4 @@
+import sys
 import textwrap
 
 import odoo.release
@@ -7,6 +8,7 @@ from .command import (
     PROG_NAME,
     Command,
     commands,
+    find_command,
     load_addons_commands,
     load_internal_commands,
 )
@@ -28,6 +30,11 @@ class Help(Command):
     """)
 
     def run(self, args: list[str]) -> None:
+        if args and Command.is_valid_name(args[0]):
+            # `odoo-bin help <command>` used to print this list, i.e. answer a
+            # question about one command with the index of all of them.
+            return self.run_command_help(args[0])
+
         load_internal_commands()
         load_addons_commands()
 
@@ -54,3 +61,14 @@ class Help(Command):
                 default_command=DEFAULT_COMMAND,
             )
         )
+        return None
+
+    def run_command_help(self, name: str) -> None:
+        """Render ``name``'s own ``--help``, the way the user asked for it."""
+        command = find_command(name)
+        if command is None:
+            sys.exit(
+                f"Unknown command {name!r}.\n"
+                f"Use '{PROG_NAME} help' to see the list of available commands."
+            )
+        command().run(["--help"])

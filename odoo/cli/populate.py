@@ -56,7 +56,8 @@ def _parse_model_factors(
 class Populate(DatabaseCommand):
     """Populate database via duplication of existing data for testing/demo purposes"""
 
-    def run(self, cmdargs: list[str]) -> None:
+    def __init__(self) -> None:
+        super().__init__()
         parser = self.parser
         self.add_config_arguments(parser)
         parser.add_argument(
@@ -79,9 +80,12 @@ class Populate(DatabaseCommand):
             help="Single character separator for char/text fields.",
             default=DEFAULT_SEPARATOR,
         )
-        parsed_args = parser.parse_args(cmdargs)
 
-        db_name = self.bootstrap_config(parsed_args)
+    def run(self, cmdargs: list[str]) -> None:
+        parser = self.parser
+        parsed_args, unknown = self.parse_args(cmdargs)
+
+        db_name = self.bootstrap_config(parsed_args, extra_args=unknown)
         model_factors = _parse_model_factors(
             parsed_args.factors, parsed_args.models_to_populate, parser.error
         )

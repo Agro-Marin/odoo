@@ -12,7 +12,7 @@ from typing import NoReturn
 
 import requests
 
-from ..db import SYSTEM_DBS, db_connect
+from ..db import db_connect
 from ..modules.neutralize import neutralize_database
 from ..service.db import (
     _drop_database,
@@ -26,9 +26,12 @@ from ..service.db import (
 )
 from ..tools import config
 from . import Command
+from .command import refuse_maintenance_db
 from .server import report_configuration
 
 eprint = partial(print, file=sys.stderr, flush=True)
+
+type _SubParsers = argparse._SubParsersAction[argparse.ArgumentParser]
 
 
 class Db(Command):
@@ -41,10 +44,13 @@ class Db(Command):
         Commands are all filestore-aware.
     """
 
+    # No `--addons-path` here: `main()`'s bootstrap parser consumes it out of
+    # argv before any command parser runs, so a declaration on this one could
+    # never fire. It still works — the bootstrap feeds it to the config, and
+    # `_load_cli_options` keeps it across the re-parse below.
     _CONNECTION_FLAGS = (
         ("-c", "--config"),
         ("-D", "--data-dir"),
-        ("--addons-path",),
         ("-r", "--db_user"),
         ("-w", "--db_password"),
         ("--pg_path",),
@@ -56,7 +62,6 @@ class Db(Command):
     _CONNECTION_HELP = {
         "--config": "use a specific configuration file",
         "--data-dir": "directory where to store Odoo data",
-        "--addons-path": "comma-separated list of addons directories",
         "--db_user": "database user",
         "--db_password": "database password",
         "--pg_path": "directory holding the PostgreSQL client binaries",
@@ -111,7 +116,22 @@ class Db(Command):
         parser.set_defaults(func=self._exit_missing_subcommand)
 
         subs = parser.add_subparsers()
+        subparsers = [
+            build(subs)
+            for build in (
+                self._add_init_parser,
+                self._add_load_parser,
+                self._add_dump_parser,
+                self._add_duplicate_parser,
+                self._add_rename_parser,
+                self._add_drop_parser,
+                self._add_list_parser,
+            )
+        ]
+        for sub in subparsers:
+            self._add_connection_flags(sub, on_subparser=True)
 
+    def _add_init_parser(self, subs: _SubParsers) -> argparse.ArgumentParser:
         init = subs.add_parser(
             "init",
             help="Create and initialize a database",
@@ -160,7 +180,9 @@ class Db(Command):
 
                 $ odoo-bin module install --help
         """)
+        return init
 
+    def _add_load_parser(self, subs: _SubParsers) -> argparse.ArgumentParser:
         load = subs.add_parser(
             "load",
             help="Load a dump file.",
@@ -198,7 +220,9 @@ class Db(Command):
             "dump_file",
             help="zip or pg_dump file to load",
         )
+        return load
 
+    def _add_dump_parser(self, subs: _SubParsers) -> argparse.ArgumentParser:
         dump = subs.add_parser(
             "dump",
             help="Create a dump with filestore.",
@@ -230,7 +254,9 @@ class Db(Command):
             const=False,
             help="dump the zip without the filestore (default: included)",
         )
+        return dump
 
+    def _add_duplicate_parser(self, subs: _SubParsers) -> argparse.ArgumentParser:
         duplicate = subs.add_parser(
             "duplicate",
             help="Duplicate a database including filestore.",
@@ -253,7 +279,9 @@ class Db(Command):
             "target",
             help="database to copy `source` to, must not exist unless `-f` is specified in which case it will be dropped first",
         )
+        return duplicate
 
+    def _add_rename_parser(self, subs: _SubParsers) -> argparse.ArgumentParser:
         rename = subs.add_parser(
             "rename", help="Rename a database including filestore."
         )
@@ -275,11 +303,15 @@ class Db(Command):
             "target",
             help="database to rename `source` to, must not exist unless `-f` is specified, in which case it will be dropped first",
         )
+        return rename
 
+    def _add_drop_parser(self, subs: _SubParsers) -> argparse.ArgumentParser:
         drop = subs.add_parser("drop", help="Delete a database including filestore")
         drop.set_defaults(func=self.drop)
         drop.add_argument("database", help="database to delete")
+        return drop
 
+    def _add_list_parser(self, subs: _SubParsers) -> argparse.ArgumentParser:
         list_parser = subs.add_parser(
             "list",
             help="List databases visible to this Odoo instance",
@@ -288,12 +320,15 @@ class Db(Command):
             "and dbfilter from the config constrain the result.",
         )
         list_parser.set_defaults(func=self.list)
-
-        for sub in (init, load, dump, duplicate, rename, drop, list_parser):
-            self._add_connection_flags(sub, on_subparser=True)
+        return list_parser
 
     def run(self, cmdargs: list[str]) -> None:
-        args = self.parser.parse_args(cmdargs)
+        # parse_known_args, so this command accepts the server options a
+        # database operation may need (`--log-level`, `--db_maxconn`,
+        # `--unaccent`, …) instead of rejecting everything it does not itself
+        # declare. A typo is still caught: the config parser errors on an
+        # option it does not know.
+        args, unknown = self.parser.parse_known_args(cmdargs)
 
         dest_flags = self._connection_dest_flags()
         config_args: list[str] = []
@@ -301,7 +336,7 @@ class Db(Command):
             if value is None or key not in dest_flags:
                 continue
             config_args.extend([dest_flags[key], value])
-        config.parse_config(config_args, setup_logging=True)
+        config.parse_config([*config_args, *unknown], setup_logging=True)
         config["list_db"] = True
         report_configuration()
 
@@ -361,8 +396,7 @@ class Db(Command):
             )
 
     def dump(self, args: argparse.Namespace) -> None:
-        if args.database in SYSTEM_DBS:
-            sys.exit(f"Refusing to touch system database {args.database}.")
+        self._check_not_protected(args.database)
         self._check_source_exists(args.database)
         if args.dump_path == "-":
             dump_db(args.database, sys.stdout.buffer, args.dump_format, args.filestore)
@@ -401,22 +435,16 @@ class Db(Command):
         for db_name in list_dbs(force=True):
             print(db_name)
 
-    @staticmethod
-    def _protected_dbs() -> frozenset[str]:
-        """Databases this CLI refuses to create over, drop, or rename away:
-        the PostgreSQL system databases plus the configured creation template
-        (dropping it would break every future database creation)."""
-        return SYSTEM_DBS | {config["db_template"]}
-
     def _check_not_protected(self, db_name: str) -> None:
         """Abort when ``db_name`` is a system/template database.
 
         PostgreSQL itself refuses to drop template databases, but with a raw
         traceback — and it happily drops ``postgres``, taking the maintenance
-        DB every client tool connects to by default.
+        DB every client tool connects to by default. One spelling of the rule,
+        shared with `start`, `server` and `get_single_database`, rather than a
+        private set that has to be kept in step with `is_maintenance_db`.
         """
-        if db_name in self._protected_dbs():
-            sys.exit(f"Refusing to touch system or template database {db_name}.")
+        refuse_maintenance_db(db_name)
 
     def _check_target_free(self, target: str, *, force: bool) -> None:
         """Abort unless ``target`` may be (re)created.
