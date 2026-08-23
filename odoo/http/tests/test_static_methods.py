@@ -21,10 +21,15 @@ SERVED = object()
 
 
 def _request(method):
-    served = []
+    served: list[str] = []
+
+    def _serve_static(path):
+        served.append(path)
+        return SERVED
+
     return types.SimpleNamespace(
         httprequest=types.SimpleNamespace(method=method),
-        _serve_static=lambda path: served.append(path) or SERVED,
+        _serve_static=_serve_static,
         served=served,
     )
 

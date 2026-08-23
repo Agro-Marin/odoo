@@ -15,12 +15,19 @@ from odoo.http import build_routing_map
 from odoo.http.routing import FasterRule
 
 
-def _endpoint(url, **routing):
-    def handler():
-        return url
+class _Endpoint:
+    """A callable carrying ``.routing`` — the shape ``build_routing_map`` reads."""
 
-    handler.routing = {"routes": [url], "type": "http", **routing}
-    return handler
+    def __init__(self, url, **routing):
+        self.url = url
+        self.routing = {"routes": [url], "type": "http", **routing}
+
+    def __call__(self):
+        return self.url
+
+
+def _endpoint(url, **routing):
+    return _Endpoint(url, **routing)
 
 
 def test_slash_handling_is_the_same_for_every_rule():

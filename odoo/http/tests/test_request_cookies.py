@@ -10,6 +10,7 @@ cookies for the rest of the request, security hook and all.
 """
 
 import types
+from typing import Any
 
 import pytest
 import werkzeug.datastructures
@@ -30,8 +31,8 @@ class _Registry(dict):
             cookies.poplist(name)
 
 
-def _request(**cookies):
-    request = object.__new__(Request)
+def _request(**cookies) -> Any:
+    request: Any = object.__new__(Request)
     request.registry = None
     request._cookies_memo = None
     request.httprequest = types.SimpleNamespace(

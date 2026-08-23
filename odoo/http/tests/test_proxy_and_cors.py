@@ -9,6 +9,7 @@
 """
 
 import types
+from typing import Any
 
 import pytest
 
@@ -101,7 +102,7 @@ class _Session(dict):
 
 
 def _dispatch_request(routing, headers=None, method="GET"):
-    request = types.SimpleNamespace(
+    request: Any = types.SimpleNamespace(
         future_response=FutureResponse(),
         session=_Session(),
         httprequest=types.SimpleNamespace(

@@ -242,14 +242,15 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         makes that structural rather than a coincidence, at the cost of one
         extra rebuild on the first read after the registry lands.
         """
-        sanitized = self.registry is not None
+        registry = self.registry
+        sanitized = registry is not None
         memo = self._cookies_memo
         if memo is not None and memo[0] is sanitized:
             return memo[1]
 
         cookies = werkzeug.datastructures.MultiDict(self.httprequest.cookies)
-        if sanitized:
-            self.registry["ir.http"]._sanitize_cookies(cookies)
+        if registry is not None:
+            registry["ir.http"]._sanitize_cookies(cookies)
         result = werkzeug.datastructures.ImmutableMultiDict(cookies)
         self._cookies_memo = (sanitized, result)
         return result
