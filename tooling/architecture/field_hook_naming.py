@@ -31,6 +31,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import _ast_cache
 import naming_vocabulary as nv
 from _repo_root import find_odoo_root
 
@@ -303,7 +304,7 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
     domain_methods: dict[str, tuple[str, int]] = {}
     for path in files:
         try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
+            tree = _ast_cache.parse_file(path)
         except SyntaxError, UnicodeDecodeError:
             continue
         display = str(nv._display(path))
@@ -373,7 +374,7 @@ def inverse_spellings(roots: list[Path] | None = None) -> tuple[int, int]:
     seen: set[tuple[str, str]] = set()
     for path in nv._python_files(roots):
         try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
+            tree = _ast_cache.parse_file(path)
         except SyntaxError, UnicodeDecodeError:
             continue
         for _model, attr, method, field, _line in _field_hooks(tree):
@@ -444,7 +445,7 @@ def unbound_prefixes(roots: list[Path] | None = None) -> tuple[int, int]:
     bound: set[str] = set(_BOUND_BY_CONVENTION)
     for path in files:
         try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
+            tree = _ast_cache.parse_file(path)
         except SyntaxError, UnicodeDecodeError:
             continue
         for node in ast.walk(tree):

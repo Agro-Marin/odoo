@@ -11,6 +11,7 @@ from typing import NamedTuple
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import _ast_cache
 import doc_measured
 import field_hook_naming
 import field_hook_purity
@@ -18,6 +19,10 @@ import naming_vocabulary
 from _repo_root import find_odoo_root
 
 ADR = "0041"
+
+# This gate walks the corpus eight times over (see _ast_cache); it is the one
+# caller for which retaining parsed trees pays.
+_ast_cache.enable()
 
 ROOT = find_odoo_root(Path(__file__).resolve())
 
@@ -78,9 +83,7 @@ def _suite_methods(module: str) -> int:
     return sum(
         sum(
             isinstance(node, ast.FunctionDef) and node.name.startswith("test")
-            for node in ast.walk(
-                ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
-            )
+            for node in ast.walk(_ast_cache.parse_file(path, errors="ignore"))
         )
         for path in sorted(base.rglob("*.py"))
     )
@@ -132,7 +135,7 @@ def dispatch_names() -> tuple[int, ...]:
         total = 0
         for path in naming_vocabulary._python_files([root]):
             try:
-                tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
+                tree = _ast_cache.parse_file(path, errors="ignore")
             except SyntaxError:
                 continue
             for node in ast.walk(tree):
@@ -164,7 +167,7 @@ def field_param_typing() -> tuple[int, ...]:
         [ROOT / r for r in naming_vocabulary.SCAN_ROOTS]
     ):
         try:
-            tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
+            tree = _ast_cache.parse_file(path, errors="ignore")
         except SyntaxError:
             continue
         for node in ast.walk(tree):
@@ -261,7 +264,7 @@ def constraint_name_spellings() -> tuple[int, ...]:
         [ROOT / r for r in naming_vocabulary.SCAN_ROOTS]
     ):
         try:
-            tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
+            tree = _ast_cache.parse_file(path, errors="ignore")
         except SyntaxError:
             continue
         for node in ast.walk(tree):

@@ -52,6 +52,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import _ast_cache
 import field_hook_naming as fh
 import naming_vocabulary as nv
 from _repo_root import find_odoo_root
@@ -140,7 +141,7 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
 
     for path in production:
         try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
+            tree = _ast_cache.parse_file(path)
         except SyntaxError, UnicodeDecodeError:
             continue
         display = str(nv._display(path))

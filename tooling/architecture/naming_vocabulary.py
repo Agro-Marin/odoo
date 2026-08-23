@@ -12,6 +12,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import _ast_cache
 from _repo_root import find_odoo_root
 
 ADR = "0033"
@@ -573,7 +574,7 @@ def census(roots: tuple[Path, ...] | None = None) -> Census:
     bodies: dict[str, set[str]] = collections.defaultdict(set)
     for path in files:
         try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
+            tree = _ast_cache.parse_file(path)
         except SyntaxError, UnicodeDecodeError:
             continue
         # The directory test alone is a filename standing in for a scope, and it
@@ -763,7 +764,7 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
     out: list[Violation] = []
     for path in files:
         try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
+            tree = _ast_cache.parse_file(path)
         except SyntaxError, UnicodeDecodeError:
             continue
         for node in ast.walk(tree):
