@@ -30,11 +30,22 @@ class StockMoveLine(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         res = super().create(vals_list)
+        if self.env.context.get("force_manual_consumption"):
+            # Recording a quantity is only a *manual* consumption when it differs
+            # from what the order asked for, and the comparison is the move's, not
+            # one line's: a line is a part of the total. This used to flag any
+            # non-zero line, which made the same test in `stock.move.write` inert --
+            # the write set no flag and the move line it created set one anyway.
+            for move in res.move_id:
+                move.picked = True
+                lines = res.filtered(lambda line, move=move: line.move_id == move)
+                if not any(lines.mapped("quantity")):
+                    continue
+                if move._is_quantity_edited(
+                    move.product_uom_qty, move.quantity, move.product_uom_id
+                ):
+                    move.manual_consumption = True
         for line in res:
-            if self.env.context.get("force_manual_consumption"):
-                if line.quantity:
-                    line.move_id.manual_consumption = True
-                line.move_id.picked = True
             if line.move_id.raw_material_production_id and line.state == "done":
                 mo = line.move_id.raw_material_production_id
                 finished_lots = mo.lot_producing_ids

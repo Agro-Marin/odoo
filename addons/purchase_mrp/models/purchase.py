@@ -68,7 +68,7 @@ class PurchaseOrderLine(models.Model):
                     'outgoing_moves': lambda m:
                         m._is_outgoing() and m.to_refund,
                 }
-                line.qty_transferred = moves._compute_kit_quantities(line.product_id, order_qty, kit_bom, filters)
+                line.qty_transferred = moves._get_kit_quantity(line.product_id, order_qty, kit_bom, filters)
                 kit_lines += line
         super(PurchaseOrderLine, self - kit_lines)._compute_qty_transferred()
 
@@ -95,7 +95,7 @@ class PurchaseOrderLine(models.Model):
                     'outgoing_moves': lambda m:
                         m._is_outgoing() and m.to_refund,
                 }
-                kit_invoiced_qties[line] = moves._compute_kit_quantities(line.product_id, order_qty, kit_bom, filters)
+                kit_invoiced_qties[line] = moves._get_kit_quantity(line.product_id, order_qty, kit_bom, filters)
                 kit_lines += line
         invoiced_qties = super(PurchaseOrderLine, self - kit_lines)._prepare_qty_transferred()
         invoiced_qties.update(kit_invoiced_qties)
@@ -142,7 +142,7 @@ class PurchaseOrderLine(models.Model):
         kit_bom = self.env['mrp.bom']._bom_find(self.product_id, bom_type='phantom')[self.product_id]
         if kit_bom:
             filters = {'incoming_moves': lambda m: True, 'outgoing_moves': lambda m: False}
-            return move_dests._compute_kit_quantities(self.product_id, self.product_qty, kit_bom, filters)
+            return move_dests._get_kit_quantity(self.product_id, self.product_qty, kit_bom, filters)
         return super()._get_stock_move_dests_initial_demand(move_dests)
 
     def _get_sale_order_line_product(self):

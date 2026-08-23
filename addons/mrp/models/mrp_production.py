@@ -2326,9 +2326,7 @@ class MrpProduction(models.Model):
             if move.sudo()._should_bypass_set_qty_producing():
                 continue
 
-            new_qty = move.product_uom_id.round(
-                (self.qty_producing - self.qty_produced) * move.unit_factor
-            )
+            new_qty = move._get_qty_to_process()
             if move.has_tracking != "none":
                 qty_waiting = 0
                 for move_orig in move.move_orig_ids:

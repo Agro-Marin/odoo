@@ -35,8 +35,8 @@ class StockMove(models.Model):
             return aml.product_uom_id._compute_quantity(quantity, self.product_id.uom_id)
         return super()._get_quantity_from_bill(aml, quantity)
 
-    def _prepare_phantom_move_values(self, bom_line, product_qty, quantity_done):
-        vals = super()._prepare_phantom_move_values(bom_line, product_qty, quantity_done)
+    def _prepare_phantom_move_vals(self, bom_line, product_qty, quantity_done):
+        vals = super()._prepare_phantom_move_vals(bom_line, product_qty, quantity_done)
         if self.purchase_line_id:
             vals['purchase_line_id'] = self.purchase_line_id.id
         return vals
@@ -51,7 +51,7 @@ class StockMove(models.Model):
                 'incoming_moves': lambda m: m.location_id.usage == 'supplier' and (not m.origin_returned_move_id or (m.origin_returned_move_id and m.to_refund)),
                 'outgoing_moves': lambda m: m.location_id.usage != 'supplier' and m.to_refund
             }
-            valuation_total_qty = self._compute_kit_quantities(related_aml.product_id, order_qty, kit_bom, filters)
+            valuation_total_qty = self._get_kit_quantity(related_aml.product_id, order_qty, kit_bom, filters)
             valuation_total_qty = kit_bom.product_uom_id._compute_quantity(valuation_total_qty, related_aml.product_id.uom_id)
             # The `or` here used to pick a rounding *source*:
             #   float_is_zero(qty, precision_rounding=aml.product_uom_id.rounding

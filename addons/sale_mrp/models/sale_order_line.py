@@ -113,7 +113,7 @@ class SaleOrderLine(models.Model):
                         m._is_incoming() and m.to_refund,
                 }
                 order_qty = line.product_uom_id._compute_quantity_reconcile(line.product_uom_qty, relevant_bom.product_uom_id)
-                qty_transferred = moves._compute_kit_quantities(line.product_id, order_qty, relevant_bom, filters)
+                qty_transferred = moves._get_kit_quantity(line.product_id, order_qty, relevant_bom, filters)
                 line.qty_transferred = relevant_bom.product_uom_id._compute_quantity_reconcile(qty_transferred, line.product_uom_id)
 
             # If no relevant BOM is found, fall back on the all-or-nothing policy. This happens
@@ -174,7 +174,7 @@ class SaleOrderLine(models.Model):
                             m._is_incoming() and m.to_refund,
                     }
                     order_qty = order_line.product_uom_id._compute_quantity_reconcile(order_line.product_uom_qty, relevant_bom.product_uom_id)
-                    qty_transferred = moves._compute_kit_quantities(order_line.product_id, order_qty, relevant_bom, filters)
+                    qty_transferred = moves._get_kit_quantity(order_line.product_id, order_qty, relevant_bom, filters)
                     delivered_qties[order_line] += relevant_bom.product_uom_id._compute_quantity_reconcile(qty_transferred, order_line.product_uom_id)
 
                 # If no relevant BOM is found, fall back on the all-or-nothing policy. This happens
@@ -264,7 +264,7 @@ class SaleOrderLine(models.Model):
             # (`product_uom_id`), matching the conversion just below.
             order_qty = previous_product_qty.get(self.id, 0) if previous_product_qty else self.product_qty
             order_qty = self.product_uom_id._compute_quantity(order_qty, bom.product_uom_id)
-            qty = moves._compute_kit_quantities(self.product_id, order_qty, bom, filters)
+            qty = moves._get_kit_quantity(self.product_id, order_qty, bom, filters)
             return bom.product_uom_id._compute_quantity(qty, self.product_uom_id)
         elif bom and previous_product_qty:
             return previous_product_qty.get(self.id)

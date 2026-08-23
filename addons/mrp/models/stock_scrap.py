@@ -95,7 +95,7 @@ class StockScrap(models.Model):
                     "incoming_moves": lambda m: True,
                     "outgoing_moves": lambda m: False,
                 }
-                scrap.scrap_qty = scrap.move_ids._compute_kit_quantities(
+                scrap.scrap_qty = scrap.move_ids._get_kit_quantity(
                     scrap.product_id, scrap.scrap_qty, scrap.bom_id, filters
                 )
 
