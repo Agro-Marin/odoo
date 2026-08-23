@@ -1254,6 +1254,7 @@ class SaleOrderLine(models.Model):
 
     def _prepare_aml_vals(self, **optional_values):
         self.ensure_one()
+        move = optional_values.pop("move", None)
 
         if self.product_id.type == "combo":
             qty_to_invoice = (
@@ -1295,6 +1296,19 @@ class SaleOrderLine(models.Model):
         downpayment_lines = self.invoice_line_ids.filtered("is_downpayment")
         if self.is_downpayment and downpayment_lines:
             res["account_id"] = downpayment_lines.account_id[:1].id
+        if move:
+            res["quantity"] = (
+                -self.qty_to_invoice
+                if move.move_type == "out_refund"
+                else self.qty_to_invoice
+            )
+            res["price_unit"] = self.currency_id._convert(
+                self.price_unit,
+                move.currency_id or self.currency_id,
+                self.company_id,
+                move.date or fields.Date.today(),
+                round=False,
+            )
         if optional_values:
             res.update(optional_values)
         if self.display_type:

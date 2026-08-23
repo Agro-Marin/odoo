@@ -46,7 +46,7 @@ class TestBillLineMatch(TransactionCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows.product_uom_qty, 3.0)
         self.assertEqual(rows.product_uom_price, 10.0)
-        self.assertEqual(rows.pol_id, order.line_ids)
+        self.assertEqual(rows.order_line_id, order.line_ids)
 
     def test_draft_order_is_not_offered_for_matching(self):
         self.env["purchase.order"].create(
@@ -87,7 +87,7 @@ class TestBillLineMatch(TransactionCase):
 
     def test_bill_creation_uses_the_lines_currency(self):
         order = self._confirmed_order()
-        action = self.Match._action_create_bill_from_po_lines(
+        action = self.Match._action_create_invoice_from_order_lines(
             self.vendor, order.line_ids
         )
         bill = self.env["account.move"].browse(action["res_id"])

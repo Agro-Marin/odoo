@@ -784,6 +784,9 @@ class ResPartner(models.Model):
     supplier_invoice_count = fields.Integer(
         compute="_compute_supplier_invoice_count", string="# Vendor Bills"
     )
+    customer_invoice_count = fields.Integer(
+        compute="_compute_customer_invoice_count", string="# Customer Invoices"
+    )
     account_move_count = fields.Integer(
         compute="_compute_account_move_count",
         groups="account.group_account_invoice,account.group_account_readonly",
@@ -917,6 +920,15 @@ class ResPartner(models.Model):
             [
                 *self.env["account.move"]._check_company_domain(self.env.company),
                 ("move_type", "in", ("in_invoice", "in_refund")),
+            ],
+        )
+
+    def _compute_customer_invoice_count(self):
+        self._compute_move_count_by_partner(
+            "customer_invoice_count",
+            [
+                *self.env["account.move"]._check_company_domain(self.env.company),
+                ("move_type", "in", ("out_invoice", "out_refund")),
             ],
         )
 

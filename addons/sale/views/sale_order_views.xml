@@ -527,6 +527,17 @@
                             invisible="invoice_count == 0">
                             <field name="invoice_count" string="Invoices" widget="statinfo" />
                         </button>
+                        <button
+                            name="action_invoice_matching"
+                            type="object"
+                            class="oe_stat_button"
+                            groups="account.group_account_invoice"
+                            icon="fa-bullseye"
+                            invisible="not partner_id or state != 'done' or not partner_invoice_count or invoice_state == 'done'">
+                            <div class="o_field_statinfo">
+                                <span class="o_stat_text">Invoice Matching</span>
+                            </div>
+                        </button>
                     </div>
                     <div class="badge rounded-pill text-bg-secondary float-end fs-6 border-0"
                         invisible="not locked">

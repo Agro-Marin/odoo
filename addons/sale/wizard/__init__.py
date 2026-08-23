@@ -1,4 +1,5 @@
 from . import base_document_layout
+from . import invoice_to_so_wizard
 from . import mass_cancel_orders
 from . import payment_link_wizard
 from . import res_config_settings

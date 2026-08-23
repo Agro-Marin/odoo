@@ -42,6 +42,18 @@ class AccountMoveLine(models.Model):
     def _get_fields_order_line_link(self):
         return [*super()._get_fields_order_line_link(), "sale_line_ids"]
 
+    def _sale_prepare_order_line_values(self):
+        return [
+            {
+                "product_id": line.product_id.id,
+                "product_qty": line.quantity,
+                "product_uom_id": line.product_uom_id.id,
+                "price_unit": line.price_unit,
+                "discount": line.discount,
+            }
+            for line in self
+        ]
+
     def _get_downpayment_lines(self):
         return self.sale_line_ids.filtered("is_downpayment").invoice_line_ids.filtered(
             lambda line: line.move_id._is_downpayment(),

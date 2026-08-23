@@ -166,11 +166,11 @@ class AccountMove(models.Model):
 
     @api.onchange("purchase_vendor_bill_id", "purchase_id")
     def _onchange_purchase_auto_complete(self):
-        if self.purchase_vendor_bill_id.vendor_bill_id:
-            self.invoice_vendor_bill_id = self.purchase_vendor_bill_id.vendor_bill_id
+        if self.purchase_vendor_bill_id.move_id:
+            self.invoice_vendor_bill_id = self.purchase_vendor_bill_id.move_id
             self._onchange_invoice_vendor_bill()
-        elif self.purchase_vendor_bill_id.purchase_order_id:
-            self.purchase_id = self.purchase_vendor_bill_id.purchase_order_id
+        elif self.purchase_vendor_bill_id.order_id:
+            self.purchase_id = self.purchase_vendor_bill_id.order_id
         self.purchase_vendor_bill_id = False
 
         if not self.purchase_id:
@@ -201,7 +201,7 @@ class AccountMove(models.Model):
         po_lines = self.purchase_id.line_ids - self.invoice_line_ids.mapped(
             "purchase_line_ids",
         )
-        self._add_purchase_order_lines(po_lines)
+        self._add_order_lines(po_lines)
 
         origins = set(self.invoice_line_ids.mapped("purchase_line_ids.order_id.name"))
         self.invoice_origin = ",".join(list(origins))
@@ -321,19 +321,6 @@ class AccountMove(models.Model):
                 )
         return True
 
-
-    def _add_purchase_order_lines(self, purchase_order_lines):
-        if not purchase_order_lines:
-            return
-        self.ensure_one()
-        purchase_order_lines._assert_invoiced_uom_convertible()
-        new_line_ids = self.env["account.move.line"]
-
-        for po_line in purchase_order_lines:
-            new_line_values = po_line._prepare_aml_vals(move=self)
-            new_line_ids += self.env["account.move.line"].new(new_line_values)
-
-        self.invoice_line_ids += new_line_ids
 
     def _find_and_set_purchase_orders(
         self,

@@ -359,9 +359,9 @@ class PurchaseOrder(models.Model):
                     (self.partner_id | self.partner_id.commercial_partner_id).ids,
                 ),
                 "|",
-                ("purchase_order_id", "=", self.id),
+                ("order_id", "=", self.id),
                 "&",
-                ("purchase_order_id", "=", False),
+                ("order_id", "=", False),
                 ("product_id", "in", product_ids),
             ],
         }

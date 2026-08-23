@@ -1,28 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <record id="view_purchase_bill_match_search" model="ir.ui.view">
-        <field name="name">purchase.bill.match.select</field>
-        <field name="model">purchase.bill.match</field>
+    <record id="view_sale_invoice_match_search" model="ir.ui.view">
+        <field name="name">sale.invoice.match.select</field>
+        <field name="model">sale.invoice.match</field>
         <field name="arch" type="xml">
             <search string="Search Reference Document">
-                <field name="name" string="Reference"
+                <field
+                    name="name"
+                    string="Reference"
                     filter_domain="['|', ('name','ilike',self), ('reference','=like',self+'%')]" />
                 <field name="amount" />
                 <separator />
                 <field name="partner_id" operator="child_of" />
                 <separator />
-                <filter name="purchase_orders" string="Purchase Orders"
+                <filter
+                    name="sale_orders"
+                    string="Sales Orders"
                     domain="[('order_id', '!=', False)]" />
-                <filter name="vendor_bills" string="Vendor Bills"
+                <filter
+                    name="customer_invoices"
+                    string="Customer Invoices"
                     domain="[('move_id', '!=', False)]" />
             </search>
         </field>
     </record>
 
-    <record id="view_purchase_bill_match_list" model="ir.ui.view">
-        <field name="name">purchase.bill.match.list</field>
-        <field name="model">purchase.bill.match</field>
+    <record id="view_sale_invoice_match_list" model="ir.ui.view">
+        <field name="name">sale.invoice.match.list</field>
+        <field name="model">sale.invoice.match</field>
         <field name="arch" type="xml">
             <list string="Reference Document">
                 <field name="name" />
@@ -31,7 +37,8 @@
                 <field name="date" />
                 <field name="amount" />
                 <field name="currency_id" column_invisible="True" />
-                <field name="company_id"
+                <field
+                    name="company_id"
                     options="{'no_create': True}"
                     groups="base.group_multi_company" />
             </list>

@@ -90,7 +90,7 @@ class TestInvoicedUomGuard(AccountTestInvoicingCommon):
             {"move_type": "in_invoice", "partner_id": self.partner_a.id},
         )
         with self.assertRaises(UserError):
-            new_bill._add_purchase_order_lines(po.line_ids)
+            new_bill._add_order_lines(po.line_ids)
 
     def test_compatible_invoiced_uom_still_bills(self):
         po = self._confirmed_po()

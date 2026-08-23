@@ -1751,7 +1751,7 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         match_lines = self.env["purchase.bill.line.match"].search(
             [("partner_id", "=", self.partner_a.id)]
         )
-        self.assertEqual(match_lines.pol_id, pol)
+        self.assertEqual(match_lines.order_line_id, pol)
         self.assertEqual(match_lines.aml_id, credit_note.invoice_line_ids)
 
         match_lines.action_match_lines()

@@ -18,8 +18,8 @@
                         class="oe_edit_only"
                         domain="[('partner_id.commercial_partner_id', '=', commercial_partner_id)] if partner_id else [] + [
                             	'|',
-    	                    		('vendor_bill_id', '=', False),
-                            		('vendor_bill_id.move_type', '=', move_type)
+    	                    		('move_id', '=', False),
+                            		('move_id.move_type', '=', move_type)
                         ]"
                         placeholder="Select a purchase document"
                         context="{'show_total_amount': True}"

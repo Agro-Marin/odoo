@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="sale_invoice_line_match_list" model="ir.ui.view">
+        <field name="name">sale.invoice.line.match.list</field>
+        <field name="model">sale.invoice.line.match</field>
+        <field name="arch" type="xml">
+            <list
+                string="Sale Invoice Lines"
+                decoration-info="order_line_id != False"
+                decoration-muted="state == 'draft'"
+                editable="bottom"
+                edit="1"
+                type="object">
+                <header>
+                    <button
+                        name="action_match_lines"
+                        type="object"
+                        string="Match"
+                        groups="account.group_account_invoice"
+                        class="btn btn-primary" />
+                    <button
+                        name="action_add_to_so"
+                        type="object"
+                        string="Add to SO"
+                        groups="sales_team.group_sale_salesman" />
+                </header>
+                <field name="partner_id" string="Customer" optional="hidden" />
+                <field name="reference" widget="open_match_line" />
+                <field
+                    name="display_name"
+                    string="Product Description"
+                    decoration-it="not product_id" />
+                <field name="product_uom_qty" string="Quantity" />
+                <field name="qty_invoiced" optional="hidden" />
+                <field name="qty_to_invoice" optional="show" />
+                <field name="product_uom_id" groups="uom.group_uom" />
+                <field name="product_uom_price" string="Price" />
+                <field
+                    name="invoiced_amount_taxexc"
+                    widget="monetary_no_zero"
+                    sum="Total Invoiced"
+                    string="Invoiced" />
+                <field
+                    name="ordered_amount_taxexc"
+                    widget="monetary_no_zero"
+                    sum="Total Ordered"
+                    string="Ordered" />
+                <field name="currency_id" column_invisible="1" />
+            </list>
+        </field>
+    </record>
+
+</odoo>

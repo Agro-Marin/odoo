@@ -46,3 +46,8 @@ access_sale_mass_cancel_orders,access.sale.mass.cancel.orders,model_sale_mass_ca
 access_sale_order_discount,access_sale_order_discount,model_sale_order_discount,sales_team.group_sale_salesman,1,1,1,0
 access_mail_activity_plan_sale_manager,mail.activity.plan.sale.manager,mail.model_mail_activity_plan,sales_team.group_sale_manager,1,1,1,1
 access_mail_activity_plan_template_sale_manager,mail.activity.plan.template.sale.manager,mail.model_mail_activity_plan_template,sales_team.group_sale_manager,1,1,1,1
+access_sale_invoice_line_match,sale.invoice.line.match user,model_sale_invoice_line_match,sales_team.group_sale_salesman,1,0,0,0
+access_sale_invoice_line_match_readonly,sale.invoice.line.match readonly,model_sale_invoice_line_match,account.group_account_readonly,1,0,0,0
+access_sale_invoice_line_match_invoicing_payments,sale.invoice.line.match invoice,model_sale_invoice_line_match,account.group_account_invoice,1,1,0,0
+access_sale_invoice_match,sale.invoice.match user,model_sale_invoice_match,sales_team.group_sale_salesman,1,0,0,0
+access_invoice_to_so_wizard,invoice.to.so.wizard user,model_invoice_to_so_wizard,sales_team.group_sale_salesman,1,1,1,0

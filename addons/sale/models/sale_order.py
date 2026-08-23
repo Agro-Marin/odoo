@@ -267,6 +267,9 @@ class SaleOrder(models.Model):
         string="Customer Reference",
         copy=False,
     )
+    partner_invoice_count = fields.Integer(
+        related="partner_id.customer_invoice_count",
+    )
     reference = fields.Char(
         string="Payment Ref.",
         copy=False,
@@ -819,6 +822,31 @@ class SaleOrder(models.Model):
             self.line_ids and self._origin.pricelist_id != self.pricelist_id
         )
 
+
+    def action_invoice_matching(self):
+        self.ensure_one()
+        product_ids = self.line_ids.product_id.ids
+        return {
+            "name": _("Invoice Matching"),
+            "type": "ir.actions.act_window",
+            "res_model": "sale.invoice.line.match",
+            "views": [
+                (self.env.ref("sale.sale_invoice_line_match_list").id, "list"),
+            ],
+            "domain": [
+                ("company_id", "in", self.env.company.ids),
+                (
+                    "partner_id",
+                    "in",
+                    (self.partner_id | self.partner_id.commercial_partner_id).ids,
+                ),
+                "|",
+                ("order_id", "=", self.id),
+                "&",
+                ("order_id", "=", False),
+                ("product_id", "in", product_ids),
+            ],
+        }
 
     def _get_confirmation_context(self):
         context = self.env.context.copy()

@@ -33,6 +33,27 @@ class AccountMove(models.Model):
         compute="_compute_sale_warning_text",
         help="Internal warning for the partner or the products as set by the user.",
     )
+    sale_customer_invoice_id = fields.Many2one(
+        comodel_name="sale.invoice.match",
+        string="Sales Auto-complete",
+        store=False,
+        readonly=False,
+        help="Auto-complete from a previous invoice, credit note, or sales order.",
+    )
+    sale_id = fields.Many2one(
+        comodel_name="sale.order",
+        string="Sales Order",
+        store=False,
+        readonly=False,
+        help="Auto-complete from a past sales order.",
+    )
+    sale_order_name = fields.Char(
+        compute="_compute_sale_order_name",
+    )
+    is_sale_matched = fields.Boolean(
+        compute="_compute_is_sale_matched",
+        help="0: SO not required or partially linked. 1: All lines linked",
+    )
 
 
     def unlink(self):
@@ -82,6 +103,93 @@ class AccountMove(models.Model):
     def _compute_sale_order_count(self):
         for move in self:
             move.sale_order_count = len(move.line_ids.sale_line_ids.order_id)
+
+    @api.depends("line_ids.sale_line_ids")
+    def _compute_is_sale_matched(self):
+        for move in self:
+            move.is_sale_matched = not any(
+                line.display_type == "product" and not line.sale_line_ids
+                for line in move.invoice_line_ids
+            )
+
+    @api.depends(
+        "sale_order_count",
+        "invoice_line_ids.sale_line_ids.order_id.display_name",
+    )
+    def _compute_sale_order_name(self):
+        for move in self:
+            if move.sale_order_count == 1:
+                move.sale_order_name = (
+                    move.invoice_line_ids.sale_line_ids.order_id.display_name
+                )
+            else:
+                move.sale_order_name = False
+
+    @api.onchange("sale_customer_invoice_id", "sale_id")
+    def _onchange_sale_auto_complete(self):
+        if self.sale_customer_invoice_id.move_id:
+            self.invoice_vendor_bill_id = self.sale_customer_invoice_id.move_id
+            self._onchange_invoice_vendor_bill()
+        elif self.sale_customer_invoice_id.order_id:
+            self.sale_id = self.sale_customer_invoice_id.order_id
+        self.sale_customer_invoice_id = False
+
+        if not self.sale_id:
+            return
+
+        invoice_vals = self.sale_id.with_company(
+            self.sale_id.company_id,
+        )._prepare_invoice_vals()
+        has_invoice_lines = bool(
+            self.invoice_line_ids.filtered(
+                lambda line: (
+                    line.display_type
+                    not in ("line_section", "line_subsection", "line_note")
+                ),
+            ),
+        )
+        new_currency_id = (
+            self.currency_id if has_invoice_lines else invoice_vals.get("currency_id")
+        )
+        del invoice_vals["company_id"]
+        if self.move_type == invoice_vals["move_type"]:
+            del invoice_vals["move_type"]
+        self.update(invoice_vals)
+        self.currency_id = new_currency_id
+
+        order_lines = self.sale_id.line_ids - self.invoice_line_ids.mapped(
+            "sale_line_ids",
+        )
+        self._add_order_lines(order_lines)
+
+        origins = set(self.invoice_line_ids.mapped("sale_line_ids.order_id.name"))
+        self.invoice_origin = ",".join(list(origins))
+
+        if self.company_id != self.sale_id.company_id:
+            self.company_id = self.sale_id.company_id
+
+        self.sale_id = False
+
+    def action_sale_matching(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Sale Matching"),
+            "res_model": "sale.invoice.line.match",
+            "domain": [
+                (
+                    "partner_id",
+                    "in",
+                    (self.partner_id | self.partner_id.commercial_partner_id).ids,
+                ),
+                ("company_id", "in", self.env.companies.ids),
+                ("company_id", "child_of", self.company_id.ids),
+                ("account_move_id", "in", [self.id, False]),
+            ],
+            "views": [
+                (self.env.ref("sale.sale_invoice_line_match_list").id, "list"),
+            ],
+        }
 
     @api.depends(
         "partner_id.name",

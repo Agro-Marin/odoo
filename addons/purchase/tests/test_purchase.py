@@ -1142,10 +1142,10 @@ class TestPurchase(AccountTestInvoicingCommon):
 
         self.assertEqual(len(matching_records), 2)
         self.assertEqual(matching_records.account_move_id, vendor_bill)
-        self.assertEqual(matching_records.purchase_order_id, purchase_order)
+        self.assertEqual(matching_records.order_id, purchase_order)
         self.assertEqual(len(matching_records_from_po), 2)
         self.assertEqual(matching_records_from_po.account_move_id, vendor_bill)
-        self.assertEqual(matching_records_from_po.purchase_order_id, purchase_order)
+        self.assertEqual(matching_records_from_po.order_id, purchase_order)
 
     def test_purchase_suggest_qty(self):
         self.env["product.supplierinfo"].create(

@@ -34,6 +34,25 @@
         <field name="model">account.move</field>
         <field name="inherit_id" ref="account.view_move_form" />
         <field name="arch" type="xml">
+            <field name="invoice_vendor_bill_id" position="after">
+                <t groups="sales_team.group_sale_salesman">
+                    <field name="sale_id" invisible="1" readonly="state != 'draft'" />
+                    <label for="sale_customer_invoice_id" string="Auto-Complete" class="oe_edit_only"
+                        invisible="state != 'draft' or move_type not in ('out_invoice', 'out_refund')" />
+                    <field name="sale_customer_invoice_id" nolabel="1"
+                        invisible="state != 'draft' or move_type not in ('out_invoice', 'out_refund')"
+                        readonly="state != 'draft'"
+                        class="oe_edit_only"
+                        domain="[('partner_id.commercial_partner_id', '=', commercial_partner_id)] if partner_id else [] + [
+                                '|',
+                                    ('move_id', '=', False),
+                                    ('move_id.move_type', '=', move_type)
+                        ]"
+                        placeholder="Select a sale document"
+                        context="{'show_total_amount': True}"
+                        options="{'no_create': True, 'no_open': True}" />
+                </t>
+            </field>
             <xpath expr="//group[@name='sale_info_group']/field[@name='invoice_user_id']"
                 position="after">
                 <field name="team_id"
@@ -51,15 +70,34 @@
             </xpath>
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button class="oe_stat_button"
+                    name="action_sale_matching"
+                    type="object"
+                    groups="sales_team.group_sale_salesman"
+                    icon="fa-bullseye"
+                    invisible="not partner_id or move_type not in ('out_invoice', 'out_refund') or is_sale_matched">
+                    <div class="o_field_statinfo">
+                        <span class="o_stat_text">Sale Matching</span>
+                    </div>
+                </button>
+                <button class="oe_stat_button"
                     name="action_view_source_sale_orders"
                     type="object"
                     icon="fa-regular fa-pen-to-square"
                     invisible="sale_order_count == 0 or move_type not in ('out_invoice', 'out_refund', 'in_invoice', 'in_refund', 'out_receipt', 'in_receipt')">
-                    <field string="Sale Orders" name="sale_order_count" widget="statinfo" />
+                    <field string="Sale Orders" name="sale_order_name" widget="statinfo"
+                        invisible="sale_order_count != 1" />
+                    <field string="Sale Orders" name="sale_order_count" widget="statinfo"
+                        invisible="sale_order_count == 1" />
                 </button>
             </xpath>
             <xpath expr="//field[@name='invoice_line_ids']/list" position="inside">
                 <field name="is_downpayment" column_invisible="1" />
+                <field name="sale_line_ids" groups="sales_team.group_sale_salesman"
+                    column_invisible="True" />
+            </xpath>
+            <xpath expr="//field[@name='line_ids']/list" position="inside">
+                <field name="sale_line_ids" groups="sales_team.group_sale_salesman"
+                    column_invisible="True" />
             </xpath>
             <xpath expr="//field[@name='invoice_line_ids']/list/field[@name='product_id']"
                 position="attributes">
