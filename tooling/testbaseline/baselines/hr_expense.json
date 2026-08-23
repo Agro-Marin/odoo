@@ -1,0 +1,20 @@
+{
+  "expected": {
+    "hr_expense/TestExpenses.test_expense_main_flow": "ERROR",
+    "hr_expense/TestExpensesAccessRights.test_expense_access_rights_user": "FAIL",
+    "hr_expense/TestExpensesMailImport.test_import_expense_from_email": "ERROR",
+    "hr_expense/TestExpensesMailImport.test_import_expense_from_email_employee_without_user": "ERROR",
+    "hr_expense/TestExpensesMailImport.test_import_expense_from_email_no_product": "ERROR",
+    "hr_expense/TestExpensesMailImport.test_import_expense_from_email_several_employees": "ERROR",
+    "hr_expense/TestExpensesMailImport.test_import_expense_from_mail_action_submit_errors": "ERROR",
+    "hr_expense/TestExpensesStates.test_expense_state_synchro_1_reverse_move": "ERROR",
+    "hr_expense/TestExpensesStates.test_expense_state_synchro_1_unlink_move": "ERROR",
+    "hr_expense/TestUi.test_expense_manager_can_always_set_employee": "FAIL",
+    "hr_expense/TestUi.test_no_zero_amount_expense_in_expense": "FAIL"
+  },
+  "note": "Standing red on a fresh install, and predates this recording: the identical 11 names reproduce at 14025d4b90c in a detached worktree. Three are browser tours (TestExpensesAccessRights.test_expense_access_rights_user, TestUi.test_expense_manager_can_always_set_employee, TestUi.test_no_zero_amount_expense_in_expense), so they need the live conf's addons-path and a worktree needs node_modules symlinked. Eight are Python: the five TestExpensesMailImport ones all die at hr_expense.message_new -> product_tmpl_id._get_product_accounts() with ValueError: Expected singleton: product.template(), an empty product rather than anything about accounts; TestExpenses.test_expense_main_flow and the two TestExpensesStates ones surface inside account_move.unlink under a savepoint. None of it is reachable from the tax engine -- recorded while auditing account_tax.py, after the 11 turned up on a fresh-install sweep and had to be excluded from that work by control run.",
+  "run_spec": "-i hr_expense --test-enable --test-tags '/hr_expense'",
+  "suite": "/hr_expense",
+  "tests_total": 51,
+  "verified_at": "c51631833cd"
+}
