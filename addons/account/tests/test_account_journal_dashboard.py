@@ -664,3 +664,114 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         data = (windowed | open_journal)._get_journal_dashboard_data_batched()
         self.assertEqual(data[windowed.id]["nb_misc_operations"], 0)
         self.assertEqual(data[open_journal.id]["nb_misc_operations"], 1)
+
+
+@tagged("post_install", "-at_install")
+class TestAccountJournalDashboardSigns(TestAccountJournalDashboardCommon):
+    """The dashboard sums each journal twice: SUM(amount_residual_signed) when the
+    document company's currency is the dashboard currency, and a sign reconstructed
+    over the unsigned amount_residual otherwise. The two must agree, so every test
+    here crosses a foreign-currency journal with a move type whose residual is
+    negative -- the cell the rest of the suite never reaches.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # rate 1.0 makes the two branches numerically comparable: any difference
+        # left is sign, not FX.
+        cls.par_currency = cls.setup_other_currency("GBP", rates=[("1900-01-01", 1.0)])
+
+    def _journal_in(self, jtype, code, currency):
+        return self.env["account.journal"].create({
+            "name": code, "code": code, "type": jtype,
+            "company_id": self.env.company.id,
+            "currency_id": currency.id if currency else False,
+        })
+
+    def _post(self, journal, move_type, amount, currency):
+        account = self.company_data[
+            "default_account_revenue" if move_type.startswith("out") else "default_account_expense"
+        ]
+        move = self.env["account.move"].create({
+            "move_type": move_type,
+            "journal_id": journal.id,
+            "partner_id": self.partner_a.id,
+            "currency_id": currency.id,
+            "invoice_date": "2019-01-01",
+            "date": "2019-01-01",
+            "invoice_date_due": "2019-01-01",
+            "invoice_line_ids": [Command.create({
+                "name": "l", "quantity": 1, "price_unit": amount,
+                "account_id": account.id, "tax_ids": [],
+            })],
+        })
+        move.action_post()
+        return move
+
+    def _sums(self, journal):
+        data = journal._get_journal_dashboard_data_batched()[journal.id]
+        return data["sum_waiting"], data["sum_late"]
+
+    @freeze_time("2019-06-01")
+    def test_credit_note_subtracts_in_a_foreign_currency_journal(self):
+        """An out_refund reduces what customers owe on both branches."""
+        expected = format_amount(self.env, 700, self.par_currency)
+
+        journal = self._journal_in("sale", "FXS1", self.par_currency)
+        self._post(journal, "out_invoice", 1000, self.par_currency)
+        self._post(journal, "out_refund", 300, self.par_currency)
+        self.assertEqual(self._sums(journal), (expected, expected))
+
+    @freeze_time("2019-06-01")
+    def test_credit_note_agrees_across_both_currency_branches(self):
+        """The company-currency journal is the control: same shape, same number."""
+        company_currency = self.company_data["currency"]
+        control = self._journal_in("sale", "FXS2", None)
+        self._post(control, "out_invoice", 1000, company_currency)
+        self._post(control, "out_refund", 300, company_currency)
+
+        foreign = self._journal_in("sale", "FXS3", self.par_currency)
+        self._post(foreign, "out_invoice", 1000, self.par_currency)
+        self._post(foreign, "out_refund", 300, self.par_currency)
+
+        _waiting, control_late = self._sums(control)
+        _waiting, foreign_late = self._sums(foreign)
+        self.assertEqual(
+            control_late, format_amount(self.env, 700, company_currency)
+        )
+        self.assertEqual(
+            foreign_late, format_amount(self.env, 700, self.par_currency)
+        )
+
+    @freeze_time("2019-06-01")
+    def test_vendor_receipt_adds_in_a_foreign_currency_journal(self):
+        """An in_receipt is money owed, like a bill: it adds, it does not subtract."""
+        expected = format_amount(self.env, 1400, self.par_currency)
+
+        journal = self._journal_in("purchase", "FXP1", self.par_currency)
+        self._post(journal, "in_invoice", 1000, self.par_currency)
+        self._post(journal, "in_receipt", 400, self.par_currency)
+        self.assertEqual(self._sums(journal), (expected, expected))
+
+    @freeze_time("2019-06-01")
+    def test_every_invoice_type_keeps_its_residual_sign(self):
+        """One journal per type, so a wrong sign shows up as a sign, not a total."""
+        cases = [
+            ("sale", "out_invoice", 100),
+            ("sale", "out_refund", -100),
+            ("sale", "out_receipt", 100),
+            ("purchase", "in_invoice", -100),
+            ("purchase", "in_refund", 100),
+            ("purchase", "in_receipt", -100),
+        ]
+        for index, (jtype, move_type, signed) in enumerate(cases):
+            with self.subTest(move_type=move_type):
+                journal = self._journal_in(jtype, f"FX{index}", self.par_currency)
+                self._post(journal, move_type, 100, self.par_currency)
+                # the dashboard flips purchase for display, so undo that here
+                display = signed if jtype == "sale" else -signed
+                self.assertEqual(
+                    self._sums(journal)[1],
+                    format_amount(self.env, display, self.par_currency),
+                )
