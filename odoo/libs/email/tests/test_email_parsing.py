@@ -7,7 +7,9 @@ from odoo.libs.email.parsing import (
     email_normalize_all,
     email_split,
     email_split_tuples,
+    encapsulate_email,
     formataddr,
+    getaddresses,
 )
 
 
@@ -74,3 +76,53 @@ class TestFormataddr:
         assert "\n" not in out
         assert "\r" not in out
         assert "\x00" not in out
+
+
+class TestNormalizeKeepsNonAsciiLocalParts:
+    """Case folding is defined only for ASCII, so the local part is folded only
+    when it is ASCII.  The domain always is."""
+
+    def test_ascii_local_part_is_folded(self):
+        assert email_normalize("Some.User@Example.COM") == "some.user@example.com"
+
+    def test_non_ascii_local_part_keeps_its_case(self):
+        assert email_normalize("Ä@Example.COM") == "Ä@example.com"
+
+    def test_the_domain_is_folded_either_way(self):
+        assert email_normalize("Ä@EXAMPLE.COM") == "Ä@example.com"
+        assert email_normalize("a@EXAMPLE.COM") == "a@example.com"
+
+
+class TestEmailNormalizeAllNeedsNoFilter:
+    """`email_split` only yields addresses containing "@", and normalising keeps
+    it, so no result can be empty -- the `filter(None, ...)` that used to wrap
+    this could never drop anything."""
+
+    def test_every_split_address_survives_normalisation(self):
+        assert email_normalize_all("A@B.com, c@D.com") == ["a@b.com", "c@d.com"]
+
+    def test_unparseable_input_yields_nothing_to_filter(self):
+        assert email_normalize_all("garbage") == []
+        assert email_normalize_all("") == []
+
+
+class TestEncapsulateEmailEmptinessGuard:
+    """`getaddresses` returns (name, address) pairs, and a 2-tuple is always
+    truthy: an unparseable header comes back as ("", "").  Only the empty list
+    is detectable, which is what the guard now says."""
+
+    def test_an_unparseable_header_parses_to_a_truthy_pair(self):
+        assert getaddresses(["   "]) == [("", "")]
+        assert getaddresses(["   "])[0]
+
+    def test_empty_old_email_is_returned_unchanged(self):
+        assert encapsulate_email("", "new@e.com") == ""
+
+    def test_a_name_is_carried_onto_the_new_address(self):
+        assert (
+            encapsulate_email('"Old Name" <old@e.com>', "new@e.com")
+            == '"Old Name" <new@e.com>'
+        )
+
+    def test_a_bare_address_donates_its_local_part_as_the_name(self):
+        assert encapsulate_email("old@e.com", "new@e.com") == '"old" <new@e.com>'

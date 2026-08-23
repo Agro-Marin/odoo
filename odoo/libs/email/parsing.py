@@ -22,6 +22,7 @@ mail_header_msgid_re = re.compile(r"<[^<>]+>")
 address_pattern = re.compile(r'([^" ,<@]+@[^>" ,]+)')
 email_addr_escapes_re = re.compile(r'[\\"]')
 _HEADER_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+_FOLDING_WHITESPACE_RE = re.compile(r"[\r\n\t ]+")
 
 
 def extract_rfc2822_addresses(text: str) -> list[str]:
@@ -37,11 +38,11 @@ def extract_rfc2822_addresses(text: str) -> list[str]:
 
 def _normalize_email(email: str) -> str:
     local_part, at, domain = email.rpartition("@")
-    try:
-        local_part.encode("ascii")
-    except UnicodeEncodeError:
-        pass
-    else:
+    # A non-ASCII local part is left exactly as written: case folding is only
+    # defined for ASCII, and the mailbox owner decides the rest.  Spelling that
+    # as `encode("ascii")` in a try/except allocated a bytes object per call to
+    # learn one bit that `str` already tracks.
+    if local_part.isascii():
         local_part = local_part.lower()
 
     return local_part + at + domain.lower()
@@ -115,8 +116,9 @@ def email_normalize(text: str, strict: bool = True) -> str | Literal[False]:
 
 
 def email_normalize_all(text: str) -> list[str]:
-    emails = email_split(text)
-    return list(filter(None, [_normalize_email(email) for email in emails]))
+    # No filtering: `email_split` only yields addresses containing "@", and
+    # `_normalize_email` keeps it, so every result is non-empty by construction.
+    return [_normalize_email(email) for email in email_split(text)]
 
 
 def email_anonymize(normalized_email: str, *, redact_domain: bool = False) -> str:
@@ -151,7 +153,7 @@ def email_domain_normalize(domain: str) -> str | Literal[False]:
     return domain.lower()
 
 
-def url_domain_extract(url: str) -> str | bool:
+def url_domain_extract(url: str) -> str | Literal[False]:
     parser_results = urlparse(url)
     company_hostname = parser_results.hostname
     if company_hostname and "." in company_hostname:
@@ -189,12 +191,16 @@ def formataddr(pair: tuple[str, str], charset: str = "utf-8") -> str:
 
 
 def encapsulate_email(old_email: str, new_email: str) -> str | None:
+    # `getaddresses` returns a list of (name, address) pairs, and a 2-tuple is
+    # always truthy -- an unparseable header comes back as ("", "").  So the
+    # only thing an emptiness check can catch here is the empty list; testing
+    # the pair as well read like a second guard and was never one.
     old_email_split = getaddresses([old_email])
-    if not old_email_split or not old_email_split[0]:
+    if not old_email_split:
         return old_email
 
     new_email_split = getaddresses([new_email])
-    if not new_email_split or not new_email_split[0]:
+    if not new_email_split:
         return None
 
     old_name, old_addr = old_email_split[0]
@@ -222,6 +228,6 @@ def parse_contact_from_email(text: str) -> tuple[str, str]:
 
 def unfold_references(msg_references: str) -> list[str]:
     return [
-        re.sub(r"[\r\n\t ]+", r"", ref)
+        _FOLDING_WHITESPACE_RE.sub("", ref)
         for ref in mail_header_msgid_re.findall(msg_references)
     ]
