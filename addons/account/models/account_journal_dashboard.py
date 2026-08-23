@@ -822,6 +822,28 @@ class AccountJournal(models.Model):
             to_pay_select,
         ]
 
+    def _get_to_check_aggregation_selects(self):
+        # a review queue is measured by what the documents are worth, not by what is
+        # still owed on them: amount_residual_signed is 0 on a paid invoice and on
+        # every misc entry, so a residual here counts documents it cannot value
+        return [
+            SQL("journal_id"),
+            SQL("company_id"),
+            SQL("currency_id AS currency"),
+            SQL("invoice_date_due < %s AS late", fields.Date.context_today(self)),
+            SQL("SUM(amount_total_signed) AS amount_total_company"),
+            SQL(
+                "SUM((CASE WHEN move_type = ANY(%s) THEN -1 ELSE 1 END)"
+                " * amount_total) AS amount_total",
+                self.env["account.move"].get_outbound_types(),
+            ),
+            SQL("COUNT(*)"),
+            # deliberately not _get_to_pay_select: an unreviewed document needs review
+            # whether or not it is releasable to pay, so account_3way_match's gate on
+            # release_to_pay must not narrow this one
+            SQL("TRUE AS to_pay"),
+        ]
+
     def _grouped_move_aggregation(self, query, selects):
         sql = SQL(
             "%s GROUP BY account_move.company_id, account_move.journal_id,"
@@ -863,10 +885,7 @@ class AccountJournal(models.Model):
             ],
             bypass_access=True,
         )
-        # deliberately not _get_to_pay_select: an unreviewed document needs review
-        # whether or not it is releasable to pay, so account_3way_match's gate on
-        # release_to_pay must not narrow this one
-        return query, self._get_sale_purchase_aggregation_selects(SQL("TRUE AS to_pay"))
+        return query, self._get_to_check_aggregation_selects()
 
     def _count_results_and_sum_amounts(self, rows, target_currency):
         if not rows:

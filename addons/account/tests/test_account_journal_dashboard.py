@@ -789,6 +789,124 @@ class TestAccountJournalDashboardSigns(TestAccountJournalDashboardCommon):
 
 
 @tagged("post_install", "-at_install")
+class TestAccountJournalToCheckValue(TestAccountJournalDashboardCommon):
+    """number_to_check counts documents queued for review and to_check_balance is what
+    that queue is worth. The two must be drawn from the same population: a residual is
+    0 on a paid invoice and on every misc entry, so it counts documents it cannot
+    value.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.journal = self.env["account.journal"].create(
+            {
+                "name": "TCV",
+                "code": "TCV",
+                "type": "sale",
+                "company_id": self.env.company.id,
+            }
+        )
+
+    def _post_unreviewed(self, amount):
+        move = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "journal_id": self.journal.id,
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2019-01-01",
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "l",
+                            "quantity": 1,
+                            "price_unit": amount,
+                            "account_id": self.company_data[
+                                "default_account_revenue"
+                            ].id,
+                            "tax_ids": [],
+                        }
+                    )
+                ],
+            }
+        )
+        move.action_post()
+        move.checked = False
+        return move
+
+    def _to_check(self):
+        self.journal.invalidate_recordset()
+        data = self.journal._get_journal_dashboard_data_batched()[self.journal.id]
+        return data["number_to_check"], data["to_check_balance"]
+
+    def _pay_in_full(self, move):
+        payment = self.env["account.payment"].create(
+            {
+                "journal_id": self.company_data["default_journal_bank"].id,
+                "payment_type": "inbound",
+                "partner_type": "customer",
+                "partner_id": self.partner_a.id,
+                "amount": move.amount_total,
+                "currency_id": move.currency_id.id,
+                "date": "2019-01-02",
+            }
+        )
+        payment.action_post()
+        (move + payment.move_id).line_ids.filtered(
+            lambda line: line.account_id.account_type == "asset_receivable"
+        ).reconcile()
+        move.checked = False
+
+    def test_a_paid_but_unreviewed_invoice_still_has_a_value(self):
+        currency = self.company_data["currency"]
+        unpaid = self._post_unreviewed(500)
+        paid = self._post_unreviewed(800)
+        self._pay_in_full(paid)
+
+        self.assertEqual(paid.payment_state, "paid")
+        self.assertEqual(paid.amount_residual, 0.0)
+        self.assertEqual(unpaid.amount_total + paid.amount_total, 1300)
+        self.assertEqual(self._to_check(), (2, format_amount(self.env, 1300, currency)))
+
+    def test_a_misc_entry_in_a_sale_journal_carries_its_total(self):
+        currency = self.company_data["currency"]
+        self._post_unreviewed(500)
+        entry = self.env["account.move"].create(
+            {
+                "move_type": "entry",
+                "journal_id": self.journal.id,
+                "date": "2019-01-01",
+                "line_ids": [
+                    Command.create(
+                        {
+                            "name": "d",
+                            "debit": 70,
+                            "credit": 0,
+                            "account_id": self.company_data[
+                                "default_account_receivable"
+                            ].id,
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "name": "c",
+                            "debit": 0,
+                            "credit": 70,
+                            "account_id": self.company_data[
+                                "default_account_revenue"
+                            ].id,
+                        }
+                    ),
+                ],
+            }
+        )
+        entry.action_post()
+        entry.checked = False
+
+        self.assertEqual(entry.amount_residual_signed, 0.0)
+        self.assertEqual(self._to_check(), (2, format_amount(self.env, 570, currency)))
+
+
+@tagged("post_install", "-at_install")
 class TestAccountJournalEntryPresence(TestAccountJournalDashboardCommon):
     """has_entries and has_posted_entries drive whether the kanban card renders its
     empty-journal helper at all, and nothing else asserted them.
