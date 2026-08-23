@@ -126,13 +126,55 @@ class Stream:
         msg = f"Invalid type: {self.type!r}, should be 'url', 'data' or 'path'."
         raise ValueError(msg)
 
+    def _get_url_redirect(self) -> Any:
+        if self.max_age is not None:
+            res = request.redirect(self.url, code=302, local=False)
+            res.headers["Cache-Control"] = f"max-age={self.max_age}"
+            return res
+        return request.redirect(self.url, code=301, local=False)
+
+    def _send_path(self, send_file_kwargs: dict[str, Any]) -> Any:
+        """Send ``self.path``, handing the delivery to the web server if we can.
+
+        ``X-Accel-Redirect`` (nginx) names a URL, not a filesystem path, so it
+        can only be built for a file that actually lives under the filestore --
+        hence the ``relative_to`` that decides it. ``use_x_sendfile`` is left
+        off until that succeeds, because werkzeug would otherwise emit an
+        ``X-Sendfile`` naming an absolute server path with nothing to translate
+        it, which leaks the layout and serves an empty body.
+        """
+        send_file_kwargs["use_x_sendfile"] = False
+        x_accel_redirect: str | None = None
+        if config["x_sendfile"]:
+            with contextlib.suppress(ValueError):
+                fspath = Path(self.path).relative_to(
+                    Path(config["data_dir"]) / "filestore"
+                )
+                x_accel_redirect = f"/web/filestore/{fspath}"
+                send_file_kwargs["use_x_sendfile"] = True
+
+        res = _send_file(self.path, **send_file_kwargs)
+        if "X-Sendfile" in res.headers and x_accel_redirect is not None:
+            res.headers["X-Accel-Redirect"] = x_accel_redirect
+            res.headers.pop("X-Sendfile", None)
+            res.headers["Content-Length"] = "0"
+        return res
+
     def get_response(
         self,
         as_attachment: bool | None = None,
         immutable: bool | None = None,
         content_security_policy: str | None = "default-src 'none'",
+        environ: dict[str, Any] | None = None,
         **send_file_kwargs: Any,
     ) -> Any:
+        """Serve this stream, or redirect to it when it is a ``type="url"``.
+
+        *environ* defaults to the current request's, which is what every caller
+        in the tree wants. Naming it is what lets a caller serve a stream
+        without one -- and what lets this method be tested without pushing a
+        fake request onto the local stack first, which its own suite had to do.
+        """
         if self.type not in ("url", "data", "path"):
             e = f"Invalid type: {self.type!r}, should be 'url', 'data' or 'path'."
             raise ValueError(e)
@@ -141,11 +183,7 @@ class Stream:
             raise ValueError(e)
 
         if self.type == "url":
-            if self.max_age is not None:
-                res = request.redirect(self.url, code=302, local=False)
-                res.headers["Cache-Control"] = f"max-age={self.max_age}"
-                return res
-            return request.redirect(self.url, code=301, local=False)
+            return self._get_url_redirect()
 
         if as_attachment is None:
             as_attachment = self.as_attachment
@@ -160,7 +198,7 @@ class Stream:
             "etag": self.etag,
             "last_modified": self.last_modified,
             "max_age": STATIC_CACHE_LONG if immutable else self.max_age,
-            "environ": request.httprequest.environ,
+            "environ": request.httprequest.environ if environ is None else environ,
             "response_class": _Response,
             **send_file_kwargs,
         }
@@ -168,22 +206,7 @@ class Stream:
         if self.type == "data":
             res = _send_file(BytesIO(self.data), **send_file_kwargs)
         else:
-            send_file_kwargs["use_x_sendfile"] = False
-            x_accel_redirect: str | None = None
-            if config["x_sendfile"]:
-                with contextlib.suppress(ValueError):
-                    fspath = Path(self.path).relative_to(
-                        Path(config["data_dir"]) / "filestore"
-                    )
-                    x_accel_redirect = f"/web/filestore/{fspath}"
-                    send_file_kwargs["use_x_sendfile"] = True
-
-            res = _send_file(self.path, **send_file_kwargs)
-            if "X-Sendfile" in res.headers and x_accel_redirect is not None:
-                res.headers["X-Accel-Redirect"] = x_accel_redirect
-                res.headers.pop("X-Sendfile", None)
-
-                res.headers["Content-Length"] = "0"
+            res = self._send_path(send_file_kwargs)
 
         headers = res.headers
         headers["X-Content-Type-Options"] = "nosniff"

@@ -15,6 +15,7 @@ from odoo.libs.json import loads as _fast_loads
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.modules.registry import Registry
 from odoo.service.db import list_dbs as _list_all_dbs
+from odoo.service.db import register_catalog_listener
 from odoo.tools import profiler
 
 from ._csrf import _RequestCsrfMixin
@@ -63,9 +64,28 @@ def _all_dbs_cached(_ttl_bucket: int) -> tuple[str, ...]:
     return tuple(_list_all_dbs(force=True))
 
 
+@functools.lru_cache(maxsize=64)
+def _monodb_dblist_cached(_ttl_bucket: int, host: str) -> tuple[str, ...]:
+    return tuple(db_filter(list(_all_dbs_cached(_ttl_bucket)), host=host))
+
+
 def _monodb_dblist(host: str) -> list[str]:
+    """The databases *host* may pick from when nothing else names one.
+
+    Reached by every request that carries neither a session database nor an
+    ``X-Odoo-Database`` header -- which is every anonymous website hit and
+    every request before login, the highest-volume path there is.
+
+    The *filtering* is cached, not only the catalogue it reads. ``db_filter``
+    walks the whole catalogue per call (``is_maintenance_db``, the dbfilter
+    regex, the ``db_name`` allow-list), so caching the catalogue alone left an
+    O(databases) scan on that path: 40us per request against 53 databases on
+    the machine this was measured on, and it grows with the server.
+    """
     try:
-        all_dbs = _all_dbs_cached(int(time.time() // DB_MONODB_CACHE_TTL))
+        return list(
+            _monodb_dblist_cached(int(time.time() // DB_MONODB_CACHE_TTL), host)
+        )
     except psycopg.Error:
         # An empty list here is indistinguishable, to every caller, from "this
         # instance serves no database": the monodb rule needs exactly one
@@ -85,11 +105,22 @@ def _monodb_dblist(host: str) -> list[str]:
             exc_info=True,
         )
         return []
-    return db_filter(list(all_dbs), host=host)
 
 
 def clear_monodb_cache() -> None:
     _all_dbs_cached.cache_clear()
+    _monodb_dblist_cached.cache_clear()
+
+
+register_catalog_listener(clear_monodb_cache)
+"""Expire the catalogue caches the moment this process changes the catalogue.
+
+Until this was wired, ``clear_monodb_cache`` had no production caller at all --
+every reference in four repos was a test. A database created or dropped through
+the database manager stayed invisible, or visible, for the rest of the TTL, and
+on a single-database deployment that is the difference between the selector
+working and 404-ing right after a restore.
+"""
 
 
 class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
@@ -106,6 +137,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         self.env: odoo.api.Environment | None = None
         self._post_init_done: bool = False
         self.database_detached: bool = False
+        self._cookies_memo: tuple[bool, Any] | None = None
 
     def detach_database(self) -> None:
         self.database_detached = True
@@ -197,12 +229,30 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         except ValueError, KeyError:
             return None
 
-    @functools.cached_property
+    @property
     def cookies(self):
+        """The request cookies, with ``ir.http._sanitize_cookies`` applied.
+
+        Memoised against *whether the sanitiser ran*, not once and for all.
+        ``_sanitize_cookies`` is a security hook -- addons drop from it the
+        cookies a visitor has not consented to -- and it needs a registry,
+        which ``_serve_db`` only acquires part-way through the request. A plain
+        ``cached_property`` therefore froze the **unsanitised** answer for the
+        whole request if anything read it before then. Nothing does today; this
+        makes that structural rather than a coincidence, at the cost of one
+        extra rebuild on the first read after the registry lands.
+        """
+        sanitized = self.registry is not None
+        memo = self._cookies_memo
+        if memo is not None and memo[0] is sanitized:
+            return memo[1]
+
         cookies = werkzeug.datastructures.MultiDict(self.httprequest.cookies)
-        if self.registry is not None:
+        if sanitized:
             self.registry["ir.http"]._sanitize_cookies(cookies)
-        return werkzeug.datastructures.ImmutableMultiDict(cookies)
+        result = werkzeug.datastructures.ImmutableMultiDict(cookies)
+        self._cookies_memo = (sanitized, result)
+        return result
 
     def default_context(self) -> dict[str, Any]:
         return {"lang": self.default_lang()}

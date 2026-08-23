@@ -1,5 +1,6 @@
 import functools
 import logging
+from collections.abc import Callable
 from contextlib import closing
 from pathlib import Path
 from xml.etree import ElementTree as ET
@@ -16,6 +17,43 @@ from odoo.release import version_info
 from .._db_helpers import validate_db_name
 
 _logger = logging.getLogger("odoo.service.db")
+
+
+_catalog_listeners: list[Callable[[], None]] = []
+
+
+def register_catalog_listener(callback: Callable[[], None]) -> None:
+    """Have *callback* run whenever this process changes the database catalogue.
+
+    :func:`list_dbs` queries ``pg_database`` on every call, but its callers
+    cache the answer -- ``odoo.http`` holds a TTL cache of the filtered list on
+    the busiest path there is. Nothing told those caches when a database was
+    created, dropped, renamed or restored *by this very process*, so the only
+    thing that ever expired them was the TTL, and a freshly created database
+    stayed invisible to the database selector for the length of it.
+
+    Registered from above rather than called from here: ``odoo.http`` may import
+    ``odoo.service.db``, and the reverse would be a cycle. Same shape as
+    ``service.transaction.current_retry_participant``.
+    """
+    _catalog_listeners.append(callback)
+
+
+def invalidate_catalog_caches() -> None:
+    """Run every registered listener, swallowing what each one raises.
+
+    Called from the database mutators; a listener that fails must not turn a
+    completed ``CREATE DATABASE`` into an exception the caller sees.
+    """
+    for callback in _catalog_listeners:
+        try:
+            callback()
+        except Exception:
+            _logger.warning(
+                "A database-catalogue listener failed; a cached database list "
+                "may stay stale until its TTL expires.",
+                exc_info=True,
+            )
 
 
 def check_db_exposed(db_name: str) -> None:

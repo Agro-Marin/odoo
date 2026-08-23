@@ -199,6 +199,41 @@ class TestHttpReadonlyPromotion(TestHttpBase):
 
 
 @tagged("post_install", "-at_install")
+class TestHttpPromotionUpload(TestHttpBase):
+    def setUp(self):
+        super().setUp()
+        test_http.controllers.promotion_upload_reads.clear()
+        self.addCleanup(test_http.controllers.promotion_upload_reads.clear)
+
+    @mute_logger("odoo.http._serve")
+    def test_promotion_rewinds_the_upload_before_the_replay(self):
+        # The read-only -> read/write promotion replays the handler, so the
+        # request body has to be rewound first or the replay reads b"" from a
+        # stream the first attempt drained. ``upload_file_retry`` covers the
+        # *retry* path (a serialization failure inside ``retrying()``); it is
+        # not a readonly route, so nothing exercised the promotion branch of
+        # ``_serve_db`` with a file attached until this.
+        res = self.db_url_open(
+            "/test_http/promotion_upload",
+            files={"ufile": ("gate.txt", b"Chevron seven", "text/plain")},
+        )
+        res.raise_for_status()
+
+        reads = test_http.controllers.promotion_upload_reads
+        self.assertEqual(
+            len(reads),
+            2,
+            "the handler must have run twice (read-only attempt, then read/write)",
+        )
+        self.assertEqual(
+            reads,
+            [b"Chevron seven", b"Chevron seven"],
+            "the replay read a drained stream: the upload was not rewound",
+        )
+        self.assertEqual(res.text, "2")
+
+
+@tagged("post_install", "-at_install")
 class TestHttpRerouteUpload(TestHttpBase):
     def setUp(self):
         super().setUp()

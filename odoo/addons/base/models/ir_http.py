@@ -19,10 +19,9 @@ from odoo.api import SUPERUSER_ID
 from odoo.exceptions import AccessDenied
 from odoo.http import (
     SAFE_HTTP_METHODS,
-    FasterRule,
     Response,
+    build_routing_map,
     request,
-    rule_routing_kwargs,
 )
 from odoo.libs.hashing import cache_hash
 from odoo.libs.json import OPT_SORT_KEYS
@@ -354,14 +353,10 @@ class IrHttp(models.AbstractModel):
             odoo.tools.config["server_wide_modules"]
         )
         mods = sorted(installed)
-        routing_map = werkzeug.routing.Map(
-            strict_slashes=False, converters=self._get_converters()
+        return build_routing_map(
+            self._generate_routing_rules(mods),
+            converters=self._get_converters(),
         )
-        for url, endpoint in self._generate_routing_rules(mods):
-            rule = FasterRule(url, endpoint=endpoint, **rule_routing_kwargs(endpoint))
-            rule.merge_slashes = False
-            routing_map.add(rule)
-        return routing_map
 
     @api.autovacuum
     def _gc_sessions(self) -> None:

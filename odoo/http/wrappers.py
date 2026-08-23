@@ -265,12 +265,27 @@ class _Response(werkzeug.wrappers.Response):
         )
 
 
+def no_content(status: int = 204, headers: Any = None) -> Response:
+    """A response whose status forbids a body, without a ``Content-Type``.
+
+    :class:`_Response` stamps ``default_mimetype`` on everything werkzeug
+    builds for it, the 204s :meth:`Dispatcher.pre_dispatch` answers ``OPTIONS``
+    with included. A 204 carries no content by definition (RFC 9110 15.3.5), so
+    a media type describing that absent content is noise at best, and something
+    a strict intermediary may object to at worst.
+    """
+    response = Response(status=status, headers=headers)
+    del response.headers["Content-Type"]
+    return response
+
+
 class Headers(Proxy):
     _wrapped__ = werkzeug.datastructures.Headers
 
     __getitem__ = ProxyFunc()
     __repr__ = ProxyFunc(str)
     __setitem__ = ProxyFunc(None)
+    __delitem__ = ProxyFunc(None)
     __str__ = ProxyFunc(str)
     __contains__ = ProxyFunc(bool)
     add = ProxyFunc(None)
@@ -411,6 +426,8 @@ if not hasattr(werkzeug.exceptions, "_odoo_original_abort"):
 def get_response(
     self: HTTPException, environ: dict[str, Any] | None = None, scope: Any = None
 ) -> Response:
+    if self.response is None and self.code is None:
+        self = werkzeug.exceptions.InternalServerError(self.description)
     return Response(
         werkzeug.exceptions._odoo_original_get_response(self, environ, scope)
     )

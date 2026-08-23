@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 import re
 import typing
 from typing import Any, NamedTuple
 
 from ._params import ParamSpec, build_param_specs
+
+_logger = logging.getLogger(__name__)
 
 OPENAPI_VERSION = "3.1.0"
 
@@ -178,13 +181,27 @@ def build_openapi(
     security_schemes: dict[str, dict[str, str]] = {}
     used_operation_ids: set[str] = set()
 
+    claimed_by: dict[tuple[str, str], str] = {}
+
     for route in routes:
         if typed_only and not route.routing.get("typed"):
             continue
         template, path_params = _path_template(route.rule)
         path_item = paths.setdefault(template, {})
         for method in sorted(_effective_methods(route)):
-            path_item[method.lower()] = build_operation(
+            verb = method.lower()
+            if verb in path_item:
+                _logger.warning(
+                    "OpenAPI: %s %s is already described by %r; %r renders to "
+                    "the same path template and cannot be documented too.",
+                    method,
+                    template,
+                    claimed_by.get((template, verb)),
+                    route.rule,
+                )
+                continue
+            claimed_by[template, verb] = route.rule
+            path_item[verb] = build_operation(
                 route,
                 method,
                 template,

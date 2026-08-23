@@ -26,8 +26,10 @@ from .listing import (
     exp_list_countries,
     exp_list_lang,
     exp_server_version,
+    invalidate_catalog_caches,
     list_db_incompatible,
     list_dbs,
+    register_catalog_listener,
 )
 from .restore import exp_restore, restore_db
 from .rpc import dispatch, exp_change_admin_password, exp_migrate_databases
@@ -62,8 +64,10 @@ __all__ = (
     "exp_rename",
     "exp_restore",
     "exp_server_version",
+    "invalidate_catalog_caches",
     "list_db_incompatible",
     "list_dbs",
+    "register_catalog_listener",
     "restore_db",
     "validate_db_name",
 )

@@ -24,7 +24,7 @@ from .._db_helpers import (
     database_identifier,
     validate_db_name,
 )
-from .listing import check_db_exposed
+from .listing import check_db_exposed, invalidate_catalog_caches
 
 if TYPE_CHECKING:
     from odoo.db import BaseCursor
@@ -159,6 +159,8 @@ def _create_empty_database(
     except psycopg.Error as e:
         _logger.warning("Unable to make public schema public-accessible: %s", e)
 
+    invalidate_catalog_caches()
+
     if already_exists:
         raise DatabaseExists(f"database {name!r} already exists!")
 
@@ -283,6 +285,7 @@ def _duplicate_database(
     except Exception:
         _rollback_new_database(db_name, "DUPLICATE DB")
         raise
+    invalidate_catalog_caches()
     return True
 
 
@@ -374,6 +377,7 @@ def _drop_database(db_name: str) -> bool:
     fs = odoo.tools.config.filestore(db_name)
     if Path(fs).exists():
         shutil.rmtree(fs)
+    invalidate_catalog_caches()
     return True
 
 
@@ -490,6 +494,7 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
                     f"Couldn't rename filestore {old_fs!r} -> {new_fs!r}: "
                     f"{fs_err}. Database rename rolled back."
                 ) from fs_err
+    invalidate_catalog_caches()
     return True
 
 

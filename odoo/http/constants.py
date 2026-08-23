@@ -7,6 +7,29 @@ SAFE_HTTP_METHODS = ("GET", "HEAD", "OPTIONS")
 
 DEFAULT_ALLOWED_METHODS = ("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE")
 
+STATIC_ALLOWED_METHODS = ("GET", "HEAD")
+"""What a ``/<module>/static/<path>`` URL answers.
+
+A file on disk is a read-only resource, and the static branch runs ahead of the
+router, so no route can ever narrow it: whatever this names is what the whole
+static tree accepts.
+"""
+
+
+def allow_header(methods: Iterable[str] | None = None) -> str:
+    """Render the ``Allow`` header for a resource that accepts *methods*.
+
+    ``OPTIONS`` is appended rather than declared by the caller because the
+    framework answers it unconditionally -- :meth:`Dispatcher.pre_dispatch`
+    replies 204 to a bare ``OPTIONS`` on every route, and
+    :func:`rule_routing_kwargs` widens every rule's method allow-list to let it
+    through. An ``Allow`` that omits it advertises less than the server does,
+    which is how the entry point's rejection of ``TRACE`` came to name six
+    verbs against ``pre_dispatch``'s seven.
+    """
+    return ", ".join(dict.fromkeys([*(methods or DEFAULT_ALLOWED_METHODS), "OPTIONS"]))
+
+
 CORS_DEFAULT_ALLOWED_METHODS = ("GET", "POST")
 
 REJECTED_HTTP_METHODS = ("TRACE",)
@@ -66,12 +89,30 @@ NOT_FOUND_NODB = """\
 """
 
 ENSURE_DB_PATHS: set[str] = set()
-ENSURE_DB_PATH_PREFIXES: set[str] = set()
+ENSURE_DB_PATH_PREFIXES: tuple[str, ...] = ()
+"""A tuple, not a set, because its only reader feeds it to ``str.startswith``.
+
+``startswith`` takes a tuple and nothing else, so a set here means the sole
+call site rebuilds one on every request that loses its database.
+"""
 
 
 def register_ensure_db_paths(*paths: str, prefixes: Iterable[str] = ()) -> None:
+    global ENSURE_DB_PATH_PREFIXES  # noqa: PLW0603  the module owns this registry
     ENSURE_DB_PATHS.update(paths)
-    ENSURE_DB_PATH_PREFIXES.update(prefixes)
+    ENSURE_DB_PATH_PREFIXES = tuple(
+        dict.fromkeys((*ENSURE_DB_PATH_PREFIXES, *prefixes))
+    )
+
+
+def is_ensure_db_path(path: str) -> bool:
+    """Whether *path* insists on a database, exactly or by registered prefix.
+
+    A function rather than two names the caller combines: the prefixes are
+    rebound on every registration, so an importer holding the tuple itself
+    would answer against whatever was registered when it was imported.
+    """
+    return path in ENSURE_DB_PATHS or path.startswith(ENSURE_DB_PATH_PREFIXES)
 
 
 ROUTING_KEYS = frozenset(

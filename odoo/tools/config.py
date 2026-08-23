@@ -567,6 +567,16 @@ class configmanager:
             "Only enable this when running behind a trusted web proxy!",
         )
         group.add_option(
+            "--proxy-hops",
+            dest="proxy_hops",
+            type="int",
+            my_default=1,
+            help="How many trusted reverse proxies sit in front of this server "
+            "(default 1). Only the last N entries of X-Forwarded-For, -Proto "
+            "and -Host are believed, so a value larger than the real chain lets "
+            "a client forge its own address. Requires --proxy-mode.",
+        )
+        group.add_option(
             "--x-sendfile",
             dest="x_sendfile",
             action="store_true",

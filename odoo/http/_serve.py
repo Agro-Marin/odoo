@@ -9,7 +9,6 @@ import psycopg.errors
 import werkzeug.security
 from werkzeug.exceptions import (
     HTTPException,
-    InternalServerError,
     NotFound,
     UnsupportedMediaType,
 )
@@ -23,15 +22,12 @@ from odoo.service.transaction import retrying
 from odoo.tools import config
 
 from ._protocols import RequestState
+from ._retry import RequestRetryParticipant
 from .constants import NOT_FOUND_NODB, STATIC_CACHE
 from .core import borrow_request
-from .dispatcher import (
-    HttpDispatcher,
-    _dispatchers,
-    infer_dispatcher_for_unmatched,
-)
+from .dispatcher import _dispatchers, infer_dispatcher_for_unmatched
 from .exceptions import RegistryError
-from .helpers import is_cors_preflight, rewind_uploaded_files
+from .helpers import is_cors_preflight
 from .stream import Stream
 from .wrappers import Response
 
@@ -93,9 +89,8 @@ class _RequestServeMixin(RequestState):
                 self.httprequest.path,
                 exc_info=exc,
             )
-            exc = InternalServerError(exc.description)
         response = exc.get_response()
-        HttpDispatcher(self).post_dispatch(response)
+        self.dispatcher.post_dispatch(response)
         return response
 
     def _serve_nodb(self) -> Response:
@@ -203,10 +198,9 @@ class _RequestServeMixin(RequestState):
                         exc_info=True,
                     )
                     current_worker_thread().cursor_mode = "ro->rw"
-                    self._rewind_input_files(exc)
-                    self.session = self._get_session_and_dbname(
-                        sid=getattr(self.session, "sid", None)
-                    )[0]
+                    participant = RequestRetryParticipant(self)
+                    participant.on_rollback(exc)
+                    participant.on_retry(exc)
                     promoted = True
                 except Exception as exc:
                     self._update_served_exception(exc)
@@ -237,9 +231,6 @@ class _RequestServeMixin(RequestState):
             self.env = None
             if cr is not None:
                 cr.close()
-
-    def _rewind_input_files(self, cause: Exception | None = None) -> None:
-        rewind_uploaded_files(self.httprequest, cause=cause)
 
     def _update_served_exception(self, exc: Exception) -> None:
         if isinstance(exc, HTTPException) and exc.code is None:

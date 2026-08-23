@@ -34,6 +34,8 @@ replay_observations = []
 
 su_on_entry = []
 
+promotion_upload_reads = []
+
 
 class TestHttp(http.Controller):
     def _readonly(self, rule, args):
@@ -381,6 +383,21 @@ class TestHttp(http.Controller):
         request.update_env(su=True)
         galaxy.sudo().name = name
         return name
+
+    @http.route(
+        "/test_http/promotion_upload",
+        methods=["POST"],
+        type="http",
+        auth="none",
+        readonly=True,
+        csrf=False,
+    )
+    def promotion_upload(self, ufile):
+        promotion_upload_reads.append(ufile.read())
+        request.env["ir.config_parameter"].sudo().set_param(
+            "test_http.promotion_upload", str(len(promotion_upload_reads))
+        )
+        return str(len(promotion_upload_reads))
 
     @http.route(
         "/test_http/reroute_upload",

@@ -3,6 +3,7 @@
 import werkzeug.exceptions
 from markupsafe import Markup
 
+import odoo.http
 from odoo import exceptions
 from odoo.exceptions import MissingError
 from odoo.http import request
@@ -222,9 +223,13 @@ class TestErrorStatusEndToEnd(HttpCase):
         # ``Request._serve_db`` hands a code-less HTTPException to
         # ``_serve_aborted``, which is the ``abort(response)`` path the lang
         # ladder's 3xx use. With nothing attached, werkzeug built a status-less
-        # ``Response`` that materialized as *200 OK*. Fixed where it belongs,
-        # in ``_serve_aborted``; asserted from here because this is the only
-        # place the whole chain is exercised.
+        # ``Response`` that materialized as *200 OK*. Fixed in this package's
+        # ``HTTPException.get_response`` override, the one funnel every path
+        # to a response shares -- ``_serve_aborted`` had it alone, which left
+        # ``Application._finalize_error_response`` building the same 200 for
+        # anything raised before ``_serve_db`` was entered. Unit-pinned in
+        # ``odoo/http/tests/test_http_exception_status.py``; asserted from here
+        # because this is the only place the whole chain is exercised.
         for exception in (
             werkzeug.exceptions.ServiceUnavailable(),
             werkzeug.exceptions.BadGateway(),
@@ -235,6 +240,37 @@ class TestErrorStatusEndToEnd(HttpCase):
                 self._raise(exception)
                 response = self.url_open(self.EP, allow_redirects=False)
                 self.assertGreaterEqual(response.status_code, 400)
+
+    def test_no_entrypoint_branch_can_answer_a_status_less_exception_with_200(self):
+        # The three branches Application.__call__ chooses between -- static,
+        # nodb, db -- do not share an error path: only the last two funnel a
+        # code-less HTTPException through _serve_aborted. Measured on the tree
+        # before the guard moved into HTTPException.get_response, a status-less
+        # exception raised from get_static_file, from Request._post_init or
+        # from _serve_static each answered *200 OK*; one raised from a handler
+        # answered 500. _serve_static is not a corner: it is how every asset on
+        # the server is delivered.
+        blank = werkzeug.exceptions.HTTPException("no status on this one")
+
+        def _boom(*args, **kwargs):
+            raise blank
+
+        for target, attr in (
+            (odoo.http.root, "get_static_file"),
+            (odoo.http.Request, "_post_init"),
+            (odoo.http.Request, "_serve_static"),
+        ):
+            with self.subTest(raised_in=attr):
+                self.patch(target, attr, _boom)
+                response = self.url_open(
+                    "/web/static/img/favicon.ico", allow_redirects=False
+                )
+                self.assertGreaterEqual(
+                    response.status_code,
+                    400,
+                    f"a status-less HTTPException from {attr} answered "
+                    f"{response.status_code}",
+                )
 
     def test_abort_with_a_response_is_still_delivered_verbatim(self):
         # The guard above must not touch the mechanism it sits next to: a

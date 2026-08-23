@@ -137,18 +137,18 @@ post_dispatch out of band.
 | `_response.py` | serving | `_RequestResponseMixin`: `make_response`, `make_json_response`, redirects, `render` |
 | `_csrf.py` | serving | `_RequestCsrfMixin`: CSRF token generation and validation |
 | `dispatcher.py` | serving | `Dispatcher` and its three subclasses (`HttpDispatcher`, `JsonRPCDispatcher`, `Json2Dispatcher`), selected by `routing["type"]` |
-| `routing.py` | serving | `route()`, the `route_wrapper` it builds, `LazyCompiledBuilder` / `FasterRule` and the routing-parameter registry |
+| `routing.py` | serving | `route()`, the `route_wrapper` it builds, `LazyCompiledBuilder` / `FasterRule`, `build_routing_map` (used by both maps the framework serves from) and the routing-parameter registry |
 | `controller.py` | serving | `Controller` and the controller registry |
 | `session.py` | serving | `Session`, `FilesystemSessionStore`, session rotation and GC |
 | `stream.py` | serving | `Stream`: file/attachment streaming and conditional responses |
-| `wrappers.py` | serving | `HTTPRequest`, `_Response`, `Headers`, `ResponseCacheControl` — the werkzeug wrappers and cookie defaults |
+| `wrappers.py` | serving | `HTTPRequest`, `_Response`, `Headers`, `ResponseCacheControl`, `no_content` — the werkzeug wrappers, cookie defaults, and the `HTTPException.get_response` override that keeps a status-less exception from answering 200 |
 | `core.py` | serving | `_request_stack` (a werkzeug `LocalStack`), the `request` proxy bound to it, and `borrow_request` |
 | `helpers.py` | serving | `content_disposition`, `rewind_uploaded_files`, `db_list` and the `dbfilter` machinery |
 | `_retry.py` | serving | `RequestRetryParticipant`: restores the session and rewinds uploads when `retrying()` replays a handler, installed on `service.transaction` at import |
 | `openapi.py` | features | `build_openapi`: an OpenAPI `3.1.0` document generated from the routing map |
 | `_params.py` | features | `ParamSpec` and the annotation-driven coercion behind `@route(typed=True)` |
 | `geoip.py` | features | `GeoIP` lookup exposed on the request (`_GeoIPNull` when unavailable) |
-| `constants.py` | features | Package-wide constants plus the session-path registration helpers |
+| `constants.py` | features | Package-wide constants, `allow_header`, and the session/ensure-db path registries with their `is_ensure_db_path` predicate |
 | `exceptions.py` | features | `RegistryError`, `SessionExpiredException` |
 | `_protocols.py` | features | `HttpExtension` — the `Protocol` the serving objects satisfy (all `if TYPE_CHECKING:`) |
 

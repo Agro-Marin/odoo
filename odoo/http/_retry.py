@@ -16,6 +16,17 @@ class RequestRetryParticipant:
         self._request = request
 
     def on_rollback(self, exc: BaseException) -> None:
+        """Re-read the session from the store, discarding the failed attempt's.
+
+        The sid can come back *different*, and that is deliberate: when the
+        store holds no file for it -- an anonymous visitor whose session has
+        never been persisted -- ``FilesystemSessionStore(renew_missing=True)``
+        mints a fresh one rather than adopting the identifier the client sent.
+        Carrying the old sid over would hand a brand-new session whatever
+        identifier the request arrived with, which is session fixation.
+        Nothing is lost by the change: the attempt that produced those session
+        writes was rolled back.
+        """
         request = self._request
         current_sid = getattr(request.session, "sid", None)
         request.session = request._get_session_and_dbname(sid=current_sid)[0]

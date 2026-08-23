@@ -117,3 +117,39 @@ def test_serialize_exception_masks_infra_errors_for_clients_only():
         assert serialize_exception(ValueError("bad domain"))["message"] == "bad domain"
     finally:
         _request_stack.pop()
+
+
+def test_ensure_db_prefixes_are_kept_startswith_ready():
+    # ``str.startswith`` takes a tuple and nothing else. Holding a set here
+    # meant the one reader -- ``_recover_from_registry_error``, on the path a
+    # request takes when its database has just gone away -- built a throwaway
+    # tuple per request.
+    from odoo.http import constants
+
+    before_paths = set(constants.ENSURE_DB_PATHS)
+    before_prefixes = constants.ENSURE_DB_PATH_PREFIXES
+    try:
+        constants.register_ensure_db_paths("/t/one", prefixes=["/t/pre/"])
+        constants.register_ensure_db_paths("/t/two", prefixes=["/t/pre/", "/t/other/"])
+
+        assert isinstance(constants.ENSURE_DB_PATH_PREFIXES, tuple)
+        assert constants.ENSURE_DB_PATH_PREFIXES.count("/t/pre/") == 1
+        assert constants.is_ensure_db_path("/t/pre/x")
+        assert constants.is_ensure_db_path("/t/one")
+        assert constants.is_ensure_db_path("/t/two")
+        assert not constants.is_ensure_db_path("/t/elsewhere")
+    finally:
+        constants.ENSURE_DB_PATHS.clear()
+        constants.ENSURE_DB_PATHS.update(before_paths)
+        constants.ENSURE_DB_PATH_PREFIXES = before_prefixes
+
+
+def test_no_registered_prefix_matches_nothing():
+    from odoo.http import constants
+
+    before = constants.ENSURE_DB_PATH_PREFIXES
+    try:
+        constants.ENSURE_DB_PATH_PREFIXES = ()
+        assert not constants.is_ensure_db_path("/anything")
+    finally:
+        constants.ENSURE_DB_PATH_PREFIXES = before

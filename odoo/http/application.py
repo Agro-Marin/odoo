@@ -10,7 +10,7 @@ from urllib.parse import urlencode, urlparse
 import werkzeug.routing
 from werkzeug.exceptions import HTTPException, MethodNotAllowed, NotFound
 from werkzeug.middleware.proxy_fix import ProxyFix as ProxyFix_
-from werkzeug.wrappers import Response
+from werkzeug.wrappers import Response as WerkzeugResponse
 
 import odoo.tools
 from odoo.exceptions import AccessDenied, AccessError, UserError
@@ -20,31 +20,47 @@ from odoo.tools import config, file_path
 from odoo.tools.misc import real_time
 
 from .constants import (
-    DEFAULT_ALLOWED_METHODS,
-    ENSURE_DB_PATH_PREFIXES,
-    ENSURE_DB_PATHS,
     REJECTED_HTTP_METHODS,
+    STATIC_ALLOWED_METHODS,
+    allow_header,
+    is_ensure_db_path,
 )
 from .core import _request_stack, request
 from .exceptions import RegistryError, SessionExpiredException
 from .geoip import geoip2, maxminddb
 from .request_class import Request
-from .routing import FasterRule, _generate_routing_rules, rule_routing_kwargs
+from .routing import _generate_routing_rules, build_routing_map
 from .session import FilesystemSessionStore, Session
-from .wrappers import HTTPRequest
+from .wrappers import HTTPRequest, no_content
 
 _logger = logging.getLogger(__name__)
-
-_proxy_fix = ProxyFix_(
-    lambda environ, start_response: [],
-    x_for=1,
-    x_proto=1,
-    x_host=1,
-)
 
 
 def _noop_start_response(status: str, headers: list[tuple[str, str]]) -> None:
     pass
+
+
+@functools.lru_cache(maxsize=4)
+def _get_proxy_fix(hops: int) -> ProxyFix_:
+    """The ``ProxyFix`` for a chain of *hops* trusted reverse proxies.
+
+    ``werkzeug``'s ``ProxyFix`` believes the last *N* entries of each
+    ``X-Forwarded-*`` header and ignores the rest, so N must equal the number of
+    proxies that actually rewrite them. This was pinned at 1 with no way to say
+    otherwise, which is wrong in both directions behind two proxies: the client
+    address read back is the *inner* proxy's, and every rule that keys on it --
+    rate limits, geoip, audit trails -- sees one address for the whole internet.
+
+    Cached rather than rebuilt because ``ProxyFix`` is stateless and the value
+    cannot change within a run; the cache is only large enough to absorb tests
+    that vary it.
+    """
+    return ProxyFix_(
+        lambda environ, start_response: [],
+        x_for=hops,
+        x_proto=hops,
+        x_host=hops,
+    )
 
 
 _UNSET = object()
@@ -119,15 +135,11 @@ class Application:
 
     @_locked_cached_property
     def nodb_routing_map(self):
-        nodb_routing_map = werkzeug.routing.Map(strict_slashes=False, converters=None)
-        for url, endpoint in _generate_routing_rules(
-            [""] + config["server_wide_modules"], nodb_only=True
-        ):
-            rule = FasterRule(url, endpoint=endpoint, **rule_routing_kwargs(endpoint))
-            rule.merge_slashes = False
-            nodb_routing_map.add(rule)
-
-        return nodb_routing_map
+        return build_routing_map(
+            _generate_routing_rules(
+                [""] + config["server_wide_modules"], nodb_only=True
+            )
+        )
 
     @_locked_cached_property
     def session_store(self):
@@ -167,7 +179,7 @@ class Application:
             )
             return None
 
-    def set_csp(self, response: Response) -> None:
+    def set_csp(self, response: WerkzeugResponse) -> None:
         headers = response.headers
         if "X-Content-Type-Options" not in headers:
             headers["X-Content-Type-Options"] = "nosniff"
@@ -200,7 +212,8 @@ class Application:
             or environ.get("HTTP_X_FORWARDED_PROTO")
             or environ.get("HTTP_X_FORWARDED_HOST")
         ):
-            _proxy_fix(environ, _noop_start_response)
+            hops = max(1, odoo.tools.config["proxy_hops"] or 1)
+            _get_proxy_fix(hops)(environ, _noop_start_response)
 
     def _recover_from_registry_error(
         self, request: Request, httprequest: HTTPRequest, exc: RegistryError
@@ -216,9 +229,7 @@ class Application:
         if not durable:
             request.session.can_save = False
         request.session.logout()
-        if httprequest.path in ENSURE_DB_PATHS or httprequest.path.startswith(
-            tuple(ENSURE_DB_PATH_PREFIXES)
-        ):
+        if is_ensure_db_path(httprequest.path):
             args_nodb = request.httprequest.args.copy()
             args_nodb.pop("db", None)
             request.reroute(
@@ -226,6 +237,16 @@ class Application:
                 urlencode(list(args_nodb.items(multi=True))),
             )
         return request._serve_nodb()
+
+    def _serve_static_file(self, request: Request, static_file: str) -> Any:
+        method = request.httprequest.method
+        if method in STATIC_ALLOWED_METHODS:
+            return request._serve_static(static_file)
+
+        allow = allow_header(STATIC_ALLOWED_METHODS)
+        if method == "OPTIONS":
+            return no_content(headers=[("Allow", allow)])
+        raise MethodNotAllowed(valid_methods=allow.split(", "))
 
     def _log_request_exception(self, exc: Exception) -> None:
         if hasattr(exc, "loglevel"):
@@ -291,14 +312,14 @@ class Application:
                 current_worker_thread().url = httprequest.url
 
                 if httprequest.method in REJECTED_HTTP_METHODS:
-                    raise MethodNotAllowed(valid_methods=list(DEFAULT_ALLOWED_METHODS))
+                    raise MethodNotAllowed(valid_methods=allow_header().split(", "))
 
                 if "\x00" in httprequest.path:
                     raise NotFound
 
                 static_file = self.get_static_file(httprequest.path)
                 if static_file:
-                    response = request._serve_static(static_file)
+                    response = self._serve_static_file(request, static_file)
                 elif request.db:
                     try:
                         with request._get_profiler_context_manager():

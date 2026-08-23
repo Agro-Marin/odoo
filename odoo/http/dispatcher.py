@@ -24,13 +24,13 @@ from ._params import coerce_params
 from .constants import (
     CORS_DEFAULT_ALLOWED_METHODS,
     CORS_MAX_AGE,
-    DEFAULT_ALLOWED_METHODS,
     MISSING_CSRF_WARNING,
     SAFE_HTTP_METHODS,
+    allow_header,
 )
 from .exceptions import SessionExpiredException
 from .helpers import serialize_exception
-from .wrappers import Response
+from .wrappers import Response, no_content
 
 if TYPE_CHECKING:
     from .request_class import Request
@@ -117,6 +117,12 @@ class Dispatcher(ABC):
                         or CORS_DEFAULT_ALLOWED_METHODS
                     ),
                 )
+                expose = routing.get("cors_expose_headers")
+                if expose:
+                    set_header(
+                        "Access-Control-Expose-Headers",
+                        expose if isinstance(expose, str) else ", ".join(expose),
+                    )
 
         is_preflight = bool(cors) and httprequest.method == "OPTIONS"
         if is_preflight:
@@ -132,16 +138,14 @@ class Dispatcher(ABC):
             set_header("Vary", ", ".join(vary))
 
         if is_preflight:
-            werkzeug.exceptions.abort(Response(status=204))
+            werkzeug.exceptions.abort(no_content())
 
         if httprequest.method == "OPTIONS" and "OPTIONS" not in (
             routing.get("methods") or ()
         ):
-            response = Response(status=204)
-            response.headers["Allow"] = ", ".join(
-                [*(routing.get("methods") or DEFAULT_ALLOWED_METHODS), "OPTIONS"]
+            werkzeug.exceptions.abort(
+                no_content(headers=[("Allow", allow_header(routing.get("methods")))])
             )
-            werkzeug.exceptions.abort(response)
 
         if "max_content_length" in routing:
             max_content_length = routing["max_content_length"]

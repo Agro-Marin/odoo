@@ -5,6 +5,8 @@ document generator is testable without a registry or werkzeug map. Run in the
 tier-2 (real-import) invocation, e.g. ``pytest odoo/http/tests``.
 """
 
+import logging
+
 import werkzeug.routing
 
 from odoo.http.openapi import (
@@ -173,3 +175,48 @@ def test_openapi_from_map_roundtrip():
     op = doc["paths"]["/a/{ident}"]["get"]
     assert doc["info"] == {"title": "T", "version": "9"}
     assert op["parameters"][0]["schema"] == {"type": "integer"}
+
+
+def test_a_colliding_path_template_keeps_the_first_and_warns(caplog):
+    # `/a/<int:x>` and `/a/<string:x>` are two rules, one OpenAPI path. The
+    # document can only carry one operation per (path, method); the second used
+    # to overwrite the first, and `_operation_id`'s collision suffix renamed it
+    # on the way so the loss looked like a naming quirk rather than a drop.
+    routes = [
+        _route("/a/<int:x>", methods={"GET"}),
+        _route("/a/<string:x>", methods={"GET"}),
+    ]
+    with caplog.at_level(logging.WARNING, logger="odoo.http.openapi"):
+        doc = build_openapi(routes)
+
+    assert list(doc["paths"]) == ["/a/{x}"]
+    assert list(doc["paths"]["/a/{x}"]) == ["get"]
+    assert doc["paths"]["/a/{x}"]["get"]["operationId"] == "get_a_x"
+    assert "already described by" in caplog.text
+    assert "/a/<string:x>" in caplog.text
+
+
+def test_a_collision_does_not_burn_an_operation_id():
+    # The dropped operation must not consume `get_a_x`, or a later, unrelated
+    # path picks up a `_2` suffix it did not earn.
+    doc = build_openapi(
+        [
+            _route("/a/<int:x>", methods={"GET"}),
+            _route("/a/<string:x>", methods={"GET"}),
+            _route("/b", methods={"GET"}),
+        ]
+    )
+    ids = sorted(
+        op["operationId"] for item in doc["paths"].values() for op in item.values()
+    )
+    assert ids == ["get_a_x", "get_b"]
+
+
+def test_two_verbs_on_one_template_are_both_kept():
+    doc = build_openapi(
+        [
+            _route("/a", methods={"GET"}),
+            _route("/a", methods={"POST"}),
+        ]
+    )
+    assert sorted(doc["paths"]["/a"]) == ["get", "post"]
