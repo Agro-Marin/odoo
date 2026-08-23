@@ -669,29 +669,6 @@ class ApprovalRequestAction(models.Model):
         }
         return res
 
-    def action_view_source_document(self) -> dict[str, Any] | None:
-        self.ensure_one()
-        if not self.res_model or not self.res_id:
-            raise UserError(
-                self.env._("No source document is linked to this approval request.")
-            )
-
-        source_doc = self.get_source_document()
-        if not source_doc.exists():
-            raise UserError(
-                self.env._(
-                    "The source document no longer exists. It may have been deleted."
-                ),
-            )
-
-        return {
-            "type": "ir.actions.act_window",
-            "res_model": self.res_model,
-            "res_id": self.res_id,
-            "view_mode": "form",
-            "target": "current",
-        }
-
     @api.model
     def _get_domain_pending_review(self, user: models.BaseModel) -> list:
         return [

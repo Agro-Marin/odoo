@@ -175,53 +175,6 @@ class TestDeadlineEscalation(common.TransactionCase):
                     "Approved request should not be overdue even if past deadline",
                 )
 
-    def test_hours_until_deadline_positive(self):
-        request = self.env["approval.request"].create(
-            {
-                "name": "Test Hours Until Deadline",
-                "request_owner_id": self.admin_user.id,
-                "category_id": self.category_with_deadline.id,
-            }
-        )
-
-        with freeze_time("2025-10-16 10:00:00"):
-            request.action_confirm()
-
-            with freeze_time("2025-10-17 10:00:00"):
-                request.invalidate_recordset(["hours_until_deadline"])
-                self.assertAlmostEqual(
-                    request.hours_until_deadline,
-                    24.0,
-                    places=1,
-                    msg="Should have 24 hours until deadline",
-                )
-
-    def test_hours_until_deadline_negative(self):
-        request = self.env["approval.request"].create(
-            {
-                "name": "Test Overdue Hours",
-                "request_owner_id": self.admin_user.id,
-                "category_id": self.category_with_deadline.id,
-            }
-        )
-
-        with freeze_time("2025-10-16 10:00:00"):
-            request.action_confirm()
-
-            with freeze_time("2025-10-19 10:00:00"):
-                request.invalidate_recordset(["hours_until_deadline"])
-                self.assertLess(
-                    request.hours_until_deadline,
-                    0,
-                    "hours_until_deadline should be negative when overdue",
-                )
-                self.assertAlmostEqual(
-                    request.hours_until_deadline,
-                    -24.0,
-                    places=1,
-                    msg="Should be -24 hours (24 hours overdue)",
-                )
-
     def test_search_is_overdue_true(self):
         request = self.env["approval.request"].create(
             {

@@ -102,16 +102,6 @@ class ApprovalRequestCompute(models.Model):
                 and request.state == "pending"
             )
 
-    @api.depends("approval_deadline")
-    def _compute_hours_until_deadline(self) -> None:
-        now = fields.Datetime.now()
-        for request in self:
-            if request.approval_deadline:
-                delta = request.approval_deadline - now
-                request.hours_until_deadline = delta.total_seconds() / 3600
-            else:
-                request.hours_until_deadline = 0
-
     @api.depends(
         "date_confirmed",
         "state",

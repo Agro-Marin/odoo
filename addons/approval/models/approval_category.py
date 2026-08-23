@@ -793,16 +793,6 @@ class ApprovalCategory(models.Model):
     def action_view(self) -> dict[str, Any]:
         return self._get_view_request("")
 
-    def action_view_with_context(self, action_context: dict) -> dict[str, Any]:
-        self.ensure_one()
-        action = self._get_view_request("")
-        action["context"] = {
-            "default_category_id": self.id,
-            "search_default_category_id": self.id,
-            **(action_context or {}),
-        }
-        return action
-
     def view_requests_pending(self) -> dict[str, Any]:
         return self._get_view_request(
             self.env._("Pending"), [("state", "=", "pending")]

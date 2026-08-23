@@ -12,6 +12,7 @@
                 <field name="approved_count" />
                 <field name="rejected_count" />
                 <field name="pending_count" />
+                <field name="cancelled_count" optional="hide" />
                 <field name="approval_rate" />
                 <field name="avg_approval_hours" widget="float_time" />
                 <field name="median_approval_hours" widget="float_time" />
@@ -37,6 +38,7 @@
                 <field name="approved_count" type="measure" />
                 <field name="rejected_count" type="measure" />
                 <field name="pending_count" type="measure" />
+                <field name="cancelled_count" type="measure" />
                 <field name="approval_rate" type="measure" />
                 <field name="avg_approval_hours" type="measure" />
                 <field name="sla_compliance_rate" type="measure" />

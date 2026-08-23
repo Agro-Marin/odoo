@@ -263,7 +263,6 @@ so category names are unique per company, archived rows included.
 | `pending_approver_ids` | Many2many(`res.users`) | No | No | compute |
 | `approval_deadline` | Datetime | Yes | No | compute, store, index. Reads `approval_deadline_hours` from `category_snapshot` via `_get_snapshot_config` (live category fallback) |
 | `is_overdue` | Boolean | No | No | compute, search |
-| `hours_until_deadline` | Float | No | No | compute |
 | `sla_status` | Selection(on_track/at_risk/breached/met/no_sla) | **No** | No | compute, search=`_search_sla_status` (SQL). Non-stored: value tracks the wall clock |
 | `sla_elapsed_hours` | Float | No | No | compute |
 | `sla_remaining_hours` | Float | No | No | compute |

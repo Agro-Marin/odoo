@@ -309,11 +309,6 @@ class ApprovalRequest(models.Model):
         search="_search_is_overdue",
         help="True if approval deadline has passed and request still pending",
     )
-    hours_until_deadline = fields.Float(
-        compute="_compute_hours_until_deadline",
-        help="Hours remaining until approval deadline (negative if overdue)",
-    )
-
     sla_status = fields.Selection(
         selection=[
             ("on_track", "On Track"),

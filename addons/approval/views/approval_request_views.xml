@@ -107,6 +107,13 @@
                 <field name="date" string="Date" optional="hide" />
                 <field name="date_planned" string="Planned" optional="hide" />
                 <field name="date_deadline" string="Deadline" optional="hide" />
+                <field name="is_overdue" column_invisible="1" />
+                <field
+                    name="approval_deadline"
+                    string="Due"
+                    widget="remaining_days"
+                    optional="hide"
+                    decoration-danger="is_overdue" />
                 <field name="date_start" string="Request Start" optional="hide" />
                 <field name="date_end" string="Request To" optional="hide" />
                 <field name="date_confirmed" string="Confirm Date" optional="hide" />
@@ -312,7 +319,11 @@
                         <strong invisible="sla_status != 'at_risk'">SLA At Risk</strong>
                         <strong invisible="sla_status != 'breached'" class="text-danger">SLA Breached</strong>
                         <span class="ms-2">
-                            (<field name="sla_elapsed_hours" class="d-inline" widget="float_time" /> elapsed)
+                            (<field name="sla_elapsed_hours" class="d-inline" widget="float_time" /> elapsed,
+                            <field
+                                name="sla_remaining_hours"
+                                class="d-inline"
+                                widget="float_time" /> remaining)
                         </span>
                     </div>
                     <div
@@ -740,6 +751,32 @@
             <p class="o_view_nocontent_smiling_face">
                 No approval history yet
             </p>
+        </field>
+    </record>
+
+    <record id="server_action_approval_request_approve_bulk" model="ir.actions.server">
+        <field name="name">Approve</field>
+        <field name="model_id" ref="model_approval_request" />
+        <field name="binding_model_id" ref="model_approval_request" />
+        <field name="binding_view_types">list</field>
+        <field name="group_ids" eval="[(4, ref('group_approval_approver'))]" />
+        <field name="state">code</field>
+        <field name="code">
+if records:
+    action = records.action_approve_bulk()
+        </field>
+    </record>
+
+    <record id="server_action_approval_request_refuse_bulk" model="ir.actions.server">
+        <field name="name">Refuse</field>
+        <field name="model_id" ref="model_approval_request" />
+        <field name="binding_model_id" ref="model_approval_request" />
+        <field name="binding_view_types">list</field>
+        <field name="group_ids" eval="[(4, ref('group_approval_approver'))]" />
+        <field name="state">code</field>
+        <field name="code">
+if records:
+    action = records.action_refuse_bulk()
         </field>
     </record>
 

@@ -1,9 +1,3 @@
-.o_approval_kanban_avatar {
-    .o_avatar {
-        gap: 0.375rem;
-    }
-}
-
 .o_approval_dashboard {
     --approval-card-bg: var(--o-view-background-color, #{$o-view-background-color});
     --approval-text: var(--o-main-text-color, #{$o-main-text-color});
@@ -164,34 +158,6 @@
     border-top: 1px solid var(--approval-border);
 }
 
-.o_approval_review_link {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    padding: 0.375rem 0.75rem;
-    font-size: 0.8125rem;
-    color: var(--approval-primary);
-    text-decoration: none;
-    border-radius: 6px;
-    transition: all 0.15s ease;
-
-    &:hover {
-        background: color-mix(in srgb, var(--approval-primary) 10%, transparent);
-    }
-
-    &.o_urgent {
-        color: var(--approval-danger);
-
-        &:hover {
-            background: color-mix(in srgb, var(--approval-danger) 10%, transparent);
-        }
-
-        .o_review_count {
-            background: var(--approval-danger);
-        }
-    }
-}
-
 .o_review_count {
     display: inline-flex;
     align-items: center;
@@ -204,15 +170,6 @@
     color: white;
     background: var(--approval-primary);
     border-radius: 10px;
-}
-
-.o_review_label {
-    font-weight: 500;
-}
-
-.o_urgency_icon {
-    font-size: 0.875rem;
-    margin-left: 0.125rem;
 }
 
 .o_approval_browse_link {
@@ -294,12 +251,6 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     padding: 0.625rem 0.625rem 0.25rem;
-}
-
-.o_approval_menu_divider {
-    height: 1px;
-    background: var(--approval-border);
-    margin: 0.5rem 0.75rem;
 }
 
 .o_approval_stats_row {
