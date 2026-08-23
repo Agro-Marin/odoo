@@ -10,11 +10,25 @@ FLOORS = {
     "sql-injection": 36,
     "gettext-variable": 1,
     "gettext-placeholders": 5,
-    "gettext-repr": 8,
+    # 8 -> 7. base_sql_report._drop_existing_relation raised UserError twice --
+    # once for a regular table, once for any other unexpected relkind -- and both
+    # sentences carried %r. Generalising the mixin so a model can own a table
+    # made the first case legal, and the two raises became one. An exact ratchet
+    # fails on the fall as hard as on the rise, so the unit is banked in the
+    # change that earned it.
+    "gettext-repr": 7,
     "missing-gettext": 23,
     "raise-unlink-override": 1,
     "orm-import": 0,
-    "noqa-rationale": 72,
+    # 72 -> 69, and the three are NOT this change's: it adds no suppression
+    # anywhere, and the files it touches contain no noqa directive at all.
+    # Measured at CI scope (--addons-path=odoo/addons,addons, only test_lint
+    # installed) the tree reports 69, so the gate has been red in the falling
+    # direction since whichever change paid these down without re-flooring.
+    # Recorded rather than attributed, for the same reason test_batch_queries
+    # was: the scanner counts findings and not provenance, and guessing an owner
+    # would be worse than saying there isn't one.
+    "noqa-rationale": 69,
     "onchange-domain": 0,
     # 402 -> 395 on the rebase onto origin/19.0-marin, and the seven are this
     # branch's own. Both parents were measured by running the gate at CI scope
