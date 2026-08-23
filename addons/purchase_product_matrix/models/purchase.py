@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import json
-from odoo import api, fields, models, _
+
+from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
 
@@ -85,14 +85,13 @@ class PurchaseOrder(models.Model):
                         """
                         if len(order_lines) > 1:
                             raise ValidationError(_("You cannot change the quantity of a product present in multiple purchase lines."))
-                        else:
-                            order_lines[0].product_qty = qty
-                            # If we want to support multiple lines edition:
-                            # removal of other lines.
-                            # For now, an error is raised instead
-                            # if len(order_lines) > 1:
-                            #     # Remove 1+ lines
-                            #     self.line_ids -= order_lines[1:]
+                        order_lines[0].product_qty = qty
+                        # If we want to support multiple lines edition:
+                        # removal of other lines.
+                        # For now, an error is raised instead
+                        # if len(order_lines) > 1:
+                        #     # Remove 1+ lines
+                        #     self.line_ids -= order_lines[1:]
                 else:
                     if not default_po_line_vals:
                         OrderLine = self.env['purchase.order.line']
@@ -109,7 +108,7 @@ class PurchaseOrder(models.Model):
             if product_ids:
                 if new_lines:
                     # Add new PO lines
-                    self.update(dict(line_ids=new_lines))
+                    self.update({'line_ids': new_lines})
 
                 # Recompute prices for new/modified lines:
                 for line in self.line_ids.filtered(lambda line: line.product_id.id in product_ids):
@@ -148,11 +147,11 @@ class PurchaseOrder(models.Model):
             for template in grid_configured_templates:
                 if len(self.line_ids.filtered(lambda line: line.product_template_id == template)) > 1:
                     matrix = self._get_matrix(template)
-                    matrix_data = []
-                    for row in matrix['matrix']:
-                        if any(column['qty'] != 0 for column in row[1:]):
-                            matrix_data.append(row)
-                    matrix['matrix'] = matrix_data
+                    matrix['matrix'] = [
+                        row
+                        for row in matrix['matrix']
+                        if any(column['qty'] != 0 for column in row[1:])
+                    ]
                     matrixes.append(matrix)
         return matrixes
 
@@ -166,7 +165,7 @@ class PurchaseOrderLine(models.Model):
     product_no_variant_attribute_value_ids = fields.Many2many('product.template.attribute.value', string='Product attribute values that do not create variants', ondelete='restrict')
 
     def _get_product_purchase_description(self, product):
-        name = super(PurchaseOrderLine, self)._get_product_purchase_description(product)
+        name = super()._get_product_purchase_description(product)
         product_lang_no_variant_attribute_value_ids = self.with_context(product.env.context).product_no_variant_attribute_value_ids
         for no_variant_attribute_value in product_lang_no_variant_attribute_value_ids:
             name += "\n" + no_variant_attribute_value.attribute_id.name + ': ' + no_variant_attribute_value.name

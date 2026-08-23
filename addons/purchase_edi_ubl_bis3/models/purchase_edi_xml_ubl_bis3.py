@@ -1,10 +1,11 @@
 from lxml import etree
 
-from odoo import models, Command, _
+from odoo import Command, _, models
 from odoo.tools import html2plaintext
-from odoo.addons.account_edi_ubl_cii.tools import Order
 from odoo.tools.xml_utils import dict_to_xml
+
 from odoo.addons.account_edi_ubl_cii.models.account_edi_common import FloatFmt
+from odoo.addons.account_edi_ubl_cii.tools import Order
 
 
 class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
@@ -222,8 +223,7 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
     def _add_purchase_order_line_nodes(self, document_node, vals):
         document_node['cac:OrderLine'] = order_line_nodes = []
 
-        line_idx = 1
-        for base_line in vals['base_lines']:
+        for line_idx, base_line in enumerate(vals['base_lines'], start=1):
             line_vals = {
                 **vals,
                 'line_idx': line_idx,
@@ -240,7 +240,6 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
             order_line_nodes.append({
                 'cac:LineItem': line_node,
             })
-            line_idx += 1
 
     def _add_purchase_order_line_id_nodes(self, line_node, vals):
         self._add_document_line_id_nodes(line_node, vals)

@@ -2,6 +2,7 @@
 
 from odoo.fields import Command
 from odoo.tests import tagged
+
 from odoo.addons.purchase_stock.tests.common import PurchaseTestCommon
 
 

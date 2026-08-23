@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import fields, models
@@ -8,7 +7,7 @@ class StockRule(models.Model):
     _inherit = 'stock.rule'
 
     def _prepare_purchase_order_vals(self, company_id, origins, values):
-        res = super(StockRule, self)._prepare_purchase_order_vals(company_id, origins, values)
+        res = super()._prepare_purchase_order_vals(company_id, origins, values)
         values = values[0]
         res['partner_ref'] = values['supplier'].purchase_requisition_id.name
         res['requisition_id'] = values['supplier'].purchase_requisition_id.id
@@ -17,7 +16,7 @@ class StockRule(models.Model):
         return res
 
     def _prepare_po_get_domain(self, company_id, values, partner):
-        domain = super(StockRule, self)._prepare_po_get_domain(company_id, values, partner)
+        domain = super()._prepare_po_get_domain(company_id, values, partner)
         if 'supplier' in values and values['supplier'].purchase_requisition_id:
             domain += (
                 ('requisition_id', '=', values['supplier'].purchase_requisition_id.id),

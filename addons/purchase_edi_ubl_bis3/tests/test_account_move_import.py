@@ -1,9 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from odoo import fields, Command
-
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
+from odoo import Command, fields
 from odoo.tests import tagged
 from odoo.tools import file_open
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged('post_install', '-at_install')

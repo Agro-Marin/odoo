@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.tests.common import TransactionCase
-from odoo.tests import Form
 from odoo import Command
+from odoo.tests import Form
+from odoo.tests.common import TransactionCase
 
 
 class TestPurchaseRequisitionSale(TransactionCase):

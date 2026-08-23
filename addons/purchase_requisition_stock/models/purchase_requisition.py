@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import fields, models
@@ -25,6 +24,6 @@ class PurchaseRequisitionLine(models.Model):
     move_dest_id = fields.Many2one('stock.move', 'Downstream Move', index='btree_not_null')
 
     def _prepare_purchase_order_line(self, name, product_qty=0.0, price_unit=0.0, taxes_ids=False):
-        res = super(PurchaseRequisitionLine, self)._prepare_purchase_order_line(name, product_qty, price_unit, taxes_ids)
-        res['move_dest_ids'] = self.move_dest_id and [(4, self.move_dest_id.id)] or []
+        res = super()._prepare_purchase_order_line(name, product_qty, price_unit, taxes_ids)
+        res['move_dest_ids'] = (self.move_dest_id and [(4, self.move_dest_id.id)]) or []
         return res
