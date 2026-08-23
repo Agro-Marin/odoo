@@ -1,6 +1,6 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError
-from odoo.libs.text.html import nl2br
+from odoo.libs.text import nl2br
 
 
 class ApprovalDecisionWizard(models.TransientModel):
