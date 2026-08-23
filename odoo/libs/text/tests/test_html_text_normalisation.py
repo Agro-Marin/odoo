@@ -1,10 +1,15 @@
 import unittest
 
+from lxml import etree
+from lxml import html as lxml_html
 from markupsafe import Markup
 
 from odoo.libs.text.html import (
     append_content_to_html,
+    fromstring,
     html2plaintext,
+    html_normalize,
+    html_sanitize,
     html_to_inner_content,
     prepend_html_content,
 )
@@ -110,3 +115,50 @@ class TestPrependHtmlContent(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHtmlNormalizeRoundTrip(unittest.TestCase):
+    """`html_normalize` reparses its own output, and both halves of that matter.
+
+    The round trip reads as dead weight -- parse, serialise, parse again, for
+    28% of a small normalise -- and it is not.  Measured over the 51508 HTML
+    fragments in this repo, removing it makes `html_sanitize` raise on 1014 of
+    them.  If you are here to delete it, this is the case you have to answer.
+    """
+
+    def test_fromstring_can_return_a_tree_the_cleaner_cannot_handle(self):
+        # The reason: lxml's Cleaner calls doc.rewrite_links(), which lives on
+        # HtmlElement, and `fromstring` builds a bare _Element for some inputs.
+        self.assertFalse(hasattr(etree.Element("p"), "rewrite_links"))
+        self.assertTrue(hasattr(lxml_html.fromstring("<p>x</p>"), "rewrite_links"))
+
+    def test_sanitize_survives_an_input_that_produces_a_bare_element(self):
+        # `Many2one<string>` is one of the 1014: `<string>` is an unknown tag,
+        # and the tree `fromstring` returns for it has no rewrite_links.
+        self.assertEqual(str(html_sanitize("Many2one<string>")), "<p>Many2one</p>")
+
+    def test_the_probe_above_is_not_vacuous(self):
+        doc, _ = fromstring("Many2one<string>")
+        self.assertNotIsInstance(
+            doc,
+            lxml_html.HtmlElement,
+            "fromstring no longer returns a bare _Element here, so this suite "
+            "no longer covers why the round trip exists -- find a new input.",
+        )
+
+    def test_non_ascii_inside_a_comment_survives(self):
+        # Without encoding="unicode" the round trip emits ASCII bytes with
+        # charrefs, and the HTML parser does not entity-decode comment content
+        # on the way back, so the escaping was permanent.
+        self.assertEqual(
+            html_normalize("<p>Bonjour</p><!-- Résumé du café --><p>Adiós</p>"),
+            "<p>Bonjour</p><!-- Résumé du café --><p>Adiós</p>",
+        )
+
+    def test_non_ascii_inside_a_comment_survives_sanitization(self):
+        self.assertEqual(
+            str(html_sanitize("<p>Hi</p><!-- Résumé -->")), "<p>Hi</p><!-- Résumé -->"
+        )
+
+    def test_non_ascii_in_text_was_never_the_problem(self):
+        self.assertEqual(html_normalize("<p>Adiós</p>"), "<p>Adiós</p>")

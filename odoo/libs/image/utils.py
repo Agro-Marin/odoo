@@ -4,8 +4,12 @@ import io
 from random import randrange
 from typing import Any, Literal, Self
 
+# `Image.preinit()` below registers only PIL's built-in shortlist (BMP, GIF,
+# JPEG, PPM, PNG) and `_initialized = 2` then tells PIL not to scan for the
+# rest.  Anything else this module must open has to be imported by hand to get
+# itself registered -- which is the entire reason IcoImagePlugin is here.
 from PIL import (
-    IcoImagePlugin,  # noqa: F401  plugin registration, see comment above
+    IcoImagePlugin,  # noqa: F401  registers the ICO plugin; see the note above
     Image,
     ImageOps,
     ImageSequence,
@@ -78,7 +82,7 @@ class ImageProcess:
         self, source: bytes | Literal[False] | None, verify_resolution: bool = True
     ) -> None:
         self.source = source or False
-        self.operationsCount = 0
+        self.operations_count = 0
         self.original_format = ""
         self.animated_frames: list[PILImage] = []
 
@@ -93,11 +97,7 @@ class ImageProcess:
                         f"Too large image (above {IMAGE_MAX_RESOLUTION / 1e6}Mpx), reduce the image size."
                     )
         else:
-            try:
-                self.image = Image.open(io.BytesIO(source))
-            except OSError, binascii.Error:
-                msg = "This file could not be decoded as an image file."
-                raise ImageDecodeError(msg) from None
+            self.image = binary_to_image(source)
 
             w, h = self.image.size
             if verify_resolution and w * h > IMAGE_MAX_RESOLUTION:
@@ -145,7 +145,7 @@ class ImageProcess:
             output_format = "JPEG"
 
         if (
-            not self.operationsCount
+            not self.operations_count
             and output_format == self.original_format
             and not quality
         ):
@@ -177,7 +177,7 @@ class ImageProcess:
         if (
             len(output_bytes) >= len(source)
             and self.original_format == output_format
-            and not self.operationsCount
+            and not self.operations_count
         ):
             return source
         return output_bytes
@@ -196,16 +196,16 @@ class ImageProcess:
                         frame.thumbnail(
                             (asked_width, asked_height), Resampling.LANCZOS
                         )
-                    self.operationsCount += 1
+                    self.operations_count += 1
                 return self
             if expand and (asked_width > w or asked_height > h):
                 self.image = self.image.resize((asked_width, asked_height))
-                self.operationsCount += 1
+                self.operations_count += 1
                 return self
             if asked_width != w or asked_height != h:
                 self.image.thumbnail((asked_width, asked_height), Resampling.LANCZOS)
                 if self.image.width != w or self.image.height != h:
-                    self.operationsCount += 1
+                    self.operations_count += 1
         return self
 
     def crop_resize(
@@ -240,11 +240,11 @@ class ImageProcess:
                     self.animated_frames = [
                         frame.crop(crop_box) for frame in self.animated_frames
                     ]
-                    self.operationsCount += 1
+                    self.operations_count += 1
                 else:
                     self.image = self.image.crop(crop_box)
                     if self.image.width != w or self.image.height != h:
-                        self.operationsCount += 1
+                        self.operations_count += 1
 
         return self.resize(max_width, max_height)
 
@@ -257,10 +257,20 @@ class ImageProcess:
             )
         if self.image:
             original = self.image
+            if original.mode == "P":
+                # A palette image carries its transparency in `info`, not in a
+                # band, so it has no usable mask until it is expanded.
+                original = original.convert("RGBA")
             self.image = Image.new("RGB", original.size)
             self.image.paste(color, box=(0, 0) + original.size)
-            self.image.paste(original, mask=original)
-            self.operationsCount += 1
+            # The original doubles as the paste mask so that transparent pixels
+            # keep the fill.  PIL accepts a mask only in "1"/"L"/"LA"/"RGBA";
+            # an RGB source -- the commonest mode there is -- used to raise
+            # "ValueError: bad transparency mask" here.  With nothing to see
+            # through, the fill is simply covered.
+            mask = original if original.mode in ("1", "L", "LA", "RGBA") else None
+            self.image.paste(original, mask=mask)
+            self.operations_count += 1
         return self
 
     def add_padding(self, padding: int) -> Self:
@@ -275,7 +285,7 @@ class ImageProcess:
                 (img_width - 2 * padding, img_height - 2 * padding)
             )
             self.image = ImageOps.expand(self.image, border=padding)
-            self.operationsCount += 1
+            self.operations_count += 1
         return self
 
 
@@ -392,10 +402,12 @@ def binary_to_image(source: bytes) -> PILImage:
         raise ImageDecodeError(msg) from None
 
 
-def base64_to_image(base64_source: str | bytes) -> Image:
+def base64_to_image(base64_source: str | bytes) -> PILImage:
+    # The decode stays inside the try: b64decode raises binascii.Error on
+    # malformed input, and that is the same failure to the caller.
     try:
-        return Image.open(io.BytesIO(base64.b64decode(base64_source)))
-    except OSError, binascii.Error:
+        return binary_to_image(base64.b64decode(base64_source))
+    except binascii.Error:
         msg = "This file could not be decoded as an image file."
         raise ImageDecodeError(msg) from None
 
@@ -431,6 +443,15 @@ def get_webp_size(source: bytes) -> tuple[int, int] | None:
     return None
 
 
+def _decoded_image_size(base64_source: bytes | str) -> tuple[int, int] | None:
+    """Width and height of a base64 image, without decoding a webp."""
+    source = base64.b64decode(base64_source)
+    if source[0:4] == b"RIFF" and source[8:15] == b"WEBPVP8":
+        return get_webp_size(source)
+    image = image_fix_orientation(binary_to_image(source))
+    return image.width, image.height
+
+
 def is_image_size_above(
     base64_source_1: bytes | str | None, base64_source_2: bytes | str | None
 ) -> bool:
@@ -439,32 +460,11 @@ def is_image_size_above(
     if base64_source_1[:1] in (b"P", "P") or base64_source_2[:1] in (b"P", "P"):
         return False
 
-    class _SimpleSize:
-        def __init__(self, width: int, height: int) -> None:
-            self.width: int = width
-            self.height: int = height
-
-    def get_image_size(
-        base64_source: bytes | str,
-    ) -> _SimpleSize | PILImage | Literal[False]:
-        source = base64.b64decode(base64_source)
-        if source[0:4] == b"RIFF" and source[8:15] == b"WEBPVP8":
-            size = get_webp_size(source)
-            if size:
-                return _SimpleSize(size[0], size[1])
-            else:
-                return False
-        else:
-            return image_fix_orientation(binary_to_image(source))
-
-    image_source = get_image_size(base64_source_1)
-    image_target = get_image_size(base64_source_2)
-    if not image_source or not image_target:
+    source = _decoded_image_size(base64_source_1)
+    target = _decoded_image_size(base64_source_2)
+    if source is None or target is None:
         return False
-    return (
-        image_source.width > image_target.width
-        or image_source.height > image_target.height
-    )
+    return source[0] > target[0] or source[1] > target[1]
 
 
 def image_guess_size_from_field_name(field_name: str) -> tuple[int, int]:

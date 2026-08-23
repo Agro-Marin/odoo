@@ -55,7 +55,7 @@ class Website(models.Model):
             square_size = w if w > h else h
             image.crop_resize(square_size, square_size)
             image.image = image.image.resize((512, 512))
-            image.operationsCount += 1
+            image.operations_count += 1
             website.app_icon = base64.b64encode(image.image_quality(output_format='PNG'))
 
     def _search_get_details(self, search_type, order, options):

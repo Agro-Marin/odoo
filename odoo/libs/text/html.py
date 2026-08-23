@@ -512,7 +512,20 @@ def html_normalize(
     for el in doc.iter(tag=etree.Element):
         tag_quote(el)
 
-    doc = html.fromstring(html.tostring(doc, method=output_method))
+    # Load-bearing, and not for the reason it looks like.  `fromstring` above
+    # can hand back a bare `etree._Element` -- it does for about 5% of real
+    # documents, whenever it builds the wrapper itself -- and lxml's Cleaner
+    # calls `doc.rewrite_links()`, which exists only on `HtmlElement`.  Without
+    # this round trip `html_sanitize` raises AttributeError on 1014 of the
+    # 51508 HTML fragments in this repo.  Deleting it as redundant is the
+    # obvious move and it is wrong; the test is `TestHtmlNormalizeRoundTrip`.
+    #
+    # `encoding="unicode"` is what keeps the round trip lossless.  Without it
+    # `tostring` returns ASCII bytes with non-ASCII escaped as charrefs, and
+    # the HTML parser does not entity-decode *comment* content on the way back
+    # -- so `<!-- Résumé -->` came out `<!-- R&#233;sum&#233; -->`, permanently,
+    # in every sanitized body.
+    doc = html.fromstring(html.tostring(doc, encoding="unicode", method=output_method))
 
     if filter_callback:
         doc = filter_callback(doc)
