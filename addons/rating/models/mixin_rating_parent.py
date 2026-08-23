@@ -27,7 +27,7 @@ class MixinRatingParent(models.AbstractModel):
     rating_avg = fields.Float('Average Rating', groups='base.group_user',
         compute='_compute_rating_percentage_satisfaction', compute_sudo=True, search='_search_rating_avg')
     rating_avg_percentage = fields.Float('Average Rating (%)', groups='base.group_user',
-        compute='_compute_rating_percentage_satisfaction', compute_sudo=True)
+        compute='_compute_rating_avg_percentage', compute_sudo=True)
 
     def write(self, vals):
         result = super().write(vals)
@@ -71,6 +71,15 @@ class MixinRatingParent(models.AbstractModel):
             record.rating_count = rating_count
             record.rating_percentage_satisfaction = repartition['great'] * 100 / rating_count if rating_count else -1
             record.rating_avg = rating_scores_per_parent[record.id] / rating_count if rating_count else 0
+
+    @api.depends('rating_avg')
+    def _compute_rating_avg_percentage(self):
+        # Derived from rating_avg rather than assigned alongside it. A model
+        # inheriting this mixin AND mixin.rating resolves rating_avg to the
+        # other one -- ratings *on* the record rather than on its children --
+        # and a shared compute would then silently overwrite it while answering
+        # for this field.
+        for record in self:
             record.rating_avg_percentage = record.rating_avg / 5
 
     def _search_rating_avg(self, operator, value):
