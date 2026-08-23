@@ -135,7 +135,7 @@ def test_str_param_rejects_bool():
 
 def test_string_annotations_are_resolved():
 
-    def ep(self, n: "int", opt: "int | None" = None): ...  # noqa: UP037
+    def ep(self, n: "int", opt: "int | None" = None): ...  # noqa: UP037  the string form is what is under test
 
     specs = _spec(ep)
     assert specs["n"] == ParamSpec(int, None, False, True)
@@ -145,7 +145,7 @@ def test_string_annotations_are_resolved():
 
 def test_unresolvable_string_annotation_passes_through():
 
-    def ep(self, n: "int", ghost: "NotARealName" = None): ...  # noqa: UP037, F821
+    def ep(self, n: "int", ghost: "NotARealName" = None): ...  # noqa: UP037, F821  an unresolvable annotation is the case
 
     specs = _spec(ep)
     assert set(specs) == {"n"}

@@ -9,7 +9,7 @@ from odoo.http.routing import route
 def _install(monkeypatch, name, source):
     module = ModuleType(f"odoo.addons.{name}")
     monkeypatch.setitem(__import__("sys").modules, f"odoo.addons.{name}", module)
-    exec(compile(source, f"<{name}>", "exec"), module.__dict__)  # noqa: S102
+    exec(compile(source, f"<{name}>", "exec"), module.__dict__)  # noqa: S102  the source is this file's own fixture, not input
     return module
 
 
