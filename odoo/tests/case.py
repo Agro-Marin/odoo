@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 from unittest import SkipTest
 from unittest import TestCase as _TestCase
 
+from .utils import InfrastructureUnavailable, addon_relative_path
+
 if TYPE_CHECKING:
     import types
     from collections.abc import Generator
@@ -33,7 +35,11 @@ class _Outcome:
             raise
         except SkipTest as e:
             self.success = False
-            self.result.addSkip(test_case, str(e))
+            self.result.addSkip(
+                test_case,
+                str(e),
+                infrastructure=isinstance(e, InfrastructureUnavailable),
+            )
         except BaseException:
             exc_info = sys.exc_info()
             self.success = False
@@ -225,13 +231,9 @@ class TestCase(_TestCase):
                 cls.tearDown_exceptions.append(sys.exc_info())
 
     @property
-    def canonical_tag(self):
-        module = self.__module__
-        for prefix in ("odoo.addons.", "odoo.upgrade."):
-            module = module.removeprefix(prefix)
-
-        module = module.replace(".", "/")
-        return f"/{module}.py:{self.__class__.__name__}.{self._testMethodName}"
+    def canonical_tag(self) -> str:
+        path = addon_relative_path(self.__module__)
+        return f"{path}:{self.__class__.__name__}.{self._testMethodName}"
 
     def get_log_metadata(self) -> dict[str, str]:
         return {

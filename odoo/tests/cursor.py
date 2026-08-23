@@ -1,13 +1,15 @@
 import contextlib
+import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import odoo
 from odoo.db import BaseCursor, Cursor, Savepoint
-from odoo.db.cursor import _logger
 
 if TYPE_CHECKING:
     import threading
+
+_logger = logging.getLogger(__name__)
 
 
 class TestCursor(BaseCursor):

@@ -4,6 +4,8 @@ from typing import Any
 
 from odoo.tools.misc import OrderedSet
 
+from .utils import addon_relative_path
+
 _logger = logging.getLogger(__name__)
 
 
@@ -74,11 +76,10 @@ class TagsSelector:
         test_class = test.__class__.__name__
         test_tags = test.test_tags | {test_module}
         test_method = test._testMethodName
-        test_module_path = test.__module__
-        for prefix in ("odoo.addons", "odoo.upgrade"):
-            test_module_path = test_module_path.removeprefix(prefix)
-        test_module_path = test_module_path.replace(".", "/") + ".py"
+        test_module_path = addon_relative_path(test.__module__)
 
+        # Reset for every test we are asked about, selected or not: a test the
+        # selector rejects must not keep the params of a previous selector.
         test._test_params = []
 
         def _is_matching(test_filter: tuple) -> bool:
@@ -100,8 +101,10 @@ class TagsSelector:
         if not any(_is_matching(test_filter) for test_filter in self.include):
             return False
 
-        for test_filter, parameter in self.parameters:
-            if _is_matching(test_filter):
-                test._test_params.append(parameter)
+        test._test_params = [
+            parameter
+            for test_filter, parameter in self.parameters
+            if _is_matching(test_filter)
+        ]
 
         return True

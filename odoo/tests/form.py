@@ -40,8 +40,8 @@ class Form:
         assert isinstance(record, BaseModel)
         assert len(record) <= 1
 
-        object.__setattr__(self, "_record", record)
-        object.__setattr__(self, "_env", record.env)
+        self._record = record
+        self._env = record.env
 
         if isinstance(view, BaseModel):
             assert view._name == "ir.ui.view", (
@@ -54,12 +54,12 @@ class Form:
             view_id = view or False
 
         views = record.get_views([(view_id, "form")])
-        object.__setattr__(self, "_models_info", views["models"])
+        self._models_info = views["models"]
         tree = etree.fromstring(views["views"]["form"]["arch"])
         view = self._process_view(tree, record)
-        object.__setattr__(self, "_view", view)
+        self._view = view
 
-        object.__setattr__(self, "_values", UpdateDict())
+        self._values = UpdateDict()
         if record:
             self._init_from_record()
         else:
@@ -268,7 +268,13 @@ class Form:
         return value
 
     def __setattr__(self, field_name: str, value: Any) -> None:
-        self[field_name] = value
+        # Mirrors __getattr__: private names are real attributes, public ones
+        # are view fields. Without this, every internal assignment in Form and
+        # O2MForm had to spell object.__setattr__.
+        if field_name.startswith("_"):
+            object.__setattr__(self, field_name, value)
+        else:
+            self[field_name] = value
 
     def __setitem__(self, field_name: str, value: Any) -> None:
         field_info = self._view["fields"].get(field_name)
@@ -368,7 +374,7 @@ class Form:
 
             if not self._record:
                 record = self._record.browse(record_values["id"])
-                object.__setattr__(self, "_record", record)
+                self._record = record
 
             values = convert_read_to_form(record_values, self._view["fields"])
             self._values.clear()
@@ -573,23 +579,23 @@ class Form:
 class O2MForm(Form):
     def __init__(self, proxy: O2MProxy, index: int | None = None) -> None:
         model = proxy._model
-        object.__setattr__(self, "_proxy", proxy)
-        object.__setattr__(self, "_index", index)
+        self._proxy = proxy
+        self._index = index
 
-        object.__setattr__(self, "_record", model)
-        object.__setattr__(self, "_env", model.env)
+        self._record = model
+        self._env = model.env
 
-        object.__setattr__(self, "_models_info", proxy._form._models_info)
-        object.__setattr__(self, "_view", proxy._field_info["edition_view"])
+        self._models_info = proxy._form._models_info
+        self._view = proxy._field_info["edition_view"]
 
-        object.__setattr__(self, "_values", UpdateDict())
+        self._values = UpdateDict()
         if index is None:
             self._init_from_defaults()
         else:
             vals = proxy._records[index]
             self._values.update(vals)
             if vals.get("id"):
-                object.__setattr__(self, "_record", model.browse(vals["id"]))
+                self._record = model.browse(vals["id"])
 
     def _get_modifier(
         self,
@@ -687,6 +693,7 @@ class X2MValue(collections.abc.Sequence):
             vals["id"]: UpdateDict(vals) for vals in iterable_of_vals
         }
         self._given: list = list(self._data)
+        self._keys: list | None = None
 
     def __repr__(self) -> str:
         return repr(self._data)
@@ -695,7 +702,12 @@ class X2MValue(collections.abc.Sequence):
         return id_ in self._data
 
     def __getitem__(self, index: Any) -> Any:
-        return list(self._data)[index]
+        # A dict view is not indexable, so an index needs a list -- but
+        # rebuilding it per access made indexed iteration quadratic (measured
+        # n*4 -> time*154). Cached, and dropped by every mutator below.
+        if self._keys is None:
+            self._keys = list(self._data)
+        return self._keys[index]
 
     def __iter__(self) -> Iterator[Any]:
         return iter(self._data)
@@ -714,18 +726,22 @@ class X2MValue(collections.abc.Sequence):
             self._data[id_].update(vals)
             return
         self._data[id_] = UpdateDict(vals)
+        self._keys = None
 
     def remove(self, id_: Any) -> None:
         self._data.pop(id_, None)
+        self._keys = None
 
     def clear(self) -> None:
         self._data.clear()
+        self._keys = None
 
     def create(self, vals: dict) -> None:
         id_ = f"virtual_{next(self._virtual_seq)}"
         create_vals = UpdateDict(vals)
         create_vals._changed.update(vals)
         self._data[id_] = create_vals
+        self._keys = None
 
     def update(self, id_: Any, changes: dict, changed: Any = ()) -> None:
         vals = self._data[id_]

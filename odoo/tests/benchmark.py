@@ -72,53 +72,20 @@ class BenchmarkStats:
 
     raw_times_us: list[float] = field(default_factory=list, repr=False)
 
-    @property
-    def mean_ms(self) -> float:
-        return self.mean_us / 1000
+    def __getattr__(self, name: str) -> float:
+        """Serve every ``*_ms`` as the matching ``*_us`` divided by 1000.
 
-    @property
-    def median_ms(self) -> float:
-        return self.median_us / 1000
-
-    @property
-    def std_dev_ms(self) -> float:
-        return self.std_dev_us / 1000
-
-    @property
-    def min_ms(self) -> float:
-        return self.min_us / 1000
-
-    @property
-    def max_ms(self) -> float:
-        return self.max_us / 1000
-
-    @property
-    def p5_ms(self) -> float:
-        return self.p5_us / 1000
-
-    @property
-    def p25_ms(self) -> float:
-        return self.p25_us / 1000
-
-    @property
-    def p75_ms(self) -> float:
-        return self.p75_us / 1000
-
-    @property
-    def p95_ms(self) -> float:
-        return self.p95_us / 1000
-
-    @property
-    def p99_ms(self) -> float:
-        return self.p99_us / 1000
-
-    @property
-    def db_time_ms(self) -> float:
-        return self.db_time_us / 1000
-
-    @property
-    def python_time_ms(self) -> float:
-        return self.python_time_us / 1000
+        Twelve hand-written properties used to do exactly this. Only reached
+        for names the dataclass does not define, so a real field always wins.
+        """
+        if name.endswith("_ms"):
+            try:
+                return getattr(self, f"{name[:-3]}_us") / 1000
+            except AttributeError:
+                pass
+        raise AttributeError(
+            f"{type(self).__name__!r} object has no attribute {name!r}"
+        )
 
     @property
     def python_ratio(self) -> float:
@@ -127,66 +94,76 @@ class BenchmarkStats:
     def to_dict(self) -> dict:
         d = asdict(self)
         d.pop("raw_times_us", None)
+        # PerfTimer.stats() calls the median p50_us and compare_results reads
+        # only that key, so without this alias every BenchmarkStats row compared
+        # as 0 and printed "inf".
+        d["p50_us"] = d["median_us"]
         return d
 
     def summary(self, unit: str = "auto") -> str:
         if unit == "auto":
             unit = "ms" if self.mean_us > 1000 else "us"
-        if unit == "ms":
-            return self._summary_ms()
-        return self._summary_us()
+        return self._summary(unit)
 
-    def _summary_us(self) -> str:
+    def _summary(self, unit: str) -> str:
+        """One report at either scale.
+
+        `_summary_us` and `_summary_ms` were the same 25 lines differing only
+        in suffix, divisor and precision -- so they drifted: the us variant
+        printed queries on one line and graded CV on two bands, the ms variant
+        used three. Three bands and the labelled form win; nothing pins either.
+        """
+        p = 1 if unit == "us" else 3
+        v = {
+            field: getattr(self, f"{field}_{unit}")
+            for field in (
+                "mean",
+                "median",
+                "std_dev",
+                "min",
+                "max",
+                "p5",
+                "p25",
+                "p75",
+                "p95",
+                "p99",
+                "db_time",
+                "python_time",
+            )
+        }
+        symbol = "\u00b5s" if unit == "us" else "ms"
+        if self.cv < 0.1:
+            stability = "stable"
+        elif self.cv < 0.3:
+            stability = "variable"
+        else:
+            stability = "unstable"
         return (
             f"\n{'=' * 70}\n"
             f"  {self.name}\n"
             f"{'=' * 70}\n"
             f"  Iterations: {self.iterations} (samples: {self.total_samples})\n"
             f"\n"
-            f"  TIMING (µs):\n"
-            f"    Mean:   {self.mean_us:10.1f}  (±{self.std_dev_us:.1f} std)\n"
-            f"    Median: {self.median_us:10.1f}\n"
-            f"    Min:    {self.min_us:10.1f}    Max: {self.max_us:.1f}\n"
-            f"    P5:     {self.p5_us:10.1f}    P95: {self.p95_us:.1f}\n"
-            f"    P25:    {self.p25_us:10.1f}    P75: {self.p75_us:.1f}\n"
-            f"    P99:    {self.p99_us:10.1f}\n"
-            f"\n"
-            f"  QUERIES: {self.query_count_mean:.1f} (min: {self.query_count_min}, max: {self.query_count_max})\n"
-            f"\n"
-            f"  TIME BREAKDOWN:\n"
-            f"    DB Time:     {self.db_time_us:10.1f} µs ({self.db_ratio * 100:5.1f}%)\n"
-            f"    Python Time: {self.python_time_us:10.1f} µs ({self.python_ratio * 100:5.1f}%)\n"
-            f"\n"
-            f"  CONSISTENCY: CV={self.cv:.3f}"
-            f" ({'stable' if self.cv < 0.1 else 'variable'})\n"
-            f"{'=' * 70}"
-        )
-
-    def _summary_ms(self) -> str:
-        return (
-            f"\n{'=' * 70}\n"
-            f"  {self.name}\n"
-            f"{'=' * 70}\n"
-            f"  Iterations: {self.iterations} (samples: {self.total_samples})\n"
-            f"\n"
-            f"  TIMING (ms):\n"
-            f"    Mean:   {self.mean_ms:10.3f}  (±{self.std_dev_ms:.3f} std)\n"
-            f"    Median: {self.median_ms:10.3f}\n"
-            f"    Min:    {self.min_ms:10.3f}    Max: {self.max_ms:.3f}\n"
-            f"    P5:     {self.p5_ms:10.3f}    P95: {self.p95_ms:.3f}\n"
-            f"    P25:    {self.p25_ms:10.3f}    P75: {self.p75_ms:.3f}\n"
-            f"    P99:    {self.p99_ms:10.3f}\n"
+            f"  TIMING ({symbol}):\n"
+            f"    Mean:   {v['mean']:10.{p}f}  (\u00b1{v['std_dev']:.{p}f} std)\n"
+            f"    Median: {v['median']:10.{p}f}\n"
+            f"    Min:    {v['min']:10.{p}f}    Max: {v['max']:.{p}f}\n"
+            f"    P5:     {v['p5']:10.{p}f}    P95: {v['p95']:.{p}f}\n"
+            f"    P25:    {v['p25']:10.{p}f}    P75: {v['p75']:.{p}f}\n"
+            f"    P99:    {v['p99']:10.{p}f}\n"
             f"\n"
             f"  QUERIES:\n"
-            f"    Count:  {self.query_count_mean:10.1f}  (min: {self.query_count_min}, max: {self.query_count_max})\n"
+            f"    Count:  {self.query_count_mean:10.1f}  "
+            f"(min: {self.query_count_min}, max: {self.query_count_max})\n"
             f"\n"
             f"  TIME BREAKDOWN:\n"
-            f"    DB Time:     {self.db_time_ms:10.3f} ms ({self.db_ratio * 100:5.1f}%)\n"
-            f"    Python Time: {self.python_time_ms:10.3f} ms ({self.python_ratio * 100:5.1f}%)\n"
+            f"    DB Time:     {v['db_time']:10.{p}f} {symbol} "
+            f"({self.db_ratio * 100:5.1f}%)\n"
+            f"    Python Time: {v['python_time']:10.{p}f} {symbol} "
+            f"({self.python_ratio * 100:5.1f}%)\n"
             f"\n"
             f"  CONSISTENCY:\n"
-            f"    Coeff. of Variation: {self.cv:.3f}"
-            f" ({'stable' if self.cv < 0.1 else 'variable' if self.cv < 0.3 else 'unstable'})\n"
+            f"    Coeff. of Variation: {self.cv:.3f} ({stability})\n"
             f"{'=' * 70}"
         )
 

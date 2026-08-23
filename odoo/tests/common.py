@@ -93,6 +93,7 @@ __all__ = [
     "new_test_user",
     "no_retry",
     "patch",
+    "release_stranded_test_cursors",
     "release_test_lock",
     "save_test_file",
     "skip_if_dev_mode",
@@ -201,6 +202,22 @@ def test_xsd(url=None, path=None, skip=False):
 
 
 def new_test_user(env, login="", groups="base.group_user", context=None, **kwargs):
+    """Create a res.users, filling the fields most odoo operations require.
+
+    ``kwargs`` is propagated to the create. Defaults that are *not* obvious:
+
+    * ``name``     -- "login (groups)", because it is required;
+    * ``password`` -- the login padded to 8 characters;
+    * ``email``    -- the login if it is a valid address, else the generated
+      ``x.x@example.com`` where x is the login's first letter.
+
+    That last one is deliberate (and upstream), not a typo -- but note the
+    hazard it creates: every login sharing a first letter shares an address,
+    so ``new_test_user(env, "bert")`` and ``new_test_user(env, "bob")`` both
+    get ``b.b@example.com``. Anything resolving partners by email
+    (``_partner_find_from_emails``) will see them as one. Pass ``email``
+    explicitly when a test depends on recipients being distinct.
+    """
     if not login:
         raise ValueError("New users require at least a login")
     if not groups:
@@ -228,6 +245,34 @@ def new_test_user(env, login="", groups="base.group_user", context=None, **kwarg
         create_values["company_ids"] = [(4, create_values["company_id"])]
 
     return env["res.users"].with_context(**context).create(create_values)
+
+
+def release_stranded_test_cursors(owner: str = "") -> int:
+    """Close out any TestCursor left in the stack, and give its lock back.
+
+    Releasing is not optional. ``TestCursor.__init__`` acquires
+    ``_registry_test_lock`` and ``close()`` is the only release, so a cursor
+    stranded here would hold an acquisition for the life of the process. Since
+    ``release_test_lock()`` releases exactly one, the count would then never
+    reach zero again and *every later HttpCase request* would block for
+    ``test_cursor_lock_timeout`` and fail with "Unable to acquire lock for test
+    cursor after 20s" -- attributed to whichever test ran next rather than to
+    the one that stranded it.
+
+    Returns how many were stranded, so a caller can assert on it.
+    """
+    stranded = TestCursor._cursors_stack
+    for cursor in stranded:
+        _logger.warning(
+            "A cursor was remaining in the TestCursor stack at the end of %s; "
+            "releasing its registry lock",
+            owner or "the test",
+        )
+        cursor._closed = True
+        cursor._lock.release()
+    count = len(stranded)
+    TestCursor._cursors_stack = []
+    return count
 
 
 def loaded_demo_data(env: api.Environment) -> bool:
@@ -457,7 +502,10 @@ class BaseCase(case.TestCase):
             patcher = patch.object(
                 requests.sessions.Session,
                 "send",
-                lambda s, r, **kw: cls._request_handler(s, r, **kw),  # noqa: PLW0108  see comment above
+                # The lambda is load-bearing: _request_handler is a
+                # classmethod, so passing it directly would install an already
+                # bound object as Session.send and shift (s, r) by one.
+                lambda s, r, **kw: cls._request_handler(s, r, **kw),  # noqa: PLW0108  classmethod would bind and shift (s, r)
             )
             patcher.start()
             cls.addClassCleanup(patcher.stop)
@@ -624,14 +672,17 @@ class BaseCase(case.TestCase):
         normalized = "".join(query.lower().split())
         return re.sub(r"\((?:%s|default)(?:,(?:%s|default))*\)", "(%s)", normalized)
 
-    @contextmanager
-    def assertQueries(
-        self, expected: list[str], flush: bool = True
-    ) -> Generator[list[str]]:
-        actual_queries = []
+    def _assert_queries(
+        self,
+        expected: list[str],
+        actual_queries: list[str],
+        compare: Callable[[str, str], None],
+    ) -> None:
+        """Shared tail of assertQueries/assertQueriesContain.
 
-        yield from self._patchExecute(actual_queries, flush)
-
+        Neither is a subset check: the query *count* must match exactly, and
+        `compare` decides how each pair is matched.
+        """
         if not self.warm:
             return
 
@@ -645,12 +696,25 @@ class BaseCase(case.TestCase):
             ),
         )
         for actual_query, expect_query in zip(actual_queries, expected, strict=False):
+            compare(actual_query, expect_query)
+
+    @contextmanager
+    def assertQueries(
+        self, expected: list[str], flush: bool = True
+    ) -> Generator[list[str]]:
+        actual_queries = []
+
+        yield from self._patchExecute(actual_queries, flush)
+
+        def equals(actual_query: str, expect_query: str) -> None:
             self.assertEqual(
                 self._normalize_query(actual_query),
                 self._normalize_query(expect_query),
                 "\n---- actual query:\n%s\n---- not like:\n%s"
                 % (actual_query, expect_query),
             )
+
+        self._assert_queries(expected, actual_queries, equals)
 
     @contextmanager
     def assertQueriesContain(
@@ -660,25 +724,15 @@ class BaseCase(case.TestCase):
 
         yield from self._patchExecute(actual_queries, flush)
 
-        if not self.warm:
-            return
-
-        self.assertEqual(
-            len(actual_queries),
-            len(expected),
-            "\n---- actual queries:\n%s\n---- expected queries:\n%s"
-            % (
-                "\n".join(actual_queries),
-                "\n".join(expected),
-            ),
-        )
-        for actual_query, expect_query in zip(actual_queries, expected, strict=False):
+        def contains(actual_query: str, expect_query: str) -> None:
             self.assertIn(
                 self._normalize_query(expect_query),
                 self._normalize_query(actual_query),
                 "\n---- actual query:\n%s\n---- doesn't contain:\n%s"
                 % (actual_query, expect_query),
             )
+
+        self._assert_queries(expected, actual_queries, contains)
 
     @contextmanager
     def assertQueryCount(
@@ -762,14 +816,17 @@ class BaseCase(case.TestCase):
             r = {}
             for f in field_names:
                 t = records._fields[f].type
-                if t in ("one2many", "many2many"):
+                # None first: it is the caller's way of writing "falsy", and
+                # float(None)/int(None) would raise TypeError here rather than
+                # letting the comparison below report the real difference.
+                if vs[f] is None:
+                    r[f] = False
+                elif t in ("one2many", "many2many"):
                     r[f] = sorted(vs[f])
                 elif t == "float":
                     r[f] = float(vs[f])
                 elif t == "integer":
                     r[f] = int(vs[f])
-                elif vs[f] is None:
-                    r[f] = False
                 else:
                     r[f] = vs[f]
             expected_reformatted.append(r)
@@ -906,34 +963,30 @@ class BaseCase(case.TestCase):
         return patches
 
     @classmethod
-    def registry_enter_test_mode_cls(cls) -> None:
+    def _registry_enter_test_mode(cls, *, cr: Cursor) -> None:
         assert not cls._registry_patched, "Can only patch registry once"
-        assert cls.cr, "No cursor"
+        assert cr, "No cursor"
         assert cls.registry, "No registry"
 
         cls.registry_patches = cls._registry_test_mode_patches(
-            cr=cls.cr,
+            cr=cr,
             registry=cls.registry,
         )
         for p in cls.registry_patches:
             p.start()
         cls._registry_patched = True
+
+    @classmethod
+    def registry_enter_test_mode_cls(cls) -> None:
+        cls._registry_enter_test_mode(cr=cls.cr)
         cls.addClassCleanup(cls.registry_leave_test_mode)
 
     def registry_enter_test_mode(
         self, *, cr: Cursor | None = None, register_cleanup: bool = True
     ) -> None:
-        assert not type(self)._registry_patched, "Can only patch registry once"
-        assert cr or self.cr, "No cursor"
-        assert self.registry, "No registry"
-
-        type(self).registry_patches = self._registry_test_mode_patches(
-            cr=cr or self.cr,
-            registry=self.registry,
-        )
-        for p in self.registry_patches:
-            p.start()
-        type(self)._registry_patched = True
+        # Same work as registry_enter_test_mode_cls, differing only in which
+        # cursor is used and whether the undo is a test or a class cleanup.
+        type(self)._registry_enter_test_mode(cr=cr or self.cr)
         if register_cleanup:
             self.addCleanup(self.registry_leave_test_mode)
 
@@ -978,16 +1031,26 @@ class BaseCase(case.TestCase):
                 "Request ignored during test as it does not contain the required cookie."
             )
 
+    _SOURCE_TAGS: dict[str, str] = {"is_query_count": "self.assertQueryCount"}
+    """Tags derived by grepping a test's own source: {tag: needle}.
+
+    Subclasses extend the mapping rather than overriding the method, so the
+    source is read once however many of these tags are being selected.
+    """
+
     def get_method_additional_tags(self, test_method: Callable | None) -> list[str]:
-        additional_tags = []
-        if (
-            odoo.tools.config["test_tags"]
-            and "is_query_count" in odoo.tools.config["test_tags"]
-        ):
-            method_source = inspect.getsource(test_method) if test_method else ""
-            if "self.assertQueryCount" in method_source:
-                additional_tags.append("is_query_count")
-        return additional_tags
+        selected = odoo.tools.config["test_tags"] or ""
+        wanted = {
+            tag: needle for tag, needle in self._SOURCE_TAGS.items() if tag in selected
+        }
+        if not wanted or test_method is None:
+            return []
+        try:
+            method_source = inspect.getsource(test_method)
+        except OSError, TypeError:
+            # dynamically built test methods have no retrievable source
+            return []
+        return [tag for tag, needle in wanted.items() if needle in method_source]
 
 
 class Like:
@@ -1107,15 +1170,7 @@ class TransactionCase(BaseCase):
 
         seed_planner_stats(cls.cr)
 
-        def check_cursor_stack():
-            for cursor in TestCursor._cursors_stack:
-                _logger.info(
-                    "One cursor was remaining in the TestCursor stack at the end of the test"
-                )
-                cursor._closed = True
-            TestCursor._cursors_stack = []
-
-        cls.addClassCleanup(check_cursor_stack)
+        cls.addClassCleanup(release_stranded_test_cursors, cls.__name__)
 
         if cls.freeze_time:
             cls.startClassPatcher(cls.freeze_time)
@@ -1359,7 +1414,10 @@ class freeze_time:
 
 freezegun.freeze_time = freeze_time
 
-from .http import (  # noqa: E402  see comment above
+# Imported at the bottom, after everything http.py needs from this module is
+# defined. These names stay re-exported from `common` because addons and mock
+# targets have always found them here.
+from .http import (  # noqa: E402  http.py imports from this module; a top import would cycle
     HttpCase,
     JsonRpcException,
     Opener,

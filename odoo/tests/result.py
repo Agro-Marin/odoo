@@ -21,6 +21,9 @@ __unittest = True
 _max_failed = env_int("ODOO_TEST_MAX_FAILED_TESTS", 0)
 ODOO_TEST_MAX_FAILED_TESTS = _max_failed if _max_failed > 0 else sys.maxsize
 
+REQUIRE_INFRA = bool(env_int("ODOO_REQUIRE_INFRA", 0))
+"""Promote InfrastructureUnavailable to a hard error (CI opt-in)."""
+
 stats_logger = logging.getLogger("odoo.tests.stats")
 
 
@@ -69,6 +72,7 @@ class OdooTestResult:
         self.errors_count = 0
         self.testsRun = 0
         self.skipped = 0
+        self.infrastructure_skipped = 0
         self.tb_locals = False
         self.time_start = None
         self.queries_start = None
@@ -149,15 +153,44 @@ class OdooTestResult:
     def addSuccess(self, test: case.TestCase) -> None:
         pass
 
-    def addSkip(self, test: case.TestCase, reason: str) -> None:
+    def addSkip(
+        self, test: case.TestCase, reason: str, infrastructure: bool = False
+    ) -> None:
         self.skipped += 1
-        self.log(
-            logging.INFO,
-            "skipped %s : %s",
-            self.getDescription(test),
-            reason,
-            test=test,
-        )
+        if not infrastructure:
+            self.log(
+                logging.INFO,
+                "skipped %s : %s",
+                self.getDescription(test),
+                reason,
+                test=test,
+            )
+            return
+
+        # The environment could not run this, which is not the same as deciding
+        # it should not run. Counted apart so the summary can say so, and an
+        # error under ODOO_REQUIRE_INFRA so a host with no browser cannot report
+        # a clean pass over a suite that never executed.
+        self.infrastructure_skipped += 1
+        if REQUIRE_INFRA:
+            self.errors_count += 1
+            self.log(
+                logging.ERROR,
+                "INFRASTRUCTURE UNAVAILABLE %s : %s (ODOO_REQUIRE_INFRA=1)",
+                self.getDescription(test),
+                reason,
+                test=test,
+            )
+            self._checkShouldStop()
+        else:
+            self.log(
+                logging.WARNING,
+                "skipped %s : %s (environment cannot run it; "
+                "set ODOO_REQUIRE_INFRA=1 to make this an error)",
+                self.getDescription(test),
+                reason,
+                test=test,
+            )
 
     def wasSuccessful(self) -> bool:
         return self.failures_count == self.errors_count == 0
@@ -192,7 +225,17 @@ class OdooTestResult:
         return f"<{self.__class__.__module__}.{self.__class__.__qualname__} run={self.testsRun} errors={self.errors_count} failures={self.failures_count}>"
 
     def __str__(self):
-        return f"{self.failures_count} failed, {self.errors_count} error(s) of {self.testsRun} tests"
+        summary = (
+            f"{self.failures_count} failed, {self.errors_count} error(s) "
+            f"of {self.testsRun} tests"
+        )
+        if self.infrastructure_skipped:
+            # Never silent: a suite that could not run is not a suite that passed.
+            summary += (
+                f" ({self.infrastructure_skipped} skipped because the "
+                f"environment could not run them)"
+            )
+        return summary
 
     @contextlib.contextmanager
     def retry(self) -> Generator[None]:
@@ -217,7 +260,11 @@ class OdooTestResult:
         self.errors_count += other.errors_count
         self.testsRun += other.testsRun
         self.skipped += other.skipped
-        self.stats.update(other.stats)
+        self.infrastructure_skipped += other.infrastructure_skipped
+        for test_id, stat in other.stats.items():
+            # Sum, don't overwrite: collectStats accumulates with += and
+            # setUpClass ids collide when one class runs in both positions.
+            self.stats[test_id] += stat
 
     def log(
         self,

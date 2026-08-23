@@ -39,14 +39,14 @@ def get_module_test_cases(module: Any) -> Iterator[case.TestCase]:
 
 
 def get_test_modules(module: str) -> list[Any]:
-    results = _get_tests_modules(importlib.util.find_spec(f"odoo.addons.{module}"))
+    results = _get_tests_modules(f"odoo.addons.{module}")
     results += list(_get_upgrade_test_modules(module))
 
     return results
 
 
-def _get_tests_modules(mod: Any) -> list[Any]:
-    spec = importlib.util.find_spec(".tests", mod.name)
+def _get_tests_modules(package_name: str) -> list[Any]:
+    spec = importlib.util.find_spec(".tests", package_name)
     if not spec:
         return []
 
@@ -76,9 +76,13 @@ def _get_upgrade_test_modules(module: str) -> Generator[Any]:
                 )
                 if not spec:
                     continue
-                pymod = importlib.util.module_from_spec(spec)
-                sys.modules[spec.name] = pymod
-                spec.loader.exec_module(pymod)
+                # make_suite runs once per position, so without this check the
+                # module body is executed twice -- at_install then post_install --
+                # producing two distinct sets of class objects for one file.
+                if (pymod := sys.modules.get(spec.name)) is None:
+                    pymod = importlib.util.module_from_spec(spec)
+                    sys.modules[spec.name] = pymod
+                    spec.loader.exec_module(pymod)
                 yield pymod
 
 

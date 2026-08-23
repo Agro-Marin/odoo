@@ -1,18 +1,23 @@
 import contextlib
 import difflib
+import gc
+import inspect
 import logging
 import os
 import re
 import sys
 import threading
+import weakref
 from contextlib import contextmanager
+from functools import partial
 from pathlib import PurePath
 from unittest import SkipTest, skip
 from unittest.mock import patch
 
 from odoo.db import Cursor
 from odoo.orm.models.mixins._crud_common import COPY_THRESHOLD
-from odoo.tests.benchmark import compute_stats
+from odoo.tests import browser
+from odoo.tests.benchmark import compare_results, compute_stats
 from odoo.tests.case import TestCase
 from odoo.tests.common import (
     _DELEGATING_STATEMENTS,
@@ -21,15 +26,43 @@ from odoo.tests.common import (
     HttpCase,
     RegistryRLock,
     TransactionCase,
+    _registry_test_lock,
     mute_logger,
+    release_stranded_test_cursors,
+    release_test_lock,
     users,
     warmup,
 )
 from odoo.tests.cursor import TestCursor
-from odoo.tests.result import OdooTestResult
-from odoo.tests.utils import env_int
+from odoo.tests.form import O2MValue
+from odoo.tests.result import OdooTestResult, Stat
+from odoo.tests.suite import OdooSuite
+from odoo.tests.tag_selector import TagsSelector
+from odoo.tests.utils import (
+    InfrastructureUnavailable,
+    addon_relative_path,
+    env_int,
+)
 
 _logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def _nested_suite_run():
+    """Run a suite inside a test without stranding the runner's global state.
+
+    ``TestSuite.run`` assigns ``odoo.modules.module.current_test`` per test, so
+    a nested run leaves it pointing at the inner probe. Every later
+    ``TestCursor`` then fails ``assertCanOpenTestCursor``, which is a 20s stall
+    and a 500 for the next HttpCase -- caused by this file, blamed on that one.
+    """
+    import odoo.modules.module as module_state
+
+    outer = module_state.current_test
+    try:
+        yield
+    finally:
+        module_state.current_test = outer
 
 
 class TestTestSuite(TestCase):
@@ -572,7 +605,7 @@ class TestCursorStack(TransactionCase):
 
         self.addCleanup(cleanup)
 
-        with self.assertLogs("odoo.db.cursor", level="WARNING"):
+        with self.assertLogs("odoo.tests.cursor", level="WARNING"):
             tc1.close()
         self.assertNotIn(tc1, TestCursor._cursors_stack)
         self.assertIn(tc2, TestCursor._cursors_stack)
@@ -835,3 +868,330 @@ class TestBaseCaseDefaults(BaseCase):
                     "consuming the sentinel drops every addon subclass "
                     "of this base out of test selection",
                 )
+
+
+class TestSuiteReleasesFinishedTests(BaseCase):
+    """`TestSuite.run` must drop its reference to each finished test.
+
+    The fork's override of `BaseTestSuite.run` used to omit
+    `_removeTestAtIndex`, so every instance in a suite -- and everything a test
+    hangs off `self`: env, registry, the Opener and its connection pool, the
+    three ServerProxies -- stayed reachable until the whole suite was dropped.
+    Suites are per module, and test_mail builds one of 1387.
+    """
+
+    def test_finished_tests_are_released(self):
+        holder = []
+
+        class Probe(BaseCase):
+            __module__ = "some.third.party"
+            test_tags = {"standard", "at_install"}
+
+            def test_a(self):
+                holder.append(weakref.ref(self))
+
+            def test_b(self):
+                holder.append(weakref.ref(self))
+
+        suite = OdooSuite([Probe("test_a"), Probe("test_b")])
+        with _nested_suite_run():
+            suite.run(OdooTestResult())
+
+        gc.collect()
+        alive = [ref for ref in holder if ref() is not None]
+        self.assertEqual(len(holder), 2, "both probes ran")
+        self.assertFalse(
+            alive, "the suite is still holding %d finished test(s)" % len(alive)
+        )
+
+
+class TestStrandedTestCursorReleasesItsLock(TransactionCase):
+    """A TestCursor left in the stack must give its lock acquisition back.
+
+    The class cleanup used to mark the cursor closed and drop the stack without
+    releasing. `release_test_lock()` releases exactly one acquisition, so the
+    count then never reached zero and every later HttpCase request blocked for
+    `test_cursor_lock_timeout` and failed with "Unable to acquire lock for test
+    cursor after 20s" -- attributed to whichever test ran next.
+
+    Driven directly rather than through a nested suite: a nested
+    TransactionCase opens its own connection, which then blocks on a relation
+    lock the outer transaction is holding.
+    """
+
+    def test_stranded_cursor_does_not_leak_an_acquisition(self):
+        before = _registry_test_lock.count
+
+        self.registry_enter_test_mode(register_cleanup=True)
+        cursor = self.registry.cursor()
+        self.assertIsInstance(cursor, TestCursor)
+        self.assertEqual(
+            _registry_test_lock.count, before + 1, "opening one takes the lock"
+        )
+        # deliberately not closed -- this is the defect under test
+        self.assertIn(cursor, TestCursor._cursors_stack)
+
+        with mute_logger("odoo.tests.common"):
+            stranded = release_stranded_test_cursors("the test above")
+
+        self.assertEqual(stranded, 1)
+        self.assertEqual(TestCursor._cursors_stack, [])
+        self.assertTrue(cursor._closed)
+        self.assertEqual(
+            _registry_test_lock.count,
+            before,
+            "a stranded TestCursor leaked a registry-lock acquisition; every "
+            "later HttpCase request would stall for test_cursor_lock_timeout",
+        )
+
+    def test_handover_to_another_thread_still_works(self):
+        """The accounting above is only meaningful if handover then works."""
+        acquired = []
+
+        def worker():
+            got = _registry_test_lock.acquire(timeout=5)
+            acquired.append(got)
+            if got:
+                _registry_test_lock.release()
+
+        with release_test_lock():
+            thread = threading.Thread(target=worker)
+            thread.start()
+            thread.join(10)
+
+        self.assertEqual(
+            acquired, [True], "an HTTP worker thread could not take the lock"
+        )
+
+    def test_a_clean_stack_releases_nothing(self):
+        before = _registry_test_lock.count
+        self.assertEqual(release_stranded_test_cursors(), 0)
+        self.assertEqual(_registry_test_lock.count, before)
+
+
+class TestSetUpIsRerunPerAttempt(BaseCase):
+    """setUp runs once per *attempt*, not once per test.
+
+    So a setUp that derives an instance attribute from itself compounds under
+    ODOO_TEST_FAILURE_RETRIES. HttpCase.setUp did exactly that with its logger.
+    """
+
+    def test_http_case_logger_is_derived_from_the_class(self):
+        source = inspect.getsource(HttpCase.setUp)
+        self.assertIn(
+            "type(self)._logger.getChild",
+            source,
+            "HttpCase.setUp must derive its logger from the class attribute; "
+            "self._logger.getChild(...) grows the name on every retry",
+        )
+
+    def test_repeated_setup_is_stable(self):
+        names = []
+
+        class Probe(HttpCase):
+            __module__ = "some.third.party"
+            _logger = logging.getLogger("probe.Class")
+
+            def setUp(self):
+                # only the line under test, not the full HttpCase setUp
+                self._logger = type(self)._logger.getChild(self._testMethodName)
+                names.append(self._logger.name)
+
+            def test_x(self):
+                pass
+
+        probe = Probe("test_x")
+        probe.setUp()
+        probe.setUp()
+        probe.setUp()
+        self.assertEqual(
+            names,
+            ["probe.Class.test_x"] * 3,
+            "setUp is not idempotent across retries",
+        )
+
+
+class TestOpenerCleanupIsLateBound(BaseCase):
+    """authenticate() replaces self.opener; the cleanup must follow it."""
+
+    def test_cleanup_closes_the_current_opener(self):
+        closed = []
+
+        class FakeOpener:
+            def __init__(self, name):
+                self.name = name
+
+            def close(self):
+                closed.append(self.name)
+
+        holder = type("H", (), {})()
+        holder.opener = FakeOpener("first")
+        # the shape HttpCase.setUp now registers
+        cleanup = partial(HttpCase._close_opener, holder)
+        holder.opener = FakeOpener("second")  # what authenticate() does
+        cleanup()
+
+        self.assertEqual(
+            closed,
+            ["second"],
+            "the cleanup closed the opener bound at setUp, leaving the one "
+            "authenticate() installed open",
+        )
+
+
+class TestResultStatsAreSummed(BaseCase):
+    def test_update_sums_colliding_ids(self):
+        first, second = OdooTestResult(), OdooTestResult()
+        first.stats["mod.Class.setUpClass"] = Stat(time=1.0, queries=10)
+        second.stats["mod.Class.setUpClass"] = Stat(time=2.0, queries=20)
+        first.update(second)
+        merged = first.stats["mod.Class.setUpClass"]
+        self.assertEqual(
+            (merged.time, merged.queries),
+            (3.0, 30),
+            "colliding stat ids must sum, as collectStats does, not overwrite",
+        )
+
+
+class TestEveryStatementApiIsWrapped(BaseCase):
+    """TestCursor must wrap every statement entry point that is recorded.
+
+    Anything it does not wrap reaches the server through __getattr__ without
+    _check_savepoint, i.e. outside the savepoint the test cursor is built on.
+    _STATEMENT_RECORDERS is gated by TestPatchExecuteStatementApi; this is the
+    other half, so the two lists cannot drift apart silently.
+    """
+
+    def test_testcursor_wraps_every_recorded_statement(self):
+        recorded = set(_STATEMENT_RECORDERS) | set(_DELEGATING_STATEMENTS)
+        wrapped = {name for name in recorded if name in vars(TestCursor)}
+        self.assertEqual(
+            recorded - wrapped,
+            set(),
+            "these statement APIs reach the cursor via __getattr__, skipping "
+            "_check_savepoint: %s" % sorted(recorded - wrapped),
+        )
+
+
+class TestX2MValueIndexing(BaseCase):
+    def test_index_tracks_mutation(self):
+        value = O2MValue({"id": i} for i in (1, 2, 3))
+        self.assertEqual([value[i] for i in range(3)], [1, 2, 3])
+        value.remove(2)
+        self.assertEqual([value[i] for i in range(2)], [1, 3], "cache went stale")
+        value.add(4, {"id": 4})
+        self.assertEqual([value[i] for i in range(3)], [1, 3, 4], "cache went stale")
+        value.clear()
+        self.assertEqual(len(value), 0)
+        value.create({"id": False})
+        self.assertEqual(len(value), 1, "create must invalidate the key cache")
+
+
+class TestBenchmarkStatsDerivations(BaseCase):
+    def test_ms_accessors_derive_from_us(self):
+        stats = compute_stats(
+            "probe",
+            [100.0, 120.0, 110.0, 130.0],
+            [3, 3, 4, 3],
+            [40.0, 50.0, 45.0, 55.0],
+        )
+        for field in ("mean", "median", "min", "max", "p95", "p99", "db_time"):
+            with self.subTest(field=field):
+                self.assertAlmostEqual(
+                    getattr(stats, f"{field}_ms"), getattr(stats, f"{field}_us") / 1000
+                )
+        with self.assertRaises(AttributeError):
+            stats.not_a_field_ms
+        with self.assertRaises(AttributeError):
+            stats.not_a_field
+
+    def test_to_dict_carries_the_key_compare_results_reads(self):
+        stats = compute_stats("probe", [100.0, 120.0], [1, 1], [10.0, 10.0])
+        as_dict = stats.to_dict()
+        self.assertEqual(as_dict["p50_us"], as_dict["median_us"])
+        rendered = compare_results([as_dict], [as_dict])
+        self.assertNotIn("inf", rendered)
+        self.assertIn("1.00x", rendered)
+
+    def test_both_summary_scales_render(self):
+        stats = compute_stats("probe", [100.0, 120.0], [1, 1], [10.0, 10.0])
+        for unit in ("us", "ms", "auto"):
+            with self.subTest(unit=unit):
+                self.assertIn("probe", stats.summary(unit))
+
+
+class TestAddonRelativePath(BaseCase):
+    def test_prefixes(self):
+        self.assertEqual(
+            addon_relative_path("odoo.addons.base.tests.test_x"),
+            "/base/tests/test_x.py",
+        )
+        self.assertEqual(
+            addon_relative_path("odoo.upgrade.base.tests.test_y"),
+            "/base/tests/test_y.py",
+        )
+
+    def test_canonical_tag_and_tag_selector_agree(self):
+        selector = TagsSelector("/base/tests/test_test_suite.py")
+        self.assertTrue(selector.check(self))
+        self.assertTrue(
+            self.canonical_tag.startswith("/base/tests/test_test_suite.py:")
+        )
+
+
+class TestInfrastructureUnavailable(BaseCase):
+    """A missing environment must not read as a clean pass.
+
+    Chrome absent, devtools unreachable, websocket-client not installed: all of
+    these used to raise plain SkipTest, so a host with a broken browser ran zero
+    tour assertions and the process still exited 0.
+    """
+
+    def test_it_is_still_a_skip_by_default(self):
+        self.assertTrue(issubclass(InfrastructureUnavailable, SkipTest))
+
+    def test_counted_apart_from_a_deliberate_skip(self):
+        result = OdooTestResult()
+        with mute_logger("odoo.addons.base.tests.test_test_suite"):
+            result.addSkip(self, "not applicable here")
+            result.addSkip(self, "no chrome", infrastructure=True)
+        self.assertEqual(result.skipped, 2)
+        self.assertEqual(result.infrastructure_skipped, 1)
+
+    def test_the_summary_says_so(self):
+        result = OdooTestResult()
+        with mute_logger("odoo.addons.base.tests.test_test_suite"):
+            result.addSkip(self, "no chrome", infrastructure=True)
+        self.assertIn("environment could not run", str(result))
+
+        clean = OdooTestResult()
+        self.assertNotIn("environment could not run", str(clean))
+
+    def test_update_carries_the_count(self):
+        first, second = OdooTestResult(), OdooTestResult()
+        with mute_logger("odoo.addons.base.tests.test_test_suite"):
+            second.addSkip(self, "no chrome", infrastructure=True)
+        first.update(second)
+        self.assertEqual(first.infrastructure_skipped, 1)
+
+    def test_require_infra_promotes_it_to_an_error(self):
+        result = OdooTestResult()
+        with (
+            patch("odoo.tests.result.REQUIRE_INFRA", True),
+            mute_logger("odoo.addons.base.tests.test_test_suite"),
+        ):
+            result.addSkip(self, "no chrome", infrastructure=True)
+        self.assertEqual(result.errors_count, 1)
+        self.assertFalse(
+            result.wasSuccessful(),
+            "with ODOO_REQUIRE_INFRA=1 a suite that could not run must not pass",
+        )
+
+    def test_browser_raises_it_rather_than_a_bare_skip(self):
+        source = inspect.getsource(browser)
+        self.assertNotIn(
+            "unittest.SkipTest(",
+            source,
+            "every environment failure in browser.py must raise "
+            "InfrastructureUnavailable so it can be counted and reported",
+        )

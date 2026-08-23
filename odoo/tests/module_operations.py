@@ -26,11 +26,7 @@ BLACKLIST = {
 }
 IGNORE = ("hw_", "theme_", "l10n_", "test_")
 
-INSTALL_BLACKLIST = {
-    "payment_alipay",
-    "payment_payulatam",
-    "payment_payumoney",
-}
+INSTALL_BLACKLIST: set[str] = set()
 
 
 def install(db_name: str, module_id: int, module_name: str) -> None:
@@ -161,30 +157,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-class UninstallAction(argparse.Action):
-    def __call__(
-        self,
-        parser: argparse.ArgumentParser,
-        namespace: argparse.Namespace,
-        values: str | list | None,
-        option_string: str | None = None,
-    ) -> None:
-        namespace.func = test_uninstall
-        setattr(namespace, self.dest, values)
-
-
-class StandaloneAction(argparse.Action):
-    def __call__(
-        self,
-        parser: argparse.ArgumentParser,
-        namespace: argparse.Namespace,
-        values: str | list | None,
-        option_string: str | None = None,
-    ) -> None:
-        namespace.func = test_standalone
-        setattr(namespace, self.dest, values)
-
-
 def test_cycle(args: argparse.Namespace) -> None:
     with Registry(args.database).cursor() as cr:
         env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
@@ -247,30 +219,61 @@ def test_standalone(args: argparse.Namespace) -> None:
         )
     )
 
-    start_time = time.time()
+    start_time = time.monotonic()
     failures = 0
     for index, func in enumerate(funcs, start=1):
-        with Registry(args.database).cursor() as cr:
-            env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
-            _logger.info(
-                "Executing standalone script: %s (%d / %d)",
-                func.__name__,
-                index,
-                len(funcs),
-            )
-            try:
+        _logger.info(
+            "Executing standalone script: %s (%d / %d)",
+            func.__name__,
+            index,
+            len(funcs),
+        )
+        try:
+            # The try must wrap the cursor, not sit inside it: BaseCursor.__exit__
+            # commits whenever no exception is propagating, so swallowing the
+            # failure in here committed the partial work of a script that failed.
+            with Registry(args.database).cursor() as cr:
+                env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
                 func(env)
-            except Exception:
-                failures += 1
-                _logger.exception("Standalone script %s failed", func.__name__)
+        except Exception:
+            failures += 1
+            _logger.exception("Standalone script %s failed", func.__name__)
 
     _logger.info(
         "%d standalone scripts executed in %.2fs",
         len(funcs),
-        time.time() - start_time,
+        time.monotonic() - start_time,
     )
     if failures:
         sys.exit(1)
+
+
+class _SelectsCommand(argparse.Action):
+    """A back-compat flag that also selects the subcommand it stands in for.
+
+    Defined below the test_* functions so `command` can name one directly.
+    parse_args() resolves these classes only when it runs, from __main__.
+    """
+
+    command: Any = None
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str | list | None,
+        option_string: str | None = None,
+    ) -> None:
+        namespace.func = self.command
+        setattr(namespace, self.dest, values)
+
+
+class UninstallAction(_SelectsCommand):
+    command = staticmethod(test_uninstall)
+
+
+class StandaloneAction(_SelectsCommand):
+    command = staticmethod(test_standalone)
 
 
 if __name__ == "__main__":

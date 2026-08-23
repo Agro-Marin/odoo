@@ -352,12 +352,12 @@ class TestTestCursor(common.TransactionCase):
         b = self.registry.cursor()
         a._check_savepoint()
         b._check_savepoint()
-        with self.assertLogs("odoo.db.cursor", level=logging.WARNING) as cm:
+        with self.assertLogs("odoo.tests.cursor", level=logging.WARNING) as cm:
             a.close()
         [msg] = cm.output
-        self.assertIn("WARNING:odoo.db.cursor:Out-of-order close", msg)
+        self.assertIn("WARNING:odoo.tests.cursor:Out-of-order close", msg)
         self.assertIn(b, TestCursor._cursors_stack)
-        with self.assertNoLogs("odoo.db.cursor", level=logging.WARNING):
+        with self.assertNoLogs("odoo.tests.cursor", level=logging.WARNING):
             with self.assertRaises(psycopg.errors.InvalidSavepointSpecification):
                 b.close()
         self.assertNotIn(b, TestCursor._cursors_stack)

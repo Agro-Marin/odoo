@@ -31,7 +31,7 @@ from .common import (
 from .utils import HOST, env_int, get_db_name
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator
+    from collections.abc import Generator
 
 _logger = logging.getLogger(__name__)
 
@@ -106,7 +106,11 @@ class HttpCase(TransactionCase):
     def setUp(self) -> None:
         super().setUp()
 
-        self._logger = self._logger.getChild(self._testMethodName)
+        # From the class attribute, not from self: BaseCase.run re-runs
+        # setUp on the same instance for every retry, so deriving this
+        # from itself grows the name (a.test_x.test_x.test_x) and interns
+        # a fresh logger per attempt.
+        self._logger = type(self)._logger.getChild(self._testMethodName)
 
         self.xmlrpc_common = xmlrpclib.ServerProxy(
             self.xmlrpc_url + "common", transport=Transport(self)
@@ -122,8 +126,18 @@ class HttpCase(TransactionCase):
         for proxy in (self.xmlrpc_common, self.xmlrpc_db, self.xmlrpc_object):
             self.addCleanup(proxy("close"))
         self.opener = Opener(self)
-        self.addCleanup(self.opener.close)
+        self.addCleanup(self._close_opener)
         self.http_key_sequence = itertools.count()
+
+    def _close_opener(self) -> None:
+        """Close whichever Opener is current at cleanup time.
+
+        Not ``addCleanup(self.opener.close)``: that binds the *first* opener,
+        and ``authenticate()`` replaces ``self.opener`` -- so the replacement,
+        a live requests.Session with its connection pool, would never be
+        closed. Every browser_js authenticates.
+        """
+        self.opener.close()
 
     @contextmanager
     def enter_registry_test_mode(self) -> Generator[None]:
@@ -224,7 +238,7 @@ class HttpCase(TransactionCase):
                 if t.name.startswith("odoo.service.http.request.")
             ]
 
-        start_time = time.time()
+        start_time = time.monotonic()
         request_threads = get_http_request_threads()
         if not request_threads:
             return
@@ -232,7 +246,7 @@ class HttpCase(TransactionCase):
         self._logger.info("waiting for threads: %s", request_threads)
 
         for thread in request_threads:
-            thread.join(timeout - (time.time() - start_time))
+            thread.join(timeout - (time.monotonic() - start_time))
 
         request_threads = get_http_request_threads()
         for thread in request_threads:
@@ -527,16 +541,10 @@ class HttpCase(TransactionCase):
             ),
         )
 
-    def get_method_additional_tags(self, test_method: Callable | None) -> list[str]:
-        additional_tags = super().get_method_additional_tags(test_method)
-        if (
-            odoo.tools.config["test_tags"]
-            and "is_tour" in odoo.tools.config["test_tags"]
-        ):
-            method_source = inspect.getsource(test_method)
-            if "self.start_tour" in method_source:
-                additional_tags.append("is_tour")
-        return additional_tags
+    _SOURCE_TAGS = {
+        **TransactionCase._SOURCE_TAGS,
+        "is_tour": "self.start_tour",
+    }
 
     def make_jsonrpc_request(
         self,

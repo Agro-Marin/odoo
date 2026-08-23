@@ -16,7 +16,6 @@ import sys
 import tempfile
 import threading
 import time
-import unittest
 from concurrent.futures import CancelledError, Future, InvalidStateError, wait
 from datetime import datetime
 from functools import lru_cache
@@ -31,7 +30,7 @@ import odoo.tools
 from odoo.logutils import RUNBOT
 from odoo.tools.misc import find_in_path
 
-from .utils import HOST, get_db_name, save_test_file
+from .utils import HOST, InfrastructureUnavailable, get_db_name, save_test_file
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
@@ -99,18 +98,6 @@ def run(gen_func):
         return
 
 
-if os.name == "posix" and platform.system() != "Darwin":
-    import resource
-
-    def _preexec():
-        resource.setrlimit(
-            resource.RLIMIT_AS, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
-        )
-
-else:
-    _preexec = None
-
-
 class ChromeBrowser:
     remote_debugging_port = 0
 
@@ -127,7 +114,7 @@ class ChromeBrowser:
         self.success_signal = success_signal
         if websocket is None:
             self._logger.warning("websocket-client module is not installed")
-            raise unittest.SkipTest("websocket-client module is not installed")
+            raise InfrastructureUnavailable("websocket-client module is not installed")
         self.user_data_dir = tempfile.mkdtemp(suffix="_chrome_odoo")
 
         if scs := odoo.tools.config["screencasts"]:
@@ -305,7 +292,13 @@ class ChromeBrowser:
                 cmd,
                 stdout=log_file,
                 stderr=log_file,
-                preexec_fn=_preexec,  # noqa: PLW1509  see comment above
+                # No preexec_fn here on purpose. It used to raise RLIMIT_AS to
+                # infinity for the child, but this fork removed in-process
+                # RLIMIT_AS enforcement (see --limit-memory-hard, which now
+                # points at cgroup v2), so the runner already runs unlimited and
+                # the call changed nothing -- while preexec_fn runs Python
+                # between fork and exec and forces CPython off posix_spawn,
+                # which is unsafe in a process this heavily threaded.
                 env={**os.environ, "TMPDIR": self.user_data_dir},
             )
 
@@ -329,7 +322,7 @@ class ChromeBrowser:
         )
         shutil.rmtree(self.user_data_dir, ignore_errors=True)
 
-        raise unittest.SkipTest(
+        raise InfrastructureUnavailable(
             f"Failed to detect chrome devtools port after {BROWSER_WAIT:.1f}s."
         )
 
@@ -385,7 +378,7 @@ class ChromeBrowser:
         try:
             proc, devtools_port = self._spawn_chrome(cmd)
         except OSError:
-            raise unittest.SkipTest("%s not found" % cmd[0]) from None
+            raise InfrastructureUnavailable("%s not found" % cmd[0]) from None
         self._logger.info("Chrome pid: %s", proc.pid)
         self._logger.info(
             "Chrome headless temporary user profile dir: %s", self.user_data_dir
@@ -427,14 +420,14 @@ class ChromeBrowser:
         if failure_info:
             self._logger.info(failure_info)
         self.stop()
-        raise unittest.SkipTest("Error during Chrome headless connection")
+        raise InfrastructureUnavailable("Error during Chrome headless connection")
 
     def _open_websocket(self) -> Any:
         version = self._json_command("version")
         self._logger.info("Browser version: %s", version["Browser"])
 
-        start = time.time()
-        while (time.time() - start) < 5.0:
+        start = time.monotonic()
+        while (time.monotonic() - start) < 5.0:
             ws_url = next(
                 (
                     target["webSocketDebuggerUrl"]
@@ -450,7 +443,7 @@ class ChromeBrowser:
             time.sleep(0.1)
         else:
             self.stop()
-            raise unittest.SkipTest(
+            raise InfrastructureUnavailable(
                 "Error during Chrome connection: never found 'page' target"
             )
 
@@ -459,7 +452,7 @@ class ChromeBrowser:
             ws_url, enable_multithread=True, suppress_origin=True
         )
         if ws.getstatus() != 101:
-            raise unittest.SkipTest("Cannot connect to chrome dev tools")
+            raise InfrastructureUnavailable("Cannot connect to chrome dev tools")
         ws.settimeout(0.01)
         return ws
 
@@ -761,10 +754,10 @@ which leads to stray network requests and inconsistencies."""
         timeout *= self.throttling_factor
         ready_code = ready_code or "document.readyState === 'complete'"
         self._logger.info('Evaluate ready code "%s"', ready_code)
-        start_time = time.time()
+        start_time = time.monotonic()
         result = None
         while True:
-            taken = time.time() - start_time
+            taken = time.monotonic() - start_time
             if taken > timeout:
                 break
 
@@ -795,7 +788,7 @@ which leads to stray network requests and inconsistencies."""
                 if taken > 2:
                     self._logger.info(
                         "The ready code took too much time: %.2fs",
-                        time.time() - start_time,
+                        time.monotonic() - start_time,
                     )
                 return True
 
@@ -814,7 +807,7 @@ which leads to stray network requests and inconsistencies."""
         timeout *= self.throttling_factor
         self.error_checker = error_checker
         self._logger.info('Evaluate test code "%s"', code)
-        start = time.time()
+        start = time.monotonic()
         try:
             res = self._websocket_request(
                 "Runtime.evaluate",
@@ -836,7 +829,7 @@ which leads to stray network requests and inconsistencies."""
         err = ChromeBrowserException("failed")
         try:
             if (
-                self._result.result(max(0.0, start + timeout - time.time()))
+                self._result.result(max(0.0, start + timeout - time.monotonic()))
                 and not self.had_failure
             ):
                 return
@@ -982,9 +975,9 @@ class Screencaster:
         if self.stopped:
             return
         self.browser._websocket_send("Page.stopScreencast")
-        deadline = time.time() + 5
+        deadline = time.monotonic() + 5
         frame_count = -1
-        while time.time() < deadline and len(self.frames) != frame_count:
+        while time.monotonic() < deadline and len(self.frames) != frame_count:
             frame_count = len(self.frames)
             time.sleep(0.5)
         self.stopped = True
@@ -1034,7 +1027,6 @@ class Screencaster:
                     "lossless=1",
                     outfile,
                 ],
-                preexec_fn=_preexec,
                 check=True,
             )
         except subprocess.CalledProcessError:
@@ -1086,4 +1078,4 @@ def _find_executable():
             if pathlib.Path(bin_).exists():
                 return bin_
 
-    raise unittest.SkipTest("Chrome executable not found")
+    raise InfrastructureUnavailable("Chrome executable not found")
