@@ -69,6 +69,25 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     exclude_contact = fields.Boolean("A user associated to the contact")
     exclude_journal_item = fields.Boolean("Journal Items associated to the contact")
     maximum_group = fields.Integer("Maximum of Group of Contacts")
+    absorb_source_values = fields.Boolean(
+        "Absorb Source Values",
+        default=True,
+        help="Fill the destination's empty fields from the contacts merged into "
+        "it. Turn it off to keep the destination's own identity, which is what a "
+        "catch-all contact needs.",
+    )
+
+    _MERGE_SIZE_LIMIT = 3
+    _IDENTIFYING_GROUPBY_FIELDS = frozenset({"email", "name", "vat"})
+
+    def _merge_absorbs_source_values(self) -> bool:
+        return not self or self.absorb_source_values
+
+    def _get_excluded_merge_tables(self, model: str) -> set[str]:
+        tables = super()._get_excluded_merge_tables(model)
+        if model == "res.partner" and not self._merge_absorbs_source_values():
+            tables.add("res_partner_bank")
+        return tables
 
     @api.model
     def _update_foreign_keys(
@@ -90,6 +109,9 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     def _get_fields_summable(self) -> list[str]:
         return []
 
+    def _get_fields_excluded_value(self) -> tuple[str, ...]:
+        return ()
+
     @api.model
     def _update_values(
         self, src_partners: models.BaseModel, dst_partner: models.BaseModel
@@ -99,6 +121,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             dst_partner,
             summable_fields=self._get_fields_summable(),
             deferred_fields=("parent_id",),
+            excluded_fields=self._get_fields_excluded_value(),
         )
         parent_id = deferred_values.get("parent_id")
         if parent_id and parent_id != dst_partner.id:
@@ -148,13 +171,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         if len(partner_ids) < 2:
             return
 
-        if len(partner_ids) > 3:
-            raise UserError(
-                self.env._(
-                    "For safety reasons, you cannot merge more than 3 contacts together. You can re-open the wizard several times if needed."
-                )
-            )
-
         child_ids = Partner.browse()
         for partner in partner_ids:
             child_ids |= Partner.search([("id", "child_of", [partner.id])]) - partner
@@ -193,11 +209,13 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 }
             )
 
-        self._merge_bank_accounts(src_partners, dst_partner)
+        if self._merge_absorbs_source_values():
+            self._merge_bank_accounts(src_partners, dst_partner)
 
         self._update_foreign_keys(src_partners, dst_partner)
         self._update_reference_fields(src_partners, dst_partner)
-        self._update_values(src_partners, dst_partner)
+        if self._merge_absorbs_source_values():
+            self._update_values(src_partners, dst_partner)
 
         self.env.add_to_compute(dst_partner._fields["partner_share"], dst_partner)
 
@@ -214,6 +232,16 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             src_partners.ids,
             dst_partner.id,
         )
+
+    def _merge_duplicate_group(self, partner_ids: list[int]) -> None:
+        dst_partner = self._get_ordered_partner(partner_ids)[-1]
+        src_partners = [pid for pid in partner_ids if pid != dst_partner.id]
+        chunk = self._MERGE_SIZE_LIMIT - 1
+        for start in range(0, len(src_partners), chunk):
+            self._merge(
+                src_partners[start : start + chunk] + [dst_partner.id],
+                dst_partner=dst_partner,
+            )
 
     _GROUPBY_ALLOWED_FIELDS = frozenset(
         {"email", "name", "vat", "is_company", "parent_id"}
@@ -271,6 +299,15 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         if not groups:
             raise UserError(
                 self.env._("You have to specify a filter for your selection.")
+            )
+
+        if not self._IDENTIFYING_GROUPBY_FIELDS.intersection(groups):
+            raise UserError(
+                self.env._(
+                    "Grouping on %(fields)s alone puts every contact sharing an "
+                    "empty value in one group. Add Email, Name or VAT.",
+                    fields=", ".join(sorted(groups)),
+                )
             )
 
         return groups
@@ -395,8 +432,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         self.env.invalidate_all()
 
         for line in self.line_ids:
-            partner_ids = literal_eval(line.aggr_ids)
-            self._merge(partner_ids)
+            self._merge_duplicate_group(literal_eval(line.aggr_ids))
             line.unlink()
             self.env.cr.commit()
 
@@ -440,8 +476,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         self._process_query(query)
 
         for line in self.line_ids:
-            partner_ids = literal_eval(line.aggr_ids)
-            self._merge(partner_ids)
+            self._merge_duplicate_group(literal_eval(line.aggr_ids))
             line.unlink()
             self.env.cr.commit()
 
@@ -491,6 +526,14 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         return self._action_next_screen()
 
     def action_merge(self) -> dict[str, Any]:
+        if len(self.partner_ids) > self._MERGE_SIZE_LIMIT:
+            raise UserError(
+                self.env._(
+                    "For safety reasons, you cannot merge more than %(limit)s contacts "
+                    "together. You can re-open the wizard several times if needed.",
+                    limit=self._MERGE_SIZE_LIMIT,
+                )
+            )
         if not self.partner_ids:
             self.write({"state": "finished"})
             return {

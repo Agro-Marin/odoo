@@ -231,6 +231,7 @@ enforce them.
 | [0058](0058-a-call-resolves-to-something-this-checkout-defines.md) | A call resolves to something this checkout defines | 2026-08-21 | Accepted |
 | [0059](0059-transfer-state-is-read-from-quantities-not-pickings.md) | `transfer_state` is read from the quantities, not the pickings | 2026-08-22 | Accepted |
 | [0060](0060-invoice-state-reports-progress-not-only-what-is-billable-now.md) | `invoice_state` reports progress, not only what is billable now | 2026-08-22 | Accepted |
+| [0061](0061-a-merge-repoints-references-and-absorbing-values-is-a-choice.md) | A merge re-points references always, and absorbs values by choice | 2026-08-23 | Accepted |
 
 ## Template
 

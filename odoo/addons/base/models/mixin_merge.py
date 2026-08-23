@@ -17,11 +17,18 @@ class MixinMerge(models.AbstractModel):
     _name = "mixin.merge"
     _description = "Record Merge Engine"
 
+    def _merge_absorbs_source_values(self) -> bool:
+        return True
+
     def _get_excluded_merge_tables(self, model: str) -> set[str]:
         tables = {self._table}
         for field in self._fields.values():
             if field.type == "many2many" and field.relation:
                 tables.add(field.relation)
+        if not self._merge_absorbs_source_values():
+            for field in self.env[model]._fields.values():
+                if field.type == "many2many" and field.store and field.relation:
+                    tables.add(field.relation)
         return tables
 
     def _get_fk_on(self, table: str) -> list[tuple[str, str]]:
@@ -177,7 +184,18 @@ class MixinMerge(models.AbstractModel):
                                         [record.id],
                                     )
                                 )
-                        except psycopg.Error:
+                        except psycopg.Error as error:
+                            _logger.warning(
+                                "Merging %s into %s: re-pointing %s.%s failed (%s), "
+                                "deleting the %s rows of %s to keep the merge going",
+                                src_records.ids,
+                                dst_record.id,
+                                table,
+                                column,
+                                error.__class__.__name__,
+                                table,
+                                record.id,
+                            )
                             self.env.cr.execute(
                                 SQL(
                                     "DELETE FROM %s WHERE %s = ANY(%s)",
@@ -336,6 +354,14 @@ class MixinMerge(models.AbstractModel):
 
         self.env.flush_all()
 
+    @api.model
+    def _update_company_dependent_values_generic(
+        self,
+        src_records: models.BaseModel,
+        dst_record: models.BaseModel,
+    ) -> None:
+        self.env.flush_all()
+
         for fname, field in dst_record._fields.items():
             if not field.company_dependent:
                 continue
@@ -362,6 +388,7 @@ class MixinMerge(models.AbstractModel):
                     source_ids=tuple(src_records.ids),
                 )
             )
+        self.env.invalidate_all()
 
     @api.model
     def _update_values_generic(
@@ -377,6 +404,8 @@ class MixinMerge(models.AbstractModel):
             dst_record.id,
             src_records.ids,
         )
+
+        self._update_company_dependent_values_generic(src_records, dst_record)
 
         model_fields = dst_record.fields_get().keys()
         summable_fields = set(summable_fields)

@@ -373,3 +373,108 @@ class TestMergePartnerCompanyDependent(TransactionCase):
             "BYSTANDER-A",
             "an unrelated partner's per-company value must be left untouched",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestMergePartnerAbsorbSourceValues(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Wizard = cls.env["base.partner.merge.automatic.wizard"]
+        cls.tag_dst = cls.env["res.partner.category"].create({"name": "Kept"})
+        cls.tag_src = cls.env["res.partner.category"].create({"name": "Absorbed"})
+
+    def _prepare_pair(self):
+        dst = self.env["res.partner"].create(
+            {"name": "Catch-All", "category_id": [Command.set(self.tag_dst.ids)]}
+        )
+        src = self.env["res.partner"].create(
+            {
+                "name": "Dormant",
+                "vat": "BE0477472701",
+                "street": "Rue Source 1",
+                "category_id": [Command.set(self.tag_src.ids)],
+            }
+        )
+        self.env["res.partner.bank"].create(
+            {"acc_number": "BE55001234567890", "partner_id": src.id}
+        )
+        attachment = self.env["ir.attachment"].create(
+            {"name": "Doc", "res_model": "res.partner", "res_id": src.id}
+        )
+        return dst, src, attachment
+
+    def test_absorbing_is_the_default(self):
+        dst, src, _attachment = self._prepare_pair()
+        self.Wizard.create({})._merge([dst.id, src.id], dst, extra_checks=False)
+        self.env.invalidate_all()
+
+        self.assertEqual(dst.vat, "BE0477472701")
+        self.assertEqual(dst.category_id, self.tag_dst | self.tag_src)
+        self.assertTrue(dst.bank_ids)
+
+    def test_not_absorbing_keeps_the_destination_identity(self):
+        dst, src, attachment = self._prepare_pair()
+        src.barcode = "SRC-BARCODE"
+        wizard = self.Wizard.create({"absorb_source_values": False})
+        wizard._merge([dst.id, src.id], dst, extra_checks=False)
+        self.env.invalidate_all()
+
+        self.assertFalse(src.exists(), "the source must still be merged away")
+        self.assertEqual(
+            attachment.res_id, dst.id, "references must be re-pointed either way"
+        )
+        self.assertFalse(dst.vat, "a plain field must not be absorbed")
+        self.assertFalse(dst.street, "a plain field must not be absorbed")
+        self.assertFalse(dst.barcode, "a company-dependent field must not be absorbed")
+        self.assertEqual(
+            dst.category_id, self.tag_dst, "a many2many must not be absorbed"
+        )
+        self.assertFalse(dst.bank_ids, "a bank account must not be absorbed")
+
+    def test_not_absorbing_leaves_the_source_bank_account_behind(self):
+        dst, src, _attachment = self._prepare_pair()
+        bank = src.bank_ids
+        wizard = self.Wizard.create({"absorb_source_values": False})
+        wizard._merge([dst.id, src.id], dst, extra_checks=False)
+        self.env.invalidate_all()
+
+        self.assertFalse(
+            bank.exists(),
+            "an excluded bank account dies with its partner rather than moving",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestMergePartnerGroupSize(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Wizard = cls.env["base.partner.merge.automatic.wizard"]
+
+    def test_a_group_larger_than_the_limit_is_merged_in_chunks(self):
+        partners = self.env["res.partner"].create(
+            [{"name": f"Dup {i}", "email": "dup@example.com"} for i in range(5)]
+        )
+        self.Wizard.create({})._merge_duplicate_group(partners.ids)
+        self.env.invalidate_all()
+
+        survivors = partners.exists()
+        self.assertEqual(
+            len(survivors), 1, "an automatic group must merge whatever its size"
+        )
+
+    def test_the_hand_picked_path_keeps_the_size_guardrail(self):
+        partners = self.env["res.partner"].create(
+            [{"name": f"Picked {i}", "email": "picked@example.com"} for i in range(4)]
+        )
+        wizard = self.Wizard.create(
+            {"partner_ids": [Command.set(partners.ids)], "state": "selection"}
+        )
+        with self.assertRaises(UserError):
+            wizard.action_merge()
+
+    def test_grouping_on_no_identifying_field_is_refused(self):
+        wizard = self.Wizard.create({"group_by_parent_id": True})
+        with self.assertRaises(UserError):
+            wizard.action_start_manual_process()
