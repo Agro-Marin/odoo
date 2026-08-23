@@ -79,7 +79,10 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
 
     def setUp(self) -> None:
         super().setUp()
-        with mute_logger("odoo.addons.mail.models.mixin_mail_thread", "odoo.addons.mail.models.mixin_mail_gateway"):
+        with mute_logger(
+            "odoo.addons.mail.models.mixin_mail_thread",
+            "odoo.addons.mail.models.mixin_mail_gateway",
+        ):
             self.test_task = self.format_and_process(
                 MAIL_TEMPLATE,
                 self.user_portal.email_formatted,

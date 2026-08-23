@@ -10,7 +10,6 @@ _logger = logging.getLogger(__name__)
 
 
 class MailPluginController(mail_plugin.MailPluginController):
-
     def _get_contact_data(self, partner):
         """
         Overrides the base module's get_contact_data method by Adding the "tasks" key within the initial contact
@@ -24,37 +23,43 @@ class MailPluginController(mail_plugin.MailPluginController):
         """
         contact_values = super()._get_contact_data(partner)
 
-        if not request.env['project.task'].has_access('create'):
+        if not request.env["project.task"].has_access("create"):
             return contact_values
 
         if not partner:
-            contact_values['tasks'] = []
+            contact_values["tasks"] = []
         else:
-            partner_tasks = request.env['project.task'].search(
-                [('partner_id', '=', partner.id)], offset=0, limit=5)
+            partner_tasks = request.env["project.task"].search(
+                [("partner_id", "=", partner.id)], offset=0, limit=5
+            )
 
-            accessible_projects = partner_tasks.project_id._filtered_access('read').ids
+            accessible_projects = partner_tasks.project_id._filtered_access("read").ids
 
             tasks_values = [
                 {
-                    'task_id': task.id,
-                    'name': task.name,
-                    'project_name': task.project_id.name,
-                } for task in partner_tasks if task.project_id.id in accessible_projects]
+                    "task_id": task.id,
+                    "name": task.name,
+                    "project_name": task.project_id.name,
+                }
+                for task in partner_tasks
+                if task.project_id.id in accessible_projects
+            ]
 
-            contact_values['tasks'] = tasks_values
-            contact_values['can_create_project'] = request.env['project.project'].has_access('create')
+            contact_values["tasks"] = tasks_values
+            contact_values["can_create_project"] = request.env[
+                "project.project"
+            ].has_access("create")
 
         return contact_values
 
     def _mail_content_logging_models_whitelist(self):
         models_whitelist = super()._mail_content_logging_models_whitelist()
-        if not request.env['project.task'].has_access('create'):
+        if not request.env["project.task"].has_access("create"):
             return models_whitelist
-        return models_whitelist + ['project.task']
+        return models_whitelist + ["project.task"]
 
     def _translation_modules_whitelist(self):
         modules_whitelist = super()._translation_modules_whitelist()
-        if not request.env['project.task'].has_access('create'):
+        if not request.env["project.task"].has_access("create"):
             return modules_whitelist
-        return modules_whitelist + ['project_mail_plugin']
+        return modules_whitelist + ["project_mail_plugin"]

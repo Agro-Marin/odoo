@@ -4,20 +4,20 @@ from odoo import models
 
 
 class StockRule(models.Model):
-    _inherit = 'stock.rule'
+    _inherit = "stock.rule"
 
     def _prepare_mo_vals(self, procurement, bom):
         res = super()._prepare_mo_vals(procurement, bom)
-        if procurement.values.get('project_id'):
-            res['project_id'] = procurement.values['project_id']
+        if procurement.values.get("project_id"):
+            res["project_id"] = procurement.values["project_id"]
         return res
 
 
 class StockMove(models.Model):
-    _inherit = 'stock.move'
+    _inherit = "stock.move"
 
     def _prepare_procurement_vals(self):
         res = super()._prepare_procurement_vals()
-        if res.get('group_id') and len(res['group_id'].mrp_production_ids) == 1:
-            res['project_id'] = res['group_id'].mrp_production_ids.project_id.id
+        if res.get("group_id") and len(res["group_id"].mrp_production_ids) == 1:
+            res["project_id"] = res["group_id"].mrp_production_ids.project_id.id
         return res

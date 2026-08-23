@@ -4,15 +4,15 @@ from odoo import models
 
 
 class StockRule(models.Model):
-    _inherit = 'stock.rule'
+    _inherit = "stock.rule"
 
     def _prepare_purchase_order_vals(self, company_id, origins, values):
         res = super()._prepare_purchase_order_vals(company_id, origins, values)
-        if values[0].get('project_id'):
-            res['project_id'] = values[0].get('project_id')
+        if values[0].get("project_id"):
+            res["project_id"] = values[0].get("project_id")
         return res
 
     def _prepare_po_get_domain(self, company_id, values, partner):
         domain = super()._prepare_po_get_domain(company_id, values, partner)
-        domain += (('project_id', '=', values.get('project_id', False)),)
+        domain += (("project_id", "=", values.get("project_id", False)),)
         return domain

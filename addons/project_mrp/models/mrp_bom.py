@@ -4,6 +4,8 @@ from odoo import fields, models
 
 
 class MrpBom(models.Model):
-    _inherit = 'mrp.bom'
+    _inherit = "mrp.bom"
 
-    project_id = fields.Many2one('project.project', domain=[('is_template', '=', False)])
+    project_id = fields.Many2one(
+        "project.project", domain=[("is_template", "=", False)]
+    )

@@ -11,92 +11,132 @@ class TestProjectSharingWithSms(TestProjectSharingCommon, SMSCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        project_settings = cls.env["res.config.settings"].create({'group_project_stages': True})
+        project_settings = cls.env["res.config.settings"].create(
+            {"group_project_stages": True}
+        )
         project_settings.execute()
 
-        cls.sms_template = cls.env['sms.template'].sudo().create({
-            'body': '{{ object.name }}',
-            'model_id': cls.env['ir.model'].sudo().search([('model', '=', 'project.task')]).id,
-        })
+        cls.sms_template = (
+            cls.env["sms.template"]
+            .sudo()
+            .create(
+                {
+                    "body": "{{ object.name }}",
+                    "model_id": cls.env["ir.model"]
+                    .sudo()
+                    .search([("model", "=", "project.task")])
+                    .id,
+                }
+            )
+        )
         cls.task_stage_with_sms = cls.project_portal.workflow_step_ids[-1]
-        cls.task_stage_with_sms.write({'sms_template_id': cls.sms_template.id})
+        cls.task_stage_with_sms.write({"sms_template_id": cls.sms_template.id})
 
-        cls.sms_template_2 = cls.env['sms.template'].sudo().create({
-            'body': '{{ object.name }}',
-            'model_id': cls.env['ir.model'].sudo().search([('model', '=', 'project.project')]).id,
-        })
+        cls.sms_template_2 = (
+            cls.env["sms.template"]
+            .sudo()
+            .create(
+                {
+                    "body": "{{ object.name }}",
+                    "model_id": cls.env["ir.model"]
+                    .sudo()
+                    .search([("model", "=", "project.project")])
+                    .id,
+                }
+            )
+        )
         cls.project_stage_with_sms = cls.project_portal.phase_id.browse(2)
-        cls.project_stage_with_sms.write({'sms_template_id': cls.sms_template_2.id})
+        cls.project_stage_with_sms.write({"sms_template_id": cls.sms_template_2.id})
 
-        cls.project_portal.write({
-            'collaborator_ids': [
-                Command.create({'partner_id': cls.user_portal.partner_id.id}),
-            ],
-        })
+        cls.project_portal.write(
+            {
+                "collaborator_ids": [
+                    Command.create({"partner_id": cls.user_portal.partner_id.id}),
+                ],
+            }
+        )
         cls.project_portal.partner_id.phone = cls.random_numbers[0]
 
     def test_portal_user_can_change_stage_with_sms_template(self):
-        """ Test user portal can change the stage of a task to a stage with a sms template
+        """Test user portal can change the stage of a task to a stage with a sms template
 
-            The sms template should be sent and the stage should be changed on the task.
+        The sms template should be sent and the stage should be changed on the task.
         """
         with self.mockSMSGateway():
-            self.task_portal.with_user(self.user_portal).write({
-                'step_id': self.task_stage_with_sms.id,
-            })
+            self.task_portal.with_user(self.user_portal).write(
+                {
+                    "step_id": self.task_stage_with_sms.id,
+                }
+            )
         self.assertEqual(self.task_portal.step_id, self.task_stage_with_sms)
         self.assertSMSIapSent([])  # no sms sent since the author is the recipient
 
-        self.task_portal.write({
-            'partner_id': self.user_projectuser.partner_id.id,
-            'step_id': self.project_portal.workflow_step_ids[0].id,
-        })
+        self.task_portal.write(
+            {
+                "partner_id": self.user_projectuser.partner_id.id,
+                "step_id": self.project_portal.workflow_step_ids[0].id,
+            }
+        )
         with self.mockSMSGateway():
-            self.task_portal.with_user(self.user_portal).write({
-                'step_id': self.task_stage_with_sms.id,
-            })
+            self.task_portal.with_user(self.user_portal).write(
+                {
+                    "step_id": self.task_stage_with_sms.id,
+                }
+            )
         self.assertEqual(self.task_portal.step_id, self.task_stage_with_sms)
         self.assertSMSIapSent([self.user_projectuser.partner_id.phone])
 
         with self.mockSMSGateway():
-            self.project_portal.write({
-                'phase_id': self.project_stage_with_sms.id,
-            })
+            self.project_portal.write(
+                {
+                    "phase_id": self.project_stage_with_sms.id,
+                }
+            )
         self.assertEqual(self.project_portal.phase_id, self.project_stage_with_sms)
         self.assertSMSIapSent([self.project_portal.partner_id.phone])
 
-    @tagged('post_install', '-at_install')
+    @tagged("post_install", "-at_install")
     def test_project_user_can_change_stage_with_sms_template(self):
-        """ Test that users with the rights to change the stage of a task can perform this action
-            when the stage has an sms template.
+        """Test that users with the rights to change the stage of a task can perform this action
+        when the stage has an sms template.
 
-            The sms template should be sent and the stage should be changed on the task.
+        The sms template should be sent and the stage should be changed on the task.
         """
-        project_user_group = self.env.ref('project.group_project_user')
-        sale_manager_group = self.env.ref('sales_team.group_sale_manager', False)
+        project_user_group = self.env.ref("project.group_project_user")
+        sale_manager_group = self.env.ref("sales_team.group_sale_manager", False)
         if not sale_manager_group:
-            self.skipTest('`sale_sms` not installed')
-        self.user_projectuser.write({
-            'group_ids': [
-                Command.link(project_user_group.id),
-                Command.link(sale_manager_group.id),
-            ]
-        })
-        self.assertTrue(self.task_cow.with_user(self.user_projectuser).has_access('write'))
+            self.skipTest("`sale_sms` not installed")
+        self.user_projectuser.write(
+            {
+                "group_ids": [
+                    Command.link(project_user_group.id),
+                    Command.link(sale_manager_group.id),
+                ]
+            }
+        )
+        self.assertTrue(
+            self.task_cow.with_user(self.user_projectuser).has_access("write")
+        )
         with self.mockSMSGateway():
-            self.task_cow.with_user(self.user_projectuser).write({
-                'step_id': self.task_stage_with_sms.id,
-            })
+            self.task_cow.with_user(self.user_projectuser).write(
+                {
+                    "step_id": self.task_stage_with_sms.id,
+                }
+            )
         self.assertEqual(self.task_cow.step_id, self.task_stage_with_sms)
         self.assertSMSIapSent([])  # no sms sent since the author is the recipient
 
-        self.task_cow.write({
-            'partner_id': self.user_portal.partner_id.id,
-            'step_id': self.project_cows.workflow_step_ids[0].id,
-        })
+        self.task_cow.write(
+            {
+                "partner_id": self.user_portal.partner_id.id,
+                "step_id": self.project_cows.workflow_step_ids[0].id,
+            }
+        )
         with self.mockSMSGateway():
-            self.task_cow.with_user(self.user_projectuser).write({
-                'step_id': self.task_stage_with_sms.id,
-            })
+            self.task_cow.with_user(self.user_projectuser).write(
+                {
+                    "step_id": self.task_stage_with_sms.id,
+                }
+            )
         self.assertEqual(self.task_cow.step_id, self.task_stage_with_sms)
         self.assertSMSIapSent([self.user_portal.partner_id.phone])

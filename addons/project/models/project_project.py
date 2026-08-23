@@ -2579,7 +2579,9 @@ class ProjectProject(models.Model):
         action = (
             self.env["ir.actions.act_window"]
             .with_context(active_id=self.id)
-            ._get_action_dict_by_xml_id("project.act_project_project_2_project_task_all")
+            ._get_action_dict_by_xml_id(
+                "project.act_project_project_2_project_task_all"
+            )
         )
         action["display_name"] = self.name
         context = action["context"].replace("active_id", str(self.id))

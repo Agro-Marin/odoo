@@ -15,9 +15,7 @@ def post_init_hook(env):
         .search([("user_ids", "!=", False)])
     )
     for task in tasks:
-        employees = env["hr.employee"].search(
-            [("user_id", "in", task.user_ids.ids)]
-        )
+        employees = env["hr.employee"].search([("user_id", "in", task.user_ids.ids)])
         if employees:
             task.employee_ids = employees
 

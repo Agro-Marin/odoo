@@ -55,8 +55,7 @@ def migrate(cr, version):
         return
 
     _logger.info(
-        "project_hr 1.1: backfilling reservations for %d tasks "
-        "(batches of %d).",
+        "project_hr 1.1: backfilling reservations for %d tasks (batches of %d).",
         total,
         BATCH_SIZE,
     )

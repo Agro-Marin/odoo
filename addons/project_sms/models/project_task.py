@@ -4,12 +4,17 @@ from odoo import api, models
 
 
 class ProjectTask(models.Model):
-    _name = 'project.task'
+    _name = "project.task"
     _inherit = "project.task"
 
     def _send_sms(self):
         for task in self:
-            if task.partner_id and task.step_id and task.step_id.sms_template_id and not task.is_template:
+            if (
+                task.partner_id
+                and task.step_id
+                and task.step_id.sms_template_id
+                and not task.is_template
+            ):
                 task._message_sms_with_template(
                     template=task.step_id.sms_template_id,
                     partner_ids=task.partner_id.ids,
@@ -24,7 +29,7 @@ class ProjectTask(models.Model):
     def write(self, vals):
         res = super().write(vals)
 
-        if 'step_id' in vals:
+        if "step_id" in vals:
             # sudo as sms template model is protected
             self.sudo()._send_sms()
         return res

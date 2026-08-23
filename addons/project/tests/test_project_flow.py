@@ -147,9 +147,7 @@ class TestProjectFlow(TestProjectCommon, MailCase):
             {
                 "res_model_id": self.env["ir.model"]._get("project.task").id,
                 "res_id": task.id,
-                "parent_res_model_id": self.env["ir.model"]._get(
-                    "project.project"
-                ).id,
+                "parent_res_model_id": self.env["ir.model"]._get("project.project").id,
                 "parent_res_id": self.project_pigs.id,
                 "rating": 5,
                 "consumed": True,

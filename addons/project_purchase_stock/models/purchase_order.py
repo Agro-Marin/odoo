@@ -4,7 +4,7 @@ from odoo import models
 
 
 class PurchaseOrder(models.Model):
-    _inherit = 'purchase.order'
+    _inherit = "purchase.order"
 
     def _prepare_picking_vals(self):
         res = super()._prepare_picking_vals()
@@ -12,5 +12,5 @@ class PurchaseOrder(models.Model):
             return res
         return {
             **res,
-            'project_id': self.project_id.id,
+            "project_id": self.project_id.id,
         }
