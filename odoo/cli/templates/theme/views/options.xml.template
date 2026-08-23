@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+<!-- Theme options: what the website editor offers the user for this theme.
+     Each one inherits a `website.*` template and overrides its attributes.
+
+<template id="option_custom_header" inherit_id="website.layout" name="{{name}} header">
+    <xpath expr="//header" position="attributes">
+        <attribute name="class" add="o_header_sidebar" separator=" "/>
+    </xpath>
+</template>
+-->
+
+</odoo>

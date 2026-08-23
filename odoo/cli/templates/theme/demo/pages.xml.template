@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+<!-- Demo pages, loaded only when the database has demo data.
+
+<record id="page_about" model="theme.website.page">
+    <field name="name">About</field>
+    <field name="url">/about</field>
+    <field name="website_indexed" eval="True"/>
+    <field name="is_published" eval="True"/>
+    <field name="arch" type="xml">
+        <t name="About" t-name="{{name}}.page_about">
+            <t t-call="website.layout">
+                <div id="wrap" class="oe_structure"/>
+            </t>
+        </t>
+    </field>
+</record>
+-->
+
+</odoo>

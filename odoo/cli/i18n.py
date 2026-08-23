@@ -242,10 +242,14 @@ class I18n(DatabaseCommand):
             )
 
     def _export(self, parsed_args: argparse.Namespace) -> None:
-        export_pot = "pot" in parsed_args.languages
+        # A local list, not `parsed_args.languages`: the "pot" pseudo-language
+        # is removed below, and mutating the parsed namespace makes the method
+        # give a different answer the second time it is called with it.
+        requested_languages = list(parsed_args.languages)
+        export_pot = "pot" in requested_languages
 
         if parsed_args.output:
-            if len(parsed_args.languages) != 1:
+            if len(requested_languages) != 1:
                 self.export_parser.error(
                     "When --output is specified, one single --language must be supplied"
                 )
@@ -261,7 +265,7 @@ class I18n(DatabaseCommand):
                     )
 
         if export_pot:
-            parsed_args.languages.remove("pot")
+            requested_languages.remove("pot")
 
         with odoo_env(parsed_args.db_name, readonly=True) as env:
             modules = env["ir.module.module"].search_fetch(
@@ -286,7 +290,7 @@ class I18n(DatabaseCommand):
                 self.export_parser.error("No valid module has been provided")
             module_names = modules.mapped("name")
 
-            languages = self._get_languages(env, parsed_args.languages)
+            languages = self._get_languages(env, requested_languages)
             languages_count = len(languages) + export_pot
             if languages_count == 0:
                 self.export_parser.error("No valid language has been provided")

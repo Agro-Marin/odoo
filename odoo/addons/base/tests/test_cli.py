@@ -1686,3 +1686,156 @@ class TestCommand(BaseCase):
             dbmod.Db().load(ns)
         get_mock.assert_not_called()
         self.assertIn("bad name!", str(ctx.exception.code))
+
+    def test_every_builtin_template_scaffolds_a_loadable_module(self):
+        """A rendered template must be a module Odoo can actually load.
+
+        `-t theme` produced one that could not: `views/options.xml`,
+        `views/snippets.xml` and `demo/pages.xml` were 0-byte files listed in the
+        manifest's `data`/`demo`, so installing it took the registry down with
+        `lxml.etree.XMLSyntaxError: Start tag expected, '<' not found, line 2,
+        column 1`. Nothing rendered any template but `default`, so nobody saw it.
+
+        Installing all three here would cost minutes; this asserts what the
+        install would have found — the manifest parses, every file it declares
+        exists and is well formed, and every generated `.py` compiles.
+        """
+        import ast
+        import csv as csv_mod
+
+        from lxml import etree
+
+        from odoo.cli.scaffold import Template, _builtins_dir
+
+        names = sorted(d.name for d in _builtins_dir().iterdir() if d.is_dir())
+        self.assertTrue(names, msg="no built-in templates found")
+
+        # `l10n_payroll` takes `<country>-<code>`; the rest take a plain name.
+        argument = {"l10n_payroll": "mexico-mx"}
+        for name in names:
+            with self.subTest(template=name), tempfile.TemporaryDirectory() as tmp:
+                template = Template(name)
+                given = argument.get(name, "scaffold_probe")
+                params = template.parse_params(given)
+                modname = template.modname_for(given, params)
+                template.render_to(modname, Path(tmp), params=params)
+                module = Path(tmp) / modname
+
+                manifest_path = module / "__manifest__.py"
+                self.assertTrue(manifest_path.is_file(), msg=f"{name}: no manifest")
+                manifest = ast.literal_eval(manifest_path.read_text(encoding="utf-8"))
+                self.assertIsInstance(manifest, dict)
+                self.assertIn(
+                    "license",
+                    manifest,
+                    msg=f"{name}: no license key; every load warns about it",
+                )
+
+                for py in module.rglob("*.py"):
+                    try:
+                        ast.parse(py.read_text(encoding="utf-8"))
+                    except SyntaxError as exc:
+                        self.fail(f"{name} rendered unparseable Python in {py}: {exc}")
+
+                declared = [*manifest.get("data", []), *manifest.get("demo", [])]
+                self.assertTrue(
+                    declared, msg=f"{name}: manifest declares no data at all"
+                )
+                for relative in declared:
+                    path = module / relative
+                    self.assertTrue(
+                        path.is_file(),
+                        msg=f"{name}: manifest lists {relative}, which was not rendered",
+                    )
+                    body = path.read_text(encoding="utf-8")
+                    if path.suffix == ".xml":
+                        try:
+                            etree.fromstring(body.encode())
+                        except etree.XMLSyntaxError as exc:
+                            self.fail(
+                                f"{name}: {relative} is not loadable XML ({exc}); "
+                                "a module declaring it fails to install"
+                            )
+                    elif path.suffix == ".csv":
+                        rows = list(csv_mod.reader(body.splitlines()))
+                        self.assertTrue(
+                            rows and rows[0], msg=f"{name}: {relative} empty"
+                        )
+
+    def test_scaffold_naming_conventions_agree(self):
+        """What `parse` puts in the params is what `modname` reads back out.
+
+        The two halves used to be `if self.id == ...` branches in two separate
+        methods, kept in step by a docstring asking the next person to. Each
+        convention is one object now, and this asserts the round trip for every
+        one of them rather than for the one that happened to be remembered.
+        """
+        from odoo.cli.scaffold import (
+            DEFAULT_NAMING,
+            NAMING_CONVENTIONS,
+            Template,
+            _builtins_dir,
+        )
+
+        samples = {"l10n_payroll": "mexico-mx"}
+        for template_id, convention in NAMING_CONVENTIONS.items():
+            with self.subTest(template=template_id):
+                given = samples[template_id]
+                params = convention.parse(given)
+                modname = convention.modname(given, params)
+                self.assertTrue(modname and not modname.startswith("_"), msg=modname)
+                self.assertEqual(
+                    Template(template_id).modname_for(given, params),
+                    modname,
+                    msg="Template disagrees with its own convention",
+                )
+
+        self.assertEqual(DEFAULT_NAMING.parse("MyThing"), {"name": "MyThing"})
+        self.assertEqual(
+            DEFAULT_NAMING.modname("MyThing", {"name": "MyThing"}), "my_thing"
+        )
+
+        # Every built-in template resolves to a convention, default or its own.
+        for directory in _builtins_dir().iterdir():
+            if directory.is_dir():
+                with self.subTest(template=directory.name):
+                    given = samples.get(directory.name, "probe")
+                    template = Template(directory.name)
+                    params = template.parse_params(given)
+                    self.assertIn("name", params)
+                    self.assertTrue(template.modname_for(given, params))
+
+    def test_db_dump_refuses_an_unwritable_destination_before_dumping(self):
+        """A missing directory used to surface as a raw FileNotFoundError, and
+        for `--format dump` only after pg_dump had already run."""
+        from odoo.cli import db as dbmod
+
+        with tempfile.TemporaryDirectory() as tmp:
+            ns = mock.Mock(
+                database="whatever",
+                dump_path=str(Path(tmp) / "no" / "such" / "dir" / "x.zip"),
+                dump_format="zip",
+                filestore=True,
+            )
+            with (
+                mock.patch.object(dbmod, "exp_db_exist", return_value=True),
+                mock.patch.object(dbmod, "dump_db") as dump_mock,
+                self.assertRaises(SystemExit) as ctx,
+            ):
+                dbmod.Db().dump(ns)
+            dump_mock.assert_not_called()
+            self.assertIn("is not a directory", str(ctx.exception.code))
+
+    def test_i18n_export_does_not_mutate_the_parsed_namespace(self):
+        """`_export` removed the "pot" pseudo-language from `parsed_args`
+        itself, so the namespace answered differently the second time."""
+        from odoo.cli.i18n import I18n
+
+        cmd = I18n()
+        # MODULE first: `-l` is nargs="+" and would otherwise swallow it.
+        parsed = cmd.parser.parse_args(["export", "base", "-l", "pot", "es_MX"])
+        before = list(parsed.languages)
+        with mock.patch("odoo.cli.i18n.odoo_env", side_effect=RuntimeError("stop")):
+            with self.assertRaises((RuntimeError, SystemExit)):
+                cmd._export(parsed)
+        self.assertEqual(parsed.languages, before)

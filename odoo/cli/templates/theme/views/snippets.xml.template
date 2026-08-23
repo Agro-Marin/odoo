@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+<!-- Snippet customisations: restyle the building blocks `website` already
+     ships, by inheriting each one and patching its markup.
+
+<template id="s_cover" inherit_id="website.s_cover" name="{{name}} s_cover">
+    <xpath expr="//section" position="attributes">
+        <attribute name="class" add="o_full_screen_height" separator=" "/>
+    </xpath>
+</template>
+-->
+
+</odoo>

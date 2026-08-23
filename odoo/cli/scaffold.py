@@ -1,9 +1,10 @@
 import argparse
+import dataclasses
 import functools
 import os
 import re
 import sys
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -124,6 +125,46 @@ def _env() -> Environment:
     return env
 
 
+@dataclasses.dataclass(frozen=True)
+class NamingConvention:
+    """How one template turns the user's ``name`` argument into render params
+    and into a module directory name.
+
+    The two halves live in one object because they have to agree: what
+    ``parse`` puts in ``params`` is what ``modname`` reads back out. They used
+    to be two ``if self.id == ...`` branches in two methods of
+    :class:`Template`, with a docstring asking the next person to keep them in
+    step — `test_scaffold_naming_conventions_agree` asks the suite instead.
+    """
+
+    parse: Callable[[str], dict[str, str]]
+    modname: Callable[[str, dict[str, str]], str]
+
+
+def _parse_country_code(name: str) -> dict[str, str]:
+    """``'mexico-mx'`` -> ``{'name': 'mexico', 'code': 'mx'}``."""
+    if "-" not in name:
+        raise ValueError(
+            "l10n_payroll template requires a name of the form "
+            f"'<country>-<code>' (e.g. 'mexico-mx'); got {name!r}"
+        )
+    country, _, code = name.partition("-")
+    return {"name": country, "code": code}
+
+
+DEFAULT_NAMING = NamingConvention(
+    parse=lambda name: {"name": name},
+    modname=lambda name, params: snake(name),
+)
+
+NAMING_CONVENTIONS = {
+    "l10n_payroll": NamingConvention(
+        parse=_parse_country_code,
+        modname=lambda name, params: f"l10n_{params['code']}_hr_payroll",
+    ),
+}
+
+
 class Template:
     """A module template that can be rendered into a new Odoo module."""
 
@@ -152,30 +193,15 @@ class Template:
     def parse_params(self, name: str) -> dict[str, str]:
         """Parse the user-supplied ``name`` into Jinja rendering params.
 
-        Most templates need only ``{'name': name}``; specialised ones (e.g.
-        ``l10n_payroll``, encoding a country and locale code) override here.
-
         :raises ValueError: on malformed input
         """
-        if self.id == "l10n_payroll":
-            if "-" not in name:
-                raise ValueError(
-                    "l10n_payroll template requires a name of the form "
-                    f"'<country>-<code>' (e.g. 'mexico-mx'); got {name!r}"
-                )
-            country, _, code = name.partition("-")
-            return {"name": country, "code": code}
-        return {"name": name}
+        convention = NAMING_CONVENTIONS.get(self.id, DEFAULT_NAMING)
+        return convention.parse(name)
 
     def modname_for(self, name: str, params: dict[str, str]) -> str:
-        """Resolve the on-disk module directory name from ``name``/``params``.
-
-        Mirrors ``parse_params``: same special-cases. Keeping both here means a
-        new template naming convention touches one class.
-        """
-        if self.id == "l10n_payroll":
-            return f"l10n_{params['code']}_hr_payroll"
-        return snake(name)
+        """Resolve the on-disk module directory name from ``name``/``params``."""
+        convention = NAMING_CONVENTIONS.get(self.id, DEFAULT_NAMING)
+        return convention.modname(name, params)
 
     def render_to(
         self, modname: str, directory: Path, params: dict[str, str] | None = None

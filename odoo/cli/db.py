@@ -418,11 +418,21 @@ class Db(Command):
         if args.dump_path == "-":
             dump_db(args.database, sys.stdout.buffer, args.dump_format, args.filestore)
         else:
+            # Checked before the dump starts rather than after: a missing
+            # directory used to surface as a raw FileNotFoundError traceback,
+            # and for a `dump` format it would have done so only once pg_dump
+            # had already run.
+            destination = Path(args.dump_path)
+            if not destination.parent.is_dir():
+                sys.exit(
+                    f"Cannot write {args.dump_path}: {destination.parent} is not "
+                    "a directory."
+                )
             try:
-                with Path(args.dump_path).open("wb") as f:
+                with destination.open("wb") as f:
                     dump_db(args.database, f, args.dump_format, args.filestore)
             except BaseException:
-                Path(args.dump_path).unlink(missing_ok=True)
+                destination.unlink(missing_ok=True)
                 raise
 
     def duplicate(self, args: argparse.Namespace) -> None:
