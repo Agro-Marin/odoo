@@ -7,9 +7,8 @@ from odoo.tests.common import tagged
 from .common import TestSaleProjectCommon
 
 
-@tagged('post_install', '-at_install')
+@tagged("post_install", "-at_install")
 class TestAnalyticDistribution(HttpCase, TestSaleProjectCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -19,41 +18,54 @@ class TestAnalyticDistribution(HttpCase, TestSaleProjectCommon):
         # This is because creating a plan creates fields and columns on models inheriting
         # from the mixin.
         # The registry is reset on class cleanup.
-        cls.plan_b = cls.env['account.analytic.plan'].create({'name': 'Q'})
+        cls.plan_b = cls.env["account.analytic.plan"].create({"name": "Q"})
 
     def test_project_transmits_analytic_plans_to_sol_distribution(self):
         plan_a = self.analytic_plan
         plan_b = self.plan_b
-        account_a, account_b = self.env['account.analytic.account'].create([{
-            'name': 'account',
-            'plan_id': plan.id,
-        } for plan in (plan_a, plan_b)])
-        project = self.env['project.project'].create({
-            'name': 'X',
-            plan_a._column_name(): account_a.id,
-            plan_b._column_name(): account_b.id,
-        })
+        account_a, account_b = self.env["account.analytic.account"].create(
+            [
+                {
+                    "name": "account",
+                    "plan_id": plan.id,
+                }
+                for plan in (plan_a, plan_b)
+            ]
+        )
+        project = self.env["project.project"].create(
+            {
+                "name": "X",
+                plan_a._column_name(): account_a.id,
+                plan_b._column_name(): account_b.id,
+            }
+        )
 
-        sale_order = self.env['sale.order'].create({
-            'partner_id': self.partner.id,
-            'project_id': project.id,
-        })
-        sale_order_line = self.env['sale.order.line'].create({
-            'order_id': sale_order.id,
-            'product_id': self.product.id,
-        })
+        sale_order = self.env["sale.order"].create(
+            {
+                "partner_id": self.partner.id,
+                "project_id": project.id,
+            }
+        )
+        sale_order_line = self.env["sale.order.line"].create(
+            {
+                "order_id": sale_order.id,
+                "product_id": self.product.id,
+            }
+        )
         self.assertEqual(
             sale_order_line.analytic_distribution,
-            {f'{account_a.id},{account_b.id}': 100},
-            "The sale order line's analytic distribution should have one line containing all the accounts of the project's plans"
+            {f"{account_a.id},{account_b.id}": 100},
+            "The sale order line's analytic distribution should have one line containing all the accounts of the project's plans",
         )
 
     def test_sol_analytic_distribution_project_template_service(self):
-        sale_order = self.env['sale.order'].create({'partner_id': self.partner.id})
-        sale_order_line = self.env['sale.order.line'].create({
-            'order_id': sale_order.id,
-            'product_id': self.product_delivery_manual5.id,
-        })
+        sale_order = self.env["sale.order"].create({"partner_id": self.partner.id})
+        sale_order_line = self.env["sale.order.line"].create(
+            {
+                "order_id": sale_order.id,
+                "product_id": self.product_delivery_manual5.id,
+            }
+        )
         self.assertFalse(
             sale_order_line.analytic_distribution,
             "No default analytic distribution should be set on the SOL as no project is linked to the SO, and we do not "
@@ -68,11 +80,13 @@ class TestAnalyticDistribution(HttpCase, TestSaleProjectCommon):
 
     def test_sol_analytic_distribution_task_in_project_service(self):
         self.project_global.account_id = self.analytic_account_sale
-        sale_order = self.env['sale.order'].create({'partner_id': self.partner.id})
-        sale_order_line = self.env['sale.order.line'].create({
-            'order_id': sale_order.id,
-            'product_id': self.product_delivery_manual2.id,
-        })
+        sale_order = self.env["sale.order"].create({"partner_id": self.partner.id})
+        sale_order_line = self.env["sale.order.line"].create(
+            {
+                "order_id": sale_order.id,
+                "product_id": self.product_delivery_manual2.id,
+            }
+        )
         self.assertEqual(
             sale_order_line.analytic_distribution,
             {str(self.project_global.account_id.id): 100},
@@ -89,23 +103,35 @@ class TestAnalyticDistribution(HttpCase, TestSaleProjectCommon):
           4. Verify analytic distribution is applied.
         """
 
-        invoice = self.env['account.move'].with_context({
-            'default_move_type': 'out_invoice',
-            'default_partner_id': self.project_global.partner_id.id,
-            'project_id': self.project_global.id
-        }).create({
-            'invoice_line_ids': [Command.create({
-                'product_id': self.product_delivery_manual1.id,
-                'quantity': 1,
-                'price_unit': 10,
-            })]
-        })
+        invoice = (
+            self.env["account.move"]
+            .with_context(
+                {
+                    "default_move_type": "out_invoice",
+                    "default_partner_id": self.project_global.partner_id.id,
+                    "project_id": self.project_global.id,
+                }
+            )
+            .create(
+                {
+                    "invoice_line_ids": [
+                        Command.create(
+                            {
+                                "product_id": self.product_delivery_manual1.id,
+                                "quantity": 1,
+                                "price_unit": 10,
+                            }
+                        )
+                    ]
+                }
+            )
+        )
 
         filtered_lines = invoice.line_ids.filtered(lambda l: l.analytic_distribution)
         self.assertEqual(
             len(filtered_lines),
             1,
-            "Analytic distribution is not set on the payable/receivable lines"
+            "Analytic distribution is not set on the payable/receivable lines",
         )
 
     def test_get_so_mapping_domain_with_no_analytic_distribution(self):
@@ -113,28 +139,34 @@ class TestAnalyticDistribution(HttpCase, TestSaleProjectCommon):
         Ensure _get_so_mapping_domain doesnt fail when analytic_distribution is not set
         """
 
-        account = self.env['account.account'].create({
-            'name': 'Receivable test account',
-            'code': '00001',
-            'account_type': 'asset_receivable',
-        })
+        account = self.env["account.account"].create(
+            {
+                "name": "Receivable test account",
+                "code": "00001",
+                "account_type": "asset_receivable",
+            }
+        )
 
-        move = self.env['account.move'].create({
-            'move_type': 'out_invoice',
-            'partner_id': self.partner.id,
-        })
+        move = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner.id,
+            }
+        )
 
-        line = self.env['account.move.line'].create({
-            'move_id': move.id,
-            'name': 'Line without analytic',
-            'quantity': 1,
-            'price_unit': 100,
-            'account_id': account.id,
-        })
+        line = self.env["account.move.line"].create(
+            {
+                "move_id": move.id,
+                "name": "Line without analytic",
+                "quantity": 1,
+                "price_unit": 100,
+                "account_id": account.id,
+            }
+        )
         domain = line._get_so_mapping_domain()
 
         self.assertEqual(
             domain,
             Domain.FALSE,
-            "Domain should be False when analytic_distribution is missing."
+            "Domain should be False when analytic_distribution is missing.",
         )

@@ -277,9 +277,7 @@ class SaleOrderLine(models.Model):
             if not mto_route:
                 # if route MTO not found in ir_model_data, we treat the product as in MTS
                 with contextlib.suppress(UserError):
-                    mto_route = self.env[
-                        "stock.warehouse"
-                    ]._get_or_create_global_route(
+                    mto_route = self.env["stock.warehouse"]._get_or_create_global_route(
                         "stock.route_warehouse0_mto",
                         _("Replenish on Order (MTO)"),
                         create=False,

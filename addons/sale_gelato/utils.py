@@ -10,8 +10,8 @@ from odoo.exceptions import UserError
 _logger = logging.getLogger(__name__)
 
 
-def make_request(api_key, subdomain, version, endpoint, payload=None, method='POST'):
-    """ Make a request to the Gelato API and return the JSON-formatted content of the response.
+def make_request(api_key, subdomain, version, endpoint, payload=None, method="POST"):
+    """Make a request to the Gelato API and return the JSON-formatted content of the response.
 
     :param str api_key: The Gelato API key used for signing requests.
     :param str subdomain: The subdomain of the Gelato API.
@@ -22,17 +22,21 @@ def make_request(api_key, subdomain, version, endpoint, payload=None, method='PO
     :return: The JSON-formatted content of the response.
     :rtype: dict
     """
-    url = f'https://{subdomain}.gelatoapis.com/{version}/{endpoint}'
-    headers = {
-        'X-API-KEY': api_key or None
-    }
+    url = f"https://{subdomain}.gelatoapis.com/{version}/{endpoint}"
+    headers = {"X-API-KEY": api_key or None}
     try:
-        if method == 'GET':
-            response = requests.get(url=url, params=payload, headers=headers, timeout=10)
-        elif method == 'PATCH':
-            response = requests.patch(url=url, json=payload, headers=headers, timeout=10)
-        elif method == 'DELETE':
-            response = requests.delete(url=url, params=payload, headers=headers, timeout=10)
+        if method == "GET":
+            response = requests.get(
+                url=url, params=payload, headers=headers, timeout=10
+            )
+        elif method == "PATCH":
+            response = requests.patch(
+                url=url, json=payload, headers=headers, timeout=10
+            )
+        elif method == "DELETE":
+            response = requests.delete(
+                url=url, params=payload, headers=headers, timeout=10
+            )
         else:
             response = requests.post(url=url, json=payload, headers=headers, timeout=10)
         response_content = response.json()
@@ -40,8 +44,10 @@ def make_request(api_key, subdomain, version, endpoint, payload=None, method='PO
             response.raise_for_status()
         except requests.exceptions.HTTPError as error:
             _logger.exception("Invalid API request at %s with data %s", url, payload)
-            raise UserError(response_content.get('message', '')) from error
+            raise UserError(response_content.get("message", "")) from error
     except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as error:
         _logger.exception("Unable to reach endpoint at %s", url)
-        raise UserError(_("Could not establish the connection to the Gelato API.")) from error
+        raise UserError(
+            _("Could not establish the connection to the Gelato API.")
+        ) from error
     return response.json()

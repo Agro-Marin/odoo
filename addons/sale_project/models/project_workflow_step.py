@@ -2,16 +2,18 @@ from odoo import api, fields, models
 
 
 class ProjectWorkflowStep(models.Model):
-    _inherit = 'project.workflow.step'
+    _inherit = "project.workflow.step"
 
-    show_rating_active = fields.Boolean(compute='_compute_show_rating_active', export_string_translation=False)
+    show_rating_active = fields.Boolean(
+        compute="_compute_show_rating_active", export_string_translation=False
+    )
 
-    @api.depends('project_ids.allow_billable')
+    @api.depends("project_ids.allow_billable")
     def _compute_show_rating_active(self):
         for stage in self:
-            stage.show_rating_active = any(stage.project_ids.mapped('allow_billable'))
+            stage.show_rating_active = any(stage.project_ids.mapped("allow_billable"))
 
-    @api.onchange('project_ids')
+    @api.onchange("project_ids")
     def _onchange_project_ids(self):
-        if not any(self.project_ids.mapped('allow_billable')):
+        if not any(self.project_ids.mapped("allow_billable")):
             self.rating_active = False

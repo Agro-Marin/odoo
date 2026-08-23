@@ -11,14 +11,18 @@ from odoo.tools import pdf
 def _ensure_document_not_encrypted(document):
     document_is_invalid = False
     try:
-        document_is_invalid = pdf.PdfFileReader(io.BytesIO(document), strict=False).is_encrypted
-    except (pdf.DependencyError, pdf.PdfReadError):
+        document_is_invalid = pdf.PdfFileReader(
+            io.BytesIO(document), strict=False
+        ).is_encrypted
+    except pdf.DependencyError, pdf.PdfReadError:
         document_is_invalid = True
     if document_is_invalid:
-        raise ValidationError(_(
-            "It seems that we're not able to process this pdf inside a quotation. It is either"
-            " encrypted, or encoded in a format we do not support."
-        ))
+        raise ValidationError(
+            _(
+                "It seems that we're not able to process this pdf inside a quotation. It is either"
+                " encrypted, or encoded in a format we do not support."
+            )
+        )
 
 
 def _get_form_fields_from_pdf(pdf_data):

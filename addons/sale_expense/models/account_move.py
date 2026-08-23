@@ -4,7 +4,7 @@ from odoo import models
 
 
 class AccountMove(models.Model):
-    _inherit = 'account.move'
+    _inherit = "account.move"
 
     def _reverse_moves(self, default_values_list=None, cancel=False):
         # EXTENDS sale

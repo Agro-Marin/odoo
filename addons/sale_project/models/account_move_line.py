@@ -5,23 +5,35 @@ from odoo.fields import Domain
 
 
 class AccountMoveLine(models.Model):
-    _inherit = 'account.move.line'
+    _inherit = "account.move.line"
 
     def _compute_analytic_distribution(self):
         # when a project creates an aml, it adds an analytic account to it. the following filter is to save this
         # analytic account from being overridden by analytic default rules and lack thereof
-        project_amls = self.filtered(lambda aml: aml.analytic_distribution and any(aml.sale_line_ids.project_id))
+        project_amls = self.filtered(
+            lambda aml: aml.analytic_distribution and any(aml.sale_line_ids.project_id)
+        )
         super(AccountMoveLine, self - project_amls)._compute_analytic_distribution()
-        project_id = self.env.context.get('project_id', False)
+        project_id = self.env.context.get("project_id", False)
         if project_id:
-            project = self.env['project.project'].browse(project_id)
-            lines = self.filtered(lambda line: line.account_type not in ['asset_receivable', 'liability_payable'])
+            project = self.env["project.project"].browse(project_id)
+            lines = self.filtered(
+                lambda line: (
+                    line.account_type not in ["asset_receivable", "liability_payable"]
+                )
+            )
             lines.analytic_distribution = project._get_analytic_distribution()
 
     def _get_so_mapping_domain(self):
         return Domain.OR(
             Domain.AND(
-                Domain(self.env['account.analytic.account'].browse(int(account_id)).root_plan_id._column_name(), "=", int(account_id))
+                Domain(
+                    self.env["account.analytic.account"]
+                    .browse(int(account_id))
+                    .root_plan_id._column_name(),
+                    "=",
+                    int(account_id),
+                )
                 for account_id in key.split(",")
             )
             for line in self
@@ -29,18 +41,22 @@ class AccountMoveLine(models.Model):
         )
 
     def _get_so_mapping_from_project(self):
-        """ Get the mapping of move.line with the sale.order record on which its analytic entries should be reinvoiced.
-            A sale.order matches a move.line if the sale.order's project contains all the same analytic accounts
-            as the ones in the distribution of the move.line.
-            :return a dict where key is the move line id, and value is sale.order record (or None).
+        """Get the mapping of move.line with the sale.order record on which its analytic entries should be reinvoiced.
+        A sale.order matches a move.line if the sale.order's project contains all the same analytic accounts
+        as the ones in the distribution of the move.line.
+        :return a dict where key is the move line id, and value is sale.order record (or None).
         """
         mapping = {}
-        projects = self.env['project.project'].search(domain=self._get_so_mapping_domain())
-        orders_per_project = dict(self.env['sale.order']._read_group(
-            domain=[('project_id', 'in', projects.ids)],
-            groupby=['project_id'],
-            aggregates=['id:recordset']
-        ))
+        projects = self.env["project.project"].search(
+            domain=self._get_so_mapping_domain()
+        )
+        orders_per_project = dict(
+            self.env["sale.order"]._read_group(
+                domain=[("project_id", "in", projects.ids)],
+                groupby=["project_id"],
+                aggregates=["id:recordset"],
+            )
+        )
         project_per_accounts = {
             next(iter(project._get_analytic_distribution())): project
             for project in projects
@@ -59,10 +75,12 @@ class AccountMoveLine(models.Model):
             orders = orders_per_project.get(project)
             if not orders:
                 continue
-            orders = orders.sorted('create_date')
-            in_sale_state_orders = orders.filtered(lambda s: s.state == 'done')
+            orders = orders.sorted("create_date")
+            in_sale_state_orders = orders.filtered(lambda s: s.state == "done")
 
-            mapping[move_line.id] = in_sale_state_orders[0] if in_sale_state_orders else orders[0]
+            mapping[move_line.id] = (
+                in_sale_state_orders[0] if in_sale_state_orders else orders[0]
+            )
 
         # map the move line index with the SO on which it needs to be reinvoiced. May be empty if no SO found
         return mapping

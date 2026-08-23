@@ -5,7 +5,7 @@ from odoo.fields import Command
 
 
 class SaleOrder(models.Model):
-    _inherit = 'sale.order'
+    _inherit = "sale.order"
 
     # delivery overrides
 
@@ -13,8 +13,10 @@ class SaleOrder(models.Model):
         res = super()._compute_amount_total_without_delivery()
         return res - sum(
             self.line_ids.filtered(
-                lambda l: l.coupon_id and l.coupon_id.program_type in ['ewallet', 'gift_card']
-            ).mapped('price_unit')
+                lambda l: (
+                    l.coupon_id and l.coupon_id.program_type in ["ewallet", "gift_card"]
+                )
+            ).mapped("price_unit")
         )
 
     # sale_loyalty overrides
@@ -22,7 +24,8 @@ class SaleOrder(models.Model):
     def _get_no_effect_on_threshold_lines(self):
         res = super()._get_no_effect_on_threshold_lines()
         return res + self.line_ids.filtered(
-            lambda line: line.is_delivery or line.reward_id.reward_type == 'shipping')
+            lambda line: line.is_delivery or line.reward_id.reward_type == "shipping"
+        )
 
     def _get_not_rewarded_order_lines(self):
         """Exclude delivery lines from consideration for reward points."""
@@ -31,26 +34,38 @@ class SaleOrder(models.Model):
 
     def _get_reward_values_free_shipping(self, reward, coupon, **kwargs):
         delivery_line = self.line_ids.filtered(lambda l: l.is_delivery)[:1]
-        taxes = delivery_line.product_id.taxes_id._filter_taxes_by_company(self.company_id)
+        taxes = delivery_line.product_id.taxes_id._filter_taxes_by_company(
+            self.company_id
+        )
         taxes = self.fiscal_position_id.map_tax(taxes)
-        max_discount = reward.discount_max_amount or float('inf')
-        return [{
-            'name': _('Free Shipping - %s', reward.description),
-            'reward_id': reward.id,
-            'coupon_id': coupon.id,
-            'points_cost': reward.required_points if not reward.clear_wallet else self._get_real_points_for_coupon(coupon),
-            'product_id': reward.discount_line_product_id.id,
-            'price_unit': -min(max_discount, delivery_line.price_unit or 0),
-            'product_qty': 1,
-            'order_id': self.id,
-            'is_reward_line': True,
-            'sequence': max(self.line_ids.filtered(lambda x: not x.is_reward_line).mapped('sequence'), default=0) + 1,
-            'tax_ids': [Command.clear()] + [Command.link(tax.id) for tax in taxes],
-        }]
+        max_discount = reward.discount_max_amount or float("inf")
+        return [
+            {
+                "name": _("Free Shipping - %s", reward.description),
+                "reward_id": reward.id,
+                "coupon_id": coupon.id,
+                "points_cost": reward.required_points
+                if not reward.clear_wallet
+                else self._get_real_points_for_coupon(coupon),
+                "product_id": reward.discount_line_product_id.id,
+                "price_unit": -min(max_discount, delivery_line.price_unit or 0),
+                "product_qty": 1,
+                "order_id": self.id,
+                "is_reward_line": True,
+                "sequence": max(
+                    self.line_ids.filtered(lambda x: not x.is_reward_line).mapped(
+                        "sequence"
+                    ),
+                    default=0,
+                )
+                + 1,
+                "tax_ids": [Command.clear()] + [Command.link(tax.id) for tax in taxes],
+            }
+        ]
 
     def _get_reward_line_values(self, reward, coupon, **kwargs):
         self.ensure_one()
-        if reward.reward_type == 'shipping':
+        if reward.reward_type == "shipping":
             self = self.with_context(lang=self._get_lang())
             reward = reward.with_context(lang=self._get_lang())
             return self._get_reward_values_free_shipping(reward, coupon, **kwargs)
@@ -58,11 +73,13 @@ class SaleOrder(models.Model):
 
     def _get_claimable_rewards(self, forced_coupons=None):
         res = super()._get_claimable_rewards(forced_coupons)
-        if any(reward.reward_type == 'shipping' for reward in self.line_ids.reward_id):
+        if any(reward.reward_type == "shipping" for reward in self.line_ids.reward_id):
             # Allow only one reward of type shipping at the same time
             filtered_res = {}
             for coupon, rewards in res.items():
-                filtered_rewards = rewards.filtered(lambda r: r.reward_type != 'shipping')
+                filtered_rewards = rewards.filtered(
+                    lambda r: r.reward_type != "shipping"
+                )
                 if filtered_rewards:
                     filtered_res[coupon] = filtered_rewards
             res = filtered_res
