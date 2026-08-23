@@ -1861,3 +1861,90 @@ class TestMrpAuditFixes(TestMrpCommon):
                 production.location_src_id.warehouse_id,
                 "the batch may only group orders that share a source warehouse",
             )
+
+    def _audit_serial_byproduct_order(self, line_count, tag):
+        unit = self.env.ref("uom.product_uom_unit")
+        location = self.env["stock.warehouse"].search([], limit=1).lot_stock_id
+        component = self.env["product.product"].create(
+            {"name": "Audit sn %s c" % tag, "is_storable": True}
+        )
+        finished = self.env["product.product"].create(
+            {"name": "Audit sn %s f" % tag, "is_storable": True}
+        )
+        byproduct = self.env["product.product"].create(
+            {"name": "Audit sn %s b" % tag, "is_storable": True, "tracking": "serial"}
+        )
+        self.env["stock.quant"]._update_available_quantity(component, location, 1000)
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "product_uom_id": unit.id,
+                "type": "normal",
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+                "byproduct_ids": [
+                    Command.create(
+                        {
+                            "product_id": byproduct.id,
+                            "product_qty": 1.0,
+                            "product_uom_id": unit.id,
+                        }
+                    )
+                ],
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {
+                "product_id": finished.id,
+                "product_qty": line_count,
+                "bom_id": bom.id,
+            }
+        )
+        production.action_confirm()
+        production.qty_producing = line_count
+        production._set_qty_producing()
+        byproduct_move = production.move_byproduct_ids
+        byproduct_move.move_line_ids.unlink()
+        lots = self.env["stock.lot"].create(
+            [
+                {"name": "AUDITSN-%s-%d" % (tag, i), "product_id": byproduct.id}
+                for i in range(line_count)
+            ]
+        )
+        self.env["stock.move.line"].create(
+            [
+                {
+                    "move_id": byproduct_move.id,
+                    "product_id": byproduct.id,
+                    "quantity": 1,
+                    "lot_id": lot.id,
+                    "product_uom_id": unit.id,
+                    "location_id": byproduct_move.location_id.id,
+                    "location_dest_id": byproduct_move.location_dest_id.id,
+                }
+                for lot in lots
+            ]
+        )
+        self.env.flush_all()
+        return production
+
+    def _sn_uniqueness_cost(self, line_count, tag):
+        production = self._audit_serial_byproduct_order(line_count, tag)
+        self.env.invalidate_all()
+        before = self.env.cr.sql_log_count
+        production._check_sn_uniqueness()
+        return self.env.cr.sql_log_count - before
+
+    def test_checking_serial_byproducts_costs_one_batch(self):
+        small = self._sn_uniqueness_cost(2, "small")
+        large = self._sn_uniqueness_cost(20, "large")
+        marginal = (large - small) / 18.0
+        self.assertLess(
+            marginal,
+            0.5,
+            "_are_finished_serials_already_produced was called once per serial "
+            "byproduct line and opened with a search_count every time. N=2 cost "
+            "%d, N=20 cost %d, marginal %.2f" % (small, large, marginal),
+        )

@@ -1294,6 +1294,7 @@ class MrpProduction(models.Model):
         self.move_finished_ids = move_finished_ids | self.move_byproduct_ids
 
     @api.depends("state")
+    @api.depends_context("uid")
     def _compute_show_lock(self):
         for order in self:
             order.show_lock = order.state == "done" or (
@@ -1310,6 +1311,7 @@ class MrpProduction(models.Model):
             )
 
     @api.depends("state", "move_finished_ids")
+    @api.depends_context("uid")
     def _compute_show_allocation(self):
         self.show_allocation = False
         if not self.env.user.has_group("mrp.group_mrp_reception_report"):
@@ -4034,7 +4036,10 @@ class MrpProduction(models.Model):
                 lambda l: l.id not in self.move_raw_ids.lot_ids.ids
             )
             if lots_to_check and self._are_finished_serials_already_produced(
-                lots_to_check
+                lots_to_check,
+                suspect_lots=self._serials_produced_into_a_production_location(
+                    lots_to_check
+                ),
             ):
                 raise UserError(
                     _(
@@ -4043,22 +4048,29 @@ class MrpProduction(models.Model):
                     )
                 )
 
-        for move in self.move_finished_ids:
-            if move.has_tracking != "serial" or move.product_id == self.product_id:
-                continue
-            for move_line in move.move_line_ids:
-                if move_line.product_uom_id.is_zero(move_line.quantity):
-                    continue
-                if self._are_finished_serials_already_produced(
-                    move_line.lot_id, excluded_sml=move_line
-                ):
-                    raise UserError(
-                        _(
-                            "The serial number %(number)s used for byproduct %(product_name)s has already been produced",
-                            number=move_line.lot_id.name,
-                            product_name=move_line.product_id.name,
-                        )
+        byproduct_lines = self.env["stock.move.line"].union(
+            *(
+                move_line
+                for move in self.move_finished_ids
+                if move.has_tracking == "serial" and move.product_id != self.product_id
+                for move_line in move.move_line_ids
+                if not move_line.product_uom_id.is_zero(move_line.quantity)
+            )
+        )
+        suspect_lots = self._serials_produced_into_a_production_location(
+            byproduct_lines.lot_id
+        )
+        for move_line in byproduct_lines:
+            if self._are_finished_serials_already_produced(
+                move_line.lot_id, excluded_sml=move_line, suspect_lots=suspect_lots
+            ):
+                raise UserError(
+                    _(
+                        "The serial number %(number)s used for byproduct %(product_name)s has already been produced",
+                        number=move_line.lot_id.name,
+                        product_name=move_line.product_id.name,
                     )
+                )
 
         consumed_sn_ids = []
         sn_error_msg = {}
@@ -4134,7 +4146,32 @@ class MrpProduction(models.Model):
             if consumed_qty - cancelled_qty > 0:
                 raise UserError(sn_error_msg[sn_id])
 
-    def _are_finished_serials_already_produced(self, lots, excluded_sml=None):
+    def _serials_produced_into_a_production_location(self, lots):
+        """The subset of `lots` that `_are_finished_serials_already_produced` has
+        anything to look into.
+
+        That method opens with a count over this exact domain and does nothing
+        further when it comes back zero, so asking once for every lot in a batch
+        turns its per-lot query into a per-batch one. Byproduct serials are checked
+        one move line at a time, and the clean case is every line coming back zero.
+        """
+        if not lots:
+            return self.env["stock.lot"]
+        groups = self.env["stock.move.line"]._read_group(
+            [
+                ("lot_id", "in", lots.ids),
+                ("quantity", "=", 1),
+                ("state", "=", "done"),
+                ("location_id.usage", "=", "production"),
+                ("move_id.unbuild_id", "=", False),
+            ],
+            ["lot_id"],
+        )
+        return self.env["stock.lot"].union(*(lot for [lot] in groups))
+
+    def _are_finished_serials_already_produced(
+        self, lots, excluded_sml=None, suspect_lots=None
+    ):
         if not lots:
             return False
         excluded_sml = excluded_sml or self.env["stock.move.line"]
@@ -4148,13 +4185,17 @@ class MrpProduction(models.Model):
             ("production_id", "=", False),
             ("location_dest_id.usage", "=", "production"),
         ]
-        duplicates = self.env["stock.move.line"].search_count(
-            domain
-            + [
-                ("location_id.usage", "=", "production"),
-                ("move_id.unbuild_id", "=", False),
-            ]
-        )
+        if suspect_lots is not None and not (lots & suspect_lots):
+            # the count below is known to be zero for these lots
+            duplicates = 0
+        else:
+            duplicates = self.env["stock.move.line"].search_count(
+                domain
+                + [
+                    ("location_id.usage", "=", "production"),
+                    ("move_id.unbuild_id", "=", False),
+                ]
+            )
         if duplicates:
             duplicates_unbuild = self.env["stock.move.line"].search_count(
                 domain_unbuild + [("move_id.unbuild_id", "!=", False)]
