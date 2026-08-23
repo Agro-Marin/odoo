@@ -432,6 +432,19 @@ class TestMergePartnerAbsorbSourceValues(TransactionCase):
         )
         self.assertFalse(dst.bank_ids, "a bank account must not be absorbed")
 
+    def test_absorbing_a_uniqueness_constrained_value(self):
+        dst, src, _attachment = self._prepare_pair()
+        src.barcode = "SRC-BARCODE"
+
+        self.Wizard.create({})._merge([dst.id, src.id], dst, extra_checks=False)
+        self.env.invalidate_all()
+
+        self.assertEqual(
+            dst.barcode,
+            "SRC-BARCODE",
+            "the destination adopts the barcode once the source no longer holds it",
+        )
+
     def test_not_absorbing_leaves_the_source_bank_account_behind(self):
         dst, src, _attachment = self._prepare_pair()
         bank = src.bank_ids

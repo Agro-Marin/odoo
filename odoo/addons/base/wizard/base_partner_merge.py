@@ -112,18 +112,21 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     def _get_fields_excluded_value(self) -> tuple[str, ...]:
         return ()
 
+    def _get_fields_deferred_value(self) -> tuple[str, ...]:
+        return ("barcode",)
+
     @api.model
     def _update_values(
         self, src_partners: models.BaseModel, dst_partner: models.BaseModel
-    ) -> None:
+    ) -> dict[str, Any]:
         deferred_values = self._update_values_generic(
             src_partners,
             dst_partner,
             summable_fields=self._get_fields_summable(),
-            deferred_fields=("parent_id",),
+            deferred_fields=("parent_id", *self._get_fields_deferred_value()),
             excluded_fields=self._get_fields_excluded_value(),
         )
-        parent_id = deferred_values.get("parent_id")
+        parent_id = deferred_values.pop("parent_id", None)
         if parent_id and parent_id != dst_partner.id:
             try:
                 dst_partner.write({"parent_id": parent_id})
@@ -133,6 +136,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                     parent_id,
                     dst_partner.id,
                 )
+        return deferred_values
 
     @api.model
     def _merge_bank_accounts(
@@ -209,19 +213,25 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 }
             )
 
+        deferred_values = {}
         if self._merge_absorbs_source_values():
             self._merge_bank_accounts(src_partners, dst_partner)
 
         self._update_foreign_keys(src_partners, dst_partner)
         self._update_reference_fields(src_partners, dst_partner)
         if self._merge_absorbs_source_values():
-            self._update_values(src_partners, dst_partner)
+            deferred_values = self._update_values(src_partners, dst_partner)
 
         self.env.add_to_compute(dst_partner._fields["partner_share"], dst_partner)
 
         self._log_merge_operation(src_partners, dst_partner)
 
         src_partners.sudo().unlink()
+
+        # Only now: a value under a uniqueness constraint cannot be adopted
+        # while the record it came from still holds it.
+        if deferred_values:
+            dst_partner.write(deferred_values)
 
     def _log_merge_operation(
         self, src_partners: models.BaseModel, dst_partner: models.BaseModel
