@@ -10,7 +10,9 @@ from odoo import Command
 from odoo.fields import Date
 from odoo.tests import Form, tagged
 
-from odoo.addons.mrp_subcontracting_account.tests.test_subcontracting_account import TestAccountSubcontractingFlows
+from odoo.addons.mrp_subcontracting_account.tests.test_subcontracting_account import (
+    TestAccountSubcontractingFlows,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -19,26 +21,26 @@ _logger = logging.getLogger(__name__)
 class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
 
     @classmethod
-    def setUpClass(self):
+    def setUpClass(cls):
         super().setUpClass()
 
-        self.finished2, self.comp3 = self.env['product.product'].create([{
+        cls.finished2, cls.comp3 = cls.env['product.product'].create([{
             'name': 'SuperProduct',
             'is_storable': True,
         }, {
             'name': 'Component',
             'type': 'consu',
         }])
-        self.vendor = self.env['res.partner'].create({
+        cls.vendor = cls.env['res.partner'].create({
             'name': 'Vendor',
         })
 
-        self.bom_finished2 = self.env['mrp.bom'].create({
-            'product_tmpl_id': self.finished2.product_tmpl_id.id,
+        cls.bom_finished2 = cls.env['mrp.bom'].create({
+            'product_tmpl_id': cls.finished2.product_tmpl_id.id,
             'type': 'subcontract',
-            'subcontractor_ids': [(6, 0, self.subcontractor_partner1.ids)],
+            'subcontractor_ids': [(6, 0, cls.subcontractor_partner1.ids)],
             'bom_line_ids': [(0, 0, {
-                'product_id': self.comp3.id,
+                'product_id': cls.comp3.id,
                 'product_qty': 1,
             })],
         })
@@ -979,12 +981,10 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         picking_receipt = po.picking_ids
         picking_receipt.do_unreserve()
 
-        serials_finished = []
-        for i in range(todo_nb):
-            serials_finished.append(self.env['stock.lot'].create({
-                'name': 'serial_fin_%s' % i,
-                'product_id': self.finished2.id,
-            }))
+        serials_finished = [self.env['stock.lot'].create({
+            'name': 'serial_fin_%s' % i,
+            'product_id': self.finished2.id,
+        }) for i in range(todo_nb)]
 
         action = picking_receipt.move_ids.action_show_details()
         with Form(picking_receipt.move_ids.with_context(action['context']), view=action['view_id']) as move_form:

@@ -1,9 +1,11 @@
-# -*- coding: utf-8 -*-
+import logging
 
 from . import models
 from . import report
 from . import wizard
 from . import controllers
+
+_logger = logging.getLogger(__name__)
 
 
 def uninstall_hook(env):
@@ -22,5 +24,8 @@ def uninstall_hook(env):
         with env.cr.savepoint():
             subcontracting_routes.unlink()
             operations_type_to_remove.unlink()
-    except:
-        pass
+    except Exception:
+        _logger.debug(
+            "Could not delete subcontracting routes or operation types during uninstall; they are still in use.",
+            exc_info=True,
+        )

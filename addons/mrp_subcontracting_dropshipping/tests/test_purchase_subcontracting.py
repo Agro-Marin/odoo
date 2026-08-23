@@ -2,6 +2,7 @@
 
 from odoo import Command
 from odoo.tests import Form, tagged
+
 from odoo.addons.mrp_subcontracting.tests.common import TestMrpSubcontractingCommon
 from odoo.addons.stock_account.tests.common import TestStockValuationCommon
 
@@ -334,7 +335,7 @@ class TestSubcontractingDropshippingFlows(TestMrpSubcontractingCommon, TestStock
 
     def test_partner_id_no_overwrite(self):
         subcontract_location = self.company.subcontracting_location_id
-        p1, p2 = self.env['res.partner'].create([
+        p1, _p2 = self.env['res.partner'].create([
             {'name': 'partner 1', 'property_stock_subcontractor': subcontract_location.id},
             {'name': 'partner 2', 'property_stock_subcontractor': subcontract_location.id},
         ])

@@ -2,8 +2,8 @@
 
 from odoo import Command, fields
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.numbers import float_compare, float_round
 from odoo.tests import Form, TransactionCase, tagged
-from odoo.libs.numbers import float_round, float_compare
 
 from odoo.addons.mrp_account.tests.common import TestBomPriceCommon
 from odoo.addons.mrp_subcontracting.tests.common import TestMrpSubcontractingCommon
@@ -128,7 +128,7 @@ class TestAccountSubcontractingFlows(TestMrpSubcontractingCommon, TestStockValua
                     move_line.quantity = 1
             move_form.save()
 
-        for mo, compo_1_serial in zip(picking_receipt._get_subcontract_production(), serials_comp1):
+        for mo, compo_1_serial in zip(picking_receipt._get_subcontract_production(), serials_comp1, strict=True):
             action = mo.move_raw_ids[0].action_show_details()
             with Form(mo.move_raw_ids[0].with_context(action['context']), view=action['view_id']) as move_form:
                 with move_form.move_line_ids.new() as move_line:

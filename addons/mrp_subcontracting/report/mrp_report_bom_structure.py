@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, models, _, fields
+from odoo import _, api, fields, models
 
 
 class ReportMrpReport_Bom_Structure(models.AbstractModel):
@@ -130,7 +129,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             # Calculate the lead time for subcontracting, keep same as `_get_lead_days`
             vendor_lead_time = route_info['supplier'].delay
             manufacture_lead_time = route_info['bom'].produce_delay
-            subcontract_delay = resupply_delay if resupply_delay else 0
+            subcontract_delay = resupply_delay or 0
             subcontract_delay += max(vendor_lead_time, manufacture_lead_time) + max_component_delay
             route_info['manufacture_delay'] = route_info['lead_time'] + max(vendor_lead_time, manufacture_lead_time)
             route_info['lead_time'] += max(vendor_lead_time, manufacture_lead_time + route_info['bom'].days_to_prepare_mo)

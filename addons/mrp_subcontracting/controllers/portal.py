@@ -1,12 +1,13 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import werkzeug
 from collections import OrderedDict
 
-from odoo import http, _
-from odoo.http import request
+import werkzeug
+
+from odoo import _, http
 from odoo.exceptions import AccessError, MissingError
+from odoo.http import request
+
 from odoo.addons.portal.controllers import portal
 from odoo.addons.portal.controllers.portal import pager as portal_pager
 
@@ -82,7 +83,7 @@ class CustomerPortal(portal.CustomerPortal):
         try:
             self._document_check_access('stock.picking', picking_id)
         except (AccessError, MissingError):
-            raise werkzeug.exceptions.NotFound
+            raise werkzeug.exceptions.NotFound from None
         picking = request.env['stock.picking'].browse(picking_id)
         return request.render("mrp_subcontracting.subcontracting_portal", {'picking': picking})
 
@@ -91,7 +92,7 @@ class CustomerPortal(portal.CustomerPortal):
         try:
             picking = self._document_check_access('stock.picking', picking_id)
         except (AccessError, MissingError):
-            raise werkzeug.exceptions.NotFound
+            raise werkzeug.exceptions.NotFound from None
         session_info = request.env['ir.http'].session_info()
         production_company = picking.company_id
         session_info.update(

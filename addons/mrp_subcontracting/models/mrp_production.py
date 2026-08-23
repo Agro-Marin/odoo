@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import timedelta
 from collections import defaultdict
-from odoo import fields, models, _, api
-from odoo.exceptions import UserError, ValidationError, AccessError
-from odoo.libs.numbers import float_compare, float_is_zero
+from datetime import timedelta
+
+from odoo import _, api, fields, models
+from odoo.exceptions import AccessError, UserError, ValidationError
 
 
 class MrpProduction(models.Model):
@@ -75,7 +74,7 @@ class MrpProduction(models.Model):
         res = super().write(vals)
 
         if self.env.context.get('mrp_subcontracting') and ('product_qty' in vals or 'lot_producing_ids' in vals):
-            for mo, old_lot in zip(self, old_lots):
+            for mo, old_lot in zip(self, old_lots, strict=True):
                 sbc_move = mo._get_subcontract_move()
                 if not sbc_move:
                     continue

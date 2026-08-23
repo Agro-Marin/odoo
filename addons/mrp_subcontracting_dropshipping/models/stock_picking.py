@@ -1,8 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import models
-from odoo.tools import float_compare
 
 
 class StockPicking(models.Model):
@@ -30,5 +28,5 @@ class StockPicking(models.Model):
             # customer (dropshipping). In that case, we can use a default warehouse to
             # get the picking type
             default_warehouse = self.env['stock.warehouse'].search([('company_id', '=', subcontract_move.company_id.id)], limit=1)
-            res['picking_type_id'] = default_warehouse.subcontracting_type_id.id,
+            res['picking_type_id'] = default_warehouse.subcontracting_type_id.id
         return res

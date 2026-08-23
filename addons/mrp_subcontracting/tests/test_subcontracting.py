@@ -1,16 +1,14 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 
 from odoo import Command
 from odoo.exceptions import AccessError, UserError
-from odoo.tests import Form
+from odoo.tests import Form, tagged
 from odoo.tests.common import TransactionCase
-from odoo.addons.mrp_subcontracting.tests.common import TestMrpSubcontractingCommon
 
-from odoo.tests import tagged
-from dateutil.relativedelta import relativedelta
+from odoo.addons.mrp_subcontracting.tests.common import TestMrpSubcontractingCommon
 
 
 @tagged('post_install', '-at_install')
@@ -290,7 +288,7 @@ class TestSubcontractingFlows(TestMrpSubcontractingCommon):
         orderpoint_form.product_min_qty = 0.0
         orderpoint_form.product_max_qty = 10.0
         orderpoint_form.location_id = self.env.company.subcontracting_location_id
-        orderpoint = orderpoint_form.save()
+        orderpoint_form.save()
 
         # Create a receipt picking from the subcontractor
         picking_form = Form(self.env['stock.picking'])
@@ -655,7 +653,7 @@ class TestSubcontractingFlows(TestMrpSubcontractingCommon):
 
         def process_picking_with_backorder(picking, qty):
             # Process the picking by putting the given quantity on the stock.move.line
-            move_line = picking.move_line_ids.ensure_one()
+            picking.move_line_ids.ensure_one()
             picking.move_ids.quantity = qty
             action = picking.button_validate()
             if isinstance(action, dict):
@@ -1158,7 +1156,7 @@ class TestSubcontractingFlows(TestMrpSubcontractingCommon):
             move_form.save()
 
         # Components
-        for mo, compo_1_serial in zip(picking_receipt._get_subcontract_production(), serials_comp1):
+        for mo, compo_1_serial in zip(picking_receipt._get_subcontract_production(), serials_comp1, strict=True):
             action = mo.move_raw_ids[0].action_show_details()
             with Form(mo.move_raw_ids[0].with_context(action['context']), view=action['view_id']) as move_form:
                 with move_form.move_line_ids.new() as move_line:

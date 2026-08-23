@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 
 
 class ResCompany(models.Model):
@@ -16,7 +15,7 @@ class ResCompany(models.Model):
         company_without_subcontracting_loc._create_subcontracting_location()
 
     def _create_per_company_locations(self):
-        super(ResCompany, self)._create_per_company_locations()
+        super()._create_per_company_locations()
         self._create_subcontracting_location()
 
     def _create_subcontracting_location(self):

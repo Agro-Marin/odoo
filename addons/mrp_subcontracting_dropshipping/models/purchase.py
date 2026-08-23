@@ -1,8 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
-from odoo.exceptions import UserError
+from odoo import _, api, fields, models
 
 
 class PurchaseOrder(models.Model):
@@ -30,6 +28,7 @@ class PurchaseOrder(models.Model):
             return {
                 'warning': {'title': _('Warning'), 'message': _('Please note this purchase order is for subcontracting purposes.')}
             }
+        return None
 
     def _get_location_destination(self):
         self.ensure_one()

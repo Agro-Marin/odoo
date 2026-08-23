@@ -5,9 +5,7 @@ from datetime import timedelta
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
 from odoo.fields import Command
-from odoo.libs.numbers import float_compare
 
 
 class StockPicking(models.Model):
@@ -118,7 +116,7 @@ class StockPicking(models.Model):
         subcontracting_location = \
             subcontract_move.picking_id.partner_id.with_company(subcontract_move.company_id).property_stock_subcontractor \
             or subcontract_move.company_id.subcontracting_location_id
-        vals = {
+        return {
             'company_id': subcontract_move.company_id.id,
             'subcontractor_id': subcontract_move.picking_id.partner_id.commercial_partner_id.id,
             'picking_ids': [subcontract_move.picking_id.id],
@@ -133,7 +131,6 @@ class StockPicking(models.Model):
             'origin': self.name,
             'reference_ids': [Command.link(ref.id) for ref in references],
         }
-        return vals
 
     def _get_subcontract_mo_confirmation_ctx(self):
         if self._is_subcontract() and not self.env.context.get('cancel_backorder', True):
@@ -175,7 +172,7 @@ class StockPicking(models.Model):
             vals_list, moves = group
             grouped_mo = self.env['mrp.production'].with_company(company).create(vals_list)
             grouped_mo.with_context(self._get_subcontract_mo_confirmation_ctx()).action_confirm()
-            for mo, move in zip(grouped_mo, moves):
+            for mo, move in zip(grouped_mo, moves, strict=True):
                 mo.date_end = move.date
                 finished_move = mo.move_finished_ids.filtered(lambda m: m.product_id == move.product_id)
                 finished_move.move_dest_ids = [Command.link(move.id)]

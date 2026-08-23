@@ -27,7 +27,7 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
             'type': 'consu',
             'route_ids': [(6, 0, [self.dropship_route.id])],
             'seller_ids': [(0, 0, {'partner_id': seller.id})],
-        } for name, seller in zip(['Compo01', 'Compo02', 'Compo03', 'Kit'], partners)])
+        } for name, seller in zip(['Compo01', 'Compo02', 'Compo03', 'Kit'], partners, strict=True)])
 
         self.env['mrp.bom'].create({
             'product_tmpl_id': kit.product_tmpl_id.id,
