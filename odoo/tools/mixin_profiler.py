@@ -196,7 +196,7 @@ def get_profile_report(sort_by="total_time", top_n=20):
     if not data.methods:
         return "No profiling data collected."
 
-    lines = []
+    lines: list[str] = []
     lines.extend(("\n" + "=" * 100, "MIXIN METHOD PROFILING REPORT", "=" * 100))
 
     methods = []

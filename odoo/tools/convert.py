@@ -402,8 +402,8 @@ form: module.record_id""" % (xml_id,)
 
         from odoo.fields import Command
 
-        res = {}
-        sub_records = []
+        res: dict[str, Any] = {}
+        sub_records: list[tuple[etree._Element, str]] = []
         for field in rec.iterchildren("field"):
             f_name = field.get("name")
             if "@" in f_name:
@@ -679,7 +679,7 @@ form: module.record_id""" % (xml_id,)
         self.envs = [env(context=dict(env.context, lang=None))]
         self.idref: IdRef = {} if idref is None else idref
         self._noupdate = [noupdate]
-        self._sequences = []
+        self._sequences: list[int | None] = []
         self.xml_filename = xml_filename
         self._tags = {
             "record": self._tag_record,

@@ -1,6 +1,7 @@
 import ast
 import collections
 import logging
+import typing
 from pathlib import Path
 
 from lxml import etree
@@ -8,11 +9,21 @@ from lxml import etree
 import odoo.orm.domain as domains
 from odoo import tools
 
+if typing.TYPE_CHECKING:
+    from collections.abc import Callable
+
+    #: A view validator: judges one arch and answers whether it is acceptable.
+    type Validator = Callable[..., bool]
+
 _logger = logging.getLogger(__name__)
 
 
-_validators = collections.defaultdict(list)
-_relaxng_cache = {}
+#: view tag -> the predicates that judge an arch with that root tag.
+_validators: collections.defaultdict[str, list[Validator]] = collections.defaultdict(
+    list
+)
+#: view type -> its compiled schema, or None when the schema failed to load.
+_relaxng_cache: dict[str, etree.RelaxNG | None] = {}
 
 IGNORED_IN_EXPRESSION = {
     "True",

@@ -20,7 +20,7 @@ from itertools import batched
 from pathlib import Path
 from tokenize import DEDENT, INDENT, NEWLINE, STRING, generate_tokens
 from types import FrameType
-from typing import IO
+from typing import IO, Any
 
 import polib
 from babel.messages import extract
@@ -174,7 +174,7 @@ FORMAT_REGEX = re.compile(r"(?:#\{(.+?)\})|(?:\{\{(.+?)\}\})")
 def translate_format_string_expression(
     term: str, callback: Callable[[str], str | None]
 ) -> str | None:
-    expressions = {}
+    expressions: dict[str, str] = {}
 
     def add(exp_py):
         index = len(expressions)
@@ -1034,7 +1034,7 @@ class PoFileWriter:
         self.po = polib.POFile()
 
     def write_rows(self, rows: Iterable) -> None:
-        grouped_rows = {}
+        grouped_rows: dict[str, dict[str, Any]] = {}
         modules = set()
         for module, type, name, res_id, src, trad, comments in rows:
             row = grouped_rows.setdefault(src, {})
@@ -1098,7 +1098,7 @@ class PoFileWriter:
         entry.comment = "module%s: %s" % (plural, ", ".join(modules))
         if comments:
             entry.comment += "\n" + "\n".join(comments)
-        occurrences = OrderedSet()
+        occurrences: OrderedSet[str] = OrderedSet()
         for type_, *ref in tnrs:
             if type_ == "code":
                 fpath, lineno = ref
@@ -1208,7 +1208,7 @@ def _extract_translatable_qweb_terms(
 def babel_extract_qweb(
     fileobj: IO[bytes], keywords: list, comment_tags: list, options: dict
 ) -> list[tuple]:
-    result = []
+    result: list[tuple] = []
 
     def handle_text(text, lineno):
         result.append((lineno, None, text, []))
@@ -1235,7 +1235,7 @@ def extract_formula_terms(formula: str) -> Iterator[str]:
 def extract_spreadsheet_terms(
     fileobj: IO[bytes], keywords: list, comment_tags: list, options: dict
 ) -> Iterator[tuple]:
-    terms = set()
+    terms: set[tuple] = set()
     data = json.load(fileobj)
     for sheet in data.get("sheets", []):
         for cell in sheet["cells"].values():
@@ -1512,7 +1512,7 @@ class TranslationModuleReader(TranslationReader):
         modules = (
             self._installed_modules if "all" in self._modules else list(self._modules)
         )
-        xml_defined = set()
+        xml_defined: set[str] = set()
         for module in modules:
             for filepath in get_datafile_translation_path(module):
                 fileformat = Path(filepath).suffix[1:].lower()
@@ -1532,7 +1532,7 @@ class TranslationModuleReader(TranslationReader):
 
         self._cr.execute(query, (modules,))
 
-        records_per_model = defaultdict(dict)
+        records_per_model: defaultdict[str, dict] = defaultdict(dict)
         for imd_name, model, res_id, module in self._cr.fetchall():
             if (model, module, imd_name) in xml_defined:
                 continue
@@ -1691,7 +1691,7 @@ class TranslationImporter:
 
         self.model_translations = DeepDefaultDict()
         self.model_terms_translations = DeepDefaultDict()
-        self.imported_langs = set()
+        self.imported_langs: set[str] = set()
 
     def load_file(
         self,
@@ -1817,7 +1817,7 @@ class TranslationImporter:
                         params,
                     )
 
-                    rows_by_id = {}
+                    rows_by_id: dict[int, tuple] = {}
                     for id_, xmlid, values, noupdate in cr.fetchall():
                         if not values:
                             continue
@@ -2032,8 +2032,8 @@ def get_datafile_translation_path(module_name: str) -> Iterator[str]:
 
 class CodeTranslations:
     def __init__(self) -> None:
-        self.python_translations = {}
-        self.web_translations = {}
+        self.python_translations: dict[tuple[str, str], dict] = {}
+        self.web_translations: dict[tuple[str, str], dict] = {}
 
     @staticmethod
     def _read_code_translations_file(

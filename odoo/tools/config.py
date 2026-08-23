@@ -1422,8 +1422,8 @@ class configmanager:
             rcfilepath = "~/.odoorc"
         self._default_options["config"] = self._normalize(rcfilepath)
 
-    _log_entries = []
-    _warn_entries = []
+    _log_entries: list[tuple[int, str, tuple, dict]] = []
+    _warn_entries: list[tuple[str, tuple, dict]] = []
 
     @classmethod
     def _log(cls, loglevel: int, message: str, *args: Any, **kwargs: Any) -> None:

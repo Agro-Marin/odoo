@@ -319,7 +319,7 @@ def log_ormcache_stats(
             )
 
             registries = Registry.registries.snapshot
-            class_slots = {}
+            class_slots: dict[type, tuple[str, ...]] = {}
             for i, (dbname, registry) in enumerate(registries.items(), start=1):
                 if not check_continue_logging():
                     return

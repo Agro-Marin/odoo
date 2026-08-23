@@ -391,7 +391,7 @@ class SyncCollector(Collector):
         return None
 
     def post_process(self):
-        stack = []
+        stack: list[tuple[str, int, str, str]] = []
         for entry in self._entries:
             frame = entry.pop("frame")
             event = entry.pop("event")
@@ -494,7 +494,7 @@ class QwebCollector(Collector):
 
     def __init__(self):
         super().__init__()
-        self.events = []
+        self.events: list[tuple[str, dict[str, Any], int, float]] = []
 
         def hook(event, sql_log_count, **kwargs):
             self.events.append((event, kwargs, sql_log_count, real_time()))
@@ -548,9 +548,9 @@ class QwebCollector(Collector):
     def post_process(self):
         last_event_query = None
         last_event_time = None
-        stack = []
-        results = []
-        archs = {}
+        stack: list[dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
+        archs: dict[int, Any] = {}
         for event, kwargs, sql_count, event_time in self.events:
             if event == "render":
                 archs[kwargs["view_id"]] = kwargs["arch"]
