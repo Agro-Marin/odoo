@@ -83,7 +83,7 @@ class TestOdoobot(MailCommon, TestRecipients):
         # For the end of the flow, we only test that the state changed, but not to which
         # one since it depends on the intalled apps, which can add more steps (like livechat)
         channel.message_post(**kwargs)
-        self.assertNotEqual(self.user_employee.odoobot_state, 'onboarding_attachement')
+        self.assertNotEqual(self.user_employee.odoobot_state, 'onboarding_attachment')
 
         # Test miscellaneous messages
         self.user_employee.odoobot_state = "idle"

@@ -1,6 +1,6 @@
 {
     'name': 'OdooBot',
-    'version': '1.2',
+    'version': '1.3',
     'category': 'Productivity/Discuss',
     'summary': 'Add OdooBot in discussions',
     'website': 'https://www.odoo.com/app/discuss',
