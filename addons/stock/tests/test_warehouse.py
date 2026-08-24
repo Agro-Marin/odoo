@@ -1579,8 +1579,8 @@ class TestWarehouse(TestStockCommon):
         }
         self.assertEqual(
             collected,
-            set(warehouse._get_route_trigger_fields()),
-            "a payload builder reads a field _get_route_trigger_fields does not "
+            set(warehouse._get_fields_route_trigger()),
+            "a payload builder reads a field _get_fields_route_trigger does not "
             "declare, or the declaration names a field nothing reads",
         )
         self.assertEqual(

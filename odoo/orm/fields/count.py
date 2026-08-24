@@ -122,14 +122,14 @@ class Count(Integer):
 
     @staticmethod
     def _mirror_of(counted: typing.Any, comodel: BaseModel) -> str | None:
-        if counted.type != "many2many":
+        if not counted.is_many2many:
             return None
         relation, column1, column2 = counted.relation, counted.column1, counted.column2
         if not (relation and column1 and column2):
             return None
         for name, field in comodel._fields.items():
             if (
-                field.type == "many2many"
+                field.is_many2many
                 and field.relation == relation
                 and field.column1 == column2
                 and field.column2 == column1
@@ -145,7 +145,7 @@ class Count(Integer):
     ) -> bool:
         if counted.compute and not counted.store:
             return False
-        if counted.type == "one2many":
+        if counted.is_one2many:
             inverse_name = counted.inverse_name
             if not inverse_name:
                 return False
@@ -186,7 +186,7 @@ class Count(Integer):
         domain = counted.get_comodel_domain(records)
         result: dict[typing.Any, int] = dict.fromkeys(records.ids, 0)
 
-        if counted.type == "one2many":
+        if counted.is_one2many:
             inverse_name = counted.inverse_name
             groups = comodel._read_group(
                 domain & Domain(inverse_name, "in", records.ids),

@@ -94,8 +94,8 @@ class StockWarehouse(models.Model):
         )
         return rules
 
-    def _get_route_trigger_fields(self):
-        return super()._get_route_trigger_fields() | {"buy_to_resupply"}
+    def _get_fields_route_trigger(self):
+        return super()._get_fields_route_trigger() | {"buy_to_resupply"}
 
     def _get_global_rule_fields(self):
         return super()._get_global_rule_fields() | {"buy_pull_id"}

@@ -326,7 +326,7 @@ class StockMove(models.Model):
         """How much of this move the order still expects, for what it is producing.
 
         `should_consume_qty` is this answer for a component. `mrp.production.
-        _set_qty_producing` needs the same answer for a by-product, which carries
+        _inverse_qty_producing` needs the same answer for a by-product, which carries
         `production_id` instead, and `_onchange_product_uom_qty` needs it for the
         move being edited -- so all three wrote the formula out, with the same
         rounding, in three places. One copy means `unit_factor`'s dependencies only

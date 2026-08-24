@@ -501,13 +501,13 @@ class TestLotSerial(TestStockCommon):
         mk_done_line(L3, picking=pk3)
         self.env["stock.move.line"].invalidate_model()
 
-        by_lot = (L0 + L1 + L2 + L3)._get_delivery_ids_by_lot()
+        by_lot = (L0 + L1 + L2 + L3)._find_delivery_ids_by_lot()
         self.assertEqual(set(by_lot[L3.id]), {pk0.id, pk3.id})
         self.assertEqual(set(by_lot[L1.id]), {pk0.id})
         self.assertEqual(set(by_lot[L2.id]), {pk0.id})
         self.assertEqual(set(by_lot[L0.id]), {pk0.id})
 
-        self.assertEqual(set(L3._get_delivery_ids_by_lot()[L3.id]), {pk0.id, pk3.id})
+        self.assertEqual(set(L3._find_delivery_ids_by_lot()[L3.id]), {pk0.id, pk3.id})
         self.assertEqual(L3.delivery_ids, pk0 | pk3)
 
     def test_default_lot_sequence(self):

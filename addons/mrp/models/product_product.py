@@ -147,7 +147,7 @@ class ProductProduct(models.Model):
         # from a sibling variant's BoM, and a kit -- which `stock_rule.run`
         # explodes rather than manufactures -- claimed it too.
         #
-        # Both consumers (`stock.warehouse.orderpoint._compute_rules`,
+        # Both consumers (`stock.warehouse.orderpoint._compute_rule_ids`,
         # `stock.replenishment.report._get_projected_shortages`) use this dict
         # only inside a memoisation key: `_get_rules_from_location` is never
         # given the routes and reads the product's own. So no rule set changes
@@ -314,7 +314,7 @@ class ProductProduct(models.Model):
         }
 
     def action_view_bom(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("mrp.product_open_bom")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.product_open_bom")
         template_ids = self.product_tmpl_id.ids
         action["context"] = {
             "default_product_tmpl_id": template_ids[0] if template_ids else False,

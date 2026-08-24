@@ -57,8 +57,8 @@ class StockWarehouse(models.Model):
             if not location:
                 company_id._create_production_location()
 
-    def _get_route_trigger_fields(self):
-        return super()._get_route_trigger_fields() | {'repair_type_id'}
+    def _get_fields_route_trigger(self):
+        return super()._get_fields_route_trigger() | {'repair_type_id'}
 
     def _get_global_rule_fields(self):
         return super()._get_global_rule_fields() | {'repair_mto_pull_id'}

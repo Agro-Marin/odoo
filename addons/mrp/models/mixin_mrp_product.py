@@ -62,12 +62,12 @@ class MixinMrpProduct(models.AbstractModel):
 
     def action_used_in_bom(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("mrp.mrp_bom_form_action")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.mrp_bom_form_action")
         action["domain"] = [(f"bom_line_ids.{self._mrp_product_field}", "=", self.id)]
         return action
 
     def action_view_mos(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("mrp.mrp_production_action")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.mrp_production_action")
         action["domain"] = [
             ("state", "=", "done"),
             (

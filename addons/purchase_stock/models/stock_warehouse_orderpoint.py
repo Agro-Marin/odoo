@@ -61,12 +61,12 @@ class StockWarehouseOrderpoint(models.Model):
         return res
 
     @api.depends("product_id.seller_ids")
-    def _compute_rules(self):
+    def _compute_rule_ids(self):
         """Extend the dependencies: `_get_total_routes_by_product` reaches the Buy
         route through `seller_ids`, so a product gaining its first vendor changes
         which rules its orderpoints resolve to.
         """
-        super()._compute_rules()
+        super()._compute_rule_ids()
 
     @api.depends("vendor_ids")
     def _compute_show_supply_warning(self):

@@ -1292,7 +1292,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         production.action_confirm()
         production.action_assign()
         production.qty_producing = 1
-        production._set_qty_producing()
+        production._inverse_qty_producing()
         return production
 
     def test_cancelling_a_part_consumed_order_lands_on_cancel(self):
@@ -1904,7 +1904,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
         production.action_confirm()
         production.qty_producing = line_count
-        production._set_qty_producing()
+        production._inverse_qty_producing()
         byproduct_move = production.move_byproduct_ids
         byproduct_move.move_line_ids.unlink()
         lots = self.env["stock.lot"].create(
@@ -1953,7 +1953,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         productions, _unit = self._audit_confirmed_orders(6, "markdone")
         for production in productions:
             production.qty_producing = production.product_qty
-            production._set_qty_producing()
+            production._inverse_qty_producing()
         self.env.flush_all()
 
         productions.with_context(
@@ -2698,7 +2698,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
         demand(closed_product, warehouse, assign=True)
         closed.qty_producing = closed.product_qty
-        closed._set_qty_producing()
+        closed._inverse_qty_producing()
         closed.button_mark_done()
         expected[closed] = True
 
@@ -3163,7 +3163,7 @@ class TestMrpAuditFixes(TestMrpCommon):
             component, warehouse.lot_stock_id, 100.0
         )
         production.qty_producing = 7.0
-        production._set_qty_producing()
+        production._inverse_qty_producing()
         production.button_mark_done()
         self.env.flush_all()
         self.assertEqual(production.qty_produced, 7.0)
@@ -3374,7 +3374,7 @@ class TestMrpAuditFixes(TestMrpCommon):
             }
         )._action_confirm()
         production.qty_producing = 1.0
-        production._set_qty_producing()
+        production._inverse_qty_producing()
         self.env.flush_all()
 
         issues = production._get_consumption_issues()

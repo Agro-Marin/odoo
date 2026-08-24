@@ -102,8 +102,8 @@ class StockWarehouseOrderpoint(models.Model):
                 )
 
     @api.depends("product_id.bom_ids")
-    def _compute_rules(self):
-        super()._compute_rules()
+    def _compute_rule_ids(self):
+        super()._compute_rule_ids()
 
     @api.depends("product_id.bom_ids")
     def _compute_show_supply_warning(self):
