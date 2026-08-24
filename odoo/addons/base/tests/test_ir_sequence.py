@@ -637,3 +637,199 @@ class TestIrSequencePatternToRegex(common.TransactionCase):
             self.assertIsNotNone(
                 re.match(sequence._pattern_to_regex("%(vendor_lot)s"), "AYE4B1501C")
             )
+
+
+class TestIrSequenceNoGapBatchConcurrency(BaseCase):
+    """no_gap exists to guarantee a contiguous run under concurrency.
+
+    Batching takes the same `FOR UPDATE NOWAIT` lock once instead of `count`
+    times, so a competing draw must still be refused rather than silently
+    interleaved -- which would put a gap in the run no_gap promises.
+    """
+
+    SEQ_CODE = "test_sequence_no_gap_batch_race"
+
+    def setUp(self):
+        super().setUp()
+        with environment() as env:
+            self.seq_id = env["ir.sequence"].create({
+                "code": self.SEQ_CODE,
+                "name": "Test no_gap batch",
+                "implementation": "no_gap",
+                "prefix": "N-",
+                "padding": 4,
+            }).id
+        self.addCleanup(drop_sequence, self.SEQ_CODE)
+
+    @mute_logger("odoo.db")
+    def test_a_competing_draw_is_refused_not_interleaved(self):
+        registry = Registry(common.get_db_name())
+        with registry.cursor() as cr_a, registry.cursor() as cr_b:
+            env_a = odoo.api.Environment(cr_a, ADMIN_USER_ID, {})
+            env_b = odoo.api.Environment(cr_b, ADMIN_USER_ID, {})
+
+            drawn = env_a["ir.sequence"].browse(self.seq_id)._next_batch(5)
+            self.assertEqual(drawn, ["N-000%d" % n for n in range(1, 6)])
+
+            # `_next` on a contended no_gap row raises the same thing; the
+            # batch must not soften it into a silent gap.
+            with self.assertRaises(Exception) as batched:
+                env_b["ir.sequence"].browse(self.seq_id)._next_batch(5)
+            cr_b.rollback()
+            with self.assertRaises(Exception) as looped:
+                env_b["ir.sequence"].browse(self.seq_id)._next()
+            self.assertEqual(type(batched.exception), type(looped.exception))
+
+            cr_a.commit()
+
+    @mute_logger("odoo.db")
+    def test_the_run_after_a_committed_batch_continues_where_it_stopped(self):
+        registry = Registry(common.get_db_name())
+        with registry.cursor() as cr_a:
+            env_a = odoo.api.Environment(cr_a, ADMIN_USER_ID, {})
+            env_a["ir.sequence"].browse(self.seq_id)._next_batch(5)
+            cr_a.commit()
+        with registry.cursor() as cr_b:
+            env_b = odoo.api.Environment(cr_b, ADMIN_USER_ID, {})
+            self.assertEqual(
+                env_b["ir.sequence"].browse(self.seq_id)._next_batch(2),
+                ["N-0006", "N-0007"],
+            )
+            cr_b.commit()
+
+
+class TestIrSequenceNextBatch(common.TransactionCase):
+    """`_next_batch` must hand back exactly what a loop of `_next` would.
+
+    Only the number of statements differs, so every test here compares the
+    two against each other rather than against a literal.
+    """
+
+    def _sequence(self, **extra):
+        return self.env["ir.sequence"].create({
+            "code": "test_next_batch",
+            "name": "Test next batch",
+            "prefix": "B-",
+            "padding": 4,
+            **extra,
+        })
+
+    def _drawn_one_at_a_time(self, values, count):
+        sequence = self._sequence(**values)
+        return [sequence._next() for _ in range(count)]
+
+    def _drawn_in_one_batch(self, values, count):
+        return self._sequence(**values)._next_batch(count)
+
+    def test_standard_matches_a_loop_of_next(self):
+        values = {"implementation": "standard", "number_increment": 1}
+        self.assertEqual(
+            self._drawn_in_one_batch(values, 5),
+            self._drawn_one_at_a_time(values, 5),
+        )
+
+    def test_no_gap_matches_a_loop_of_next(self):
+        values = {"implementation": "no_gap", "number_increment": 1}
+        self.assertEqual(
+            self._drawn_in_one_batch(values, 5),
+            self._drawn_one_at_a_time(values, 5),
+        )
+
+    def test_a_step_other_than_one_is_honoured(self):
+        for implementation in ("standard", "no_gap"):
+            with self.subTest(implementation=implementation):
+                values = {"implementation": implementation, "number_increment": 7}
+                self.assertEqual(
+                    self._drawn_in_one_batch(values, 4),
+                    self._drawn_one_at_a_time(values, 4),
+                )
+
+    def test_no_gap_leaves_no_gap(self):
+        """The whole point of the implementation: the reserved run is contiguous."""
+        sequence = self._sequence(implementation="no_gap", number_increment=1)
+        drawn = sequence._next_batch(6)
+        numbers = [int(value.removeprefix("B-")) for value in drawn]
+        self.assertEqual(numbers, list(range(numbers[0], numbers[0] + 6)))
+
+    def test_the_sequence_is_left_where_a_loop_would_leave_it(self):
+        for implementation in ("standard", "no_gap"):
+            with self.subTest(implementation=implementation):
+                values = {"implementation": implementation, "number_increment": 3}
+                looped = self._sequence(**values)
+                [looped._next() for _ in range(4)]
+                batched = self._sequence(**values)
+                batched._next_batch(4)
+                self.assertEqual(batched._next(), looped._next())
+
+    def test_a_date_range_sequence_draws_from_the_range(self):
+        values = {"implementation": "standard", "use_date_range": True}
+        self.assertEqual(
+            self._drawn_in_one_batch(values, 4),
+            self._drawn_one_at_a_time(values, 4),
+        )
+        sequence = self._sequence(**values)
+        sequence._next_batch(2)
+        self.assertTrue(sequence.date_range_ids, "the range was created, not bypassed")
+
+    def test_a_date_range_no_gap_sequence_matches_too(self):
+        values = {"implementation": "no_gap", "use_date_range": True}
+        self.assertEqual(
+            self._drawn_in_one_batch(values, 4),
+            self._drawn_one_at_a_time(values, 4),
+        )
+
+    def test_zero_and_negative_ask_for_nothing(self):
+        sequence = self._sequence()
+        before = sequence.number_next_actual
+        self.assertEqual(sequence._next_batch(0), [])
+        self.assertEqual(sequence._next_batch(-3), [])
+        self.assertEqual(sequence.number_next_actual, before,
+                         "asking for nothing must not consume a number")
+
+    def test_one_value_is_the_same_as_next(self):
+        for implementation in ("standard", "no_gap"):
+            with self.subTest(implementation=implementation):
+                values = {"implementation": implementation}
+                self.assertEqual(
+                    self._drawn_in_one_batch(values, 1),
+                    self._drawn_one_at_a_time(values, 1),
+                )
+
+    def test_next_by_code_batch_finds_the_same_sequence(self):
+        """Two identical sequences, so the loop is not continuing the batch."""
+        Sequence = self.env["ir.sequence"]
+        self._sequence(code="test_by_code_batched", implementation="standard")
+        self._sequence(code="test_by_code_looped", implementation="standard")
+        self.assertEqual(
+            Sequence.next_by_code_batch("test_by_code_batched", 3),
+            [Sequence.next_by_code("test_by_code_looped") for _ in range(3)],
+        )
+
+    def test_next_by_code_batch_picks_the_company_sequence_first(self):
+        """`next_by_code` orders on `company_id, id`; so must its batch."""
+        Sequence = self.env["ir.sequence"]
+        self._sequence(code="test_by_code_scoped", company_id=False, prefix="SHARED-")
+        self._sequence(code="test_by_code_scoped", company_id=self.env.company.id,
+                       prefix="OWN-")
+        drawn = Sequence.next_by_code_batch("test_by_code_scoped", 2)
+        self.assertTrue(all(value.startswith("OWN-") for value in drawn), drawn)
+        self.assertTrue(Sequence.next_by_code("test_by_code_scoped").startswith("OWN-"))
+
+    def test_next_by_code_batch_reports_a_missing_code_like_next_by_code(self):
+        Sequence = self.env["ir.sequence"]
+        self.assertFalse(Sequence.next_by_code("no_such_sequence_code"))
+        self.assertFalse(Sequence.next_by_code_batch("no_such_sequence_code", 3))
+
+    def test_the_batch_costs_one_statement(self):
+        """The reason the method exists."""
+        for implementation in ("standard", "no_gap"):
+            with self.subTest(implementation=implementation):
+                sequence = self._sequence(implementation=implementation)
+                sequence._next()          # settle any lazy setup
+                self.env.flush_all()
+                before = self.env.cr.sql_log_count
+                sequence._next_batch(20)
+                self.assertLessEqual(
+                    self.env.cr.sql_log_count - before, 3,
+                    "twenty values should not cost twenty statements",
+                )

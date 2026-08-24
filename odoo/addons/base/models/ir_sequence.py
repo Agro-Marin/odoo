@@ -2,7 +2,7 @@ import logging
 import re
 from collections.abc import Collection
 from datetime import datetime, timedelta
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from odoo import _, api, fields, models
 from odoo.api import ValuesType
@@ -71,6 +71,17 @@ def _select_nextval(cr: Any, seq_name: str) -> int:
     return cr.fetchone()[0]
 
 
+def _select_nextvals(cr: Any, seq_name: str, count: int) -> list[int]:
+    """`count` values from a Postgres sequence in one round trip.
+
+    `nextval` is volatile, so it is evaluated once per row of the series.
+    """
+    cr.execute(
+        "SELECT nextval(%s) FROM generate_series(1, %s)", [seq_name, count]
+    )
+    return [number for (number,) in cr.fetchall()]
+
+
 def _update_nogap(self: Any, number_increment: int) -> int:
     self.flush_recordset(["number_next"])
     table = SQL.identifier(self._table)
@@ -92,6 +103,17 @@ def _update_nogap(self: Any, number_increment: int) -> int:
     [number_next] = self.env.cr.fetchone()
     self.invalidate_recordset(["number_next"])
     return number_next
+
+
+def _update_nogap_batch(self: Any, number_increment: int, count: int) -> list[int]:
+    """Reserve `count` numbers under a single lock, and return them.
+
+    The same statement as `_update_nogap` with the increment multiplied: the
+    numbers stay contiguous, so the no-gap guarantee is unchanged, and the row
+    is locked once instead of `count` times.
+    """
+    first = _update_nogap(self, number_increment * count)
+    return [first + index * number_increment for index in range(count)]
 
 
 def _predict_nextvals(env: Any, seq_names: Collection[str]) -> dict[str, int]:
@@ -391,6 +413,15 @@ class IrSequence(models.Model):
             number_next = _update_nogap(self, self.number_increment)
         return self.get_next_char(number_next)
 
+    def _next_do_batch(self, count: int) -> list[str]:
+        if self.implementation == "standard":
+            numbers = _select_nextvals(
+                self.env.cr, self._pg_sequence_name(), count
+            )
+        else:
+            numbers = _update_nogap_batch(self, self.number_increment, count)
+        return [self.get_next_char(number) for number in numbers]
+
     def _get_prefix_suffix(
         self, date: Any = None, date_range: Any = None
     ) -> tuple[str, str]:
@@ -569,6 +600,39 @@ class IrSequence(models.Model):
             ir_sequence_date=ir_sequence_date,
         )._next()
 
+    def _next_batch(self, count: int, sequence_date: Any = None) -> list[str]:
+        """The next `count` values, drawn in one round trip instead of `count`.
+
+        `_next` draws one, so a `@api.model_create_multi` that names its
+        records from a sequence pays a query per record -- and creating many
+        at once is what that decorator is for.  The values are the ones
+        `_next` would have produced, in the same order; this only changes how
+        many statements it takes to get them.
+        """
+        self.ensure_one()
+        if count <= 0:
+            return []
+        if not self.use_date_range:
+            if sequence_date is None:
+                return self._next_do_batch(count)
+            ir_sequence_date = (
+                sequence_date.replace(tzinfo=None)
+                if isinstance(sequence_date, datetime)
+                else sequence_date
+            )
+            return self.with_context(
+                ir_sequence_date=ir_sequence_date
+            )._next_do_batch(count)
+        dt = sequence_date or self.env.context.get(
+            "ir_sequence_date", fields.Datetime.now()
+        )
+        seq_date = self._get_current_sequence(dt)
+        ir_sequence_date = dt.replace(tzinfo=None) if isinstance(dt, datetime) else dt
+        return seq_date.with_context(
+            ir_sequence_date_range=seq_date.date_from,
+            ir_sequence_date=ir_sequence_date,
+        )._next_batch(count)
+
     def next_by_id(self, sequence_date: Any = None) -> str:
         self.browse().check_access("read")
         return self._next(sequence_date=sequence_date)
@@ -628,6 +692,35 @@ class IrSequence(models.Model):
             return False
         seq_id = seq_ids[0]
         return seq_id._next(sequence_date=sequence_date)
+
+    @api.model
+    def next_by_code_batch(
+        self, sequence_code: str, count: int, sequence_date: Any = None
+    ) -> list[str] | Literal[False]:
+        """`next_by_code`, for `count` values and one search.
+
+        Returns `False` when no sequence carries the code, exactly as
+        `next_by_code` does, so a caller can keep the same fallback.
+        """
+        self.browse().check_access("read")
+        if count <= 0:
+            return []
+        company_id = self.env.company.id
+        seq_ids = self.search(
+            [
+                ("code", "=", sequence_code),
+                ("company_id", "in", [company_id, False]),
+            ],
+            order="company_id, id",
+            limit=1,
+        )
+        if not seq_ids:
+            _logger.debug(
+                "No ir.sequence has been found for code '%s'. Please make sure a sequence is set for current company.",
+                sequence_code,
+            )
+            return False
+        return seq_ids._next_batch(count, sequence_date=sequence_date)
 
 
 class IrSequenceDate_Range(models.Model):
@@ -691,6 +784,19 @@ class IrSequenceDate_Range(models.Model):
         else:
             number_next = _update_nogap(self, self.sequence_id.number_increment)
         return self.sequence_id.get_next_char(number_next)
+
+    def _next_batch(self, count: int) -> list[str]:
+        if count <= 0:
+            return []
+        if self.sequence_id.implementation == "standard":
+            numbers = _select_nextvals(
+                self.env.cr, self._pg_sequence_name(), count
+            )
+        else:
+            numbers = _update_nogap_batch(
+                self, self.sequence_id.number_increment, count
+            )
+        return [self.sequence_id.get_next_char(number) for number in numbers]
 
     def _alter_sequence(
         self,
