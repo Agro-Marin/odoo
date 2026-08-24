@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     "name": "Skills e-learning",
     "category": "Human Resources/Employees",

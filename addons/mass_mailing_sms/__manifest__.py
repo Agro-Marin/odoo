@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     'name': 'SMS Marketing',
     'summary': 'Design, send and track SMS',

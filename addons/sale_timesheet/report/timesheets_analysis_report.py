@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import api, fields, models
 
 from odoo.addons.sale_timesheet.models.hr_timesheet import TIMESHEET_INVOICE_TYPES

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     'name': "Allow custom taxes in POS",
     'category': 'Accounting/Accounting',

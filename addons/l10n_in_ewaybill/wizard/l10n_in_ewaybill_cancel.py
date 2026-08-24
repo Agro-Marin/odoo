@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import fields, models
 
 from odoo.addons.l10n_in.models.account_invoice import EDI_CANCEL_REASON

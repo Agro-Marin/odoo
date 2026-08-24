@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import fields, models
 
 from odoo.addons.google_calendar.models.mixin_google_calendar_sync import google_calendar_token

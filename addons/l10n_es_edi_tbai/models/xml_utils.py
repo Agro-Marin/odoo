@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from lxml import etree
 from odoo.tools.xml_utils import cleanup_xml_node
 

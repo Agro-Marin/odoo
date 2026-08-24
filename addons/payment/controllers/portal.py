@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import urllib.parse
 
 from werkzeug.exceptions import BadRequest, Forbidden, NotFound

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     "name": "Zambia - Accounting",
     "countries": ["zm"],

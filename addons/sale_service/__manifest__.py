@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 {
     "name": "Sales - Service",
     "summary": "Interaction between Sales and services apps (project and planning)",

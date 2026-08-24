@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from itertools import pairwise
 from unittest.mock import patch
 

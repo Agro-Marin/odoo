@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     "name": "Sale Product Configurators Tests",
     "summary": "Test Suite for Sale Product Configurator",

@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 {
     'name': 'Australia & New Zealand - UBL PINT',
     'countries': ['au', 'nz'],

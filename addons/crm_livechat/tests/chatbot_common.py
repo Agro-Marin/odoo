@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import Command
 from odoo.addons.im_livechat.tests.chatbot_common import ChatbotCase
 from odoo.addons.mail.tests.common import MailCommon

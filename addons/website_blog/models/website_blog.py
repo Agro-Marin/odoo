@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import _, api, fields, models
 from odoo.tools import html_escape
 from odoo.tools.json import scriptsafe as json_scriptsafe

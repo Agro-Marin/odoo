@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from odoo import Command, fields, models
 from odoo.exceptions import ValidationError
 from odoo.tools import split_every

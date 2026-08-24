@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 """Regressions found by the website audit.
 
 Every test here fails on the code as it stood before the accompanying fix; each

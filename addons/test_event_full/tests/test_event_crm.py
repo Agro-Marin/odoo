@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.tests import tagged, users
 
 from odoo.addons.test_event_full.tests.common import TestEventFullCommon

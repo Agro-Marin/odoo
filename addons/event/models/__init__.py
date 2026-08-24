@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 # some inherit require to define those models first
 from . import event_type
 from . import event_type_mail

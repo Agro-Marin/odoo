@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import fields
 from odoo.tests import freeze_time, tagged, users
 from odoo.tools import mute_logger

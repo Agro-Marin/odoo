@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 """Tests for DAG workflow execution via automation.runtime."""
 
 import logging

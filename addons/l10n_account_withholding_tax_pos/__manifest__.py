@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 {
     'name': 'Withholding Tax on Payment - PoS',
     'version': "1.0",

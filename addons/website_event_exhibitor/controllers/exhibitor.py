@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import contextlib
 from ast import literal_eval
 from collections import OrderedDict

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from . import assets
 from . import base_partner_merge
 from . import html_text_processor

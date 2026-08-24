@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import contextlib
 
 # Re-exported for usage in phonenumbers_patch/region_*.py files.

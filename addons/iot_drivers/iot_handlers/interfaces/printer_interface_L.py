@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from cups import Connection as CupsConnection, IPPError
 from itertools import groupby
 from urllib.parse import urlsplit, parse_qs, unquote

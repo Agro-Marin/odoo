@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     "name": "Newsletter Subscribe SMS Template",
     "summary": "Attract visitors to subscribe to mailing lists",

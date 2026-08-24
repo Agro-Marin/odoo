@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 
 class AvcoAccumulator:
     """Running weighted-average-cost state — the single source of truth for the AVCO

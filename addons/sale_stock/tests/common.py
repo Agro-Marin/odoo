@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.fields import Command
 
 from odoo.addons.product.tests.common import ProductVariantsCommon

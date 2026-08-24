@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     'name': 'Warehouse Management: Batch Transfer',
     'version': '1.0',

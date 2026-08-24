@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 """Regression tests for the hr full-module audit fixes.
 
 Each test pins down a bug found during the audit so it cannot silently return.

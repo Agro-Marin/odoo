@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import logging
 import requests
 from odoo.addons.microsoft_calendar.models.mixin_microsoft_calendar_sync import microsoft_calendar_token

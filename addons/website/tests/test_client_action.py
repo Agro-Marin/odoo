@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import odoo.tests
 
 from odoo.addons.website.tests.common import HttpCaseWithWebsiteUser

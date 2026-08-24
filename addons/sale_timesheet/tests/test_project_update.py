@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from odoo.tests import tagged
 
 from odoo.addons.project.tests.test_project_update_flow import TestProjectUpdate

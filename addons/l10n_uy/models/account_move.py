@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from odoo import models
 
 # Let us match the document types to properly suggest the DN and CN documents

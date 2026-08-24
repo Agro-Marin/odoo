@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 {
     'name': "Spreadsheet dashboard for point of sale",
     'version': '1.0',

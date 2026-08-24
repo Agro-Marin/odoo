@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 """Cache identity for the `/doc` documents.
 
 Two things are named here, and they have to agree: the ETag a client caches

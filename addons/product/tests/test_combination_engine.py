@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 """Regression coverage for the variant-combination engine on product.template.
 
 Pins the contract of `_cartesian_product` / `_get_possible_combinations` so the

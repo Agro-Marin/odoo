@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 # ISO 4217 codes of currencies supported by PayPal
 # See https://developer.paypal.com/docs/reports/reference/paypal-supported-currencies/.
 # Last seen on: 04 November 2025.

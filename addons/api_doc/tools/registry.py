@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 """What the registry exposes over RPC, and what documents it.
 
 The parsing engine lives in :mod:`odoo.libs.docstring`, which knows nothing

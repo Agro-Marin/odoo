@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from . import test_frontend
 from . import self_order_common_test
 from . import test_self_order_mobile

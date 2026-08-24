@@ -1,5 +1,4 @@
 /** @odoo-module native */
-// Part of Odoo. See LICENSE file for full copyright and licensing details.
 import { luxon } from "@web/core/l10n/luxon";
 import { ProductCard } from "@point_of_sale/app/components/product_card/product_card";
 

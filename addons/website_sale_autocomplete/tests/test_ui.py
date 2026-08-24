@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.tests import HttpCase, patch, tagged
 
 from odoo.addons.google_address_autocomplete.controllers.google_address_autocomplete import (

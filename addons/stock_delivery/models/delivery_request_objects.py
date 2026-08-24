@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 class DeliveryPackage:
     """ Each provider need similar information about its packages. """
     def __init__(self, commodities, weight, package_type, name=None, total_cost=0, currency=None, picking=False, order=False):

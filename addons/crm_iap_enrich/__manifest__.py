@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     'name': 'Lead Enrichment',
     'summary': 'Enrich Leads/Opportunities using email address domain',

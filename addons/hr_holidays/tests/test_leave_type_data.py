@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.exceptions import ValidationError
 from odoo.release import version_info
 from odoo.tests import tagged

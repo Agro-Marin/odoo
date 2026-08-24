@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 import json
 import logging
 from urllib.parse import unquote_plus

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.http import request
 
 from odoo.addons.l10n_latam_base.controllers.portal import L10nLatamBasePortalAccount

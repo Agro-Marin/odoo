@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     "name": "Landed Costs With Subcontracting order",
     "version": "1.0",

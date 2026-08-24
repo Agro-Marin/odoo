@@ -1,5 +1,4 @@
-﻿# Part of Odoo. See LICENSE file for full copyright and licensing details.
-Unicode True
+﻿Unicode True
 
 !include 'MUI2.nsh'
 !include 'FileFunc.nsh'

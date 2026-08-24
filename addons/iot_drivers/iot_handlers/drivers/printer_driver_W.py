@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import logging
 from base64 import b64decode
 from datetime import datetime, timezone

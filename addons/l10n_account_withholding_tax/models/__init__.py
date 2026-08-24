@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from . import account_payment
 from . import account_tax
 from . import mixin_account_withholding_line

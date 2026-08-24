@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 from markupsafe import Markup

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     "name": "Lead Generation From Website Visits",
     "summary": "Generate Leads/Opportunities from your website's traffic",

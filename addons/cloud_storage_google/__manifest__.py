@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     "name": "Cloud Storage Google",
     "summary": """Store chatter attachments in the Google cloud""",

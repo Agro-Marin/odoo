@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import _, api, fields, models
 from odoo.db.schema import column_exists, create_column
 from odoo.exceptions import RedirectWarning, UserError, ValidationError

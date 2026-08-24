@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from http import HTTPStatus
 from urllib.parse import parse_qs
 

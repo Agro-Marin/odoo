@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import _, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.libs.numbers import float_is_zero, float_round

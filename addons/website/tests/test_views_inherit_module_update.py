@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 """This test ensure `inherit_id` update is correctly replicated on cow views.
 The view receiving the `inherit_id` update is either:
 1. in a module loaded before `website`. In that case, `website` code is not

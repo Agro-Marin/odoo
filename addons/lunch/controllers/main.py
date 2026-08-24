@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import _, http, fields
 from odoo.exceptions import AccessError
 from odoo.fields import Domain

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     'name': 'Spain - Veri*Factu',
     'version': '1.0',

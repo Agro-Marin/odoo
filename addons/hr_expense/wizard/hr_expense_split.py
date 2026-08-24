@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from copy import deepcopy
 
 from odoo import Command, api, fields, models

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.tests import TransactionCase
 
 from odoo.addons.base.tests.common import BaseCommon

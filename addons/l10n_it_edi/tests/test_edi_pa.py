@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import datetime
 from odoo.addons.l10n_it_edi.tests.common import TestItEdi
 from odoo.tests.common import tagged

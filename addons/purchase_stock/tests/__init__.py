@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from . import test_account
 from . import test_create_picking
 from . import test_stock

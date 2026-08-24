@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import _, api, models, release
 from odoo.tools import format_amount
 

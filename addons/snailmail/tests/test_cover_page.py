@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 import io
 
 from reportlab.lib.pagesizes import A4

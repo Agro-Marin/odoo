@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     "name": "Project - SMS",
     "summary": "Send text messages when project/task stage move",

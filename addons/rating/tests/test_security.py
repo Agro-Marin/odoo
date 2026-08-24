@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.exceptions import AccessError
 from odoo.tests import common, tagged
 from odoo.tools import mute_logger

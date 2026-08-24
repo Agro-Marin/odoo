@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     'name': 'DIN 5008 - Stock',
     'category': 'Accounting/Localizations',

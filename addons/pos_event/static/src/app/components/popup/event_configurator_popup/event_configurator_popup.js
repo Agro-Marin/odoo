@@ -1,5 +1,4 @@
 /** @odoo-module native */
-// Part of Odoo. See LICENSE file for full copyright and licensing details.
 import { luxon } from "@web/core/l10n/luxon";
 import { AlertDialog, Dialog } from "@web/ui/dialog";
 import { _t } from "@web/core/translation";

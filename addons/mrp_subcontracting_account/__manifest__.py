@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     "name": "Subcontracting Management with Stock Valuation",
     "version": "0.1",

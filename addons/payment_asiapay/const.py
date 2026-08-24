@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 API_URLS = {
     'production': {
         'pesopay': 'https://www.pesopay.com/b2c2/eng/payment/payForm.jsp',

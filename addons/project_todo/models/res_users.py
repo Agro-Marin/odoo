@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import SUPERUSER_ID, api, models, modules
 from odoo.tools import clean_context
 

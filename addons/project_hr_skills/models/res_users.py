@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 #
 # res.users.employee_skill_ids was a bridge field that enabled the chain:
 #   project.task.user_ids (res.users) → employee_skill_ids → hr.employee.skill

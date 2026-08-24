@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from . import res_config_settings
 from . import mixin_microsoft_calendar_sync
 from . import calendar

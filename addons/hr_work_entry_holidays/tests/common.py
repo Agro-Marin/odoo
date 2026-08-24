@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from odoo.addons.hr_holidays.tests.common import TestHolidayContract
 from odoo.addons.hr_work_entry.tests.common import TestWorkEntryBase
 

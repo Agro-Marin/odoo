@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 """Regression tests for defects the rest of the suite did not cover.
 
 Each test here failed before the fix it is named after; they are grouped by the

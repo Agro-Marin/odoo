@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from configparser import ConfigParser
 from os import pardir
 from os.path import isfile, join as opj

@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 """Regression tests for the defects found in the base_automation audit.
 
 Each test names the behaviour that was wrong and pins the corrected one. The

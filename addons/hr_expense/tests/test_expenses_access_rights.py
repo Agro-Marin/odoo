@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import HttpCase, new_test_user, tagged
 

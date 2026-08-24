@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from . import test_delivery_carrier
 from . import test_click_and_collect_express_checkout
 from . import test_click_and_collect_flow

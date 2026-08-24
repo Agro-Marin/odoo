@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     'name': "Peppol",
     'summary': "This module is used to send/receive documents with PEPPOL",

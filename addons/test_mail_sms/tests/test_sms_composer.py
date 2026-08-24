@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.tests import Form, tagged, users
 
 from odoo.addons.sms.tests.common import SMSCommon

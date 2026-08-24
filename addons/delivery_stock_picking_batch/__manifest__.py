@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     'name': 'Delivery Stock Picking Batch',
     'version': '1.0',

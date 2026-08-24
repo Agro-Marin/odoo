@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     "name": "Website Mail Group",
     "summary": "Add a website snippet for the mail groups.",

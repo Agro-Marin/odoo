@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 """Regression tests for valuation/closing correctness fixes.
 
 Each test asserts the corrected behaviour and would fail on the pre-fix code:

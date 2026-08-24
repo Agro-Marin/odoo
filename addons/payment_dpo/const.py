@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 # Mapping of transaction states to DPO payment statuses.
 # See https://docs.dpopay.com/api/index.html#tag/Basic-Transaction-Operations/operation/verifyToken
 PAYMENT_STATUS_MAPPING = {

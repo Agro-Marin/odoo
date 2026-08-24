@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from psycopg.errors import NotNullViolation
 
 from odoo import Command

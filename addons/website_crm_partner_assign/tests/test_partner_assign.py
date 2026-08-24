@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import contextlib
 from datetime import date, timedelta
 from unittest.mock import patch

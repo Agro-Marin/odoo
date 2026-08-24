@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from datetime import UTC, date, datetime
 
 from dateutil.relativedelta import relativedelta

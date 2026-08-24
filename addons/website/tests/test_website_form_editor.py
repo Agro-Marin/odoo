@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import SUPERUSER_ID
 from odoo.exceptions import AccessDenied, AccessError, ValidationError
 from odoo.http import request

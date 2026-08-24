@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import exceptions
 from odoo.tools.translate import LazyTranslate, _
 

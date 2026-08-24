@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import random
 from contextlib import contextmanager
 from datetime import datetime, timedelta

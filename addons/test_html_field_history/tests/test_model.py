@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests.common import TransactionCase, tagged
 

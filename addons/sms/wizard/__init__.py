@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from . import sms_account_code
 from . import sms_account_phone
 from . import sms_account_sender

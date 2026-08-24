@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 {
     "name": "POS Self Order QFPay",
     "summary": "Addon for the Self Order App that allows customers to pay by QFPay.",

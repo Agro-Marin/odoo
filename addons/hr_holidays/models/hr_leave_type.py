@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 # Copyright (c) 2005-2006 Axelor SARL. (http://www.axelor.com)
 
 import logging

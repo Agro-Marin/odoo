@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from stdnum.it import codicefiscale, iva
 
 from odoo import api, fields, models, _

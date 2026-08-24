@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.addons.l10n_tw_edi_ecpay.tests.test_edi import L10nTWITestEdi
 from odoo.tests import tagged
 

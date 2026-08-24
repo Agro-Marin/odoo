@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     'name': "Payment - Account",
     'category': 'Accounting/Accounting',

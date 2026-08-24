@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from hashlib import sha1
 
 from urllib.parse import unquote_plus

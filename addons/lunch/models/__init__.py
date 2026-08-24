@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from . import lunch_alert
 from . import lunch_cashmove
 from . import lunch_location

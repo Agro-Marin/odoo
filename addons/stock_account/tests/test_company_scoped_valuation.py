@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 """Valuation must depend on the data, not on the session.
 
 Every test here pins a defect where a figure was drawn from `env.companies` (the

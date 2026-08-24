@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 """Regression tests: malformed request values must not crash the shop routes.
 
 These routes are ``auth='public'``, so every value here is chosen by an

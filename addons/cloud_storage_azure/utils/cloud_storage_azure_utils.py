@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 """
 This module is used to provide an azure.storage.blob.generate_blob_sas
 compatible function for generating sas URLs for Azure Storage without

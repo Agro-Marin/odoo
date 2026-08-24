@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     'name': 'United States - Localizations',
     'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',

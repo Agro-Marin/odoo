@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 """
 The EU_TAG_MAP answers the question: "which tag should I apply on the OSS tax repartition line?"
 

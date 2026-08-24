@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from serial.tools.list_ports import comports
 
 from odoo.addons.iot_drivers.tools.system import IS_WINDOWS

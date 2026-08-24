@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import fields, models
 
 # Allow promo programs to send mails 'At Creation' or 'When Reaching' X points

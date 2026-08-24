@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from urllib.parse import unquote_plus
 
 from psycopg import IntegrityError

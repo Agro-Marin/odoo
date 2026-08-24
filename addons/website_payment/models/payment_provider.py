@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from werkzeug.urls import iri_to_uri
 
 from odoo import api, fields, models

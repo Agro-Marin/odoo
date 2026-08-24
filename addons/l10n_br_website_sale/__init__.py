@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from . import models
 
 def _set_tax_included_on_website_sale(env):

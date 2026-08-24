@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     "name": "Purchase Repair",
     "summary": "Keep track of linked purchase and repair orders",

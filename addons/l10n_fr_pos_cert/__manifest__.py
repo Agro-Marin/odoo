@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     'name': 'France - VAT Anti-Fraud Certification for Point of Sale (CGI 286 I-3 bis)',
     'version': '1.1',

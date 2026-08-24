@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 {
     'name': 'Mauritania - Accounting',
     'website': 'https://www.odoo.com/documentation/master/applications/finance/fiscal_localizations.html',

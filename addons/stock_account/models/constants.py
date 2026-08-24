@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 # Single source of truth for the valuation selections, shared by product.template,
 # product.category, res.company and stock.quant so their labels cannot drift apart.
 

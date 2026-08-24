@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 """Comprehensive tests for time-based automation triggers.
 
 Tests cover:

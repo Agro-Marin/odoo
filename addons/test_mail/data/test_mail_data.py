@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 MAIL_TEMPLATE = """Return-Path: {return_path}
 To: {to}
 cc: {cc}

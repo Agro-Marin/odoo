@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import operator
 
 from odoo.libs.numbers import float_compare

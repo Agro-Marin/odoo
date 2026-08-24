@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from odoo import fields
 from odoo.tests import Form
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon

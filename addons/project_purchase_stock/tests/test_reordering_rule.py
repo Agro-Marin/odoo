@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import Command
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase

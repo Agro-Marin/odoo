@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.addons.delivery.tests.common import DeliveryCommon
 from odoo.addons.payment_custom.tests.common import PaymentCustomCommon
 

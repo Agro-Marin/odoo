@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 """Migrate slide.question / slide.answer → survey.question / survey.question.answer.
 
 Quiz slides now use survey.survey to store their questions, unifying the data

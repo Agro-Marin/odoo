@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from base64 import b64decode, b64encode
 import binascii
 from datetime import datetime, timedelta, timezone

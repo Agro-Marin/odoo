@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from operator import itemgetter
 
 from dateutil.relativedelta import relativedelta

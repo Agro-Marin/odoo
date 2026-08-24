@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from . import test_leave
 from . import test_multi_contract
 from . import test_payslip_holidays_computation

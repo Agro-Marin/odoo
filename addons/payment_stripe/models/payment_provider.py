@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import json
 
 from urllib.parse import urlencode as url_encode, urlsplit as url_parse

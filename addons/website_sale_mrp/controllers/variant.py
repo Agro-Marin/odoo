@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.http import request, route
 
 from odoo.addons.website_sale_stock.controllers.variant import (

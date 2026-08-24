@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 """Regression tests for calendar defects fixed in the correctness/privacy pass.
 
 Each test states an invariant the module relies on and that a specific defect

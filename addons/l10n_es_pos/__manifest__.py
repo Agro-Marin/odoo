@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 {
     'name': 'Spain - Point of Sale',
     'category': 'Accounting/Localizations/Point of Sale',

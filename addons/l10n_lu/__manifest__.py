@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 {
     'name': 'Luxembourg - Accounting',
     'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/luxembourg.html',

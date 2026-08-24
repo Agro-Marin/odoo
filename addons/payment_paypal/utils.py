@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 def format_partner_address(partner):
     """ Format the partner address values to PayPal address values. When provided, PayPal requires
     at least a country code, so returns only an email address or an empty dict if partner lacks a

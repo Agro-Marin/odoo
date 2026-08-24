@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from . import ir_http
 from . import mixin_calendar_privacy
 from . import res_partner

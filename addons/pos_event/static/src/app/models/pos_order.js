@@ -1,5 +1,4 @@
 /** @odoo-module native */
-// Part of Odoo. See LICENSE file for full copyright and licensing details.
 import { PosOrder } from "@point_of_sale/app/models/pos_order";
 
 import { patch } from "@web/core/utils/patch";

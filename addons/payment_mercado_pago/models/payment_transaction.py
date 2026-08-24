@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from urllib.parse import quote as url_quote
 
 from urllib.parse import parse_qsl, urlsplit as url_parse
