@@ -272,11 +272,6 @@ class StockPickingType(models.Model):
     count_move_ready = fields.Integer(compute="_compute_move_count")
     kanban_dashboard_graph = fields.Text(compute="_compute_kanban_dashboard_graph")
 
-    _sequence_code_uniq = models.UniqueIndex(
-        "(company_id, warehouse_id, sequence_code) NULLS NOT DISTINCT",
-        "Two operation types of the same warehouse cannot share a sequence "
-        "prefix: they would issue the same reference numbers.",
-    )
     _barcode_uniq = models.UniqueIndex(
         "(company_id, barcode) WHERE barcode IS NOT NULL",
         "Two operation types of the same company cannot share a barcode: a scan "
