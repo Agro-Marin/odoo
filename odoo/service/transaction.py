@@ -44,16 +44,20 @@ def _integrity_error_to_validation(
     return ValidationError(message)
 
 
-@typing.runtime_checkable
 class RetryParticipant(typing.Protocol):
-    def on_rollback(self, exc: BaseException) -> None:
-        pass
+    """Structural type only: nothing in the tree does ``isinstance`` against it.
 
-    def on_retry(self, exc: BaseException) -> None:
-        pass
+    ``current_retry_participant()`` returns either a participant or ``None``, and
+    both call sites (`retrying`, `_warn_cursor_closed_before_commit`) branch on
+    ``is not None``.  The one real implementer, ``odoo.http._retry``'s
+    ``RequestRetryParticipant``, does not inherit from this Protocol either.
+    """
 
-    def suppresses_uncommitted_warning(self) -> bool:
-        pass
+    def on_rollback(self, exc: BaseException) -> None: ...
+
+    def on_retry(self, exc: BaseException) -> None: ...
+
+    def suppresses_uncommitted_warning(self) -> bool: ...
 
 
 def _no_participant() -> RetryParticipant | None:
