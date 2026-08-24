@@ -156,7 +156,16 @@ def iter_registry_methods(registry=None):
         for method_name, _ in inspect.getmembers(model_cls, inspect.isroutine):
             if method_name.startswith("__"):
                 continue
-            for parent_class in reversed(model_cls.mro()[1:-1]):
+            # The class that DEFINES the method, most-derived first. Walking
+            # from the base end and stopping at the first class `getattr`
+            # answers on finds the most basic class that *has* the name, which
+            # for an overridden method is the one it overrides: the override is
+            # then keyed under its base and, once that pair is seen, never
+            # looked at again. `vars()` asks who declares it rather than who
+            # answers for it.
+            for parent_class in model_cls.mro()[1:-1]:
+                if method_name not in vars(parent_class):
+                    continue
                 method = getattr(parent_class, method_name, None)
                 if callable(method):
                     break

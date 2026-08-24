@@ -153,6 +153,7 @@ class TestDocstring(LintCase):
         offenders = []
         seen = set()
         checked = 0
+        checked_verbose = 0
 
         for entry in iter_registry_methods():
             model_name, model_cls, method_name, method, parent_class = entry
@@ -173,6 +174,7 @@ class TestDocstring(LintCase):
                 and not method_name.startswith("_")
             ):
                 settings = self.doctree_settings_verbose
+                checked_verbose += 1
             else:
                 settings = self.doctree_settings_silent
 
@@ -197,8 +199,38 @@ class TestDocstring(LintCase):
             except (AssertionError, ValueError, IndexError) as exc:
                 offenders.append(f"{where}: {str(exc).splitlines()[0][:160]}")
 
-        logger.info("checked %s documented method definitions", checked)
-        self.assertGreater(checked, 100, "the scan reached almost no docstrings")
+        logger.info(
+            "checked %s documented method definitions, %s of them under the "
+            "strict settings",
+            checked,
+            checked_verbose,
+        )
+        # BOTH FLOORS HOLD AT THE NARROWEST SCOPE THE SUITE RUNS AT, the install
+        # `.github/workflows/test_lint.yml` builds, and both are anchored with
+        # room to spare rather than pinned: what a registry scan reaches scales
+        # with the database it runs against. Measured, CI install against a
+        # development one carrying web, mail, product and resource as well:
+        #
+        #     checked           86  ->  397
+        #     checked_verbose   65  ->  130
+        #
+        # so a tight anchor would hold in one scope and fail in the other. This
+        # is `50bcfad6dcc`'s reasoning, which moved the total from 500 to 100
+        # for the same reason; the number under it has since fallen from the 151
+        # that commit measured to 86, because the ORM's methods moved onto typed
+        # mixins -- `SearchMixin.search` and its neighbours state their contract
+        # in annotations and carry no docstring at all. That is a smaller
+        # population to check, not coverage this gate lost.
+        self.assertGreater(checked, 60, "the scan reached almost no docstrings")
+        # A healthy total is not the same as a scan that still reaches what this
+        # gate is FOR. Only MODULES_TO_LINT gets the strict settings; everything
+        # else is parsed with the silent ones and can only fail on a signature
+        # mismatch. A scan that kept its total but stopped resolving the modules
+        # it verbose-checks would go quietly vacuous behind a large number, and
+        # the total alone cannot see that.
+        self.assertGreater(
+            checked_verbose, 45, "the scan reached none of MODULES_TO_LINT"
+        )
         self.assert_ratchet(
             offenders,
             DOCSTRING_FLOOR,
