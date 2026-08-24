@@ -145,11 +145,17 @@ class AccountSetupBankManualConfig(models.TransientModel):
     def _number_unlinked_journal(self, journal_type):
         return self.env["account.journal"].search_count(
             [
-                ("type", "=", journal_type),
-                ("bank_account_id", "=", False),
+                *self._unlinked_journal_domain(journal_type),
                 ("id", "!=", self.default_linked_journal_id(journal_type)),
             ]
         )
+
+    def _unlinked_journal_domain(self, journal_type):
+        return [
+            *self.env["account.journal"]._check_company_domain(self.env.company),
+            ("type", "=", journal_type),
+            ("bank_account_id", "=", False),
+        ]
 
     @api.onchange("acc_number")
     def _onchange_acc_number(self):
@@ -191,29 +197,19 @@ class AccountSetupBankManualConfig(models.TransientModel):
             ) or record.default_linked_journal_id(journal_type)
 
     def default_linked_journal_id(self, journal_type):
-        journals_with_moves = (
-            self.env["account.move"]
-            .search_fetch(
-                [
-                    ("journal_id", "!=", False),
-                    ("journal_id.type", "=", journal_type),
-                ],
-                ["journal_id"],
-            )
-            .journal_id
+        candidates = self.env["account.journal"].search(
+            self._unlinked_journal_domain(journal_type)
         )
-
-        return (
-            self.env["account.journal"]
-            .search(
-                [
-                    ("type", "=", journal_type),
-                    ("bank_account_id", "=", False),
-                    ("id", "not in", journals_with_moves.ids),
-                ],
-                limit=1,
+        if not candidates:
+            return False
+        journals_with_moves = [
+            journal.id
+            for [journal] in self.env["account.move"]._read_group(
+                [("journal_id", "in", candidates.ids)], groupby=["journal_id"]
             )
-            .id
+        ]
+        return next(
+            (j.id for j in candidates if j.id not in journals_with_moves), False
         )
 
     def set_linked_journal_id(self):
@@ -242,7 +238,7 @@ class AccountSetupBankManualConfig(models.TransientModel):
     def validate(self):
         return {"type": "ir.actions.client", "tag": "soft_reload"}
 
+    @api.depends_context("company")
     def _compute_company_id(self):
         for wizard in self:
-            if not wizard.company_id:
-                wizard.company_id = self.env.company
+            wizard.company_id = self.env.company

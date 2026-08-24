@@ -93,10 +93,10 @@ class AccountMoveSendWizard(models.TransientModel):
 
 
     @api.model
-    def default_get(self, fields):
-        results = super().default_get(fields)
+    def default_get(self, fields_list):
+        results = super().default_get(fields_list)
         active_ids = self.env.context.get("active_ids", [])
-        if "move_id" in fields and "move_id" not in results and active_ids:
+        if "move_id" in fields_list and "move_id" not in results and active_ids:
             results["move_id"] = active_ids[0]
         return results
 

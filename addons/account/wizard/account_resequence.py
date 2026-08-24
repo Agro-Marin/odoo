@@ -1,7 +1,7 @@
 import json
 from collections import defaultdict
 
-from odoo import _, api, fields, models
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools.date_utils import get_fiscal_year
 from odoo.tools.misc import format_date
@@ -22,6 +22,7 @@ class AccountResequenceWizard(models.TransientModel):
         compute="_compute_first_name",
         readonly=False,
         store=True,
+        precompute=True,
         required=True,
         string="First New Sequence",
     )
@@ -35,9 +36,9 @@ class AccountResequenceWizard(models.TransientModel):
     preview_moves = fields.Text(compute="_compute_preview_moves")
 
     @api.model
-    def default_get(self, fields):
-        values = super().default_get(fields)
-        if "move_ids" not in fields:
+    def default_get(self, fields_list):
+        values = super().default_get(fields_list)
+        if "move_ids" not in fields_list:
             return values
         active_move_ids = self.env["account.move"]
         if (
@@ -67,10 +68,10 @@ class AccountResequenceWizard(models.TransientModel):
                     "The sequences of this journal are different for Payments and non-Payments but you selected some of both types."
                 )
             )
-        values["move_ids"] = [(6, 0, active_move_ids.ids)]
+        values["move_ids"] = [Command.set(active_move_ids.ids)]
         return values
 
-    @api.depends("first_name")
+    @api.depends("first_name", "move_ids")
     def _compute_sequence_number_reset(self):
         for record in self:
             if record.move_ids:
@@ -89,7 +90,7 @@ class AccountResequenceWizard(models.TransientModel):
                     record.move_ids._origin.mapped(lambda move: move.name or "")
                 )
 
-    @api.depends("new_values", "ordering")
+    @api.depends("new_values", "ordering", "sequence_number_reset")
     def _compute_preview_moves(self):
         for record in self:
             new_values = sorted(
@@ -97,7 +98,7 @@ class AccountResequenceWizard(models.TransientModel):
                 key=lambda x: x["server-date"],
                 reverse=True,
             )
-            changeLines = []
+            change_lines = []
             in_elipsis = 0
             previous_line = None
             for i, line in enumerate(new_values):
@@ -106,23 +107,23 @@ class AccountResequenceWizard(models.TransientModel):
                     or i == len(new_values) - 1
                     or line["new_by_name"] != line["new_by_date"]
                     or (
-                        self.sequence_number_reset == "year"
+                        record.sequence_number_reset == "year"
                         and line["server-date"][0:4]
                         != previous_line["server-date"][0:4]
                     )
                     or (
-                        self.sequence_number_reset == "year_range"
+                        record.sequence_number_reset == "year_range"
                         and line["server-year-start-date"][0:4]
                         != previous_line["server-year-start-date"][0:4]
                     )
                     or (
-                        self.sequence_number_reset == "month"
+                        record.sequence_number_reset == "month"
                         and line["server-date"][0:7]
                         != previous_line["server-date"][0:7]
                     )
                 ):
                     if in_elipsis:
-                        changeLines.append(
+                        change_lines.append(
                             {
                                 "id": "other_" + str(line["id"]),
                                 "current_name": _(
@@ -135,7 +136,7 @@ class AccountResequenceWizard(models.TransientModel):
                             }
                         )
                         in_elipsis = 0
-                    changeLines.append(line)
+                    change_lines.append(line)
                 else:
                     in_elipsis += 1
                 previous_line = line
@@ -143,43 +144,47 @@ class AccountResequenceWizard(models.TransientModel):
             record.preview_moves = json.dumps(
                 {
                     "ordering": record.ordering,
-                    "changeLines": changeLines,
+                    "changeLines": change_lines,
                 }
             )
 
     @api.depends("first_name", "move_ids", "sequence_number_reset")
     def _compute_new_values(self):
-        def _get_move_key(move_id):
+        def _get_move_key(move_id, sequence_number_reset):
             company = move_id.company_id
             date_start, date_end = get_fiscal_year(
                 move_id.date,
                 day=company.fiscalyear_last_day,
                 month=int(company.fiscalyear_last_month),
             )
-            if self.sequence_number_reset == "year":
-                return move_id.date.year
-            elif self.sequence_number_reset == "year_range":
-                return "%s-%s" % (date_start.year, date_end.year)
-            elif self.sequence_number_reset == "year_range_month":
-                return "%s-%s/%s" % (date_start.year, date_end.year, move_id.date.month)
-            elif self.sequence_number_reset == "month":
-                return (move_id.date.year, move_id.date.month)
-            return "default"
+            match sequence_number_reset:
+                case "year":
+                    return move_id.date.year
+                case "year_range":
+                    return "%s-%s" % (date_start.year, date_end.year)
+                case "year_range_month":
+                    return "%s-%s/%s" % (
+                        date_start.year,
+                        date_end.year,
+                        move_id.date.month,
+                    )
+                case "month":
+                    return (move_id.date.year, move_id.date.month)
+                case _:
+                    return "default"
 
         self.new_values = "{}"
         for record in self.filtered("first_name"):
+            sequence_number_reset = record.move_ids[0]._deduce_sequence_number_reset(
+                record.first_name
+            )
             moves_by_period = defaultdict(
                 lambda record=record: record.env["account.move"]
             )
-            for move in (
-                record.move_ids._origin
-            ):
-                moves_by_period[_get_move_key(move)] += move
+            for move in record.move_ids._origin:
+                moves_by_period[_get_move_key(move, sequence_number_reset)] += move
 
             seq_format, format_values = record.move_ids[0]._get_sequence_format_param(
-                record.first_name
-            )
-            sequence_number_reset = record.move_ids[0]._deduce_sequence_number_reset(
                 record.first_name
             )
 
@@ -223,19 +228,20 @@ class AccountResequenceWizard(models.TransientModel):
                         lambda m: (m.sequence_prefix, m.sequence_number)
                     ),
                     new_name_list,
-                    strict=False,
+                    strict=True,
                 ):
                     new_values[move.id]["new_by_name"] = new_name
                 for move, new_name in zip(
                     period_recs.sorted(lambda m: (m.date, m.name or "", m.id)),
                     new_name_list,
-                    strict=False,
+                    strict=True,
                 ):
                     new_values[move.id]["new_by_date"] = new_name
 
             record.new_values = json.dumps(new_values)
 
     def resequence(self):
+        self.ensure_one()
         new_values = json.loads(self.new_values)
         if (
             self.move_ids.journal_id

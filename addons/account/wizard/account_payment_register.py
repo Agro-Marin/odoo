@@ -79,6 +79,9 @@ class AccountPaymentRegister(models.TransientModel):
     )
 
     batches = fields.Binary(compute="_compute_batches", export_string_translation=False)
+    total_amounts_to_pay = fields.Binary(
+        compute="_compute_total_amounts_to_pay", export_string_translation=False
+    )
     installments_mode = fields.Selection(
         selection=[
             ("next", "Next Installment"),
@@ -467,6 +470,13 @@ class AccountPaymentRegister(models.TransientModel):
 
             wizard.batches = batch_vals
 
+    @api.depends("batches", "currency_id", "payment_date")
+    def _compute_total_amounts_to_pay(self):
+        for wizard in self:
+            wizard.total_amounts_to_pay = wizard._get_total_amounts_to_pay(
+                wizard.batches
+            )
+
     @api.depends(
         "payment_method_line_id", "line_ids", "group_payment", "partner_bank_id"
     )
@@ -478,7 +488,7 @@ class AccountPaymentRegister(models.TransientModel):
 
             total_payment_count = len(wizard.batches)
             if not wizard.group_payment:
-                total_amount_values = wizard._get_total_amounts_to_pay(wizard.batches)
+                total_amount_values = wizard.total_amounts_to_pay
                 total_payment_count = len(total_amount_values["lines"])
 
             for batch in wizard.batches:
@@ -557,7 +567,7 @@ class AccountPaymentRegister(models.TransientModel):
                     and lines.move_id.is_invoice(include_receipts=True)
                 )
             else:
-                total_amounts_to_pay = wizard._get_total_amounts_to_pay(wizard.batches)
+                total_amounts_to_pay = wizard.total_amounts_to_pay
                 wizard.can_group_payments = any(
                     len(
                         batch_result["lines"].filtered(
@@ -578,7 +588,7 @@ class AccountPaymentRegister(models.TransientModel):
             ) or wizard.custom_user_amount:
                 lines = wizard.line_ids
             else:
-                lines = wizard._get_total_amounts_to_pay(wizard.batches)["lines"]
+                lines = wizard.total_amounts_to_pay["lines"]
             wizard.communication = wizard._get_communication(lines)
 
     @api.depends("can_edit_wizard")
@@ -776,10 +786,6 @@ class AccountPaymentRegister(models.TransientModel):
                     self.company_id,
                     self.payment_date,
                 )
-            elif currency == comp_curr and wizard_curr != comp_curr:
-                total_amount += comp_curr._convert(
-                    amount_residual, wizard_curr, self.company_id, self.payment_date
-                )
             else:
                 total_amount += comp_curr._convert(
                     amount_residual, wizard_curr, self.company_id, self.payment_date
@@ -872,7 +878,7 @@ class AccountPaymentRegister(models.TransientModel):
         if not self.can_edit_wizard or not self.currency_id:
             return
 
-        total_amount_values = self._get_total_amounts_to_pay(self.batches)
+        total_amount_values = self.total_amounts_to_pay
         is_custom_user_amount = all(
             not self.currency_id.is_zero(
                 self.amount - total_amount_values[amount_field]
@@ -943,7 +949,7 @@ class AccountPaymentRegister(models.TransientModel):
             ):
                 wizard.amount = wizard.amount
             else:
-                total_amount_values = wizard._get_total_amounts_to_pay(wizard.batches)
+                total_amount_values = wizard.total_amounts_to_pay
                 wizard.amount = total_amount_values["amount_by_default"]
 
     @api.depends("amount")
@@ -952,7 +958,7 @@ class AccountPaymentRegister(models.TransientModel):
             if not wizard.journal_id or not wizard.currency_id:
                 wizard.installments_mode = wizard.installments_mode
             else:
-                total_amount_values = wizard._get_total_amounts_to_pay(wizard.batches)
+                total_amount_values = wizard.total_amounts_to_pay
                 if (
                     wizard.currency_id.compare_amounts(
                         wizard.amount, total_amount_values["full_amount"]
@@ -977,7 +983,7 @@ class AccountPaymentRegister(models.TransientModel):
                 wizard.installments_switch_amount = wizard.installments_switch_amount
                 wizard.installments_switch_html = wizard.installments_switch_html
             else:
-                total_amount_values = wizard._get_total_amounts_to_pay(wizard.batches)
+                total_amount_values = wizard.total_amounts_to_pay
                 html_lines = []
                 if wizard.installments_mode == "full":
                     is_full_match = wizard.currency_id.is_zero(
@@ -1062,7 +1068,7 @@ class AccountPaymentRegister(models.TransientModel):
             ):
                 wizard.early_payment_discount_mode = wizard.early_payment_discount_mode
             else:
-                total_amount_values = wizard._get_total_amounts_to_pay(wizard.batches)
+                total_amount_values = wizard.total_amounts_to_pay
                 wizard.early_payment_discount_mode = total_amount_values[
                     "epd_applied"
                 ] and (
@@ -1080,7 +1086,7 @@ class AccountPaymentRegister(models.TransientModel):
     def _compute_payment_difference(self):
         for wizard in self:
             if wizard.payment_date:
-                total_amount_values = wizard._get_total_amounts_to_pay(wizard.batches)
+                total_amount_values = wizard.total_amounts_to_pay
                 if wizard.installments_mode in ("overdue", "next", "before_date"):
                     wizard.payment_difference = (
                         total_amount_values["amount_for_difference"] - wizard.amount
@@ -1304,8 +1310,9 @@ class AccountPaymentRegister(models.TransientModel):
                         "amount_currency": -aml.amount_residual_currency,
                         "balance": aml.currency_id._convert(
                             -aml.amount_residual_currency,
-                            aml.company_currency_id,
-                            date=self.payment_date,
+                            self.company_id.currency_id,
+                            self.company_id,
+                            self.payment_date,
                         ),
                     }
                     for aml in batch_result["lines"]
@@ -1399,30 +1406,29 @@ class AccountPaymentRegister(models.TransientModel):
         if total_amount_values["epd_applied"]:
             payment_vals["amount"] = total_amount
 
-            epd_aml_values_list = []
-            for aml in batch_result["lines"]:
+            epd_aml_values_list = [
+                {
+                    "aml": aml,
+                    "amount_currency": -aml.amount_residual_currency,
+                    "balance": currency._convert(
+                        -aml.amount_residual_currency,
+                        self.company_id.currency_id,
+                        self.company_id,
+                        self.payment_date,
+                    ),
+                }
+                for aml in batch_result["lines"]
                 if aml.move_id._is_eligible_for_early_payment_discount(
                     currency, self.payment_date
-                ):
-                    epd_aml_values_list.append(
-                        {
-                            "aml": aml,
-                            "amount_currency": -aml.amount_residual_currency,
-                            "balance": currency._convert(
-                                -aml.amount_residual_currency,
-                                aml.company_currency_id,
-                                self.company_id,
-                                self.payment_date,
-                            ),
-                        }
-                    )
+                )
+            ]
 
             open_amount_currency = (
                 batch_values["source_amount_currency"] - total_amount
             ) * (-1 if batch_values["payment_type"] == "outbound" else 1)
             open_balance = currency._convert(
                 open_amount_currency,
-                aml.company_currency_id,
+                self.company_id.currency_id,
                 self.company_id,
                 self.payment_date,
             )
@@ -1616,7 +1622,9 @@ class AccountPaymentRegister(models.TransientModel):
                 batches = new_batches
 
             for batch_result in batches:
-                batch_result["lines"] = batch_result["lines"] & lines_to_pay
+                batch_result["lines"] &= lines_to_pay
+                if not batch_result["lines"]:
+                    continue
                 to_process.append(
                     {
                         "create_vals": self._create_payment_vals_from_batch(
@@ -1632,12 +1640,6 @@ class AccountPaymentRegister(models.TransientModel):
             self.env["account.move.line"],
         )
         from_sibling_companies = self._from_sibling_companies(lines)
-        if (
-            from_sibling_companies
-            and lines.company_id.root_id not in self.env.companies
-        ):
-            self.env(context={**self.env.context, "dont_redirect_to_payments": True})
-
         wizard = self.sudo() if from_sibling_companies else self
 
         payments = wizard.with_context(clean_context(self.env.context))._init_payments(
@@ -1664,7 +1666,9 @@ class AccountPaymentRegister(models.TransientModel):
             self.payment_difference_handling = "open"
         payments = self._create_payments()
 
-        if self.env.context.get("dont_redirect_to_payments"):
+        if self.env.context.get("dont_redirect_to_payments") or not payments.has_access(
+            "read"
+        ):
             return True
 
         action = {

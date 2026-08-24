@@ -15,11 +15,11 @@ class AccountAccruedOrdersWizard(models.TransientModel):
     _check_company_auto = True
 
     def _default_company_id(self):
-        if not self.env.context.get("active_model"):
+        active_model = self.env.context.get("active_model")
+        active_ids = self.env.context.get("active_ids")
+        if not active_model or not active_ids:
             return None
-        orders = self.env[self.env.context["active_model"]].browse(
-            self.env.context["active_ids"]
-        )
+        orders = self.env[active_model].browse(active_ids)
         return orders and orders[0].company_id.id
 
     def _default_date(self):
@@ -69,12 +69,12 @@ class AccountAccruedOrdersWizard(models.TransientModel):
     preview_data = fields.Text(compute="_compute_preview_data")
     display_amount = fields.Boolean(compute="_compute_display_amount")
 
-    @api.depends("date", "amount")
+    @api.depends("date", "amount", "preview_data")
     def _compute_display_amount(self):
-        single_order = len(self.env.context["active_ids"]) == 1
+        single_order = len(self.env.context.get("active_ids") or []) == 1
         for record in self:
-            preview_data = json.loads(self.preview_data)
-            lines = preview_data.get("groups_vals", [])[0].get("items_vals", [])
+            groups_vals = json.loads(record.preview_data).get("groups_vals") or [{}]
+            lines = groups_vals[0].get("items_vals", [])
             record.display_amount = record.amount or (single_order and not lines)
 
     @api.depends("date")
@@ -105,7 +105,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         for record in self:
             preview_vals = [
                 self.env["account.move"]._move_dict_to_preview_vals(
-                    record._compute_move_vals()[0],
+                    record._get_move_vals()[0],
                     record.company_id.currency_id,
                 )
             ]
@@ -141,7 +141,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         else:
             return accounts["income"]
 
-    def _compute_move_vals(self):
+    def _get_move_vals(self):
         def _get_aml_vals(
             order,
             balance,
@@ -202,11 +202,11 @@ class AccountAccruedOrdersWizard(models.TransientModel):
             raise UserError(
                 _("Entries can only be created for a single company at a time.")
             )
-        if orders.currency_id and len(orders.currency_id) > 1:
+        if len(orders.currency_id) > 1:
             raise UserError(
                 _("Cannot create an accrual entry with orders in different currencies.")
             )
-        orders_with_entries = []
+        orders_with_entries = orders.browse()
         total_balance = 0.0
         amounts_by_perpetual_account = defaultdict(float)
 
@@ -227,6 +227,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                     analytic_distribution=distribution,
                 )
                 move_lines.append(Command.create(values))
+                orders_with_entries |= order
             else:
                 accrual_entry_date = self.env.context.get("accrual_entry_date")
                 accrual_entry_date = (
@@ -332,14 +333,15 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                     )
                     move_lines.append(Command.create(values))
                     total_balance += amount
+                    orders_with_entries |= order
 
         if not self.company_id.currency_id.is_zero(total_balance):
             analytic_distribution = {}
             total = sum(order.amount_total for order in orders)
-            for line in orders.line_ids:
-                ratio = line.price_total / total
+            for line in orders.line_ids if total else ():
                 if not line.analytic_distribution:
                     continue
+                ratio = line.price_total / total
                 for account_id, distribution in line.analytic_distribution.items():
                     analytic_distribution.update(
                         {
@@ -406,7 +408,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
 
         if self.reversal_date <= self.date:
             raise UserError(_("Reversal date must be posterior to date."))
-        move_vals, orders_with_entries = self._compute_move_vals()
+        move_vals, orders_with_entries = self._get_move_vals()
         move = self.env["account.move"].create(move_vals)
         move._post()
         reverse_move = move._reverse_moves(

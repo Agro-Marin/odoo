@@ -82,7 +82,6 @@ class AccountSecureEntriesWizard(models.TransientModel):
             else:
                 wizard.max_hash_date = False
 
-    @api.model
     def _get_chains_to_hash(self, company_id, hash_date):
         self.ensure_one()
         res = []
@@ -107,7 +106,7 @@ class AccountSecureEntriesWizard(models.TransientModel):
                     lambda move, last_move_hashed=last_move_hashed: (
                         not move.inalterable_hash
                         and move.sequence_number < last_move_hashed.sequence_number
-                        and move.date > self.company_id.user_hard_lock_date
+                        and move.date > company_id.user_hard_lock_date
                     )
                 )
             else:
@@ -217,11 +216,11 @@ class AccountSecureEntriesWizard(models.TransientModel):
                 }
 
             if wizard.chains_to_hash_with_gaps:
-                OR_domains = []
+                or_domains = []
                 for chain in wizard.chains_to_hash_with_gaps:
                     first_move = self.env["account.move"].browse(chain["first_move_id"])
                     last_move = self.env["account.move"].browse(chain["last_move_id"])
-                    OR_domains.append(
+                    or_domains.append(
                         [
                             *self.env["account.move"]._check_company_domain(
                                 wizard.company_id
@@ -232,7 +231,7 @@ class AccountSecureEntriesWizard(models.TransientModel):
                             ("sequence_number", ">=", first_move.sequence_number),
                         ]
                     )
-                domain = Domain.OR(OR_domains)
+                domain = Domain.OR(or_domains)
                 warnings["account_sequence_gap"] = {
                     "message": _(
                         "Securing these entries will create at least one gap in the sequence."

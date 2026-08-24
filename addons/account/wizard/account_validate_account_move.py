@@ -28,15 +28,17 @@ class ValidateAccountMove(models.TransientModel):
     def _compute_display_force_post(self):
         today = fields.Date.context_today(self)
         for wizard in self:
-            wizard.display_force_post = wizard.move_ids.filtered(
-                lambda m: (m.date or m.invoice_date or today) > today
+            wizard.display_force_post = bool(
+                wizard.move_ids.filtered(
+                    lambda m: (m.date or m.invoice_date or today) > today
+                )
             )
 
     @api.depends("move_ids")
     def _compute_display_force_hash(self):
         for wizard in self:
-            wizard.display_force_hash = wizard.move_ids.filtered(
-                "restrict_mode_hash_table"
+            wizard.display_force_hash = bool(
+                wizard.move_ids.filtered("restrict_mode_hash_table")
             )
 
     @api.depends("move_ids")
@@ -62,23 +64,25 @@ class ValidateAccountMove(models.TransientModel):
             ).partner_id
 
     @api.model
-    def default_get(self, fields):
-        result = super().default_get(fields)
-        if "move_ids" in fields and not result.get("move_ids"):
+    def default_get(self, fields_list):
+        result = super().default_get(fields_list)
+        if "move_ids" in fields_list and not result.get("move_ids"):
             if self.env.context.get("active_model") == "account.move":
                 domain = [
                     ("id", "in", self.env.context.get("active_ids", [])),
                     ("state", "=", "draft"),
+                    ("line_ids", "!=", False),
                 ]
             elif self.env.context.get("active_model") == "account.journal":
                 domain = [
                     ("journal_id", "=", self.env.context.get("active_id")),
                     ("state", "=", "draft"),
+                    ("line_ids", "!=", False),
                 ]
             else:
                 raise UserError(_("Missing 'active_model' in context."))
 
-            moves = self.env["account.move"].search(domain).filtered("line_ids")
+            moves = self.env["account.move"].search(domain)
             if not moves:
                 raise UserError(
                     _("There are no journal items in the draft state to post.")

@@ -25,9 +25,9 @@ class AccountMergeWizard(models.TransientModel):
     disable_merge_button = fields.Boolean(compute="_compute_disable_merge_button")
 
     @api.model
-    def default_get(self, fields):
-        res = super().default_get(fields)
-        if not set(fields) & {"account_ids", "wizard_line_ids"} or set(res.keys()) & {
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
+        if not set(fields_list) & {"account_ids", "wizard_line_ids"} or set(res.keys()) & {
             "account_ids",
             "wizard_line_ids",
         }:
@@ -119,8 +119,6 @@ class AccountMergeWizard(models.TransientModel):
         }
 
     def action_merge(self):
-        self._check_access_rights(self.account_ids)
-
         for wizard in self:
             wizard_lines_selected = wizard.wizard_line_ids.filtered(
                 lambda l: l.display_type == "account" and l.is_selected and not l.info

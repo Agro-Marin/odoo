@@ -133,13 +133,13 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                 )
 
     @api.constrains("percentage", "action")
-    def _constraint_percentage(self):
+    def _check_percentage(self):
         for record in self:
             if (
                 not (0.0 < record.percentage <= 100.0)
                 and record.action == "change_period"
             ):
-                raise UserError(_("Percentage must be between 0 and 100"))
+                raise ValidationError(_("Percentage must be between 0 and 100"))
 
     @api.depends("percentage", "move_line_ids")
     def _compute_total_amount(self):
@@ -206,9 +206,9 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                     )
 
     @api.model
-    def default_get(self, fields):
-        res = super().default_get(fields)
-        if not set(fields) & {"move_line_ids", "company_id"}:
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
+        if not set(fields_list) & {"move_line_ids", "company_id"}:
             return res
 
         if self.env.context.get(
@@ -524,9 +524,13 @@ class AccountAutomaticEntryWizard(models.TransientModel):
         return reference_move._get_accounting_date(date, False)
 
     def _get_move_dict_vals_change_period(self):
-        def get_lock_safe_date(aml):
-            return self._get_lock_safe_date(aml.date)
+        lock_safe_dates = {
+            date: self._get_lock_safe_date(date)
+            for date in set(self.move_line_ids.mapped("date"))
+        }
 
+        def get_lock_safe_date(aml):
+            return lock_safe_dates[aml.date]
 
         ref_format = self._get_cut_off_label_format()
         move_data = {
@@ -587,7 +591,6 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                     raise UserError(
                         _("All accounts on the lines must be of the same type.")
                     )
-            if record.action == "change_period":
                 record.move_data = json.dumps(
                     record._get_move_dict_vals_change_period()
                 )
@@ -664,8 +667,9 @@ class AccountAutomaticEntryWizard(models.TransientModel):
         accrual_move_offsets = defaultdict(int)
         for move in self.move_line_ids.move_id:
             amount = sum((self.move_line_ids._origin & move.line_ids).mapped("balance"))
+            lock_safe_date = self._get_lock_safe_date(move.date)
             accrual_move = created_moves[1:].filtered(
-                lambda m, move=move: m.date == self._get_lock_safe_date(move.date)
+                lambda m, lock_safe_date=lock_safe_date: m.date == lock_safe_date
             )
 
             if (
@@ -767,7 +771,10 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                 )
                 to_reconcile.reconcile()
 
-            if destination_lines and self.destination_account_id.reconcile:
+        if destination_lines and self.destination_account_id.reconcile:
+            for partner, currency in {
+                (partner, currency) for partner, currency, __ in grouped_lines
+            }:
                 to_reconcile = destination_lines + new_move.line_ids.filtered(
                     lambda x, partner=partner, currency=currency: (
                         x.account_id == self.destination_account_id

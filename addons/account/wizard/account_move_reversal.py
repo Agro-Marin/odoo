@@ -1,5 +1,5 @@
 from odoo import Command, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tools.translate import _
 
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
@@ -54,35 +54,27 @@ class AccountMoveReversal(models.TransientModel):
     @api.depends("move_ids")
     def _compute_available_journal_ids(self):
         for record in self:
+            domain = self.env["account.journal"]._check_company_domain(
+                record.company_id
+            )
             if record.move_ids:
-                record.available_journal_ids = self.env["account.journal"].search(
-                    [
-                        *self.env["account.journal"]._check_company_domain(
-                            record.company_id
-                        ),
-                        ("type", "in", record.move_ids.journal_id.mapped("type")),
-                    ]
-                )
-            else:
-                record.available_journal_ids = self.env["account.journal"].search(
-                    [
-                        *self.env["account.journal"]._check_company_domain(
-                            record.company_id
-                        ),
-                    ]
-                )
+                domain = [
+                    *domain,
+                    ("type", "in", record.move_ids.journal_id.mapped("type")),
+                ]
+            record.available_journal_ids = self.env["account.journal"].search(domain)
 
     @api.constrains("journal_id", "move_ids")
     def _check_journal_type(self):
         for record in self:
             if record.journal_id.type not in record.move_ids.journal_id.mapped("type"):
-                raise UserError(
+                raise ValidationError(
                     _("Journal should be the same type as the reversed entry.")
                 )
 
     @api.model
-    def default_get(self, fields):
-        res = super().default_get(fields)
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
         move_ids = (
             self.env["account.move"].browse(self.env.context.get("active_ids"))
             if self.env.context.get("active_model") == "account.move"
@@ -96,10 +88,10 @@ class AccountMoveReversal(models.TransientModel):
 
         if any(move.state != "posted" for move in move_ids):
             raise UserError(_("To reverse a journal entry, it has to be posted first."))
-        if "company_id" in fields:
+        if "company_id" in fields_list:
             res["company_id"] = move_ids.company_id.id or self.env.company.id
-        if "move_ids" in fields:
-            res["move_ids"] = [(6, 0, move_ids.ids)]
+        if "move_ids" in fields_list:
+            res["move_ids"] = [Command.set(move_ids.ids)]
         return res
 
     @api.depends("move_ids")
@@ -176,7 +168,7 @@ class AccountMoveReversal(models.TransientModel):
             ],
             [self.env["account.move"], [], False],
         ]
-        for move, default_vals in zip(moves, default_values_list, strict=False):
+        for move, default_vals in zip(moves, default_values_list, strict=True):
             is_auto_post = default_vals.get("auto_post") != "no"
             is_cancel_needed = not is_auto_post and (
                 is_modify or self.move_type == "entry"
@@ -186,24 +178,24 @@ class AccountMoveReversal(models.TransientModel):
             batches[batch_index][1].append(default_vals)
 
         moves_to_redirect = self.env["account.move"]
-        for moves, default_values_list, is_cancel_needed in batches:
-            new_moves = moves._reverse_moves(
-                default_values_list, cancel=is_cancel_needed
+        for batch_moves, batch_default_values, is_cancel_needed in batches:
+            new_moves = batch_moves._reverse_moves(
+                batch_default_values, cancel=is_cancel_needed
             )
             new_moves._compute_partner_bank_id()
-            moves._message_log_batch(
+            batch_moves._message_log_batch(
                 bodies={
                     move.id: move.env._(
                         "This entry has been %s",
                         reverse._get_html_link(title=move.env._("reversed")),
                     )
-                    for move, reverse in zip(moves, new_moves, strict=False)
+                    for move, reverse in zip(batch_moves, new_moves, strict=True)
                 }
             )
 
             if is_modify:
                 moves_vals_list = []
-                for move in moves.with_context(include_business_fields=True):
+                for move in batch_moves.with_context(include_business_fields=True):
                     data = move.copy_data(self._modify_default_reverse_values(move))[0]
                     data["line_ids"] = [
                         line
