@@ -241,6 +241,43 @@ class TestDocumentsPublicRouteHardening(HttpCase):
             response.content[:2], b"PK", "no partial archive may be served"
         )
 
+    def test_zip_cap_counts_directories_too(self):
+        """A tree of empty folders is work, and the cap has to see it.
+
+        A directory contributes no bytes but one `_get_folder_children` search,
+        and the walk is bounded only by the number of folders. Counting files
+        alone left an unauthenticated folder-share link able to ask a worker for
+        one search per folder, at any depth, which is precisely what the cap
+        exists to stop.
+        """
+        Document = self.env["documents.document"]
+        folder = Document.create(
+            {"name": "Deep", "type": "folder", "access_via_link": "view"}
+        )
+        Document.create(
+            [
+                {
+                    "name": f"sub{index}",
+                    "type": "folder",
+                    "folder_id": folder.id,
+                    "access_via_link": "view",
+                }
+                for index in range(3)
+            ]
+        )
+        self.env["ir.config_parameter"].sudo().set_param(
+            "documents.zip_max_file_count", "1"
+        )
+
+        response = self.url_open(f"/documents/content/{folder.access_token}")
+
+        self.assertEqual(
+            response.status_code, 413, "subfolders alone did not reach the cap"
+        )
+        self.assertNotEqual(
+            response.content[:2], b"PK", "no partial archive may be served"
+        )
+
     def _make_pdf_document(self, pages=3):
         stream = BytesIO()
         pdf = canvas.Canvas(stream)

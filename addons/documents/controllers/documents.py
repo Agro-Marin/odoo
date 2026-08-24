@@ -303,6 +303,20 @@ class ShareRoute(http.Controller):
         counters = {"files": 0, "total": 0}
 
         def account(size: int) -> None:
+            # Enforced against the RUNNING totals, while planning -- before the
+            # response has begun and while a 413 is still expressible. They no
+            # longer bound memory (the archive is streamed); they bound how much
+            # work one request, including an unauthenticated public folder
+            # share, can ask of a worker.
+            #
+            # Every planned entry counts, directories included. Counting only
+            # the files left the cap blind to the half of the walk that costs
+            # the most: a folder contributes no bytes but one
+            # `_get_folder_children` search, so a tree of empty subfolders --
+            # which any documents user can create and then share by link --
+            # asked a worker for one search per folder and was refused at no
+            # depth. Measured: 25 files against a cap of 3 was a 413, 25 empty
+            # subfolders against the same cap was a 200.
             counters["files"] += 1
             counters["total"] += size
             if counters["files"] > max_files or counters["total"] > max_total:
@@ -331,6 +345,11 @@ class ShareRoute(http.Controller):
                 return None
             if document.type == "folder":
                 document_name = _sanitize_zip_name(document.name)
+                # A directory weighs nothing, so it is accounted at size 0 --
+                # it is the entry count, not the byte count, that it moves.
+                account(0)
+                # it is the ending slash that makes it appears as a
+                # folder inside the zip file.
                 return ZipEntry(
                     unique(f"{folder.path}{document_name}") + "/", None, document
                 )
