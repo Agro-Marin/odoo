@@ -39,8 +39,8 @@ class DigestDigest(models.Model):
         ], [], ['time_to_answer:avg'])
         self.kpi_livechat_response_value = response_time[0][0]
 
-    def _compute_kpis_actions(self, company, user):
-        res = super()._compute_kpis_actions(company, user)
+    def _get_kpi_actions(self, company, user):
+        res = super()._get_kpi_actions(company, user)
         res['kpi_livechat_conversations'] = 'im_livechat.im_livechat_report_operator_action'
         res['kpi_livechat_response'] = 'im_livechat.im_livechat_report_channel_time_to_answer_action'
         return res

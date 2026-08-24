@@ -27,8 +27,8 @@ class DigestDigest(models.Model):
             sum_field="price_subtotal",
         )
 
-    def _compute_kpis_actions(self, company, user):
-        res = super()._compute_kpis_actions(company, user)
+    def _get_kpi_actions(self, company, user):
+        res = super()._get_kpi_actions(company, user)
         res["kpi_website_sale_total"] = (
             "website.backend_dashboard?menu_id=%s"
             % self.env.ref("website.menu_website_configuration").id

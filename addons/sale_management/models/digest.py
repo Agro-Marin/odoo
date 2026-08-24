@@ -22,8 +22,8 @@ class DigestDigest(models.Model):
             sum_field="price_total",
         )
 
-    def _compute_kpis_actions(self, company, user):
-        res = super()._compute_kpis_actions(company, user)
+    def _get_kpi_actions(self, company, user):
+        res = super()._get_kpi_actions(company, user)
         res["kpi_all_sale_total"] = (
             "sale.action_sale_report_all_channels_sales?menu_id=%s"
             % self.env.ref("sale.sale_menu_root").id

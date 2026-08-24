@@ -21,8 +21,8 @@ class DigestDigest(models.Model):
             "kpi_hr_recruitment_new_colleagues_value",
         )
 
-    def _compute_kpis_actions(self, company, user):
-        res = super()._compute_kpis_actions(company, user)
+    def _get_kpi_actions(self, company, user):
+        res = super()._get_kpi_actions(company, user)
         res["kpi_hr_recruitment_new_colleagues"] = (
             f"hr.open_view_employee_list_my?menu_id={self.env.ref('hr.menu_hr_root').id}"
         )
