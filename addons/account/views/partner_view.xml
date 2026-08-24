@@ -161,8 +161,8 @@
                 </button>
                 <button
                     class="oe_stat_button"
-                    type="action"
-                    name="%(account.res_partner_action_supplier_bills)d"
+                    type="object"
+                    name="action_view_partner_bills"
                     groups="account.group_account_invoice"
                     icon="fa-regular fa-pen-to-square" help="Vendor Bills"
                     invisible="supplier_invoice_count == 0"
@@ -176,14 +176,6 @@
             </field>
             <field name="vat" position="attributes">
                 <attribute name="options">{'placeholder_field': 'partner_vat_placeholder'}</attribute>
-            </field>
-
-            <field name="company_registry" position="before">
-                <field name="partner_company_registry_placeholder" invisible="1" /> <!-- Read by the placeholder_field option on company_registry -->
-            </field>
-            <field name="company_registry" position="attributes">
-                <attribute name="options">{'placeholder_field':
-                    'partner_company_registry_placeholder'}</attribute>
             </field>
         </field>
     </record>

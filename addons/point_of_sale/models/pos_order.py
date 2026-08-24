@@ -1682,12 +1682,9 @@ class PosOrder(models.Model):
         return invoice
 
     def _reconcile_invoice_payments(self, invoice, payment_moves):
-        receivable_account = (
-            self.env["res.partner"]
-            ._find_accounting_partner(invoice.partner_id)
-            .with_company(self.company_id)
-            .property_account_receivable_id
-        )
+        receivable_account = invoice.partner_id.commercial_partner_id.with_company(
+            self.company_id
+        ).property_account_receivable_id
         if not receivable_account.reconcile:
             return
         payment_receivable_lines = payment_moves.sudo().pos_payment_ids._get_receivable_lines_for_invoice_reconciliation(

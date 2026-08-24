@@ -49,7 +49,7 @@ class PosSession(models.Model):
 
     def _get_split_receivable_op_vals(self, payment, amount, amount_converted):
         partner = payment.online_account_payment_id.partner_id
-        accounting_partner = self.env["res.partner"]._find_accounting_partner(partner)
+        accounting_partner = partner.commercial_partner_id
         if not accounting_partner:
             raise UserError(_("The partner of the POS online payment (id=%d) could not be found", payment.id))
         partial_vals = {

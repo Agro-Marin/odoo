@@ -2,9 +2,11 @@ from freezegun import freeze_time
 from lxml import etree
 
 from odoo import Command
-from odoo.exceptions import UserError
-from odoo.tests import tagged
+from odoo.exceptions import AccessError, UserError
+from odoo.tests import new_test_user, tagged
+from odoo.tools import file_open
 
+from odoo.addons.account.models.res_partner import _ref_company_registry
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
@@ -97,8 +99,10 @@ class TestAccountPartner(AccountTestInvoicingCommon):
             1,
             "the child's moves roll up to the parent",
         )
+        self.assertEqual(child.customer_invoice_count, 1)
+        self.assertEqual(parent.customer_invoice_count, 1)
 
-    def test_account_move_count(self):
+    def test_partner_rank_increases_on_post(self):
         self.env["account.move"].create(
             [
                 {
@@ -304,12 +308,14 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         self.env.invalidate_all()
 
         Partner = self.env["res.partner"]
-        for op, operand in ((">=", 0), ("=", 0), (">", 0)):
-            ids = Partner._credit_search(op, operand)[0][2]
-            self.assertNotIn(
-                None, ids, f"NULL partner leaked into credit {op} {operand}"
-            )
         self.assertIn(partner, Partner.search([("credit", ">", 0)]))
+        # `credit = 0` compiles to `id NOT IN (<partners that owe something>)`;
+        # one NULL in that subquery makes NOT IN match nothing at all.
+        for op, operand in ((">=", 0), ("=", 0), ("<=", 0)):
+            self.assertTrue(
+                Partner.search([("credit", op, operand)]),
+                f"a partnerless line emptied out credit {op} {operand}",
+            )
 
     def test_map_tax_account_singleton_contract(self):
         FP = self.env["account.fiscal.position"]
@@ -345,3 +351,426 @@ class TestAccountPartner(AccountTestInvoicingCommon):
                 child_ids_field.find(".//field[@name='fiscal_country_codes']"),
                 "fiscal_country_codes must not be nested inside child_ids' own subview",
             )
+
+    def test_credit_search_covers_partners_without_any_line(self):
+        no_line = self.env["res.partner"].create({"name": "NoAccountingLine"})
+        debtor = self.env["res.partner"].create({"name": "Debtor"})
+        self.init_invoice(
+            "out_invoice", debtor, invoice_date="2023-01-01", amounts=[900], post=True
+        )
+        self.env.invalidate_all()
+
+        self.assertEqual(no_line.credit, 0.0, "sanity: the field displays 0.0")
+        Partner = self.env["res.partner"]
+        for op, operand, expected in (
+            ("=", 0, True),
+            (">=", 0, True),
+            ("<=", 0, True),
+            ("!=", 0, False),
+            (">", 0, False),
+        ):
+            self.assertEqual(
+                no_line in Partner.search([("credit", op, operand)]),
+                expected,
+                f"credit {op} {operand} disagrees with the displayed 0.0",
+            )
+        self.assertIn(debtor, Partner.search([("credit", "!=", 0)]))
+        self.assertIn(debtor, Partner.search([("credit", "=", 900)]))
+        self.assertNotIn(debtor, Partner.search([("credit", "=", 0)]))
+
+    def test_credit_search_supports_the_orm_normalised_operators(self):
+        # The optimiser rewrites `= x` to `in {x}` and a numeric 0 to False; a
+        # search method that raises instead of returning NotImplemented poisons
+        # the ORM's own decomposition and the whole filter fails.
+        Partner = self.env["res.partner"]
+        for domain in (
+            [("credit", "in", [0])],
+            [("credit", "not in", [0])],
+            [("debit", "=", 0)],
+            [("debit", "!=", 0)],
+            [("credit", "=", False)],
+        ):
+            Partner.search(domain)
+
+    def test_days_sales_outstanding_is_group_restricted_like_credit(self):
+        # It divides by `credit`; leaving it ungated turns a plain read into an
+        # AccessError naming a field the caller never asked for -- or, when the
+        # user cannot see the moves either, into a silently wrong 0.0.
+        Partner = self.env["res.partner"]
+        self.assertEqual(
+            Partner._fields["days_sales_outstanding"].groups,
+            Partner._fields["credit"].groups,
+        )
+        partner = Partner.create({"name": "DsoAccess"})
+        salesperson = new_test_user(
+            self.env, login="dso_salesperson", groups="base.group_user"
+        )
+        self.assertFalse(salesperson.has_group("account.group_account_invoice"))
+        self.assertFalse(salesperson.has_group("account.group_account_readonly"))
+
+        restricted = self.env(user=salesperson)
+        restricted.invalidate_all()
+        with self.assertRaises(AccessError) as caught:
+            partner.with_env(restricted).days_sales_outstanding
+        self.assertIn("days_sales_outstanding", str(caught.exception))
+
+    def test_move_counts_are_scoped_to_the_active_company(self):
+        other = self.setup_other_company()
+        partner = self.env["res.partner"].create({"name": "MultiCoCustomer"})
+        self.init_invoice(
+            "out_invoice", partner, invoice_date="2023-01-01", amounts=[100], post=True
+        )
+        self.env["account.move"].with_company(other["company"]).create(
+            [
+                {
+                    "move_type": "out_invoice",
+                    "invoice_date": "2023-01-01",
+                    "partner_id": partner.id,
+                    "invoice_line_ids": [
+                        Command.create({"name": "l", "price_unit": 500})
+                    ],
+                }
+            ]
+            * 2
+        ).action_post()
+        self.env.invalidate_all()
+
+        here = partner.with_company(self.env.company).customer_invoice_count
+        there = partner.with_company(other["company"]).customer_invoice_count
+        self.assertEqual(here, 1)
+        self.assertEqual(
+            there, 2, "the count must follow the company, not the first read"
+        )
+
+    def test_move_counts_use_two_different_company_scopes(self):
+        # account_move_count is scoped by env.companies (account_move_comp_rule),
+        # customer_invoice_count by env.company (_check_company_domain). Neither is
+        # wrong; both must key their cache on the context they actually read.
+        other = self.setup_other_company()
+        accountant = new_test_user(
+            self.env,
+            login="two_scope_accountant",
+            groups="base.group_user,account.group_account_user,base.group_multi_company",
+        )
+        accountant.company_ids = [
+            Command.set([self.env.company.id, other["company"].id])
+        ]
+        accountant.company_id = self.env.company
+        partner = self.env["res.partner"].create({"name": "TwoScopes"})
+        self.init_invoice(
+            "out_invoice", partner, invoice_date="2023-01-01", amounts=[100], post=True
+        )
+        for amount in (500, 700):
+            self.env["account.move"].with_company(other["company"]).create(
+                {
+                    "move_type": "out_invoice",
+                    "invoice_date": "2023-01-01",
+                    "partner_id": partner.id,
+                    "invoice_line_ids": [
+                        Command.create({"name": "l", "price_unit": amount})
+                    ],
+                }
+            ).action_post()
+        self.env.flush_all()
+
+        as_user = self.env(user=accountant)
+        both = as_user(
+            context=dict(
+                as_user.context,
+                allowed_company_ids=[self.env.company.id, other["company"].id],
+            )
+        )
+        both.invalidate_all()
+        visible = partner.with_env(both)
+        self.assertEqual(
+            visible.account_move_count, 3, "counts every company the user enabled"
+        )
+        self.assertEqual(
+            visible.customer_invoice_count, 1, "counts only the active company"
+        )
+
+        # Same env, fewer companies enabled, WITHOUT invalidating: without
+        # depends_context("allowed_company_ids") the first read is handed back.
+        one = as_user(
+            context=dict(as_user.context, allowed_company_ids=[self.env.company.id])
+        )
+        self.assertEqual(
+            partner.with_env(one).account_move_count,
+            1,
+            "account_move_count must key its cache on allowed_company_ids",
+        )
+
+    def test_invoice_edi_format_written_on_a_child_reaches_the_commercial_partner(self):
+        selection = self.env["res.partner"]._fields["invoice_edi_format"].selection
+        if not selection:
+            self.skipTest("no e-invoicing format is installed")
+        edi_format = selection[0][0]
+        parent = self.env["res.partner"].create(
+            {"name": "EdiParent", "is_company": True}
+        )
+        child = self.env["res.partner"].create(
+            {"name": "EdiChild", "parent_id": parent.id}
+        )
+
+        child.invoice_edi_format = edi_format
+        self.env.invalidate_all()
+
+        self.assertEqual(
+            child.invoice_edi_format,
+            edi_format,
+            "the value must survive a cache drop, not only the write",
+        )
+        self.assertEqual(parent.invoice_edi_format, edi_format)
+
+    def test_clear_removed_edi_formats_clears_every_company(self):
+        selection = self.env["res.partner"]._fields["invoice_edi_format"].selection
+        if not selection:
+            self.skipTest("no e-invoicing format is installed")
+        edi_format = selection[0][0]
+        other = self.setup_other_company()
+        partner = self.env["res.partner"].create({"name": "EdiMultiCo"})
+        partner.with_company(self.env.company).invoice_edi_format_store = edi_format
+        partner.with_company(other["company"]).invoice_edi_format_store = edi_format
+
+        # A jsonb scalar makes jsonb_each_text raise; this runs from uninstall hooks,
+        # where a crash would abort the uninstall.
+        malformed = self.env["res.partner"].create({"name": "EdiMalformed"})
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE res_partner SET invoice_edi_format_store = 'null'::jsonb WHERE id = %s",
+            (malformed.id,),
+        )
+
+        self.env["res.partner"]._clear_removed_edi_formats(edi_format)
+
+        self.assertFalse(
+            partner.with_company(self.env.company).invoice_edi_format_store
+        )
+        self.assertFalse(
+            partner.with_company(other["company"]).invoice_edi_format_store,
+            "a second company kept a format its module no longer provides",
+        )
+
+    def test_parent_write_reports_the_vat_clash_without_a_singleton_error(self):
+        parent = self.env["res.partner"].create({"name": "VatParent", "vat": "AAA"})
+        with_moves = self.env["res.partner"].create(
+            {"name": "VatWithMoves", "vat": "BBB"}
+        )
+        other = self.env["res.partner"].create({"name": "VatOther", "vat": "CCC"})
+        self.init_invoice(
+            "out_invoice",
+            with_moves,
+            invoice_date="2023-01-01",
+            amounts=[100],
+            post=True,
+        )
+
+        with self.assertRaisesRegex(UserError, "different"), self.cr.savepoint():
+            (with_moves | other).write({"parent_id": parent.id})
+
+    def test_parent_write_ignores_partners_without_accounting_entries(self):
+        parent = self.env["res.partner"].create({"name": "OkParent", "vat": "AAA"})
+        with_moves = self.env["res.partner"].create(
+            {"name": "OkWithMoves", "vat": "AAA"}
+        )
+        no_moves = self.env["res.partner"].create(
+            {"name": "OkNoMoves", "vat": "DIFFERENT"}
+        )
+        self.init_invoice(
+            "out_invoice",
+            with_moves,
+            invoice_date="2023-01-01",
+            amounts=[100],
+            post=True,
+        )
+
+        (with_moves | no_moves).write({"parent_id": parent.id})
+
+        self.assertEqual(with_moves.parent_id, parent)
+        self.assertEqual(
+            no_moves.parent_id,
+            parent,
+            "a partner with no accounting entry must not be blocked by a sibling",
+        )
+
+    def test_display_invoice_template_default_matches_the_journal(self):
+        base = self.env.ref("account.account_invoices")
+        base.copy({"name": "Invoice PDF variant"})
+        self.env.registry.clear_cache()
+
+        Partner = self.env["res.partner"]
+        Journal = self.env["account.journal"]
+        self.assertEqual(
+            Partner.default_get(["display_invoice_template_pdf_report_id"])[
+                "display_invoice_template_pdf_report_id"
+            ],
+            Journal.default_get(["display_invoice_template_pdf_report_id"])[
+                "display_invoice_template_pdf_report_id"
+            ],
+            "a new partner hides the report selector the journal shows",
+        )
+
+    def test_available_invoice_templates_survive_a_multi_record_read(self):
+        # Assigning the recordset to `self` as a whole in the compute keeps only the
+        # last record, which empties the domain of invoice_template_pdf_report_id for
+        # every other row on screen.
+        self.env.ref("account.account_invoices").copy({"name": "Template variant"})
+        self.env.registry.clear_cache()
+        self.env.invalidate_all()
+        expected = len(
+            self.env["account.move"]._get_available_invoice_template_pdf_report_ids()
+        )
+        self.assertGreater(expected, 1, "sanity: two templates exist")
+
+        partners = self.env["res.partner"].create(
+            [{"name": f"TemplateReader {i}"} for i in range(3)]
+        )
+        self.env.invalidate_all()
+        self.assertEqual(
+            [len(p.available_invoice_template_pdf_report_ids) for p in partners],
+            [expected] * 3,
+        )
+        # A single journal cannot show the fault: the lossy assignment keeps the
+        # LAST record, which is the only record. Two are required.
+        self.env["account.journal"].create(
+            {"name": "Second Sales", "code": "SAL2", "type": "sale"}
+        )
+        journals = self.env["account.journal"].search([("type", "=", "sale")])
+        self.assertGreater(len(journals), 1, "sanity: the fault needs two records")
+        self.env.invalidate_all()
+        self.assertEqual(
+            [len(j.available_invoice_template_pdf_report_ids) for j in journals],
+            [expected] * len(journals),
+        )
+
+    def test_company_registry_placeholder_reaches_the_company(self):
+        # `base` declares res.company.company_registry_placeholder as
+        # related="partner_id.company_registry_placeholder". A field declared related
+        # in one module and compute in another resolves to the RELATED, so account's
+        # own compute never ran and the company field was False on every database.
+        japan = self.env["res.country"].search([("code", "=", "JP")], limit=1)
+        self.assertTrue(japan, "sanity: JP is one of the seeded reference countries")
+        expected = _ref_company_registry["jp"]
+
+        partner = self.env["res.partner"].create(
+            {"name": "RegistryPartner", "country_id": japan.id}
+        )
+        self.assertEqual(partner.company_registry_placeholder, expected)
+
+        company = self.env["res.company"].create({"name": "RegistryCo"})
+        company.partner_id.country_id = japan
+        self.env.invalidate_all()
+        self.assertEqual(
+            company.company_registry_placeholder,
+            expected,
+            "the company reads the placeholder through base's related field",
+        )
+
+        # The never-executed compute keyed on the fiscal country first; keep that.
+        belgium = self.env["res.country"].search([("code", "=", "BE")], limit=1)
+        company.partner_id.country_id = belgium
+        company.account_fiscal_country_id = japan
+        self.env.invalidate_all()
+        self.assertEqual(
+            company.company_registry_placeholder,
+            expected,
+            "the fiscal country wins over the company's own country",
+        )
+
+    def test_vat_placeholder_comes_from_a_seam_not_a_reverse_import(self):
+        # base_vat DEPENDS ON account, so account must not import its private
+        # _ref_vat dict; it asks through a method base_vat overrides.
+        Partner = self.env["res.partner"]
+        japan = self.env["res.country"].search([("code", "=", "JP")], limit=1)
+        self.assertEqual(Partner._get_expected_vat_format(False), "")
+
+        partner = Partner.create({"name": "VatPartner", "country_id": japan.id})
+        company = self.env["res.company"].create({"name": "VatCo"})
+        company.partner_id.country_id = japan
+        self.env.invalidate_all()
+        expected = Partner._get_expected_vat_format("JP")
+
+        if self.env["ir.module.module"].search_count(
+            [("name", "=", "base_vat"), ("state", "=", "installed")]
+        ):
+            self.assertTrue(expected, "base_vat installed: the seam answers")
+            self.assertIn(expected, partner.partner_vat_placeholder)
+            self.assertIn(expected, company.company_vat_placeholder)
+        else:
+            # base_vat DEPENDS ON account, so `-i account` alone leaves it out.
+            # The old module-level import leaked its data anyway; the seam must not.
+            self.assertEqual(expected, "")
+            self.assertNotIn("7000012050002", partner.partner_vat_placeholder)
+            self.assertNotIn("7000012050002", company.company_vat_placeholder)
+
+        for module in ("res_partner", "res_company"):
+            source = file_open(
+                f"account/models/{module}.py", "r", filter_ext=(".py",)
+            ).read()
+            self.assertNotIn(
+                "base_vat",
+                source,
+                f"account/models/{module}.py imports from a module that depends on it",
+            )
+
+    def test_vendor_bills_button_agrees_with_what_it_opens(self):
+        # The badge counted `env.company` bills and rolled children up; the action
+        # had no company filter and filtered on the partner alone. So the number and
+        # the list disagreed twice over, and `invisible="supplier_invoice_count == 0"`
+        # hid the button entirely whenever the ACTIVE company had no bills.
+        other = self.setup_other_company()
+        parent = self.env["res.partner"].create({"name": "BillParent"})
+        child = self.env["res.partner"].create(
+            {"name": "BillChild", "parent_id": parent.id}
+        )
+        for partner, company in (
+            (parent, self.env.company),
+            (child, self.env.company),
+            (parent, other["company"]),
+        ):
+            self.env["account.move"].with_company(company).create(
+                {
+                    "move_type": "in_invoice",
+                    "invoice_date": "2023-01-01",
+                    "partner_id": partner.id,
+                    "invoice_line_ids": [
+                        Command.create({"name": "l", "price_unit": 100})
+                    ],
+                }
+            ).action_post()
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        action = parent.action_view_partner_bills()
+        opened = self.env["account.move"].search_count(action["domain"])
+        self.assertEqual(
+            parent.supplier_invoice_count,
+            opened,
+            "the badge and the list behind it must count the same moves",
+        )
+        self.assertEqual(parent.supplier_invoice_count, 2, "own bill + the child's")
+        self.assertNotIn(
+            "search_default_partner_id",
+            action["context"],
+            "the partner filter lives in the domain, which rolls children up",
+        )
+
+    def test_increase_rank_survives_a_concurrently_deleted_partner(self):
+        partners = self.env["res.partner"].create(
+            [{"name": f"RankRace {i}", "customer_rank": 3} for i in range(3)]
+        )
+        partners._increase_rank("customer_rank", 1)
+        deleted_id = partners[1].id
+        self.env.cr.execute("DELETE FROM res_partner WHERE id = %s", (deleted_id,))
+        self.env.invalidate_all()
+
+        with self.enter_registry_test_mode():
+            self.env.cr.postcommit.run()
+
+        self.env.invalidate_all()
+        survivors = (partners[0] | partners[2]).exists()
+        self.assertEqual(
+            survivors.mapped("customer_rank"),
+            [4, 4],
+            "one deleted partner discarded the whole batch of increments",
+        )

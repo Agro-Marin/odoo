@@ -167,6 +167,10 @@ class ResPartner(models.Model):
         self._check_vat(validation=False)
 
     @api.model
+    def _get_expected_vat_format(self, country_code):
+        return _ref_vat.get((country_code or '').lower()) or super()._get_expected_vat_format(country_code)
+
+    @api.model
     def _get_country_specific_vat_variants(self, normalized_vat, country_prefix):
         vat_variants = super()._get_country_specific_vat_variants(normalized_vat, country_prefix)
         if country_prefix.upper() == 'CH':

@@ -176,12 +176,9 @@ class TestPosAccessRights(CommonPosTest):
             [self._paid_order_payload("cashier-invoice-0002")]
         )
         order = self.env["pos.order"].search([("uuid", "=", "cashier-invoice-0002")])
-        receivable = (
-            self.env["res.partner"]
-            ._find_accounting_partner(order.account_move.partner_id)
-            .with_company(order.company_id)
-            .property_account_receivable_id
-        )
+        receivable = order.account_move.partner_id.commercial_partner_id.with_company(
+            order.company_id
+        ).property_account_receivable_id
         invoice_lines = order.account_move.line_ids.filtered(
             lambda line: line.account_id == receivable
         )

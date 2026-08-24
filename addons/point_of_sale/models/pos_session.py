@@ -1776,9 +1776,7 @@ class PosSession(models.Model):
         if not payment_method.journal_id:
             return self.env["account.move.line"]
         outstanding_account = payment_method.outstanding_account_id
-        accounting_partner = self.env["res.partner"]._find_accounting_partner(
-            payment.partner_id
-        )
+        accounting_partner = payment.partner_id.commercial_partner_id
         destination_account = accounting_partner.property_account_receivable_id
 
         account_payment = self.env["account.payment"].create(
@@ -2029,9 +2027,7 @@ class PosSession(models.Model):
         return None
 
     def _get_split_receivable_vals(self, payment, amount, amount_converted):
-        accounting_partner = self.env["res.partner"]._find_accounting_partner(
-            payment.partner_id
-        )
+        accounting_partner = payment.partner_id.commercial_partner_id
         if not accounting_partner:
             raise UserError(
                 _(
@@ -2159,9 +2155,7 @@ class PosSession(models.Model):
         }
 
     def _get_split_statement_line_vals(self, journal, amount, payment):
-        accounting_partner = self.env["res.partner"]._find_accounting_partner(
-            payment.partner_id
-        )
+        accounting_partner = payment.partner_id.commercial_partner_id
         amount_values = self._prepare_statement_line_amount_values(journal, amount)
         return {
             "date": fields.Date.context_today(self, timestamp=payment.payment_date),

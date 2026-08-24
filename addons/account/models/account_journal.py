@@ -1002,9 +1002,15 @@ class AccountJournal(models.Model):
             journal.payment_sequence = journal.type in LIQUIDITY_TYPES
 
     def _compute_available_invoice_template_pdf_report_ids(self):
-        self.available_invoice_template_pdf_report_ids = self.env[
+        # Assigning to `self` as a whole keeps only the last record: a computed
+        # One2many resolves the write per record against a single command list, so
+        # every earlier journal ends up with an empty set and an unselectable
+        # `invoice_template_pdf_report_id` domain.
+        reports = self.env[
             "account.move"
         ]._get_available_invoice_template_pdf_report_ids()
+        for journal in self:
+            journal.available_invoice_template_pdf_report_ids = reports
 
     def unlink(self):
         used_bank_accounts = self.bank_account_id

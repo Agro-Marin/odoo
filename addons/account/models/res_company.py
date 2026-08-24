@@ -11,8 +11,6 @@ from odoo.tools.misc import format_date
 
 from odoo.addons.account.models.account_move import MAX_HASH_VERSION
 from odoo.addons.account.models.product import ACCOUNT_DOMAIN
-from odoo.addons.account.models.res_partner import _ref_company_registry
-from odoo.addons.base_vat.models.res_partner import _ref_vat
 
 MONTH_SELECTION = [
     ("1", "January"),
@@ -441,9 +439,6 @@ class ResCompany(models.Model):
         help="Default on whether the sales price used on the product and invoices with this Company includes its taxes.",
     )
     company_vat_placeholder = fields.Char(compute="_compute_company_vat_placeholder")
-    company_registry_placeholder = fields.Char(
-        compute="_compute_company_registry_placeholder"
-    )
 
     income_account_id = fields.Many2one(
         comodel_name="account.account",
@@ -1459,28 +1454,14 @@ class ResCompany(models.Model):
 
     @api.depends("country_id", "account_fiscal_country_id")
     def _compute_company_vat_placeholder(self):
+        Partner = self.env["res.partner"]
         for company in self:
-            placeholder = _("/ if not applicable")
-            if company.country_id or company.account_fiscal_country_id:
-                expected_vat = _ref_vat.get(
-                    (
-                        company.country_id.code
-                        or company.account_fiscal_country_id.code
-                    ).lower()
-                )
-                if expected_vat:
-                    placeholder = _("%s, or / if not applicable", expected_vat)
-
-            company.company_vat_placeholder = placeholder
-
-    @api.depends("country_id", "account_fiscal_country_id")
-    def _compute_company_registry_placeholder(self):
-        for company in self:
-            country_code = (
-                company.account_fiscal_country_id or company.country_id
-            ).code or ""
-            company.company_registry_placeholder = _ref_company_registry.get(
-                country_code.lower(), ""
+            country = company.country_id or company.account_fiscal_country_id
+            expected_vat = Partner._get_expected_vat_format(country.code)
+            company.company_vat_placeholder = (
+                _("%s, or / if not applicable", expected_vat)
+                if expected_vat
+                else _("/ if not applicable")
             )
 
     def _set_category_defaults(self, changed_fields=None):

@@ -2,15 +2,12 @@ import logging
 import re
 from collections import defaultdict
 
-from psycopg import errors as pgerrors
-
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import SQL
 
 from odoo.addons.account.models.account_move import BYPASS_LOCK_CHECK
-from odoo.addons.base_vat.models.res_partner import _ref_vat
 
 _logger = logging.getLogger(__name__)
 
@@ -21,234 +18,56 @@ _ref_company_registry = {
     "fi": "8763054-9",
 }
 
+SEARCH_MODE_RANK_FIELDS = {
+    "customer": "customer_rank",
+    "supplier": "supplier_rank",
+}
+
+#: A partner with no receivable/payable line at all still *displays* a balance of
+#: 0.0, so the search has to answer for those rows too. The comparison decides
+#: whether 0.0 is a match; the negation turns "partners that match" into
+#: "partners that do not", which is the only form that can reach a partner the
+#: aggregate never groups.
+ASSET_DIFFERENCE_COMPARISONS = {
+    "<": lambda balance, operand: balance < operand,
+    "<=": lambda balance, operand: balance <= operand,
+    "=": lambda balance, operand: balance == operand,
+    "!=": lambda balance, operand: balance != operand,
+    ">": lambda balance, operand: balance > operand,
+    ">=": lambda balance, operand: balance >= operand,
+}
+ASSET_DIFFERENCE_NEGATIONS = {
+    "<": ">=",
+    "<=": ">",
+    "=": "!=",
+    "!=": "=",
+    ">": "<=",
+    ">=": "<",
+}
+
 
 class ResPartner(models.Model):
-    _inherit = "res.partner"
+    _inherit = ["res.partner", "mixin.fiscal.country.codes"]
 
-    fiscal_country_codes = fields.Char(
-        compute="_compute_fiscal_country_codes",
-    )
+    def _default_display_invoice_template_pdf_report_id(self):
+        reports = self.env[
+            "account.move"
+        ]._get_available_invoice_template_pdf_report_ids()
+        return len(reports) > 1
+
     fiscal_country_group_codes = fields.Json(
         compute="_compute_fiscal_country_group_codes",
     )
     partner_vat_placeholder = fields.Char(
         compute="_compute_partner_vat_placeholder",
     )
-    partner_company_registry_placeholder = fields.Char(
-        compute="_compute_partner_company_registry_placeholder"
-    )
     duplicate_bank_partner_ids = fields.Many2many(
         related="bank_ids.duplicate_bank_partner_ids"
     )
-
-    @api.depends("company_id", "country_code")
-    @api.depends_context("allowed_company_ids")
-    def _compute_fiscal_country_codes(self):
-        for record in self:
-            allowed_companies = record.company_id or self.env.companies
-            country_codes = allowed_companies.mapped("account_fiscal_country_id.code")
-            if record.country_code:
-                country_codes.append(record.country_code)
-            record.fiscal_country_codes = ",".join(sorted(set(country_codes)))
-
-    @api.depends("company_id")
-    @api.depends_context("allowed_company_ids")
-    def _compute_fiscal_country_group_codes(self):
-        for partner in self:
-            allowed_companies = partner.company_id or self.env.companies
-            partner.fiscal_country_group_codes = list(
-                {
-                    code
-                    for company in allowed_companies
-                    for code in company.account_fiscal_country_group_codes
-                }
-            )
-
-    @property
-    def _order(self):
-        res = super()._order
-        partner_search_mode = self.env.context.get("res_partner_search_mode")
-        if partner_search_mode not in ("customer", "supplier"):
-            return res
-        order_by_field = f"{partner_search_mode}_rank DESC"
-        return "%s, %s" % (order_by_field, res) if res else order_by_field
-
-    @api.depends_context("company")
-    def _compute_credit_debit(self):
-        self.debit = self.credit = False
-        if not self.ids:
-            return
-        query = self.env["account.move.line"]._search(
-            [
-                ("parent_state", "=", "posted"),
-                ("company_id", "child_of", self.env.company.root_id.id),
-            ],
-            bypass_access=True,
-        )
-        self.env["account.move.line"].flush_model(
-            [
-                "account_id",
-                "amount_residual",
-                "company_id",
-                "parent_state",
-                "partner_id",
-                "reconciled",
-            ]
-        )
-        self.env["account.account"].flush_model(["account_type"])
-        sql = SQL(
-            """
-            SELECT account_move_line.partner_id, a.account_type, SUM(account_move_line.amount_residual)
-            FROM %s
-            LEFT JOIN account_account a ON (account_move_line.account_id=a.id)
-            WHERE a.account_type IN ('asset_receivable','liability_payable')
-            AND account_move_line.partner_id = ANY(%s)
-            AND account_move_line.reconciled IS NOT TRUE
-            AND %s
-            GROUP BY account_move_line.partner_id, a.account_type
-            """,
-            query.from_clause,
-            list(self.ids),
-            query.where_clause or SQL("TRUE"),
-        )
-        for pid, account_type, val in self.env.execute_query(sql):
-            partner = self.browse(pid)
-            if account_type == "asset_receivable":
-                partner.credit = val
-            elif account_type == "liability_payable":
-                partner.debit = -val
-
-    @api.depends_context("company")
-    def _compute_credit_to_invoice(self):
-        self.credit_to_invoice = False
-
-    def _asset_difference_search(self, account_type, operator, operand):
-        if (
-            operator not in ("<", "=", ">", ">=", "<=")
-            or isinstance(operand, bool)
-            or not isinstance(operand, (float, int))
-        ):
-            raise UserError(
-                _(
-                    "Total Receivable/Payable can only be filtered with a numeric "
-                    "comparison (<, <=, =, >, >=) against an amount."
-                )
-            )
-        sign = -1 if account_type == "liability_payable" else 1
-        rows = self.env.execute_query(
-            SQL(
-                """
-                SELECT aml.partner_id
-                  FROM account_move_line aml
-                  JOIN account_move move ON move.id = aml.move_id
-                  JOIN account_account acc ON acc.id = aml.account_id
-                  JOIN res_company line_company ON line_company.id = aml.company_id
-                 WHERE acc.account_type = %(account_type)s
-                   AND aml.partner_id IS NOT NULL
-                   AND SPLIT_PART(line_company.parent_path, '/', 1)::int = %(root_id)s
-                   AND move.state = 'posted'
-              GROUP BY aml.partner_id
-                HAVING %(sign)s * COALESCE(SUM(aml.amount_residual), 0)
-                       %(operator)s %(operand)s
-                """,
-                account_type=account_type,
-                root_id=self.env.company.root_id.id,
-                sign=sign,
-                operator=SQL(operator),
-                operand=operand,
-            )
-        )
-        if not rows:
-            return [("id", "in", [])]
-        return [("id", "in", [row[0] for row in rows])]
-
-    @api.model
-    def _credit_search(self, operator, operand):
-        return self._asset_difference_search("asset_receivable", operator, operand)
-
-    @api.model
-    def _debit_search(self, operator, operand):
-        return self._asset_difference_search("liability_payable", operator, operand)
-
-    def _compute_total_invoiced(self):
-        self.total_invoiced = 0
-        if not self.ids:
-            return
-
-        totals = self._aggregate_by_partner_hierarchy(
-            "account.invoice.report",
-            [
-                ("state", "not in", ["draft", "cancel"]),
-                ("move_type", "in", ("out_invoice", "out_refund")),
-            ],
-            "price_subtotal:sum",
-        )
-        for partner in self:
-            partner.total_invoiced = totals[partner.id]
-
-    @api.depends("credit")
-    def _compute_days_sales_outstanding(self):
-        commercial_partners = {
-            commercial_partner: (invoice_date_min, amount_total_signed_sum)
-            for commercial_partner, invoice_date_min, amount_total_signed_sum in self.env[
-                "account.move"
-            ]._read_group(
-                domain=[
-                    ("state", "not in", ["draft", "cancel"]),
-                    (
-                        "move_type",
-                        "in",
-                        self.env["account.move"].get_sale_types(include_receipts=True),
-                    ),
-                    ("company_id", "child_of", self.env.company.root_id.id),
-                    ("commercial_partner_id", "in", self.commercial_partner_id.ids),
-                ],
-                groupby=["commercial_partner_id"],
-                aggregates=["invoice_date:min", "amount_total_signed:sum"],
-            )
-        }
-        today = fields.Date.context_today(self)
-        for partner in self:
-            oldest_invoice_date, total_invoiced_tax_included = commercial_partners.get(
-                partner.commercial_partner_id, (today, 0)
-            )
-            days_since_oldest_invoice = (today - oldest_invoice_date).days
-            partner.days_sales_outstanding = (
-                max(
-                    0.0,
-                    (partner.credit / total_invoiced_tax_included)
-                    * days_since_oldest_invoice,
-                )
-                if total_invoiced_tax_included > 0
-                else 0
-            )
-
-    def _compute_available_invoice_template_pdf_report_ids(self):
-        for partner in self:
-            partner.available_invoice_template_pdf_report_ids = self.env[
-                "account.move"
-            ]._get_available_invoice_template_pdf_report_ids()
-
-    @api.depends_context("company")
-    @api.depends("company_id")
-    def _compute_currency_id(self):
-        default_company = self.env.company
-        currency_by_company = {}
-        for partner in self:
-            company = partner.company_id or default_company
-            currency = currency_by_company.get(company.id)
-            if currency is None:
-                currency = company.sudo().currency_id
-                currency_by_company[company.id] = currency
-            partner.currency_id = currency
-
-    def _default_display_invoice_template_pdf_report_id(self):
-        return len(self.available_invoice_template_pdf_report_ids) > 1
-
     name = fields.Char(tracking=True)
     credit = fields.Monetary(
         compute="_compute_credit_debit",
-        search=_credit_search,
+        search="_credit_search",
         string="Total Receivable",
         help="Total amount this customer owes you.",
         groups="account.group_account_invoice,account.group_account_readonly",
@@ -280,10 +99,11 @@ class ResPartner(models.Model):
         string="Days Sales Outstanding (DSO)",
         help="[(Total Receivable/Total Revenue) * number of days since the first invoice] for this customer",
         compute="_compute_days_sales_outstanding",
+        groups="account.group_account_invoice,account.group_account_readonly",
     )
     debit = fields.Monetary(
         compute="_compute_credit_debit",
-        search=_debit_search,
+        search="_debit_search",
         string="Total Payable",
         help="Total amount you have to pay to this vendor.",
         groups="account.group_account_invoice,account.group_account_readonly",
@@ -437,6 +257,218 @@ class ResPartner(models.Model):
         ],
     )
 
+    @api.depends("company_id", "country_code")
+    def _compute_fiscal_country_codes(self):
+        super()._compute_fiscal_country_codes()
+        for record in self:
+            if record.country_code:
+                codes = set(filter(None, record.fiscal_country_codes.split(",")))
+                record.fiscal_country_codes = ",".join(
+                    sorted(codes | {record.country_code})
+                )
+
+    def _get_fiscal_country_companies(self):
+        return self.company_id or super()._get_fiscal_country_companies()
+
+    @api.depends("company_id")
+    @api.depends_context("allowed_company_ids")
+    def _compute_fiscal_country_group_codes(self):
+        for partner in self:
+            allowed_companies = partner.company_id or self.env.companies
+            partner.fiscal_country_group_codes = list(
+                {
+                    code
+                    for company in allowed_companies
+                    for code in company.account_fiscal_country_group_codes
+                }
+            )
+
+    @property
+    def _order(self):
+        res = super()._order
+        rank_field = SEARCH_MODE_RANK_FIELDS.get(
+            self.env.context.get("res_partner_search_mode")
+        )
+        if not rank_field:
+            return res
+        order_by_field = f"{rank_field} DESC"
+        return "%s, %s" % (order_by_field, res) if res else order_by_field
+
+    @api.depends_context("company")
+    def _compute_credit_debit(self):
+        self.debit = self.credit = False
+        if not self.ids:
+            return
+        query = self.env["account.move.line"]._search(
+            [
+                ("parent_state", "=", "posted"),
+                ("company_id", "child_of", self.env.company.root_id.id),
+            ],
+            bypass_access=True,
+        )
+        self.env["account.move.line"].flush_model(
+            [
+                "account_id",
+                "amount_residual",
+                "company_id",
+                "parent_state",
+                "partner_id",
+                "reconciled",
+            ]
+        )
+        self.env["account.account"].flush_model(["account_type"])
+        sql = SQL(
+            """
+            SELECT account_move_line.partner_id, a.account_type, SUM(account_move_line.amount_residual)
+            FROM %s
+            LEFT JOIN account_account a ON (account_move_line.account_id=a.id)
+            WHERE a.account_type IN ('asset_receivable','liability_payable')
+            AND account_move_line.partner_id = ANY(%s)
+            AND account_move_line.reconciled IS NOT TRUE
+            AND %s
+            GROUP BY account_move_line.partner_id, a.account_type
+            """,
+            query.from_clause,
+            list(self.ids),
+            query.where_clause or SQL("TRUE"),
+        )
+        for pid, account_type, val in self.env.execute_query(sql):
+            partner = self.browse(pid)
+            if account_type == "asset_receivable":
+                partner.credit = val
+            elif account_type == "liability_payable":
+                partner.debit = -val
+
+    @api.depends_context("company")
+    def _compute_credit_to_invoice(self):
+        self.credit_to_invoice = False
+
+    def _get_asset_difference_query(self, account_type, operator, operand):
+        return SQL(
+            """
+            SELECT aml.partner_id
+              FROM account_move_line aml
+              JOIN account_move move ON move.id = aml.move_id
+              JOIN account_account acc ON acc.id = aml.account_id
+              JOIN res_company line_company ON line_company.id = aml.company_id
+             WHERE acc.account_type = %(account_type)s
+               AND aml.partner_id IS NOT NULL
+               AND SPLIT_PART(line_company.parent_path, '/', 1)::int = %(root_id)s
+               AND move.state = 'posted'
+          GROUP BY aml.partner_id
+            HAVING %(sign)s * COALESCE(SUM(aml.amount_residual), 0)
+                   %(operator)s %(operand)s
+            """,
+            account_type=account_type,
+            root_id=self.env.company.root_id.id,
+            sign=-1 if account_type == "liability_payable" else 1,
+            operator=SQL(operator),
+            operand=operand,
+        )
+
+    def _asset_difference_search(self, account_type, operator, operand):
+        if operator not in ASSET_DIFFERENCE_COMPARISONS:
+            return NotImplemented
+        if operand is False:
+            operand = 0.0
+        elif isinstance(operand, bool) or not isinstance(operand, (float, int)):
+            return NotImplemented
+
+        if ASSET_DIFFERENCE_COMPARISONS[operator](0.0, operand):
+            negated = ASSET_DIFFERENCE_NEGATIONS[operator]
+            return Domain(
+                "id",
+                "not any!",
+                self._get_asset_difference_query(account_type, negated, operand),
+            )
+        return Domain(
+            "id",
+            "any!",
+            self._get_asset_difference_query(account_type, operator, operand),
+        )
+
+    @api.model
+    def _credit_search(self, operator, operand):
+        return self._asset_difference_search("asset_receivable", operator, operand)
+
+    @api.model
+    def _debit_search(self, operator, operand):
+        return self._asset_difference_search("liability_payable", operator, operand)
+
+    @api.depends_context("allowed_company_ids")
+    def _compute_total_invoiced(self):
+        totals = self._aggregate_by_partner_hierarchy(
+            "account.invoice.report",
+            [
+                ("state", "not in", ["draft", "cancel"]),
+                ("move_type", "in", ("out_invoice", "out_refund")),
+            ],
+            "price_subtotal:sum",
+        )
+        for partner in self:
+            partner.total_invoiced = totals[partner.id]
+
+    @api.depends_context("company", "tz")
+    @api.depends("credit")
+    def _compute_days_sales_outstanding(self):
+        commercial_partners = {
+            commercial_partner: (invoice_date_min, amount_total_signed_sum)
+            for commercial_partner, invoice_date_min, amount_total_signed_sum in self.env[
+                "account.move"
+            ]._read_group(
+                domain=[
+                    ("state", "not in", ["draft", "cancel"]),
+                    (
+                        "move_type",
+                        "in",
+                        self.env["account.move"].get_sale_types(include_receipts=True),
+                    ),
+                    ("company_id", "child_of", self.env.company.root_id.id),
+                    ("commercial_partner_id", "in", self.commercial_partner_id.ids),
+                ],
+                groupby=["commercial_partner_id"],
+                aggregates=["invoice_date:min", "amount_total_signed:sum"],
+            )
+        }
+        today = fields.Date.context_today(self)
+        for partner in self:
+            oldest_invoice_date, total_invoiced_tax_included = commercial_partners.get(
+                partner.commercial_partner_id, (today, 0)
+            )
+            days_since_oldest_invoice = (today - oldest_invoice_date).days
+            partner.days_sales_outstanding = (
+                max(
+                    0.0,
+                    (partner.credit / total_invoiced_tax_included)
+                    * days_since_oldest_invoice,
+                )
+                if total_invoiced_tax_included > 0
+                else 0
+            )
+
+    def _compute_available_invoice_template_pdf_report_ids(self):
+        # Assigning the recordset to `self` as a whole loses every record but the
+        # last: a computed One2many resolves the write per record against a single
+        # command list. The loop is not redundant.
+        reports = self.env[
+            "account.move"
+        ]._get_available_invoice_template_pdf_report_ids()
+        for partner in self:
+            partner.available_invoice_template_pdf_report_ids = reports
+
+    @api.depends_context("company")
+    @api.depends("company_id")
+    def _compute_currency_id(self):
+        default_company = self.env.company
+        currency_by_company = {}
+        for partner in self:
+            company = partner.company_id or default_company
+            currency = currency_by_company.get(company.id)
+            if currency is None:
+                currency = company.sudo().currency_id
+                currency_by_company[company.id] = currency
+            partner.currency_id = currency
+
     def _compute_bank_account_count(self):
         bank_data = self.env["res.partner.bank"]._read_group(
             [("partner_id", "in", self.ids)], ["partner_id"], ["__count"]
@@ -471,15 +503,20 @@ class ResPartner(models.Model):
         for partner in self:
             partner[field] = counts[partner.id]
 
+    @api.model
+    def _get_supplier_bill_domain(self):
+        return [
+            *self.env["account.move"]._check_company_domain(self.env.company),
+            ("move_type", "in", ("in_invoice", "in_refund")),
+        ]
+
+    @api.depends_context("company")
     def _compute_supplier_invoice_count(self):
         self._compute_move_count_by_partner(
-            "supplier_invoice_count",
-            [
-                *self.env["account.move"]._check_company_domain(self.env.company),
-                ("move_type", "in", ("in_invoice", "in_refund")),
-            ],
+            "supplier_invoice_count", self._get_supplier_bill_domain()
         )
 
+    @api.depends_context("company")
     def _compute_customer_invoice_count(self):
         self._compute_move_count_by_partner(
             "customer_invoice_count",
@@ -490,31 +527,29 @@ class ResPartner(models.Model):
         )
 
     @api.depends_context("company")
-    @api.depends("country_code")
+    @api.depends("country_code", "commercial_partner_id")
     def _compute_invoice_edi_format(self):
         for partner in self:
-            if (
-                not partner.commercial_partner_id
-                or partner.commercial_partner_id.invoice_edi_format_store == "none"
-            ):
+            commercial_partner = partner.commercial_partner_id
+            stored = commercial_partner.invoice_edi_format_store
+            if not commercial_partner or stored == "none":
                 partner.invoice_edi_format = False
             else:
                 partner.invoice_edi_format = (
-                    partner.commercial_partner_id.invoice_edi_format_store
-                    or partner.commercial_partner_id._get_suggested_invoice_edi_format()
+                    stored or commercial_partner._get_suggested_invoice_edi_format()
                 )
 
     def _inverse_invoice_edi_format(self):
         for partner in self:
-            if (
-                partner.invoice_edi_format
-                == partner._get_suggested_invoice_edi_format()
-            ):
-                partner.invoice_edi_format_store = False
-            elif not partner.invoice_edi_format:
-                partner.invoice_edi_format_store = "none"
+            commercial_partner = partner.commercial_partner_id or partner
+            edi_format = partner.invoice_edi_format
+            if edi_format == commercial_partner._get_suggested_invoice_edi_format():
+                stored = False
+            elif not edi_format:
+                stored = "none"
             else:
-                partner.invoice_edi_format_store = partner.invoice_edi_format
+                stored = edi_format
+            commercial_partner.invoice_edi_format_store = stored
 
     @api.depends_context("company")
     def _compute_use_partner_credit_limit(self):
@@ -540,14 +575,18 @@ class ResPartner(models.Model):
         data_list = super()._compute_application_statistics_hook()
         if not self.env.user.has_group("account.group_account_invoice"):
             return data_list
-        for partner in self.filtered(lambda p: p._get_account_statistics_count()):
-            stat_info = {
-                "iconClass": "fa-solid fa-pen-to-square",
-                "value": partner._get_account_statistics_count(),
-                "label": _("Invoices/Bills/Mandates"),
-                "tagClass": "o_tag_color_9",
-            }
-            data_list[partner.id].append(stat_info)
+        for partner in self:
+            count = partner._get_account_statistics_count()
+            if not count:
+                continue
+            data_list[partner.id].append(
+                {
+                    "iconClass": "fa-solid fa-pen-to-square",
+                    "value": count,
+                    "label": _("Invoices/Bills/Mandates"),
+                    "tagClass": "o_tag_color_9",
+                }
+            )
         return data_list
 
     def _get_account_statistics_count(self):
@@ -556,9 +595,6 @@ class ResPartner(models.Model):
     def _get_suggested_invoice_edi_format(self):
         self.ensure_one()
         return False
-
-    def _find_accounting_partner(self, partner):
-        return partner.commercial_partner_id
 
     @api.model
     def _commercial_fields(self):
@@ -591,12 +627,30 @@ class ResPartner(models.Model):
         }
         return action
 
+    def action_view_partner_bills(self):
+        self.ensure_one()
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "account.res_partner_action_supplier_bills"
+        )
+        all_child = self.with_context(active_test=False).search(
+            [("id", "child_of", self.ids)]
+        )
+        action["domain"] = [
+            *self._get_supplier_bill_domain(),
+            ("partner_id", "in", all_child.ids),
+        ]
+        action["context"] = {
+            "default_move_type": "in_invoice",
+            "default_partner_id": self.id,
+        }
+        return action
+
     def _has_invoice(self, partner_domain):
         self.ensure_one()
-        invoice = (
+        return bool(
             self.env["account.move"]
             .sudo()
-            .search(
+            .search_count(
                 Domain.AND(
                     [
                         partner_domain,
@@ -609,7 +663,6 @@ class ResPartner(models.Model):
                 limit=1,
             )
         )
-        return bool(invoice)
 
     def _can_edit_country(self):
         return super()._can_edit_country() and not self._has_invoice(
@@ -622,67 +675,80 @@ class ResPartner(models.Model):
         )
 
     def write(self, vals):
-        parent_write = self.env["res.partner"]
+        partner2move_lines = {}
         if "parent_id" in vals:
             parent_write = self.filtered(
                 lambda partner: partner.parent_id.id != vals["parent_id"]
             )
-
-        if parent_write:
-            partner2move_lines = (
-                self.env["account.move.line"]
-                .sudo()
-                .search([("partner_id", "in", parent_write.ids)])
-                .grouped("partner_id")
-            )
-            parent_vat = self.env["res.partner"].browse(vals["parent_id"]).vat
-            if (
-                partner2move_lines
-                and vals["parent_id"]
-                and any(
-                    (partner.vat or "") != (parent_vat or "")
-                    for partner in parent_write
+            if parent_write:
+                partner2move_lines = (
+                    self.env["account.move.line"]
+                    .sudo()
+                    .search([("partner_id", "in", parent_write.ids)])
+                    .grouped("partner_id")
                 )
-            ):
-                raise UserError(
-                    _(
-                        "You cannot set a partner as an invoicing address of another if they have a different %(vat_label)s.",
-                        vat_label=self.vat_label,
-                    )
-                )
+                self._check_parent_vat_matches(vals["parent_id"], partner2move_lines)
 
         res = super().write(vals)
 
-        if parent_write:
-            for partner, move_lines in partner2move_lines.items():
-                partner._compute_commercial_partner_id()
-                move_lines.with_context(
-                    bypass_lock_check=BYPASS_LOCK_CHECK
-                ).partner_id = partner.commercial_partner_id
-
-                move_lines.move_id.filtered(
-                    lambda m, partner=partner: m.partner_id == partner
-                ).with_context(
-                    bypass_lock_check=BYPASS_LOCK_CHECK
-                ).commercial_partner_id = partner.commercial_partner_id
-                partner._message_log(
-                    body=_(
-                        "The commercial partner has been updated for all related accounting entries."
-                    )
-                )
+        if partner2move_lines:
+            self._update_accounting_commercial_partner(partner2move_lines)
         return res
+
+    def _check_parent_vat_matches(self, parent_id, partner2move_lines):
+        if not parent_id:
+            return
+        parent_vat = self.browse(parent_id).vat or ""
+        mismatched = next(
+            (
+                partner
+                for partner in partner2move_lines
+                if (partner.vat or "") != parent_vat
+            ),
+            None,
+        )
+        if mismatched is not None:
+            raise UserError(
+                _(
+                    "You cannot set a partner as an invoicing address of another if they have a different %(vat_label)s.",
+                    vat_label=mismatched.vat_label,
+                )
+            )
+
+    def _update_accounting_commercial_partner(self, partner2move_lines):
+        AccountMoveLine = self.env["account.move.line"].sudo()
+        AccountMove = self.env["account.move"].sudo()
+        lines_by_commercial = defaultdict(lambda: AccountMoveLine)
+        moves_by_commercial = defaultdict(lambda: AccountMove)
+        for partner, move_lines in partner2move_lines.items():
+            commercial_partner = partner.commercial_partner_id
+            lines_by_commercial[commercial_partner] |= move_lines
+            moves_by_commercial[commercial_partner] |= move_lines.move_id.filtered(
+                lambda move, partner=partner: move.partner_id == partner
+            )
+
+        unlocked = {"bypass_lock_check": BYPASS_LOCK_CHECK}
+        for commercial_partner, move_lines in lines_by_commercial.items():
+            move_lines.with_context(**unlocked).partner_id = commercial_partner
+        for commercial_partner, moves in moves_by_commercial.items():
+            if moves:
+                moves.with_context(
+                    **unlocked
+                ).commercial_partner_id = commercial_partner
+
+        body = _(
+            "The commercial partner has been updated for all related accounting entries."
+        )
+        updated = self.browse(partner.id for partner in partner2move_lines).sudo()
+        updated._message_log_batch(bodies=dict.fromkeys(updated.ids, body))
 
     @api.model_create_multi
     def create(self, vals_list):
-        search_partner_mode = self.env.context.get("res_partner_search_mode")
-        is_customer = search_partner_mode == "customer"
-        is_supplier = search_partner_mode == "supplier"
-        if search_partner_mode:
-            for vals in vals_list:
-                if is_customer and "customer_rank" not in vals:
-                    vals["customer_rank"] = 1
-                elif is_supplier and "supplier_rank" not in vals:
-                    vals["supplier_rank"] = 1
+        rank_field = SEARCH_MODE_RANK_FIELDS.get(
+            self.env.context.get("res_partner_search_mode")
+        )
+        if rank_field:
+            vals_list = [{rank_field: 1, **vals} for vals in vals_list]
         return super().create(vals_list)
 
     @api.ondelete(at_uninstall=False)
@@ -694,7 +760,8 @@ class ResPartner(models.Model):
                 [
                     ("partner_id", "in", self.ids),
                     ("state", "in", ["draft", "posted"]),
-                ]
+                ],
+                limit=1,
             )
         )
         if moves:
@@ -724,17 +791,28 @@ class ResPartner(models.Model):
         def increase_partner_rank():
             try:
                 with self.env.registry.cursor() as cr:
-                    partners = (
-                        self.env(cr=cr)[self._name]
-                        .sudo()
-                        .browse(data)
-                        .with_context(prefetch_fields=False)
+                    cr.execute(
+                        SQL(
+                            """
+                            UPDATE res_partner partner
+                               SET %(column)s = partner.%(column)s + increments.value
+                              FROM (SELECT * FROM unnest(%(ids)s, %(values)s))
+                                   AS increments(id, value)
+                             WHERE partner.id = increments.id
+                            """,
+                            column=SQL.identifier(field),
+                            ids=list(data),
+                            values=list(data.values()),
+                        )
                     )
-                    for partner in partners:
-                        partner[field] += data[partner.id]
-                    data.clear()
-            except pgerrors.OperationalError:
-                _logger.debug("Cannot update partner ranks.")
+                data.clear()
+            except Exception:
+                _logger.warning(
+                    "Cannot update %s for %s partner(s); the increments are lost.",
+                    field,
+                    len(data),
+                    exc_info=True,
+                )
 
     def _get_fields_frontend_writable(self):
         frontend_writable_fields = super()._get_fields_frontend_writable()
@@ -933,21 +1011,13 @@ class ResPartner(models.Model):
                 for criteria in plan_values["criteria"]:
                     domain = criteria.get("domain")
                     search_method = criteria.get("search_method")
-                    if domain:
-                        cache_key = str(domain)
-                    else:
-                        cache_key = criteria.get("cache_key")
+                    cache_key = str(domain) if domain else criteria.get("cache_key")
 
-                    if cache_key in cache:
-                        if partner := cache[cache_key]:
-                            customer_values["customer"] = partner
-                            break
-                        continue
-
-                    if domain:
-                        full_domain = Domain.AND([static_domain, domain])
+                    if cache_key is not None and cache_key in cache:
+                        partner = cache[cache_key]
+                    elif domain:
                         partner = self.search(
-                            full_domain,
+                            Domain.AND([static_domain, domain]),
                             order="is_company DESC, supplier_rank DESC, company_id, parent_id DESC, id DESC",
                             limit=1,
                         )
@@ -958,39 +1028,62 @@ class ResPartner(models.Model):
                                 "static_domain": static_domain,
                             }
                         )
+                    else:
+                        continue
 
+                    if cache_key is not None:
+                        cache[cache_key] = partner
                     if partner:
-                        if cache_key:
-                            cache[cache_key] = partner
                         customer_values["customer"] = partner
                         break
 
                 if partner:
                     break
 
+    def _get_retrieval_customer_search_plan(self, domain=None):
+        return [
+            (5, self._import_retrieve_customer_from_vat),
+            (
+                10,
+                lambda customer_values: (
+                    {"criteria": [{"domain": domain}]} if domain else None
+                ),
+            ),
+            (15, self._import_retrieve_customer_from_bank_account_number),
+            (20, self._import_retrieve_customer_from_email),
+            (25, self._import_retrieve_customer_from_phone),
+            (30, self._import_retrieve_customer_from_name),
+        ]
+
     def _retrieve_partner(
-        self, name=None, phone=None, email=None, vat=None, domain=None, company=None
+        self,
+        name=None,
+        phone=None,
+        email=None,
+        vat=None,
+        domain=None,
+        company=None,
+        account_numbers=None,
     ):
         customer_values = {
             "vat": vat,
             "phone": phone,
             "email": email,
             "name": name,
+            "account_numbers": account_numbers,
         }
         self._import_retrieve_customer(
             search_plan=[
-                self._import_retrieve_customer_from_vat,
-                lambda collected_values: (
-                    {"criteria": [{"domain": domain}]} if domain else None
-                ),
-                self._import_retrieve_customer_from_email,
-                self._import_retrieve_customer_from_phone,
-                self._import_retrieve_customer_from_name,
+                method
+                for _priority, method in sorted(
+                    self._get_retrieval_customer_search_plan(domain=domain),
+                    key=lambda plan: plan[0],
+                )
             ],
             company=company or self.env.company,
             customer_values_list=[customer_values],
         )
-        return customer_values.get("customer") or self.env["res.partner"]
+        return customer_values.get("customer") or self.browse()
 
     def _merge_method(self, destination, source):
         if (
@@ -1016,25 +1109,33 @@ class ResPartner(models.Model):
         )
         return country_code or self.country_code
 
+    @api.model
+    def _get_expected_vat_format(self, country_code):
+        return ""
+
     @api.depends("country_id")
     def _compute_partner_vat_placeholder(self):
         for partner in self:
-            placeholder = _("not applicable")
-            if partner.country_id:
-                expected_vat = _ref_vat.get((partner.country_id.code or "").lower())
-                if expected_vat:
-                    placeholder = _("%s, or not applicable", expected_vat)
-
-            partner.partner_vat_placeholder = placeholder
-
-    @api.depends("country_id")
-    def _compute_partner_company_registry_placeholder(self):
-        for partner in self:
-            country_code = partner.country_id.code or ""
-            partner.partner_company_registry_placeholder = _ref_company_registry.get(
-                country_code.lower(), ""
+            expected_vat = self._get_expected_vat_format(partner.country_id.code)
+            partner.partner_vat_placeholder = (
+                _("%s, or not applicable", expected_vat)
+                if expected_vat
+                else _("not applicable")
             )
 
+    @api.depends("country_id.code", "ref_company_ids.account_fiscal_country_id.code")
+    def _compute_company_registry_placeholder(self):
+        super()._compute_company_registry_placeholder()
+        for partner in self:
+            country = (
+                partner.ref_company_ids[:1].account_fiscal_country_id
+                or partner.country_id
+            )
+            partner.company_registry_placeholder = _ref_company_registry.get(
+                (country.code or "").lower(), ""
+            )
+
+    @api.depends_context("allowed_company_ids")
     def _compute_account_move_count(self):
         self._compute_move_count_by_partner(
             "account_move_count",
@@ -1046,12 +1147,19 @@ class ResPartner(models.Model):
 
     @api.model
     def _clear_removed_edi_formats(self, *formats):
+        self.flush_model(["invoice_edi_format_store"])
         self.env.cr.execute(
-            """
-            UPDATE res_partner
-            SET invoice_edi_format_store = invoice_edi_format_store - res_company.id::text
-            FROM res_company
-            WHERE res_partner.invoice_edi_format_store ->> res_company.id::text = ANY(%s)
-            """,
-            (list(formats),),
+            SQL(
+                """
+                UPDATE res_partner
+                   SET invoice_edi_format_store = invoice_edi_format_store - (
+                       SELECT COALESCE(array_agg(entry.company_id), ARRAY[]::text[])
+                         FROM jsonb_each_text(invoice_edi_format_store)
+                              AS entry(company_id, format)
+                        WHERE entry.format = ANY(%(formats)s))
+                 WHERE jsonb_typeof(invoice_edi_format_store) = 'object'
+                """,
+                formats=list(formats),
+            )
         )
+        self.invalidate_model(["invoice_edi_format_store"])

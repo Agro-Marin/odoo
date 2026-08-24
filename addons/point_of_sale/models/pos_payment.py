@@ -144,9 +144,7 @@ class PosPayment(models.Model):
                 payment.amount, precision_rounding=order.currency_id.rounding
             ):
                 continue
-            accounting_partner = self.env["res.partner"]._find_accounting_partner(
-                payment.partner_id
-            )
+            accounting_partner = payment.partner_id.commercial_partner_id
             pos_session = order.session_id
             journal = pos_session.config_id.journal_id
             if change_payment and payment == payment_to_change:
