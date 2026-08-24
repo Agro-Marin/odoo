@@ -301,7 +301,7 @@ class AccountPartialReconcile(models.Model):
         )
         endpoint_moves = (self.debit_move_id | self.credit_move_id).move_id
         endpoint_moves.fetch(["matched_payment_ids"])
-        matched_payments = endpoint_moves.matched_payment_ids
+        matched_payments = endpoint_moves.matched_payment_ids.sudo()
         matched_payments.fetch(
             [
                 "move_id",
@@ -318,7 +318,7 @@ class AccountPartialReconcile(models.Model):
         grouped_amounts = {}
         for partial in self:
             endpoint_moves = (partial.credit_move_id | partial.debit_move_id).move_id
-            matched_payments = endpoint_moves.matched_payment_ids
+            matched_payments = endpoint_moves.matched_payment_ids.sudo()
             to_check_payments = matched_payments.filtered(
                 lambda payment: (
                     not payment.outstanding_account_id and payment.state == from_state
