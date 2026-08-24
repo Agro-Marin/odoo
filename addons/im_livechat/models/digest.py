@@ -12,17 +12,20 @@ class DigestDigest(models.Model):
     kpi_livechat_response_value = fields.Float(digits=(16, 2), compute='_compute_kpi_livechat_response_value')
 
     def _compute_kpi_livechat_rating_value(self):
-        channels = self.env['discuss.channel'].search([('channel_type', '=', 'livechat')])
         start, end, __ = self._get_kpi_compute_parameters()
-        domain = [
-            ('create_date', '>=', start),
-            ('create_date', '<', end),
-        ]
-        ratings = channels.rating_get_grades(domain)
-        self.kpi_livechat_rating_value = (
-            ratings['great'] * 100 / sum(ratings.values())
-            if sum(ratings.values()) else 0
+        Channel = self.env['discuss.channel']
+        # `_search`, not `search`: the id list this used to build had no bound
+        # other than "every livechat session this database has ever held", and
+        # it was rebuilt and re-sent to Postgres on every read -- six per
+        # recipient. A Query stays a subquery over the indexed `res_id`, and
+        # selects exactly the same ratings.
+        livechat_channels = Channel._search([('channel_type', '=', 'livechat')])
+        ratings = Channel.rating_get_grades(
+            [('create_date', '>=', start), ('create_date', '<', end)],
+            record_ids=livechat_channels,
         )
+        rated = sum(ratings.values())
+        self.kpi_livechat_rating_value = ratings['great'] * 100 / rated if rated else 0
 
     def _compute_kpi_livechat_conversations_value(self):
         start, end, __ = self._get_kpi_compute_parameters()

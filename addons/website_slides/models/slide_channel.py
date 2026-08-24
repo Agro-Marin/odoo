@@ -1381,9 +1381,9 @@ class SlideChannel(models.Model):
     # Mailing Mixin API
     # ---------------------------------------------------------
 
-    def _rating_domain(self):
+    def _rating_domain(self, record_ids=None):
         """Only take the published rating into account to compute avg and count"""
-        return super()._rating_domain() & Domain("is_internal", "=", False)
+        return super()._rating_domain(record_ids=record_ids) & Domain("is_internal", "=", False)
 
     def _action_request_access(self, partner):
         activities = self.env["mail.activity"]
