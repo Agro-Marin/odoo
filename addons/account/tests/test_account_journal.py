@@ -535,6 +535,26 @@ class TestAccountJournalAllowedAccounts(AccountTestInvoicingCommon):
 
         self.assertTrue(self.journal.allowed_account_ids)
 
+    def test_a_cancelled_entry_does_not_pin_the_list(self):
+        """A voided entry is not an accounting fact and must not freeze config.
+
+        The check re-reads every existing item on each write to the field, so
+        without a state filter one cancelled entry on an unlisted account makes
+        the list permanently unwidenable -- the operator cannot add the account
+        either, if it belongs to another company. That is not hypothetical: a
+        single cancelled 2024 payment held journal EFC01 in exactly that state.
+        """
+        invoice = self._invoice(self.outsider)
+        invoice.action_post()
+        invoice.action_cancel()
+        self.assertEqual(invoice.state, "cancel")
+
+        self.journal.allowed_account_ids = self.income | self.receivable
+
+        self.assertEqual(
+            self.journal.allowed_account_ids, self.income | self.receivable
+        )
+
 
 @tagged("post_install", "-at_install")
 class TestAccountJournalUserAccess(AccountTestInvoicingCommon):

@@ -873,6 +873,9 @@ class AccountJournal(models.Model):
                 [
                     ("journal_id", "=", journal.id),
                     ("account_id", "not in", permitted.ids),
+                    # a voided entry is not an accounting fact: leaving it in
+                    # would let one cancelled move freeze the list for good
+                    ("parent_state", "!=", "cancel"),
                     (
                         "display_type",
                         "not in",
