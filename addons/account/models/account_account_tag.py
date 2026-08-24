@@ -122,26 +122,36 @@ class AccountAccountTag(models.Model):
         ]
 
     def _get_related_tax_report_expressions(self):
-        if not self:
+        # A formula names its tag with any number of leading signs stripped, the same
+        # rule _get_tax_tags_domain applies, and `name` is translated while `formula`
+        # is not: search en_US, over-match in SQL, then compare stripped formulas here.
+        tags = self.with_context(lang="en_US")
+        if not tags:
             return self.env["account.report.expression"]
 
-        return self.env["account.report.expression"].search(
+        keys = {(tag.name, tag.country_id.id) for tag in tags}
+        candidates = self.env["account.report.expression"].search(
             Domain("engine", "=", "tax_tags")
             & Domain.OR(
                 (
                     Domain(
                         "report_line_id.report_id.country_id",
                         "=",
-                        record.country_id.id,
+                        tag.country_id.id,
                     )
-                    & Domain(
-                        "formula",
-                        "in",
-                        (record.name, "-" + record.name),
-                    )
+                    & Domain("formula", "like", tag.name)
                 )
-                for record in self
+                for tag in tags
             ),
+        )
+        return candidates.filtered(
+            lambda expression: (
+                (
+                    expression.formula.lstrip("-"),
+                    expression.report_line_id.report_id.country_id.id,
+                )
+                in keys
+            )
         )
 
     @api.ondelete(at_uninstall=False)
