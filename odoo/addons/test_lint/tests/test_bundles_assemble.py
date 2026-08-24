@@ -81,3 +81,53 @@ class TestBundlesAssemble(lint_case.LintCase):
             checked,
             len(declared),
         )
+
+    def test_pregenerated_js_bundles_can_be_built(self):
+        """Every bundle whose JS `_pregenerate_assets_bundles` builds must build.
+
+        The JS set is not the set of bundles anyone serves as JS: any module may
+        widen it by overriding `_get_bundles_to_pregenerate`, and one did --
+        `test_mass_mailing` added `mass_mailing.assets_iframe_style`, a bundle its
+        only caller renders with `t-js="False"` because it carries no servable JS
+        at all. It includes `html_editor.assets_media_dialog`, whose files are
+        native ESM, so building it as a legacy bundle raised
+        ModuleSyntaxInLegacyBundleError out of `_pregenerate_assets_bundles`.
+
+        That call sits in `_run_post_install_tests`, ahead of the post_install
+        suites, so the failure took the whole phase with it -- and the run still
+        printed the at_install tests it had managed, which is why it read as a
+        green result rather than as a suite that never ran.
+
+        This test builds the bundles itself rather than leaning on that call,
+        which is what lets it report the fault instead of being erased by it:
+        `_run_post_install_tests` only pregenerates when the selected suite
+        carries an HttpCase, so a run narrow enough to exclude one never reaches
+        the raise, and a run wide enough to include one never reaches this test.
+
+        Nothing else gated it. The `esm` declaration checks in TestEsmBundles
+        deliberately skip bundles rendered with `t-js="False"`, on the correct
+        reasoning that nothing serves their JS. Pregeneration does not share that
+        reasoning: it builds whatever is in the JS set.
+        """
+        failures = []
+        with Registry(get_db_name()).cursor() as cr:
+            env = api.Environment(cr, SUPERUSER_ID, {})
+            qweb = env["ir.qweb"]
+            js_bundles, _css_bundles = qweb._get_bundles_to_pregenerate()
+            self.assertTrue(
+                js_bundles, "no bundle is pregenerated as JS — the scan reached nothing"
+            )
+            for bundle in sorted(js_bundles):
+                try:
+                    qweb._get_asset_bundle(bundle, css=False, js=True).js()
+                except Exception as exc:
+                    failures.append(f"  {bundle}: {type(exc).__name__}: {exc}")
+
+        self.assertFalse(
+            failures,
+            f"{len(failures)} of {len(js_bundles)} pregenerated JS bundle(s) do "
+            f"not build. Either declare the bundle under its module's 'esm' key, "
+            f"or -- if nothing serves its JS -- stop adding it to the JS half of "
+            f"`_get_bundles_to_pregenerate`:\n" + "\n".join(failures),
+        )
+        _logger.info("%s pregenerated JS bundle(s) build", len(js_bundles))

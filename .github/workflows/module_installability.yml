@@ -219,6 +219,25 @@ jobs:
             echo "::error::cannot resolve its own relative imports — see above."
             exit 1
           fi
+          # A grep for failures cannot tell a green suite from one that never
+          # ran: a phase that aborts prints `0 failed, 0 error(s) of 0 tests`,
+          # which the grep above is happy with.
+          #
+          # This step is not currently exposed to the abort that motivated the
+          # guard -- `_run_post_install_tests` only calls
+          # `_pregenerate_assets_bundles` when the selected suite carries an
+          # HttpCase, and `TestBundlesAssemble` carries none, so it runs here
+          # either way. What it is exposed to is the same shape from any other
+          # cause, and the cost of asking is one grep. The abort itself was real
+          # enough elsewhere: it took every post_install suite on any database
+          # carrying test_mass_mailing, and every one of those runs still exited
+          # printing the at_install tests it had managed.
+          RAN=$(grep -oE 'of [0-9]+ tests' /tmp/bundles.log | tail -1 | grep -oE '[0-9]+' || echo 0)
+          if [ "${RAN:-0}" -lt 3 ]; then
+            echo "::error::TestBundlesAssemble reported ${RAN:-0} test(s); it has three."
+            echo "::error::The post_install phase did not run — something raised ahead of it."
+            exit 1
+          fi
           # The scope this ran at, which is the whole reason the step is here
           # rather than in test_lint.yml. `--log-handler` and not a bare
           # `--log-level=info`: the summary is one INFO line from one logger, and
