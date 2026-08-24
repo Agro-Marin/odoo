@@ -1357,32 +1357,25 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         workcenters = (
             operation.workcenter_id | operation.workcenter_id.alternative_workcenter_ids
         )
-        best_date_finished = None
-        best_date_start = best_workcenter = best_duration_expected = None
-        for workcenter in workcenters:
-            if not workcenter.resource_calendar_id:
-                raise UserError(
-                    _("There is no defined calendar on workcenter %s.", workcenter.name)
-                )
-            duration_expected = operation.with_context(
-                product=product, quantity=quantity, workcenter=workcenter
-            ).time_total
-            from_date, to_date = workcenter._get_first_available_slot(
-                date_start,
-                duration_expected,
-                extra_leaves_slots=simulated_leaves_per_workcenter[workcenter],
-            )
-            if not from_date:
-                continue
-            if to_date and (best_date_finished is None or to_date < best_date_finished):
-                best_date_start = from_date
-                best_date_finished = to_date
-                best_workcenter = workcenter
-                best_duration_expected = duration_expected
-        if best_date_finished is None:
+        best, reasons = workcenters._pick_earliest_slot(
+            date_start,
+            {
+                workcenter: operation.with_context(
+                    product=product, quantity=quantity, workcenter=workcenter
+                ).time_total
+                for workcenter in workcenters
+            },
+            # The operations already simulated occupy their work centres for the rest
+            # of this walk, so each is offered the calendar it would really see.
+            extra_leaves_by_workcenter=simulated_leaves_per_workcenter,
+        )
+        if best is None:
             raise UserError(
-                _("Impossible to plan. Please check the workcenter availabilities.")
+                workcenters._unplannable_error(operation.display_name, reasons)
             )
+        best_workcenter, best_date_start, best_date_finished, best_duration_expected = (
+            best
+        )
         planning_per_operation[operation] = {
             "date_start": best_date_start,
             "date_end": best_date_finished,

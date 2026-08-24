@@ -648,7 +648,13 @@ class MrpWorkorder(models.Model):
             if qty_changed or product_changed:
                 workorder.duration_expected = workorder._get_duration_expected()
 
-    @api.depends("time_ids.duration", "time_ids.loss_type", "qty_produced")
+    # `duration_expected` is read below and all three targets are stored, so leaving
+    # it undeclared left a wrong efficiency on disk: a work order that spent 30
+    # minutes against an expectation raised from 60 to 120 kept 100% where the truth
+    # is 75%. `duration_percent` carries `aggregator="avg"`, so it feeds reporting.
+    @api.depends(
+        "time_ids.duration", "time_ids.loss_type", "qty_produced", "duration_expected"
+    )
     def _compute_duration(self):
         for order in self:
             order.duration = order.get_duration()
@@ -1145,50 +1151,36 @@ class MrpWorkorder(models.Model):
         if self.date_start and not replan:
             return
         workcenters = self.workcenter_id | self.workcenter_id.alternative_workcenter_ids
-        best_date_finished = None
-        vals = {}
-        for workcenter in workcenters:
-            if not workcenter.resource_calendar_id:
-                raise UserError(
-                    _("There is no defined calendar on workcenter %s.", workcenter.name)
+        best, reasons = workcenters._pick_earliest_slot(
+            date_start,
+            {
+                workcenter: (
+                    self.duration_expected
+                    if workcenter == self.workcenter_id
+                    else self._get_duration_expected(alternative_workcenter=workcenter)
                 )
-            if self.workcenter_id == workcenter:
-                duration_expected = self.duration_expected
-            else:
-                duration_expected = self._get_duration_expected(
-                    alternative_workcenter=workcenter
-                )
-            from_date, to_date = workcenter._get_first_available_slot(
-                date_start,
-                duration_expected,
-                # Without this the work order collides with *itself*: its own
-                # booking is in the ledger `_get_first_available_slot` sweeps,
-                # so the search steps past the slot it already occupies and
-                # every press of Replan walked it forward by its own duration
-                # (06:00 -> 06:50 -> 07:40 -> 08:30 on an empty calendar).
-                # `_web_gantt_reschedule_compute_dates` in mrp_workorder has
-                # passed it since the ledger replaced calendar leaves; this
-                # path never did.
-                reservations_to_ignore=self.reservation_ids,
-            )
-            if not from_date:
-                continue
-            if to_date and (best_date_finished is None or to_date < best_date_finished):
-                best_date_start = from_date
-                best_date_finished = to_date
-                vals = {
-                    "workcenter_id": workcenter.id,
-                    "duration_expected": duration_expected,
-                }
-        if best_date_finished is None:
-            raise UserError(
-                _(
-                    "Impossible to plan the workorder. Please check the workcenter availabilities."
-                )
-            )
-        vals["date_start"] = best_date_start
-        vals["date_end"] = best_date_finished
-        self.write(vals)
+                for workcenter in workcenters
+            },
+            # Without this the work order collides with *itself*: its own booking is
+            # in the ledger `_get_first_available_slot` sweeps, so the search steps
+            # past the slot it already occupies and every press of Replan walked it
+            # forward by its own duration (06:00 -> 06:50 -> 07:40 -> 08:30 on an
+            # empty calendar). `_web_gantt_reschedule_compute_dates` in
+            # mrp_workorder has passed it since the ledger replaced calendar leaves;
+            # this path never did.
+            reservations_to_ignore=self.reservation_ids,
+        )
+        if best is None:
+            raise UserError(workcenters._unplannable_error(self.display_name, reasons))
+        workcenter, date_start, date_end, duration_expected = best
+        self.write(
+            {
+                "workcenter_id": workcenter.id,
+                "duration_expected": duration_expected,
+                "date_start": date_start,
+                "date_end": date_end,
+            }
+        )
 
     def _get_costs_hour(self):
         """The machine rate this work order is charged at.

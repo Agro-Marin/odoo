@@ -537,6 +537,74 @@ class MrpWorkcenter(models.Model):
             )
         return revert(slot[0]), revert(slot[1])
 
+    def _pick_earliest_slot(
+        self,
+        date_start,
+        duration_by_workcenter,
+        reservations_to_ignore=False,
+        extra_leaves_by_workcenter=None,
+    ):
+        """The candidate work centre in `self` that can finish soonest.
+
+        Two callers asked this question -- `mrp.workorder._plan_workorder` and the
+        BoM report's `_simulate_operation_planning` -- and each wrote out the same
+        sweep: refuse a work centre with no calendar, ask every candidate for a slot,
+        keep the earliest finish, and raise a fixed sentence if none answered. They
+        differ only in how the duration is derived and in which of
+        `_get_first_available_slot`'s two escape hatches they need, so both are
+        parameters here.
+
+        The point of collecting `reasons` is that `_get_first_available_slot` already
+        says *why* it found nothing -- "No available slot within N days of the planned
+        start" -- and both callers threw that away to raise "Impossible to plan.
+        Please check the workcenter availabilities.", which names neither the work
+        centre nor the horizon.
+
+        :param duration_by_workcenter: ``{work centre: minutes}``, since an
+            alternative work centre is costed differently from the one on the record.
+        :return: ``(best, reasons)`` where `best` is
+            ``(work centre, start, finish, duration)`` or ``None``, and `reasons` is
+            ``[(work centre, message)]`` for the ones that could not fit it.
+        """
+        best = None
+        reasons = []
+        extra_leaves_by_workcenter = extra_leaves_by_workcenter or {}
+        for workcenter in self:
+            if not workcenter.resource_calendar_id:
+                raise UserError(
+                    _("There is no defined calendar on workcenter %s.", workcenter.name)
+                )
+            duration = duration_by_workcenter[workcenter]
+            from_date, to_date = workcenter._get_first_available_slot(
+                date_start,
+                duration,
+                reservations_to_ignore=reservations_to_ignore,
+                extra_leaves_slots=extra_leaves_by_workcenter.get(workcenter),
+            )
+            if not from_date:
+                # On failure the second value is the explanation, not a date.
+                reasons.append((workcenter, to_date))
+                continue
+            if to_date and (best is None or to_date < best[2]):
+                best = (workcenter, from_date, to_date, duration)
+        return best, reasons
+
+    @api.model
+    def _unplannable_error(self, subject, reasons):
+        """The message for a sweep that found no slot anywhere."""
+        if not reasons:
+            return _(
+                "%(subject)s cannot be planned: it has no work center to run on.",
+                subject=subject,
+            )
+        return _(
+            "%(subject)s cannot be planned on any of its work centers:\n%(reasons)s",
+            subject=subject,
+            reasons="\n".join(
+                f"- {workcenter.display_name}: {why}" for workcenter, why in reasons
+            ),
+        )
+
     def _available_intervals(self, date_start, date_stop, reservations_to_ignore):
         resource = self.resource_id
         available = self.resource_calendar_id._work_intervals_batch(
@@ -838,7 +906,6 @@ class MrpWorkcenterProductivityLoss(models.Model):
             ):
                 durations[index] = duration
         return durations
-
 
     @api.model_create_multi
     def create(self, vals_list):

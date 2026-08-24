@@ -35,7 +35,6 @@ class MrpUnbuild(models.Model):
     )
     product_qty = fields.Float(
         "Quantity",
-        default=1.0,
         digits="Product Unit",
         compute="_compute_product_qty",
         store=True,
@@ -182,14 +181,20 @@ class MrpUnbuild(models.Model):
             if order.mo_id and order.mo_id.product_id:
                 order.product_id = order.mo_id.product_id
 
-    @api.depends("mo_id")
+    # The `1.0` below used to be the field's `default`, which made this compute dead
+    # on the create path: `_add_missing_default_values` puts the default in `vals`,
+    # and a precomputed field already present in `vals` is not computed. So the form
+    # offered the order's produced quantity while `create({"mo_id": ...})` -- the API,
+    # an import, another module -- recorded 1. Assigning it here instead leaves the
+    # two agreeing. `mo_id.qty_produced` and the tracking are read and so are
+    # declared; neither was, and the field is stored.
+    @api.depends("mo_id", "mo_id.qty_produced", "has_tracking")
     def _compute_product_qty(self):
         for order in self:
-            if order.mo_id:
-                if order.has_tracking == "serial":
-                    order.product_qty = 1
-                else:
-                    order.product_qty = order.mo_id.qty_produced
+            if not order.mo_id or order.has_tracking == "serial":
+                order.product_qty = 1.0
+            else:
+                order.product_qty = order.mo_id.qty_produced
 
     @api.model_create_multi
     def create(self, vals_list):

@@ -1667,7 +1667,18 @@ class MrpProduction(models.Model):
                 )
             )
 
-    @api.depends("lot_producing_ids")
+    def _search_date_category(self, operator, value):
+        if operator != "in":
+            return NotImplemented
+        dates = value
+        return Domain.OR(
+            self.date_category_to_domain("date_start", date) for date in dates
+        )
+
+    # The count is zero unless the product is serial-tracked, so the tracking is an
+    # input: the badge kept reading 1 after the product was switched to lot tracking,
+    # where the answer is 0. Same shape as `_compute_show_lot_ids`.
+    @api.depends("lot_producing_ids", "product_tracking")
     def _compute_serial_numbers_count(self):
         for production in self:
             if production.product_tracking != "serial":

@@ -2327,7 +2327,10 @@ class TestMrpAuditFixes(TestMrpCommon):
             {
                 "name": "Unbuild Batch Size",
                 "create_variant": "always",
-                "value_ids": [Command.create({"name": "S"}), Command.create({"name": "L"})],
+                "value_ids": [
+                    Command.create({"name": "S"}),
+                    Command.create({"name": "L"}),
+                ],
             }
         )
         leaf = self.env["product.product"].create(
@@ -2396,9 +2399,7 @@ class TestMrpAuditFixes(TestMrpCommon):
             one_at_a_time,
             "the grouped lookup must answer what the per-record one did",
         )
-        self.assertTrue(
-            any(one_at_a_time), "the fixture must resolve at least one BoM"
-        )
+        self.assertTrue(any(one_at_a_time), "the fixture must resolve at least one BoM")
 
     def test_production_capacity_counts_the_components_that_have_stock(self):
         """`production_capacity` answers "how many can I actually make".
@@ -2574,7 +2575,11 @@ class TestMrpAuditFixes(TestMrpCommon):
             [("id", "!=", warehouse.id), ("company_id", "=", warehouse.company_id.id)],
             limit=1,
         ) or self.env["stock.warehouse"].create(
-            {"name": "Allocation WH2", "code": "AL2", "company_id": warehouse.company_id.id}
+            {
+                "name": "Allocation WH2",
+                "code": "AL2",
+                "company_id": warehouse.company_id.id,
+            }
         )
         customers = self.env.ref("stock.stock_location_customers")
         self.env.user.group_ids = [
@@ -2625,7 +2630,9 @@ class TestMrpAuditFixes(TestMrpCommon):
                     "location_id": house.lot_stock_id.id,
                     "location_dest_id": customers.id,
                     "company_id": house.company_id.id,
-                    **({"move_orig_ids": [Command.set(origins.ids)]} if origins else {}),
+                    **(
+                        {"move_orig_ids": [Command.set(origins.ids)]} if origins else {}
+                    ),
                     **({"raw_material_production_id": raw_of.id} if raw_of else {}),
                 }
             )
@@ -2807,11 +2814,17 @@ class TestMrpAuditFixes(TestMrpCommon):
 
         expected = per_operation_search()
         self.assertTrue(
-            any(len(ids) == size for ids, size in zip(expected.values(), batch_sizes, strict=True)),
+            any(
+                len(ids) == size
+                for ids, size in zip(expected.values(), batch_sizes, strict=True)
+            ),
             "the fixture must give at least one operation more history than its batch",
         )
         self.assertEqual(
-            {key: value.ids for key, value in operations._get_recent_workorders().items()},
+            {
+                key: value.ids
+                for key, value in operations._get_recent_workorders().items()
+            },
             expected,
             "the windowed sample must be the same rows, in the same order",
         )
@@ -2827,7 +2840,9 @@ class TestMrpAuditFixes(TestMrpCommon):
             }
         )
         self.env.flush_all()
-        self.assertEqual(idle._get_recent_workorders(), {idle.id: self.env["mrp.workorder"]})
+        self.assertEqual(
+            idle._get_recent_workorders(), {idle.id: self.env["mrp.workorder"]}
+        )
         self.assertEqual(idle.time_cycle, 42.0)
 
         # The invariant is not "few queries" but "one per distinct batch size",
@@ -2843,7 +2858,9 @@ class TestMrpAuditFixes(TestMrpCommon):
                 sampling_queries.append(str(query))
             if log_exceptions is None:
                 return original_execute(cursor, query, params)
-            return original_execute(cursor, query, params, log_exceptions=log_exceptions)
+            return original_execute(
+                cursor, query, params, log_exceptions=log_exceptions
+            )
 
         self.env.flush_all()
         all_operations.invalidate_recordset(["time_cycle"])
@@ -2927,13 +2944,17 @@ class TestMrpAuditFixes(TestMrpCommon):
         ):
             with self.subTest(model=record._name):
                 self.assertEqual(
-                    record._update_order_line_info(first.id, 7.0, child_field=child_field),
+                    record._update_order_line_info(
+                        first.id, 7.0, child_field=child_field
+                    ),
                     first.standard_price,
                 )
                 line = record[child_field].filtered(
                     lambda l, first=first: l.product_id == first
                 )
-                self.assertEqual(line[quantity_field], 7.0, "an existing line is written")
+                self.assertEqual(
+                    line[quantity_field], 7.0, "an existing line is written"
+                )
 
                 self.assertEqual(
                     record._update_order_line_info(
@@ -2948,7 +2969,9 @@ class TestMrpAuditFixes(TestMrpCommon):
                 # `stock.move.product_uom_qty` is computed and stored from
                 # `product_qty`, so a value passed to `create` is overwritten and
                 # only the write after it survives -- which is why the mixin does one.
-                self.assertEqual(added[quantity_field], 4.0, "a new line keeps its quantity")
+                self.assertEqual(
+                    added[quantity_field], 4.0, "a new line keeps its quantity"
+                )
 
                 record._update_order_line_info(second.id, 0.0, child_field=child_field)
                 self.assertFalse(
@@ -2972,3 +2995,250 @@ class TestMrpAuditFixes(TestMrpCommon):
                     },
                     {first.id: 1},
                 )
+
+    def test_a_workorder_that_cannot_be_planned_says_why_and_where(self):
+        """`_get_first_available_slot` already returns the reason it found nothing.
+
+        Both sweeps over the candidate work centres -- `_plan_workorder` and the BoM
+        report's `_simulate_operation_planning` -- threw it away and raised a fixed
+        sentence naming neither the work order, nor which work centres were tried,
+        nor the horizon that was searched. They now share one helper on
+        `mrp.workcenter`, which collects the reasons and reports them.
+        """
+        empty_calendar = self.env["resource.calendar"].create(
+            {"name": "Never Open", "attendance_ids": [Command.clear()]}
+        )
+        workcenter, alternative = self.env["mrp.workcenter"].create(
+            [
+                {"name": "Closed Center", "resource_calendar_id": empty_calendar.id},
+                {"name": "Closed Backup", "resource_calendar_id": empty_calendar.id},
+            ]
+        )
+        workcenter.alternative_workcenter_ids = [Command.set(alternative.ids)]
+        component, finished = self.env["product.product"].create(
+            [
+                {"name": "Unplannable Component", "is_storable": True},
+                {"name": "Unplannable Finished", "is_storable": True},
+            ]
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "type": "normal",
+                "operation_ids": [
+                    Command.create(
+                        {
+                            "name": "closed op",
+                            "workcenter_id": workcenter.id,
+                            "time_cycle_manual": 60,
+                        }
+                    )
+                ],
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "bom_id": bom.id, "product_qty": 1.0}
+        )
+        production.action_confirm()
+
+        with self.assertRaises(UserError) as caught:
+            production.button_plan()
+        message = str(caught.exception)
+
+        self.assertIn(production.workorder_ids.display_name, message)
+        for candidate in (workcenter, alternative):
+            self.assertIn(
+                candidate.display_name,
+                message,
+                "every work centre that was tried has to be named",
+            )
+        self.assertIn(
+            "No available slot",
+            message,
+            "the reason the slot search gave must reach the user",
+        )
+
+    def test_the_slot_sweep_refuses_a_workcenter_with_no_calendar(self):
+        """The check both sweeps carried moved into the helper with them."""
+        workcenter = self.env["mrp.workcenter"].create({"name": "Calendar Free"})
+        workcenter.resource_calendar_id = False
+        with self.assertRaises(UserError) as caught:
+            workcenter._pick_earliest_slot(datetime(2026, 1, 1, 8, 0), {workcenter: 60})
+        self.assertIn(workcenter.name, str(caught.exception))
+
+    def test_the_slot_sweep_reports_having_no_workcenter_at_all(self):
+        """An empty candidate set is not the same failure as a full diary."""
+        empty = self.env["mrp.workcenter"]
+        best, reasons = empty._pick_earliest_slot(datetime(2026, 1, 1, 8, 0), {})
+        self.assertIsNone(best)
+        self.assertFalse(reasons)
+        self.assertIn("no work center", empty._unplannable_error("WO/1", reasons))
+
+    def test_work_order_efficiency_follows_the_duration_it_is_measured_against(self):
+        """`duration_percent` is stored and is a ratio to `duration_expected`.
+
+        That input was not declared, so raising the expectation left the old
+        efficiency on disk -- 100% where the truth is 75%. The field carries
+        `aggregator="avg"`, so it feeds reporting rather than only a form.
+        """
+        component, finished = self.env["product.product"].create(
+            [
+                {"name": "Efficiency Component", "is_storable": True},
+                {"name": "Efficiency Finished", "is_storable": True},
+            ]
+        )
+        workcenter = self.env["mrp.workcenter"].create({"name": "Efficiency WC"})
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "type": "normal",
+                "operation_ids": [
+                    Command.create(
+                        {
+                            "name": "op",
+                            "workcenter_id": workcenter.id,
+                            "time_cycle_manual": 60,
+                        }
+                    )
+                ],
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "bom_id": bom.id, "product_qty": 1.0}
+        )
+        production.action_confirm()
+        workorder = production.workorder_ids
+        workorder.duration = 30.0
+        self.env.flush_all()
+
+        workorder.duration_expected = 120.0
+        self.env.flush_all()
+        workorder.invalidate_recordset(["duration_percent"])
+        self.assertEqual(
+            workorder.duration_percent,
+            75,
+            "30 minutes against an expectation of 120 is 75%, not whatever the "
+            "expectation used to be",
+        )
+
+    def test_an_unbuild_defaults_to_what_the_order_produced_however_it_is_created(self):
+        """`product_qty` carried both a `default` and `precompute=True`.
+
+        `_add_missing_default_values` puts the default into `vals`, and a precomputed
+        field already in `vals` is not computed — so the compute was dead on the
+        create path. The form offered the order's produced quantity while
+        `create({"mo_id": ...})` recorded 1: an API call, an import or another module
+        unbuilt one unit where the user would have seen seven.
+        """
+        component, finished = self.env["product.product"].create(
+            [
+                {"name": "Unbuild Qty Component", "is_storable": True},
+                {"name": "Unbuild Qty Finished", "is_storable": True},
+            ]
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "type": "normal",
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "bom_id": bom.id, "product_qty": 7.0}
+        )
+        production.action_confirm()
+        warehouse = production.picking_type_id.warehouse_id
+        self.env["stock.quant"]._update_available_quantity(
+            component, warehouse.lot_stock_id, 100.0
+        )
+        production.qty_producing = 7.0
+        production._set_qty_producing()
+        production.button_mark_done()
+        self.env.flush_all()
+        self.assertEqual(production.qty_produced, 7.0)
+
+        through_the_form = self.env["mrp.unbuild"].new({"mo_id": production.id})
+        created = self.env["mrp.unbuild"].create({"mo_id": production.id})
+        self.assertEqual(
+            (created.product_qty, through_the_form.product_qty),
+            (7.0, 7.0),
+            "creating an unbuild must offer what the form offers",
+        )
+
+        # the cases the default used to cover
+        self.assertEqual(
+            self.env["mrp.unbuild"].create({"product_id": finished.id}).product_qty,
+            1.0,
+            "with no order to read, one unit is still the default",
+        )
+        self.assertEqual(
+            self.env["mrp.unbuild"]
+            .create({"mo_id": production.id, "product_qty": 3.0})
+            .product_qty,
+            3.0,
+            "the field is readonly=False; an explicit quantity wins",
+        )
+        finished.tracking = "serial"
+        self.env.flush_all()
+        self.assertEqual(
+            self.env["mrp.unbuild"].create({"mo_id": production.id}).product_qty,
+            1.0,
+            "a serial-tracked product is unbuilt one at a time",
+        )
+
+    def test_the_serial_badge_follows_the_tracking_it_asks_about(self):
+        """`serial_numbers_count` is zero unless the product is serial-tracked, so the
+        tracking is one of its inputs. Only `lot_producing_ids` was declared, so the
+        badge kept reading 1 after the product was switched to lot tracking.
+        """
+        component, finished = self.env["product.product"].create(
+            [
+                {"name": "Serial Badge Component", "is_storable": True},
+                {
+                    "name": "Serial Badge Finished",
+                    "is_storable": True,
+                    "tracking": "serial",
+                },
+            ]
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "type": "normal",
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "bom_id": bom.id, "product_qty": 1.0}
+        )
+        production.lot_producing_ids = [
+            Command.link(
+                self.env["stock.lot"]
+                .create({"name": "SERIAL-BADGE-1", "product_id": finished.id})
+                .id
+            )
+        ]
+        self.env.flush_all()
+        self.assertEqual(production.serial_numbers_count, 1)
+
+        finished.tracking = "lot"
+        self.env.flush_all()
+        self.assertEqual(
+            production.serial_numbers_count,
+            0,
+            "a product that is no longer serial-tracked has no serial numbers to count",
+        )
