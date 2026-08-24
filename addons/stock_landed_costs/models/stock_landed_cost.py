@@ -292,7 +292,7 @@ class StockLandedCostLines(models.Model):
         self.name = self.product_id.name or ''
         self.split_method = self.product_id.product_tmpl_id.split_method_landed_cost or self.split_method or 'equal'
         self.price_unit = self.product_id.standard_price or 0.0
-        accounts_data = self.product_id.product_tmpl_id.get_product_accounts()
+        accounts_data = self.product_id.product_tmpl_id._get_product_accounts()
         self.account_id = accounts_data['expense']
 
 
@@ -342,7 +342,7 @@ class StockValuationAdjustmentLines(models.Model):
         cost_product = self.cost_line_id.product_id
         if not cost_product:
             return False
-        accounts = self.product_id.product_tmpl_id.get_product_accounts()
+        accounts = self.product_id.product_tmpl_id._get_product_accounts()
 
         debit_account_id = (accounts.get('stock_valuation') and accounts['stock_valuation'].id) or False
         credit_account_id = self.cost_line_id.account_id.id or cost_product._get_product_accounts()['expense'].id

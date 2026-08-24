@@ -134,7 +134,7 @@ class MrpProduction(models.Model):
             if mo.workorder_ids.time_ids.account_move_line_id:
                 continue
 
-            product_accounts = mo.product_id.product_tmpl_id.get_product_accounts()
+            product_accounts = mo.product_id.product_tmpl_id._get_product_accounts()
             labour_amounts = defaultdict(float)
             workorders = defaultdict(self.env["mrp.workorder"].browse)
             for wo in mo.workorder_ids:

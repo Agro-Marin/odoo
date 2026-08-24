@@ -112,7 +112,7 @@ class AccountMove(models.Model):
                     )
                 else:
                     debit_pdiff_account = (
-                        line.product_id.product_tmpl_id.get_product_accounts(
+                        line.product_id.product_tmpl_id._get_product_accounts(
                             fiscal_pos=move.fiscal_position_id,
                         )["expense"]
                     )

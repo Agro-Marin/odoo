@@ -60,5 +60,5 @@ class TestLandedCostGuards(TestStockLandedCostsCommon):
         self.assertAlmostEqual(line.price_unit, 15.0, places=2)
         self.assertEqual(
             line.account_id,
-            self.landed_cost.product_tmpl_id.get_product_accounts()["expense"],
+            self.landed_cost.product_tmpl_id._get_product_accounts()["expense"],
         )

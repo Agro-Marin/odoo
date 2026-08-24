@@ -1891,7 +1891,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
         bill.invoice_date = bill_date
         bill.action_post()
 
-        product_accounts = self.product1.product_tmpl_id.get_product_accounts()
+        product_accounts = self.product1.product_tmpl_id._get_product_accounts()
         payable_id = self.company_data["default_account_payable"].id
         stock_in_id = product_accounts["stock_input"].id
         expense_id = product_accounts["expense"].id

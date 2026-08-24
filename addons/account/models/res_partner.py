@@ -47,6 +47,7 @@ ASSET_DIFFERENCE_NEGATIONS = {
 
 
 class ResPartner(models.Model):
+    _name = "res.partner"
     _inherit = ["res.partner", "mixin.fiscal.country.codes"]
 
     def _default_display_invoice_template_pdf_report_id(self):

@@ -195,38 +195,35 @@ class ProductTemplate(models.Model):
     # Misc.
     # -------------------------------------------------------------------------
 
-    def _get_product_accounts(self):
-        """Add the stock accounts related to product to the result of super()
-        @return: dictionary which contains information regarding stock accounts and super (income+expense accounts)
+    def _get_product_accounts(self, fiscal_pos=None):
+        """Add the stock valuation accounts and the stock journal to super()'s.
+
+        The journal is deliberately left out of `_map_product_accounts`: a
+        fiscal position rewrites accounts, not journals.
         """
-        accounts = super()._get_product_accounts()
-        accounts["stock_valuation"] = (
+        accounts = super()._get_product_accounts(fiscal_pos=fiscal_pos)
+        valuation_account = (
             self.categ_id.property_stock_valuation_account_id
             or self.categ_id._fields[
                 "property_stock_valuation_account_id"
             ].get_company_dependent_fallback(self.categ_id)
             or self.env.company.account_stock_valuation_id
         )
-        accounts["stock_variation"] = accounts[
-            "stock_valuation"
-        ].account_stock_variation_id
-        return accounts
-
-    def get_product_accounts(self, fiscal_pos=None):
-        """Add the stock journal related to product to the result of super()
-        @return: dictionary which contains all needed information regarding stock accounts and journal and super (income+expense accounts)
-        """
-        accounts = super().get_product_accounts(fiscal_pos=fiscal_pos)
         accounts.update(
-            {
-                "stock_journal": (
-                    self.categ_id.property_stock_journal
-                    or self.categ_id._fields[
-                        "property_stock_journal"
-                    ].get_company_dependent_fallback(self.categ_id)
-                    or self.env.company.account_stock_journal_id
-                )
-            }
+            self._map_product_accounts(
+                {
+                    "stock_valuation": valuation_account,
+                    "stock_variation": valuation_account.account_stock_variation_id,
+                },
+                fiscal_pos,
+            )
+        )
+        accounts["stock_journal"] = (
+            self.categ_id.property_stock_journal
+            or self.categ_id._fields[
+                "property_stock_journal"
+            ].get_company_dependent_fallback(self.categ_id)
+            or self.env.company.account_stock_journal_id
         )
         return accounts
 

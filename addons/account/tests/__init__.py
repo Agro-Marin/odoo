@@ -65,6 +65,7 @@ from . import test_multivat
 from . import test_account_partner
 from . import test_setup_wizard
 from . import test_account_cash_rounding
+from . import test_fiscal_country_codes
 from . import test_product
 from . import test_marin_account_move_audit
 from . import test_marin_account_move_fixes

@@ -12,7 +12,7 @@ class ProductTemplate(models.Model):
     def _prepare_tax_string(self, price):
         """ Updates the tax string computation to include the withheld amount when withholding taxes are involved. """
         # OVERRIDE 'account'
-        company_taxes = self.taxes_id.filtered(lambda t: t.company_id == self.env.company)
+        company_taxes = self.taxes_id._filter_taxes_by_company(self.env.company)
 
         def _get_withheld_amount():
             if not company_taxes:

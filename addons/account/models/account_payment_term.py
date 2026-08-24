@@ -11,6 +11,7 @@ from odoo.tools import date_utils, format_date, formatLang
 
 class AccountPaymentTerm(models.Model):
     _name = "account.payment.term"
+    _inherit = ["mixin.fiscal.country.codes"]
     _description = "Payment Terms"
     _order = "sequence, id"
     _check_company_domain = models.check_company_domain_parent_of
@@ -43,7 +44,6 @@ class AccountPaymentTerm(models.Model):
         default=_default_line_ids,
     )
     company_id = fields.Many2one("res.company", string="Company")
-    fiscal_country_codes = fields.Char(compute="_compute_fiscal_country_codes")
     sequence = fields.Integer(required=True, default=10)
     currency_id = fields.Many2one("res.currency", compute="_compute_currency_id")
 
@@ -101,13 +101,11 @@ class AccountPaymentTerm(models.Model):
         return self.env["decimal.precision"].get_precision("Payment Terms")
 
     @api.depends("company_id")
-    @api.depends_context("allowed_company_ids")
     def _compute_fiscal_country_codes(self):
-        for record in self:
-            allowed_companies = record.company_id or self.env.companies
-            record.fiscal_country_codes = ",".join(
-                allowed_companies.mapped("account_fiscal_country_id.code")
-            )
+        return super()._compute_fiscal_country_codes()
+
+    def _get_fiscal_country_companies(self):
+        return self.company_id or super()._get_fiscal_country_companies()
 
     @api.depends_context("company")
     @api.depends("company_id")

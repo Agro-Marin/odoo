@@ -246,7 +246,7 @@ class SaleAdvancePaymentInv(models.TransientModel):
         )
 
     def _get_down_payment_account(self, product):
-        product_account = product.product_tmpl_id.get_product_accounts(
+        product_account = product.product_tmpl_id._get_product_accounts(
             fiscal_pos=self.sale_order_ids.fiscal_position_id
         )
         return product_account.get("downpayment") or product_account.get("income")

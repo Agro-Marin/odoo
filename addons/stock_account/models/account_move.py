@@ -129,7 +129,7 @@ class AccountMove(models.Model):
                 ):
                     continue
                 # Retrieve accounts needed to generate the COGS.
-                accounts = line.product_id.product_tmpl_id.get_product_accounts(
+                accounts = line.product_id.product_tmpl_id._get_product_accounts(
                     fiscal_pos=move.fiscal_position_id
                 )
                 stock_account = accounts["stock_valuation"]

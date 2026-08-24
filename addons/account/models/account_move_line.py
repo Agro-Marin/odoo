@@ -814,7 +814,7 @@ class AccountMoveLine(models.Model):
             if line.product_id:
                 accounts = line.with_company(
                     line.company_id
-                ).product_id.product_tmpl_id.get_product_accounts(
+                ).product_id.product_tmpl_id._get_product_accounts(
                     fiscal_pos=line.move_id.fiscal_position_id
                 )
                 if line.move_id.is_sale_document(include_receipts=True):

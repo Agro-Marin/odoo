@@ -931,7 +931,7 @@ class AccountEdiCommon(models.AbstractModel):
         }
 
     def _import_product(self, **product_vals):
-        return self.env['product.product']._retrieve_product(**product_vals)
+        return self.env['product.product']._get_imported_product(**product_vals)
 
     def _get_fixed_tax(self, company_id, fixed_tax_vals):
         """ Retrieve the fixed tax at import, iteratively search for a tax:

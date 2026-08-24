@@ -3485,7 +3485,7 @@ class TestStockValuation(TestStockValuationCommon):
 
     def test_positive_stock_adjustment_valuation(self):
         product = self.product_standard_auto
-        accounts_data = product.product_tmpl_id.get_product_accounts()
+        accounts_data = product.product_tmpl_id._get_product_accounts()
         inventory_adjustment_loc = self.env["stock.location"].search(
             [("usage", "=", "inventory"), ("company_id", "=", self.env.company.id)],
             limit=1,
@@ -3505,7 +3505,7 @@ class TestStockValuation(TestStockValuationCommon):
 
     def test_negative_stock_adjustment_valuation(self):
         product = self.product_standard_auto
-        accounts_data = product.product_tmpl_id.get_product_accounts()
+        accounts_data = product.product_tmpl_id._get_product_accounts()
         inventory_adjustment_loc = self.env["stock.location"].search(
             [("usage", "=", "inventory"), ("company_id", "=", self.env.company.id)],
             limit=1,

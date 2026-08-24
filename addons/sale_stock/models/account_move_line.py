@@ -10,7 +10,7 @@ class AccountMoveLine(models.Model):
 
     def _get_cogs_qty(self):
         self.ensure_one()
-        valuation_account = self.product_id.product_tmpl_id.get_product_accounts(
+        valuation_account = self.product_id.product_tmpl_id._get_product_accounts(
             fiscal_pos=self.move_id.fiscal_position_id
         )["stock_valuation"]
         sale_lines = self.sale_line_ids
@@ -37,7 +37,7 @@ class AccountMoveLine(models.Model):
 
     def _get_posted_cogs_value(self):
         self.ensure_one()
-        valuation_account = self.product_id.product_tmpl_id.get_product_accounts(
+        valuation_account = self.product_id.product_tmpl_id._get_product_accounts(
             fiscal_pos=self.move_id.fiscal_position_id
         )["stock_valuation"]
         sale_lines = self.sale_line_ids

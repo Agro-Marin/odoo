@@ -20,7 +20,7 @@ class AccountMoveLine(models.Model):
             fiscal_position = line.move_id.fiscal_position_id
             accounts = line.with_company(
                 line.company_id
-            ).product_id.product_tmpl_id.get_product_accounts(
+            ).product_id.product_tmpl_id._get_product_accounts(
                 fiscal_pos=fiscal_position
             )
 

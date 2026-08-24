@@ -160,7 +160,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
     def _get_computed_account(self, order, product, is_purchase):
         accounts = product.with_company(
             order.company_id
-        ).product_tmpl_id.get_product_accounts(fiscal_pos=order.fiscal_position_id)
+        ).product_tmpl_id._get_product_accounts(fiscal_pos=order.fiscal_position_id)
         if is_purchase:
             return accounts["expense"]
         else:

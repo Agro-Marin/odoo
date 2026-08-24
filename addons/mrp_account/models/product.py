@@ -5,8 +5,8 @@ from odoo.tools import float_round
 class ProductTemplate(models.Model):
     _inherit = "product.template"
 
-    def _get_product_accounts(self):
-        accounts = super()._get_product_accounts()
+    def _get_product_accounts(self, fiscal_pos=None):
+        accounts = super()._get_product_accounts(fiscal_pos=fiscal_pos)
         if self.categ_id:
             # If category set on the product take production account from category even if
             # production account on category is False
@@ -19,7 +19,9 @@ class ProductTemplate(models.Model):
                     "property_stock_account_production_cost_id"
                 ].get_company_dependent_fallback(ProductCategory)
             ) or self.env["account.account"]
-        accounts["production"] = production_account
+        accounts.update(
+            self._map_product_accounts({"production": production_account}, fiscal_pos)
+        )
         return accounts
 
     def action_bom_cost(self):

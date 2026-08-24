@@ -1234,7 +1234,7 @@ class AccountMove(models.Model):
         code_and_name = re.match(
             r"(\[(?P<default_code>.*?)\]\s)?(?P<name>.*)", item_description
         ).groupdict()
-        product = self.env["product.product"]._retrieve_product(**code_and_name)
+        product = self.env["product.product"]._get_imported_product(**code_and_name)
         return product
 
     # -------------------------------------------------------------------------

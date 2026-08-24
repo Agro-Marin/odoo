@@ -202,7 +202,7 @@ class TestAccountMove(TestStockValuationCommon):
 
             product_accounts = self.product_standard.product_tmpl_id.with_company(
                 company.id
-            ).get_product_accounts()
+            )._get_product_accounts()
             self.assertEqual(
                 bill.invoice_line_ids.account_id, product_accounts["expense"]
             )
@@ -316,8 +316,8 @@ class TestAccountMove(TestStockValuationCommon):
         inv_adjustment_journal_items = self.env["account.move.line"].search(
             [("product_id", "in", products.ids)], order="id asc", limit=4
         )
-        prod_a_accounts = product.product_tmpl_id.get_product_accounts()
-        prod_b_accounts = product_b.product_tmpl_id.get_product_accounts()
+        prod_a_accounts = product.product_tmpl_id._get_product_accounts()
+        prod_b_accounts = product_b.product_tmpl_id._get_product_accounts()
         self.assertRecordValues(
             inv_adjustment_journal_items,
             [

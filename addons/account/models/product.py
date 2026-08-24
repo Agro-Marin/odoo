@@ -1,3 +1,4 @@
+import logging
 from difflib import SequenceMatcher
 from itertools import batched
 
@@ -5,7 +6,26 @@ from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.models import PREFETCH_MAX
-from odoo.tools import format_amount, frozendict
+from odoo.tools import SQL, format_amount
+
+_logger = logging.getLogger(__name__)
+
+
+def name_length_band(searched_length, threshold):
+    """Lengths a candidate name must fall within to be able to reach `threshold`.
+
+    `SequenceMatcher(a, b).ratio()` is `2 * matches / (len(a) + len(b))` and
+    `matches <= min(len(a), len(b))`, so anything outside this band is provably
+    below the threshold. Testing two integers is far cheaper than the quadratic
+    comparison it replaces.
+    """
+    return (
+        searched_length * threshold / (2 - threshold),
+        searched_length * (2 - threshold) / threshold,
+    )
+
+
+DEFAULT_NAME_SIMILARITY_THRESHOLD = 0.9
 
 ACCOUNT_DOMAIN = "[('account_type', 'not in', ('asset_receivable','liability_payable','asset_cash','liability_credit_card','off_balance'))]"
 
@@ -34,7 +54,8 @@ class ProductCategory(models.Model):
 
 
 class ProductTemplate(models.Model):
-    _inherit = "product.template"
+    _name = "product.template"
+    _inherit = ["product.template", "mixin.fiscal.country.codes"]
 
     taxes_id = fields.Many2many(
         "account.tax",
@@ -49,7 +70,9 @@ class ProductTemplate(models.Model):
             or self.env.companies.root_id.sudo().account_sale_tax_id
         ),
     )
-    tax_string = fields.Char(compute="_compute_tax_string")
+    tax_string = fields.Char(
+        compute="_compute_tax_string",
+    )
     supplier_taxes_id = fields.Many2many(
         "account.tax",
         "product_supplier_taxes_rel",
@@ -85,21 +108,38 @@ class ProductTemplate(models.Model):
         domain="[('applicability', '=', 'products')]",
         help="Tags to be set on the base and tax journal items created for this product.",
     )
-    fiscal_country_codes = fields.Char(compute="_compute_fiscal_country_codes")
 
-    def _get_product_accounts(self):
+    def _get_product_accounts(self, fiscal_pos=None):
         self.ensure_one()
-        return {
+        # Every tier resolves against `env.company`: the caller posts the result
+        # into that company's journal, and `check_company` already forbids using
+        # a company-bound product anywhere else.
+        company = self.env.company
+        accounts = {
             "income": (
                 self.property_account_income_id
                 or self._get_category_account("property_account_income_categ_id")
-                or (self.company_id or self.env.company).income_account_id
+                or company.income_account_id
             ),
             "expense": (
                 self.property_account_expense_id
                 or self._get_category_account("property_account_expense_categ_id")
-                or (self.company_id or self.env.company).expense_account_id
+                or company.expense_account_id
             ),
+        }
+        return self._map_product_accounts(accounts, fiscal_pos)
+
+    def _map_product_accounts(self, accounts, fiscal_pos):
+        # Subclasses add keys of their own, and not all of them are accounts:
+        # `stock_account` contributes a journal, which a fiscal position must
+        # not rewrite. Each contributor decides by calling this on its own keys.
+        if not fiscal_pos:
+            return accounts
+        return {
+            key: fiscal_pos.map_account(value)
+            if value._name == "account.account"
+            else value
+            for key, value in accounts.items()
         }
 
     def _get_category_account(self, field_name):
@@ -111,22 +151,12 @@ class ProductTemplate(models.Model):
             categ = categ.parent_id
         return self.env["account.account"]
 
-    def get_product_accounts(self, fiscal_pos=None):
-        return {
-            key: (fiscal_pos or self.env["account.fiscal.position"]).map_account(
-                account
-            )
-            for key, account in self._get_product_accounts().items()
-        }
-
     @api.depends("company_id")
-    @api.depends_context("allowed_company_ids")
     def _compute_fiscal_country_codes(self):
-        for record in self:
-            allowed_companies = record.company_id or self.env.companies
-            record.fiscal_country_codes = ",".join(
-                allowed_companies.mapped("account_fiscal_country_id.code")
-            )
+        return super()._compute_fiscal_country_codes()
+
+    def _get_fiscal_country_companies(self):
+        return self.company_id or super()._get_fiscal_country_companies()
 
     @api.depends("taxes_id", "list_price")
     @api.depends_context("company")
@@ -162,29 +192,30 @@ class ProductTemplate(models.Model):
             tax_string = " "
         return tax_string
 
-    @api.constrains("uom_id")
-    def _check_uom_not_in_invoice(self):
-        self.env["product.template"].flush_model(["uom_id"])
+    def _check_uom_not_used_on_a_posted_entry(self):
+        if not self:
+            return
+        self.env["account.move.line"].flush_model(["product_id", "parent_state"])
+        self.env["product.product"].flush_model(["product_tmpl_id"])
         self.env.cr.execute(
             """
             SELECT prod_template.id
               FROM account_move_line line
               JOIN product_product prod_variant ON line.product_id = prod_variant.id
               JOIN product_template prod_template ON prod_variant.product_tmpl_id = prod_template.id
-              JOIN uom_uom template_uom ON prod_template.uom_id = template_uom.id
-              JOIN uom_uom line_uom ON line.product_uom_id = line_uom.id
              WHERE prod_template.id = ANY(%s)
                AND line.parent_state = 'posted'
-               AND template_uom.id != line_uom.id
              LIMIT 1
         """,
             [list(self.ids)],
         )
-        if self.env.cr.fetchone():
+        row = self.env.cr.fetchone()
+        if row:
             raise ValidationError(
                 _(
-                    "This product is already being used in posted Journal Entries.\n"
-                    "If you want to change its Unit of Measure, please archive this product and create a new one."
+                    "%(product)s is already used on posted journal entries.\n"
+                    "To change its Unit of Measure, archive it and create a new product.",
+                    product=self.browse(row[0]).display_name,
                 )
             )
 
@@ -194,6 +225,13 @@ class ProductTemplate(models.Model):
             self.taxes_id = False
             self.supplier_taxes_id = False
         return super()._onchange_type()
+
+    def _clear_taxes_of_combo_products(self):
+        combos = self.filtered(lambda product: product.type == "combo")
+        if combos:
+            combos.write(
+                {"taxes_id": [Command.clear()], "supplier_taxes_id": [Command.clear()]}
+            )
 
     def _force_default_tax_field(self, companies, company_tax_field, product_tax_field):
         default_taxes = companies.mapped(company_tax_field)
@@ -223,27 +261,40 @@ class ProductTemplate(models.Model):
             )
             if other_companies:
                 products_without_company.sudo()._force_default_tax(other_companies)
+        products.sudo()._clear_taxes_of_combo_products()
         return products
+
+    def write(self, vals):
+        # A posted journal item stores its quantity in its own unit; changing the
+        # product's unit afterwards silently reinterprets every one of them. The
+        # check belongs on the transition, so a write that leaves the unit alone
+        # -- including one that rewrites the same value -- stays allowed.
+        if "uom_id" in vals:
+            self.filtered(
+                lambda product: product.uom_id.id != vals["uom_id"]
+            )._check_uom_not_used_on_a_posted_entry()
+        result = super().write(vals)
+        if "type" in vals:
+            self.sudo()._clear_taxes_of_combo_products()
+        return result
 
     def _get_list_price(self, price):
         self.ensure_one()
-        if not self.taxes_id:
+        # `taxes_id` holds every company's default sale tax on purpose (see
+        # `_force_default_tax`), so the active company's subset is the only one
+        # that may be stripped from a price quoted in that company.
+        taxes = self.taxes_id._filter_taxes_by_company(self.env.company)
+        if not taxes:
             return super()._get_list_price(price)
-        computed_price = self.taxes_id.compute_all(
-            price, self.currency_id, product=self
-        )
+        computed_price = taxes.compute_all(price, self.currency_id, product=self)
         total_included = computed_price["total_included"]
 
         if self.currency_id.compare_amounts(price, total_included) == 0:
             return total_included
-        included_computed_price = self.taxes_id.with_context(
+        included_computed_price = taxes.with_context(
             force_price_include=True
         ).compute_all(price, self.currency_id, product=self)
         return included_computed_price["total_excluded"]
-
-    def _get_price_diff_account(self):
-        self.ensure_one()
-        return False
 
 
 class ProductProduct(models.Model):
@@ -251,9 +302,8 @@ class ProductProduct(models.Model):
 
     tax_string = fields.Char(compute="_compute_tax_string")
 
-    def _get_product_accounts(self):
-        self.ensure_one()
-        return self.product_tmpl_id._get_product_accounts()
+    def _get_product_accounts(self, fiscal_pos=None):
+        return self.product_tmpl_id._get_product_accounts(fiscal_pos=fiscal_pos)
 
     def _get_tax_included_unit_price(
         self,
@@ -271,34 +321,32 @@ class ProductProduct(models.Model):
         self.ensure_one()
         company.ensure_one()
 
-        product = self
-
         if not document_type:
             raise ValueError("document_type is required")
 
         if product_uom_id is None:
-            product_uom_id = product.uom_id
+            product_uom_id = self.uom_id
         if not product_currency:
             if document_type == "sale":
-                product_currency = product.currency_id
+                product_currency = self.currency_id
             elif document_type == "purchase":
                 product_currency = company.currency_id
         if product_price_unit is None:
             if document_type == "sale":
-                product_price_unit = product.with_company(company).lst_price
+                product_price_unit = self.with_company(company).lst_price
             elif document_type == "purchase":
-                product_price_unit = product.with_company(company).standard_price
+                product_price_unit = self.with_company(company).standard_price
             else:
                 return 0.0
         if product_taxes is None:
             if document_type == "sale":
-                product_taxes = product.taxes_id
+                product_taxes = self.taxes_id
             elif document_type == "purchase":
-                product_taxes = product.supplier_taxes_id
+                product_taxes = self.supplier_taxes_id
         if product_taxes:
             product_taxes = product_taxes._filter_taxes_by_company(company)
-        if product_uom_id and product.uom_id != product_uom_id:
-            product_price_unit = product.uom_id._compute_price(
+        if product_uom_id and self.uom_id != product_uom_id:
+            product_price_unit = self.uom_id._compute_price(
                 product_price_unit, product_uom_id
             )
 
@@ -347,114 +395,113 @@ class ProductProduct(models.Model):
                 record.lst_price
             )
 
-
-    def _import_retrieve_product_from_barcode(self, product_values):
+    def _get_import_criteria_from_barcode(self, product_values):
         barcode = product_values.get("barcode")
         if barcode:
             return {"criteria": [{"domain": [("barcode", "=", barcode)]}]}
         return None
 
-    def _import_retrieve_product_from_default_code(self, product_values):
+    def _get_import_criteria_from_default_code(self, product_values):
         default_code = product_values.get("default_code")
         if default_code:
             return {"criteria": [{"domain": [("default_code", "=", default_code)]}]}
         return None
 
     def _get_product_name_similarity_threshold(self):
+        default = DEFAULT_NAME_SIMILARITY_THRESHOLD
         raw = (
             self.env["ir.config_parameter"]
             .sudo()
-            .get_param("account.product_name_similarity_threshold", "0.9")
+            .get_param("account.product_name_similarity_threshold", default)
         )
         try:
             threshold = float(raw)
         except TypeError, ValueError:
-            return 0.9
+            _logger.warning(
+                "account.product_name_similarity_threshold is not a number (%r),"
+                " falling back to %s",
+                raw,
+                default,
+            )
+            return default
         if not 0.0 < threshold <= 1.0:
-            return 0.9
+            _logger.warning(
+                "account.product_name_similarity_threshold must be within ]0, 1]"
+                " (got %s), falling back to %s",
+                threshold,
+                default,
+            )
+            return default
         return threshold
 
-    def _import_retrieve_product_from_name(self, product_values):
-        name = product_values.get("name")
+    def _get_name_recall_domain(self, name):
+        """Candidates worth scoring for `name`.
+
+        A `name ilike` prefilter can only return names that *contain* the
+        searched one, so it can never offer the near-miss the scoring exists to
+        catch. Trigram similarity can, and it is what the GIN index on
+        `product_template.name` is built for.
+        """
+        if not self.pool.has_trigram:
+            return Domain("name", "ilike", name)
+
+        def similar_name(model, alias, query):
+            raw_name = model._fields["name"].to_sql(
+                model.with_context(prefetch_langs=True), alias
+            )
+            unaccent = model.env.registry.unaccent
+            return SQL(
+                "%s %% %s",
+                unaccent(SQL("jsonb_path_query_array(%s, '$.*')::text", raw_name)),
+                unaccent(SQL("%s", name)),
+            )
+
+        return Domain("product_tmpl_id", "any", Domain.custom(to_sql=similar_name))
+
+    def _get_product_by_name_similarity(self, name, domain):
+        threshold = self._get_product_name_similarity_threshold()
+        shortest, longest = name_length_band(len(name), threshold)
+        candidate_ids = self.search(
+            Domain.AND([self._get_name_recall_domain(name), domain])
+        ).ids
+        lowered_name = name.lower()
+        best_product = self.browse()
+        best_ratio = 0.0
+        for batch_ids in batched(candidate_ids, PREFETCH_MAX, strict=False):
+            products = self.browse(batch_ids)
+            products.fetch(["product_tmpl_id"])
+            products.product_tmpl_id.fetch(["name"])
+            for product in products:
+                candidate = product.name
+                if not shortest <= len(candidate) <= longest:
+                    continue
+                ratio = SequenceMatcher(None, lowered_name, candidate.lower()).ratio()
+                if ratio >= threshold and ratio > best_ratio:
+                    best_ratio = ratio
+                    best_product = product
+            products.invalidate_recordset()
+        return best_product
+
+    def _get_import_criteria_from_name(self, product_values):
+        name = (product_values.get("name") or "").split("\n", 1)[0]
         if not name:
             return None
-
-        name = name.split("\n", 1)[0]
-        if not name:
-            return None
-
-        def find_product_by_name_similarity(values):
-            similarity_threshold = self._get_product_name_similarity_threshold()
-            all_product_ids = self.search(
-                Domain.AND(
-                    [
-                        [("name", "ilike", name)],
-                        values["static_domain"],
-                    ]
-                ),
-            ).ids
-            lowered_name = name.lower()
-            best_product = self.env["product.product"]
-            best_ratio = 0.0
-            for batch_ids in batched(all_product_ids, PREFETCH_MAX, strict=False):
-                products = self.browse(batch_ids)
-                products.fetch(["product_tmpl_id"])
-                templates = products.product_tmpl_id
-                templates.fetch(["name"])
-                for product in products:
-                    ratio = SequenceMatcher(
-                        None, lowered_name, product.name.lower()
-                    ).ratio()
-                    if ratio >= similarity_threshold and ratio > best_ratio:
-                        best_ratio = ratio
-                        best_product = product
-                products.invalidate_recordset()
-                templates.invalidate_recordset()
-            return best_product
-
         return {
             "criteria": [
                 {"domain": [("name", "=", name)]},
                 {
-                    "search_method": find_product_by_name_similarity,
-                    "cache_key": str([("name", "=", name)]),
+                    "search_method": lambda domain: (
+                        self._get_product_by_name_similarity(name, domain)
+                    )
                 },
             ]
         }
 
     def _get_import_product_classification_specs(self):
-        return [
-            {
-                "value_key": "intrastat_code",
-                "field": "intrastat_code_id",
-                "comodel": "account.intrastat.code",
-                "code_field": "code",
-            },
-            {
-                "value_key": "unspsc_code",
-                "field": "unspsc_code_id",
-                "comodel": "product.unspsc.code",
-                "code_field": "code",
-            },
-            {
-                "value_key": "l10n_ro_cpv_code",
-                "field": "cpv_code_id",
-                "comodel": "l10n_ro.cpv.code",
-                "code_field": "code",
-            },
-            {
-                "value_key": "cg_item_classification_code",
-                "field": "l10n_hr_kpd_category_id",
-                "comodel": "l10n_hr.kpd.category",
-                "code_field": "name",
-            },
-        ]
-
-    def _get_import_product_cache_discriminators(self, product_values):
-        return {
-            spec["value_key"]: product_values.get(spec["value_key"])
-            for spec in self._get_import_product_classification_specs()
-        }
+        """Classification codes an inbound document may carry, contributed by
+        whichever module defines the field and its comodel.
+        """
+        return []
 
     def _get_import_product_classification_domain(self, product_values):
         extra_domain = []
@@ -462,7 +509,7 @@ class ProductProduct(models.Model):
         for spec in self._get_import_product_classification_specs():
             code = product_values.get(spec["value_key"])
             field = spec["field"]
-            if not code or field not in self._fields:
+            if not code:
                 continue
             record = self.env[spec["comodel"]].search(
                 [(spec["code_field"], "=", code)], limit=1
@@ -474,103 +521,59 @@ class ProductProduct(models.Model):
         return extra_domain, order_fields
 
     @api.model
-    def _import_retrieve_product(
-        self, search_plan, company, product_values_list, extra_domain=None
+    def _get_product_from_search_plan(
+        self, search_plan, company, product_values, extra_domain=None
     ):
-        cache = {}
-
-        static_domain = Domain.OR(
+        domain = Domain.OR(
             [
                 [*self._check_company_domain(company), ("company_id", "!=", False)],
                 [("company_id", "=", False)],
             ]
         )
         if extra_domain:
-            static_domain = Domain.AND([static_domain, extra_domain])
-        for product_values in product_values_list:
-            cache_discriminators = self._get_import_product_cache_discriminators(
-                product_values
-            )
-            refined = None
+            domain = Domain.AND([domain, extra_domain])
+        classification_domain, order_fields = (
+            self._get_import_product_classification_domain(product_values)
+        )
+        domain = Domain.AND([domain, classification_domain])
+        order = ", ".join(["company_id", *order_fields, "id DESC"])
 
-            product = None
-            for plan in search_plan:
-                plan_values = plan(product_values)
-                if not plan_values:
-                    continue
-
-                for criteria in plan_values["criteria"]:
-                    domain = criteria.get("domain")
-                    search_method = criteria.get("search_method")
-                    if domain:
-                        domain = list(domain)
-                        source_cache_key = str(domain)
-                    else:
-                        source_cache_key = criteria.get("cache_key")
-
-                    cache_key = frozendict(
-                        {"cache_key": source_cache_key, **cache_discriminators}
+        for plan in search_plan:
+            plan_values = plan(product_values)
+            if not plan_values:
+                continue
+            for criteria in plan_values["criteria"]:
+                if criteria_domain := criteria.get("domain"):
+                    product = self.search(
+                        Domain.AND([domain, list(criteria_domain)]),
+                        order=order,
+                        limit=1,
                     )
-
-                    if cache_key in cache:
-                        if product := cache[cache_key]:
-                            product_values["product"] = product
-                            break
-                        continue
-
-                    if refined is None:
-                        extra_domain, order_fields = (
-                            self._get_import_product_classification_domain(
-                                product_values
-                            )
-                        )
-                        refined = (
-                            Domain.AND([static_domain, extra_domain]),
-                            ", ".join(["company_id", *order_fields, "id DESC"]),
-                        )
-                    product_domain, order = refined
-
-                    if domain:
-                        product = self.search(
-                            Domain.AND([product_domain, domain]),
-                            order=order,
-                            limit=1,
-                        )
-                    elif search_method:
-                        product = search_method(
-                            {**criteria, "static_domain": product_domain}
-                        )
-
-                    if product:
-                        if source_cache_key is not None:
-                            cache[cache_key] = product
-                        product_values["product"] = product
-                        break
-
+                elif search_method := criteria.get("search_method"):
+                    product = search_method(domain)
+                else:
+                    continue
                 if product:
-                    break
+                    return product
+        return self.browse()
 
-    def _get_retrieval_product_search_plan(self):
+    def _get_import_product_search_plan(self):
         return [
-            (5, self._import_retrieve_product_from_barcode),
-            (10, self._import_retrieve_product_from_default_code),
-            (15, self._import_retrieve_product_from_name),
+            (5, self._get_import_criteria_from_barcode),
+            (10, self._get_import_criteria_from_default_code),
+            (15, self._get_import_criteria_from_name),
         ]
 
-    def _retrieve_product(self, company=None, extra_domain=None, **product_vals):
-        self._import_retrieve_product(
+    def _get_imported_product(self, company=None, extra_domain=None, **product_vals):
+        return self._get_product_from_search_plan(
             search_plan=[
                 method
                 for _priority, method in sorted(
-                    self._get_retrieval_product_search_plan(),
+                    self._get_import_product_search_plan(),
                     key=lambda plan: plan[0],
                 )
             ],
             company=company or self.env.company,
-            product_values_list=[product_vals],
+            product_values=product_vals,
             extra_domain=extra_domain,
         )
-        return product_vals.get("product") or self.env["product.product"]
-
-    def _get_price_diff_account(self):
-        return self.product_tmpl_id._get_price_diff_account()

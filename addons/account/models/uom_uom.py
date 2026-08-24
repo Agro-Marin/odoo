@@ -1,4 +1,4 @@
-from odoo import api, fields, models
+from odoo import api, models
 
 UOM_TO_UNECE_CODE = {
     "uom.product_uom_unit": "C62",
@@ -33,16 +33,8 @@ UOM_TO_UNECE_CODE = {
 
 
 class UomUom(models.Model):
-    _inherit = "uom.uom"
-
-    fiscal_country_codes = fields.Char(compute="_compute_fiscal_country_codes")
-
-    @api.depends_context("allowed_company_ids")
-    def _compute_fiscal_country_codes(self):
-        for record in self:
-            record.fiscal_country_codes = ",".join(
-                self.env.companies.mapped("account_fiscal_country_id.code")
-            )
+    _name = "uom.uom"
+    _inherit = ["uom.uom", "mixin.fiscal.country.codes"]
 
     def _get_unece_code(self):
         xml_ids = self._get_external_ids().get(self.id, [])

@@ -24,17 +24,14 @@ class CurrencyTableScope:
 
 
 class ResCurrency(models.Model):
-    _inherit = "res.currency"
-
-    def _get_fiscal_country_codes(self):
-        return ",".join(self.env.companies.mapped("account_fiscal_country_id.code"))
+    _name = "res.currency"
+    _inherit = ["res.currency", "mixin.fiscal.country.codes"]
 
     display_rounding_warning = fields.Boolean(
         string="Display Rounding Warning",
         compute="_compute_display_rounding_warning",
         help="The warning informs a rounding factor change might be dangerous on res.currency's form view.",
     )
-    fiscal_country_codes = fields.Char(store=False, default=_get_fiscal_country_codes)
 
     @api.depends("rounding")
     def _compute_display_rounding_warning(self):

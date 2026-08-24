@@ -296,7 +296,7 @@ class StockMove(models.Model):
     def _get_stock_journal(self):
         """The journal this move's valuation entry belongs in.
 
-        Resolved through `get_product_accounts()`, so a category-level
+        Resolved through `_get_product_accounts()`, so a category-level
         `property_stock_journal` is honoured. It used to be read straight off the
         company here, which meant the category setting worked for manufacturing
         entries (`mrp_account`, the only other reader of the key) and was silently
@@ -306,7 +306,7 @@ class StockMove(models.Model):
         return (
             self.product_id.product_tmpl_id.with_company(
                 self.company_id
-            ).get_product_accounts()["stock_journal"]
+            )._get_product_accounts()["stock_journal"]
             or self.company_id.account_stock_journal_id
         )
 

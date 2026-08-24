@@ -1,4 +1,4 @@
-from odoo import api, models, fields
+from odoo import api, fields, models
 
 
 class ProductTemplate(models.Model):
@@ -23,3 +23,17 @@ class L10nHrKpdCategory(models.Model):
     def _compute_display_name(self):
         for category in self:
             category.display_name = f'[{category.name}] {category.description}'
+
+
+class ProductProduct(models.Model):
+    _inherit = "product.product"
+
+    def _get_import_product_classification_specs(self):
+        return super()._get_import_product_classification_specs() + [
+            {
+                "value_key": 'cg_item_classification_code',
+                "field": 'l10n_hr_kpd_category_id',
+                "comodel": 'l10n_hr.kpd.category',
+                "code_field": 'name',
+            },
+        ]

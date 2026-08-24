@@ -175,7 +175,7 @@ class TestStockLandedCosts(TestStockLandedCostsCommon):
         for valuation in ['periodic', 'real_time']:
             self.landed_cost.categ_id.property_valuation = valuation
             account_name = 'stock_input' if valuation == 'real_time' else 'expense'
-            account = self.landed_cost.product_tmpl_id.get_product_accounts()[account_name]
+            account = self.landed_cost.product_tmpl_id._get_product_accounts()[account_name]
             po = self.env['purchase.order'].create({
                 'partner_id': self.partner_a.id,
                 'currency_id': self.company_data['currency'].id,
