@@ -1,5 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
-<odoo><data noupdate="1">
+<odoo><data>
+    <!-- These four templates are CODE and update with the module, like
+         `mail`'s own notification layouts. They sat under `noupdate="1"` until
+         2026-08, which meant no fix to the digest email ever reached a database
+         that already had it: `-u digest` left the stored arch untouched and only
+         a fresh install saw the change. The sibling `digest_tips_data.xml` shows
+         the split this file was missing — `noupdate="1"` for the
+         `digest.digest` record, which is user data, and `noupdate="0"` for the
+         tips, which are content.
+
+         `digest_mail_main` HAS TWO CALLERS WITH TWO DIFFERENT CONTRACTS, and
+         neither is optional:
+           - `digest.digest._action_send_to_user` passes `object` (a
+             digest.digest), `kpi_data`, `tips`, `preferences`,
+             `unsubscribe_token`, `title`, `formatted_date`;
+           - `mass_mailing.mailing._action_send_statistics` passes `body`,
+             `sub_title`, `mailing_report_token`, `user_id` and NO `object`,
+             which is what the `t-elif="object and ..."` below guards against.
+         Every `t-if` here is load-bearing for one of the two; a branch that
+         looks dead is usually the other caller's. -->
 
     <!-- Email layout: encapsulation when sending (not used in backend display) -->
     <template id="digest_mail_layout">
