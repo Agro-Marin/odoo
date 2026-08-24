@@ -1874,13 +1874,19 @@ class TestCommonRequestHandlerLogRequest:
     """
 
     def _captured_styles(self, log_handler, code):
-        """Return the style args passed to ``_ansi_style`` for the given code."""
+        """Return the style args passed to ``_ansi_style`` for the given code.
+
+        The patch target is ``odoo.service.wsgi._ansi_style``, the name
+        ``_maybe_style`` actually calls: the module resolves werkzeug's private
+        helper once at import so a release that renames it degrades to plain
+        text instead of raising inside the request handler.  Patching
+        ``werkzeug.serving`` would leave that resolved binding untouched.
+        """
         captured = []
         with (
             patch("odoo.service.wsgi._ANSI_ENABLED", True),
-            patch.object(
-                werkzeug.serving,
-                "_ansi_style",
+            patch(
+                "odoo.service.wsgi._ansi_style",
                 side_effect=lambda msg, *styles: captured.append(styles) or msg,
             ),
         ):
@@ -1890,7 +1896,7 @@ class TestCommonRequestHandlerLogRequest:
     def test_200_no_ansi_styling(self, log_handler):
         with (
             patch("odoo.service.wsgi._ANSI_ENABLED", True),
-            patch.object(werkzeug.serving, "_ansi_style") as mock_ansi,
+            patch("odoo.service.wsgi._ansi_style") as mock_ansi,
         ):
             log_handler.log_request(200, 0)
         mock_ansi.assert_not_called()
@@ -1922,11 +1928,30 @@ class TestCommonRequestHandlerLogRequestNoTTY:
     def test_no_ansi_calls_when_disabled(self, log_handler):
         with (
             patch("odoo.service.wsgi._ANSI_ENABLED", False),
-            patch.object(werkzeug.serving, "_ansi_style") as mock_ansi,
+            patch("odoo.service.wsgi._ansi_style") as mock_ansi,
         ):
             for code in (101, 200, 301, 304, 404, 500):
                 log_handler.log_request(code, 0)
         mock_ansi.assert_not_called()
+
+    def test_a_werkzeug_without_ansi_style_degrades_to_plain_text(self):
+        """`_ansi_style` is werkzeug private API.  If a release renames it, the
+        colouring must be lost -- not every non-200 ``log_request`` on an
+        interactive terminal, which is what reaching for the attribute per call
+        used to cost."""
+        import importlib
+
+        from odoo.service import wsgi as wsgi_mod
+
+        with patch.object(werkzeug.serving, "_ansi_style", create=False):
+            del werkzeug.serving._ansi_style
+            try:
+                reloaded = importlib.reload(wsgi_mod)
+                with patch.object(reloaded, "_ANSI_ENABLED", True):
+                    assert reloaded._maybe_style("GET /x", "bold", "red") == "GET /x"
+            finally:
+                importlib.reload(wsgi_mod)
+        assert hasattr(werkzeug.serving, "_ansi_style")
 
     def test_bad_requestline_falls_back_to_requestline(self, srv, monkeypatch):
         """AttributeError on ``self.path`` (malformed request) must not raise."""
