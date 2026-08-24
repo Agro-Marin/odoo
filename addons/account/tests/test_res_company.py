@@ -278,20 +278,42 @@ class TestResCompanyCategoryDefaults(common.TransactionCase):
             groups="base.group_user,base.group_erp_manager,base.group_partner_manager",
         )
         company = (
-            self.env["res.company"].with_user(user).create({"name": "Category Defaults Co"})
+            self.env["res.company"]
+            .with_user(user)
+            .create({"name": "Category Defaults Co"})
         )
 
-        defaults = self.env["ir.default"].sudo().search([("company_id", "=", company.id)])
+        category_defaults = (
+            self.env["ir.default"]
+            .sudo()
+            .search(
+                [
+                    ("company_id", "=", company.id),
+                    ("field_id.model", "=", "product.category"),
+                    (
+                        "field_id.name",
+                        "in",
+                        [
+                            "property_account_expense_categ_id",
+                            "property_account_income_categ_id",
+                        ],
+                    ),
+                ]
+            )
+        )
+        # Not an exhaustive list: `stock_account` and its dependants seed further
+        # product.category defaults on company creation, so asserting the whole
+        # set makes this test a function of which modules happen to be installed.
         self.assertEqual(
-            defaults.field_id.mapped("name"),
+            sorted(category_defaults.field_id.mapped("name")),
             [
                 "property_account_expense_categ_id",
                 "property_account_income_categ_id",
             ],
-            "creating a company must set both product.category defaults",
+            "creating a company must set both product.category account defaults",
         )
         self.assertFalse(
-            any(defaults.mapped("user_id")),
+            any(category_defaults.mapped("user_id")),
             "the defaults are company-wide, which is what needs more rights than "
             "creating the company does",
         )
