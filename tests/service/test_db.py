@@ -1978,6 +1978,32 @@ class TestAdminGates:
         with patch.object(odoo.tools, "config", {"list_db": True}):
             assert _op() == "ok"
 
+    def test_the_gate_sits_on_the_rpc_verbs_not_on_the_manifest_reader(self, db_mod):
+        """``dump_db_manifest`` is a pure read against a cursor the caller
+        already holds, and it is exported from ``odoo.service.db``.  Gating it
+        made ``list_db = False`` refuse a read that discloses nothing new, while
+        adding nothing: its one in-tree caller is inside ``dump_db``, which is
+        gated itself.  The gate belongs on the RPC entry points."""
+        import odoo.tools
+
+        cr = MagicMock()
+        cr.connection.info.server_version = 180000
+        cr.fetchall.return_value = [("base", "19.0.1.3")]
+        cr.dbname = "somedb"
+
+        with patch.object(odoo.tools, "config", {"list_db": False}):
+            manifest = db_mod.dump_db_manifest(cr)
+        assert manifest["db_name"] == "somedb"
+        assert manifest["pg_version"] == "18.0"
+
+        # ...while the two RPC verbs that reach a cluster still refuse.
+        from odoo.exceptions import AccessDenied
+
+        for gated in (db_mod.dump_db, db_mod.exp_dump):
+            with patch.object(odoo.tools, "config", {"list_db": False}):
+                with pytest.raises(AccessDenied):
+                    gated("somedb", None)
+
 
 class TestAdminPasswordComplexity:
     """The master admin password authorises every destructive DB-level
