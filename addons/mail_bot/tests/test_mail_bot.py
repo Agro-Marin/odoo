@@ -116,6 +116,15 @@ class TestBodyIsHtml(MailBotCommon):
         self.assertIn("too human for me", self._say_one(Markup("<p>I love you</p>")))
 
     @mute_logger("odoo.addons.mail.models.mail_mail")
+    def test_swearing_is_answered_from_any_state(self):
+        """The one branch that does not care which state the user is in."""
+        for state in ("idle", "onboarding_emoji", "onboarding_ping"):
+            self._set_state(state)
+            self.assertIn("I have feelings",
+                          self._say_one(Markup("<p>Go fuck yourself</p>")),
+                          f"the swear branch did not fire in {state}")
+
+    @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_emoji_is_found_inside_markup(self):
         self._set_state("onboarding_emoji")
         self.assertIn("special commands", self._say_one(Markup("<p>tagada 😊</p>")))

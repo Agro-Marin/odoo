@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-01-25 18:36+0000\n"
-"PO-Revision-Date: 2026-01-25 18:36+0000\n"
+"POT-Creation-Date: 2026-08-24 12:20+0000\n"
+"PO-Revision-Date: 2026-08-24 12:20+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -140,6 +140,11 @@ msgid ""
 msgstr ""
 
 #. module: mail_bot
+#: model:ir.model.fields,field_description:mail_bot.field_res_users__odoobot_canned_response_id
+msgid "OdooBot Onboarding Canned Response"
+msgstr ""
+
+#. module: mail_bot
 #: model:ir.model.fields,field_description:mail_bot.field_res_users__odoobot_state
 msgid "OdooBot Status"
 msgstr ""
@@ -150,7 +155,7 @@ msgid "Odoobot Failed"
 msgstr ""
 
 #. module: mail_bot
-#: model:ir.model.fields.selection,name:mail_bot.selection__res_users__odoobot_state__onboarding_attachement
+#: model:ir.model.fields.selection,name:mail_bot.selection__res_users__odoobot_state__onboarding_attachment
 msgid "Onboarding attachment"
 msgstr ""
 
@@ -220,9 +225,10 @@ msgid ""
 msgstr ""
 
 #. module: mail_bot
-#. odoo-python
-#: code:addons/mail_bot/models/mail_bot.py:0
-msgid "This is a temporary canned response to see how canned responses work."
+#: model:ir.model.fields,help:mail_bot.field_res_users__odoobot_canned_response_id
+msgid ""
+"The throw-away canned response created for the onboarding tour, removed once"
+" the user has tried it."
 msgstr ""
 
 #. module: mail_bot
