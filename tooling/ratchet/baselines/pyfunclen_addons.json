@@ -1,4 +1,4 @@
 {
-  "count": 20176,
-  "note": "Re-measured on the linear replay: 23896 -> 20176. The floor was this branch's, taken against `addons/` before origin's 23 commits and their function splits were under it. `py_function_length.py --addon addons --count` reads 20176 on the replayed tree. It sits below the 20245 `0bead38ba05` recorded because this tree also drops `addons/mrp/models/product.py`, 730 lines the merge kept through a delete/modify conflict although the merged `mrp/models/__init__.py` imports `product_template` and `product_product` instead and never imports it."
+  "count": 21165,
+  "note": "20176 -> 21165. The rise is this branch's own addons code arriving on top of origin's splits, not a regression: origin's 20176 measured a tree without these 124 commits in it. Re-derived on the rebase of 19.0-marin onto origin/19.0-marin. Neither parent's floor measures the composed tree: this branch's was taken before origin's 102 commits were under it, origin's before this branch's 124 were. Measured in a detached worktree at the rebased tip, so no working-tree state is carried. An exact ratchet fails in the falling direction too, which is why the reductions are banked here rather than left red."
 }

@@ -1,4 +1,4 @@
 {
-  "count": 3574,
-  "note": "Merge of 19.0-marin with origin/19.0-marin: 3929 -> 3574 excess lines over the 80-line ceiling. The two parents split different long functions -- this branch the mrp/stock models, origin the base and orm ones -- so the composition carries both reductions. Neither parent's committed floor (3929 here, 4042 on origin) measures the merged tree."
+  "count": 3569,
+  "note": "3574 -> 3569. Re-derived on the rebase of 19.0-marin onto origin/19.0-marin. Neither parent's floor measures the composed tree: this branch's was taken before origin's 102 commits were under it, origin's before this branch's 124 were. Measured in a detached worktree at the rebased tip, so no working-tree state is carried. An exact ratchet fails in the falling direction too, which is why the reductions are banked here rather than left red."
 }

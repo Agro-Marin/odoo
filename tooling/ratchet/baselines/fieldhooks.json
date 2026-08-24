@@ -1,4 +1,4 @@
 {
-  "count": 288,
-  "note": "Merge follow-up: 289 -> 288. The unit is mrp.production's inverse hook for `finished_move_line_ids`, which the merge had left spelled `_inverse_lines` while the field declaration named `_inverse_finished_move_line_ids` -- the field pointed at a method that did not exist, so every write through it raised. Renaming the method to the field's own name fixes the defect and satisfies ADR-0049 in the same move, which is why the count falls."
+  "count": 285,
+  "note": "288 -> 285. Re-derived on the rebase of 19.0-marin onto origin/19.0-marin. Neither parent's floor measures the composed tree: this branch's was taken before origin's 102 commits were under it, origin's before this branch's 124 were. Measured in a detached worktree at the rebased tip, so no working-tree state is carried. An exact ratchet fails in the falling direction too, which is why the reductions are banked here rather than left red."
 }

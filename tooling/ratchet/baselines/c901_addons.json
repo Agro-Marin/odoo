@@ -1,4 +1,4 @@
 {
-  "count": 60,
-  "note": "Re-measured on the linear replay of this branch onto origin/19.0-marin. 62 -> 60, and the -2 is the offender-set diff, not arithmetic: the floor was this branch's, measured before origin's 23 commits were under it, so it describes a tree that no longer exists. `ruff check addons/ --no-cache --select C901 --statistics` reads 60 on the replayed tree. An exact ratchet fails in the falling direction too, which is why it is banked here rather than left red."
+  "count": 56,
+  "note": "62 -> 60 -> 56. Re-derived on the rebase of 19.0-marin onto origin/19.0-marin. Neither parent's floor measures the composed tree: this branch's was taken before origin's 102 commits were under it, origin's before this branch's 124 were. Measured in a detached worktree at the rebased tip, so no working-tree state is carried. An exact ratchet fails in the falling direction too, which is why the reductions are banked here rather than left red."
 }
