@@ -9,7 +9,12 @@ low-level behavior of the wire.
 Module layout:
 
     common.py       RPC service: login / authenticate / version
-    db.py           RPC service: database lifecycle / dump / restore
+    db/             RPC service package: database lifecycle / dump / restore
+        rpc.py          The dispatch table and the master-password gate
+        lifecycle.py    create / drop / duplicate / rename
+        dump.py         dump_db + the backup manifest
+        restore.py      restore_db + neutralization
+        listing.py      list_dbs + the dbfilter exposure checks
     model.py        RPC service: object dispatch (execute / execute_kw)
     transaction.py  Cross-cutting retrying() primitive
     security.py     Session-token validation
@@ -23,8 +28,9 @@ Module layout:
     _watcher.py     Filesystem watcher backends (autoreload)
     _worker.py      Prefork worker classes
     _cron.py        Shared cron LISTEN/NOTIFY plumbing (server + worker)
+    _metrics.py     Prometheus exposition served behind /web/metrics
     _helpers.py     Shared process-control helpers
-    _db_helpers.py  Shared db.py helpers
+    _db_helpers.py  Shared helpers for the db package
     _dump_scanner.py  psql meta-command safety scanner for restore input
     _env.py         Guarded ODOO_* env-var parsing (env_float / env_int)
 
