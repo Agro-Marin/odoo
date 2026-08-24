@@ -147,8 +147,47 @@ FLOORS = {
     #       memory, and it skipped `_rank_changed` for users dropping below the
     #       lowest rank, so the two did not agree on behaviour either. Measured
     #       on 60 users with every rank changing: 385 queries against its 429.
-    "n-plus-one-query": 378,
-    "gettext-developer-error": 52,
+    # 378 -> 373, and 378 was never a reading of any tree. It was DERIVED during
+    # the conflict resolution that realigned this branch onto origin/19.0-marin:
+    # origin had already banked its own -3 into 381, the gamification second
+    # round above is a further -3, and 381 - 3 was written down rather than
+    # measured. The ten commits this branch replays compose further savings that
+    # arithmetic on one commit's delta cannot see.
+    #
+    # 373 is the first MEASURED reading of the realigned branch, taken per §9.5
+    # at the only scope these floors are defined at -- `-i test_lint` alone, the
+    # install `.github/workflows/test_lint.yml` builds -- and against a `git
+    # archive` of HEAD, because the shared working tree is carrying another
+    # session's uncommitted digest/loyalty work and cannot be counted in.
+    #
+    # The remaining savings are NOT attributed unit by unit here. They are the
+    # composition of the digest, loyalty, link_tracker and rating commits this
+    # branch replays, each of which measured its own delta against a base that
+    # the realignment then moved. Recorded rather than attributed, the way
+    # ruff.json's ninety were.
+    #
+    # 373 -> 369 on the SECOND rebase onto origin/19.0-marin (2026-08-24), which
+    # brought 125 further commits under this branch. Both trees were measured the
+    # same way -- `-i test_lint --test-tags /test_lint` against a `git archive`,
+    # never the shared working tree -- so the two readings are comparable:
+    #
+    #   origin/19.0-marin alone       377   (its own committed floor says 381,
+    #                                        so that gate is red in the falling
+    #                                        direction at origin, by 4)
+    #   this branch on top of it      369
+    #
+    # The -8 is this branch's. The 4 origin is carrying is inherited, not earned
+    # here, and 369 pays it off in the same number rather than leaving a floor
+    # nobody's tree matches. An exact ratchet fails in the falling direction too.
+    "n-plus-one-query": 369,
+    # 52 -> 49, measured in the same run and the same scope as the floor above.
+    # `digest`'s /set_periodicity route is one of the three -- it answered a
+    # periodicity outside the selection with `raise ValueError(_("Invalid
+    # periodicity set on digest"))`, a 500 out of a translated developer string,
+    # and raises `NotFound` now. The other two are not attributed; they come
+    # from the same replayed set, and 52 is origin's number for a tree these
+    # commits had not landed on.
+    "gettext-developer-error": 49,
     "config-chainmap-patch": 0,
 }
 
