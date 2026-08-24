@@ -20,6 +20,6 @@ from . import test_workcenter_effectiveness
 from . import test_workcenter_slots
 from . import test_mrp_reports
 from . import test_audit_fixes
+from . import test_product
 from . import test_stock_move_audit
 from . import test_workorder
-from . import test_product
