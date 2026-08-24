@@ -1,7 +1,7 @@
 from odoo import Command, fields
 from odoo.exceptions import ValidationError
 from odoo.tests import Form, tagged
-from odoo.tools import format_date
+from odoo.tools import format_date, formatLang
 from odoo.tools.safe_eval import datetime
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
@@ -1329,3 +1329,90 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         term.line_ids[0].sequence = 30
         term.invalidate_recordset(["line_ids"])
         self.assertEqual(term.line_ids.mapped("value_amount"), [70.0, 30.0])
+
+    # -- the preview answers to the tax reduction scheme, once there is tax --
+
+    def _discount_term(self, scheme):
+        return self.env["account.payment.term"].create(
+            {
+                "name": scheme,
+                "early_discount": True,
+                "discount_percentage": 10.0,
+                "discount_days": 7,
+                "early_pay_discount_computation": scheme,
+                "example_date": "2026-03-10",
+                "line_ids": [
+                    Command.create(
+                        {"value": "percent", "value_amount": 100, "nb_days": 30}
+                    )
+                ],
+            }
+        )
+
+    def _preview_discount(self, term, **context):
+        # example_amount and example_tax_amount are unstored defaults: they are
+        # produced once per record, so the context has to be there when the value
+        # is first read, which is what the client does when it opens the form
+        term.invalidate_recordset()
+        return term.with_context(**context).example_preview_discount
+
+    def test_example_preview_discount_needs_tax_to_show_the_scheme(self):
+        schemes = ("included", "excluded", "mixed")
+        without_tax = {
+            scheme: self._preview_discount(self._discount_term(scheme))
+            for scheme in schemes
+        }
+        self.assertEqual(
+            len(set(without_tax.values())),
+            1,
+            "a tax-free example cannot distinguish the schemes and must not pretend to",
+        )
+        with_tax = {
+            scheme: self._preview_discount(
+                self._discount_term(scheme),
+                example_amount=1150.0,
+                example_tax_amount=150.0,
+            )
+            for scheme in schemes
+        }
+        self.assertIn("1,035.00", with_tax["included"])
+        self.assertIn("1,050.00", with_tax["excluded"])
+        self.assertIn("1,050.00", with_tax["mixed"])
+
+    def test_example_preview_discount_matches_the_invoice_it_opens_from(self):
+        for scheme in ("included", "excluded", "mixed"):
+            term = self._discount_term(scheme)
+            move = self.env["account.move"].create(
+                {
+                    "move_type": "out_invoice",
+                    "partner_id": self.partner_a.id,
+                    "invoice_date": datetime.date(2026, 3, 10),
+                    "invoice_payment_term_id": term.id,
+                    "invoice_line_ids": [
+                        Command.create(
+                            {
+                                "name": "x",
+                                "quantity": 1,
+                                "price_unit": 1000,
+                                "tax_ids": [Command.set(self.tax_sale_a.ids)],
+                            }
+                        )
+                    ],
+                }
+            )
+            posted = self._payment_term_line(move).discount_amount_currency
+            totals = move.tax_totals
+            preview = self._preview_discount(
+                term,
+                example_date=move.invoice_date,
+                example_amount=totals["total_amount_currency"],
+                example_tax_amount=totals["tax_amount_currency"],
+            )
+            # fields.Html sanitises the compute, which entity-encodes the
+            # non-breaking space formatLang puts before the amount
+            rendered = str(preview).replace("&nbsp;", "\xa0")
+            self.assertIn(
+                formatLang(self.env, posted, currency_obj=move.currency_id),
+                rendered,
+                f"the {scheme} preview must quote what the invoice posts",
+            )

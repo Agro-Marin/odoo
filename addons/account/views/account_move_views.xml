@@ -1028,7 +1028,7 @@
                                     style="width: 6ch;"
                                     invisible="state != 'draft' or invoice_payment_term_id">or</span>
                                 <field name="invoice_payment_term_id"
-                                    context="{'example_date': invoice_date, 'example_amount': tax_totals['total_amount_currency']}"
+                                    context="{'example_date': invoice_date, 'example_amount': tax_totals['total_amount_currency'], 'example_tax_amount': tax_totals['tax_amount_currency']}"
                                     placeholder="Payment Terms"
                                     options="{'no_quick_create':True}"
                                     readonly="state in ['cancel', 'posted']" />

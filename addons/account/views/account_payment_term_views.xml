@@ -83,6 +83,9 @@
                                 <div class="d-flex gap-2" colspan="2" col="4">
                                     Example:
                                     <field name="example_amount" class="oe_inline"/>
+                                    <span invisible="not example_tax_amount">including
+                                        <field name="example_tax_amount" class="oe_inline"/> tax
+                                    </span>
                                     on
                                     <field name="example_date" class="fw-bold border-bottom o_example_date"/>
                                 </div>

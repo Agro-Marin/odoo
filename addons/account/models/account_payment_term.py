@@ -23,6 +23,9 @@ class AccountPaymentTerm(models.Model):
     def _default_example_amount(self):
         return self.env.context.get("example_amount") or 1000.0
 
+    def _default_example_tax_amount(self):
+        return self.env.context.get("example_tax_amount") or 0.0
+
     def _default_example_date(self):
         return self.env.context.get("example_date") or fields.Date.today()
 
@@ -48,6 +51,13 @@ class AccountPaymentTerm(models.Model):
     example_amount = fields.Monetary(
         currency_field="currency_id",
         default=_default_example_amount,
+        store=False,
+        readonly=True,
+    )
+    example_tax_amount = fields.Monetary(
+        string="Tax in the example",
+        currency_field="currency_id",
+        default=_default_example_tax_amount,
         store=False,
         readonly=True,
     )
@@ -153,6 +163,7 @@ class AccountPaymentTerm(models.Model):
     @api.depends(
         "currency_id",
         "example_amount",
+        "example_tax_amount",
         "example_date",
         "line_ids.value",
         "line_ids.value_amount",
@@ -171,10 +182,11 @@ class AccountPaymentTerm(models.Model):
             record.example_preview_discount = ""
             record.example_preview = ""
 
+            untaxed_example = record.example_amount - record.example_tax_amount
+
             if record.early_discount:
-                # the example carries no tax, so both tax-reduction schemes coincide
                 amount_due = record._get_amount_due_after_discount(
-                    record.example_amount, record.example_amount, currency
+                    record.example_amount, untaxed_example, currency
                 )
                 record.example_preview_discount = Markup(
                     _(
@@ -194,10 +206,10 @@ class AccountPaymentTerm(models.Model):
                 date_ref=date_ref,
                 currency=currency,
                 company=record.company_id or self.env.company,
-                tax_amount=0,
-                tax_amount_currency=0,
-                untaxed_amount=record.example_amount,
-                untaxed_amount_currency=record.example_amount,
+                tax_amount=record.example_tax_amount,
+                tax_amount_currency=record.example_tax_amount,
+                untaxed_amount=untaxed_example,
+                untaxed_amount_currency=untaxed_example,
                 sign=1,
             )
             example_preview = Markup()
