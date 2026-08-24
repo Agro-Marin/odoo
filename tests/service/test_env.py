@@ -98,6 +98,17 @@ class TestEnvFloat:
                 assert _env.env_float(VAR, 30.0, logger=logger) == 30.0
         warn.assert_called_once()
 
+    def test_non_finite_warning_does_not_double_the_article(self):
+        """``label`` is "a number" / "an integer" — article included — so the
+        non-finite branch cannot reuse the malformed template without emitting
+        "is not a finite a number"."""
+        logger = logging.getLogger("odoo.service.test_env")
+        with patch.dict(os.environ, {VAR: "nan"}):
+            with patch.object(logger, "warning") as warn:
+                assert _env.env_float(VAR, 1.5, logger=logger) == 1.5
+        rendered = warn.call_args.args[0] % warn.call_args.args[1:]
+        assert rendered == f"{VAR}='nan' is not finite; using default 1.5"
+
     def test_warns_on_malformed_when_logger_given(self):
         logger = logging.getLogger("odoo.service.test_env")
         with patch.dict(os.environ, {VAR: "garbage"}):

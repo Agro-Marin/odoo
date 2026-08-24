@@ -50,13 +50,9 @@ def _parse(
         return default
     if conv is float and not math.isfinite(value):
         if logger is not None:
-            logger.warning(
-                "%s=%r is not a finite %s; using default %s",
-                name,
-                raw,
-                label,
-                default,
-            )
+            # ``label`` carries its own article ("a number"), so it cannot be
+            # slotted into a sentence that already supplies one.
+            logger.warning("%s=%r is not finite; using default %s", name, raw, default)
         return default
     if minimum is not None and value < minimum:
         if logger is not None:
