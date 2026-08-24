@@ -1,15 +1,14 @@
 {
     'name': 'Link Tracker',
     'category': 'Marketing',
-    'description': """
-Shorten URLs and use them to track clicks and UTMs
-""",
-    'version': '1.1',
+    'summary': 'Shorten URLs and use them to track clicks and UTMs',
+    'version': '19.0.1.2',
     'depends': ['utm', 'mail'],
     'data': [
+        'security/ir.model.access.csv',
+        'data/ir_cron.xml',
         'views/link_tracker_views.xml',
         'views/utm_campaign_views.xml',
-        'security/ir.model.access.csv',
     ],
     'author': 'Odoo S.A.',
     'license': 'LGPL-3',

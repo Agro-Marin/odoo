@@ -258,6 +258,14 @@ And a last, with question mark: {self.base_url}/r/(\w+)"""
         self.assertRegex(new_content, expected)
 
     def test_shorten_blacklisted_links(self):
+        """The html and text shorteners must honour a blacklist identically.
+
+        Both branches used to call `_shorten_links`, so the text path -- the one
+        whose matching semantics differed -- was never exercised at all. Repairing
+        that alone catches nothing: every item here was path-prefixed, and both
+        implementations agreed on those. The host-matching cases are the ones that
+        discriminate, and they used to disagree.
+        """
         test_links = [
             ('This link should not be shortened: <a href="https://www.example.com/page/blacklist">text</a>', 'blacklist', False),
             ('Neither should this link: <a href="https://www.example.com/page/view?param=true">text</a>', 'view', False),
@@ -270,10 +278,63 @@ And a last, with question mark: {self.base_url}/r/(\w+)"""
         for (link, keyword, should_shorten) in test_links:
             with self.subTest(msg=link, link=link):
                 shorten_html = self.env['mixin.mail.render']._shorten_links(link, {}, blacklist=blacklist)
-                shorten_text = self.env['mixin.mail.render']._shorten_links(link, {}, blacklist=blacklist)
+                shorten_text = self.env['mixin.mail.render']._shorten_links_text(link, {}, blacklist=blacklist)
                 if should_shorten:
                     self.assertNotIn(keyword, shorten_html)
                     self.assertNotIn(keyword, shorten_text)
                 else:
                     self.assertIn(keyword, shorten_html)
                     self.assertIn(keyword, shorten_text)
+
+    def test_shorten_blacklist_matches_a_host(self):
+        """A blacklist item naming a host must be honoured by both shorteners.
+
+        The html path matched against the whole absolute URL and the text path
+        against the path alone, so this entry protected an html body and silently
+        did nothing for an SMS one.
+        """
+        url = "https://blacklisted-host.example.com/page"
+        shorten_html = self.env["mixin.mail.render"]._shorten_links(
+            f'<a href="{url}">text</a>', {}, blacklist=["blacklisted-host.example.com"])
+        shorten_text = self.env["mixin.mail.render"]._shorten_links_text(
+            url, {}, blacklist=["blacklisted-host.example.com"])
+        self.assertNotIn("/r/", shorten_html)
+        self.assertNotIn("/r/", shorten_text)
+
+    def test_shorten_blacklist_items_are_literals(self):
+        """Blacklist items are literals, not regular expressions.
+
+        They were interpolated raw, so `a.c` matched `/abc`, `a+` matched `/aaa`,
+        and a lone `(` raised re.PatternError out of a public helper.
+        """
+        for item, url in [("a.c", "https://literal.example.com/abc"),
+                          ("a+", "https://literal.example.com/aaa")]:
+            with self.subTest(item=item):
+                shortened = self.env["mixin.mail.render"]._shorten_links(
+                    f'<a href="{url}">text</a>', {}, blacklist=[item])
+                self.assertIn("/r/", shortened, f"{item!r} must not match as a pattern")
+
+        # an item that is not a valid regex must not raise
+        shortened = self.env["mixin.mail.render"]._shorten_links(
+            '<a href="https://paren.example.com/x">text</a>', {}, blacklist=["("])
+        self.assertIn("/r/", shortened)
+
+    def test_shorten_links_keeps_the_body_structure(self):
+        """`fromstring` synthesises a wrapper around a multi-root fragment."""
+        body = '<p>Hello</p><p><a href="https://struct.example.com">Click</a></p>'
+        shortened = self.env["mixin.mail.render"]._shorten_links(body, {})
+        self.assertTrue(shortened.startswith("<p>Hello</p>"),
+                        f"a <div> was wrapped around the body: {shortened}")
+        self.assertNotIn("<div>", shortened)
+
+        # a single-rooted body is unchanged in shape, as it always was
+        body = '<div><p><a href="https://struct2.example.com">Click</a></p></div>'
+        shortened = self.env["mixin.mail.render"]._shorten_links(body, {})
+        self.assertTrue(shortened.startswith("<div><p>"))
+
+    def test_shorten_links_survives_an_unparseable_body(self):
+        """A body that parses to nothing raised ParserError onto the send path."""
+        body = '<!--[if mso]><a href="https://mso.example.com">C</a><![endif]-->'
+        self.assertEqual(
+            self.env["mixin.mail.render"]._shorten_links(body, {}), body,
+            "an unparseable body is returned untouched, not raised on")

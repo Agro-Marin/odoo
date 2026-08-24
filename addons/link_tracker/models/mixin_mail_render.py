@@ -1,14 +1,29 @@
+import logging
 import re
 from html import unescape
-from urllib.parse import urlsplit
 
-import lxml
 import markupsafe
+from lxml import etree, html
 
 from odoo import api, models
 from odoo.tools.mail import TEXT_URL_REGEX, URL_SKIP_PROTOCOL_REGEX, is_html_empty
 
-from odoo.addons.link_tracker.tools.html import find_links_with_urls_and_labels
+from odoo.addons.link_tracker.tools.html import (
+    find_links_with_urls_and_labels,
+    url_is_blacklisted,
+)
+
+_logger = logging.getLogger(__name__)
+
+#: Skipped by ``_shorten_links_text`` on top of whatever the caller blacklists.
+#: ``/r/`` is ours -- shortening a short link chains a redirect onto itself.
+#: ``/sms/`` is not: it is ``mass_mailing_sms``'s unsubscribe page, and this
+#: module does not depend on ``sms``. It stays until every caller of
+#: ``_shorten_links_text`` that can emit one passes it in `blacklist` --
+#: ``mass_mailing_sms``'s mailing and composer, and enterprise's social,
+#: social_youtube and marketing_automation_whatsapp. Dropping it before then
+#: would shorten an unsubscribe link, which is the one link that must not break.
+TEXT_SHORTEN_SKIP_PATHS = ('/r/', '/sms/')
 
 
 class MixinMailRender(models.AbstractModel):
@@ -19,7 +34,7 @@ class MixinMailRender(models.AbstractModel):
     # ------------------------------------------------------------
 
     @api.model
-    def _shorten_links(self, html, link_tracker_vals, blacklist=None, base_url=None):
+    def _shorten_links(self, body, link_tracker_vals, blacklist=None, base_url=None):
         """ Shorten links in an html content. Every ``<a>`` href is made
         absolute and replaced by a '/r/<code>' short URL, the route introduced
         in this module (mailto, tel and sms hrefs are skipped).
@@ -33,18 +48,31 @@ class MixinMailRender(models.AbstractModel):
 
         :return: updated html
         """
-        if not html or is_html_empty(html):
-            return html
+        if not body or is_html_empty(body):
+            return body
         # TODO: take a record instead, to enable website-based URLs
         base_url = base_url or self.env['ir.config_parameter'].sudo().get_param('web.base.url')
         short_schema = base_url + '/r/'
 
-        root_node = lxml.html.fromstring(html)
+        try:
+            # `fromstring` synthesises a wrapper element around a fragment with
+            # several roots, so a two-paragraph body came back wrapped in a
+            # `<div>` it never had. `fragments_fromstring` keeps the roots as they
+            # are; the price is that the first item may be the leading text.
+            fragments = html.fragments_fromstring(body)
+        except etree.ParserError:
+            # A body that parses to nothing -- an mso conditional comment and
+            # nothing else -- used to raise out of here, onto the send path.
+            _logger.warning("link_tracker: could not parse an html body, leaving its links alone")
+            return body
+        if not fragments:
+            return body
+
         link_nodes, urls_and_labels = find_links_with_urls_and_labels(
-            root_node, base_url, skip_regex=rf'^{URL_SKIP_PROTOCOL_REGEX}', skip_prefix=short_schema,
+            fragments, base_url, skip_regex=rf'^{URL_SKIP_PROTOCOL_REGEX}', skip_prefix=short_schema,
             skip_list=blacklist)
         if not link_nodes:
-            return html
+            return body
 
         links_trackers = self.env['link.tracker'].search_or_create([
             dict(link_tracker_vals, **url_and_label) for url_and_label in urls_and_labels
@@ -52,8 +80,14 @@ class MixinMailRender(models.AbstractModel):
         for node, link_tracker in zip(link_nodes, links_trackers, strict=True):
             node.set("href", link_tracker.short_url)
 
-        new_html = lxml.html.tostring(root_node, encoding="unicode", method="xml")
-        if isinstance(html, markupsafe.Markup):
+        new_html = ''.join(
+            fragment if isinstance(fragment, str)
+            else html.tostring(fragment, encoding="unicode", method="xml")
+            for fragment in fragments
+        )
+        if isinstance(body, markupsafe.Markup):
+            # The input was trusted and the serializer is ours: nothing between
+            # parse and serialise introduces markup the parser did not already see.
             new_html = markupsafe.Markup(new_html)
 
         return new_html
@@ -68,21 +102,31 @@ class MixinMailRender(models.AbstractModel):
         if not content:
             return content
         base_url = base_url or self.env['ir.config_parameter'].sudo().get_param('web.base.url')
-        shortened_schema = base_url + '/r/'
-        unsubscribe_schema = base_url + '/sms/'
-        for original_url in set(TEXT_URL_REGEX.findall(content)):
-            # don't shorten already-shortened links or links towards unsubscribe page
-            if original_url.startswith((shortened_schema, unsubscribe_schema)):
-                continue
-            # support blacklist items in path, like /unsubscribe_from_list
-            parsed = urlsplit(original_url, scheme='http')
-            if blacklist and any(re.search(item + r'([#?/]|$)', parsed.path) for item in blacklist):
-                continue
+        skip_prefixes = tuple(base_url + path for path in TEXT_SHORTEN_SKIP_PATHS)
 
-            create_vals = dict(link_tracker_vals, url=unescape(original_url))
-            link = self.env['link.tracker'].search_or_create([create_vals])
+        # Sorted, not a bare set: iteration order used to vary with
+        # PYTHONHASHSEED, so which URL got which code changed between runs.
+        original_urls = sorted(set(TEXT_URL_REGEX.findall(content)))
+        to_shorten = [
+            url for url in original_urls
+            if not url.startswith(skip_prefixes) and not url_is_blacklisted(url, blacklist)
+        ]
+        if not to_shorten:
+            return content
+
+        # One call, not one per URL: `search_or_create` is a batch API and calling
+        # it with a single-item list inside the loop cost ~8 queries per link
+        # against 4 for the whole batch.
+        links = self.env['link.tracker'].search_or_create([
+            dict(link_tracker_vals, url=unescape(url)) for url in to_shorten
+        ])
+        for original_url, link in zip(to_shorten, links, strict=True):
             if link.short_url:
                 # Ensures we only replace the same link and not a subpart of a longer one, multiple times if applicable
-                content = re.sub(re.escape(original_url) + r'(?![\w@:%.+&~#=/-])', link.short_url, content)
+                content = re.sub(
+                    re.escape(original_url) + r'(?![\w@:%.+&~#=/-])',
+                    lambda _match, short_url=link.short_url: short_url,
+                    content,
+                )
 
         return content

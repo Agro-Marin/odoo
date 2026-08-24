@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from ast import literal_eval
 
+from odoo.addons.link_tracker.models.link_tracker import LINK_TRACKER_MIN_CODE_LENGTH
 from odoo.addons.mass_mailing_sms.tests.common import MassSMSCommon
 from odoo.tests.common import users
 
@@ -77,7 +78,10 @@ class TestMassMailValues(MassSMSCommon):
         link_trackers = bool(self.env['link.tracker'].search([], limit=1))  # depends on demo
 
         expected = {
-            'link': f'{base_url}/r/xxx{"x" if link_trackers else ""}/s/xxxxx',
+            # Derived, not spelled out: `get_sms_link_replacements_placeholders`
+            # sizes this from LINK_TRACKER_MIN_CODE_LENGTH, so a literal here is a
+            # second copy of that constant that silently drifts from it.
+            'link': f'{base_url}/r/{"x" * (LINK_TRACKER_MIN_CODE_LENGTH + (1 if link_trackers else 0))}/s/xxxxx',
             'unsubscribe': f"\nSTOP SMS: {base_url}/sms/{'x' * len(str(mailing.id))}/{'x' * self.env['mailing.trace'].CODE_SIZE}",
         }
         self.assertDictEqual(mailing.get_sms_link_replacements_placeholders(), expected)

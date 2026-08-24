@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="ir_cron_link_tracker_fetch_titles" model="ir.cron">
+        <field name="name">Link Tracker: fetch page titles</field>
+        <field name="model_id" ref="model_link_tracker" />
+        <field name="state">code</field>
+        <field name="code">model._cron_fetch_titles()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">hours</field>
+        <field name="active" eval="True" />
+    </record>
+
+    <record id="ir_cron_link_tracker_clear_expired_ips" model="ir.cron">
+        <field name="name">Link Tracker: forget click IPs past retention</field>
+        <field name="model_id" ref="model_link_tracker_click" />
+        <field name="state">code</field>
+        <field name="code">model._cron_clear_expired_ips()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active" eval="True" />
+    </record>
+
+</odoo>

@@ -546,13 +546,16 @@ class MassMailController(http.Controller):
 
     @http.route("/r/<string:code>/m/<int:mailing_trace_id>", type="http", auth="public")
     def full_url_redirect(self, code, mailing_trace_id, **post):
-        request.env["link.tracker.click"].sudo().add_click(
+        # `mail_mail._prepare_outgoing_body` rewrites every shortened link of an
+        # outgoing mailing into this route, so it is the busiest one there is --
+        # and it was the one that never checked `is_a_bot`, which is why link
+        # previewers counted as clicks on the statistics this module exists for.
+        redirect_url = request.env["link.tracker"]._resolve_and_track(
             code,
             ip=request.httprequest.remote_addr,
             country_code=request.geoip.country_code,
             mailing_trace_id=mailing_trace_id,
         )
-        redirect_url = request.env["link.tracker"].get_url_from_code(code)
         if not redirect_url:
             raise NotFound
         return request.redirect(redirect_url, code=301, local=False)

@@ -23,9 +23,16 @@ class TestLinkTracker(common.TransactionCase, MockLinkTracker):
         # Validate the absolute url
         self.assertEqual(link_tracker.absolute_url, link_tracker.url)
 
-        # Make the scheme as an empty string by removing the http:// from the url
+        # A schemeless *host* is a host, on write as it already was on create:
+        # `write` used to skip the normalisation `create` applies, so the same
+        # string meant a host through one and a relative path through the other.
         link_tracker.write({'url': "odoo"})
-        # Validate the absolute url is the combination of system parameter and link tracker's url
+        self.assertEqual(link_tracker.url, 'http://odoo')
+        self.assertEqual(link_tracker.absolute_url, 'http://odoo')
+
+        # A relative path still resolves against the base url
+        link_tracker.write({'url': "/odoo"})
+        self.assertEqual(link_tracker.url, '/odoo')
         self.assertEqual(link_tracker.absolute_url, f'{self._web_base_url}/odoo')
 
     def test_create(self):
@@ -127,7 +134,9 @@ class TestLinkTracker(common.TransactionCase, MockLinkTracker):
             'label': 'Yet another label',
             'medium_id': self.env['utm.medium'],
             'source_id': self.env['utm.source'],
-            'title': 'Test_TITLE',
+            # `create` no longer reaches out over the network for a title;
+            # it records the url and `_cron_fetch_titles` backfills the real one.
+            'title': 'https://odoo.com',
             'url': 'https://odoo.com',
         }
         vals_55 = [values_5, values_5]
@@ -273,3 +282,198 @@ class TestLinkTracker(common.TransactionCase, MockLinkTracker):
         self.assertIn('utm_campaign=campai.gn%2E%2E%2E', link.redirected_url)
         self.assertIn('utm_source=source%2E%2E%2E', link.redirected_url)
         self.assertIn('utm_medium=medium', link.redirected_url)
+
+    # ------------------------------------------------------------
+    # CODE
+    # ------------------------------------------------------------
+
+    def test_code_follows_its_code_record(self):
+        """`code` is computed from link.tracker.code and must not go stale.
+
+        Without `@api.depends('link_code_ids.code')` the ORM caches the value for
+        the whole transaction, so renaming a code -- or adding a second one, which
+        is what /website_links/add_code does -- left `code`, `short_url` and
+        `display_name` on the old value for the rest of the request.
+        """
+        tracker = self.env['link.tracker'].create({'url': 'https://code.example.com'})
+        first = tracker.code
+        self.assertTrue(first)
+
+        self.env['link.tracker.code'].search([('link_id', '=', tracker.id)]).code = 'renamed1'
+        self.assertEqual(tracker.code, 'renamed1', "renaming the code record must invalidate `code`")
+        self.assertTrue(tracker.short_url.endswith('/r/renamed1'))
+
+        self.env['link.tracker.code'].create({'code': 'newer001', 'link_id': tracker.id})
+        self.assertEqual(tracker.code, 'newer001', "a newer code record must win")
+        self.assertTrue(tracker.short_url.endswith('/r/newer001'))
+
+    def test_code_given_at_creation_is_kept(self):
+        """A `code` passed to create must be the code, not silently dropped.
+
+        The inverse ran before the tracker had any link.tracker.code row, found
+        nothing, returned silently, and create then issued a random code -- so the
+        record reported a short URL that resolved to nothing.
+        """
+        tracker = self.env['link.tracker'].create({
+            'url': 'https://given.example.com',
+            'code': 'chosen01',
+        })
+        self.assertEqual(tracker.code, 'chosen01')
+        self.assertEqual(
+            self.env['link.tracker.code'].search([('link_id', '=', tracker.id)]).mapped('code'),
+            ['chosen01'],
+        )
+        self.env.invalidate_all()
+        self.assertEqual(tracker.code, 'chosen01')
+        self.assertEqual(
+            self.env['link.tracker'].get_url_from_code('chosen01'), tracker.redirected_url)
+
+    def test_code_cleared_on_several_records(self):
+        """An inverse is handed the whole recordset; it must not `ensure_one`.
+
+        Clearing `code` over several trackers is a well-defined no-op -- there is
+        nothing to rename -- and it used to raise a bare
+        `ValueError: Expected singleton` before reaching that conclusion.
+        """
+        trackers = self.env['link.tracker'].create([
+            {'url': 'https://multi-a.example.com'},
+            {'url': 'https://multi-b.example.com'},
+        ])
+        codes = trackers.mapped('code')
+        trackers.write({'code': False})
+        self.env.invalidate_all()
+        self.assertEqual(trackers.mapped('code'), codes,
+                         "clearing `code` leaves the issued codes alone")
+
+    def test_code_written_on_a_tracker_that_has_none(self):
+        """The inverse must issue a code record when the tracker has no code."""
+        tracker = self.env['link.tracker'].create({'url': 'https://orphan.example.com'})
+        tracker.link_code_ids.unlink()
+        self.env.invalidate_all()
+        self.assertFalse(tracker.code)
+
+        tracker.code = 'issued01'
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(tracker.code, 'issued01')
+        self.assertEqual(
+            self.env['link.tracker'].get_url_from_code('issued01'), tracker.redirected_url)
+
+    def test_generated_codes_are_unguessable(self):
+        """Short codes are resolved through a public route; they are secrets."""
+        codes = self.env['link.tracker.code']._get_random_code_strings(20)
+        self.assertEqual(len(set(codes)), 20)
+        for code in codes:
+            self.assertGreaterEqual(len(code), 8, "a 3-character code space is enumerable in under an hour")
+            self.assertTrue(code.isalnum())
+
+    # ------------------------------------------------------------
+    # REDIRECT SAFETY
+    # ------------------------------------------------------------
+
+    def test_no_loop_on_our_own_short_url(self):
+        """A tracker pointed at a /r/ code 301s to itself.
+
+        `test_no_loop` is named for this hazard and only guarded '?' and '#'. The
+        loop is worse than a broken link: the click is recorded before the
+        redirect resolves, so one page-load records as many clicks as the
+        browser's redirect limit.
+        """
+        tracker = self.env['link.tracker'].create({'url': 'https://loop.example.com'})
+        own_short_url = tracker.short_url
+
+        with self.assertRaises(UserError):
+            tracker.write({'url': own_short_url})
+        with self.assertRaises(UserError):
+            self.env['link.tracker'].create({'url': own_short_url})
+        with self.assertRaises(UserError):
+            self.env['link.tracker'].create({'url': f'/r/{tracker.code}'})
+
+        # a /r/ path on somebody else's host is not ours to refuse
+        other = self.env['link.tracker'].create({'url': 'https://elsewhere.example.com/r/abc'})
+        self.assertEqual(other.url, 'https://elsewhere.example.com/r/abc')
+
+    # ------------------------------------------------------------
+    # UTM
+    # ------------------------------------------------------------
+
+    def test_redirected_url_follows_its_utms(self):
+        """`redirected_url` is built from the UTMs, so it must depend on them."""
+        campaign = self.env['utm.campaign'].create({'name': 'First'})
+        tracker = self.env['link.tracker'].create({
+            'url': 'https://utm.example.com/p', 'campaign_id': campaign.id})
+        self.assertIn('utm_campaign=First', tracker.redirected_url)
+
+        campaign.name = 'Renamed'
+        self.assertIn('utm_campaign=Renamed', tracker.redirected_url,
+                      "renaming the campaign must invalidate `redirected_url`")
+
+        other = self.env['utm.campaign'].create({'name': 'Second'})
+        tracker.campaign_id = other
+        self.assertIn('utm_campaign=Second', tracker.redirected_url,
+                      "changing the campaign must invalidate `redirected_url`")
+
+    # ------------------------------------------------------------
+    # API SHAPE
+    # ------------------------------------------------------------
+
+    def test_recent_links_rejects_an_unknown_sort(self):
+        """It returned {'Error': ...} where the caller does `links.reverse()`."""
+        self.env['link.tracker'].create({'url': 'https://recent.example.com'})
+        self.assertEqual(len(self.env['link.tracker'].recent_links('newest', 10)), 1)
+        with self.assertRaises(UserError):
+            self.env['link.tracker'].recent_links('no-such-order', 10)
+
+    def test_recent_links_reads_only_what_it_shows(self):
+        self.env['link.tracker'].create({'url': 'https://fields.example.com'})
+        [row] = self.env['link.tracker'].recent_links('newest', 10)
+        self.assertNotIn('link_click_ids', row)
+        self.assertNotIn('redirected_url', row)
+        self.assertIn('short_url', row)
+
+    # ------------------------------------------------------------
+    # TITLE
+    # ------------------------------------------------------------
+
+    def test_create_does_not_reach_the_network(self):
+        """The title fetch has a 10s deadline per link and ran inside create."""
+        self.env['link.tracker']._get_title_from_url.reset_mock()
+        tracker = self.env['link.tracker'].create({'url': 'https://title.example.com'})
+        self.env['link.tracker']._get_title_from_url.assert_not_called()
+        self.assertEqual(tracker.title, 'https://title.example.com')
+
+        # a caller that wants it now still gets it
+        asked = self.env['link.tracker'].with_context(
+            link_tracker_fetch_title=True,
+        ).create({'url': 'https://title2.example.com'})
+        self.assertEqual(asked.title, 'Test_TITLE')
+
+    def test_cron_fetch_titles_backfills(self):
+        tracker = self.env['link.tracker'].create({'url': 'https://backfill.example.com'})
+        self.assertEqual(tracker.title, tracker.url)
+        self.env['link.tracker']._cron_fetch_titles()
+        self.assertEqual(tracker.title, 'Test_TITLE')
+
+    # ------------------------------------------------------------
+    # CLICK RETENTION
+    # ------------------------------------------------------------
+
+    def test_cron_clear_expired_ips(self):
+        tracker = self.env['link.tracker'].create({'url': 'https://ip.example.com'})
+        click = self.env['link.tracker.click'].create({'link_id': tracker.id, 'ip': '1.2.3.4'})
+        Click = self.env['link.tracker.click']
+
+        # unset by default: the IP is kept, exactly as before
+        Click._cron_clear_expired_ips()
+        self.assertEqual(click.ip, '1.2.3.4')
+
+        self.env['ir.config_parameter'].sudo().set_param('link_tracker.click_ip_retention_days', '30')
+        Click._cron_clear_expired_ips()
+        self.assertEqual(click.ip, '1.2.3.4', "a click younger than the retention is untouched")
+
+        self.env.cr.execute(
+            "UPDATE link_tracker_click SET create_date = now() - interval '60 days' WHERE id = %s",
+            (click.id,))
+        click.invalidate_recordset(['create_date'])
+        Click._cron_clear_expired_ips()
+        self.assertFalse(click.ip, "a click past the retention forgets its IP")

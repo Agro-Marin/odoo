@@ -1,20 +1,31 @@
+import hashlib
 import logging
-import random
+import secrets
 import string
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.http import request
 from odoo.tools.mail import validate_url
 
 from odoo.addons.mail.tools import link_preview
 
-LINK_TRACKER_UNIQUE_FIELDS = ('url', 'campaign_id', 'medium_id', 'source_id', 'label')
-
 _logger = logging.getLogger(__name__)
 
-LINK_TRACKER_MIN_CODE_LENGTH = 3
+LINK_TRACKER_UNIQUE_FIELDS = ('url', 'campaign_id', 'medium_id', 'source_id', 'label')
+
+#: A short code is handed to everyone who receives a mailing and is resolved
+#: through a public, unthrottled route, so a guessable one discloses its target.
+#: Three characters is 62**3, which a single-threaded client walks in under an
+#: hour; eight is 2.2e14. Codes already issued keep working -- the column is not
+#: fixed-width and only newly generated codes get the longer form.
+LINK_TRACKER_MIN_CODE_LENGTH = 8
+LINK_TRACKER_CODE_ALPHABET = string.ascii_letters + string.digits
+
+#: Read on every redirect, so it is worth not paying for the whole record.
+LINK_TRACKER_CLICK_ROUTE_FIELDS = ('ip', 'country_id', 'link_id')
 
 
 class LinkTracker(models.Model):
@@ -25,7 +36,9 @@ class LinkTracker(models.Model):
     _name = 'link.tracker'
     _rec_name = "short_url"
     _description = "Link Tracker"
-    _order = "count DESC"
+    # `count` alone is not a total order: ties would paginate nondeterministically
+    # and make "which duplicate did the constraint name?" depend on the plan.
+    _order = "count DESC, id DESC"
     _inherit = ["mixin.utm"]
 
     # URL info
@@ -34,27 +47,92 @@ class LinkTracker(models.Model):
     short_url = fields.Char(string='Tracked URL', compute='_compute_short_url')
     redirected_url = fields.Char(string='Redirected URL', compute='_compute_redirected_url')
     short_url_host = fields.Char(string='Host of the short URL', compute='_compute_short_url_host')
-    title = fields.Char(string='Page Title', store=True)
+    title = fields.Char(string='Page Title')
     label = fields.Char(string='Button label')
     # Tracking
     link_code_ids = fields.One2many('link.tracker.code', 'link_id', string='Codes')
     code = fields.Char(string='Short URL code', compute='_compute_code', inverse="_inverse_code", readonly=False)
     link_click_ids = fields.One2many('link.tracker.click', 'link_id', string='Clicks')
     count = fields.Integer(string='Number of Clicks', compute='_compute_count', store=True)
+    # The five unique fields, digested. Indexing the tuple itself is not an
+    # option: `url` and `label` are unbounded, and a btree entry is capped at
+    # ~2704 bytes. The digest is fixed-width, so one indexed `IN` answers what
+    # used to be an N-way OR over an unindexed column -- see `_unique_key_domain`.
+    key_hash = fields.Char(
+        string='Unique key digest', compute='_compute_key_hash',
+        store=True, index='btree', copy=False)
     # UTMs - enforcing the fact that we want to 'set null' when relation is unlinked
     campaign_id = fields.Many2one(ondelete='set null')
     medium_id = fields.Many2one(ondelete='set null')
     source_id = fields.Many2one(ondelete='set null')
 
+    # ------------------------------------------------------------
+    # UNIQUE KEY
+    # ------------------------------------------------------------
+
+    @api.model
+    def _unique_key_from_values(self, values):
+        """Return the canonical unique key of ``values``.
+
+        ``values`` is either a vals dict or a ``link.tracker`` record. The whole
+        point is that there is exactly one spelling of this tuple: ``label``
+        carries both ``''`` and ``NULL`` in the wild (see ``_normalize_vals``),
+        and every consumer used to re-implement that carve-out.
+        """
+        if isinstance(values, models.BaseModel):
+            values.ensure_one()
+            return (
+                values.url or '',
+                values.campaign_id.id or False,
+                values.medium_id.id or False,
+                values.source_id.id or False,
+                values.label or False,
+            )
+        return (
+            values.get('url') or '',
+            values.get('campaign_id') or False,
+            values.get('medium_id') or False,
+            values.get('source_id') or False,
+            values.get('label') or False,
+        )
+
+    @api.model
+    def _unique_key_digest(self, key):
+        return hashlib.sha256(
+            '\x00'.join(str(part) for part in key).encode()
+        ).hexdigest()
+
+    @api.depends(*LINK_TRACKER_UNIQUE_FIELDS)
+    def _compute_key_hash(self):
+        for tracker in self:
+            tracker.key_hash = self._unique_key_digest(self._unique_key_from_values(tracker))
+
+    @api.model
+    def _unique_key_domain(self, keys):
+        """Domain matching every tracker whose unique key is one of ``keys``.
+
+        One indexed ``IN`` over ``key_hash``. A digest collision would only widen
+        the result set, and callers re-derive the real key from each record, so
+        the answer stays exact.
+        """
+        if not keys:
+            return Domain.FALSE
+        return Domain('key_hash', 'in', [self._unique_key_digest(key) for key in keys])
+
+    # ------------------------------------------------------------
+    # COMPUTE
+    # ------------------------------------------------------------
+
     @api.depends("url")
     def _compute_absolute_url(self):
+        base_url = self.env['link.tracker'].get_base_url()
         for tracker in self:
             url = urlsplit(tracker.url)
             if url.scheme:
                 tracker.absolute_url = tracker.url
                 continue
             try:
-                tracker.absolute_url = tools.urls.urljoin(tracker.get_base_url(), urlunsplit(url))
+                tracker.absolute_url = tools.urls.urljoin(base_url, urlunsplit(url))
             except ValueError as err:
                 # A schemeless url is legitimate here — it is resolved against the
                 # base url, which is what this branch is for — but urljoin refuses a
@@ -76,7 +154,7 @@ class LinkTracker(models.Model):
         for tracker in self:
             tracker.count = mapped_data.get(tracker.id, 0)
 
-    @api.depends('code')
+    @api.depends('code', 'short_url_host')
     def _compute_short_url(self):
         for tracker in self:
             try:
@@ -85,23 +163,59 @@ class LinkTracker(models.Model):
                 raise UserError(self.env._("Please enter valid short URL code.")) from err
 
     def _compute_short_url_host(self):
+        base_url = self.env['link.tracker'].get_base_url()
         for tracker in self:
-            tracker.short_url_host = tracker.get_base_url() + '/r/'
+            tracker.short_url_host = base_url + '/r/'
 
+    @api.depends('link_code_ids.code')
     def _compute_code(self):
+        """The most recently issued code of each tracker, in one query.
+
+        The dependency is what makes this correct: without it the ORM caches the
+        value for the whole transaction, so renaming a code -- or adding a second
+        one, which is what ``/website_links/add_code`` does -- left every reader
+        of ``code``, ``short_url`` and therefore ``display_name`` on the old value.
+        """
+        Code = self.env['link.tracker.code']
+        latest_ids = {
+            link.id: code_id
+            for link, code_id in Code._read_group(
+                [('link_id', 'in', self.ids)], ['link_id'], ['id:max'],
+            )
+        }
+        codes = {code.id: code.code for code in Code.browse(latest_ids.values())}
         for tracker in self:
-            record = self.env['link.tracker.code'].search([('link_id', 'in', tracker.ids)], limit=1, order='id DESC')
-            tracker.code = record.code
+            tracker.code = codes.get(latest_ids.get(tracker.id), False)
 
     def _inverse_code(self):
-        self.ensure_one()
-        if not self.code:
-            return
-        record = self.env['link.tracker.code'].search([('link_id', '=', self.id)], limit=1, order='id DESC')
-        if record:
-            record.code = self.code
+        """Rename the tracker's latest code, or issue one if it has none.
 
-    @api.depends('url')
+        Batched, and without ``ensure_one``: an inverse is handed the whole
+        recordset, and this one used to raise a bare ValueError on any
+        multi-record write.
+        """
+        Code = self.env['link.tracker.code'].sudo()
+        trackers = self.filtered('code')
+        if not trackers:
+            return
+        latest_ids = {
+            link.id: code_id
+            for link, code_id in Code._read_group(
+                [('link_id', 'in', trackers.ids)], ['link_id'], ['id:max'],
+            )
+        }
+        to_create = []
+        for tracker in trackers:
+            code_id = latest_ids.get(tracker.id)
+            if code_id:
+                Code.browse(code_id).code = tracker.code
+            else:
+                to_create.append({'code': tracker.code, 'link_id': tracker.id})
+        if to_create:
+            Code.create(to_create)
+
+    @api.depends('url', 'campaign_id', 'campaign_id.name',
+                 'medium_id', 'medium_id.name', 'source_id', 'source_id.name')
     def _compute_redirected_url(self):
         """Compute the URL to which we will redirect the user.
 
@@ -110,16 +224,17 @@ class LinkTracker(models.Model):
         the local website (base URL).
         """
         no_external_tracking = self.env['ir.config_parameter'].sudo().get_param('link_tracker.no_external_tracking')
+        base_domain = urlsplit(self.env['link.tracker'].get_base_url()).netloc
+        tracking_fields = self.env['mixin.utm'].tracking_fields()
 
         for tracker in self:
-            base_domain = urlsplit(tracker.get_base_url()).netloc
             parsed = urlsplit(tracker.url)
             if no_external_tracking and parsed.netloc and parsed.netloc != base_domain:
                 tracker.redirected_url = urlunsplit(parsed)
                 continue
 
             query = dict(parse_qsl(parsed.query))
-            for key, field_name, _cook in self.env['mixin.utm'].tracking_fields():
+            for key, field_name, _cook in tracking_fields:
                 field = self._fields[field_name]
                 attr = tracker[field_name]
                 if field.type == 'many2one':
@@ -134,81 +249,161 @@ class LinkTracker(models.Model):
             tracker.redirected_url = urlunsplit(parsed._replace(query=query))
 
     @api.model
-    @api.depends('url')
     def _get_title_from_url(self, url):
         preview = link_preview.get_link_preview_from_url(url)
         if preview and preview.get('og_title'):
             return preview['og_title']
         return url
 
-    @api.constrains(*LINK_TRACKER_UNIQUE_FIELDS)
-    def _check_unicity(self):
-        """Check that the (url, campaign, medium, source, label) combinations are unique."""
-        def _format_value(tracker, field_name):
-            if field_name == 'label' and not tracker[field_name]:
-                return False
-            return tracker[field_name]
+    # ------------------------------------------------------------
+    # VALIDATION
+    # ------------------------------------------------------------
 
-        # build a query to fetch all needed link trackers at once
-        search_query = Domain.OR([
-            Domain.AND([
-                [('url', '=', tracker.url)],
-                [('campaign_id', '=', tracker.campaign_id.id)],
-                [('medium_id', '=', tracker.medium_id.id)],
-                [('source_id', '=', tracker.source_id.id)],
-                [('label', '=', tracker.label) if tracker.label else ('label', 'in', (False, ''))],
-            ])
-            for tracker in self
-        ])
+    @api.model
+    def _normalize_vals(self, vals):
+        """Bring one vals dict to the canonical shape the unique key assumes.
 
-        # Can not be implemented with a SQL constraint because we care about null values.
-        potential_duplicates = self.search(search_query)
-        duplicates = self.browse()
-        seen = set()
-        for tracker in potential_duplicates:
-            unique_fields = tuple(_format_value(tracker, field_name) for field_name in LINK_TRACKER_UNIQUE_FIELDS)
-            if unique_fields in seen or seen.add(unique_fields):
-                duplicates += tracker
+        ``label`` reaches the column as both ``''`` and ``NULL`` otherwise, which
+        is why the unique key needed a carve-out at every call site.
+        """
+        if 'label' in vals and not vals['label']:
+            vals['label'] = False
+        if 'url' in vals:
+            url = vals['url']
+            if url.startswith(('?', '#')):
+                raise UserError(_(
+                    "“%s” is not a valid link, links cannot redirect to the current page.", url))
+            vals['url'] = validate_url(url)
+        return vals
+
+    def _check_url_is_not_a_short_url(self, vals_list):
+        """Refuse a target that is one of our own short URLs.
+
+        ``test_no_loop`` is named for this hazard but only guarded ``?`` and
+        ``#``. A tracker pointed at its own ``/r/<code>`` 301s to itself, and
+        because the click is recorded before the redirect resolves, one browser
+        page-load records as many clicks as the browser's redirect limit.
+        """
+        short_prefix = self.env['link.tracker'].get_base_url() + '/r/'
+        for vals in vals_list:
+            url = vals.get('url')
+            if not url:
+                continue
+            absolute = url if urlsplit(url).scheme else tools.urls.urljoin(
+                self.env['link.tracker'].get_base_url(), url)
+            if absolute.startswith(short_prefix):
+                raise UserError(_(
+                    "“%s” is not a valid link, it already is a tracked short link.", url))
+
+    def _check_unicity_of_keys(self, keys, exclude=None):
+        """Raise if ``keys`` collide with each other or with existing trackers.
+
+        Replaces the table scan the old ``@api.constrains`` ran: the lookup is a
+        single indexed ``IN`` over ``key_hash`` rather than an N-way OR over an
+        unindexed ``url``.
+        """
+        seen, duplicates = set(), []
+        for key in keys:
+            if key in seen:
+                duplicates.append(key)
+            seen.add(key)
+
+        domain = self._unique_key_domain(list(seen))
+        if exclude:
+            domain &= Domain('id', 'not in', exclude.ids)
+        for tracker in self.sudo().search(domain):
+            key = self._unique_key_from_values(tracker)
+            if key in seen:
+                duplicates.append(key)
+
         if duplicates:
+            names = {}
+            for model_name in ('utm.campaign', 'utm.medium', 'utm.source'):
+                ids = {key[i] for key in duplicates for i in (1, 2, 3)}
+                names.update({
+                    record.id: record.name
+                    for record in self.env[model_name].sudo().browse(
+                        [i for i in ids if i]).exists()
+                })
             error_lines = '\n- '.join(
-                str((tracker.url, tracker.campaign_id.name, tracker.medium_id.name, tracker.source_id.name, tracker.label or '""'))
-                for tracker in duplicates
+                str((key[0], names.get(key[1]), names.get(key[2]), names.get(key[3]), key[4] or '""'))
+                for key in duplicates
             )
             raise UserError(
                 _('Combinations of Link Tracker values (URL, campaign, medium, source, and label) must be unique.\n'
                   'The following combinations are already used: \n- %(error_lines)s', error_lines=error_lines))
 
+    # ------------------------------------------------------------
+    # CRUD
+    # ------------------------------------------------------------
+
     @api.model_create_multi
     def create(self, vals_list):
-        vals_list = [vals.copy() for vals in vals_list]
+        vals_list = [self._normalize_vals(vals.copy()) for vals in vals_list]
         for vals in vals_list:
             if 'url' not in vals:
-                raise ValueError(_('Creating a Link Tracker without URL is not possible'))
+                raise UserError(_('Creating a Link Tracker without URL is not possible'))
+        self._check_url_is_not_a_short_url(vals_list)
 
-            if vals['url'].startswith(('?', '#')):
-                raise UserError(_("“%s” is not a valid link, links cannot redirect to the current page.", vals['url']))
-            vals['url'] = validate_url(vals['url'])
+        # Taken out before `super`: `code` is a non-stored inverse field, and the
+        # inverse runs while the tracker still has no `link.tracker.code` row --
+        # it used to find nothing, return silently, and let `create` overwrite the
+        # requested code with a generated one, leaving the record reporting a
+        # short URL that resolved to nothing.
+        requested_codes = [vals.pop('code', False) for vals in vals_list]
 
+        for vals in vals_list:
             if not vals.get('title'):
-                vals['title'] = self._get_title_from_url(vals['url'])
+                # Display-only, and `link_preview` fetches it over the network with
+                # a 10s deadline per link. That does not belong in a transaction on
+                # the mailing send path; `_cron_fetch_titles` backfills it, and a
+                # caller that needs it now asks for it.
+                vals['title'] = (
+                    self._get_title_from_url(vals['url'])
+                    if self.env.context.get('link_tracker_fetch_title')
+                    else vals['url']
+                )
 
             # Prevent the UTMs from being set by the values of UTM cookies
             for (__, fname, __) in self.env['mixin.utm'].tracking_fields():
                 if fname not in vals:
                     vals[fname] = False
 
+        self._check_unicity_of_keys([self._unique_key_from_values(vals) for vals in vals_list])
         links = super().create(vals_list)
 
-        link_tracker_codes = self.env['link.tracker.code']._get_random_code_strings(len(vals_list))
-
-        self.env['link.tracker.code'].sudo().create([
+        Code = self.env['link.tracker.code'].sudo()
+        generated = iter(Code._get_random_code_strings(sum(1 for code in requested_codes if not code)))
+        Code.create([
             {
-                'code': code,
+                'code': requested or next(generated),
                 'link_id': link.id,
-            } for link, code in zip(links, link_tracker_codes, strict=True)
+            } for link, requested in zip(links, requested_codes, strict=True)
         ])
 
         return links
+
+    def write(self, vals):
+        vals = self._normalize_vals(dict(vals))
+        if vals.keys() & set(LINK_TRACKER_UNIQUE_FIELDS):
+            if 'url' in vals:
+                self._check_url_is_not_a_short_url([vals])
+            keys = []
+            for tracker in self:
+                merged = {
+                    fname: (
+                        vals[fname] if fname in vals
+                        else (tracker[fname].id if self._fields[fname].type == 'many2one' else tracker[fname])
+                    )
+                    for fname in LINK_TRACKER_UNIQUE_FIELDS
+                }
+                keys.append(self._unique_key_from_values(merged))
+            self._check_unicity_of_keys(keys, exclude=self)
+        return super().write(vals)
+
+    # ------------------------------------------------------------
+    # API
+    # ------------------------------------------------------------
 
     @api.model
     def search_or_create(self, vals_list):
@@ -217,64 +412,74 @@ class LinkTracker(models.Model):
             _logger.warning("Deprecated usage of LinkTracker.search_or_create which now expects a list of dictionaries as input.")
             vals_list = [vals_list]
 
-        def _format_key(obj):
-            """Generate unique 'key' of trackers, allowing to find duplicates."""
-            return tuple(
-                (field_name, obj[field_name].id if isinstance(obj[field_name], models.BaseModel) else obj[field_name])
-                for field_name in LINK_TRACKER_UNIQUE_FIELDS
-            )
-
-        def _format_key_domain(field_values):
-            """Handle "label" being False / '' and be defensive."""
-            return Domain.AND([
-                [(field_name, '=', value) if value or field_name != 'label' else ('label', 'in', (False, ''))]
-                for field_name, value in field_values
-            ])
-
-        errors = set()
         for vals in vals_list:
             if 'url' not in vals:
-                raise ValueError(_('Creating a Link Tracker without URL is not possible'))
-            if vals['url'].startswith(('?', '#')):
-                errors.add(_("“%s” is not a valid link, links cannot redirect to the current page.", vals['url']))
-            vals['url'] = validate_url(vals['url'])
-            # fill vals to use direct accessor in _format_key
+                raise UserError(_('Creating a Link Tracker without URL is not possible'))
+            self._normalize_vals(vals)
+            # fill vals so `_unique_key_from_values` sees the defaults a create would apply
             self._add_missing_default_values(vals)
             vals.update({key: False for key in LINK_TRACKER_UNIQUE_FIELDS if not vals.get(key)})
-        if errors:
-            raise UserError("\n".join(errors))
 
-        # Find unique keys of trackers, then fetch existing trackers
-        unique_keys = {_format_key(vals) for vals in vals_list}
-        found_trackers = self.search(Domain.OR(_format_key_domain(key) for key in unique_keys))
-        key_to_trackers_map = {_format_key(tracker): tracker for tracker in found_trackers}
+        keys = [self._unique_key_from_values(vals) for vals in vals_list]
+        unique_keys = set(keys)
+        found_trackers = self.search(self._unique_key_domain(list(unique_keys)))
+        key_to_trackers_map = {
+            key: tracker
+            for tracker in found_trackers
+            if (key := self._unique_key_from_values(tracker)) in unique_keys
+        }
 
-        if len(unique_keys) != len(found_trackers):
+        if len(unique_keys) != len(key_to_trackers_map):
             # Create trackers for values with unique keys not found
-            seen_keys = set(key_to_trackers_map.keys())
+            seen_keys = set(key_to_trackers_map)
             new_trackers = self.create([
-                vals for vals in vals_list
-                if (key := _format_key(vals)) not in seen_keys and not seen_keys.add(key)
+                vals for vals, key in zip(vals_list, keys, strict=True)
+                if key not in seen_keys and not seen_keys.add(key)
             ])
-            key_to_trackers_map.update((_format_key(tracker), tracker) for tracker in new_trackers)
+            key_to_trackers_map.update(
+                (self._unique_key_from_values(tracker), tracker) for tracker in new_trackers)
 
         # Build final recordset following input order
-        return self.browse([key_to_trackers_map[_format_key(vals)].id for vals in vals_list])
+        return self.browse([key_to_trackers_map[key].id for key in keys])
 
     @api.model
-    def convert_links(self, html, vals, blacklist=None):
-        raise NotImplementedError('Moved on mixin.mail.render')
+    def _resolve_and_track(self, code, **route_values):
+        """Resolve a short code to its redirect target, recording the click.
 
-    def _convert_links_text(self, body, vals, blacklist=None):
-        raise NotImplementedError('Moved on mixin.mail.render')
+        The single entry point every ``/r/`` route shares. It exists because the
+        four controllers that used to spell this out drifted: two kept the
+        ``is_a_bot`` guard and two lost it -- including the ``/r/<code>/m/<trace>``
+        route that every mass-mailing link points at -- and all four resolved the
+        same code twice, once to record the click and once to read the target.
+        """
+        tracker_code = self.env['link.tracker.code'].sudo().search([('code', '=', code)], limit=1)
+        if not tracker_code:
+            return None
+        if not self._click_is_from_a_bot():
+            self.env['link.tracker.click'].sudo().add_click(
+                code, tracker_code=tracker_code, **route_values)
+        return tracker_code.link_id.redirected_url
+
+    @api.model
+    def _click_is_from_a_bot(self):
+        """Whether the current request looks like a crawler or link previewer.
+
+        False outside an HTTP request: demo data and tests call ``add_click``
+        directly and there is no user agent to read.
+        """
+        if not request:
+            return False
+        return self.env['ir.http'].is_a_bot()
 
     def action_view_statistics(self):
+        self.ensure_one()
         action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('link_tracker.link_tracker_click_action_statistics')
         action['domain'] = [('link_id', '=', self.id)]
         action['context'] = dict(self.env.context, create=False)
         return action
 
     def action_visit_page(self):
+        self.ensure_one()
         return {
             'name': _("Visit Webpage"),
             'type': 'ir.actions.act_url',
@@ -283,24 +488,40 @@ class LinkTracker(models.Model):
         }
 
     @api.model
-    def recent_links(self, filter, limit):
-        if filter == 'newest':
-            return self.search_read([], order='create_date DESC, id DESC', limit=limit)
-        elif filter == 'most-clicked':
-            return self.search_read([('count', '!=', 0)], order='count DESC, id DESC', limit=limit)
-        elif filter == 'recently-used':
-            return self.search_read([('count', '!=', 0)], order='write_date DESC, id DESC', limit=limit)
-        else:
-            return {'Error': "This filter doesn't exist."}
+    def recent_links(self, sort_by, limit):
+        # `search_read([])` returned all twenty fields, computed ones included,
+        # for a dashboard that renders five of them.
+        fields_to_read = ['code', 'short_url', 'title', 'url', 'label', 'count', 'create_date']
+        if sort_by == 'newest':
+            return self.search_read([], fields_to_read, order='create_date DESC, id DESC', limit=limit)
+        if sort_by == 'most-clicked':
+            return self.search_read([('count', '!=', 0)], fields_to_read, order='count DESC, id DESC', limit=limit)
+        if sort_by == 'recently-used':
+            return self.search_read([('count', '!=', 0)], fields_to_read, order='write_date DESC, id DESC', limit=limit)
+        # Returning {'Error': ...} put a dict where the only caller does
+        # `links.reverse()`, so a bad filter surfaced as a TypeError in the browser.
+        raise UserError(_("“%s” is not a known sort order.", sort_by))
 
     @api.model
     def get_url_from_code(self, code):
-        code_rec = self.env['link.tracker.code'].sudo().search([('code', '=', code)])
+        code_rec = self.env['link.tracker.code'].sudo().search([('code', '=', code)], limit=1)
 
         if not code_rec:
             return None
 
         return code_rec.link_id.redirected_url
+
+    @api.model
+    def _cron_fetch_titles(self, limit=200):
+        """Backfill the titles `create` no longer fetches over the network."""
+        trackers = self.sudo().search([('title', '=', False)], limit=limit)
+        trackers |= self.sudo().search(
+            [('title', '!=', False), ('url', '!=', False)], limit=limit,
+        ).filtered(lambda tracker: tracker.title == tracker.url)
+        for tracker in trackers:
+            title = self._get_title_from_url(tracker.url)
+            if title and title != tracker.title:
+                tracker.title = title
 
 
 class LinkTrackerCode(models.Model):
@@ -308,7 +529,7 @@ class LinkTrackerCode(models.Model):
     _description = "Link Tracker Code"
     _rec_name = 'code'
 
-    code = fields.Char(string='Short URL Code', required=True, store=True)
+    code = fields.Char(string='Short URL Code', required=True)
     link_id = fields.Many2one('link.tracker', 'Link', required=True, index=True, ondelete='cascade')
 
     _code = models.Constraint(
@@ -318,14 +539,21 @@ class LinkTrackerCode(models.Model):
 
     @api.model
     def _get_random_code_strings(self, n=1):
+        """``n`` codes that are unused, and unguessable.
+
+        ``random`` is a Mersenne Twister: fine for a shuffle, not for a value
+        whose only protection is that nobody can guess it.
+        """
+        if not n:
+            return []
         size = LINK_TRACKER_MIN_CODE_LENGTH
         while True:
             code_propositions = [
-                ''.join(random.choices(string.ascii_letters + string.digits, k=size))
+                ''.join(secrets.choice(LINK_TRACKER_CODE_ALPHABET) for __ in range(size))
                 for __ in range(n)
             ]
 
-            if len(set(code_propositions)) != n or self.search_count([('code', 'in', code_propositions)], limit=1):
+            if len(set(code_propositions)) != n or self.sudo().search_count([('code', 'in', code_propositions)], limit=1):
                 size += 1
             else:
                 return code_propositions
@@ -352,9 +580,15 @@ class LinkTrackerClick(models.Model):
         return click_values
 
     @api.model
-    def add_click(self, code, **route_values):
-        """ Main API to add a click on a link. """
-        tracker_code = self.env['link.tracker.code'].search([('code', '=', code)])
+    def add_click(self, code, *, tracker_code=None, **route_values):
+        """ Main API to add a click on a link.
+
+        :param tracker_code: the already-resolved ``link.tracker.code``, when the
+          caller has one. Every ``/r/`` route resolves the code to find its
+          redirect target anyway, and used to pay for a second lookup here.
+        """
+        if tracker_code is None:
+            tracker_code = self.env['link.tracker.code'].search([('code', '=', code)], limit=1)
         if not tracker_code:
             return None
 
@@ -362,3 +596,27 @@ class LinkTrackerClick(models.Model):
         click_values = self._prepare_click_values_from_route(**route_values)
 
         return self.create(click_values)
+
+    @api.model
+    def _cron_clear_expired_ips(self, batch_size=10000):
+        """Clear the stored IP of clicks older than the configured retention.
+
+        ``link_tracker.click_ip_retention_days`` is unset by default, which keeps
+        the previous behaviour: an IP is kept forever. Set it to a number of days
+        to have this cron forget them.
+        """
+        days = self.env['ir.config_parameter'].sudo().get_param('link_tracker.click_ip_retention_days')
+        try:
+            days = int(days or 0)
+        except ValueError:
+            _logger.warning(
+                "link_tracker.click_ip_retention_days is not a number: %r, keeping IPs", days)
+            return
+        if days <= 0:
+            return
+        cutoff = fields.Datetime.subtract(fields.Datetime.now(), days=days)
+        expired = self.sudo().search(
+            [('ip', '!=', False), ('create_date', '<', cutoff)], limit=batch_size)
+        if expired:
+            expired.write({'ip': False})
+            _logger.info("link_tracker: cleared the IP of %s click(s)", len(expired))
