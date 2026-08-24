@@ -6,10 +6,14 @@ class AccountFullReconcile(models.Model):
     _description = "Full Reconcile"
 
     partial_reconcile_ids = fields.One2many(
-        "account.partial.reconcile", "full_reconcile_id", string="Reconciliation Parts"
+        "account.partial.reconcile",
+        "full_reconcile_id",
+        string="Reconciliation Parts",
     )
     reconciled_line_ids = fields.One2many(
-        "account.move.line", "full_reconcile_id", string="Matched Journal Items"
+        "account.move.line",
+        "full_reconcile_id",
+        string="Matched Journal Items",
     )
 
     @api.model_create_multi

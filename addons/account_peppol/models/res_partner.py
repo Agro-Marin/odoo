@@ -7,7 +7,7 @@ from urllib import parse
 
 from odoo import api, fields, models
 from odoo.addons.account_peppol.tools.demo_utils import handle_demo
-from odoo.addons.account.models.company import PEPPOL_LIST
+from odoo.addons.account.models.res_company import PEPPOL_LIST
 
 TIMEOUT = 10
 _logger = logging.getLogger(__name__)

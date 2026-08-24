@@ -57,7 +57,9 @@ class AccountPayment(models.Model):
         copy=False,
     )
     is_reconciled = fields.Boolean(
-        string="Is Reconciled", store=True, compute="_compute_reconciliation_status"
+        string="Is Reconciled",
+        store=True,
+        compute="_compute_reconciliation_status",
     )
     is_matched = fields.Boolean(
         string="Is Matched With a Bank Statement",
@@ -106,7 +108,8 @@ class AccountPayment(models.Model):
         "U.S. ISO20022: Pay in the US by submitting an ISO20022 file to your bank. Module account_iso20022 is necessary.\n",
     )
     available_payment_method_line_ids = fields.Many2many(
-        "account.payment.method.line", compute="_compute_available_payment_method_line_ids"
+        "account.payment.method.line",
+        compute="_compute_available_payment_method_line_ids",
     )
     payment_method_id = fields.Many2one(
         related="payment_method_line_id.payment_method_id",
@@ -115,7 +118,8 @@ class AccountPayment(models.Model):
         store=True,
     )
     available_journal_ids = fields.Many2many(
-        comodel_name="account.journal", compute="_compute_available_journal_ids"
+        comodel_name="account.journal",
+        compute="_compute_available_journal_ids",
     )
 
     amount = fields.Monetary(currency_field="currency_id")
@@ -155,7 +159,8 @@ class AccountPayment(models.Model):
         help="The payment's currency.",
     )
     company_currency_id = fields.Many2one(
-        string="Company Currency", related="company_id.currency_id"
+        string="Company Currency",
+        related="company_id.currency_id",
     )
     partner_id = fields.Many2one(
         comodel_name="res.partner",
@@ -229,17 +234,25 @@ class AccountPayment(models.Model):
         compute="_compute_stat_buttons_from_reconciliation",
     )
 
-    payment_method_code = fields.Char(related="payment_method_line_id.code")
-    payment_receipt_title = fields.Char(compute="_compute_payment_receipt_title")
+    payment_method_code = fields.Char(
+        related="payment_method_line_id.code",
+    )
+    payment_receipt_title = fields.Char(
+        compute="_compute_payment_receipt_title",
+    )
 
-    need_cancel_request = fields.Boolean(related="move_id.need_cancel_request")
+    need_cancel_request = fields.Boolean(
+        related="move_id.need_cancel_request",
+    )
     show_partner_bank_account = fields.Boolean(
         compute="_compute_show_require_partner_bank"
     )
     require_partner_bank_account = fields.Boolean(
         compute="_compute_show_require_partner_bank"
     )
-    country_code = fields.Char(related="company_id.account_fiscal_country_id.code")
+    country_code = fields.Char(
+        related="company_id.account_fiscal_country_id.code",
+    )
     amount_signed = fields.Monetary(
         currency_field="currency_id",
         compute="_compute_amount_signed",
@@ -264,7 +277,6 @@ class AccountPayment(models.Model):
     _unmatched_idx = models.Index(
         "(journal_id, company_id) WHERE is_matched IS NOT TRUE"
     )
-
 
     @api.model
     def _get_valid_payment_account_types(self):
@@ -457,7 +469,6 @@ class AccountPayment(models.Model):
         for sub_line_vals in line_vals_per_type.values():
             line_vals += sub_line_vals
         return line_vals
-
 
     @api.depends("move_id.name", "state")
     def _compute_name(self):
@@ -982,9 +993,7 @@ class AccountPayment(models.Model):
         self.flush_model(used_fields)
 
         payment_table_and_alias = SQL("account_payment AS payment")
-        if not self[
-            0
-        ].id:
+        if not self[0].id:
             values = {
                 field_name: self._fields[field_name].convert_to_write(
                     self[field_name], self
@@ -1034,13 +1043,11 @@ class AccountPayment(models.Model):
             for payment_id, duplicate_ids in self.env.execute_query(query)
         }
 
-
     def _inverse_memo(self):
         for payment in self:
             move = payment.move_id
             if move:
                 move.ref = payment.memo
-
 
     @api.constrains("payment_method_line_id")
     def _check_payment_method_line_id(self):
@@ -1072,7 +1079,6 @@ class AccountPayment(models.Model):
                         "A payment with an outstanding account cannot be confirmed without having a journal entry."
                     )
                 )
-
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -1188,7 +1194,6 @@ class AccountPayment(models.Model):
                     {"res_model": self._name, "res_id": payment.id}
                 )
         return super()._message_mail_after_hook(mails)
-
 
     def _synchronize_to_moves(self, changed_fields):
         if not any(
@@ -1331,7 +1336,6 @@ class AccountPayment(models.Model):
             "display_invoices": True,
             "display_payment_method": True,
         }
-
 
     def mark_as_sent(self):
         self.write({"is_sent": True})

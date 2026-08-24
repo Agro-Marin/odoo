@@ -1,5 +1,5 @@
 from odoo import api, models
-from odoo.addons.account.models.partner import _ref_company_registry
+from odoo.addons.account.models.res_partner import _ref_company_registry
 
 
 class ResPartner(models.Model):

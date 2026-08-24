@@ -1262,7 +1262,7 @@ class TestAccountIncomingSupplierInvoice(
         with (
             self._patch_import_methods(),
             patch(
-                "odoo.addons.account.models.partner.ResPartner.search",
+                "odoo.addons.account.models.res_partner.ResPartner.search",
                 side_effect=ValueError("We want to test an unexpected error"),
             ),
             mute_logger("odoo.addons.account.models.mixin_account_document_import"),

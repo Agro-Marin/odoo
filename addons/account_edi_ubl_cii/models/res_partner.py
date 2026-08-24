@@ -4,7 +4,7 @@ from stdnum.fr import siret
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
 from odoo.addons.account_edi_ubl_cii.models.account_edi_common import EAS_MAPPING
-from odoo.addons.account.models.company import PEPPOL_DEFAULT_COUNTRIES
+from odoo.addons.account.models.res_company import PEPPOL_DEFAULT_COUNTRIES
 
 
 PEPPOL_ENDPOINT_INVALIDCHARS_RE = re.compile(r'[^a-zA-Z\d\-._~]')

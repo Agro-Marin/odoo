@@ -10,8 +10,8 @@ from odoo.tools.mail import is_html_empty
 from odoo.tools.misc import format_date
 
 from odoo.addons.account.models.account_move import MAX_HASH_VERSION
-from odoo.addons.account.models.partner import _ref_company_registry
 from odoo.addons.account.models.product import ACCOUNT_DOMAIN
+from odoo.addons.account.models.res_partner import _ref_company_registry
 from odoo.addons.base_vat.models.res_partner import _ref_vat
 
 MONTH_SELECTION = [
@@ -131,9 +131,14 @@ class ResCompany(models.Model):
     _name = "res.company"
     _inherit = ["res.company", "mixin.mail.thread"]
 
-    fiscalyear_last_day = fields.Integer(default=31, required=True)
+    fiscalyear_last_day = fields.Integer(
+        default=31,
+        required=True,
+    )
     fiscalyear_last_month = fields.Selection(
-        MONTH_SELECTION, default="12", required=True
+        MONTH_SELECTION,
+        default="12",
+        required=True,
     )
     fiscalyear_lock_date = fields.Date(
         string="Global Lock Date",
@@ -163,7 +168,7 @@ class ResCompany(models.Model):
         "This lock date is irreversible and does not allow any exception.",
     )
     user_fiscalyear_lock_date = fields.Date(
-        compute="_compute_user_fiscalyear_lock_date"
+        compute="_compute_user_fiscalyear_lock_date",
     )
     user_tax_lock_date = fields.Date(compute="_compute_user_tax_lock_date")
     user_sale_lock_date = fields.Date(compute="_compute_user_sale_lock_date")
@@ -184,13 +189,19 @@ class ResCompany(models.Model):
     bank_account_code_prefix = fields.Char(string="Prefix of the bank accounts")
     cash_account_code_prefix = fields.Char(string="Prefix of the cash accounts")
     default_cash_difference_income_account_id = fields.Many2one(
-        "account.account", string="Cash Difference Income", check_company=True
+        "account.account",
+        string="Cash Difference Income",
+        check_company=True,
     )
     default_cash_difference_expense_account_id = fields.Many2one(
-        "account.account", string="Cash Difference Expense", check_company=True
+        "account.account",
+        string="Cash Difference Expense",
+        check_company=True,
     )
     account_journal_suspense_account_id = fields.Many2one(
-        "account.account", string="Journal Suspense Account", check_company=True
+        "account.account",
+        string="Journal Suspense Account",
+        check_company=True,
     )
     account_journal_early_pay_discount_gain_account_id = fields.Many2one(
         comodel_name="account.account",
@@ -204,10 +215,14 @@ class ResCompany(models.Model):
     )
     transfer_account_code_prefix = fields.Char(string="Prefix of the transfer accounts")
     account_sale_tax_id = fields.Many2one(
-        "account.tax", string="Default Sale Tax", check_company=True
+        "account.tax",
+        string="Default Sale Tax",
+        check_company=True,
     )
     account_purchase_tax_id = fields.Many2one(
-        "account.tax", string="Default Purchase Tax", check_company=True
+        "account.tax",
+        string="Default Purchase Tax",
+        check_company=True,
     )
     account_purchase_receipt_fiscal_position_id = fields.Many2one(
         "account.fiscal.position",
@@ -285,10 +300,14 @@ class ResCompany(models.Model):
         readonly=False,
     )
     account_opening_date = fields.Date(
-        string="Opening Entry", help="That is the date of the opening entry."
+        string="Opening Entry",
+        help="That is the date of the opening entry.",
     )
 
-    invoice_terms = fields.Html(string="Default Terms and Conditions", translate=True)
+    invoice_terms = fields.Html(
+        string="Default Terms and Conditions",
+        translate=True,
+    )
     terms_type = fields.Selection(
         [("plain", "Add a Note"), ("html", "Add a link to a Web Page")],
         string="Terms & Conditions format",
@@ -304,7 +323,9 @@ class ResCompany(models.Model):
     )
 
     account_default_pos_receivable_account_id = fields.Many2one(
-        "account.account", string="Default PoS Receivable Account", check_company=True
+        "account.account",
+        string="Default PoS Receivable Account",
+        check_company=True,
     )
 
     expense_accrual_account_id = fields.Many2one(
@@ -372,7 +393,8 @@ class ResCompany(models.Model):
     display_account_storno = fields.Boolean(compute="_compute_display_account_storno")
 
     fiscal_position_ids = fields.One2many(
-        comodel_name="account.fiscal.position", inverse_name="company_id"
+        comodel_name="account.fiscal.position",
+        inverse_name="company_id",
     )
     multi_vat_foreign_country_ids = fields.Many2many(
         string="Foreign VAT countries",
@@ -391,10 +413,12 @@ class ResCompany(models.Model):
     )
 
     account_discount_income_allocation_id = fields.Many2one(
-        comodel_name="account.account", string="Separate account for income discount"
+        comodel_name="account.account",
+        string="Separate account for income discount",
     )
     account_discount_expense_allocation_id = fields.Many2one(
-        comodel_name="account.account", string="Separate account for expense discount"
+        comodel_name="account.account",
+        string="Separate account for expense discount",
     )
 
     restrictive_audit_trail = fields.Boolean(
@@ -441,34 +465,6 @@ class ResCompany(models.Model):
         domain=ACCOUNT_DOMAIN,
         help="During perpetual valuation, this account will hold the price difference between the standard price and the bill price.",
     )
-
-    def get_next_batch_payment_communication(self):
-        self.ensure_one()
-        company_sudo = self.sudo()
-        if not company_sudo.batch_payment_sequence_id:
-            company_sudo.batch_payment_sequence_id = (
-                self.env["ir.sequence"]
-                .sudo()
-                .create(
-                    {
-                        "name": _("Group Payments Number Sequence"),
-                        "implementation": "no_gap",
-                        "padding": 5,
-                        "use_date_range": True,
-                        "company_id": self.id,
-                        "prefix": "GROUP/%(year)s/",
-                    }
-                )
-            )
-        return company_sudo.batch_payment_sequence_id.next_by_id()
-
-    def _get_company_root_delegated_field_names(self):
-        return super()._get_company_root_delegated_field_names() + [
-            "fiscalyear_last_day",
-            "fiscalyear_last_month",
-            "account_storno",
-            "tax_exigibility",
-        ]
 
     @api.constrains("restrictive_audit_trail")
     def _check_audit_trail_restriction(self):
@@ -519,22 +515,19 @@ class ResCompany(models.Model):
     )
     def _compute_domestic_fiscal_position_id(self):
         for company in self:
-            potential_domestic_fps = (
-                company.fiscal_position_ids.filtered_domain(
-                    Domain("country_id", "=", company.country_id.id)
-                    | Domain(
-                        [
-                            ("country_id", "=", False),
-                            (
-                                "country_group_id",
-                                "in",
-                                company.country_id.country_group_ids.ids,
-                            ),
-                        ]
-                    ),
-                )
-                .sorted(lambda fp: (fp.sequence, fp.country_id.id or float("inf")))
-            )
+            potential_domestic_fps = company.fiscal_position_ids.filtered_domain(
+                Domain("country_id", "=", company.country_id.id)
+                | Domain(
+                    [
+                        ("country_id", "=", False),
+                        (
+                            "country_group_id",
+                            "in",
+                            company.country_id.country_group_ids.ids,
+                        ),
+                    ]
+                ),
+            ).sorted(lambda fp: (fp.sequence, fp.country_id.id or float("inf")))
             company.domestic_fiscal_position_id = potential_domestic_fps[:1]
 
     @api.depends("account_fiscal_country_id")
@@ -545,6 +538,34 @@ class ResCompany(models.Model):
                 if company.account_fiscal_country_id
                 else []
             )
+
+    def get_next_batch_payment_communication(self):
+        self.ensure_one()
+        company_sudo = self.sudo()
+        if not company_sudo.batch_payment_sequence_id:
+            company_sudo.batch_payment_sequence_id = (
+                self.env["ir.sequence"]
+                .sudo()
+                .create(
+                    {
+                        "name": _("Group Payments Number Sequence"),
+                        "implementation": "no_gap",
+                        "padding": 5,
+                        "use_date_range": True,
+                        "company_id": self.id,
+                        "prefix": "GROUP/%(year)s/",
+                    }
+                )
+            )
+        return company_sudo.batch_payment_sequence_id.next_by_id()
+
+    def _get_company_root_delegated_field_names(self):
+        return super()._get_company_root_delegated_field_names() + [
+            "fiscalyear_last_day",
+            "fiscalyear_last_month",
+            "account_storno",
+            "tax_exigibility",
+        ]
 
     def _get_foreign_vat_countries_per_company(self, companies):
         FiscalPosition = self.env["account.fiscal.position"]
@@ -682,6 +703,7 @@ class ResCompany(models.Model):
         companies = super().create(vals_list)
         for company in companies:
             if root_template := company.root_id.chart_template:
+
                 def try_loading(company=company, root_template=root_template):
                     self.env["account.chart.template"]._load(
                         root_template,
@@ -1248,6 +1270,7 @@ class ResCompany(models.Model):
                     "account.chart.template"
                 ]._guess_chart_template(company.country_id)
                 if template_code != "generic_coa":
+
                     @self.env.cr.precommit.add
                     def try_loading(template_code=template_code, company=company):
                         env["account.chart.template"].try_loading(

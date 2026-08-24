@@ -1,12 +1,14 @@
 from odoo import _, api, fields, models
 
-from odoo.addons.account.models.company import PEPPOL_LIST
+from odoo.addons.account.models.res_company import PEPPOL_LIST
 
 
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
-    has_accounting_entries = fields.Boolean(compute="_compute_accounting_presence")
+    has_accounting_entries = fields.Boolean(
+        compute="_compute_accounting_presence",
+    )
     currency_id = fields.Many2one(
         "res.currency",
         related="company_id.currency_id",
@@ -100,10 +102,12 @@ class ResConfigSettings(models.TransientModel):
     )
     module_account_accountant = fields.Boolean(string="Accounting")
     group_cash_rounding = fields.Boolean(
-        string="Cash Rounding", implied_group="account.group_cash_rounding"
+        string="Cash Rounding",
+        implied_group="account.group_cash_rounding",
     )
     show_sale_receipts = fields.Boolean(
-        string="Sale Receipt", config_parameter="account.show_sale_receipts"
+        string="Sale Receipt",
+        config_parameter="account.show_sale_receipts",
     )
     module_account_budget = fields.Boolean(string="Budget Management")
     module_account_payment = fields.Boolean(string="Invoice Online Payment")
@@ -136,7 +140,9 @@ class ResConfigSettings(models.TransientModel):
     module_snailmail_account = fields.Boolean(string="Snailmail")
     module_account_peppol = fields.Boolean(string="PEPPOL Invoicing")
     tax_exigibility = fields.Boolean(
-        string="Cash Basis", related="company_id.tax_exigibility", readonly=False
+        string="Cash Basis",
+        related="company_id.tax_exigibility",
+        readonly=False,
     )
     tax_cash_basis_journal_id = fields.Many2one(
         "account.journal",
@@ -160,10 +166,14 @@ class ResConfigSettings(models.TransientModel):
     )
 
     qr_code = fields.Boolean(
-        string="Display SEPA QR-code", related="company_id.qr_code", readonly=False
+        string="Display SEPA QR-code",
+        related="company_id.qr_code",
+        readonly=False,
     )
     link_qr_code = fields.Boolean(
-        string="Display Link QR-code", related="company_id.link_qr_code", readonly=False
+        string="Display Link QR-code",
+        related="company_id.link_qr_code",
+        readonly=False,
     )
     incoterm_id = fields.Many2one(
         "account.incoterms",
@@ -173,14 +183,19 @@ class ResConfigSettings(models.TransientModel):
         readonly=False,
     )
     invoice_terms = fields.Html(
-        related="company_id.invoice_terms", string="Terms & Conditions", readonly=False
+        related="company_id.invoice_terms",
+        string="Terms & Conditions",
+        readonly=False,
     )
     invoice_terms_html = fields.Html(
         related="company_id.invoice_terms_html",
         string="Terms & Conditions as a Web page",
         readonly=False,
     )
-    terms_type = fields.Selection(related="company_id.terms_type", readonly=False)
+    terms_type = fields.Selection(
+        related="company_id.terms_type",
+        readonly=False,
+    )
     display_invoice_amount_total_words = fields.Boolean(
         string="Total amount of invoice in letters",
         related="company_id.display_invoice_amount_total_words",
@@ -192,7 +207,8 @@ class ResConfigSettings(models.TransientModel):
         readonly=False,
     )
     preview_ready = fields.Boolean(
-        string="Display preview button", compute="_compute_preview_ready"
+        string="Display preview button",
+        compute="_compute_preview_ready",
     )
 
     use_invoice_terms = fields.Boolean(
@@ -214,20 +230,28 @@ class ResConfigSettings(models.TransientModel):
     )
 
     country_code = fields.Char(
-        related="company_id.account_fiscal_country_id.code", readonly=True
+        related="company_id.account_fiscal_country_id.code",
+        readonly=True,
     )
 
     account_storno = fields.Boolean(
-        string="Storno accounting", readonly=False, related="company_id.account_storno"
+        string="Storno accounting",
+        readonly=False,
+        related="company_id.account_storno",
     )
-    display_account_storno = fields.Boolean(related="company_id.display_account_storno")
+    display_account_storno = fields.Boolean(
+        related="company_id.display_account_storno",
+    )
 
     group_sale_delivery_address = fields.Boolean(
-        "Customer Addresses", implied_group="account.group_delivery_invoice_address"
+        "Customer Addresses",
+        implied_group="account.group_delivery_invoice_address",
     )
 
     quick_edit_mode = fields.Selection(
-        string="Quick encoding", readonly=False, related="company_id.quick_edit_mode"
+        string="Quick encoding",
+        readonly=False,
+        related="company_id.quick_edit_mode",
     )
 
     account_journal_early_pay_discount_loss_account_id = fields.Many2one(
@@ -282,10 +306,14 @@ class ResConfigSettings(models.TransientModel):
 
     autopost_bills = fields.Boolean(related="company_id.autopost_bills", readonly=False)
     income_account_id = fields.Many2one(
-        related="company_id.income_account_id", readonly=False, check_company=True
+        related="company_id.income_account_id",
+        readonly=False,
+        check_company=True,
     )
     expense_account_id = fields.Many2one(
-        related="company_id.expense_account_id", readonly=False, check_company=True
+        related="company_id.expense_account_id",
+        readonly=False,
+        check_company=True,
     )
 
     @api.depends("country_code")

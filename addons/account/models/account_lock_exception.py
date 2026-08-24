@@ -5,7 +5,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.tools.misc import format_datetime
 
-from odoo.addons.account.models.company import SOFT_LOCK_DATE_FIELDS
+from odoo.addons.account.models.res_company import SOFT_LOCK_DATE_FIELDS
 
 
 class AccountLock_Exception(models.Model):
