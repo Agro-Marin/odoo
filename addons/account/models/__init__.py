@@ -39,6 +39,7 @@ from . import account_analytic_plan
 from . import account_analytic_line
 from . import account_journal_dashboard
 from . import account_journal_sample_bill
+from . import product_category
 from . import product
 from . import mixin_product_catalog
 from . import res_company
