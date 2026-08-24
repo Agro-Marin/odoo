@@ -698,6 +698,12 @@ class StockMove(models.Model):
         moves_ids_to_return = OrderedSet()
         moves_ids_to_unlink = OrderedSet()
         phantom_moves_vals_list = []
+        # One explosion scratch for the batch, and for the recursion below, which
+        # inherits it through `self.env`: `_explode` is asked once per *move*, and
+        # forty moves of the same kit resolved that kit's closure forty times.
+        self = self.with_context(
+            bom_cost_share_cache=self.env["mrp.bom"]._explosion_scratch()
+        )
         explodable = self.filtered(lambda move: move._is_explodable())
         kit_boms = explodable._get_kit_boms()
         for move in self:

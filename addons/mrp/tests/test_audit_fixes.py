@@ -3398,3 +3398,93 @@ class TestMrpAuditFixes(TestMrpCommon):
             all(production.move_raw_ids.mapped("picked")),
             "every matching move is marked picked, cleared or not",
         )
+
+    def test_exploding_many_moves_of_one_kit_resolves_it_once(self):
+        """`action_explode` asks `_explode` once per *move*.
+
+        Each of those opened its own explosion scratch, so twenty delivery lines of
+        the same kit resolved that kit's closure twenty times over. One scratch for
+        the batch — inherited by the recursion into nested kits through `self.env` —
+        makes the cost of a move independent of how many moves there are.
+
+        Asserted as a marginal cost, so a cheaper explosion elsewhere cannot make it
+        vacuous.
+        """
+        warehouse = self.env["stock.warehouse"].search([], limit=1)
+        customers = self.env.ref("stock.stock_location_customers")
+        leaves = self.env["product.product"].create(
+            [
+                {"name": f"Explode Leaf {index}", "is_storable": True}
+                for index in range(3)
+            ]
+        )
+        nested, kit = self.env["product.product"].create(
+            [
+                {"name": "Explode Nested Kit", "is_storable": True},
+                {"name": "Explode Kit", "is_storable": True},
+            ]
+        )
+        self.env["mrp.bom"].create(
+            [
+                {
+                    "product_tmpl_id": nested.product_tmpl_id.id,
+                    "product_qty": 1.0,
+                    "type": "phantom",
+                    "bom_line_ids": [
+                        Command.create({"product_id": leaf.id, "product_qty": 1.0})
+                        for leaf in leaves
+                    ],
+                },
+                {
+                    "product_tmpl_id": kit.product_tmpl_id.id,
+                    "product_qty": 1.0,
+                    "type": "phantom",
+                    "bom_line_ids": [
+                        Command.create({"product_id": nested.id, "product_qty": 1.0}),
+                        Command.create(
+                            {"product_id": leaves[0].id, "product_qty": 2.0}
+                        ),
+                    ],
+                },
+            ]
+        )
+        self.env.flush_all()
+
+        def queries_for(count):
+            picking = self.env["stock.picking"].create(
+                {
+                    "picking_type_id": warehouse.out_type_id.id,
+                    "location_id": warehouse.lot_stock_id.id,
+                    "location_dest_id": customers.id,
+                }
+            )
+            moves = self.env["stock.move"].create(
+                [
+                    {
+                        "product_id": kit.id,
+                        "product_uom_qty": 1.0,
+                        "picking_id": picking.id,
+                        "location_id": warehouse.lot_stock_id.id,
+                        "location_dest_id": customers.id,
+                        "company_id": warehouse.company_id.id,
+                    }
+                    for _ in range(count)
+                ]
+            )
+            self.env.flush_all()
+            self.env.invalidate_all()
+            before = self.env.cr.sql_log_count
+            exploded = moves.action_explode()
+            self.env.flush_all()
+            self.assertTrue(exploded, "the fixture must actually explode")
+            return self.env.cr.sql_log_count - before
+
+        few = queries_for(2)
+        many = queries_for(20)
+        per_move = (many - few) / 18
+        self.assertLess(
+            per_move,
+            1.0,
+            "exploding a kit must not cost a query per move: "
+            f"{few} queries for 2 moves, {many} for 20, {per_move:.2f} per move",
+        )
