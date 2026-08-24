@@ -6,6 +6,7 @@
  */
 export const FIELD_RECORD_SURFACE = [
     "data",
+    "savedData",
     "update",
     "fields",
     "fieldNames",

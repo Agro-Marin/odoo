@@ -19,8 +19,7 @@ async function makeField(moveLines, { recordResId = 100 } = {}) {
 const moveLine = ({ resId, quantity, savedQuantity = quantity, quantId = false }) => ({
     resId,
     data: { quant_id: quantId ? { id: quantId } : false, quantity },
-    _values: { quantity: savedQuantity },
-    _changes: { quantity },
+    savedData: { quantity: savedQuantity },
 });
 
 test("updateDirtyQuantsData combines unsaved qty deltas and quant reassignments", async () => {
@@ -58,18 +57,15 @@ test("updateDirtyQuantsData skips the RPC when nothing is dirty", async () => {
     expect(field.dirtyQuantsData.size).toBe(0);
 });
 
-test("_unsavedQtyDelta is falsy for unchanged quantities (NaN included)", async () => {
+test("_unsavedQtyDelta is 0 for an unchanged quantity and the delta for an edited one", async () => {
     const field = await makeField([]);
-    expect(Boolean(field._unsavedQtyDelta(moveLine({ resId: 1, quantity: 5 })))).toBe(
-        false,
-    );
-    const pristine = { _values: { quantity: 5 }, _changes: {} };
-    expect(Boolean(field._unsavedQtyDelta(pristine))).toBe(false);
+    // Reading the public pair, an untouched line subtracts a number from itself
+    // and gives 0. The private pair it replaced gave NaN, because a line with no
+    // pending edit has no `_changes.quantity` to subtract. Both are falsy and
+    // every caller only tests that, so this asserts the number as well as its
+    // truthiness -- 0 is the answer a caller reading the delta should get.
+    expect(field._unsavedQtyDelta(moveLine({ resId: 1, quantity: 5 }))).toBe(0);
     expect(
-        Boolean(
-            field._unsavedQtyDelta(
-                moveLine({ resId: 1, quantity: 3, savedQuantity: 5 }),
-            ),
-        ),
-    ).toBe(true);
+        field._unsavedQtyDelta(moveLine({ resId: 1, quantity: 3, savedQuantity: 5 })),
+    ).toBe(2);
 });

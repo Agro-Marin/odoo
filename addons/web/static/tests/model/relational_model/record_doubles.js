@@ -10,6 +10,7 @@ export { RECORD_CONTRACT_SURFACE };
 /**
  * @typedef {{
  * data: Record<string, any>,
+ * savedData: Record<string, any>,
  * _values: Record<string, any>,
  * _editState: RecordEditState,
  * _changes: Record<string, any>,
@@ -180,6 +181,9 @@ export function makeRecordDouble({
         fields,
         activeFields,
         data: merged,
+        get savedData() {
+            return this._values;
+        },
         _values: { ...values },
 
         get _savePoint() {

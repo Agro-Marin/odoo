@@ -380,6 +380,21 @@ export class RelationalRecord extends DataPoint {
         return this._editState.hasPendingChanges;
     }
 
+    /**
+     * The values the server last returned, with no pending edit applied.
+     *
+     * `data` is this overlaid with `_changes`, so the pair answers "what did
+     * this field hold before the user touched it?" -- a question consumers
+     * outside the model have, and used to answer by reading `_values` and
+     * `_changes` directly across a tree boundary. Those are this record's
+     * bookkeeping and its collaborators'; this is the public half.
+     *
+     * @returns {Record<string, any>}
+     */
+    get savedData() {
+        return this._values;
+    }
+
     /** @returns {boolean} */
     get dirty() {
         return this._editState.dirty;
