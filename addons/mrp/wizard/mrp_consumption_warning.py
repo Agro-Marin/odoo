@@ -40,25 +40,26 @@ class MrpConsumptionWarning(models.TransientModel):
         ).button_mark_done()
 
     def action_set_qty(self):
+        """Reset each component's consumption to what its order expects.
+
+        What this does when a component sits on **several** raw moves is decided by
+        the total, not per move: the whole expected quantity goes on the first and
+        the rest are cleared. That was written as `line.product_expected_qty_uom = 0`
+        *inside* the loop over the moves, with `qty_expected` recomputed from that
+        same field on each pass -- so it read as "set every matching move to the
+        expected quantity" while doing the opposite, and the reader had to simulate
+        the mutation to find out which. Hoisting the conversion out of the loop, as
+        the shape suggests, would have doubled the total.
+        """
         missing_move_vals = []
+        lines_by_production = self.mrp_consumption_warning_line_ids.grouped(
+            "mrp_production_id"
+        )
         for production in self.mrp_production_ids:
-            for line in self.mrp_consumption_warning_line_ids:
-                if line.mrp_production_id != production:
-                    continue
-                for move in production.move_raw_ids:
-                    if line.product_id != move.product_id:
-                        continue
-                    qty_expected = line.product_uom_id._compute_quantity(
-                        line.product_expected_qty_uom, move.product_uom_id
-                    )
-                    qty_compare_result = move.product_uom_id.compare(
-                        qty_expected, move.quantity
-                    )
-                    if qty_compare_result != 0:
-                        move.quantity = qty_expected
-                    move.picked = True
-                    line.product_expected_qty_uom = 0
-                if not line.product_uom_id.is_zero(line.product_expected_qty_uom):
+            moves_by_product = production.move_raw_ids.grouped("product_id")
+            for line in lines_by_production.get(production, self.browse()):
+                matching = moves_by_product.get(line.product_id)
+                if not matching:
                     missing_move_vals.append(
                         {
                             "product_id": line.product_id.id,
@@ -70,6 +71,18 @@ class MrpConsumptionWarning(models.TransientModel):
                             "picked": True,
                         }
                     )
+                    continue
+                first, rest = matching[0], matching[1:]
+                qty_expected = line.product_uom_id._compute_quantity(
+                    line.product_expected_qty_uom, first.product_uom_id
+                )
+                if first.product_uom_id.compare(qty_expected, first.quantity) != 0:
+                    first.quantity = qty_expected
+                for other in rest:
+                    if not other.product_uom_id.is_zero(other.quantity):
+                        other.quantity = 0
+                matching.picked = True
+                line.product_expected_qty_uom = 0
         if missing_move_vals:
             self.env["stock.move"].create(missing_move_vals)
         return self.action_confirm()

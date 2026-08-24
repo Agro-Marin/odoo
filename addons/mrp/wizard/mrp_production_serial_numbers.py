@@ -42,14 +42,27 @@ class MrpProductionSerials(models.TransientModel):
         for wizard in self:
             wizard.lot_quantity = wizard.production_id.product_qty
 
+    def _serial_names(self):
+        """The serial numbers typed into the wizard: blanks dropped, repeats folded.
+
+        One definition, because the two callers disagreed. The onchange folded
+        repeats and `_parse_serial_numbers` did not, so the form and every other
+        caller saw different lists -- and `action_split_and_assign_serials` splits
+        into `len(names)` orders and then `zip(..., strict=True)`s them against the
+        lots the parse returned. A serial typed twice made those two lengths differ
+        and the wizard died with `ValueError: zip() argument 2 is shorter than
+        argument 1`, a traceback rather than a message.
+        """
+        self.ensure_one()
+        return list(
+            dict.fromkeys(
+                name for name in (self.serial_numbers or "").split("\n") if name.strip()
+            )
+        )
+
     @api.onchange("serial_numbers")
     def _onchange_serial_numbers(self):
-        lot_names = (
-            list(filter(lambda s: len(s.strip()) > 0, self.serial_numbers.split("\n")))
-            if self.serial_numbers
-            else []
-        )
-        self.serial_numbers = "\n".join(list(dict.fromkeys(lot_names)))
+        self.serial_numbers = "\n".join(self._serial_names())
 
     def action_generate_serial_numbers(self):
         self.ensure_one()
@@ -71,7 +84,14 @@ class MrpProductionSerials(models.TransientModel):
 
         split_amounts = {self.production_id: [1] * len(lots)}
         mos = self.production_id._split_productions(amounts=split_amounts)
-        for mo, serial in zip(mos, lots, strict=True):
+        # `_get_split_amounts` appends the leftover as one *more* order when the
+        # serials do not cover the whole quantity, so `mos` can be longer than
+        # `lots` -- and it was zipped strictly against them, so supplying one serial
+        # for an order of five died with `ValueError: zip() argument 2 is shorter
+        # than argument 1` instead of splitting off the one unit that has a serial.
+        # The orders come back in the order the amounts were asked for, so the
+        # leftover is last and is the one that keeps no serial.
+        for mo, serial in zip(mos[: len(lots)], lots, strict=True):
             mo.lot_producing_ids = [Command.link(serial.id)]
         return self._closing_action(mos)
 
@@ -104,16 +124,7 @@ class MrpProductionSerials(models.TransientModel):
         self.ensure_one()
         if not self.serial_numbers:
             raise UserError(self.env._("There is no serial numbers to apply."))
-        lots = (
-            list(
-                filter(
-                    lambda serial_number: len(serial_number.strip()) > 0,
-                    self.serial_numbers.split("\n"),
-                )
-            )
-            if self.serial_numbers
-            else []
-        )
+        lots = self._serial_names()
         if not lots:
             raise UserError(self.env._("No valid serial numbers provided."))
         existing_lots = self.env["stock.lot"].search(

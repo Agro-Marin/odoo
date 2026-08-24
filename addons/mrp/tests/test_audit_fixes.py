@@ -3242,3 +3242,159 @@ class TestMrpAuditFixes(TestMrpCommon):
             0,
             "a product that is no longer serial-tracked has no serial numbers to count",
         )
+
+    def _serial_fixture(self, tag, quantity):
+        component, finished = self.env["product.product"].create(
+            [
+                {"name": f"{tag} Component", "is_storable": True},
+                {"name": f"{tag} Finished", "is_storable": True, "tracking": "serial"},
+            ]
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "type": "normal",
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "bom_id": bom.id, "product_qty": quantity}
+        )
+        production.action_confirm()
+        warehouse = production.picking_type_id.warehouse_id
+        self.env["stock.quant"]._update_available_quantity(
+            component, warehouse.lot_stock_id, 1000.0
+        )
+        return production
+
+    def test_serial_numbers_can_cover_less_than_the_whole_order(self):
+        """`action_split_and_assign_serials` splits into one order per serial.
+
+        `_get_split_amounts` appends the leftover as one *more* order when the serials
+        do not cover the quantity, and the orders were zipped strictly against the
+        serials — so supplying one serial for an order of five died with
+        `ValueError: zip() argument 2 is shorter than argument 1`, a traceback rather
+        than a message, for an ordinary thing to want.
+        """
+        production = self._serial_fixture("Partial Serials", 5.0)
+        wizard = self.env["mrp.production.serials"].create(
+            {"production_id": production.id, "serial_numbers": "PART-1"}
+        )
+        wizard.action_split_and_assign_serials()
+
+        orders = production.production_group_id.production_ids
+        self.assertEqual(
+            [
+                (order.product_qty, order.lot_producing_ids.mapped("name"))
+                for order in orders
+            ],
+            [(1.0, ["PART-1"]), (4.0, [])],
+            "the serial takes one unit and the rest stays as one unserialised order",
+        )
+
+    def test_a_serial_typed_twice_is_folded_once_everywhere(self):
+        """The onchange folded repeats and `_parse_serial_numbers` did not.
+
+        The form and every other caller therefore saw different lists, and the split
+        path sized itself from one and paired against the other. Both now go through
+        `_serial_names`.
+        """
+        production = self._serial_fixture("Repeated Serials", 3.0)
+        wizard = self.env["mrp.production.serials"].create(
+            {"production_id": production.id, "serial_numbers": "DUP-1\nDUP-1\nDUP-2"}
+        )
+        self.assertEqual(wizard._serial_names(), ["DUP-1", "DUP-2"])
+        self.assertEqual(
+            wizard._parse_serial_numbers().mapped("name"),
+            ["DUP-1", "DUP-2"],
+            "a repeat must not try to create the same serial twice",
+        )
+        wizard._onchange_serial_numbers()
+        self.assertEqual(wizard.serial_numbers, "DUP-1\nDUP-2")
+
+        wizard.action_split_and_assign_serials()
+        orders = production.production_group_id.production_ids
+        self.assertEqual(
+            sorted(orders.lot_producing_ids.mapped("name")), ["DUP-1", "DUP-2"]
+        )
+
+    def test_setting_the_consumed_quantity_is_decided_by_the_total(self):
+        """`action_set_qty` resets a component's consumption to what the order expects.
+
+        When the component sits on several raw moves the whole expected quantity goes
+        on the first and the rest are cleared — a rule the code only expressed through
+        `line.product_expected_qty_uom = 0` *inside* the loop over those moves, with
+        the conversion recomputed from that same field on each pass. It read as "set
+        every matching move to the expected quantity" while doing the opposite, and
+        hoisting the conversion out of the loop -- the obvious tidy-up -- would have
+        doubled the total. This pins the rule so it cannot drift silently.
+        """
+        component, finished = self.env["product.product"].create(
+            [
+                {"name": "Consumption Component", "is_storable": True},
+                {"name": "Consumption Finished", "is_storable": True},
+            ]
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "type": "normal",
+                "consumption": "warning",
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 4.0})
+                ],
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "bom_id": bom.id, "product_qty": 1.0}
+        )
+        production.action_confirm()
+        warehouse = production.picking_type_id.warehouse_id
+        self.env["stock.quant"]._update_available_quantity(
+            component, warehouse.lot_stock_id, 1000.0
+        )
+        original = production.move_raw_ids
+        original.product_uom_qty = 1.0
+        self.env["stock.move"].create(
+            {
+                "product_id": component.id,
+                "product_uom_qty": 1.0,
+                "quantity": 1.0,
+                "picked": True,
+                "raw_material_production_id": production.id,
+                "additional": True,
+                "location_id": original.location_id.id,
+                "location_dest_id": original.location_dest_id.id,
+                "company_id": production.company_id.id,
+                "product_uom_id": component.uom_id.id,
+            }
+        )._action_confirm()
+        production.qty_producing = 1.0
+        production._set_qty_producing()
+        self.env.flush_all()
+
+        issues = production._get_consumption_issues()
+        self.assertTrue(issues, "the fixture must under-consume against its BoM")
+        action = production._action_generate_consumption_wizard(issues)
+        wizard = (
+            self.env[action["res_model"]].with_context(**action["context"]).create({})
+        )
+        self.patch(type(wizard), "action_confirm", lambda self: None)
+        wizard.action_set_qty()
+        self.env.flush_all()
+
+        quantities = sorted(production.move_raw_ids.mapped("quantity"))
+        self.assertEqual(
+            quantities,
+            [0.0, 4.0],
+            "the whole expected quantity goes on one move, the others are cleared",
+        )
+        self.assertEqual(sum(quantities), 4.0, "and the total is what the BoM expects")
+        self.assertTrue(
+            all(production.move_raw_ids.mapped("picked")),
+            "every matching move is marked picked, cleared or not",
+        )
