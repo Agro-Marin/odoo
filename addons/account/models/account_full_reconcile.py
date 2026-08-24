@@ -81,6 +81,10 @@ class AccountFullReconcile(models.Model):
     def unlink(self):
         amls = self.reconciled_line_ids
         res = super().unlink()
+        # The caller that is also removing partials recomputes over a superset of
+        # these lines straight after; doing it here as well is one pass wasted.
+        if self.env.context.get("defer_matching_number_update"):
+            return res
         amls = amls.exists()
         if amls:
             self.env["account.partial.reconcile"]._update_matching_number(amls)

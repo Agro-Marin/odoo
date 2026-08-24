@@ -5360,6 +5360,9 @@ class AccountMove(models.Model):
         # posted on creation (`post_after_create`): a later partial in this same loop
         # can have a still-draft one as its counterpart, and must recognise it.
         reachable_ids = set(self.ids)
+        # One snapshot of each move's cash-basis values for the whole sweep: the
+        # loop below revisits the same moves once per partial per line.
+        collected_per_move = {}
 
         for aml in self.line_ids:
             for partials, counterpart_field in [
@@ -5375,9 +5378,8 @@ class AccountMove(models.Model):
                         side_moves |= partial.exchange_move_id
                         reachable_ids.update(partial.exchange_move_id.ids)
 
-                        if (
-                            partial._get_draft_caba_move_vals()
-                            != partial.draft_caba_move_vals
+                        if partial._has_outdated_draft_caba_move_vals(
+                            collected_per_move
                         ):
                             partials_to_unlink |= partial
                         elif aml.move_id.tax_cash_basis_created_move_ids:

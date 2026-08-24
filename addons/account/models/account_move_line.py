@@ -3454,7 +3454,7 @@ class AccountMoveLine(models.Model):
             if not full_batch["is_fully_reconciled"]:
                 continue
             amls = full_batch["amls"]
-            involved_partials = amls.matched_debit_ids + amls.matched_credit_ids
+            involved_partials = amls.matched_debit_ids | amls.matched_credit_ids
             full_reconcile_values_list.append(
                 {
                     "partial_reconcile_ids": [
@@ -3642,7 +3642,7 @@ class AccountMoveLine(models.Model):
         return self._reconcile_plan([self])
 
     def remove_move_reconcile(self):
-        (self.matched_debit_ids + self.matched_credit_ids).unlink()
+        (self.matched_debit_ids | self.matched_credit_ids).unlink()
 
     def action_unreconcile_match_entries(self):
         active_ids = self.env.context.get("active_ids")

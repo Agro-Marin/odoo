@@ -1,3 +1,4 @@
+import json
 from contextlib import closing
 from unittest.mock import patch
 
@@ -7406,6 +7407,208 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             partial.company_id = other_company
         partial.unlink()
 
+    def test_draft_caba_move_vals_round_trips_as_a_json_object(self):
+        cash_basis_move, payment_move = self._prepare_cash_basis_move_and_payment()
+        (cash_basis_move + payment_move).action_post()
+        receivable_lines = (cash_basis_move + payment_move).line_ids.filtered(
+            lambda line: line.account_id == self.extra_receivable_account_1
+        )
+        receivable_lines.reconcile()
+        partial = (
+            receivable_lines.matched_debit_ids | receivable_lines.matched_credit_ids
+        )[0]
+        self.env.flush_all()
+
+        self.env.cr.execute(
+            "SELECT jsonb_typeof(draft_caba_move_vals) "
+            "FROM account_partial_reconcile WHERE id = %s",
+            (partial.id,),
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], "object")
+        self.assertIsInstance(partial.draft_caba_move_vals, dict)
+        self.assertFalse(partial._has_outdated_draft_caba_move_vals())
+
+    def test_draft_caba_move_vals_reads_legacy_serialized_rows(self):
+        cash_basis_move, payment_move = self._prepare_cash_basis_move_and_payment()
+        (cash_basis_move + payment_move).action_post()
+        receivable_lines = (cash_basis_move + payment_move).line_ids.filtered(
+            lambda line: line.account_id == self.extra_receivable_account_1
+        )
+        receivable_lines.reconcile()
+        partial = (
+            receivable_lines.matched_debit_ids | receivable_lines.matched_credit_ids
+        )[0]
+        self.env.flush_all()
+        # exactly what the previous json.dumps() write left in the jsonb column
+        partial.draft_caba_move_vals = json.dumps(partial.draft_caba_move_vals)
+        self.env.flush_all()
+        partial.invalidate_recordset(["draft_caba_move_vals"])
+        self.env.cr.execute(
+            "SELECT jsonb_typeof(draft_caba_move_vals) "
+            "FROM account_partial_reconcile WHERE id = %s",
+            (partial.id,),
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], "string")
+        self.assertFalse(partial._has_outdated_draft_caba_move_vals())
+
+    def test_get_to_update_payments_reads_the_payment_side_amount(self):
+        company_currency = self.env.company.currency_id
+        invoice = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2017-01-01",
+                "date": "2017-01-01",
+                "currency_id": company_currency.id,
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "line",
+                            "quantity": 1,
+                            "price_unit": 100.0,
+                            "tax_ids": [],
+                        }
+                    )
+                ],
+            }
+        )
+        invoice.action_post()
+        payment = self._create_payment_without_outstanding_account(
+            invoice,
+            currency_id=self.other_currency.id,
+            payment_date="2017-01-01",
+        )
+
+        receivable_lines = (invoice + payment.move_id).line_ids.filtered(
+            lambda line: line.account_id.account_type == "asset_receivable"
+        )
+        partials = (
+            receivable_lines.matched_debit_ids | receivable_lines.matched_credit_ids
+        )
+        # The invoice side is 100 USD and the payment side 200 EUR; only the latter
+        # is comparable with the payment's own amount_signed.
+        self.assertRecordValues(
+            partials,
+            [{"debit_amount_currency": 100.0, "credit_amount_currency": 200.0}],
+        )
+        self.assertEqual(
+            partials._get_to_update_payments(from_state="paid"),
+            payment,
+        )
+
+    def _create_payment_without_outstanding_account(self, invoices, **wizard_vals):
+        payment = (
+            self.env["account.payment.register"]
+            .with_context(active_model="account.move", active_ids=invoices.ids)
+            .create(wizard_vals)
+            ._create_payments()
+        )
+        # A posted payment with a journal entry and no outstanding account is the
+        # only shape whose state _get_to_update_payments decides. It cannot be
+        # reached by clearing the payment method line's account, because
+        # _compute_outstanding_account_id depends on payment_method_line_id and
+        # not on its payment_account_id, so the stored value never recomputes.
+        self.env.flush_all()
+        self.env.cr.execute(
+            SQL(
+                "UPDATE account_payment SET outstanding_account_id = NULL WHERE id = %s",
+                payment.id,
+            )
+        )
+        payment.invalidate_recordset(["outstanding_account_id"])
+        self.assertFalse(payment.outstanding_account_id)
+        self.assertTrue(payment.move_id)
+        return payment
+
+    def _create_grouped_payment_without_outstanding_account(self):
+        invoices = self.env["account.move"].create(
+            [
+                {
+                    "move_type": "out_invoice",
+                    "partner_id": self.partner_a.id,
+                    "invoice_date": "2016-01-01",
+                    "date": "2016-01-01",
+                    "invoice_line_ids": [
+                        Command.create(
+                            {
+                                "name": "line",
+                                "quantity": 1,
+                                "price_unit": amount,
+                                "tax_ids": [],
+                            }
+                        )
+                    ],
+                }
+                for amount in (50.0, 50.0)
+            ]
+        )
+        invoices.action_post()
+        payment = self._create_payment_without_outstanding_account(
+            invoices, group_payment=True
+        )
+        receivable_lines = (invoices + payment.move_id).line_ids.filtered(
+            lambda line: line.account_id.account_type == "asset_receivable"
+        )
+        return payment, receivable_lines
+
+    def test_unreconcile_grouped_payment_returns_to_in_process(self):
+        payment, receivable_lines = (
+            self._create_grouped_payment_without_outstanding_account()
+        )
+        self.assertEqual(payment.state, "paid")
+        receivable_lines.remove_move_reconcile()
+        payment.invalidate_recordset(["state"])
+        self.assertEqual(payment.state, "in_process")
+
+    def test_get_to_update_payments_is_stable_under_duplicates(self):
+        payment, receivable_lines = (
+            self._create_grouped_payment_without_outstanding_account()
+        )
+        partials = (
+            receivable_lines.matched_debit_ids | receivable_lines.matched_credit_ids
+        )
+        duplicated = partials.browse(partials.ids + partials.ids)
+        self.assertEqual(
+            partials._get_to_update_payments(from_state="paid"),
+            payment,
+        )
+        self.assertEqual(
+            duplicated._get_to_update_payments(from_state="paid"),
+            payment,
+        )
+
+    def test_matching_number_invariants_hold_after_the_raw_sql_write(self):
+        # _update_matching_number writes matching_number with execute_values, which
+        # no @api.constrains sees. Run the constraint here so the invariants it
+        # states are checked against what that statement actually produced.
+        currency = self.env.company.currency_id
+        full_a = self.create_line_for_reconciliation(1000, 1000, currency, "2016-01-01")
+        full_b = self.create_line_for_reconciliation(
+            -1000, -1000, currency, "2016-01-01"
+        )
+        chain = [
+            self.create_line_for_reconciliation(amount, amount, currency, "2016-01-01")
+            for amount in (100, -60, -200, 50)
+        ]
+        lonely = self.create_line_for_reconciliation(700, 700, currency, "2016-01-01")
+        (full_a + full_b).reconcile()
+        (chain[0] + chain[1]).reconcile()
+        (chain[0] + chain[2]).reconcile()
+        (chain[3] + chain[2]).reconcile()
+
+        involved = full_a + full_b + lonely
+        for line in chain:
+            involved |= line
+        involved._constrains_matching_number()
+        self.assertEqual(full_a.matching_number, str(full_a.full_reconcile_id.id))
+        self.assertEqual(len({line.matching_number for line in chain}), 1)
+        self.assertTrue(chain[0].matching_number.startswith("P"))
+        self.assertFalse(lonely.matching_number)
+
+        (full_a + full_b).remove_move_reconcile()
+        chain[0].remove_move_reconcile()
+        involved.exists()._constrains_matching_number()
+
     def test_matching_number_partial_single_reconcile(self):
         currency = self.env.company.currency_id
         line_a = self.create_line_for_reconciliation(1000, 1000, currency, "2016-01-01")
@@ -7414,7 +7617,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         self.assertEqual(line_a.matching_number, f"P{line_a.matched_credit_ids.id}")
         self.assertEqual(line_a.matching_number, line_b.matching_number)
 
-    def test_unlink_reverses_shared_exchange_move_once(self):
+    def test_unlink_reverses_a_shared_exchange_move_once(self):
         currency = self.env.company.currency_id
         debit_line = self.create_line_for_reconciliation(
             1000, 1000, currency, "2016-01-01"
@@ -7436,18 +7639,9 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
                 for credit_line in credit_lines
             ]
         )
+        partials.unlink()
 
-        move_model = type(exchange_move)
-        with patch.object(
-            move_model,
-            "_reverse_moves",
-            autospec=True,
-            return_value=self.env["account.move"],
-        ) as reverse_moves:
-            partials.unlink()
-
-        reverse_moves.assert_called_once()
-        self.assertEqual(reverse_moves.call_args.args[0], exchange_move)
+        self.assertEqual(len(exchange_move.reversal_move_ids), 1)
 
     def test_matching_number_partial_multi_reconcile(self):
         currency = self.env.company.currency_id

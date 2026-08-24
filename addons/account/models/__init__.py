@@ -25,6 +25,7 @@ from . import account_move_line
 from . import account_move_line_tax_details
 from . import mixin_account_move_send
 from . import account_partial_reconcile
+from . import account_partial_reconcile_cash_basis
 from . import account_full_reconcile
 from . import account_payment
 from . import account_payment_method
