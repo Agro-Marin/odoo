@@ -380,7 +380,7 @@ class StockLot(models.Model):
             )
 
     @api.depends("quant_ids", "quant_ids.quantity", "quant_ids.location_id")
-    def _compute_single_location(self):
+    def _compute_location_id(self):
         for lot in self:
             quants = lot.quant_ids.filtered(
                 lambda q: q.product_uom_id.compare(q.quantity, 0) > 0
