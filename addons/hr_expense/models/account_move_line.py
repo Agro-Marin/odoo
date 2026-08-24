@@ -53,7 +53,12 @@ class AccountMoveLine(models.Model):
         )._compute_totals()
         super(AccountMoveLine, self - expenses)._compute_totals()
 
-    def _get_extra_query_base_tax_line_mapping(self) -> SQL:
-        return SQL(
-            " AND (base_line.expense_id IS NULL OR account_move_line.expense_id = base_line.expense_id)"
-        )
+    @api.model
+    def _get_base_tax_line_mapping_conditions(self) -> list[SQL]:
+        return [
+            *super()._get_base_tax_line_mapping_conditions(),
+            SQL(
+                "(base_line.expense_id IS NULL"
+                " OR account_move_line.expense_id = base_line.expense_id)"
+            ),
+        ]

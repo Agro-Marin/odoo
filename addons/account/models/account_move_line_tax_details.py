@@ -1,52 +1,119 @@
 from odoo import api, models
-from odoo.tools import SQL
+from odoo.tools import SQL, Query
+
+
+def _sql_affecting_base_tax_ids(alias: SQL, line_id: SQL) -> SQL:
+    """
+    This table builds a reference table based on the tax_ids field, with the following changes:
+      - flatten the group of taxes
+      - exclude the taxes having 'is_base_affected' set to False.
+    Those allow to match only base_line_1 when finding the base lines of tax_line_1, as we need to find
+    base lines having a 'affecting_base_tax_ids' ending with [10_affect_base, 20], not only containing
+    '10_affect_base'. Otherwise, base_line_2/3 would also be matched.
+    In our example, as all the taxes are set to be affected by previous ones affecting the base, the
+    result is similar to the table 'account_move_line_account_tax_rel':
+    Id                 Tax_ids
+    -------------------------------------------
+    base_line_1        [10_affect_base, 20]
+    base_line_2        [10_affect_base, 5]
+    base_line_3        [10_affect_base, 5]
+    """
+    return SQL(
+        """
+        LEFT JOIN LATERAL (
+            SELECT ARRAY_AGG(sub.tax_id ORDER BY sub.sequence, sub.tax_id) AS tax_ids
+            FROM (
+                SELECT
+                    COALESCE(filiation.child_tax, affecting_tax.id) AS tax_id,
+                    affecting_tax.sequence
+                FROM account_move_line_account_tax_rel tax_rel
+                JOIN account_tax affecting_tax ON
+                    affecting_tax.id = tax_rel.account_tax_id
+                LEFT JOIN account_tax_filiation_rel filiation ON
+                    filiation.parent_tax = affecting_tax.id
+                    AND affecting_tax.amount_type = 'group'
+                WHERE affecting_tax.is_base_affected
+                AND tax_rel.account_move_line_id = %(line_id)s
+            ) AS sub
+        ) %(alias)s ON TRUE""",
+        alias=alias,
+        line_id=line_id,
+    )
+
+
+def _sql_taxable_base(sign_of: SQL, amount: SQL) -> SQL:
+    # a fixed-amount tax is spread over quantity, not over the base; the sign comes from the
+    # base LINE even where the summed amount is a dispatched share of it
+    return SQL(
+        """CASE WHEN tax.amount_type = 'fixed'
+            THEN CASE WHEN %(sign_of)s < 0 THEN -1 ELSE 1 END * ABS(COALESCE(base_line.quantity, 1.0))
+            ELSE %(amount)s
+            END""",
+        sign_of=sign_of,
+        amount=amount,
+    )
+
+
+def _sql_taxable_base_window(
+    sign_of: SQL, amount: SQL, suffix: SQL, partition: SQL, order: SQL
+) -> SQL:
+    return SQL(
+        """SUM(%(taxable_base)s)
+               OVER (PARTITION BY %(partition)s ORDER BY %(order)s) AS cumulated_base_amount%(suffix)s,
+           SUM(%(taxable_base)s)
+               OVER (PARTITION BY %(partition)s) AS total_base_amount%(suffix)s""",
+        taxable_base=_sql_taxable_base(sign_of, amount),
+        suffix=suffix,
+        partition=partition,
+        order=order,
+    )
+
+
+def _sql_prorata_share(
+    cumulated: SQL, total_base: SQL, total_amount: SQL, precision: SQL
+) -> SQL:
+    return SQL(
+        """ROUND(
+            COALESCE(SIGN(%(cumulated)s) * %(total_amount)s * ABS(%(cumulated)s) / NULLIF(%(total_base)s, 0.0), 0.0),
+            %(precision)s
+        )""",
+        cumulated=cumulated,
+        total_base=total_base,
+        total_amount=total_amount,
+        precision=precision,
+    )
+
+
+def _sql_dispatched_amount(share: SQL, partition: SQL, order: SQL) -> SQL:
+    """Dispatch the last cents: each row takes the delta of the rounded cumulated prorata.
+
+    ``order`` must be a total order over the partition — the same one the cumulated sum was
+    built with. Ties there leave the LAG picking an arbitrary peer, which both misallocates
+    the rows and breaks the telescoping that makes them add up to ``total_amount``.
+    """
+    return SQL(
+        "%(share)s - LAG(%(share)s, 1, 0.0) OVER (PARTITION BY %(partition)s ORDER BY %(order)s)",
+        share=share,
+        partition=partition,
+        order=order,
+    )
 
 
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
     @api.model
-    def _get_query_tax_details_from_domain(self, domain, fallback=True) -> SQL:
-        query = self.env["account.move.line"]._search(domain)
-
-        return self._get_query_tax_details(
-            query.from_clause, query.where_clause, fallback=fallback
-        )
+    def _get_query_tax_details_from_domain(self, domain, fallback: bool = True) -> SQL:
+        return self._get_query_tax_details(self._search(domain), fallback=fallback)
 
     @api.model
-    def _get_extra_query_base_tax_line_mapping(self) -> SQL:
-        return SQL()
+    def _get_base_tax_line_mapping_conditions(self) -> list[SQL]:
+        return []
 
     @api.model
-    def _get_query_tax_details(
-        self, table_references, search_condition, fallback=True
-    ) -> SQL:
-        group_taxes = self.env["account.tax"].search([("amount_type", "=", "group")])
-
-        group_taxes_query_list = []
-        for group_tax in group_taxes:
-            children_taxes = group_tax.children_tax_ids
-            if not children_taxes:
-                continue
-
-            children_taxes_in_query = SQL(
-                ",".join("%s" for dummy in children_taxes), *children_taxes.ids
-            )
-            group_taxes_query_list.append(
-                SQL(
-                    "WHEN tax.id = %s THEN ARRAY[%s]",
-                    group_tax.id,
-                    children_taxes_in_query,
-                )
-            )
-
-        if group_taxes_query_list:
-            group_taxes_query = SQL(
-                """UNNEST(CASE %s ELSE ARRAY[tax.id] END)""",
-                SQL(" ").join(group_taxes_query_list),
-            )
-        else:
-            group_taxes_query = SQL("tax.id")
+    def _get_query_tax_details(self, query: Query, fallback: bool = True) -> SQL:
+        table_references = query.from_clause
+        search_condition = query.where_clause
 
         if fallback:
             fallback_query = SQL(
@@ -58,10 +125,9 @@ class AccountMoveLine(models.Model):
                     base_line.id AS base_line_id,
                     base_line.id AS src_line_id,
                     base_line.balance AS base_amount,
-                    base_line.amount_currency AS base_amount_currency
+                    base_line.amount_currency AS base_amount_currency,
+                    TRUE AS is_fallback
                 FROM %(table_references)s
-                LEFT JOIN base_tax_line_mapping ON
-                    base_tax_line_mapping.tax_line_id = account_move_line.id
                 JOIN account_move_line_account_tax_rel tax_rel ON
                     tax_rel.account_tax_id = COALESCE(account_move_line.group_tax_id, account_move_line.tax_line_id)
                 JOIN account_move_line base_line ON
@@ -69,18 +135,53 @@ class AccountMoveLine(models.Model):
                     AND base_line.tax_repartition_line_id IS NULL
                     AND base_line.move_id = account_move_line.move_id
                     AND base_line.currency_id = account_move_line.currency_id
-                WHERE base_tax_line_mapping.tax_line_id IS NULL
+                LEFT JOIN mapped_tax_lines ON
+                    mapped_tax_lines.tax_line_id = account_move_line.id
+                LEFT JOIN mapped_base_taxes ON
+                    mapped_base_taxes.base_line_id = base_line.id
+                    AND mapped_base_taxes.matched_tax_id = account_move_line.tax_line_id
+                WHERE (
+                    /* this tax line matched nothing at all -- the historical all-or-nothing
+                       case, where approximating every one of its base lines is the best
+                       available answer */
+                    mapped_tax_lines.tax_line_id IS NULL
+                    /* or it matched some base lines but not this one, and no sibling tax
+                       line of the same tax covers it either. Without the sibling test a
+                       tax split across two tax lines -- by analytic distribution, or by the
+                       sign of the base on a misc entry -- would have every base line
+                       counted under both of them. */
+                    OR mapped_base_taxes.base_line_id IS NULL
+                )
                 AND %(search_condition)s
                 """,
                 table_references=table_references,
                 search_condition=search_condition,
             )
+            fallback_lookups = SQL(
+                """
+                mapped_tax_lines AS (
+                    SELECT DISTINCT tax_line_id FROM base_tax_line_mapping
+                ),
+                mapped_base_taxes AS (
+                    SELECT DISTINCT base_line_id, matched_tax_id FROM base_tax_line_mapping
+                ),"""
+            )
         else:
             fallback_query = SQL()
+            fallback_lookups = SQL()
 
-        extra_query_base_tax_line_mapping = (
-            self._get_extra_query_base_tax_line_mapping()
+        # Both dispatch steps walk their rows in the same total order they accumulated them in.
+        dispatch_window_partition = SQL("tax_line.id, account_move_line.id")
+        dispatch_window_order = SQL("tax_line.tax_line_id, base_line.id")
+        dispatch_partition = SQL("sub.tax_line_id, sub.src_line_id")
+        dispatch_order = SQL("sub.tax_id, sub.base_line_id")
+
+        final_window_partition = SQL("tax_line.id")
+        final_window_order = SQL(
+            "tax_line.tax_line_id, sub.base_line_id, sub.src_line_id"
         )
+        final_partition = SQL("sub.tax_line_id")
+        final_order = SQL("sub.tax_id, sub.base_line_id, sub.src_line_id")
 
         return SQL(
             """
@@ -117,7 +218,12 @@ class AccountMoveLine(models.Model):
                     account_move_line.id AS tax_line_id,
                     base_line.id AS base_line_id,
                     base_line.balance AS base_amount,
-                    base_line.amount_currency AS base_amount_currency
+                    base_line.amount_currency AS base_amount_currency,
+
+                    /* which tax matched this pair, so the fallback can ask whether a base
+                       line is already covered by SOME tax line of that tax rather than only
+                       by the one it is currently looking at */
+                    account_move_line.tax_line_id AS matched_tax_id
 
                 FROM %(table_references)s
                 JOIN account_tax_repartition_line tax_rep ON
@@ -139,6 +245,10 @@ class AccountMoveLine(models.Model):
                     )
                     AND COALESCE(base_line.partner_id, 0) = COALESCE(account_move_line.partner_id, 0)
                     AND base_line.currency_id = account_move_line.currency_id
+                    -- a tax line whose company currency went missing cannot be priced, and
+                    -- every downstream CTE drops it; excluded here so it cannot serve as the
+                    -- src of another tax line's dispatch either
+                    AND account_move_line.company_currency_id IS NOT NULL
                     AND (
                         COALESCE(tax_rep.account_id, base_line.account_id) = account_move_line.account_id
                         OR (tax.tax_exigibility = 'on_payment' AND tax.cash_basis_transition_account_id IS NOT NULL)
@@ -148,50 +258,9 @@ class AccountMoveLine(models.Model):
                         OR (base_line.analytic_distribution IS NULL AND account_move_line.analytic_distribution IS NULL)
                         OR base_line.analytic_distribution = account_move_line.analytic_distribution
                     )
-                    %(extra_query_base_tax_line_mapping)s
-                JOIN res_currency curr ON
-                    curr.id = account_move_line.currency_id
-                JOIN res_currency comp_curr ON
-                    comp_curr.id = account_move_line.company_currency_id
-                LEFT JOIN LATERAL (
-                    /*
-                        This table builds a reference table based on the tax_ids field, with the following changes:
-                          - flatten the group of taxes
-                          - exclude the taxes having 'is_base_affected' set to False.
-                        Those allow to match only base_line_1 when finding the base lines of tax_line_1, as we need to find
-                        base lines having a 'affecting_base_tax_ids' ending with [10_affect_base, 20], not only containing
-                        '10_affect_base'. Otherwise, base_line_2/3 would also be matched.
-                        In our example, as all the taxes are set to be affected by previous ones affecting the base, the
-                        result is similar to the table 'account_move_line_account_tax_rel':
-                        Id                 Tax_ids
-                        -------------------------------------------
-                        base_line_1        [10_affect_base, 20]
-                        base_line_2        [10_affect_base, 5]
-                        base_line_3        [10_affect_base, 5]
-                    */
-                    SELECT ARRAY_AGG(sub.tax_id ORDER BY sub.sequence, sub.tax_id) AS tax_ids
-                    FROM (
-                        SELECT
-                            %(group_taxes_query)s AS tax_id,
-                            tax.sequence
-                        FROM account_move_line_account_tax_rel tax_rel
-                        JOIN account_tax tax ON tax.id = tax_rel.account_tax_id
-                        WHERE tax.is_base_affected
-                        AND tax_rel.account_move_line_id = account_move_line.id
-                    ) AS sub
-                ) tax_line_tax_ids ON TRUE
-                LEFT JOIN LATERAL (
-                    SELECT ARRAY_AGG(sub.tax_id ORDER BY sub.sequence, sub.tax_id) AS tax_ids
-                    FROM (
-                        SELECT
-                            %(group_taxes_query)s AS tax_id,
-                            tax.sequence
-                        FROM account_move_line_account_tax_rel tax_rel
-                        JOIN account_tax tax ON tax.id = tax_rel.account_tax_id
-                        WHERE tax.is_base_affected
-                        AND tax_rel.account_move_line_id = base_line.id
-                    ) AS sub
-                ) base_line_tax_ids ON TRUE
+                    %(extra_conditions)s
+                %(tax_line_tax_ids)s
+                %(base_line_tax_ids)s
                 WHERE account_move_line.tax_repartition_line_id IS NOT NULL
                     AND %(search_condition)s
                     AND (
@@ -202,6 +271,8 @@ class AccountMoveLine(models.Model):
                     )
             ),
 
+
+            %(fallback_lookups)s
 
             tax_amount_affecting_base_to_dispatch AS (
 
@@ -227,42 +298,15 @@ class AccountMoveLine(models.Model):
                     base_line.id AS base_line_id,
                     account_move_line.id AS src_line_id,
 
-                    tax_line.company_id,
-                    comp_curr.id AS company_currency_id,
                     comp_curr.decimal_places AS comp_curr_prec,
-                    curr.id AS currency_id,
                     curr.decimal_places AS curr_prec,
 
                     tax_line.tax_line_id AS tax_id,
 
-                    base_line.balance AS base_amount,
-                    SUM(
-                        CASE WHEN tax.amount_type = 'fixed'
-                        THEN CASE WHEN base_line.balance < 0 THEN -1 ELSE 1 END * ABS(COALESCE(base_line.quantity, 1.0))
-                        ELSE base_line.balance
-                        END
-                    ) OVER (PARTITION BY tax_line.id, account_move_line.id ORDER BY tax_line.tax_line_id, base_line.id) AS cumulated_base_amount,
-                    SUM(
-                        CASE WHEN tax.amount_type = 'fixed'
-                        THEN CASE WHEN base_line.balance < 0 THEN -1 ELSE 1 END * ABS(COALESCE(base_line.quantity, 1.0))
-                        ELSE base_line.balance
-                        END
-                    ) OVER (PARTITION BY tax_line.id, account_move_line.id) AS total_base_amount,
+                    %(company_base_window)s,
                     account_move_line.balance AS total_tax_amount,
 
-                    base_line.amount_currency AS base_amount_currency,
-                    SUM(
-                        CASE WHEN tax.amount_type = 'fixed'
-                        THEN CASE WHEN base_line.amount_currency < 0 THEN -1 ELSE 1 END * ABS(COALESCE(base_line.quantity, 1.0))
-                        ELSE base_line.amount_currency
-                        END
-                    ) OVER (PARTITION BY tax_line.id, account_move_line.id ORDER BY tax_line.tax_line_id, base_line.id) AS cumulated_base_amount_currency,
-                    SUM(
-                        CASE WHEN tax.amount_type = 'fixed'
-                        THEN CASE WHEN base_line.amount_currency < 0 THEN -1 ELSE 1 END * ABS(COALESCE(base_line.quantity, 1.0))
-                        ELSE base_line.amount_currency
-                        END
-                    ) OVER (PARTITION BY tax_line.id, account_move_line.id) AS total_base_amount_currency,
+                    %(foreign_base_window)s,
                     account_move_line.amount_currency AS total_tax_amount_currency
 
                 FROM %(table_references)s
@@ -275,10 +319,11 @@ class AccountMoveLine(models.Model):
                     tax_rel.account_move_line_id = base_tax_line_mapping.tax_line_id
                 JOIN account_tax tax ON
                     tax.id = tax_rel.account_tax_id
-                JOIN base_tax_line_mapping tax_line_matching ON
-                    tax_line_matching.base_line_id = base_tax_line_mapping.base_line_id
                 JOIN account_move_line tax_line ON
-                    tax_line.id = tax_line_matching.tax_line_id
+                    -- same-move is implied by base_tax_line_mapping, which only pairs a tax
+                    -- line with base lines of its own move; stated so the planner reaches
+                    -- tax_line by index instead of filtering the mapping against itself
+                    tax_line.move_id = account_move_line.move_id
                     AND tax_line.tax_line_id = tax_rel.account_tax_id
                 JOIN res_currency curr ON
                     curr.id = tax_line.currency_id
@@ -287,6 +332,16 @@ class AccountMoveLine(models.Model):
                 JOIN account_move_line base_line ON
                     base_line.id = base_tax_line_mapping.base_line_id
                 WHERE %(search_condition)s
+                /* the downstream tax line has to be one the mapping already paired with this
+                   base line. Nothing is read from that row, only its existence -- spelled as
+                   EXISTS rather than a join so PostgreSQL may plan it as a semi-join; joining
+                   the CTE a second time makes it materialise the pairs and nest-loop them. */
+                AND EXISTS (
+                    SELECT 1
+                    FROM base_tax_line_mapping tax_line_matching
+                    WHERE tax_line_matching.tax_line_id = tax_line.id
+                      AND tax_line_matching.base_line_id = base_tax_line_mapping.base_line_id
+                )
             ),
 
 
@@ -308,7 +363,8 @@ class AccountMoveLine(models.Model):
                     base_line_id,
                     base_line_id AS src_line_id,
                     base_amount,
-                    base_amount_currency
+                    base_amount_currency,
+                    FALSE AS is_fallback
                 FROM base_tax_line_mapping
 
                 UNION ALL
@@ -329,39 +385,18 @@ class AccountMoveLine(models.Model):
                     sub.tax_line_id,
                     sub.base_line_id,
                     sub.src_line_id,
-
-                    ROUND(
-                        COALESCE(SIGN(sub.cumulated_base_amount) * sub.total_tax_amount * ABS(sub.cumulated_base_amount) / NULLIF(sub.total_base_amount, 0.0), 0.0),
-                        sub.comp_curr_prec
-                    )
-                    - LAG(ROUND(
-                        COALESCE(SIGN(sub.cumulated_base_amount) * sub.total_tax_amount * ABS(sub.cumulated_base_amount) / NULLIF(sub.total_base_amount, 0.0), 0.0),
-                        sub.comp_curr_prec
-                    ), 1, 0.0)
-                    OVER (
-                        PARTITION BY sub.tax_line_id, sub.src_line_id ORDER BY sub.tax_id, sub.base_line_id
-                    ) AS base_amount,
-
-                    ROUND(
-                        COALESCE(SIGN(sub.cumulated_base_amount_currency) * sub.total_tax_amount_currency * ABS(sub.cumulated_base_amount_currency) / NULLIF(sub.total_base_amount_currency, 0.0), 0.0),
-                        sub.curr_prec
-                    )
-                    - LAG(ROUND(
-                        COALESCE(SIGN(sub.cumulated_base_amount_currency) * sub.total_tax_amount_currency * ABS(sub.cumulated_base_amount_currency) / NULLIF(sub.total_base_amount_currency, 0.0), 0.0),
-                        sub.curr_prec
-                    ), 1, 0.0)
-                    OVER (
-                        PARTITION BY sub.tax_line_id, sub.src_line_id ORDER BY sub.tax_id, sub.base_line_id
-                    ) AS base_amount_currency
+                    %(dispatched_base_amount)s AS base_amount,
+                    %(dispatched_base_amount_currency)s AS base_amount_currency,
+                    FALSE AS is_fallback
                 FROM tax_amount_affecting_base_to_dispatch sub
-                JOIN account_move_line tax_line ON
-                    tax_line.id = sub.tax_line_id
 
                 /*
                 PART 3: In case of the matching failed because the configuration changed or some journal entries
-                have been imported, construct a simple mapping as a fallback. This mapping is super naive and only
-                build based on the 'tax_ids' and 'tax_line_id' fields, nothing else. Hence, the mapping will not be
-                exact but will give an acceptable approximation.
+                have been imported, construct a simple mapping as a fallback. The pairs themselves are built from
+                'tax_ids' and 'tax_line_id' alone, so they are an approximation rather than an exact mapping; which
+                of them to emit is decided against base_tax_line_mapping, per (tax line, base line) rather than per
+                tax line, so a tax line that matched only some of its base lines still gets the rest approximated.
+                Every row from here carries is_fallback = TRUE.
 
                 Skipped if the 'fallback' method parameter is False.
                 */
@@ -390,13 +425,14 @@ class AccountMoveLine(models.Model):
                     sub.tax_line_id,
                     sub.base_line_id,
                     sub.src_line_id,
+                    sub.is_fallback,
 
                     tax_line.tax_line_id AS tax_id,
                     tax_line.group_tax_id,
                     tax_line.tax_repartition_line_id,
 
                     tax_line.company_id,
-                    tax_line.display_type AS display_type,
+                    tax_line.display_type,
                     comp_curr.id AS company_currency_id,
                     comp_curr.decimal_places AS comp_curr_prec,
                     curr.id AS currency_id,
@@ -409,33 +445,11 @@ class AccountMoveLine(models.Model):
                     base_line.account_id AS base_account_id,
 
                     sub.base_amount,
-                    SUM(
-                        CASE WHEN tax.amount_type = 'fixed'
-                        THEN CASE WHEN base_line.balance < 0 THEN -1 ELSE 1 END * ABS(COALESCE(base_line.quantity, 1.0))
-                        ELSE sub.base_amount
-                        END
-                    ) OVER (PARTITION BY tax_line.id ORDER BY tax_line.tax_line_id, sub.base_line_id, sub.src_line_id) AS cumulated_base_amount,
-                    SUM(
-                        CASE WHEN tax.amount_type = 'fixed'
-                        THEN CASE WHEN base_line.balance < 0 THEN -1 ELSE 1 END * ABS(COALESCE(base_line.quantity, 1.0))
-                        ELSE sub.base_amount
-                        END
-                    ) OVER (PARTITION BY tax_line.id) AS total_base_amount,
+                    %(company_base_window_final)s,
                     tax_line.balance AS total_tax_amount,
 
                     sub.base_amount_currency,
-                    SUM(
-                        CASE WHEN tax.amount_type = 'fixed'
-                        THEN CASE WHEN base_line.amount_currency < 0 THEN -1 ELSE 1 END * ABS(COALESCE(base_line.quantity, 1.0))
-                        ELSE sub.base_amount_currency
-                        END
-                    ) OVER (PARTITION BY tax_line.id ORDER BY tax_line.tax_line_id, sub.base_line_id, sub.src_line_id) AS cumulated_base_amount_currency,
-                    SUM(
-                        CASE WHEN tax.amount_type = 'fixed'
-                        THEN CASE WHEN base_line.amount_currency < 0 THEN -1 ELSE 1 END * ABS(COALESCE(base_line.quantity, 1.0))
-                        ELSE sub.base_amount_currency
-                        END
-                    ) OVER (PARTITION BY tax_line.id) AS total_base_amount_currency,
+                    %(foreign_base_window_final)s,
                     tax_line.amount_currency AS total_tax_amount_currency
 
                 FROM base_tax_matching_base_amounts sub
@@ -464,6 +478,7 @@ class AccountMoveLine(models.Model):
                 sub.tax_line_id,
                 sub.display_type,
                 sub.src_line_id,
+                sub.is_fallback,
 
                 sub.tax_id,
                 sub.group_tax_id,
@@ -472,41 +487,92 @@ class AccountMoveLine(models.Model):
                 sub.tax_repartition_line_id,
 
                 sub.base_amount,
-                COALESCE(
-                    ROUND(
-                        COALESCE(SIGN(sub.cumulated_base_amount) * sub.total_tax_amount * ABS(sub.cumulated_base_amount) / NULLIF(sub.total_base_amount, 0.0), 0.0),
-                        sub.comp_curr_prec
-                    )
-                    - LAG(ROUND(
-                        COALESCE(SIGN(sub.cumulated_base_amount) * sub.total_tax_amount * ABS(sub.cumulated_base_amount) / NULLIF(sub.total_base_amount, 0.0), 0.0),
-                        sub.comp_curr_prec
-                    ), 1, 0.0)
-                    OVER (
-                        PARTITION BY sub.tax_line_id ORDER BY sub.tax_id, sub.base_line_id
-                    ),
-                    0.0
-                ) AS tax_amount,
+                COALESCE(%(final_tax_amount)s, 0.0) AS tax_amount,
 
                 sub.base_amount_currency,
-                COALESCE(
-                    ROUND(
-                        COALESCE(SIGN(sub.cumulated_base_amount_currency) * sub.total_tax_amount_currency * ABS(sub.cumulated_base_amount_currency) / NULLIF(sub.total_base_amount_currency, 0.0), 0.0),
-                        sub.curr_prec
-                    )
-                    - LAG(ROUND(
-                        COALESCE(SIGN(sub.cumulated_base_amount_currency) * sub.total_tax_amount_currency * ABS(sub.cumulated_base_amount_currency) / NULLIF(sub.total_base_amount_currency, 0.0), 0.0),
-                        sub.curr_prec
-                    ), 1, 0.0)
-                    OVER (
-                        PARTITION BY sub.tax_line_id ORDER BY sub.tax_id, sub.base_line_id
-                    ),
-                    0.0
-                ) AS tax_amount_currency
+                COALESCE(%(final_tax_amount_currency)s, 0.0) AS tax_amount_currency
             FROM base_tax_matching_all_amounts sub
             """,
-            extra_query_base_tax_line_mapping=extra_query_base_tax_line_mapping,
-            group_taxes_query=group_taxes_query,
+            extra_conditions=SQL("").join(
+                SQL(" AND %s", condition)
+                for condition in self._get_base_tax_line_mapping_conditions()
+            ),
             search_condition=search_condition,
             table_references=table_references,
             fallback_query=fallback_query,
+            fallback_lookups=fallback_lookups,
+            tax_line_tax_ids=_sql_affecting_base_tax_ids(
+                SQL("tax_line_tax_ids"), SQL("account_move_line.id")
+            ),
+            base_line_tax_ids=_sql_affecting_base_tax_ids(
+                SQL("base_line_tax_ids"), SQL("base_line.id")
+            ),
+            company_base_window=_sql_taxable_base_window(
+                SQL("base_line.balance"),
+                SQL("base_line.balance"),
+                SQL(""),
+                dispatch_window_partition,
+                dispatch_window_order,
+            ),
+            foreign_base_window=_sql_taxable_base_window(
+                SQL("base_line.amount_currency"),
+                SQL("base_line.amount_currency"),
+                SQL("_currency"),
+                dispatch_window_partition,
+                dispatch_window_order,
+            ),
+            dispatched_base_amount=_sql_dispatched_amount(
+                _sql_prorata_share(
+                    SQL("sub.cumulated_base_amount"),
+                    SQL("sub.total_base_amount"),
+                    SQL("sub.total_tax_amount"),
+                    SQL("sub.comp_curr_prec"),
+                ),
+                dispatch_partition,
+                dispatch_order,
+            ),
+            dispatched_base_amount_currency=_sql_dispatched_amount(
+                _sql_prorata_share(
+                    SQL("sub.cumulated_base_amount_currency"),
+                    SQL("sub.total_base_amount_currency"),
+                    SQL("sub.total_tax_amount_currency"),
+                    SQL("sub.curr_prec"),
+                ),
+                dispatch_partition,
+                dispatch_order,
+            ),
+            company_base_window_final=_sql_taxable_base_window(
+                SQL("base_line.balance"),
+                SQL("sub.base_amount"),
+                SQL(""),
+                final_window_partition,
+                final_window_order,
+            ),
+            foreign_base_window_final=_sql_taxable_base_window(
+                SQL("base_line.amount_currency"),
+                SQL("sub.base_amount_currency"),
+                SQL("_currency"),
+                final_window_partition,
+                final_window_order,
+            ),
+            final_tax_amount=_sql_dispatched_amount(
+                _sql_prorata_share(
+                    SQL("sub.cumulated_base_amount"),
+                    SQL("sub.total_base_amount"),
+                    SQL("sub.total_tax_amount"),
+                    SQL("sub.comp_curr_prec"),
+                ),
+                final_partition,
+                final_order,
+            ),
+            final_tax_amount_currency=_sql_dispatched_amount(
+                _sql_prorata_share(
+                    SQL("sub.cumulated_base_amount_currency"),
+                    SQL("sub.total_base_amount_currency"),
+                    SQL("sub.total_tax_amount_currency"),
+                    SQL("sub.curr_prec"),
+                ),
+                final_partition,
+                final_order,
+            ),
         )

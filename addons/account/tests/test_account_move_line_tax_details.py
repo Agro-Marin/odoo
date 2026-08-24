@@ -1,6 +1,13 @@
+import re
+from unittest.mock import patch
+
 from odoo import Command
 from odoo.tests import tagged
+from odoo.tools import SQL
 
+from odoo.addons.account.models.account_move_line_tax_details import (
+    AccountMoveLine as AccountMoveLineTaxDetails,
+)
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
@@ -202,7 +209,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
             ],
         )
         self.assertTotalAmounts(invoice, tax_details)
-
 
         tax_group = self.env["account.tax"].create(
             {
@@ -1432,6 +1438,308 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
             ],
         )
         self.assertTotalAmounts(invoice, tax_details)
+
+    def test_archived_group_of_taxes_still_flattens_to_its_children(self):
+        """Archiving a group of taxes must not change what its posted moves report.
+
+        The flattening used to come from an ORM search over active taxes only, so an
+        archived group stopped being expanded and every child tax line it had produced
+        dropped out of the report.
+        """
+        child_affecting_base = self.env["account.tax"].create(
+            {
+                "name": "child_affecting_base",
+                "amount_type": "percent",
+                "amount": 10.0,
+                "include_base_amount": True,
+                "type_tax_use": "none",
+                "sequence": 1,
+            }
+        )
+        child = self.env["account.tax"].create(
+            {
+                "name": "child",
+                "amount_type": "percent",
+                "amount": 20.0,
+                "type_tax_use": "none",
+                "sequence": 2,
+            }
+        )
+        tax_group = self.env["account.tax"].create(
+            {
+                "name": "tax_group",
+                "amount_type": "group",
+                "children_tax_ids": [Command.set((child_affecting_base + child).ids)],
+            }
+        )
+
+        invoice = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2019-01-01",
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "line1",
+                            "account_id": self.company_data[
+                                "default_account_revenue"
+                            ].id,
+                            "price_unit": 1000.0,
+                            "tax_ids": [Command.set(tax_group.ids)],
+                        }
+                    ),
+                ],
+            }
+        )
+        invoice.action_post()
+
+        while_active = self._get_tax_details()
+        tax_group.active = False
+        while_archived = self._get_tax_details()
+
+        # pin the shape too: comparing two empty result sets would pass vacuously
+        self.assertEqual(len(while_active), 3)
+        self.assertEqual(
+            sum(x["tax_amount"] for x in while_active),
+            sum(invoice.line_ids.filtered("tax_line_id").mapped("balance")),
+        )
+        self.assertEqual(while_archived, while_active)
+        self.assertTotalAmounts(invoice, while_archived)
+
+    def test_base_tax_line_mapping_conditions_chain_super(self):
+        """Every override of the seam must chain ``super()``.
+
+        The conditions are ANDed into a single join condition, so an override that
+        returns only its own silently drops the conditions of every other installed
+        module -- with no error and no visible symptom beyond wrong amounts.
+        """
+        marker = SQL("/* chained */ TRUE")
+        with patch.object(
+            AccountMoveLineTaxDetails,
+            "_get_base_tax_line_mapping_conditions",
+            lambda self: [marker],
+        ):
+            conditions = self.env[
+                "account.move.line"
+            ]._get_base_tax_line_mapping_conditions()
+        self.assertIn(marker.code, [condition.code for condition in conditions])
+
+    def test_last_cents_dispatch_walks_a_total_order(self):
+        """The LAG dispatching the last cents must order by the same total order the
+        cumulated sum was built with.
+
+        ``(tax_id, base_line_id)`` alone is not one: a base line carries one row per
+        ``src_line_id`` whenever an upstream tax affects its base. Ties there leave
+        PostgreSQL free to pick an arbitrary peer, which misallocates the rows and
+        breaks the telescoping that makes them add up to the tax line balance.
+        """
+
+        def squash(sql_text):
+            return re.sub(r"\s*([(),])\s*", r"\1", " ".join(sql_text.split()))
+
+        code = squash(
+            self.env["account.move.line"]
+            ._get_query_tax_details_from_domain([("id", "=", 0)])
+            .code
+        )
+        # the pair: what the cumulated sum walks, and what the LAG differences
+        self.assertIn(
+            squash(
+                "OVER (PARTITION BY tax_line.id"
+                " ORDER BY tax_line.tax_line_id, sub.base_line_id, sub.src_line_id)"
+            ),
+            code,
+        )
+        self.assertIn(
+            squash(
+                "OVER (PARTITION BY sub.tax_line_id"
+                " ORDER BY sub.tax_id, sub.base_line_id, sub.src_line_id)"
+            ),
+            code,
+        )
+        # and no dispatch window may stop at a prefix that leaves src_line_id out
+        self.assertNotIn(
+            squash(
+                "OVER (PARTITION BY sub.tax_line_id"
+                " ORDER BY sub.tax_id, sub.base_line_id)"
+            ),
+            code,
+        )
+
+    def _create_imported_entry_with_one_tax_line(self, tax_name):
+        """A journal entry as an import produces one: a single hand-made tax line over two
+        base lines, which the exact matching cannot fully reconcile."""
+        tax = self.env["account.tax"].create(
+            {
+                "name": tax_name,
+                "amount_type": "percent",
+                "amount": 10.0,
+            }
+        )
+        repartition = tax.invoice_repartition_line_ids.filtered(
+            lambda line: line.repartition_type == "tax"
+        )
+        revenue = self.company_data["default_account_revenue"]
+        move = self.env["account.move"].create(
+            {
+                "move_type": "entry",
+                "date": "2019-01-01",
+                "line_ids": [
+                    Command.create(
+                        {
+                            "name": "base_matching",
+                            "account_id": revenue.id,
+                            "credit": 1000.0,
+                            "tax_ids": [Command.set(tax.ids)],
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "name": "base_not_matching",
+                            "account_id": self.company_data[
+                                "default_account_expense"
+                            ].id,
+                            "credit": 3000.0,
+                            "tax_ids": [Command.set(tax.ids)],
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "name": "tax_line",
+                            "account_id": revenue.id,
+                            "credit": 400.0,
+                            "tax_line_id": tax.id,
+                            "tax_repartition_line_id": repartition.id,
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "name": "counterpart",
+                            "account_id": self.company_data[
+                                "default_account_assets"
+                            ].id,
+                            "debit": 4400.0,
+                        }
+                    ),
+                ],
+            }
+        )
+        move.action_post()
+        return move
+
+    def test_fallback_covers_a_partially_matched_tax_line(self):
+        """A tax line that matched SOME of its base lines must still have the others
+        approximated.
+
+        The fallback used to be all-or-nothing per tax line: one matched pair switched it
+        off for the whole tax line, the unmatched base lines vanished from the report, and
+        their share of the tax was silently reallocated onto the survivors -- understating
+        the declared taxable base while declaring the full tax.
+        """
+        move = self._create_imported_entry_with_one_tax_line("partial_match_tax")
+        base_lines = move.line_ids.filtered(lambda x: x.tax_ids and not x.tax_line_id)
+
+        without_fallback = self._get_tax_details(fallback=False)
+        self.assertEqual(
+            [x["base_line_id"] for x in without_fallback],
+            base_lines.filtered(
+                lambda x: x.account_id == self.company_data["default_account_revenue"]
+            ).ids,
+            "only the base line sharing the tax line's account matches exactly",
+        )
+
+        with_fallback = self._get_tax_details(fallback=True)
+        self.assertEqual(
+            sorted(x["base_line_id"] for x in with_fallback),
+            sorted(base_lines.ids),
+            "the fallback must pick up the base line the exact matching missed",
+        )
+        self.assertAlmostEqual(
+            sum(x["base_amount"] for x in with_fallback),
+            sum(base_lines.mapped("balance")),
+        )
+        self.assertTotalAmounts(move, with_fallback)
+
+    def test_fallback_does_not_duplicate_a_base_across_sibling_tax_lines(self):
+        """When one tax posts two tax lines that partition the base lines between them,
+        neither may claim the other's.
+
+        A misc entry with base lines of opposite sign does exactly that -- and the two tax
+        lines sit on *different* repartitions (invoice vs refund), so any test keyed on the
+        tax line's identity rather than on its tax lets each claim the other's base.
+
+        This one is green against HEAD: it guards the fix for
+        ``test_fallback_covers_a_partially_matched_tax_line`` from being written the
+        obvious way, not a defect HEAD has.
+        """
+        tax = self.env["account.tax"].create(
+            {
+                "name": "sign_split_tax",
+                "amount_type": "percent",
+                "amount": 10.0,
+            }
+        )
+        revenue = self.company_data["default_account_revenue"]
+        move = self.env["account.move"].create(
+            {
+                "move_type": "entry",
+                "date": "2019-01-01",
+                "line_ids": [
+                    Command.create(
+                        {
+                            "name": "credit_base",
+                            "account_id": revenue.id,
+                            "credit": 1000.0,
+                            "tax_ids": [Command.set(tax.ids)],
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "name": "debit_base",
+                            "account_id": revenue.id,
+                            "debit": 400.0,
+                            "tax_ids": [Command.set(tax.ids)],
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "name": "counterpart",
+                            "account_id": self.company_data[
+                                "default_account_expense"
+                            ].id,
+                            "debit": 660.0,
+                        }
+                    ),
+                ],
+            }
+        )
+        move.action_post()
+        base_lines = move.line_ids.filtered(lambda x: x.tax_ids and not x.tax_line_id)
+        self.assertEqual(len(move.line_ids.filtered("tax_line_id")), 2)
+
+        for fallback in (False, True):
+            with self.subTest(fallback=fallback):
+                tax_details = self._get_tax_details(fallback=fallback)
+                self.assertEqual(len(tax_details), len(base_lines))
+                self.assertAlmostEqual(
+                    sum(x["base_amount"] for x in tax_details),
+                    sum(base_lines.mapped("balance")),
+                )
+
+    def test_fallback_rows_are_flagged(self):
+        """A consumer cannot audit a figure it cannot tell apart from an exact one."""
+        self._create_imported_entry_with_one_tax_line("flagged_fallback_tax")
+
+        tax_details = self._get_tax_details(fallback=True)
+        self.assertEqual(
+            sorted(x["is_fallback"] for x in tax_details),
+            [False, True],
+            "one pair matched exactly, the other is the approximation",
+        )
+        self.assertFalse(
+            any(x["is_fallback"] for x in self._get_tax_details(fallback=False))
+        )
 
     def test_broken_configuration(self):
         percent_tax = self.env["account.tax"].create(
