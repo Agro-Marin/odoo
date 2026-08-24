@@ -672,6 +672,22 @@ class AccountReportLine(models.Model):
     def _check_groupby(self):
         self.expression_ids._check_engine()
 
+    @api.constrains("parent_id", "report_id")
+    def _check_parent_report(self):
+        for line in self:
+            if line.parent_id and line.parent_id.report_id != line.report_id:
+                raise ValidationError(
+                    _(
+                        'Line "%(line)s" belongs to report "%(report)s" but its parent '
+                        '"%(parent)s" belongs to "%(parent_report)s". A line and its '
+                        "parent must be in the same report.",
+                        line=line.name,
+                        report=line.report_id.display_name,
+                        parent=line.parent_id.name,
+                        parent_report=line.parent_id.report_id.display_name,
+                    )
+                )
+
     @api.constrains("parent_id")
     def _check_parent_line(self):
         for line in self.filtered(lambda x: x.parent_id == x):
@@ -684,9 +700,14 @@ class AccountReportLine(models.Model):
             )
 
     def _copy_hierarchy(self, copied_report):
+        # _check_parent_report keeps a line and its parent in one report, so every
+        # parent is inside `self`. Rows predating that constraint are copied as roots
+        # rather than dropped, which is what the recursive walk this replaced did.
+        line_ids = set(self.ids)
         lines_by_parent_id = defaultdict(self.browse)
         for line in self:
-            lines_by_parent_id[line.parent_id.id] |= line
+            parent_id = line.parent_id.id if line.parent_id.id in line_ids else False
+            lines_by_parent_id[parent_id] |= line
 
         code_mapping = {}
         taken_codes = set()
@@ -711,7 +732,9 @@ class AccountReportLine(models.Model):
             for line, vals in zip(generation, vals_list, strict=True):
                 vals["report_id"] = copied_report.id
                 vals["parent_id"] = (
-                    copied_line_by_id[line.parent_id.id].id if line.parent_id else False
+                    copied_line_by_id[line.parent_id.id].id
+                    if line.parent_id.id in copied_line_by_id
+                    else False
                 )
                 vals["code"] = code_mapping.get(line.code, False)
             for line, copied_line in zip(
@@ -1203,14 +1226,20 @@ class AccountReportExpression(models.Model):
                 )
             )
 
+        # Both spellings have to end at a report that exists: a dangling id used to be
+        # returned as-is, and env.ref resolves any model, so the aggregation silently
+        # totalled nothing instead of saying the target was wrong.
         cross_report_value = subformula_match.group(1)
-        try:
-            report_id = int(cross_report_value)
-        except ValueError:
+        if cross_report_value.isdigit():
+            target_report = (
+                self.env["account.report"].browse(int(cross_report_value)).exists()
+            )
+        else:
             target_report = self.env.ref(cross_report_value, raise_if_not_found=False)
-            report_id = target_report.id if target_report else None
+            if target_report and target_report._name != "account.report":
+                target_report = None
 
-        if not report_id:
+        if not target_report:
             raise UserError(
                 _(
                     "In report '%(report_name)s', on line '%(line_name)s', with label '%(label)s',\n"
@@ -1218,9 +1247,9 @@ class AccountReportExpression(models.Model):
                     **error_context,
                 )
             )
-        if report_id == self.report_line_id.report_id.id:
+        if target_report == self.report_line_id.report_id:
             raise UserError(_("You cannot use cross report on itself"))
-        return report_id
+        return target_report.id
 
     @staticmethod
     def _split_aggregation_formula_terms(formula):

@@ -531,3 +531,59 @@ class TestAccountReport(AccountTestInvoicingCommon):
             "a b",
         )
         self.assertEqual(vals, {"formula": "  a   b  "})
+
+    def test_a_line_cannot_have_its_parent_in_another_report(self):
+        first = self._create_report("Parent Elsewhere A")
+        second = self._create_report("Parent Elsewhere B")
+        parent = self._create_line(first, "parent", "account_codes", "400", code="PEA")
+
+        with self.assertRaises(ValidationError):
+            self._create_line(
+                second,
+                "child",
+                "account_codes",
+                "401",
+                code="PEB",
+                parent_id=parent.id,
+            )
+
+    def test_moving_a_line_out_of_its_parents_report_is_refused(self):
+        first = self._create_report("Move Out A")
+        second = self._create_report("Move Out B")
+        parent = self._create_line(first, "parent", "account_codes", "400", code="MOA")
+        child = self._create_line(
+            first, "child", "account_codes", "401", code="MOB", parent_id=parent.id
+        )
+
+        with self.assertRaises(ValidationError):
+            child.write({"report_id": second.id})
+            child.flush_recordset()
+
+    def test_cross_report_must_name_a_report_that_exists(self):
+        report = self._create_report("Cross Source")
+        for subformula in (
+            "cross_report(999999)",
+            "cross_report(no_such.report)",
+            "cross_report(base.main_company)",
+        ):
+            line = self._create_line(
+                report,
+                f"agg {subformula}",
+                "aggregation",
+                "OTHER.balance",
+                code=f"CR{abs(hash(subformula)) % 10000}",
+            )
+            line.expression_ids.subformula = subformula
+            with self.assertRaises(UserError, msg=subformula):
+                line.expression_ids._get_cross_report_id()
+
+    def test_cross_report_accepts_a_real_report_by_id_and_by_xml_id(self):
+        report = self._create_report("Cross Source 2")
+        target = self.env.ref("account.generic_tax_report")
+        line = self._create_line(
+            report, "agg", "aggregation", "OTHER.balance", code="CRVALID"
+        )
+        line.expression_ids.subformula = f"cross_report({target.id})"
+        self.assertEqual(line.expression_ids._get_cross_report_id(), target.id)
+        line.expression_ids.subformula = "cross_report(account.generic_tax_report)"
+        self.assertEqual(line.expression_ids._get_cross_report_id(), target.id)
