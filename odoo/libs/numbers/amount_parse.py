@@ -50,11 +50,15 @@ def _split(amount_str: str) -> tuple[str, str] | None:
             tsep, dsep = ".", ","
         case (1, 1):
             tsep, dsep = ",", "."
-        case (0, 1) if _is_solitary_group(amount_str[:last_dot], dot_distance, has_grouping):
+        case (0, 1) if _is_solitary_group(
+            amount_str[:last_dot], dot_distance, has_grouping
+        ):
             tsep, dsep = ".", ","  # best possible assumption
         case (0, 1):
             tsep, dsep = ",", "."
-        case (1, 0) if _is_solitary_group(amount_str[:last_comma], comma_distance, has_grouping):
+        case (1, 0) if _is_solitary_group(
+            amount_str[:last_comma], comma_distance, has_grouping
+        ):
             tsep, dsep = ",", "."  # best possible assumption
         case (1, 0):
             tsep, dsep = ".", ","
