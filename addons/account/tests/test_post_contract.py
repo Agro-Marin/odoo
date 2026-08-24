@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from odoo import Command, fields
 from odoo.exceptions import UserError
@@ -97,9 +98,10 @@ class TestPostContract(AccountTestInvoicingCommon):
         self.assertEqual(clean.state, "posted")
         self.assertEqual(flagged.state, "draft")
 
-    def test_post_check_business_rules_runs_on_every_posting_path(self):
-        # action_post is not a gate: the list-view action, the auto-post cron and
-        # account.payment.write all reach _post without passing through it.
+    def test_business_rules_run_on_every_document_posting_path(self):
+        # action_post is not the only way a person posts a document: the list-view
+        # "Confirm Entries" action, the confirmation wizard and the auto-post cron
+        # all reach the move without it. Each must apply the same rules.
         calls = []
         AccountMove = type(self.env["account.move"])
         original = AccountMove._post_check_business_rules
@@ -112,11 +114,57 @@ class TestPostContract(AccountTestInvoicingCommon):
         AccountMove._post_check_business_rules = recording_rules
         try:
             self._invoice(today).action_post()
-            self.assertEqual(len(calls), 1)
+            self.assertEqual(len(calls), 1, "the Post button skipped the rules")
+
             self._invoice(today).action_validate_moves_with_confirmation()
-            self.assertEqual(len(calls), 2)
+            self.assertEqual(len(calls), 2, "the list-view action skipped the rules")
+
+            wizard = self.env["validate.account.move"].create(
+                {"move_ids": [Command.set(self._invoice(today).ids)]}
+            )
+            wizard.validate_move()
+            self.assertEqual(len(calls), 3, "the confirmation wizard skipped the rules")
+
+            auto = self._invoice(today)
+            auto.auto_post = "at_date"
+            # _autopost_draft_entries commits through ir.cron._commit_progress, which
+            # a TransactionCase forbids. Neutralise the bookkeeping, not the posting.
+            with patch.object(
+                type(self.env["ir.cron"]), "_commit_progress", lambda *a, **kw: None
+            ):
+                self.env["account.move"]._autopost_draft_entries()
+            self.assertEqual(len(calls), 4, "the auto-post cron skipped the rules")
+        finally:
+            AccountMove._post_check_business_rules = original
+
+    def test_business_rules_do_not_run_on_system_generated_postings(self):
+        # _post is also the engine for cancellation reversals, POS invoices,
+        # cash-basis entries and landed costs. Gating it refused to cancel an
+        # invoice for a customer a credit rule had blocked.
+        calls = []
+        AccountMove = type(self.env["account.move"])
+        original = AccountMove._post_check_business_rules
+
+        def recording_rules(records):
+            calls.append(len(records))
+            return original(records)
+
+        today = fields.Date.context_today(self.env.user)
+        invoice = self._invoice(today)
+        invoice.action_post()
+
+        AccountMove._post_check_business_rules = recording_rules
+        try:
+            reversal = invoice._reverse_moves(
+                [{"invoice_date": today, "date": today}], cancel=True
+            )
+            self.assertEqual(reversal.state, "posted")
+            self.assertFalse(
+                calls, "a cancellation reversal must not be gated by business rules"
+            )
+
             self._invoice(today)._post(soft=False)
-            self.assertEqual(len(calls), 3)
+            self.assertFalse(calls, "_post itself must not be gated")
         finally:
             AccountMove._post_check_business_rules = original
 
@@ -194,3 +242,17 @@ class TestPostContract(AccountTestInvoicingCommon):
                 payments.action_post()
         finally:
             AccountPayment._get_method_codes_needing_bank_account = original
+
+    def test_a_move_that_cannot_post_is_not_scheduled(self):
+        # A move that reaches auto_post='at_date' while invalid is picked up by the
+        # cron on every run, fails, and posts a message each time. Validate before
+        # scheduling so it never gets there.
+        today = fields.Date.context_today(self.env.user)
+        invoice = self._invoice(today + timedelta(days=30))
+        invoice.partner_id = False
+
+        with self.assertRaises(UserError):
+            invoice._post(soft=True)
+
+        self.assertEqual(invoice.state, "draft")
+        self.assertEqual(invoice.auto_post, "no", "an invalid move was scheduled")

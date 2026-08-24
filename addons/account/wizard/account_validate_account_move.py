@@ -100,6 +100,7 @@ class ValidateAccountMove(models.TransientModel):
             moves_to_post = self.move_ids.filtered(
                 lambda m: not m.restrict_mode_hash_table
             )
+        moves_to_post._post_check_business_rules()
         moves_to_post._post(not self.force_post)
 
         if autopost_bills_wizard := moves_to_post._show_autopost_bills_wizard():

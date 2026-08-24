@@ -5099,13 +5099,20 @@ class AccountMove(models.Model):
             raise AccessError(_("You don't have the access rights to post an invoice."))
 
     def _post_check_business_rules(self):
-        # The seam for rules that decide whether a move may become posted at all --
-        # approval, credit limits, localisation constraints. It belongs here and not
-        # in action_post: the list-view "Confirm Entries" action, the auto-post cron,
-        # account.payment.write and every other caller reach _post directly, so a rule
-        # hung on action_post guards the form button and nothing else. Overrides run
-        # against every posting path, machine-generated entries included, so scope
-        # them on move_type or journal rather than assuming a user-facing document.
+        # The seam for rules that decide whether someone may post this document --
+        # approval, credit limits, localisation constraints. Called from every entry
+        # point that posts because a person or a schedule asked for it, and from none
+        # of the ones that post a move the system generated:
+        #
+        #   _post_needing_confirmation   the Post/Confirm buttons and the list action
+        #   validate.account.move        the confirmation wizard
+        #   _autopost_draft_entries      the cron
+        #
+        # Deliberately NOT called from _post. _post is also the engine for
+        # cancellation reversals, POS invoices, cash-basis and exchange-difference
+        # entries and landed costs; gating those broke them, measurably -- a customer
+        # in legal process could no longer have an invoice cancelled, because the
+        # reversal is posted through _post and the credit rule refused it.
         return
 
     def _post_validate_invoices(self, validation_msgs):
@@ -5225,7 +5232,7 @@ class AccountMove(models.Model):
                         _("The Bill/Refund date is required to validate this document.")
                     )
 
-    def _post_validate_moves(self, validation_msgs):
+    def _post_validate_moves(self, validation_msgs, posting_now=True):
         for move in self:
             if move.state in ["posted", "cancel"]:
                 validation_msgs.add(
@@ -5242,9 +5249,14 @@ class AccountMove(models.Model):
                 )
             ):
                 validation_msgs.add(_("Even magicians can't post nothing!"))
-            # No `soft` test: _post defers every move dated in the future before
-            # reaching here, so under a soft post none of them arrives at all.
-            if move.auto_post != "no" and move.date > fields.Date.context_today(self):
+            # Only when the move is being posted now: a move on its way to being
+            # scheduled is validated too, and refusing it for being scheduled would
+            # make deferral impossible.
+            if (
+                posting_now
+                and move.auto_post != "no"
+                and move.date > fields.Date.context_today(self)
+            ):
                 date_msg = move.date.strftime(get_lang(self.env).date_format)
                 validation_msgs.add(
                     _(
@@ -5292,13 +5304,13 @@ class AccountMove(models.Model):
                     )
                 )
 
-    def _post_validate(self):
+    def _post_validate(self, posting_now=True):
         validation_msgs = set()
 
         self._post_validate_invoices(validation_msgs)
 
         self.line_ids._check_account_is_usable()
-        self._post_validate_moves(validation_msgs)
+        self._post_validate_moves(validation_msgs, posting_now)
 
         if validation_msgs:
             msg = "\n".join(sorted(validation_msgs))
@@ -5331,7 +5343,10 @@ class AccountMove(models.Model):
         # its caller never passed and double-counted their partners' ranks.
         side_moves = self.browse()
         partials_to_unlink = self.env["account.partial.reconcile"]
-        posted_ids = set(self.ids)
+        # Grows as side moves are collected, because a cash-basis move is not always
+        # posted on creation (`post_after_create`): a later partial in this same loop
+        # can have a still-draft one as its counterpart, and must recognise it.
+        reachable_ids = set(self.ids)
 
         for aml in self.line_ids:
             for partials, counterpart_field in [
@@ -5342,9 +5357,10 @@ class AccountMove(models.Model):
                     counterpart_move = partial[counterpart_field].move_id
                     if (
                         counterpart_move.state == "posted"
-                        or counterpart_move.id in posted_ids
+                        or counterpart_move.id in reachable_ids
                     ):
                         side_moves |= partial.exchange_move_id
+                        reachable_ids.update(partial.exchange_move_id.ids)
 
                         if (
                             partial._get_draft_caba_move_vals()
@@ -5352,19 +5368,23 @@ class AccountMove(models.Model):
                         ):
                             partials_to_unlink |= partial
                         elif aml.move_id.tax_cash_basis_created_move_ids:
-                            side_moves |= (
+                            caba_moves = (
                                 aml.move_id.tax_cash_basis_created_move_ids.filtered(
                                     lambda m, partial=partial: (
                                         m.tax_cash_basis_rec_id == partial
                                     )
                                 )
                             )
+                            side_moves |= caba_moves
+                            reachable_ids.update(caba_moves.ids)
                         elif counterpart_move.tax_cash_basis_created_move_ids:
-                            side_moves |= counterpart_move.tax_cash_basis_created_move_ids.filtered(
+                            caba_moves = counterpart_move.tax_cash_basis_created_move_ids.filtered(
                                 lambda m, partial=partial: (
                                     m.tax_cash_basis_rec_id == partial
                                 )
                             )
+                            side_moves |= caba_moves
+                            reachable_ids.update(caba_moves.ids)
 
         if partials_to_unlink:
             partials_to_unlink.unlink()
@@ -5410,6 +5430,10 @@ class AccountMove(models.Model):
         )
         if not future_moves:
             return self
+        # Validate before scheduling. A move that cannot post must not reach
+        # auto_post='at_date': the cron would pick it up on every run, fail, and
+        # post a message each time, forever.
+        future_moves._post_validate(posting_now=False)
         future_moves.filtered(lambda move: move.auto_post == "no").auto_post = "at_date"
         future_moves._message_log_batch(
             bodies={
@@ -5489,7 +5513,6 @@ class AccountMove(models.Model):
 
     def _post_entries(self):
         self._post_validate()
-        self._post_check_business_rules()
 
         self._post_update_accounting_dates()
         self.line_ids._create_analytic_lines()
@@ -6009,6 +6032,7 @@ class AccountMove(models.Model):
         # nothing and hides which move raised the question.
         to_post = self - need_confirmation
         if to_post:
+            to_post._post_check_business_rules()
             to_post._post(soft=False)
         if need_confirmation:
             return need_confirmation._get_confirm_entries_action(view_id=view_id)
@@ -6272,6 +6296,7 @@ class AccountMove(models.Model):
         self.env["ir.cron"]._commit_progress(remaining=remaining)
 
         try:
+            moves._post_check_business_rules()
             moves._post()
             self.env["ir.cron"]._commit_progress(len(moves))
             return
@@ -6284,6 +6309,7 @@ class AccountMove(models.Model):
                 if not move:
                     self.env["ir.cron"]._commit_progress(1)
                     continue
+                move._post_check_business_rules()
                 move._post()
                 self.env["ir.cron"]._commit_progress(1)
             except PG_RETRY_EXCEPTIONS:
