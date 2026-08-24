@@ -64,14 +64,20 @@ def service_metrics() -> dict[str, Any]:
     }.get(type(server).__name__, type(server).__name__)
 
     if hasattr(server, "workers"):
-        out["workers"] = {
-            "http": len(server.workers_http),
-            "cron": len(server.workers_cron),
-            "job": len(server.workers_job),
-        }
-        out["worker_population"] = server.population
-        out["worker_generation"] = server.generation
-        out["long_polling_alive"] = server.long_polling_pid is not None
+        # Only the master knows the fleet.  A worker reached this line holding
+        # the PreforkServer it inherited through os.fork() (_prefork.py:142):
+        # workers_*, population, generation and long_polling_pid are all frozen
+        # at the instant of that fork and never updated in the child, so each
+        # worker would publish a different — and wrong — view of the fleet.
+        if os.getpid() == server.pid:
+            out["workers"] = {
+                "http": len(server.workers_http),
+                "cron": len(server.workers_cron),
+                "job": len(server.workers_job),
+            }
+            out["worker_population"] = server.population
+            out["worker_generation"] = server.generation
+            out["long_polling_alive"] = server.long_polling_pid is not None
     else:
         by_type: dict[str, int] = {}
         for thread in threading.enumerate():
