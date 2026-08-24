@@ -14,20 +14,21 @@ class AccountAccruedOrdersWizard(models.TransientModel):
     _description = "Accrued Orders Wizard"
     _check_company_auto = True
 
-    def _default_company_id(self):
-        active_model = self.env.context.get("active_model")
-        active_ids = self.env.context.get("active_ids")
-        if not active_model or not active_ids:
-            return None
-        orders = self.env[active_model].browse(active_ids)
-        return orders and orders[0].company_id.id
-
     def _default_date(self):
         return date_utils.get_month(fields.Date.context_today(self))[0] - relativedelta(
             days=1
         )
 
-    company_id = fields.Many2one("res.company", default=_default_company_id)
+    res_model = fields.Char(
+        compute="_compute_selection", store=True, precompute=True, readonly=True
+    )
+    res_ids = fields.Json(
+        compute="_compute_selection", store=True, precompute=True, readonly=True
+    )
+    is_purchase = fields.Boolean(compute="_compute_is_purchase", store=True)
+    company_id = fields.Many2one(
+        "res.company", compute="_compute_company_id", store=True, precompute=True
+    )
     journal_id = fields.Many2one(
         comodel_name="account.journal",
         compute="_compute_journal_id",
@@ -64,15 +65,39 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         required=True,
         string="Accrual Account",
         check_company=True,
-        domain="[('account_type', '=', 'liability_current')] if context.get('active_model') in ['purchase.order', 'purchase.order.line'] else [('account_type', '=', 'asset_current')]",
+        domain="[('account_type', '=', 'liability_current' if is_purchase else 'asset_current')]",
     )
     preview_data = fields.Text(compute="_compute_preview_data")
     display_amount = fields.Boolean(compute="_compute_display_amount")
 
-    @api.depends("date", "amount", "preview_data")
-    def _compute_display_amount(self):
-        single_order = len(self.env.context.get("active_ids") or []) == 1
+    def _compute_selection(self):
+        active_model = self.env.context.get("active_model")
+        active_ids = self.env.context.get("active_ids") or []
         for record in self:
+            record.res_model = active_model
+            record.res_ids = list(active_ids)
+
+    @api.depends("res_model")
+    def _compute_is_purchase(self):
+        for record in self:
+            record.is_purchase = (record.res_model or "").startswith("purchase.order")
+
+    @api.depends("res_model", "res_ids")
+    def _compute_company_id(self):
+        for record in self:
+            orders = record._get_selected_records()
+            record.company_id = orders[:1].company_id if orders else self.env.company
+
+    def _get_selected_records(self):
+        self.ensure_one()
+        if not self.res_model or not self.res_ids:
+            return None
+        return self.env[self.res_model].browse(self.res_ids)
+
+    @api.depends("date", "amount", "preview_data", "res_ids")
+    def _compute_display_amount(self):
+        for record in self:
+            single_order = len(record.res_ids or []) == 1
             groups_vals = json.loads(record.preview_data).get("groups_vals") or [{}]
             lines = groups_vals[0].get("items_vals", [])
             record.display_amount = record.amount or (single_order and not lines)
@@ -100,7 +125,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                 limit=1,
             )
 
-    @api.depends("date", "journal_id", "account_id", "amount")
+    @api.depends("date", "journal_id", "account_id", "amount", "res_model", "res_ids")
     def _compute_preview_data(self):
         for record in self:
             preview_vals = [
@@ -181,20 +206,15 @@ class AccountAccruedOrdersWizard(models.TransientModel):
 
         self.ensure_one()
         move_lines = []
-        active_model = self.env.context.get("active_model")
-        if active_model in ["purchase.order.line", "sale.order.line"]:
-            lines = (
-                self.env[active_model]
-                .with_company(self.company_id)
-                .browse(self.env.context["active_ids"])
-            )
+        selected = self._get_selected_records()
+        if selected is None:
+            raise UserError(_("Select the orders to accrue first."))
+        selected = selected.with_company(self.company_id)
+        if self.res_model in ("purchase.order.line", "sale.order.line"):
+            lines = selected
             orders = lines.order_id
         else:
-            orders = (
-                self.env[active_model]
-                .with_company(self.company_id)
-                .browse(self.env.context["active_ids"])
-            )
+            orders = selected
             lines = orders.line_ids.filtered(lambda x: x.product_id)
         is_purchase = orders._name == "purchase.order"
 

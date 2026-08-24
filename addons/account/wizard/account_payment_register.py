@@ -258,9 +258,9 @@ class AccountPaymentRegister(models.TransientModel):
         return label
 
     @api.model
-    def _get_batch_available_journals(self, batch_result):
+    def _get_batch_available_journals(self, batch_result, company=None):
         payment_type = batch_result["payment_values"]["payment_type"]
-        company = batch_result["lines"].company_id
+        company = company or self._get_payment_company(batch_result["lines"])
         journals = self.env["account.journal"].search(
             [
                 *self.env["account.journal"]._check_company_domain(company),
@@ -277,7 +277,7 @@ class AccountPaymentRegister(models.TransientModel):
         payment_values = batch_result["payment_values"]
         foreign_currency_id = payment_values["currency_id"]
         partner_bank_id = payment_values["partner_bank_id"]
-        company = min(batch_result["lines"].company_id, key=lambda c: len(c.parent_ids))
+        company = self._get_payment_company(batch_result["lines"])
 
         currency_domain = [("currency_id", "=", foreign_currency_id)]
         partner_bank_domain = [("bank_account_id", "=", partner_bank_id)]
@@ -317,9 +317,7 @@ class AccountPaymentRegister(models.TransientModel):
         if payment_values["payment_type"] == "inbound":
             return journal.bank_account_id
         else:
-            company = min(
-                batch_result["lines"].company_id, key=lambda c: len(c.sudo().parent_ids)
-            )
+            company = self._get_payment_company(batch_result["lines"])
             return (
                 batch_result["lines"]
                 .partner_id.bank_ids.filtered(
@@ -350,11 +348,7 @@ class AccountPaymentRegister(models.TransientModel):
     def _get_wizard_values_from_batch(self, batch_result):
         payment_values = batch_result["payment_values"]
         lines = batch_result["lines"]
-        company = (
-            min(lines.company_id, key=lambda c: len(c.sudo().parent_ids))
-            if not self._from_sibling_companies(lines)
-            else lines.company_id.root_id
-        )
+        company = self._get_payment_company(lines)
 
         source_amount = abs(sum(lines.mapped("amount_residual")))
         if payment_values["currency_id"] == company.currency_id.id:
@@ -377,6 +371,15 @@ class AccountPaymentRegister(models.TransientModel):
         return len(lines.company_id) > 1 and not any(
             c.root_id in lines.company_id for c in lines.company_id
         )
+
+    @api.model
+    def _get_payment_company(self, lines):
+        companies = lines.company_id
+        if not companies:
+            return self.env["res.company"]
+        if self._from_sibling_companies(lines):
+            return companies.root_id
+        return min(companies, key=lambda c: len(c.sudo().parent_ids))
 
 
     @api.depends(
@@ -539,11 +542,7 @@ class AccountPaymentRegister(models.TransientModel):
                     (batch_result["lines"] for batch_result in wizard.batches),
                     self.env["account.move.line"],
                 )
-                company = (
-                    min(lines.company_id, key=lambda c: len(c.parent_ids))
-                    if not self._from_sibling_companies(lines)
-                    else lines.company_id.root_id
-                )
+                company = wizard._get_payment_company(lines)
                 wizard.update(
                     {
                         "company_id": company.id,
@@ -614,7 +613,9 @@ class AccountPaymentRegister(models.TransientModel):
         for wizard in self:
             available_journals = self.env["account.journal"]
             for batch in wizard.batches:
-                available_journals |= wizard._get_batch_available_journals(batch)
+                available_journals |= wizard._get_batch_available_journals(
+                    batch, company=wizard.company_id
+                )
             wizard.available_journal_ids = [Command.set(available_journals.ids)]
 
     @api.depends("available_journal_ids")
