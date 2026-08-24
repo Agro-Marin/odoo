@@ -36,12 +36,12 @@ class AccountMove(models.Model):
         self.peppol_move_state = False
         self.sending_data = False
 
-    def _compute_display_send_button(self):
+    def _compute_show_send_button(self):
         # EXTENDS 'account'
-        super()._compute_display_send_button()
+        super()._compute_show_send_button()
         for move in self:
             if move._is_exportable_as_self_invoice():
-                move.display_send_button = True
+                move.show_send_button = True
 
     @api.depends('state')
     def _compute_peppol_move_state(self):

@@ -889,7 +889,7 @@ class AccountMove(models.Model):
         search="_search_next_payment_date",
     )
 
-    display_send_button = fields.Boolean(compute="_compute_display_send_button")
+    show_send_button = fields.Boolean(compute="_compute_show_send_button")
     highlight_send_button = fields.Boolean(compute="_compute_highlight_send_button")
     is_sale_installed = fields.Boolean(compute="_compute_is_sale_installed")
 
@@ -2932,9 +2932,9 @@ class AccountMove(models.Model):
             )
 
     @api.depends("move_type", "state")
-    def _compute_display_send_button(self):
+    def _compute_show_send_button(self):
         for move in self:
-            move.display_send_button = (
+            move.show_send_button = (
                 move.is_sale_document() and move.state == "posted"
             )
 

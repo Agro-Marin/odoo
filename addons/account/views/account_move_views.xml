@@ -571,12 +571,12 @@
                         string="Send"
                         type="object"
                         class="oe_highlight"
-                        invisible="not display_send_button or not highlight_send_button"
+                        invisible="not show_send_button or not highlight_send_button"
                         data-hotkey="y" />
                     <button name="action_invoice_sent"
                         string="Send"
                         type="object"
-                        invisible="not display_send_button or highlight_send_button"
+                        invisible="not show_send_button or highlight_send_button"
                         data-hotkey="y" />
                     <button name="action_print_pdf"
                         string="Print"
