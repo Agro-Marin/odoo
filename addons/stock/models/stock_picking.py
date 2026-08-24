@@ -354,13 +354,6 @@ class StockPicking(models.Model):
     show_next_pickings = fields.Boolean(
         compute="_compute_show_next_pickings",
     )
-    search_date_category = fields.Selection(
-        selection=lambda self: self._date_category_selection(),
-        string="Date Category",
-        store=False,
-        readonly=True,
-        search="_search_date_category",
-    )
     partner_country_id = fields.Many2one(
         related="partner_id.country_id",
         comodel_name="res.country",

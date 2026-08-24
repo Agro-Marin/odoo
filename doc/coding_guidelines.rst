@@ -883,8 +883,8 @@ Two readings of the gate itself:
   hidden. Do not update those two digits. **1** hook is exempt today,
   ``crm.team._get_default_team_id``.
 * **The reserved prefixes are worn by more than the hooks**
-  ``[gate doc_restated_counts]``. ``field_hook_naming.py --unbound``: **156**
-  names, at **240** definitions, wear one while no field declaration and no
+  ``[gate doc_restated_counts]``. ``field_hook_naming.py --unbound``: **155**
+  names, at **239** definitions, wear one while no field declaration and no
   binding decorator names them (``_compute_`` leads at 72 names, ``_search_`` at
   49). A candidate population, not a violation count.
 
@@ -950,7 +950,7 @@ ways: 8 stems are written with two or more verbs drawn from one semantic family,
 and 100 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 23,744 non-test methods
+``[gate doc_restated_counts]``. The population is the 23,745 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. Semantic families are read off the table
 below, so the justification is computed from the rule it justifies. Census and
@@ -1108,8 +1108,8 @@ and **read the result**:
   deleting it: ``_get_related_bundle`` → ``_get_bundle_containing_path``.
 
 Backlog ``[gate doc_restated_counts]``. The ``fields`` family is converted:
-**186** definitions under **93** names in this repository spell it head-first and
-**18** spell it the other way. **The rule is general; the conversion reached one
+**187** definitions under **93** names in this repository spell it head-first and
+**17** spell it the other way. **The rule is general; the conversion reached one
 family** -- across **19** of them this repository spells **63** definitions
 head-first against **171** the other way. A name in the second count is a backlog
 item, not an open question. Two cautions:

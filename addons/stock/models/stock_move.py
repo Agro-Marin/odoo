@@ -3155,7 +3155,7 @@ class StockMove(models.Model):
             for f_name in float_fields
         }
         if "price_unit" in float_fields:
-            price_unit_prec = self.env["decimal.precision"].precision_get(
+            price_unit_prec = self.env["decimal.precision"].get_precision(
                 "Product Price",
             )
             currency_precision = (
@@ -3257,7 +3257,7 @@ class StockMove(models.Model):
         merged_moves = self.env["stock.move"]
         moves_to_unlink = self.env["stock.move"]
         moves_to_cancel = self.env["stock.move"]
-        price_unit_prec = self.env["decimal.precision"].precision_get("Product Price")
+        price_unit_prec = self.env["decimal.precision"].get_precision("Product Price")
 
         def unit_price(total_value, quantity, uom):
             if uom.is_zero(quantity):

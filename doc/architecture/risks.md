@@ -122,7 +122,7 @@ happen, and it needed no schema knowledge to detect.
 than an error, because an addon may legitimately keep a helper module beside its
 scripts. Measured across this repository's two addon trees — the scope CI
 reproduces, a workspace reading being whatever checkouts happened to be on
-disk: **162** scripts in `migrations/` and **5** in `upgrades/`, all correctly
+disk: **163** scripts in `migrations/` and **5** in `upgrades/`, all correctly
 prefixed, **0** dropped.
 
 A risk stated at the level of its hardest half hides the half that is cheap to

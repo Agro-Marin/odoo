@@ -21,6 +21,32 @@ class MixinDateCategory(models.AbstractModel):
         ("after", None, _lt("After"), "future"),
     )
 
+    # The column each consumer buckets. `stock.picking` sets `date_planned`,
+    # `repair.order` `schedule_date`, `mrp.production` `date_start`.
+    _date_category_field = None
+
+    date_category = fields.Selection(
+        selection=lambda self: self._date_category_selection(),
+        string="Date Category",
+        store=False,
+        readonly=True,
+        search="_search_date_category",
+    )
+
+    def _search_date_category(self, operator, value):
+        if operator != "in":
+            return NotImplemented
+        if not self._date_category_field:
+            raise NotImplementedError(
+                f"{self._name} inherits mixin.date.category without setting "
+                f"_date_category_field, so there is no column to bucket."
+            )
+        return Domain.OR(
+            domain
+            for item in value
+            if (domain := self.date_category_to_domain(self._date_category_field, item))
+        )
+
     @api.model
     def _date_category_boundaries(self):
         start_today = fields.Datetime.context_timestamp(

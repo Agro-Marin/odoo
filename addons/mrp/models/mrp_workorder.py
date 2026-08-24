@@ -553,7 +553,7 @@ class MrpWorkorder(models.Model):
         for workorder in self:
             workorder.reservation_id = workorder.reservation_ids[:1]
 
-    def _get_reservation_date_fields(self):
+    def _get_fields_reservation_date(self):
         return ("date_start", "date_end")
 
     def _get_reservation_vals_list(self):

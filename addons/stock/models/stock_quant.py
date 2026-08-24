@@ -743,7 +743,7 @@ class StockQuant(models.Model):
                 "quantity",
             ]
         )
-        digits = self.env["decimal.precision"].precision_get("Product Unit")
+        digits = self.env["decimal.precision"].get_precision("Product Unit")
         return [
             (
                 "id",
@@ -1782,7 +1782,7 @@ class StockQuant(models.Model):
         requested = quantity
         quantity = min(quantity, available_quantity)
 
-        precision_digits = self.env["decimal.precision"].precision_get("Product Unit")
+        precision_digits = self.env["decimal.precision"].get_precision("Product Unit")
 
         if not strict and uom_id and product_id.uom_id != uom_id:
             quantity_move_uom = product_id.uom_id._compute_quantity(

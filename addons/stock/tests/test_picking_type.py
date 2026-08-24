@@ -750,7 +750,7 @@ class TestPickingTypeCounts(TestStockCommon):
                     ("state", "in", open_states),
                     "|",
                     ("has_deadline_issue", "=", True),
-                    ("search_date_category", "in", ["before", "yesterday"]),
+                    ("date_category", "in", ["before", "yesterday"]),
                 ]
             ),
             "the count and the Late filter must describe the same rows",

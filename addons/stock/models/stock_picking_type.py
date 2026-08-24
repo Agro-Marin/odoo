@@ -6,7 +6,7 @@ from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import SQL
 
-from odoo.addons.base.models.ir_actions import safe_eval_dict
+from odoo.addons.base.models.ir_actions import _eval_dict_or_default
 
 
 class StockPickingType(models.Model):
@@ -731,7 +731,7 @@ class StockPickingType(models.Model):
     def action_redirect_to_barcode_installation(self):
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id("base.open_module_tree")
         action["context"] = dict(
-            safe_eval_dict(action["context"], dict(self.env.context), {}),
+            _eval_dict_or_default(action["context"], dict(self.env.context), {}),
             search_default_name="Barcode",
         )
         return action
@@ -971,7 +971,7 @@ class StockPickingType(models.Model):
                     }
                 )
 
-        action_context = safe_eval_dict(action["context"], dict(self.env.context), {})
+        action_context = _eval_dict_or_default(action["context"], dict(self.env.context), {})
         context = {**action_context, **context}
         action["context"] = context
         if self:

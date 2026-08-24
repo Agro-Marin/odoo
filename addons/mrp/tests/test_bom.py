@@ -4134,10 +4134,10 @@ class TestBoMComponentChatter(TestMrpCommon):
         self.assertIn(
             "{} → {}".format(
                 float_repr(
-                    2.0, self.env["decimal.precision"].precision_get("Product Unit")
+                    2.0, self.env["decimal.precision"].get_precision("Product Unit")
                 ),
                 float_repr(
-                    5.0, self.env["decimal.precision"].precision_get("Product Unit")
+                    5.0, self.env["decimal.precision"].get_precision("Product Unit")
                 ),
             ),
             body,

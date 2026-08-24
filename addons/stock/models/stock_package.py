@@ -319,7 +319,7 @@ class StockPackage(models.Model):
 
     @api.depends("contained_quant_ids.quantity", "contained_quant_ids.product_id")
     def _compute_content_description(self):
-        precision = self.env["decimal.precision"].precision_get("Product Unit")
+        precision = self.env["decimal.precision"].get_precision("Product Unit")
 
         def format_content(product, qty):
             qty = float_round(qty, precision_digits=precision)
@@ -823,7 +823,7 @@ class StockPackage(models.Model):
 
         if not move_lines:
             return True
-        precision_digits = self.env["decimal.precision"].precision_get("Product Unit")
+        precision_digits = self.env["decimal.precision"].get_precision("Product Unit")
 
         def by_product_and_lot(records, quantity_field):
             return {

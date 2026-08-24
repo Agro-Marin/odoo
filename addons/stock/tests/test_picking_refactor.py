@@ -703,7 +703,7 @@ class TestPickingRefactor(TestStockCommon):
         self.assertEqual(draft_picking.state, "draft")
         (draft_picking | ok_picking)._sanity_check()
 
-    def test_search_date_category_ignores_unknown_values(self):
+    def test_date_category_ignores_unknown_values(self):
         picking = self._new_picking(self.picking_type_out)
         self.assertFalse(
             self.PickingObj.search([("date_category", "in", ["bogus"])]),

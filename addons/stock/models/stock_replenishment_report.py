@@ -151,7 +151,7 @@ class StockReplenishmentReport(models.AbstractModel):
                 ["id:recordset"],
             )
         }
-        precision_digits = self.env["decimal.precision"].precision_get("Product Unit")
+        precision_digits = self.env["decimal.precision"].get_precision("Product Unit")
         netted = {}
         for key, quantity in shortages.items():
             covered = (in_progress.get(key) or 0.0) + suggested.get(key, 0.0)
