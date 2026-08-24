@@ -9,7 +9,7 @@ from odoo.tools import mute_logger
 from odoo.addons.mail_bot.tests.common import MailBotCommon
 
 
-@tagged("odoobot", "post_install", "-at_install")
+@tagged("odoobot")
 class TestBotSilence(MailBotCommon):
 
     @mute_logger("odoo.addons.mail.models.mail_mail")
@@ -53,7 +53,7 @@ class TestBotSilence(MailBotCommon):
         self.assertEqual(len(answers), 1, "odoobot answered its own answer")
 
 
-@tagged("odoobot", "post_install", "-at_install")
+@tagged("odoobot")
 class TestStepHints(MailBotCommon):
 
     @mute_logger("odoo.addons.mail.models.mail_mail")
@@ -100,7 +100,7 @@ class TestStepHints(MailBotCommon):
         self.assertEqual(self.bot_user.odoobot_state, "onboarding_command")
 
 
-@tagged("odoobot", "post_install", "-at_install")
+@tagged("odoobot")
 class TestBodyIsHtml(MailBotCommon):
     """The matching rules see what the user typed, not the markup around it."""
 
@@ -131,7 +131,7 @@ class TestBodyIsHtml(MailBotCommon):
         self.assertEqual(self.bot_user.odoobot_state, "onboarding_command")
 
 
-@tagged("odoobot", "post_install", "-at_install")
+@tagged("odoobot")
 class TestHelpPredicate(MailBotCommon):
 
     def test_is_help_requested_is_a_pure_predicate(self):
@@ -147,7 +147,7 @@ class TestHelpPredicate(MailBotCommon):
                              f"{body!r} is not a help request")
 
 
-@tagged("odoobot", "post_install", "-at_install")
+@tagged("odoobot")
 class TestNotificationOrder(MailBotCommon):
 
     @mute_logger("odoo.addons.mail.models.mail_mail")
@@ -183,7 +183,7 @@ class TestNotificationOrder(MailBotCommon):
         )
 
 
-@tagged("odoobot", "post_install", "-at_install")
+@tagged("odoobot")
 class TestBatchPost(MailBotCommon):
 
     @mute_logger("odoo.addons.mail.models.mail_mail")

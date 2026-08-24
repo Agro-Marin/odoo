@@ -4,7 +4,7 @@ from odoo.tools import mute_logger
 from odoo.addons.mail_bot.tests.common import MailBotCommon
 
 
-@tagged("odoobot", "post_install", "-at_install")
+@tagged("odoobot")
 class TestOnboardingFlow(MailBotCommon):
 
     def _attachment(self):
@@ -51,7 +51,7 @@ class TestOnboardingFlow(MailBotCommon):
         self.assertEqual(self.bot_user.odoobot_state, "onboarding_emoji")
 
 
-@tagged("odoobot", "post_install", "-at_install")
+@tagged("odoobot")
 class TestCannedResponseCleanup(MailBotCommon):
 
     def _reach_canned_step(self):

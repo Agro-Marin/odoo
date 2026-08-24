@@ -16,7 +16,7 @@ _HISTORICAL_BMP = frozenset(
 )
 
 
-@tagged("odoobot", "post_install", "-at_install")
+@tagged("odoobot")
 class TestEmojiDetection(MailBotCommon):
 
     def _picker_emojis(self):
