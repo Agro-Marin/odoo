@@ -12,8 +12,14 @@ SLEEP_INTERVAL = 60
 CRON_NOTIFY_JITTER_MAX_S = 0.1
 
 
+#: Exponent ceiling for :func:`capped_backoff`.  ``2 ** 30`` already dwarfs any
+#: ``ceiling`` this package passes; the bound exists only to keep an unbounded
+#: ``attempts`` from building a bignum on its way to being clamped away.
+_MAX_BACKOFF_EXPONENT = 30
+
+
 def capped_backoff(attempts: int, ceiling: int = SLEEP_INTERVAL) -> int:
-    return min(2 ** min(attempts, ceiling.bit_length()), ceiling)
+    return min(2 ** min(attempts, _MAX_BACKOFF_EXPONENT), ceiling)
 
 
 def memory_info(process: Any) -> int:
