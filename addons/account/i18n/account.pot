@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0+e\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-23 18:33+0000\n"
-"PO-Revision-Date: 2026-08-23 18:33+0000\n"
+"POT-Creation-Date: 2026-08-24 08:20+0000\n"
+"PO-Revision-Date: 2026-08-24 08:20+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -193,6 +193,14 @@ msgid "%(tax_name)s (rounding)"
 msgstr ""
 
 #. module: account
+#. odoo-python
+#: code:addons/account/models/account_bank_statement_line.py:0
+msgid ""
+"%(transaction)s is already matched with journal items, so its amount can no longer change: rebuilding it would delete posted entries.\n"
+"Undo the reconciliation first, then change the amount."
+msgstr ""
+
+#. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_automatic_entry_wizard_form
 msgid "%<span class=\"px-3\"/>("
 msgstr ""
@@ -231,19 +239,19 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/partner.py:0
+#: code:addons/account/models/account_fiscal_position.py:0
 msgid "%s taxes"
 msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid "%s, or / if not applicable"
 msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/partner.py:0
+#: code:addons/account/models/res_partner.py:0
 msgid "%s, or not applicable"
 msgstr ""
 
@@ -363,7 +371,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid "/ if not applicable"
 msgstr ""
 
@@ -1575,7 +1583,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/partner.py:0
+#: code:addons/account/models/account_fiscal_position.py:0
 msgid "A fiscal position with a foreign VAT already exists in this country."
 msgstr ""
 
@@ -1606,6 +1614,11 @@ msgid ""
 msgstr ""
 
 #. module: account
+#: model:ir.model.constraint,message:account.constraint_account_partial_reconcile_check_distinct_move_lines
+msgid "A journal item cannot be reconciled with itself."
+msgstr ""
+
+#. module: account
 #. odoo-python
 #: code:addons/account/models/account_report.py:0
 msgid "A line cannot have both children and a groupby value (line '%s')."
@@ -1619,7 +1632,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid "A new Hard Lock Date must be posterior (or equal) to the previous one."
 msgstr ""
 
@@ -1632,6 +1645,11 @@ msgstr ""
 #. odoo-python
 #: code:addons/account/models/account_move_line.py:0
 msgid "A partial matching number must have partials"
+msgstr ""
+
+#. module: account
+#: model:ir.model.constraint,message:account.constraint_account_partial_reconcile_check_nonzero_amount
+msgid "A partial reconciliation must reconcile a non-zero amount."
 msgstr ""
 
 #. module: account
@@ -1706,6 +1724,11 @@ msgid "Abnormal Date Warning"
 msgstr ""
 
 #. module: account
+#: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
+msgid "Access Control"
+msgstr ""
+
+#. module: account
 #: model:ir.model,name:account.model_res_groups
 msgid "Access Groups"
 msgstr ""
@@ -1742,6 +1765,14 @@ msgstr ""
 msgid ""
 "Account %(account)s will be split in %(num_accounts)s, one for each "
 "company:\n"
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/account_move_line.py:0
+msgid ""
+"Account %(name)s (%(code)s) is not one of the accounts allowed on journal "
+"%(journal)s."
 msgstr ""
 
 #. module: account
@@ -2246,6 +2277,14 @@ msgstr ""
 #. module: account
 #: model:account.account,name:account.2_account_account_us_pos_receivable
 msgid "Accounts Receivable (PoS)"
+msgstr ""
+
+#. module: account
+#: model:ir.model.fields,help:account.field_account_journal__allowed_account_ids
+msgid ""
+"Accounts a journal item in this journal may use. Leave empty to allow any "
+"account. The journal's own accounts are always usable and need not be "
+"listed."
 msgstr ""
 
 #. module: account
@@ -2778,8 +2817,18 @@ msgid "Allow to configure taxes using cash basis"
 msgstr ""
 
 #. module: account
+#: model:ir.model.fields,field_description:account.field_account_journal__allowed_account_ids
+msgid "Allowed Accounts"
+msgstr ""
+
+#. module: account
 #: model:ir.model.fields,field_description:account.field_account_move_line__allowed_uom_ids
 msgid "Allowed Uom"
+msgstr ""
+
+#. module: account
+#: model:ir.model.fields,field_description:account.field_account_journal__allowed_user_ids
+msgid "Allowed Users"
 msgstr ""
 
 #. module: account
@@ -2819,27 +2868,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__always_tax_exigible
 #: model:ir.model.fields,field_description:account.field_account_move__always_tax_exigible
 msgid "Always Tax Exigible"
-msgstr ""
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_partial_reconcile__amount
-msgid ""
-"Always positive amount concerned by this matching expressed in the company "
-"currency."
-msgstr ""
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_partial_reconcile__credit_amount_currency
-msgid ""
-"Always positive amount concerned by this matching expressed in the credit "
-"line foreign currency."
-msgstr ""
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_partial_reconcile__debit_amount_currency
-msgid ""
-"Always positive amount concerned by this matching expressed in the debit "
-"line foreign currency."
 msgstr ""
 
 #. module: account
@@ -3356,7 +3384,7 @@ msgstr ""
 #. module: account
 #. odoo-python
 #: code:addons/account/models/account_move_sync.py:0
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 #: code:addons/account/tests/test_marin_account_move_sync_fixes.py:0
 #: model:ir.model.fields.selection,name:account.selection__account_move_line__display_type__balancing
 msgid "Automatic Balancing Line"
@@ -3872,7 +3900,7 @@ msgstr ""
 #. module: account
 #. odoo-python
 #: code:addons/account/controllers/portal.py:0
-#: code:addons/account/models/account_journal_dashboard.py:0
+#: code:addons/account/models/account_journal_sample_bill.py:0
 #: model:ir.actions.act_window,name:account.action_move_in_invoice
 #: model:ir.actions.act_window,name:account.action_move_in_invoice_type
 #: model:ir.ui.menu,name:account.menu_action_move_in_invoice_type
@@ -4071,7 +4099,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid "Can't disable restricted audit trail: forced by localization."
 msgstr ""
 
@@ -4133,7 +4161,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid ""
 "Cannot change Price Tax computation method on a company that has already "
 "started invoicing."
@@ -4338,6 +4366,22 @@ msgstr ""
 #. odoo-python
 #: code:addons/account/models/chart_template.py:0
 msgid "Cash basis transition account"
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/account_partial_reconcile.py:0
+msgid ""
+"Cash-basis taxes cannot be allocated for %(move)s because its company-"
+"currency payment total is zero."
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/account_partial_reconcile.py:0
+msgid ""
+"Cash-basis taxes cannot be allocated for %(move)s because its foreign-"
+"currency payment total is zero."
 msgstr ""
 
 #. module: account
@@ -4906,7 +4950,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid "Corrupted data on journal entry with id %(id)s (%(name)s)."
 msgstr ""
 
@@ -6521,12 +6565,6 @@ msgid "Display SEPA QR-code"
 msgstr ""
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__display_send_button
-#: model:ir.model.fields,field_description:account.field_account_move__display_send_button
-msgid "Display Send Button"
-msgstr ""
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_merge_wizard_line__display_type
 #: model:ir.model.fields,field_description:account.field_account_move_line__display_type
 msgid "Display Type"
@@ -6667,7 +6705,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 #: code:addons/account/wizard/account_secure_entries_wizard.py:0
 #: model:ir.model.fields,field_description:account.field_account_report__filter_show_draft
 msgid "Draft Entries"
@@ -7114,7 +7152,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid "Entries are correctly hashed"
 msgstr ""
 
@@ -8113,7 +8151,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid "Group Payments Number Sequence"
 msgstr ""
 
@@ -9071,7 +9109,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/partner.py:0
+#: code:addons/account/models/account_fiscal_position.py:0
 msgid ""
 "Invalid \"Zip Range\", You have to configure both \"From\" and \"To\" values"
 " for the zip range and \"To\" should be greater than \"From\"."
@@ -9092,7 +9130,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid "Invalid fiscal year last day"
 msgstr ""
 
@@ -9438,7 +9476,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/partner.py:0
+#: code:addons/account/models/res_partner.py:0
 msgid "Invoices/Bills/Mandates"
 msgstr ""
 
@@ -9693,6 +9731,14 @@ msgid "Journal"
 msgstr ""
 
 #. module: account
+#. odoo-python
+#: code:addons/account/models/account_journal.py:0
+msgid ""
+"Journal %(journal)s already has journal items on %(account)s, which this "
+"list of allowed accounts excludes."
+msgstr ""
+
+#. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_hash_integrity
 msgid "Journal (Sequence Prefix)"
 msgstr ""
@@ -9878,11 +9924,6 @@ msgstr ""
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_model_search
 msgid "Journals Availability"
-msgstr ""
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_journal__json_activity_data
-msgid "Json Activity Data"
 msgstr ""
 
 #. module: account
@@ -10228,6 +10269,15 @@ msgstr ""
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__line_ids
 msgid "Line"
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/account_report.py:0
+msgid ""
+"Line \"%(line)s\" belongs to report \"%(report)s\" but its parent "
+"\"%(parent)s\" belongs to \"%(parent_report)s\". A line and its parent must "
+"be in the same report."
 msgstr ""
 
 #. module: account
@@ -11140,7 +11190,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/account_journal_dashboard.py:0
+#: code:addons/account/models/account_journal.py:0
 msgid ""
 "No journal could be found in company %(company_name)s for any of those "
 "types: %(journal_types)s"
@@ -11211,6 +11261,27 @@ msgstr ""
 #: model:account.account,name:account.1_non_current_assets
 #: model:account.account,name:account.2_account_account_us_non_current_assets
 msgid "Non-current assets"
+msgstr ""
+
+#. module: account
+#: model:ir.model.fields,help:account.field_account_partial_reconcile__amount
+msgid ""
+"Non-negative amount concerned by this matching expressed in the company "
+"currency."
+msgstr ""
+
+#. module: account
+#: model:ir.model.fields,help:account.field_account_partial_reconcile__credit_amount_currency
+msgid ""
+"Non-negative amount concerned by this matching expressed in the credit line "
+"foreign currency."
+msgstr ""
+
+#. module: account
+#: model:ir.model.fields,help:account.field_account_partial_reconcile__debit_amount_currency
+msgid ""
+"Non-negative amount concerned by this matching expressed in the debit line "
+"foreign currency."
 msgstr ""
 
 #. module: account
@@ -11669,7 +11740,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 #: model:ir.model.fields,field_description:account.field_res_company__account_opening_move_id
 msgid "Opening Journal Entry"
 msgstr ""
@@ -11681,7 +11752,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid "Opening balance"
 msgstr ""
 
@@ -12050,6 +12121,27 @@ msgid "Partial Reconcile"
 msgstr ""
 
 #. module: account
+#: model:ir.model.constraint,message:account.constraint_account_partial_reconcile_check_nonnegative_amounts
+msgid "Partial reconciliation amounts must be finite and non-negative."
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/account_partial_reconcile.py:0
+msgid ""
+"Partial reconciliations must belong to the same company hierarchy and use "
+"the invoice-side company."
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/account_partial_reconcile.py:0
+msgid ""
+"Partial reconciliations require journal items on the same account, with a "
+"positive debit direction and a negative credit direction."
+msgstr ""
+
+#. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_invoice_report__payment_state__partial
 #: model:ir.model.fields.selection,name:account.selection__account_move__payment_state__partial
 #: model:ir.model.fields.selection,name:account.selection__account_move__status_in_payment__partial
@@ -12156,7 +12248,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/partner.py:0
+#: code:addons/account/models/res_partner.py:0
 msgid "Partners that are used in hashed entries cannot be merged."
 msgstr ""
 
@@ -12564,7 +12656,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid "Please contact your accountant to print the Hash integrity result."
 msgstr ""
 
@@ -12576,7 +12668,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid ""
 "Please install a chart of accounts or create a miscellaneous journal before "
 "proceeding."
@@ -12954,7 +13046,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 #: model:account.account,name:account.1_profit_or_loss
 #: model:account.account,name:account.2_unaffected_earnings_account
 msgid "Profit or Loss Appropriation"
@@ -13507,6 +13599,12 @@ msgstr ""
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_report_expression__report_line_name
 msgid "Report Line Name"
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/account_report.py:0
+msgid "Report lines cannot form a recursive parent hierarchy."
 msgstr ""
 
 #. module: account
@@ -14531,13 +14629,13 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid "Setup Bank Account"
 msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid "Setup Credit Card Account"
 msgstr ""
 
@@ -14655,6 +14753,12 @@ msgid "Show Reset To Draft Button"
 msgstr ""
 
 #. module: account
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__show_send_button
+#: model:ir.model.fields,field_description:account.field_account_move__show_send_button
+msgid "Show Send Button"
+msgstr ""
+
+#. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__show_taxable_supply_date
 #: model:ir.model.fields,field_description:account.field_account_move__show_taxable_supply_date
 msgid "Show Taxable Supply Date"
@@ -14662,7 +14766,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid "Show Unreconciled Bank Statement Line"
 msgstr ""
 
@@ -14685,7 +14789,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid "Show draft entries"
 msgstr ""
 
@@ -14732,7 +14836,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid "Some documents are being sent by another process already."
 msgstr ""
 
@@ -15767,7 +15871,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid "The Hard Lock Date cannot be removed."
 msgstr ""
 
@@ -15943,7 +16047,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/partner.py:0
+#: code:addons/account/models/res_partner.py:0
 msgid ""
 "The commercial partner has been updated for all related accounting entries."
 msgstr ""
@@ -15959,7 +16063,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/partner.py:0
+#: code:addons/account/models/account_fiscal_position.py:0
 msgid ""
 "The country of the foreign VAT number could not be detected. Please assign a"
 " country to the fiscal position."
@@ -16303,7 +16407,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/partner.py:0
+#: code:addons/account/models/res_partner.py:0
 msgid "The partner cannot be deleted because it is used in Accounting"
 msgstr ""
 
@@ -16635,7 +16739,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid ""
 "There are still draft entries in the period you want to hard lock. You "
 "should either post or delete them."
@@ -16652,7 +16756,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid ""
 "There are still unreconciled bank statement lines in the period you want to "
 "lock.You should either reconcile or delete them."
@@ -16667,7 +16771,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid ""
 "There is no journal entry flagged for accounting data inalterability yet."
 msgstr ""
@@ -17217,7 +17321,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/partner.py:0
+#: code:addons/account/models/res_partner.py:0
 msgid ""
 "Total Receivable/Payable can only be filtered with a numeric comparison (<, "
 "<=, =, >, >=) against an amount."
@@ -17616,7 +17720,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid "Unreconciled Transactions"
 msgstr ""
 
@@ -17877,6 +17981,14 @@ msgstr ""
 #. module: account
 #: model:ir.model.fields,field_description:account.field_res_company__user_tax_lock_date
 msgid "User Tax Lock Date"
+msgstr ""
+
+#. module: account
+#: model:ir.model.fields,help:account.field_account_journal__allowed_user_ids
+msgid ""
+"Users allowed to use this journal on a journal entry. Leave empty to let "
+"everyone use it. This does not hide existing entries -- reading them is "
+"governed by record rules."
 msgstr ""
 
 #. module: account
@@ -18544,7 +18656,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid ""
 "You cannot change the currency of the company since some journal items "
 "already exist"
@@ -18560,7 +18672,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/partner.py:0
+#: code:addons/account/models/account_fiscal_position.py:0
 msgid ""
 "You cannot create a fiscal position with a country outside of the selected "
 "country group."
@@ -18568,7 +18680,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/partner.py:0
+#: code:addons/account/models/account_fiscal_position.py:0
 msgid ""
 "You cannot create a fiscal position with a foreign VAT within your fiscal "
 "country without assigning it a state."
@@ -18705,7 +18817,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/company.py:0
+#: code:addons/account/models/res_company.py:0
 msgid ""
 "You cannot import the \"opening_balance\" if the opening move (%s) is "
 "already posted. If you are absolutely sure you want to modify the opening "
@@ -18854,7 +18966,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/partner.py:0
+#: code:addons/account/models/res_partner.py:0
 msgid ""
 "You cannot set a partner as an invoicing address of another if they have a "
 "different %(vat_label)s."
@@ -18973,7 +19085,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/account_journal_dashboard.py:0
+#: code:addons/account/models/account_journal_sample_bill.py:0
 msgid ""
 "You may only use samples in demo mode, try uploading one of your invoices "
 "instead."
@@ -19278,7 +19390,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/partner.py:0
+#: code:addons/account/models/account_fiscal_position.py:0
 msgid "fiscal position [%s]"
 msgstr ""
 
@@ -19364,7 +19476,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/partner.py:0
+#: code:addons/account/models/res_partner.py:0
 msgid "not applicable"
 msgstr ""
 
