@@ -1,4 +1,4 @@
 {
-  "count": 22,
-  "note": "res.company._default_logo is no longer a hook doing two jobs, 23 -> 22. THE FIX IS 24880109a03s, NOT THIS COMMITS: it extracted a module-level _get_default_logo(), left _default_logo as a hook that forwards to it, and repointed _compute_uses_default_logo -- which needs the same bytes to answer whether the logo is still the default -- at the helper directly. That is precisely the split ADR-0051 asks for, and it is the first finding of this gate to be closed by design rather than by the measurement being corrected. Banked here only because the ratchet is exact in both directions and that commit left it red at HEAD; the credit belongs to the commit that did the work. The chain is worth recording: the field-hook naming drain renamed _get_logo to _default_logo, which is what made the two jobs legible, and the purity gate reported it the moment the name told the truth."
+  "count": 24,
+  "note": "Re-measured on the linear replay: 22 -> 24, the same +2 `0bead38ba05` recorded and for the same reason. The floor replayed from this branch predates origin's renames; with origin's spelling in place ADR-0051's gate recognises two more methods as field hooks. Nothing here made a hook impure."
 }
