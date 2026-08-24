@@ -1,6 +1,7 @@
 from odoo import Command, fields
 from odoo.exceptions import ValidationError
 from odoo.tests import Form, tagged
+from odoo.tools import format_date
 from odoo.tools.safe_eval import datetime
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
@@ -271,14 +272,14 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
     def test_payment_term_compute_method_with_cash_discount(self):
         self.pay_term_a.early_pay_discount_computation = "included"
         computed_term_a = self.pay_term_a._compute_terms(
-            fields.Date.from_string("2016-01-01"),
-            self.env.company.currency_id,
-            self.env.company,
-            150.0,
-            150.0,
-            1.0,
-            1000.0,
-            1000.0,
+            date_ref=fields.Date.from_string("2016-01-01"),
+            currency=self.env.company.currency_id,
+            company=self.env.company,
+            tax_amount=150.0,
+            tax_amount_currency=150.0,
+            sign=1.0,
+            untaxed_amount=1000.0,
+            untaxed_amount_currency=1000.0,
         )
         self.assertDictEqual(
             {
@@ -310,14 +311,14 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         self.assertEqual(rate, 0.5)
         self.pay_term_a.early_pay_discount_computation = "included"
         computed_term_a = self.pay_term_a._compute_terms(
-            fields.Date.from_string("2016-01-01"),
-            foreign_currency,
-            self.env.company,
-            75,
-            150,
-            1,
-            359.18,
-            718.35,
+            date_ref=fields.Date.from_string("2016-01-01"),
+            currency=foreign_currency,
+            company=self.env.company,
+            tax_amount=75,
+            tax_amount_currency=150,
+            sign=1,
+            untaxed_amount=359.18,
+            untaxed_amount_currency=718.35,
             cash_rounding=self.cash_rounding_a,
         )
         self.assertDictEqual(
@@ -345,14 +346,14 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
 
     def test_payment_term_compute_method_without_cash_discount(self):
         computed_term_b = self.pay_term_b._compute_terms(
-            fields.Date.from_string("2016-01-01"),
-            self.env.company.currency_id,
-            self.env.company,
-            150.0,
-            150.0,
-            1.0,
-            1000.0,
-            1000.0,
+            date_ref=fields.Date.from_string("2016-01-01"),
+            currency=self.env.company.currency_id,
+            company=self.env.company,
+            tax_amount=150.0,
+            tax_amount_currency=150.0,
+            sign=1.0,
+            untaxed_amount=1000.0,
+            untaxed_amount_currency=1000.0,
         )
         self.assertDictEqual(
             {
@@ -389,14 +390,14 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         self.assertEqual(rate, 0.5)
         self.pay_term_a.early_pay_discount_computation = "included"
         computed_term_b = self.pay_term_b._compute_terms(
-            fields.Date.from_string("2016-01-01"),
-            foreign_currency,
-            self.env.company,
-            75,
-            150,
-            1,
-            359.18,
-            718.35,
+            date_ref=fields.Date.from_string("2016-01-01"),
+            currency=foreign_currency,
+            company=self.env.company,
+            tax_amount=75,
+            tax_amount_currency=150,
+            sign=1,
+            untaxed_amount=359.18,
+            untaxed_amount_currency=718.35,
             cash_rounding=self.cash_rounding_a,
         )
         self.assertDictEqual(
@@ -411,7 +412,7 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
             {
                 "total_amount": 434.18,
                 "discount_balance": 0,
-                "discount_amount_currency": None,
+                "discount_amount_currency": 0,
                 "line_ids": [
                     {
                         "date": datetime.date(2016, 1, 3),
@@ -436,14 +437,14 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
     def test_payment_term_compute_method_early_excluded(self):
         self.pay_term_a.early_pay_discount_computation = "excluded"
         computed_term_a = self.pay_term_a._compute_terms(
-            fields.Date.from_string("2016-01-01"),
-            self.env.company.currency_id,
-            self.env.company,
-            150.0,
-            150.0,
-            1.0,
-            1000.0,
-            1000.0,
+            date_ref=fields.Date.from_string("2016-01-01"),
+            currency=self.env.company.currency_id,
+            company=self.env.company,
+            tax_amount=150.0,
+            tax_amount_currency=150.0,
+            sign=1.0,
+            untaxed_amount=1000.0,
+            untaxed_amount_currency=1000.0,
         )
 
         self.assertDictEqual(
@@ -498,14 +499,14 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         )
 
         computed_term = pay_term._compute_terms(
-            fields.Date.from_string("2016-01-01"),
-            self.other_currency,
-            self.env.company,
-            0.0,
-            0.0,
-            1.0,
-            0.04,
-            0.09,
+            date_ref=fields.Date.from_string("2016-01-01"),
+            currency=self.other_currency,
+            company=self.env.company,
+            tax_amount=0.0,
+            tax_amount_currency=0.0,
+            sign=1.0,
+            untaxed_amount=0.04,
+            untaxed_amount_currency=0.09,
         )
         self.assertEqual(
             [
@@ -542,14 +543,14 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         )
 
         computed_term = pay_term._compute_terms(
-            fields.Date.from_string("2016-01-01"),
-            self.env.company.currency_id,
-            self.env.company,
-            0.0,
-            0.0,
-            1.0,
-            0.03,
-            0.03,
+            date_ref=fields.Date.from_string("2016-01-01"),
+            currency=self.env.company.currency_id,
+            company=self.env.company,
+            tax_amount=0.0,
+            tax_amount_currency=0.0,
+            sign=1.0,
+            untaxed_amount=0.03,
+            untaxed_amount_currency=0.03,
         )
         self.assertEqual(
             [
@@ -590,14 +591,14 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         )
 
         computed_term = pay_term._compute_terms(
-            fields.Date.from_string("2016-01-01"),
-            self.env.company.currency_id,
-            self.env.company,
-            0.0,
-            0.0,
-            1.0,
-            1000.0,
-            1000.0,
+            date_ref=fields.Date.from_string("2016-01-01"),
+            currency=self.env.company.currency_id,
+            company=self.env.company,
+            tax_amount=0.0,
+            tax_amount_currency=0.0,
+            sign=1.0,
+            untaxed_amount=1000.0,
+            untaxed_amount_currency=1000.0,
         )
 
         self.assertEqual(
@@ -639,14 +640,14 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         )
 
         computed_term = pay_term._compute_terms(
-            fields.Date.from_string("2016-01-01"),
-            self.env.company.currency_id,
-            self.env.company,
-            0.0,
-            0.0,
-            1.0,
-            1000.0,
-            1000.0,
+            date_ref=fields.Date.from_string("2016-01-01"),
+            currency=self.env.company.currency_id,
+            company=self.env.company,
+            tax_amount=0.0,
+            tax_amount_currency=0.0,
+            sign=1.0,
+            untaxed_amount=1000.0,
+            untaxed_amount_currency=1000.0,
         )
 
         self.assertEqual(
@@ -695,14 +696,14 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         )
 
         computed_term = pay_term._compute_terms(
-            fields.Date.from_string("2016-01-01"),
-            self.env.company.currency_id,
-            self.env.company,
-            0.0,
-            0.0,
-            1.0,
-            1000.0,
-            1000.0,
+            date_ref=fields.Date.from_string("2016-01-01"),
+            currency=self.env.company.currency_id,
+            company=self.env.company,
+            tax_amount=0.0,
+            tax_amount_currency=0.0,
+            sign=1.0,
+            untaxed_amount=1000.0,
+            untaxed_amount_currency=1000.0,
         )
 
         self.assertEqual(
@@ -1059,9 +1060,9 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         immediate = self.env.ref("account.account_payment_term_immediate")
         self.assertTrue(immediate.is_immediate)
 
-    def test_days_next_month_unicode_numeric_raises_validation(self):
-        term = self.env["account.payment.term"].create({"name": "unicode days"})
-        for bad_value in ("²", "½", "Ⅻ"):
+    def test_days_next_month_out_of_range_raises_validation(self):
+        term = self.env["account.payment.term"].create({"name": "range days"})
+        for bad_value in (-1, 32):
             with self.assertRaises(ValidationError):
                 term.line_ids[0].write(
                     {
@@ -1069,3 +1070,262 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
                         "days_next_month": bad_value,
                     }
                 )
+
+    # -- a payment term is immediate only when nothing defers the due date --
+
+    def test_is_immediate_false_for_deferred_delay_types(self):
+        for delay_type in (
+            "days_after_end_of_month",
+            "days_after_end_of_next_month",
+            "days_end_of_month_on_the",
+        ):
+            term = self.env["account.payment.term"].create(
+                {
+                    "name": delay_type,
+                    "line_ids": [
+                        Command.create(
+                            {
+                                "value": "percent",
+                                "value_amount": 100,
+                                "nb_days": 0,
+                                "delay_type": delay_type,
+                            }
+                        )
+                    ],
+                }
+            )
+            due_date = term.line_ids._get_due_date(datetime.date(2026, 8, 10))
+            self.assertNotEqual(due_date, datetime.date(2026, 8, 10))
+            self.assertFalse(term.is_immediate)
+
+    # -- the printed early payment discount is the posted one --
+
+    def _create_early_discount_invoice(
+        self, price, cash_rounding=None, move_type="out_invoice"
+    ):
+        term = self.env["account.payment.term"].create(
+            {
+                "name": "2/7 net 30",
+                "early_discount": True,
+                "discount_percentage": 2.0,
+                "discount_days": 7,
+                "early_pay_discount_computation": "included",
+                "line_ids": [
+                    Command.create(
+                        {"value": "percent", "value_amount": 100, "nb_days": 30}
+                    )
+                ],
+            }
+        )
+        return self.env["account.move"].create(
+            {
+                "move_type": move_type,
+                "partner_id": self.partner_a.id,
+                "invoice_date": datetime.date(2026, 3, 1),
+                "invoice_payment_term_id": term.id,
+                "invoice_cash_rounding_id": cash_rounding.id
+                if cash_rounding
+                else False,
+                "invoice_line_ids": [
+                    Command.create(
+                        {"name": "x", "quantity": 1, "price_unit": price, "tax_ids": []}
+                    )
+                ],
+            }
+        )
+
+    def _payment_term_line(self, move):
+        return move.line_ids.filtered(lambda line: line.display_type == "payment_term")
+
+    def test_early_payment_discount_details_match_the_posted_line(self):
+        cash_rounding = self.env["account.cash.rounding"].create(
+            {
+                "name": "nearest 5",
+                "rounding": 5.0,
+                "strategy": "add_invoice_line",
+                "rounding_method": "HALF-UP",
+            }
+        )
+        move = self._create_early_discount_invoice(1234.57, cash_rounding)
+        line = self._payment_term_line(move)
+        self.assertEqual(
+            move._get_early_payment_discount_details(),
+            {
+                "amount_due": line.discount_amount_currency,
+                "date": format_date(self.env, line.discount_date),
+            },
+        )
+
+    def test_early_payment_discount_details_ignore_the_active_record(self):
+        cash_rounding = self.env["account.cash.rounding"].create(
+            {
+                "name": "nearest 5",
+                "rounding": 5.0,
+                "strategy": "add_invoice_line",
+                "rounding_method": "HALF-UP",
+            }
+        )
+        other = self._create_early_discount_invoice(1234.57, cash_rounding)
+        move = self._create_early_discount_invoice(99.0)
+        printed_alone = move.with_context(
+            active_model="account.move", active_id=move.id
+        )._get_early_payment_discount_details()
+        printed_in_batch = move.with_context(
+            active_model="account.move", active_id=other.id
+        )._get_early_payment_discount_details()
+        self.assertEqual(printed_in_batch, printed_alone)
+        self.assertEqual(printed_alone["amount_due"], 97.02)
+
+    def test_early_payment_discount_details_are_positive_on_a_vendor_bill(self):
+        move = self._create_early_discount_invoice(1000.0, move_type="in_invoice")
+        self.assertEqual(self._payment_term_line(move).discount_amount_currency, -980.0)
+        self.assertEqual(
+            move._get_early_payment_discount_details()["amount_due"], 980.0
+        )
+
+    # -- the percent sum is the term's invariant, whichever side writes it --
+
+    def test_percent_sum_is_checked_on_a_direct_line_write(self):
+        with self.assertRaises(ValidationError):
+            self.pay_term_today.line_ids.write({"value_amount": 50.0})
+            self.pay_term_today.line_ids.flush_recordset()
+
+    def test_switching_a_line_to_fixed_clears_the_auto_filled_amount(self):
+        term_form = Form(self.env["account.payment.term"])
+        term_form.name = "fixed first line"
+        with term_form.line_ids.edit(0) as line:
+            self.assertEqual(line.value_amount, 100.0)
+            line.value = "fixed"
+            self.assertEqual(line.value_amount, 0.0)
+        with term_form.line_ids.new() as line:
+            line.value_amount = 100
+            line.nb_days = 30
+        term = term_form.save()
+        self.assertEqual(
+            [(line.value, line.value_amount) for line in term.line_ids],
+            [("fixed", 0.0), ("percent", 100.0)],
+        )
+
+    # -- defaults must not overwrite what the user chose --
+
+    def test_company_change_keeps_a_manual_tax_reduction(self):
+        term = self.pay_term_today
+        term.write(
+            {"early_discount": True, "early_pay_discount_computation": "excluded"}
+        )
+        term.write({"company_id": self.env.company.id})
+        term.flush_recordset()
+        self.assertEqual(term.early_pay_discount_computation, "excluded")
+
+    def test_nb_days_chains_from_the_previous_line(self):
+        term = self.env["account.payment.term"].create(
+            {
+                "name": "chained days",
+                "line_ids": [
+                    Command.create(
+                        {"value": "percent", "value_amount": 40, "nb_days": 10}
+                    ),
+                    Command.create({"value": "percent", "value_amount": 30}),
+                    Command.create({"value": "percent", "value_amount": 30}),
+                ],
+            }
+        )
+        self.assertEqual(term.line_ids.mapped("nb_days"), [10, 40, 70])
+
+    def test_example_fields_read_their_context_keys(self):
+        model = self.env["account.payment.term"].with_context(
+            example_amount=777.0, example_date="2030-01-01"
+        )
+        self.assertEqual(
+            model.default_get(["example_amount", "example_date"]),
+            {"example_amount": 777.0, "example_date": datetime.date(2030, 1, 1)},
+        )
+
+    # -- nothing is due on an invoice that asks for nothing --
+
+    def test_zero_total_invoice_has_no_installment_amounts(self):
+        term = self.env["account.payment.term"].create(
+            {
+                "name": "fixed then balance",
+                "line_ids": [
+                    Command.create(
+                        {"value": "fixed", "value_amount": 100, "nb_days": 0}
+                    ),
+                    Command.create(
+                        {"value": "percent", "value_amount": 100, "nb_days": 30}
+                    ),
+                ],
+            }
+        )
+        move = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": datetime.date(2026, 3, 1),
+                "invoice_payment_term_id": term.id,
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "free",
+                            "quantity": 1,
+                            "price_unit": 0.0,
+                            "tax_ids": [],
+                        }
+                    )
+                ],
+            }
+        )
+        self.assertEqual(
+            self._payment_term_line(move).mapped("amount_currency"), [0.0, 0.0]
+        )
+
+    # -- the preview answers to every field the due date is built from --
+
+    def test_example_preview_follows_the_delay_type(self):
+        term = self.env["account.payment.term"].create(
+            {
+                "name": "preview",
+                "example_date": "2026-03-10",
+                "line_ids": [
+                    Command.create(
+                        {"value": "percent", "value_amount": 100, "nb_days": 0}
+                    )
+                ],
+            }
+        )
+        self.assertIn("03/10/2026", term.example_preview)
+        term.line_ids.delay_type = "days_after_end_of_next_month"
+        self.assertIn("04/30/2026", term.example_preview)
+        term.line_ids.write(
+            {"delay_type": "days_end_of_month_on_the", "days_next_month": 20}
+        )
+        self.assertIn("04/20/2026", term.example_preview)
+
+    def test_line_sequence_decides_which_line_carries_the_balance(self):
+        term = self.env["account.payment.term"].create(
+            {
+                "name": "resequenced",
+                "line_ids": [
+                    Command.create(
+                        {
+                            "value": "percent",
+                            "value_amount": 30,
+                            "nb_days": 0,
+                            "sequence": 10,
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "value": "percent",
+                            "value_amount": 70,
+                            "nb_days": 30,
+                            "sequence": 20,
+                        }
+                    ),
+                ],
+            }
+        )
+        self.assertEqual(term.line_ids.mapped("value_amount"), [30.0, 70.0])
+        term.line_ids[0].sequence = 30
+        term.invalidate_recordset(["line_ids"])
+        self.assertEqual(term.line_ids.mapped("value_amount"), [70.0, 30.0])

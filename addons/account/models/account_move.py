@@ -3773,6 +3773,19 @@ class AccountMove(models.Model):
     def _early_payment_discount_move_types(self):
         return ("out_invoice", "out_receipt", "in_invoice", "in_receipt")
 
+    def _get_early_payment_discount_details(self):
+        self.ensure_one()
+        # what the customer must pay is what reconciliation will settle, so read
+        # the posted line rather than pricing the discount a second time
+        line = self.line_ids.filtered(
+            lambda line: line.display_type == "payment_term"
+        )[:1]
+        sign = 1 if self.is_inbound(include_receipts=True) else -1
+        return {
+            "amount_due": sign * line.discount_amount_currency,
+            "date": format_date(self.env, line.discount_date),
+        }
+
 
     def _synchronize_business_models(self, changed_fields):
         if self.env.context.get("skip_account_move_synchronization"):

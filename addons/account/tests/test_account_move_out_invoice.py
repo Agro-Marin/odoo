@@ -6349,15 +6349,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
             }
         )
         invoice.action_post()
-        invoice = invoice.with_context(
-            active_model="account.move", active_id=invoice.id
-        )
-        discounted_amount = (
-            invoice.invoice_payment_term_id._get_amount_due_after_discount(
-                total_amount=invoice.amount_total,
-                tax_amount=invoice.amount_tax,
-            )
-        )
+        discounted_amount = invoice._get_early_payment_discount_details()["amount_due"]
         self.assertEqual(discounted_amount, 52.95)
 
     def test_search_move_sent_values(self):

@@ -65,6 +65,7 @@
                             <group string="Due Terms">
                                 <field name="line_ids" widget="payment_term_line_ids" nolabel="1" colspan="2">
                                     <list string="Payment Terms" editable="bottom" no_open="True">
+                                        <field name="sequence" widget="handle"/>
                                         <field name="value_amount"/>
                                         <field name="value" nolabel="1"/>
                                         <field name="nb_days" string="After"/>
