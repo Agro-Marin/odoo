@@ -43,6 +43,7 @@ const folderTestedValues = {
     alias_id: 1,
     alias_domain_id: 1,
     alias_name: "alias",
+    alias_email: "alias@odoo.com",
     alias_tag_ids: [1, 2],
     mail_alias_domain_count: 2,
     owner_id: serverState.userId,
