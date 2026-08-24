@@ -1,4 +1,4 @@
-from typing import Self
+from typing import Any, Self
 
 from markupsafe import Markup, escape
 
@@ -28,22 +28,14 @@ class GamificationKudosCategory(models.Model):
         help="Karma automatically granted to the recipient when kudos is sent.",
     )
     active = fields.Boolean(default=True)
-    kudos_count = fields.Integer("# Kudos", compute="_compute_kudos_count")
-
-    def _compute_kudos_count(self) -> None:
-        """Count kudos per category."""
-        if not self.ids:
-            for rec in self:
-                rec.kudos_count = 0
-            return
-        data = self.env["gamification.kudos"]._read_group(
-            [("category_id", "in", self.ids)],
-            groupby=["category_id"],
-            aggregates=["__count"],
-        )
-        count_map = {cat.id: count for cat, count in data}
-        for rec in self:
-            rec.kudos_count = count_map.get(rec.id, 0)
+    kudos_ids = fields.One2many("gamification.kudos", "category_id", string="Kudos")
+    # The hand-rolled compute this replaces carried no @api.depends at all, so
+    # the ORM cached its result for the whole transaction and nothing ever marked
+    # it dirty: the count was simply wrong from the first kudos onwards.  The
+    # category had no inverse one2many, which is why it hand-rolled a _read_group
+    # in the first place; declaring the relation makes the counter one line and
+    # its invalidation the ORM's problem.
+    kudos_count = fields.Count("kudos_ids", "# Kudos")
 
 
 class GamificationKudos(models.Model):
@@ -97,14 +89,16 @@ class GamificationKudos(models.Model):
         ondelete="restrict",
     )
     message = fields.Text("Message", required=True)
-    summary = fields.Char("Summary", compute="_compute_summary", store=True)
+    summary = fields.Char(
+        "Summary", compute="_compute_summary", store=True, precompute=True
+    )
     karma_granted = fields.Integer(
         "Karma Granted",
         readonly=True,
         help="Karma points granted to the recipient.",
     )
 
-    @api.depends("sender_id", "recipient_id", "category_id")
+    @api.depends("sender_id.name", "recipient_id.name", "category_id.name")
     def _compute_summary(self) -> None:
         """Generate a one-line summary for display."""
         for kudos in self:
@@ -138,17 +132,28 @@ class GamificationKudos(models.Model):
 
         records = super().create(vals_list)
 
+        # Batched: the caller may legitimately send many kudos at once (an
+        # import, a team-wide thank-you), and the per-record loop this replaces
+        # cost a karma write cycle, a message_post and a feed insert each.
+        karma_per_user: dict[Any, dict[str, Any]] = {}
         for kudos in records:
-            # Grant karma to recipient
             karma = kudos.category_id.karma_granted
-            if karma:
-                kudos.recipient_id.sudo()._add_karma(
-                    karma,
-                    source=kudos.sender_id,
-                    reason=_("Kudos: %s", kudos.category_id.name),
-                )
-                kudos.karma_granted = karma
+            if not karma:
+                continue
+            entry = karma_per_user.setdefault(
+                kudos.recipient_id,
+                {
+                    "gain": 0,
+                    "source": kudos.sender_id,
+                    "reason": _("Kudos: %s", kudos.category_id.name),
+                },
+            )
+            entry["gain"] += karma
+            kudos.karma_granted = karma
+        if karma_per_user:
+            self.env["res.users"].sudo()._add_karma_batch(karma_per_user)
 
+        for kudos in records:
             # Post to mail thread for social visibility
             # Use Markup so HTML tags render; %-formatting auto-escapes str values
             body = Markup(
@@ -167,12 +172,18 @@ class GamificationKudos(models.Model):
                 email_layout_xmlid="mail.mail_notification_light",
             )
 
-            # Log to unified activity feed
-            self.env["gamification.activity"]._log_kudos(
-                kudos.sender_id,
-                kudos.recipient_id,
-                kudos.category_id,
-                karma,
-            )
+        self.env["gamification.activity"]._log_batch(
+            [
+                {
+                    "activity_type": "kudos",
+                    "user_id": kudos.sender_id.id,
+                    "target_user_id": kudos.recipient_id.id,
+                    "icon": kudos.category_id.icon or "fa fa-heart",
+                    "karma_gained": kudos.karma_granted,
+                    "summary_args": {"category": kudos.category_id.name},
+                }
+                for kudos in records
+            ]
+        )
 
         return records

@@ -57,4 +57,27 @@
             <field name="nextcall" eval="(DateTime.now() + relativedelta(days=1)).strftime('%Y-%m-%d 08:00:00')"/>
         </record>
     </data>
+
+    <record id="ir_cron_update_seasons" model="ir.cron" forcecreate="True">
+        <field name="name">Gamification: start and end seasons on their dates</field>
+        <field name="model_id" ref="model_gamification_season"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_update_seasons()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active" eval="True"/>
+        <field name="nextcall" eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 05:00:00')"/>
+    </record>
+
+    <record id="ir_cron_check_skill_unlocks" model="ir.cron" forcecreate="True">
+        <field name="name">Gamification: unlock karma-gated skill nodes</field>
+        <field name="model_id" ref="model_gamification_skill_node"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_check_skill_unlocks()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active" eval="True"/>
+        <field name="nextcall" eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 07:30:00')"/>
+    </record>
+
 </odoo>

@@ -96,6 +96,12 @@ class GamificationGoal(models.Model):
         string="Display Mode", related="definition_id.display_mode", readonly=True
     )
 
+    #: Fields that decide whether a goal counts as reached, and therefore whether
+    #: its challenge pays out.  Writing any of them is a manager act.
+    OUTCOME_FIELDS = frozenset(
+        {"closed", "current", "end_date", "start_date", "state", "target_goal"}
+    )
+
     @api.depends("end_date", "last_update", "state")
     def _compute_color(self) -> None:
         """Set the color based on the goal's state and completion"""
@@ -195,11 +201,17 @@ class GamificationGoal(models.Model):
         return {self: result} if result else {}
 
     def update_goal(self) -> bool:
-        """Update the goals to recomputes values and change of states
+        """Recompute every goal's value and settle its state.
+
+        Split by computation mode: each ``_measure_*`` returns
+        ``{goal: values}`` for its own batch and this method owns the ordering,
+        the batched write and the optional intermediate commit.  It used to do
+        all four inline, which made it both the module's longest function and
+        its only C901 offender.
 
         If a manual goal is not updated for enough time, the user will be
         reminded to do so (done only once, in 'inprogress' state).
-        If a goal reaches the target value, the status is set to reached
+        If a goal reaches the target value, the status is set to reached.
         If the end date is passed (at least +1 day, time not considered) without
         the target value being reached, the goal is set as failed.
         """
@@ -207,175 +219,181 @@ class GamificationGoal(models.Model):
         for goal in self.with_context(prefetch_fields=False):
             goals_by_definition.setdefault(goal.definition_id, []).append(goal)
 
+        measure = {
+            "manually": self._measure_manual_goals,
+            "python": self._measure_python_goals,
+            "count": self._measure_aggregate_goals,
+            "sum": self._measure_aggregate_goals,
+        }
         for definition, goals in goals_by_definition.items():
-            goals_to_write = {}
-            if definition.computation_mode == "manually":
-                for goal in goals:
-                    goals_to_write[goal] = goal._check_remind_delay()
-            elif definition.computation_mode == "python":
-                # TODO batch execution
-                for goal in goals:
-                    # execute the chosen method
-                    cxt = {
-                        "object": goal,
-                        "env": self.env,
-                        "date": date,
-                        "datetime": datetime,
-                        "timedelta": timedelta,
-                        "time": time,
-                    }
-                    code = definition.compute_code.strip()
-                    safe_eval(code, cxt, mode="exec")
-                    # the result of the evaluated code is put in the 'result' local variable, propagated to the context
-                    result = cxt.get("result")
-                    if isinstance(result, (float, int)):
-                        goals_to_write.update(goal._get_write_values(result))
-                    else:
-                        _logger.error(
-                            "Invalid return content '%r' from the evaluation "
-                            "of code for definition %s, expected a number",
-                            result,
-                            definition.name,
-                        )
-
-            elif definition.computation_mode in ("count", "sum"):  # count or sum
-                # sudo: a count/sum goal measures an objective metric; under
-                # the caller's record rules the stored value would depend on
-                # who triggered the refresh (and pair badly with the sudo
-                # write below). Scoping still comes from the goal's own
-                # domain/batch_user_expression, not from the acting user.
-                Obj = self.env[definition.model_id.model].sudo()
-
-                field_date_name = definition.field_date_id.name
-                if definition.batch_mode:
-                    # batch mode, trying to do as much as possible in one request
-                    general_domain = ast.literal_eval(definition.domain)
-                    field_name = definition.batch_distinctive_field.name
-                    subqueries = {}
-                    for goal in goals:
-                        start_date = (field_date_name and goal.start_date) or False
-                        end_date = (field_date_name and goal.end_date) or False
-                        subqueries.setdefault((start_date, end_date), {}).update(
-                            {
-                                goal.id: safe_eval(
-                                    definition.batch_user_expression,
-                                    {"user": goal.user_id},
-                                )
-                            }
-                        )
-
-                    # the global query should be split by time periods (especially for recurrent goals)
-                    for (start_date, end_date), query_goals in subqueries.items():
-                        subquery_domain = list(general_domain)
-                        subquery_domain.append(
-                            (field_name, "in", list(set(query_goals.values())))
-                        )
-                        if start_date:
-                            subquery_domain.append((field_date_name, ">=", start_date))
-                        if end_date:
-                            subquery_domain.append((field_date_name, "<=", end_date))
-
-                        if definition.computation_mode == "count":
-                            user_values = Obj._read_group(
-                                subquery_domain,
-                                groupby=[field_name],
-                                aggregates=["__count"],
-                            )
-
-                        else:  # sum
-                            value_field_name = definition.field_id.name
-                            user_values = Obj._read_group(
-                                subquery_domain,
-                                groupby=[field_name],
-                                aggregates=[f"{value_field_name}:sum"],
-                            )
-
-                        # user_values has format of _read_group: [(<key>, <aggregate>), ...]
-                        # _read_group emits no row for a key with zero matches,
-                        # so build a lookup and default missing goals to 0 —
-                        # otherwise a goal whose value dropped to 0 would keep
-                        # its stale (possibly still 'reached') value.
-                        value_by_key = {
-                            (
-                                field_value.id
-                                if isinstance(field_value, models.Model)
-                                else field_value
-                            ): aggregate
-                            for field_value, aggregate in user_values
-                        }
-                        for goal in [g for g in goals if g.id in query_goals]:
-                            new_value = value_by_key.get(query_goals[goal.id], 0)
-                            goals_to_write.update(goal._get_write_values(new_value))
-
-                else:
-                    field_name = definition.field_id.name
-                    field = Obj._fields.get(field_name)
-                    sum_supported = bool(field) and field.type in {
-                        "integer",
-                        "float",
-                        "monetary",
-                    }
-                    if definition.computation_mode == "sum" and not sum_supported:
-                        # Deliberate, upstream-tested behaviour: summing a
-                        # non-numeric field degrades to counting matching rows
-                        # (see test_40_create_challenge_with_sum_goal, which
-                        # asserts the field is non-numeric on purpose).  Logged
-                        # because it is surprising when hit by accident.
-                        _logger.info(
-                            "Goal definition %s sums %r on %s, which is not "
-                            "numeric (type %r): counting rows instead.",
-                            definition.name,
-                            field_name,
-                            definition.model_id.model,
-                            field.type if field else None,
-                        )
-                    for goal in goals:
-                        # eval the domain with user replaced by goal user object
-                        domain = safe_eval(definition.domain, {"user": goal.user_id})
-
-                        # add temporal clause(s) to the domain if fields are filled on the goal
-                        if goal.start_date and field_date_name:
-                            domain.append((field_date_name, ">=", goal.start_date))
-                        if goal.end_date and field_date_name:
-                            domain.append((field_date_name, "<=", goal.end_date))
-
-                        if definition.computation_mode == "sum" and sum_supported:
-                            res = Obj._read_group(
-                                domain,
-                                [],
-                                [f"{field_name}:{definition.computation_mode}"],
-                            )
-                            new_value = res[0][0] or 0.0
-
-                        else:  # computation mode = count
-                            new_value = Obj.search_count(domain)
-
-                        goals_to_write.update(goal._get_write_values(new_value))
-
-            else:
+            handler = measure.get(definition.computation_mode)
+            if handler is None:
                 _logger.error(
                     "Invalid computation mode '%s' in definition %s",
                     definition.computation_mode,
                     definition.name,
                 )
-
-            # Batch writes: group goals by identical values dict
-            by_values: dict[frozenset, list[int]] = {}
-            for goal, values in goals_to_write.items():
-                if not values:
-                    continue
-                key = frozenset(values.items())
-                by_values.setdefault(key, []).append(goal.id)
-            # The values above are computed server-side, never user-supplied,
-            # so write as sudo: the refresh button must keep working for
-            # non-manager users without tripping the automatic-goal write
-            # guard, which only targets direct user writes of current/state.
-            Goal = self.env["gamification.goal"].sudo()
-            for vals_key, goal_ids in by_values.items():
-                Goal.browse(goal_ids).write(dict(vals_key))
+                continue
+            self._write_goal_values(handler(definition, goals))
             if self.env.context.get("commit_gamification"):
                 self.env.cr.commit()
         return True
+
+    def _write_goal_values(self, goals_to_write: dict) -> None:
+        """Write ``{goal: values}`` in one statement per distinct value set.
+
+        The values are computed server-side and never user-supplied, so this
+        writes as sudo: the refresh button must keep working for non-manager
+        users without tripping the outcome-field guard in ``write``, which only
+        targets direct user writes.
+        """
+        by_values: dict[frozenset, list[int]] = {}
+        for goal, values in goals_to_write.items():
+            if not values:
+                continue
+            by_values.setdefault(frozenset(values.items()), []).append(goal.id)
+        Goal = self.env["gamification.goal"].sudo()
+        for vals_key, goal_ids in by_values.items():
+            Goal.browse(goal_ids).write(dict(vals_key))
+
+    def _measure_manual_goals(self, definition, goals) -> dict:
+        """Manual goals hold whatever the user last entered; only remind."""
+        return {goal: goal._check_remind_delay() for goal in goals}
+
+    def _measure_python_goals(self, definition, goals) -> dict:
+        """Run the definition's Python snippet once per goal."""
+        # TODO batch execution
+        goals_to_write = {}
+        code = definition.compute_code.strip()
+        for goal in goals:
+            cxt = {
+                "object": goal,
+                "env": self.env,
+                "date": date,
+                "datetime": datetime,
+                "timedelta": timedelta,
+                "time": time,
+            }
+            safe_eval(code, cxt, mode="exec")
+            # the result of the evaluated code is put in the 'result' local
+            # variable, propagated to the context
+            result = cxt.get("result")
+            if isinstance(result, (float, int)):
+                goals_to_write.update(goal._get_write_values(result))
+            else:
+                _logger.error(
+                    "Invalid return content '%r' from the evaluation "
+                    "of code for definition %s, expected a number",
+                    result,
+                    definition.name,
+                )
+        return goals_to_write
+
+    def _measure_aggregate_goals(self, definition, goals) -> dict:
+        """Count or sum records for count/sum definitions."""
+        # sudo: a count/sum goal measures an objective metric; under the
+        # caller's record rules the stored value would depend on who triggered
+        # the refresh (and pair badly with the sudo write). Scoping still comes
+        # from the goal's own domain/batch_user_expression, not from the actor.
+        Obj = self.env[definition.model_id.model].sudo()
+        if definition.batch_mode:
+            return self._measure_batched_goals(definition, goals, Obj)
+        return self._measure_per_goal(definition, goals, Obj)
+
+    def _measure_batched_goals(self, definition, goals, Obj) -> dict:
+        """Batch mode: one aggregate per (start_date, end_date) window."""
+        goals_to_write = {}
+        field_date_name = definition.field_date_id.name
+        general_domain = ast.literal_eval(definition.domain)
+        field_name = definition.batch_distinctive_field.name
+
+        subqueries = {}
+        for goal in goals:
+            start_date = (field_date_name and goal.start_date) or False
+            end_date = (field_date_name and goal.end_date) or False
+            subqueries.setdefault((start_date, end_date), {})[goal.id] = safe_eval(
+                definition.batch_user_expression, {"user": goal.user_id}
+            )
+
+        # the global query should be split by time periods (especially for
+        # recurrent goals)
+        for (start_date, end_date), query_goals in subqueries.items():
+            subquery_domain = list(general_domain)
+            subquery_domain.append((field_name, "in", list(set(query_goals.values()))))
+            if start_date:
+                subquery_domain.append((field_date_name, ">=", start_date))
+            if end_date:
+                subquery_domain.append((field_date_name, "<=", end_date))
+
+            if definition.computation_mode == "count":
+                aggregate = "__count"
+            else:
+                aggregate = f"{definition.field_id.name}:sum"
+            user_values = Obj._read_group(
+                subquery_domain, groupby=[field_name], aggregates=[aggregate]
+            )
+
+            # _read_group emits no row for a key with zero matches, so build a
+            # lookup and default missing goals to 0 -- otherwise a goal whose
+            # value dropped to 0 would keep its stale (possibly still 'reached')
+            # value.
+            value_by_key = {
+                (
+                    field_value.id
+                    if isinstance(field_value, models.Model)
+                    else field_value
+                ): value
+                for field_value, value in user_values
+            }
+            for goal in (g for g in goals if g.id in query_goals):
+                new_value = value_by_key.get(query_goals[goal.id], 0)
+                goals_to_write.update(goal._get_write_values(new_value))
+        return goals_to_write
+
+    def _measure_per_goal(self, definition, goals, Obj) -> dict:
+        """Non-batch mode: evaluate the domain once per goal."""
+        goals_to_write = {}
+        field_date_name = definition.field_date_id.name
+        field_name = definition.field_id.name
+        field = Obj._fields.get(field_name)
+        sum_supported = bool(field) and field.type in {"integer", "float", "monetary"}
+        if definition.computation_mode == "sum" and not sum_supported:
+            # Deliberate, upstream-tested behaviour: summing a non-numeric field
+            # degrades to counting matching rows (see
+            # test_40_create_challenge_with_sum_goal, which asserts the field is
+            # non-numeric on purpose).  Logged because it is surprising when hit
+            # by accident.
+            _logger.info(
+                "Goal definition %s sums %r on %s, which is not numeric "
+                "(type %r): counting rows instead.",
+                definition.name,
+                field_name,
+                definition.model_id.model,
+                field.type if field else None,
+            )
+
+        # Goals sharing a domain share an answer.  A definition whose domain
+        # does not mention `user` gives every goal of the same period the same
+        # number, and used to pay a search_count each to find that out.
+        by_domain: dict[str, tuple[list, list]] = {}
+        for goal in goals:
+            domain = safe_eval(definition.domain, {"user": goal.user_id})
+            if field_date_name:
+                if goal.start_date:
+                    domain.append((field_date_name, ">=", goal.start_date))
+                if goal.end_date:
+                    domain.append((field_date_name, "<=", goal.end_date))
+            by_domain.setdefault(repr(domain), (domain, []))[1].append(goal)
+
+        for domain, domain_goals in by_domain.values():
+            if definition.computation_mode == "sum" and sum_supported:
+                res = Obj._read_group(domain, [], [f"{field_name}:sum"])
+                new_value = res[0][0] or 0.0
+            else:
+                new_value = Obj.search_count(domain)
+            for goal in domain_goals:
+                goals_to_write.update(goal._get_write_values(new_value))
+        return goals_to_write
 
     def action_start(self) -> bool:
         """Mark a goal as started.
@@ -431,25 +449,43 @@ class GamificationGoal(models.Model):
                     _("Can not modify the configuration of a started goal")
                 )
 
-        # Automatic goals (count/sum/python) are computed by the challenge cron.
-        # Only managers/system may write their value or state directly; a regular
-        # employee could otherwise force their own goal to 'reached' and trigger
-        # challenge rewards.  Manual goals remain user-updatable (their whole point).
-        if ("current" in vals or "state" in vals) and not (
+        # Guarding `current` and `state` alone was not enough: every field in
+        # OUTCOME_FIELDS feeds the reached/failed decision, so lowering your own
+        # `target_goal` is exactly as good as writing your own `current`.  An
+        # employee could set it to 0 on an automatic goal, wait one night, and
+        # collect the challenge's reward badge -- including a `rule_auth='nobody'`
+        # badge that exists precisely so users cannot grant it.
+        #
+        # `current` stays writable by the goal's owner because moving the value of
+        # a *manual* goal is the whole point of one; the wizard is that path.
+        # Declaring the outcome by hand is not, on either kind of goal, which is
+        # why `state` is manager-only now rather than manual-goals-only.
+        protected = self.OUTCOME_FIELDS.intersection(vals)
+        if protected and not (
             self.env.su or self.env.user.has_group("base.group_erp_manager")
         ):
-            automatic = self.filtered(
-                lambda g: g.definition_id.computation_mode != "manually"
-            )
-            if automatic:
+            if self.filtered(lambda g: g.definition_id.computation_mode != "manually"):
                 raise exceptions.UserError(
                     _(
                         "Automatic goals are computed by the system and can not be"
                         " updated manually."
                     )
                 )
+            if forbidden := protected - {"current"}:
+                raise exceptions.UserError(
+                    _(
+                        "On your own goal you may update the value, not %(fields)s.",
+                        fields=", ".join(sorted(forbidden)),
+                    )
+                )
 
-        vals["last_update"] = fields.Date.context_today(self)
+        # `last_update` dates the last change to the goal's *value*, and
+        # `_check_remind_delay` measures the manual-goal reminder from it.
+        # Stamping it on every write let the cron's own `state` / `closed` writes
+        # reset that clock, so a goal nobody had touched in months never became
+        # due for a reminder.
+        if "current" in vals:
+            vals = {**vals, "last_update": fields.Date.context_today(self)}
         result = super().write(vals)
 
         # Batch on-change reports: one report per (challenge, user) pair
@@ -472,6 +508,7 @@ class GamificationGoal(models.Model):
         In case of a manual goal, should return a wizard to update the value
         :return: action description in a dictionary
         """
+        self.ensure_one()
         if self.definition_id.action_id:
             # open the action linked to the goal
             action = self.definition_id.action_id.read()[0]

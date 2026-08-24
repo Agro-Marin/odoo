@@ -19,7 +19,11 @@ RULE_GROUPS = {
     "gamification.goal_gamification_manager_visibility": (
         "gamification.group_gamification_manager",
     ),
-    "gamification.streak_user_write": ("gamification.group_gamification_user",),
+    # gamification.streak_user_write was removed in 1.2: it granted nothing,
+    # because ir.model.access.csv gives employees read-only access to
+    # gamification.streak and a record rule cannot widen an ACL.  The loop below
+    # already skips a rule it cannot resolve, so an older database that still
+    # carries the row is handled either way.
     "gamification.kudos_user_write": ("gamification.group_gamification_user",),
     "gamification.mentorship_own_only": ("gamification.group_gamification_user",),
     "gamification.mentorship_manager_rule": (

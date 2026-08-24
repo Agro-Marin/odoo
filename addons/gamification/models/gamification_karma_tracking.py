@@ -1,11 +1,14 @@
 from datetime import datetime
-from typing import Self
+from typing import Literal, Self
 
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
 from odoo.models import ValuesType
 from odoo.tools import date_utils
+
+#: Writing any of these changes a recorded gain, and therefore someone's karma.
+KARMA_VALUE_FIELDS = frozenset({"gain", "new_value", "old_value", "user_id"})
 
 
 class GamificationKarmaTracking(models.Model):
@@ -55,6 +58,11 @@ class GamificationKarmaTracking(models.Model):
         selection=lambda self: self._get_origin_selection_values(),
         compute="_compute_origin_ref_model_name",
         store=True,
+        # Derivable from origin_ref before the row exists, so compute it into
+        # the INSERT.  Without this every batch of tracking rows paid a second
+        # statement -- an UPDATE settling this one column -- right after its own
+        # INSERT.
+        precompute=True,
     )
 
     # The monthly consolidation cron scans, three times over,
@@ -112,7 +120,32 @@ class GamificationKarmaTracking(models.Model):
             if user_id and "new_value" in values:
                 karma_per_users[user_id] = values["new_value"]
 
-        return super().create(vals_list)
+        records = super().create(vals_list)
+        records._recompute_user_ranks()
+        return records
+
+    def write(self, vals: ValuesType) -> Literal[True]:
+        res = super().write(vals)
+        if not KARMA_VALUE_FIELDS.isdisjoint(vals):
+            self._recompute_user_ranks()
+        return res
+
+    def unlink(self) -> Literal[True]:
+        users = self.user_id
+        res = super().unlink()
+        users._recompute_rank_if_relevant()
+        return res
+
+    def _recompute_user_ranks(self) -> None:
+        """Re-evaluate the rank of every user these rows touch.
+
+        This is the hook ``_compute_karma`` used to carry.  Putting it on the
+        table rather than on the compute means the trigger is a write a reader
+        can point at, and it still covers every path that changes karma --
+        ``_add_karma_batch`` goes through ``create`` and the technical view goes
+        through ``create``/``write``/``unlink``.
+        """
+        self.user_id._recompute_rank_if_relevant()
 
     @api.model
     def _consolidate_cron(self) -> bool:
@@ -137,14 +170,32 @@ class GamificationKarmaTracking(models.Model):
         if not end_date:
             end_date = date_utils.end_of(date_utils.end_of(from_date, "month"), "day")
 
+        # The consolidated row carries the SUM of the gains it replaces, not the
+        # newest row's ``new_value``.
+        #
+        # Taking the newest ``new_value`` assumed the rows telescope -- every
+        # row's ``old_value`` equal to the previous row's ``new_value``.  Nothing
+        # declares or checks that, and two ordinary administrative acts break it:
+        # editing ``old_value`` in the technical view (the list is editable and
+        # the field is exposed) and deleting a row.  Consolidation then moved
+        # karma in whichever direction the break went -- a probe measured it both
+        # losing 10 and *restoring* 20 an admin had deliberately deleted -- from a
+        # cron, up to two months later, with no log line.
+        #
+        # Summing is the same single statement and cannot do that: the row it
+        # writes has, by construction, the gain of the rows it replaces, so this
+        # operation is karma-neutral whatever shape the chain is in.
         select_query = """
-        WITH old_tracking AS (
-            SELECT DISTINCT ON (user_id) user_id, old_value, tracking_date
+        WITH window_rows AS (
+            SELECT user_id,
+                   MIN(tracking_date) AS from_date,
+                   SUM(new_value - COALESCE(old_value, 0)) AS total_gain,
+                   (ARRAY_AGG(COALESCE(old_value, 0)
+                              ORDER BY tracking_date ASC, id ASC))[1] AS first_old
               FROM gamification_karma_tracking
-             WHERE tracking_date BETWEEN %(from_date)s
-               AND %(end_date)s
+             WHERE tracking_date BETWEEN %(from_date)s AND %(end_date)s
                AND consolidated IS NOT TRUE
-          ORDER BY user_id, tracking_date ASC, id ASC
+          GROUP BY user_id
         )
             INSERT INTO gamification_karma_tracking (
                             user_id,
@@ -155,22 +206,15 @@ class GamificationKarmaTracking(models.Model):
                             origin_ref_model_name,
                             consolidated,
                             reason)
-            SELECT DISTINCT ON (nt.user_id)
-                            nt.user_id,
-                            ot.old_value AS old_value,
-                            nt.new_value AS new_value,
-                            ot.tracking_date AS from_tracking_date,
-                            %(origin_ref)s AS origin_ref,
+            SELECT          user_id,
+                            first_old,
+                            first_old + total_gain,
+                            from_date,
+                            %(origin_ref)s,
                             'res.users',
                             TRUE,
                             %(reason)s
-              FROM gamification_karma_tracking AS nt
-              JOIN old_tracking AS ot
-                   ON ot.user_id = nt.user_id
-             WHERE nt.tracking_date BETWEEN %(from_date)s
-               AND %(end_date)s
-               AND nt.consolidated IS NOT TRUE
-          ORDER BY nt.user_id, nt.tracking_date DESC, id DESC
+              FROM window_rows
         """
 
         self.env.cr.execute(
@@ -211,4 +255,8 @@ class GamificationKarmaTracking(models.Model):
             {"from_date": from_date, "end_date": end_date},
         )
         self.env["gamification.karma.tracking"].invalidate_model()
+        # Karma is a *stored* compute over this table.  Rewriting the table in
+        # raw SQL leaves the column and the cache holding the pre-consolidation
+        # value, so drop both and let the next read recompute.
+        self.env["res.users"].invalidate_model(["karma"])
         return True

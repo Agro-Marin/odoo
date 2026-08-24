@@ -49,21 +49,12 @@ class GamificationKarmaRank(models.Model):
         help="Badges automatically granted when a user reaches this rank.",
     )
     user_ids = fields.One2many("res.users", "rank_id", string="Users")
-    rank_users_count = fields.Integer("# Users", compute="_compute_rank_users_count")
+    rank_users_count = fields.Count("user_ids", "# Users")
 
     _karma_min_check = models.Constraint(
         "CHECK( karma_min > 0 )",
         "The required karma has to be above 0.",
     )
-
-    @api.depends("user_ids")
-    def _compute_rank_users_count(self) -> None:
-        requests_data = self.env["res.users"]._read_group(
-            [("rank_id", "!=", False)], ["rank_id"], ["__count"]
-        )
-        requests_mapped_data = {rank.id: count for rank, count in requests_data}
-        for rank in self:
-            rank.rank_users_count = requests_mapped_data.get(rank.id, 0)
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
@@ -85,8 +76,10 @@ class GamificationKarmaRank(models.Model):
                 .search([], order="karma_min DESC")
                 .ids
             )
-            low = min(vals["karma_min"], *self.mapped("karma_min"))
-            high = max(vals["karma_min"], *self.mapped("karma_min"))
+            # `min(x, *[])` is `min(int)`, which raises TypeError: writing
+            # karma_min on an empty recordset is legal and used to blow up here.
+            thresholds = [vals["karma_min"], *self.mapped("karma_min")]
+            low, high = min(thresholds), max(thresholds)
 
         res = super().write(vals)
 
@@ -97,8 +90,18 @@ class GamificationKarmaRank(models.Model):
                 .ids
             )
             if previous_ranks != after_ranks:
+                # Order changed: any ranked user can move, including one at
+                # karma 0 still holding a rank that `karma >= low` never selects.
                 users = (
-                    self.env["res.users"].sudo().search([("karma", ">=", max(low, 1))])
+                    self.env["res.users"]
+                    .sudo()
+                    .search(
+                        [
+                            "|",
+                            ("karma", ">=", max(low, 1)),
+                            ("rank_id", "!=", False),
+                        ]
+                    )
                 )
             else:
                 users = (

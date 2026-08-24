@@ -168,7 +168,11 @@ class TestAclParity(common.TransactionCase):
         "gamification.quest": (1, 0, 0, 0),
         "gamification.quest.enrollment": (1, 1, 1, 0),
         "gamification.quest.step": (1, 0, 0, 0),
-        "gamification.quest.step.completion": (1, 1, 1, 0),
+        # Read-only since 1.2.  It was employee-writable with no record rule, so
+        # anyone could INSERT a completion on someone else's enrolment and skip
+        # the prerequisite check that only complete_step performs; that method
+        # sudo()es the create now.
+        "gamification.quest.step.completion": (1, 0, 0, 0),
         "gamification.season": (1, 0, 0, 0),
         "gamification.skill.node": (1, 0, 0, 0),
         "gamification.skill.node.unlock": (1, 0, 0, 0),

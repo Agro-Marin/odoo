@@ -1,7 +1,10 @@
+import logging
 from typing import Any, Self
 
 from odoo import _, api, exceptions, fields, models
 from odoo.models import ValuesType
+
+_logger = logging.getLogger(__name__)
 
 
 class GamificationBadgeUser(models.Model):
@@ -39,8 +42,21 @@ class GamificationBadgeUser(models.Model):
         Does not verify constraints on badge granting — the caller
         (typically ``create``) is responsible for that.
         """
-        template = self.env.ref("gamification.email_template_badge_received")
-        rendered = template._render_field("body_html", self.ids)
+        template = self.env.ref(
+            "gamification.email_template_badge_received", raise_if_not_found=False
+        )
+        if not template:
+            # A missing template is a broken mail setup, not a reason to fail the
+            # grant: the badge, its bus notification and its feed entry all still
+            # happen.  `_rank_changed` already guarded the same ref this way.
+            _logger.warning(
+                "gamification.email_template_badge_received is missing; "
+                "granting %s badge(s) without the notification email.",
+                len(self),
+            )
+            rendered = dict.fromkeys(self.ids, "")
+        else:
+            rendered = template._render_field("body_html", self.ids)
         for badge_user in self:
             badge_user.message_notify(
                 model=badge_user._name,

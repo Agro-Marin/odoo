@@ -458,7 +458,7 @@ _cron_engagement_nudges()
 ## Adaptive Difficulty
 
 ```
-challenge._compute_adaptive_targets()
+challenge._get_adaptive_targets()
     │
     ├── Only for recurring challenges (period != 'once')
     │

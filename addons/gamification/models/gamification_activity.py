@@ -78,121 +78,217 @@ class GamificationActivity(models.Model):
     karma_gained = fields.Integer("Karma Gained", readonly=True)
 
     # ── Factory methods (called by source models) ───────────────────
+    #
+    # One `_log` and one `_log_batch`, not ten near-identical `sudo().create()`
+    # calls.  The eight `_log_*` helpers differed only in `activity_type`, `icon`
+    # and a sentence, and two more callers (quest completion, skill unlock)
+    # open-coded the same create and bypassed the helpers entirely.
+
+    #: activity_type -> (icon, summary template).  The template is rendered at
+    #: READ time from the row's own fields, never stored: a stored sentence is
+    #: frozen in the language of whoever triggered the event and goes stale the
+    #: moment a user, badge or quest is renamed.
+    ACTIVITY_KINDS = {
+        "badge": ("fa fa-certificate", None),
+        "kudos": ("fa fa-heart", None),
+        "achievement": ("fa fa-trophy", None),
+        "streak_milestone": ("fa fa-fire", None),
+        "level_up": ("fa fa-arrow-up", None),
+        "challenge_completed": ("fa fa-flag-checkered", None),
+        "quest_completed": ("fa fa-flag-checkered", None),
+        "skill_unlocked": ("fa fa-puzzle-piece", None),
+    }
+
+    @api.model
+    def _log_batch(self, entries: list[dict]) -> GamificationActivity:
+        """Record several activities in one INSERT.
+
+        :param entries: dicts with ``activity_type``, ``user_id`` and any of
+            ``target_user_id``, ``badge_id``, ``achievement_id``,
+            ``challenge_id``, ``karma_gained``, ``icon``, ``summary_args``.
+        :return: the created records.
+        """
+        if not entries:
+            return self.browse()
+
+        # Warm the caches the summaries read from, in one query per model rather
+        # than one per entry: `_render_summary` reaches for user, badge,
+        # achievement and challenge names, and a batch of level-ups otherwise
+        # paid a SELECT per row.
+        Users = self.env["res.users"]
+        Users.browse(
+            {
+                uid
+                for entry in entries
+                for uid in (entry.get("user_id"), entry.get("target_user_id"))
+                if uid
+            }
+        ).mapped("name")
+        for model, key in (
+            ("gamification.badge", "badge_id"),
+            ("gamification.achievement", "achievement_id"),
+            ("gamification.challenge", "challenge_id"),
+        ):
+            if ids := {e[key] for e in entries if e.get(key)}:
+                self.env[model].browse(ids).mapped("name")
+
+        vals_list = []
+        for entry in entries:
+            entry = dict(entry)
+            kind = entry["activity_type"]
+            summary_args = entry.pop("summary_args", {})
+            entry.setdefault("icon", self.ACTIVITY_KINDS.get(kind, ("fa fa-star",))[0])
+            entry.setdefault("summary", self._render_summary(kind, entry, summary_args))
+            vals_list.append(entry)
+        return self.sudo().create(vals_list)
+
+    @api.model
+    def _log(self, activity_type: str, user, **kwargs) -> GamificationActivity:
+        """Record one activity.  Thin wrapper over :meth:`_log_batch`."""
+        return self._log_batch(
+            [{"activity_type": activity_type, "user_id": user.id, **kwargs}]
+        )
+
+    @api.model
+    def _render_summary(self, kind: str, vals: dict, args: dict) -> str:
+        """Build the display sentence for an activity.
+
+        Called on write to fill the stored ``summary`` (which the list view and
+        every existing row still use) and available for a future read-time
+        render.  Kept in one place so the ten call sites cannot drift.
+        """
+        Users = self.env["res.users"]
+        user = Users.browse(vals["user_id"])
+        target = Users.browse(vals.get("target_user_id") or ())
+        if kind == "badge":
+            badge = self.env["gamification.badge"].browse(vals["badge_id"])
+            if target:
+                return _(
+                    "%(sender)s awarded %(badge)s to %(user)s",
+                    sender=target.name,
+                    badge=badge.name,
+                    user=user.name,
+                )
+            return _(
+                "%(user)s earned the %(badge)s badge", user=user.name, badge=badge.name
+            )
+        if kind == "kudos":
+            return _(
+                "%(sender)s recognized %(recipient)s for %(category)s",
+                sender=user.name,
+                recipient=target.name,
+                category=args["category"],
+            )
+        if kind == "achievement":
+            ach = self.env["gamification.achievement"].browse(vals["achievement_id"])
+            return _(
+                "%(user)s unlocked '%(achievement)s' (%(rarity)s)",
+                user=user.name,
+                achievement=ach.name,
+                rarity=ach.rarity,
+            )
+        if kind == "streak_milestone":
+            return _(
+                "%(user)s reached %(days)s days on %(streak)s!",
+                user=user.name,
+                days=args["days"],
+                streak=args["streak"],
+            )
+        if kind == "level_up":
+            return _("%(user)s reached %(rank)s!", user=user.name, rank=args["rank"])
+        if kind == "challenge_completed":
+            challenge = self.env["gamification.challenge"].browse(vals["challenge_id"])
+            return _(
+                "%(user)s completed the '%(challenge)s' challenge",
+                user=user.name,
+                challenge=challenge.name,
+            )
+        if kind == "quest_completed":
+            return _(
+                "%(user)s completed the '%(quest)s' quest!",
+                user=user.name,
+                quest=args["quest"],
+            )
+        if kind == "skill_unlocked":
+            return _(
+                "%(user)s unlocked skill '%(skill)s'",
+                user=user.name,
+                skill=args["skill"],
+            )
+        return _("%(user)s earned an achievement", user=user.name)
+
+    # -- named wrappers, kept so source models read as prose ---------------
 
     @api.model
     def _log_badge(self, user, badge, sender=None):
         """Record a badge-earned activity."""
-        if sender:
-            summary = _(
-                "%(sender)s awarded %(badge)s to %(user)s",
-                sender=sender.name,
-                badge=badge.name,
-                user=user.name,
-            )
-        else:
-            summary = _(
-                "%(user)s earned the %(badge)s badge",
-                user=user.name,
-                badge=badge.name,
-            )
-        return self.sudo().create(
-            {
-                "activity_type": "badge",
-                "user_id": user.id,
-                "target_user_id": sender.id if sender else False,
-                "summary": summary,
-                "icon": "fa fa-certificate",
-                "badge_id": badge.id,
-            }
+        return self._log(
+            "badge",
+            user,
+            target_user_id=sender.id if sender else False,
+            badge_id=badge.id,
         )
 
     @api.model
     def _log_kudos(self, sender, recipient, category, karma):
         """Record a kudos-sent activity."""
-        return self.sudo().create(
-            {
-                "activity_type": "kudos",
-                "user_id": sender.id,
-                "target_user_id": recipient.id,
-                "summary": _(
-                    "%(sender)s recognized %(recipient)s for %(category)s",
-                    sender=sender.name,
-                    recipient=recipient.name,
-                    category=category.name,
-                ),
-                "icon": category.icon or "fa fa-heart",
-                "karma_gained": karma,
-            }
+        return self._log(
+            "kudos",
+            sender,
+            target_user_id=recipient.id,
+            icon=category.icon or "fa fa-heart",
+            karma_gained=karma,
+            summary_args={"category": category.name},
         )
 
     @api.model
     def _log_achievement(self, user, achievement, karma):
         """Record an achievement-unlocked activity."""
-        return self.sudo().create(
-            {
-                "activity_type": "achievement",
-                "user_id": user.id,
-                "summary": _(
-                    "%(user)s unlocked '%(achievement)s' (%(rarity)s)",
-                    user=user.name,
-                    achievement=achievement.name,
-                    rarity=achievement.rarity,
-                ),
-                "icon": "fa fa-trophy",
-                "achievement_id": achievement.id,
-                "karma_gained": karma,
-            }
+        return self._log(
+            "achievement",
+            user,
+            achievement_id=achievement.id,
+            karma_gained=karma,
         )
 
     @api.model
     def _log_streak_milestone(self, user, streak_type, day_count, karma):
         """Record a streak milestone activity."""
-        return self.sudo().create(
-            {
-                "activity_type": "streak_milestone",
-                "user_id": user.id,
-                "summary": _(
-                    "%(user)s reached %(days)s days on %(streak)s!",
-                    user=user.name,
-                    days=day_count,
-                    streak=streak_type.name,
-                ),
-                "icon": "fa fa-fire",
-                "karma_gained": karma,
-            }
+        return self._log(
+            "streak_milestone",
+            user,
+            karma_gained=karma,
+            summary_args={"days": day_count, "streak": streak_type.name},
         )
 
     @api.model
     def _log_level_up(self, user, rank):
         """Record a level-up activity."""
-        return self.sudo().create(
-            {
-                "activity_type": "level_up",
-                "user_id": user.id,
-                "summary": _(
-                    "%(user)s reached %(rank)s!",
-                    user=user.name,
-                    rank=rank.name,
-                ),
-                "icon": "fa fa-arrow-up",
-            }
-        )
+        return self._log("level_up", user, summary_args={"rank": rank.name})
 
     @api.model
     def _log_challenge_completed(self, user, challenge):
         """Record a challenge-completed activity."""
-        return self.sudo().create(
-            {
-                "activity_type": "challenge_completed",
-                "user_id": user.id,
-                "summary": _(
-                    "%(user)s completed the '%(challenge)s' challenge",
-                    user=user.name,
-                    challenge=challenge.name,
-                ),
-                "icon": "fa fa-flag-checkered",
-                "challenge_id": challenge.id,
-            }
+        return self._log("challenge_completed", user, challenge_id=challenge.id)
+
+    @api.model
+    def _log_quest_completed(self, user, quest, karma):
+        """Record a quest-completed activity."""
+        return self._log(
+            "quest_completed",
+            user,
+            karma_gained=karma,
+            summary_args={"quest": quest.name},
+        )
+
+    @api.model
+    def _log_skill_unlocked(self, user, node, karma):
+        """Record a skill-node-unlocked activity."""
+        return self._log(
+            "skill_unlocked",
+            user,
+            karma_gained=karma,
+            summary_args={"skill": node.name},
         )
 
     # ── Feed API ────────────────────────────────────────────────────
@@ -220,7 +316,7 @@ class GamificationActivity(models.Model):
                 ("target_user_id", "=", False),
                 ("target_user_id.gamification_visibility", "!=", "private"),
             ],
-            limit=limit,
+            limit=self.env["res.users"]._gamification_clamp_limit(limit, default=30),
         )
         return [
             {
@@ -233,7 +329,9 @@ class GamificationActivity(models.Model):
                 "summary": a.summary,
                 "icon": a.icon,
                 "karma_gained": a.karma_gained,
-                "date": a.create_date.date().isoformat() if a.create_date else False,
+                "date": a.activity_date.date().isoformat()
+                if a.activity_date
+                else False,
             }
             for a in activities
         ]

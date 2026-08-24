@@ -33,17 +33,13 @@
             <field name="domain_force">[('user_id.company_id', 'in', company_ids)]</field>
         </record>
 
-        <!-- Streaks: users can only write their own streaks, read all -->
-        <record id="streak_user_write" model="ir.rule">
-            <field name="name">Users can only modify their own streaks</field>
-            <field name="model_id" ref="model_gamification_streak"/>
-            <field name="groups" eval="[(4, ref('gamification.group_gamification_user'))]"/>
-            <field name="perm_read" eval="False"/>
-            <field name="perm_write" eval="True"/>
-            <field name="perm_create" eval="False"/>
-            <field name="perm_unlink" eval="False"/>
-            <field name="domain_force">[('user_id', '=', user.id)]</field>
-        </record>
+        <!-- No streak rule here on purpose.  `streak_employee` in
+             ir.model.access.csv grants read only, and a record rule narrows
+             ACL-granted access rather than adding any, so the write rule that
+             used to sit here granted nothing while asserting the opposite intent.
+             Employees must not write streaks: `current_count` selects the
+             milestone karma multiplier, so a user who could set it would park on
+             day 6 and collect the day-7 bonus every night. -->
 
         <!-- Kudos: users can only write their own sent kudos, read all -->
         <record id="kudos_user_write" model="ir.rule">
@@ -101,6 +97,76 @@
                     '|',
                         ('user_id', '=', user.id),
                         ('user_id.gamification_visibility', '!=', 'private')]</field>
+        </record>
+
+        <!-- Quest enrollment and its step completions were the only
+             employee-writable models in this module with no record rule at all,
+             so any employee could rewrite another user's progress: forge a step
+             completion on their enrollment (skipping the prerequisite check that
+             only complete_step performs) or abandon their quest. -->
+        <record id="quest_enrollment_own_only" model="ir.rule">
+            <field name="name">Users only see and edit their own quest enrolments</field>
+            <field name="model_id" ref="model_gamification_quest_enrollment"/>
+            <field name="groups" eval="[(4, ref('gamification.group_gamification_user'))]"/>
+            <field name="domain_force">[('user_id', '=', user.id)]</field>
+        </record>
+
+        <record id="quest_enrollment_manager_rule" model="ir.rule">
+            <field name="name">Managers see every quest enrolment</field>
+            <field name="model_id" ref="model_gamification_quest_enrollment"/>
+            <field name="groups" eval="[(4, ref('gamification.group_gamification_manager'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <!-- Read-only for employees (see ir.model.access.csv), but still scoped:
+             a completion row names a user through its enrolment. -->
+        <record id="quest_step_completion_own_only" model="ir.rule">
+            <field name="name">Users only see their own quest step completions</field>
+            <field name="model_id" ref="model_gamification_quest_step_completion"/>
+            <field name="groups" eval="[(4, ref('gamification.group_gamification_user'))]"/>
+            <field name="domain_force">[('enrollment_id.user_id', '=', user.id)]</field>
+        </record>
+
+        <record id="quest_step_completion_manager_rule" model="ir.rule">
+            <field name="name">Managers see every quest step completion</field>
+            <field name="model_id" ref="model_gamification_quest_step_completion"/>
+            <field name="groups" eval="[(4, ref('gamification.group_gamification_manager'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <!-- gamification_visibility used to be enforced by an ir.rule on
+             gamification.activity and by nothing else, while three helper methods
+             filtered it in Python.  A setting that four hand-written domains
+             implement is a setting three of them can silently disagree about, so
+             the two remaining public records of someone's standing get the same
+             rule the feed already had.  `karma` and `rank_id` on res.users stay
+             readable — see the field help, which now says so. -->
+        <record id="badge_user_visibility" model="ir.rule">
+            <field name="name">Badge grants respect profile visibility</field>
+            <field name="model_id" ref="model_gamification_badge_user"/>
+            <field name="groups" eval="[(4, ref('gamification.group_gamification_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+            <field name="domain_force">[
+                '|',
+                    ('user_id', '=', user.id),
+                    ('user_id.gamification_visibility', '!=', 'private')]</field>
+        </record>
+
+        <record id="achievement_unlock_visibility" model="ir.rule">
+            <field name="name">Achievement unlocks respect profile visibility</field>
+            <field name="model_id" ref="model_gamification_achievement_unlock"/>
+            <field name="groups" eval="[(4, ref('gamification.group_gamification_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+            <field name="domain_force">[
+                '|',
+                    ('user_id', '=', user.id),
+                    ('user_id.gamification_visibility', '!=', 'private')]</field>
         </record>
 
         <!-- Engagement snapshots are company-wide analytics; scope them to the

@@ -1,5 +1,7 @@
 from odoo import api, fields, models
 
+from .gamification_utils import start_end_date_for_period
+
 
 class GamificationTeam(models.Model):
     """Team for collaborative gamification challenges.
@@ -33,17 +35,23 @@ class GamificationTeam(models.Model):
     )
     member_count = fields.Count("member_ids", "# Members")
 
-    # Computed team stats
+    # Display aggregates, deliberately NOT stored.
+    #
+    # Stored, they depended on `member_ids.karma`, which made every karma event
+    # anywhere in the system search for the teams the earner belongs to and then
+    # re-run a per-team `search_count` -- measured at +0.8 queries per extra team
+    # on the earner, paid by every kudos, badge, streak day and forum upvote.
+    # Nothing searches, groups or orders by either field: they are read on the
+    # team list, the kanban card and the form, where computing them costs the two
+    # aggregate queries below for the whole recordset at once.
     team_karma = fields.Integer(
         "Team Karma",
         compute="_compute_team_stats",
-        store=True,
         help="Sum of all members' karma.",
     )
     team_badges = fields.Integer(
         "Team Badges",
         compute="_compute_team_stats",
-        store=True,
         help="Total badges earned by all team members.",
     )
 
@@ -55,19 +63,30 @@ class GamificationTeam(models.Model):
 
     @api.depends("member_ids.karma", "member_ids.badge_ids")
     def _compute_team_stats(self) -> None:
-        """Compute aggregate karma and badge counts from members."""
+        """Aggregate karma and badge counts over every team in the recordset.
+
+        Two queries for the whole set, not a ``search_count`` per team.
+        """
         for team in self:
-            members = team.member_ids
-            team.team_karma = sum(members.mapped("karma"))
-            team.team_badges = (
-                self.env["gamification.badge.user"].search_count(
-                    [
-                        ("user_id", "in", members.ids),
-                    ]
-                )
-                if members
-                else 0
+            team.team_karma = 0
+            team.team_badges = 0
+        members = self.member_ids
+        if not members:
+            return
+
+        karma_by_user = {user.id: user.karma for user in members}
+        badges_by_user = {
+            user.id: count
+            for user, count in self.env["gamification.badge.user"]._read_group(
+                [("user_id", "in", members.ids)],
+                groupby=["user_id"],
+                aggregates=["__count"],
             )
+        }
+        for team in self:
+            member_ids = team.member_ids.ids
+            team.team_karma = sum(karma_by_user.get(uid, 0) for uid in member_ids)
+            team.team_badges = sum(badges_by_user.get(uid, 0) for uid in member_ids)
 
     def get_team_challenge_score(self, challenge) -> float:
         """Compute this team's score for a given challenge.
@@ -78,8 +97,6 @@ class GamificationTeam(models.Model):
         :param challenge: ``gamification.challenge`` record.
         :return: float, average completeness percentage.
         """
-        from .gamification_utils import start_end_date_for_period
-
         self.ensure_one()
         if not self.member_ids:
             return 0.0

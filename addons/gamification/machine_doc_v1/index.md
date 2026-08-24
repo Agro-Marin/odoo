@@ -12,14 +12,14 @@ adaptive difficulty, and smart nudges.
 | Key | Value |
 |-----|-------|
 | Technical name | `gamification` |
-| Category | Human Resources |
+| Category | Productivity |
 | Dependencies | `mail` |
 | Python models | 26 (across 19 files) + 2 wizards |
 | Views | 20 XML files |
 | Wizards | 2 transient models |
-| Cron jobs | 6 |
+| Cron jobs | 8 |
 | Test files | 13 (common + 12 test modules) |
-| Total tests | 145 |
+| Total tests | 231 (`--test-tags /gamification`) |
 | OWL components | 2 (dashboard + notification service) |
 
 ## File Inventory
@@ -82,7 +82,7 @@ adaptive difficulty, and smart nudges.
 | `gamification_karma_rank_data.xml` | 5 ranks (Newbie→Doctor) + root/admin karma |
 | `gamification_kudos_data.xml` | 5 categories (Teamwork, Innovation, Quality, Speed, Mentorship) |
 | `mail_template_data.xml` | 4 email templates: badge received, goal reminder, challenge report, new rank reached |
-| `ir_cron_data.xml` | 6 scheduled actions |
+| `ir_cron_data.xml` | 8 scheduled actions |
 
 ### Static (`static/src/`)
 
@@ -110,3 +110,12 @@ Extension points for other modules:
 - Create `gamification.quest` records for guided onboarding journeys
 - Extend `_get_origin_selection_values()` to add new karma source models
 - Override `get_gamification_redirection_data()` for rank-reached email buttons
+
+## Not wired
+
+`gamification.quest.step` carries `definition_id` and `target_goal`, described
+as "the goal definition this step evaluates". Nothing evaluates them: there is
+no cron, no view button and no hook from `gamification.goal` back to a step.
+Steps are completed only by calling `complete_step` from Python. Wiring them
+means deciding whether a step is backed by a real `gamification.goal`, which is
+a product decision — treat the two fields as unimplemented, not as a contract.

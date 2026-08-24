@@ -1,6 +1,9 @@
+import logging
 from typing import Any
 
 from odoo import _, api, fields, models
+
+_logger = logging.getLogger(__name__)
 
 
 class GamificationSeason(models.Model):
@@ -64,10 +67,12 @@ class GamificationSeason(models.Model):
 
     # Stats
     challenge_count = fields.Count("challenge_ids", "# Challenges")
-    participant_count = fields.Integer("# Participants", compute="_compute_counts")
+    participant_count = fields.Integer(
+        "# Participants", compute="_compute_participant_count"
+    )
 
     @api.depends("challenge_ids", "challenge_ids.user_ids")
-    def _compute_counts(self):
+    def _compute_participant_count(self):
         for season in self:
             all_users = season.challenge_ids.mapped("user_ids")
             season.participant_count = len(all_users)
@@ -84,15 +89,37 @@ class GamificationSeason(models.Model):
             "context": {"default_season_id": self.id},
         }
 
+    _dates_ordered = models.Constraint(
+        "CHECK(end_date >= start_date)",
+        "A season cannot end before it starts.",
+    )
+
     def action_activate(self):
         """Start the season."""
-        for season in self.filtered(lambda s: s.state == "draft"):
-            season.state = "active"
+        self.filtered(lambda s: s.state == "draft").write({"state": "active"})
 
     def action_end(self):
         """End the season and archive its challenges."""
-        for season in self.filtered(lambda s: s.state == "active"):
-            season.state = "ended"
+        self.filtered(lambda s: s.state == "active").write({"state": "ended"})
+
+    @api.model
+    def _cron_update_seasons(self):
+        """Open and close seasons on their own dates.
+
+        ``start_date`` and ``end_date`` are required on every season and were
+        read by nothing: the state only ever moved when someone pressed a
+        button, so a season configured months in advance sat in ``draft`` past
+        its own start and an expired one kept awarding its exclusive badges.
+        """
+        today = fields.Date.today()
+        starting = self.search([("state", "=", "draft"), ("start_date", "<=", today)])
+        if starting:
+            starting.action_activate()
+            _logger.info("Season(s) started: %s", ", ".join(starting.mapped("name")))
+        ending = self.search([("state", "=", "active"), ("end_date", "<", today)])
+        if ending:
+            ending.action_end()
+            _logger.info("Season(s) ended: %s", ", ".join(ending.mapped("name")))
 
     def action_archive(self):
         """Archive a completed season."""
@@ -137,7 +164,7 @@ class GamificationSeason(models.Model):
                 "start": self.start_date,
                 "end": self.end_date,
                 "company_id": self.env.company.id,
-                "limit": limit,
+                "limit": self.env["res.users"]._gamification_clamp_limit(limit),
             },
         )
         current_uid = self.env.uid

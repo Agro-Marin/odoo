@@ -285,12 +285,16 @@ class GamificationBadge(models.Model):
         elif self.rule_auth == "users" and self.env.user not in self.rule_auth_user_ids:
             return self.USER_NOT_VIP
         elif self.rule_auth == "having":
-            all_user_badges = (
-                self.env["gamification.badge.user"]
-                .search([("user_id", "=", self.env.uid)])
-                .mapped("badge_id")
+            # Ask only about the badges this rule names, instead of loading every
+            # badge the user owns to intersect in Python.
+            held = self.env["gamification.badge.user"].search_fetch(
+                [
+                    ("user_id", "=", self.env.uid),
+                    ("badge_id", "in", self.rule_auth_badge_ids.ids),
+                ],
+                ["badge_id"],
             )
-            if self.rule_auth_badge_ids - all_user_badges:
+            if self.rule_auth_badge_ids - held.badge_id:
                 return self.BADGE_REQUIRED
 
         if self.rule_max and self.stat_my_monthly_sending >= self.rule_max_number:

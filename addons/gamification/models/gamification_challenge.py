@@ -2,7 +2,7 @@ import ast
 import itertools
 import logging
 from datetime import date, timedelta
-from typing import Any, Literal, Self
+from typing import Any, Literal
 
 from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
@@ -60,8 +60,27 @@ class GamificationChallenge(models.Model):
         "res.users", default=lambda self: self.env.uid, string="Responsible"
     )
     # members
+    # `user_ids` is the effective roster and is maintained by
+    # `_recompute_challenge_users`; `manual_user_ids` is what a human added by
+    # hand.  Keeping them apart is what lets the domain be authoritative:
+    # previously the recompute unioned the domain's users into `user_ids` and
+    # never removed anyone, so it could not tell a hand-picked participant from
+    # someone the *previous* domain had matched, and retargeting a challenge
+    # from one team to another silently ran it for both, for ever.
     user_ids = fields.Many2many(
-        "res.users", "gamification_challenge_users_rel", string="Participants"
+        "res.users",
+        "gamification_challenge_users_rel",
+        string="Participants",
+        compute="_compute_user_ids",
+        store=True,
+        readonly=True,
+    )
+    manual_user_ids = fields.Many2many(
+        "res.users",
+        "gamification_challenge_manual_users_rel",
+        string="Extra Participants",
+        help="People taking part on top of whoever the domain selects. "
+        "Changing the domain never removes them.",
     )
     user_domain = fields.Char("User domain")  # Alternative to a list of users
     user_count = fields.Integer("# Users", compute="_compute_user_count")
@@ -162,7 +181,7 @@ class GamificationChallenge(models.Model):
     )
     report_template_id = fields.Many2one(
         "mail.template",
-        default=lambda self: self._get_report_template(),
+        default=lambda self: self._default_report_template_id(),
         string="Report Template",
         required=True,
     )
@@ -232,25 +251,30 @@ class GamificationChallenge(models.Model):
             else:
                 challenge.next_report_date = False
 
-    def _get_report_template(self) -> int | Literal[False]:
+    def _default_report_template_id(self) -> int | Literal[False]:
         template = self.env.ref(
             "gamification.simple_report_template", raise_if_not_found=False
         )
 
         return template.id if template else False
 
-    @api.model_create_multi
-    def create(self, vals_list: list[ValuesType]) -> Self:
-        """Overwrite the create method to add the user of groups"""
-        for vals in vals_list:
-            if user_domain := vals.get("user_domain"):
-                users = self._get_challenger_users(str(user_domain))
+    @api.depends(
+        "user_domain", "manual_user_ids", "challenge_mode", "team_ids.member_ids"
+    )
+    def _compute_user_ids(self) -> None:
+        """Resolve the roster from the domain, the manual list and the teams.
 
-                if not vals.get("user_ids"):
-                    vals["user_ids"] = []
-                vals["user_ids"].extend(Command.link(user.id) for user in users)
-
-        return super().create(vals_list)
+        Replaces, rather than accumulates: the domain says who takes part, so
+        narrowing it must narrow the challenge.  Anyone a human added stays,
+        because that is what `manual_user_ids` is for.
+        """
+        for challenge in self:
+            users = challenge.manual_user_ids
+            if challenge.user_domain:
+                users |= challenge._get_challenger_users(challenge.user_domain)
+            if challenge.challenge_mode == "team":
+                users |= challenge.team_ids.member_ids
+            challenge.user_ids = users
 
     def write(self, vals: ValuesType) -> Literal[True]:
         # Validate BEFORE mutation: resetting to draft with unfinished goals is forbidden
@@ -265,13 +289,6 @@ class GamificationChallenge(models.Model):
                 raise exceptions.UserError(
                     _("You can not reset a challenge with unfinished goals.")
                 )
-
-        if user_domain := vals.get("user_domain"):
-            users = self._get_challenger_users(str(user_domain))
-
-            if not vals.get("user_ids"):
-                vals["user_ids"] = []
-            vals["user_ids"].extend(Command.link(user.id) for user in users)
 
         write_res = super().write(vals)
 
@@ -348,7 +365,31 @@ class GamificationChallenge(models.Model):
             },
         )
 
-        Goals.browse(goal_id for [goal_id] in self.env.cr.fetchall()).update_goal()
+        stale_goal_ids = {goal_id for [goal_id] in self.env.cr.fetchall()}
+
+        # The query above is an INNER join on mail_presence, so it can only ever
+        # return goals of users who have connected at least once and recently.
+        # That is the right gate for *refreshing a value* -- there is no point
+        # recomputing a metric nobody is looking at -- but it was also the only
+        # gate on the *state machine*, so a goal belonging to someone who had
+        # never logged in was never marked reached and never marked failed at its
+        # deadline, and `_check_challenge_reward` (which selects on
+        # state = 'reached') could never pay it out.  Expiry is a calendar fact,
+        # not a presence fact, so every open goal past its end date is evaluated
+        # regardless of who is online.
+        stale_goal_ids |= set(
+            Goals.search(
+                [
+                    ("challenge_id", "in", self.ids),
+                    ("closed", "!=", True),
+                    ("state", "in", ("inprogress", "reached")),
+                    ("end_date", "!=", False),
+                    ("end_date", "<=", fields.Date.today()),
+                ]
+            ).ids
+        )
+
+        Goals.browse(sorted(stale_goal_ids)).update_goal()
 
         self._recompute_challenge_users()
         self._generate_goals_from_challenge()
@@ -381,25 +422,15 @@ class GamificationChallenge(models.Model):
         return self.env["res.users"].search(user_domain)
 
     def _recompute_challenge_users(self) -> bool:
-        """Recompute participants from domain and team memberships.
+        """Force the roster to re-resolve.
 
-        Domain users are **added** to existing participants (not replaced),
-        so manually-added users are preserved.
+        The roster is a stored compute over the domain, the manual list and the
+        teams, so this only has to invalidate it: membership follows a user
+        joining or leaving a group, which no `@api.depends` on this model can
+        see.
         """
-        for challenge in self:
-            new_users = challenge.user_ids
-
-            # Union domain users into existing participants
-            if challenge.user_domain:
-                new_users |= self._get_challenger_users(challenge.user_domain)
-
-            # Add all team members for team challenges
-            if challenge.challenge_mode == "team" and challenge.team_ids:
-                new_users |= challenge.team_ids.mapped("member_ids")
-
-            if challenge.user_ids != new_users:
-                challenge.user_ids = new_users
-
+        self.invalidate_recordset(["user_ids"])
+        self.modified(["user_domain"])
         return True
 
     def action_start(self) -> bool:
@@ -431,7 +462,9 @@ class GamificationChallenge(models.Model):
 
     def action_view_users(self) -> dict[str, Any]:
         """Redirect to the participants (users) list."""
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("base.action_res_users")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "base.action_res_users"
+        )
         action["domain"] = [("id", "in", self.user_ids.ids)]
         return action
 
@@ -449,7 +482,7 @@ class GamificationChallenge(models.Model):
                 challenge.period, challenge.start_date, challenge.end_date
             )
             to_update = Goals.browse(())
-            adaptive_targets = challenge._compute_adaptive_targets()
+            adaptive_targets = challenge._get_adaptive_targets()
 
             for line in challenge.line_ids:
                 # there is potentially a lot of users
@@ -728,6 +761,7 @@ class GamificationChallenge(models.Model):
                       a visibility mode set to 'personal'.
         :param subset_goals: goals to restrict the report
         """
+        self.ensure_one()
         challenge = self
 
         if challenge.visibility_mode == "ranking":
@@ -788,7 +822,7 @@ class GamificationChallenge(models.Model):
         sudoed.write(
             {
                 "invited_user_ids": [Command.unlink(user.id)],
-                "user_ids": [Command.link(user.id)],
+                "manual_user_ids": [Command.link(user.id)],
             }
         )
         return sudoed._generate_goals_from_challenge()
@@ -870,7 +904,7 @@ class GamificationChallenge(models.Model):
                     "<br/> %(rank)d. %(user_name)s - %(reward_name)s"
                 )
                 if challenge.reward_first_id:
-                    (first_user, second_user, third_user) = challenge._get_topN_users(
+                    (first_user, second_user, third_user) = challenge._get_top_users(
                         MAX_VISIBILITY_RANKING
                     )
                     if first_user:
@@ -903,16 +937,45 @@ class GamificationChallenge(models.Model):
                             "reward_name": challenge.reward_third_id.name,
                         }
 
+                if challenge.challenge_mode == "team" and challenge.team_ids:
+                    # `_get_team_rankings` had no caller: a challenge could be
+                    # configured team-vs-team, its participants folded in from
+                    # the teams, and the result never reported anywhere.
+                    rankings = challenge._get_team_rankings()
+                    message_body += Markup("<br/>") + _("Team ranking:")
+                    for position, entry in enumerate(rankings, start=1):
+                        message_body += Markup(
+                            "<br/> %(rank)d. %(team)s — %(score).1f%%"
+                        ) % {
+                            "rank": position,
+                            "team": entry["team"].name,
+                            "score": entry["score"],
+                        }
+
                 challenge.message_post(
                     partner_ids=[user.partner_id.id for user in challenge.user_ids],
                     body=message_body,
                 )
+
+                # Feed entry for everyone who finished it, so a completed
+                # challenge shows up beside badges and kudos.
+                if rewarded_users:
+                    self.env["gamification.activity"]._log_batch(
+                        [
+                            {
+                                "activity_type": "challenge_completed",
+                                "user_id": user.id,
+                                "challenge_id": challenge.id,
+                            }
+                            for user in rewarded_users
+                        ]
+                    )
                 if commit:
                     commit()
 
         return True
 
-    def _get_topN_users(self, n: int) -> tuple[models.Model | Literal[False], ...]:
+    def _get_top_users(self, n: int) -> tuple[models.Model | Literal[False], ...]:
         """Get the top *n* users for this challenge, ranked by completeness.
 
         Ranking criteria (in order):
@@ -957,16 +1020,23 @@ class GamificationChallenge(models.Model):
                 all(g.state == "reached" for g in user_goals)
                 and len(user_goals) == num_lines
             )
+            # Deliberately uncapped for 'higher' goals, which is what the
+            # docstring above has always claimed.  Capping at 100 made every user
+            # who reached every goal score exactly 100 * len(line_ids), so all of
+            # them tied on both sort keys and Python's stable sort handed out
+            # first, second and third in `user_ids` order: reversing the
+            # participant list reversed the podium with the values untouched.
+            # A 'lower' goal is genuinely binary, so it keeps its 0-or-100.
             total_completeness = 0.0
             for goal in user_goals:
                 if goal.definition_condition == "higher":
                     total_completeness += (
-                        min(100.0 * goal.current / goal.target_goal, 100.0)
+                        100.0 * goal.current / goal.target_goal
                         if goal.target_goal
-                        else 0
+                        else 0.0
                     )
                 elif goal.state == "reached":
-                    total_completeness += 100
+                    total_completeness += 100.0
             challengers.append(
                 {
                     "user": user,
@@ -1024,7 +1094,7 @@ class GamificationChallenge(models.Model):
 
     # ── Adaptive Difficulty ─────────────────────────────────────────
 
-    def _compute_adaptive_targets(self):
+    def _get_adaptive_targets(self):
         """Compute adjusted targets for recurring challenges based on performance.
 
         For each user in a recurring challenge, analyze their last 3 completed

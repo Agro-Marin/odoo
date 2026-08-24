@@ -6,11 +6,14 @@ Where the defect was a security one, the test also asserts the control path
 loosens the guard is caught rather than silently accepted.
 """
 
+import datetime
 from datetime import date, timedelta
 
 from odoo import fields
-from odoo.exceptions import AccessError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import common
+
+from odoo.addons.mail.tests.common import mail_new_test_user
 
 
 class TestKarmaIntegrity(common.TransactionCase):
@@ -235,6 +238,7 @@ class TestMentorshipSecurity(common.TransactionCase):
         mentorship = self.env["gamification.mentorship"].create(
             {"mentor_id": self.attacker.id, "mentee_id": self.victim.id}
         )
+        mentorship.with_user(self.victim).action_accept()
         with self.assertRaises(AccessError):
             mentorship.with_user(self.attacker).action_complete()
 
@@ -247,6 +251,7 @@ class TestMentorshipSecurity(common.TransactionCase):
                 "mentor_karma_on_completion": 100,
             }
         )
+        mentorship.with_user(self.victim).action_accept()
         before = self.attacker.karma
         mentorship.with_user(self.victim).action_complete()
         self.attacker.invalidate_recordset()
@@ -795,3 +800,310 @@ class TestProfilePrivacy(common.TransactionCase):
             .search([("id", "=", activity.id)])
         )
         self.assertTrue(visible, "CONTROL: public activity stays visible")
+
+
+class TestGoalOutcomeFields(common.TransactionCase):
+    """A participant must not be able to decide their own goal's outcome.
+
+    ``write`` used to guard only ``current`` and ``state``.  Every field in
+    ``OUTCOME_FIELDS`` feeds the reached/failed decision, so lowering your own
+    ``target_goal`` was exactly as good as writing your own ``current`` -- and
+    it collected the challenge's reward badge on the next cron run, including a
+    ``rule_auth='nobody'`` badge that exists so users cannot grant it.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.employee = mail_new_test_user(
+            cls.env,
+            login="outcome_employee",
+            name="Outcome Employee",
+            email="outcome@example.com",
+            groups="base.group_user",
+        )
+        cls.definition = cls.env["gamification.goal.definition"].create(
+            {
+                "name": "Outcome partners",
+                "computation_mode": "count",
+                "model_id": cls.env.ref("base.model_res_partner").id,
+                "domain": "[]",
+                "condition": "higher",
+            }
+        )
+        cls.badge = cls.env["gamification.badge"].create(
+            {"name": "Outcome Reward", "rule_auth": "nobody"}
+        )
+        cls.challenge = cls.env["gamification.challenge"].create(
+            {
+                "name": "Outcome Challenge",
+                "user_domain": f'[("id", "=", {cls.employee.id})]',
+                "reward_id": cls.badge.id,
+                "reward_realtime": True,
+                "line_ids": [
+                    (0, 0, {"definition_id": cls.definition.id, "target_goal": 10**9})
+                ],
+            }
+        )
+        cls.challenge.state = "inprogress"
+        cls.goal = cls.env["gamification.goal"].search(
+            [("challenge_id", "=", cls.challenge.id), ("user_id", "=", cls.employee.id)]
+        )
+
+    def test_owner_cannot_write_any_outcome_field(self):
+        for field_name, value in (
+            ("target_goal", 1),
+            ("end_date", "2099-01-01"),
+            ("closed", False),
+            ("state", "reached"),
+            ("current", 10**9),
+        ):
+            with self.subTest(field=field_name), self.assertRaises(UserError):
+                self.goal.with_user(self.employee).write({field_name: value})
+
+    def test_lowering_your_own_target_does_not_mint_the_reward(self):
+        """The escalation end to end, through the real nightly cron."""
+        with self.assertRaises(UserError):
+            self.goal.with_user(self.employee).write({"target_goal": 1})
+
+        self.env["gamification.challenge"]._cron_update(commit=False)
+        self.goal.invalidate_recordset()
+
+        self.assertNotEqual(self.goal.state, "reached")
+        self.assertFalse(
+            self.env["gamification.badge.user"].search_count(
+                [("user_id", "=", self.employee.id), ("badge_id", "=", self.badge.id)]
+            )
+        )
+
+    def test_a_manager_still_can(self):
+        """CONTROL: the guard is about who writes, not about the field."""
+        self.goal.write({"target_goal": 5})
+        self.assertEqual(self.goal.target_goal, 5)
+
+
+class TestQuestOwnership(common.TransactionCase):
+    """Quest enrolments and step completions were the only employee-writable
+    models in this module with no record rule, so anyone could rewrite another
+    user's progress and skip the prerequisite check `complete_step` performs.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.intruder = mail_new_test_user(
+            cls.env,
+            login="quest_intruder",
+            name="Intruder",
+            email="qi@example.com",
+            groups="base.group_user",
+        )
+        cls.owner = mail_new_test_user(
+            cls.env,
+            login="quest_owner",
+            name="Owner",
+            email="qo@example.com",
+            groups="base.group_user",
+        )
+        cls.quest = cls.env["gamification.quest"].create({"name": "Ownership Quest"})
+        cls.step_one = cls.env["gamification.quest.step"].create(
+            {"quest_id": cls.quest.id, "name": "One", "sequence": 1}
+        )
+        cls.step_two = cls.env["gamification.quest.step"].create(
+            {
+                "quest_id": cls.quest.id,
+                "name": "Two",
+                "sequence": 2,
+                "prerequisite_ids": [(6, 0, [cls.step_one.id])],
+            }
+        )
+        cls.enrollment = cls.env["gamification.quest.enrollment"].create(
+            {"quest_id": cls.quest.id, "user_id": cls.owner.id}
+        )
+
+    def test_cannot_forge_a_completion_on_another_users_enrolment(self):
+        with self.assertRaises(AccessError):
+            self.env["gamification.quest.step.completion"].with_user(
+                self.intruder
+            ).create({"enrollment_id": self.enrollment.id, "step_id": self.step_two.id})
+
+    def test_cannot_write_another_users_enrolment(self):
+        with self.assertRaises(AccessError):
+            self.enrollment.with_user(self.intruder).write({"state": "abandoned"})
+
+    def test_cannot_even_see_another_users_enrolment(self):
+        self.assertFalse(
+            self.env["gamification.quest.enrollment"]
+            .with_user(self.intruder)
+            .search([("id", "=", self.enrollment.id)])
+        )
+
+    def test_the_owner_still_progresses_normally(self):
+        """CONTROL: complete_step sudoes the row it writes, so it still works.
+
+        And it still refuses a step whose prerequisite is unmet -- the check
+        the direct-INSERT hole used to walk straight past.
+        """
+        with self.assertRaises(UserError):
+            self.enrollment.with_user(self.owner).complete_step(self.step_two)
+
+        self.assertTrue(
+            self.enrollment.with_user(self.owner).complete_step(self.step_one)
+        )
+        self.assertTrue(
+            self.enrollment.with_user(self.owner).complete_step(self.step_two)
+        )
+
+
+class TestChallengeRetargeting(common.TransactionCase):
+    """`user_domain` says who takes part, so narrowing it must narrow the
+    challenge.  It used to be unioned into `user_ids` and never subtracted, so
+    moving a challenge from one team to another silently ran it for both, and
+    `default_get` seeded the domain with *every* internal user.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.group_a = cls.env["res.groups"].create({"name": "Retarget A"})
+        cls.group_b = cls.env["res.groups"].create({"name": "Retarget B"})
+        cls.user_a = mail_new_test_user(
+            cls.env,
+            login="retarget_a",
+            name="A",
+            email="ra@example.com",
+            groups="base.group_user",
+        )
+        cls.user_b = mail_new_test_user(
+            cls.env,
+            login="retarget_b",
+            name="B",
+            email="rb@example.com",
+            groups="base.group_user",
+        )
+        cls.user_a.group_ids = [(4, cls.group_a.id)]
+        cls.user_b.group_ids = [(4, cls.group_b.id)]
+        cls.definition = cls.env["gamification.goal.definition"].create(
+            {
+                "name": "Retarget definition",
+                "computation_mode": "manually",
+                "domain": "[]",
+                "condition": "higher",
+            }
+        )
+        cls.challenge = cls.env["gamification.challenge"].create(
+            {
+                "name": "Retarget Challenge",
+                "user_domain": f'[("all_group_ids", "in", [{cls.group_a.id}])]',
+                "line_ids": [
+                    (0, 0, {"definition_id": cls.definition.id, "target_goal": 1})
+                ],
+            }
+        )
+        cls.challenge.state = "inprogress"
+
+    def test_narrowing_the_domain_narrows_the_roster(self):
+        self.assertIn(self.user_a, self.challenge.user_ids)
+        self.assertNotIn(self.user_b, self.challenge.user_ids)
+
+        self.challenge.user_domain = f'[("all_group_ids", "in", [{self.group_b.id}])]'
+        self.challenge._recompute_challenge_users()
+
+        self.assertNotIn(
+            self.user_a,
+            self.challenge.user_ids,
+            "retargeting must drop the audience it moved away from",
+        )
+        self.assertIn(self.user_b, self.challenge.user_ids)
+
+    def test_hand_added_participants_survive_a_retarget(self):
+        """That is what `manual_user_ids` is for."""
+        self.challenge.manual_user_ids = [(4, self.user_b.id)]
+        self.challenge.user_domain = "[]"
+        self.challenge._recompute_challenge_users()
+        self.assertIn(self.user_b, self.challenge.user_ids)
+
+
+class TestConsolidationPreservesGain(common.TransactionCase):
+    """Consolidation used to telescope: it kept the oldest `old_value` and the
+    newest `new_value` and assumed every row in between chained.  Nothing
+    declares or checks that, and an administrator editing or deleting a row in
+    the technical view breaks it -- after which consolidation moved karma, in
+    whichever direction the break went, up to two months later and silently.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = mail_new_test_user(
+            cls.env,
+            login="consolidation_user",
+            name="Consolidation User",
+            email="cons@example.com",
+            groups="base.group_user",
+        )
+        cls.Tracking = cls.env["gamification.karma.tracking"]
+
+    def _gains(self):
+        return sum(
+            row.new_value - (row.old_value or 0)
+            for row in self.Tracking.search([("user_id", "=", self.user.id)])
+        )
+
+    def _consolidate_everything(self):
+        self.env.cr.execute(
+            "UPDATE gamification_karma_tracking SET tracking_date = %s WHERE user_id = %s",
+            [datetime.datetime(2026, 5, 10, 12, 0), self.user.id],
+        )
+        self.env.invalidate_all()
+        self.Tracking._process_consolidate(datetime.datetime(2026, 5, 1))
+        self.env.invalidate_all()
+
+    def test_gain_survives_an_edited_chain(self):
+        for gain in (10, 20, 30):
+            self.user._add_karma(gain, reason="seed")
+        self.env.flush_all()
+
+        rows = self.Tracking.search(
+            [("user_id", "=", self.user.id)], order="tracking_date, id"
+        )
+        rows[1].write({"old_value": 0})  # the reachable administrative edit
+        self.env.flush_all()
+        expected = self._gains()
+
+        self._consolidate_everything()
+
+        self.assertEqual(self._gains(), expected)
+        self.user._add_karma(1, reason="a later event")
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(self.user.karma, expected + 1)
+
+    def test_gain_survives_a_deleted_row(self):
+        for gain in (10, 20, 30):
+            self.user._add_karma(gain, reason="seed")
+        self.env.flush_all()
+
+        rows = self.Tracking.search(
+            [("user_id", "=", self.user.id)], order="tracking_date, id"
+        )
+        rows[1].unlink()
+        self.env.flush_all()
+        expected = self._gains()
+
+        self._consolidate_everything()
+
+        self.assertEqual(self._gains(), expected)
+
+    def test_an_intact_chain_is_untouched(self):
+        """CONTROL: the normal case still collapses to one row, same total."""
+        for gain in (10, 20, 30):
+            self.user._add_karma(gain, reason="seed")
+        self.env.flush_all()
+        expected = self._gains()
+
+        self._consolidate_everything()
+
+        rows = self.Tracking.search([("user_id", "=", self.user.id)])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(self._gains(), expected)

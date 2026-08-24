@@ -1,6 +1,6 @@
 {
     "name": "Gamification",
-    "version": "1.1",
+    "version": "1.2",
     "sequence": 160,
     "category": "Productivity",
     "depends": ["mail"],

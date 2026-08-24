@@ -130,7 +130,7 @@ class test_challenge(TestGamificationCommon):
             {
                 "state": "inprogress",
                 "user_domain": False,
-                "user_ids": [(6, 0, all_test_users.ids)],
+                "manual_user_ids": [(6, 0, all_test_users.ids)],
             }
         )
 
@@ -406,7 +406,7 @@ class TestChallengeRewardNobodyBadge(TestGamificationCommon):
                 "state": "draft",
                 "reward_id": nobody_badge.id,
                 "period": "once",
-                "user_ids": [(6, 0, [self.user_demo.id])],
+                "manual_user_ids": [(6, 0, [self.user_demo.id])],
             }
         )
 
@@ -458,7 +458,7 @@ class TestCompletionCap(TestGamificationCommon):
     """Tests for completion percentage capping in challenge rankings."""
 
     def test_topN_caps_completion_at_100(self):
-        """_get_topN_users caps individual goal completeness at 100%.
+        """_get_top_users caps individual goal completeness at 100%.
 
         Regression: a user exceeding a target 5x was credited 500% per goal,
         dominating the ranking over users who completed all goals normally.
@@ -476,7 +476,7 @@ class TestCompletionCap(TestGamificationCommon):
                 "state": "draft",
                 "period": "once",
                 "visibility_mode": "ranking",
-                "user_ids": [(6, 0, [self.user_demo.id, self.robot.id])],
+                "manual_user_ids": [(6, 0, [self.user_demo.id, self.robot.id])],
             }
         )
         self.env["gamification.challenge.line"].create(
@@ -498,11 +498,11 @@ class TestCompletionCap(TestGamificationCommon):
             else:
                 goal.write({"current": 10, "state": "reached"})
 
-        # _get_topN_users returns a tuple of res.users records (or False).
+        # _get_top_users returns a tuple of res.users records (or False).
         # The completion cap is internal to the ranking algorithm; we verify
         # indirectly: robot (50/10 = 500% uncapped) must NOT outrank demo
         # (10/10 = 100%) — both should be capped at 100% and thus tied.
-        challengers = challenge._get_topN_users(3)
+        challengers = challenge._get_top_users(3)
         ranked_users = [c for c in challengers if c]
         self.assertGreaterEqual(len(ranked_users), 2, "At least 2 users should qualify")
         # Robot must not be exclusively first (would mean uncapped 500% > 100%)

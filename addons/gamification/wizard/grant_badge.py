@@ -13,6 +13,13 @@ class GamificationBadgeUserWizard(models.TransientModel):
 
     def action_grant_badge(self) -> bool:
         """Grant a badge to the selected user and send a notification."""
+        # This is NOT a duplicate of the guard in
+        # `gamification.badge.user.create`, which reads the same but is scoped
+        # `if not self.env.su`: the model exempts system grants on purpose, so
+        # that challenge rewards and achievement unlocks can award badges the
+        # recipient could never award themselves.  This wizard is a person
+        # pressing a button, and a person may not grant themselves a badge
+        # whatever rights they hold.
         BadgeUser = self.env["gamification.badge.user"]
         uid = self.env.uid
         for wiz in self:

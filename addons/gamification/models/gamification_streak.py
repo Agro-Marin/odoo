@@ -1,5 +1,6 @@
 import logging
 from datetime import UTC, date, datetime, time, timedelta
+from typing import Self
 
 from odoo import _, api, fields, models
 from odoo.libs.datetime import timezone
@@ -100,13 +101,27 @@ class GamificationStreakType(models.Model):
         :return: ``True`` if the domain matches at least one record.
         """
         self.ensure_one()
-        result = self._check_user_activity_batch(user, check_date)
-        return user.id in result
+        return user.id in self._check_user_activity_batch(user, check_date)
 
     def _check_user_activity_batch(
         self, users: models.Model, check_date: date
     ) -> set[int]:
-        """Check activity for multiple users at once, returning active user IDs.
+        """Check activity for many users at once, returning the active user IDs.
+
+        One query per *distinct evaluated domain*, not one per user.
+
+        The previous shape sampled ``users[0]`` against ``users[1]`` to guess
+        whether the domain referenced ``user``, and took a single global query if
+        they matched.  Two things were wrong with it.  It compared the
+        date-augmented first domain against the bare second one, so the guess was
+        always "user-specific" and the fast path was unreachable -- the batch ran
+        one query per user regardless.  And repairing only that comparison would
+        have introduced a real defect: a two-user sample cannot speak for a third
+        user whose domain differs, so everyone in the batch would have been judged
+        by ``users[0]``'s domain.  Grouping by the domain each user actually
+        evaluates to needs no sampling, is correct for every domain shape, and
+        still collapses the common cases (a constant domain, or one keyed on a
+        handful of companies) to one or two queries.
 
         :param users: ``res.users`` recordset to check.
         :param check_date: ``date`` to check.
@@ -118,7 +133,7 @@ class GamificationStreakType(models.Model):
 
         # "Did you show up on day D?" is a calendar-day question, so the window
         # is built in the *user's* timezone and only then converted to UTC for
-        # the query.  Storage stays UTC throughout — this mirrors
+        # the query.  Storage stays UTC throughout -- this mirrors
         # ``lunch.supplier._compute_available_today`` and
         # ``hr.employee._get_tz``, which resolve the relevant record's tz in
         # backend/cron code for exactly this reason.
@@ -126,14 +141,29 @@ class GamificationStreakType(models.Model):
         # Note ``fields.Date.context_today`` is deliberately *not* used: it
         # reads ``env.tz``, which in a cron is the cron user's timezone, not
         # the streak owner's.
-        active_ids: set[int] = set()
-        users_by_tz: dict[str, list[int]] = {}
+        Obj = self.env[self.model_id.model].sudo()
+        date_field = self.date_field_id.name
+
+        # (tz, evaluated domain) -> user ids sharing it
+        buckets: dict[tuple[str, str], tuple[list, list[int]]] = {}
         for user in users:
-            users_by_tz.setdefault(self._get_streak_tz_name(user), []).append(user.id)
-        for tz_name, user_ids in users_by_tz.items():
-            active_ids |= self._check_user_activity_window(
-                users.browse(user_ids), check_date, tz_name
+            tz_name = self._get_streak_tz_name(user)
+            date_from, date_to = self._get_day_bounds_utc(check_date, tz_name)
+            domain = safe_eval(
+                self.domain,
+                {"user": user, "date_from": date_from, "date_to": date_to},
             )
+            domain += [
+                (date_field, ">=", date_from),
+                (date_field, "<=", date_to),
+            ]
+            key = (tz_name, repr(domain))
+            buckets.setdefault(key, (domain, []))[1].append(user.id)
+
+        active_ids: set[int] = set()
+        for domain, user_ids in buckets.values():
+            if Obj.search_count(domain, limit=1):
+                active_ids.update(user_ids)
         return active_ids
 
     def _get_streak_tz_name(self, user) -> str:
@@ -155,68 +185,6 @@ class GamificationStreakType(models.Model):
             fields.Datetime.to_string(start_local.astimezone(UTC).replace(tzinfo=None)),
             fields.Datetime.to_string(end_local.astimezone(UTC).replace(tzinfo=None)),
         )
-
-    def _check_user_activity_window(
-        self, users: models.Model, check_date: date, tz_name: str
-    ) -> set[int]:
-        """Check activity for users sharing one timezone.
-
-        :param users: ``res.users`` recordset, all resolving to ``tz_name``.
-        :param check_date: calendar day to check, in ``tz_name``.
-        :param tz_name: IANA timezone name.
-        :return: set of user IDs that had qualifying activity.
-        """
-        self.ensure_one()
-        Obj = self.env[self.model_id.model].sudo()
-        date_from, date_to = self._get_day_bounds_utc(check_date, tz_name)
-        # Build a domain that works for all users in the batch.
-        # The safe_eval domain may reference 'user' — we evaluate once
-        # with a dummy user to get the base domain, then widen it.
-        # If the domain actually uses 'user', fall back to per-user.
-        first_user = users[0]
-        domain = safe_eval(
-            self.domain,
-            {"user": first_user, "date_from": date_from, "date_to": date_to},
-        )
-        date_field = self.date_field_id.name
-        domain += [
-            (date_field, ">=", date_from),
-            (date_field, "<=", date_to),
-        ]
-
-        # Check if domain contains a user-specific filter by evaluating
-        # with a second user (if available) and comparing.
-        domain_is_user_specific = False
-        if len(users) > 1:
-            second_domain = safe_eval(
-                self.domain,
-                {"user": users[1], "date_from": date_from, "date_to": date_to},
-            )
-            domain_is_user_specific = domain != second_domain
-
-        if domain_is_user_specific:
-            # Fall back to per-user evaluation when domain references user
-            active_ids: set[int] = set()
-            for user in users:
-                user_domain = safe_eval(
-                    self.domain,
-                    {"user": user, "date_from": date_from, "date_to": date_to},
-                )
-                user_domain += [
-                    (date_field, ">=", date_from),
-                    (date_field, "<=", date_to),
-                ]
-                if Obj.search_count(user_domain, limit=1) > 0:
-                    active_ids.add(user.id)
-            return active_ids
-
-        # Domain does not reference user — a single query checks if any
-        # record matches.  This means ALL users get credit when the domain
-        # matches, which is correct: a non-user-specific streak (e.g.,
-        # "any sale happened") is a team/global streak by definition.
-        if Obj.search_count(domain, limit=1) > 0:
-            return set(users.ids)
-        return set()
 
 
 class GamificationStreak(models.Model):
@@ -278,56 +246,75 @@ class GamificationStreak(models.Model):
             rec.display_name = f"{rec.streak_type_id.name} — {rec.current_count} days"
 
     def _record_activity(self) -> None:
-        """Record that the user performed the streak activity today.
+        """Credit today's activity to every streak in the recordset.
 
-        Called by the daily cron or can be triggered manually.
-        Increments the streak, grants karma bonuses at milestones.
+        Batched: one karma write cycle and one activity insert for the whole
+        set, not one per streak.  The cron calls this with every streak of a
+        type that qualified today, so the per-streak shape multiplied a tracking
+        INSERT, a karma recompute and a rank re-evaluation by the number of
+        people holding the streak.
         """
         today = fields.Date.today()
-        for streak in self:
-            if streak.last_activity_date == today:
-                continue  # already recorded today
+        due = self.filtered(lambda s: s.last_activity_date != today)
+        if not due:
+            return
+
+        karma_per_user: dict = {}
+        feed_entries = []
+        for streak in due:
             streak.current_count += 1
             streak.last_activity_date = today
             streak.longest_count = max(streak.longest_count, streak.current_count)
             if streak.state == "broken":
                 streak.state = "active"
 
-            # Grant karma bonus
             karma = streak.streak_type_id.karma_bonus
-            if karma:
-                multiplier = STREAK_MILESTONES.get(streak.current_count, 1)
-                total = karma * multiplier
-                streak.user_id.sudo()._add_karma(
-                    total,
-                    source=streak,
-                    reason=_(
+            if not karma:
+                continue
+            total = karma * STREAK_MILESTONES.get(streak.current_count, 1)
+            entry = karma_per_user.setdefault(
+                streak.user_id,
+                {
+                    "gain": 0,
+                    "source": streak,
+                    "reason": _(
                         "Streak day %(day)s: %(streak)s",
                         day=streak.current_count,
                         streak=streak.streak_type_id.name,
                     ),
-                )
-                streak.total_karma_earned += total
+                },
+            )
+            entry["gain"] += total
+            streak.total_karma_earned += total
 
-                # Bus notification + activity feed on milestone days
-                if streak.current_count in STREAK_MILESTONES:
-                    streak.user_id._send_gamification_notification(
-                        "streak",
-                        {
-                            "title": _("Streak Milestone!"),
-                            "message": _(
-                                "%(streak)s — %(days)s days!",
-                                streak=streak.streak_type_id.name,
-                                days=streak.current_count,
-                            ),
+            if streak.current_count in STREAK_MILESTONES:
+                streak.user_id._send_gamification_notification(
+                    "streak",
+                    {
+                        "title": _("Streak Milestone!"),
+                        "message": _(
+                            "%(streak)s — %(days)s days!",
+                            streak=streak.streak_type_id.name,
+                            days=streak.current_count,
+                        ),
+                    },
+                )
+                feed_entries.append(
+                    {
+                        "activity_type": "streak_milestone",
+                        "user_id": streak.user_id.id,
+                        "karma_gained": total,
+                        "summary_args": {
+                            "days": streak.current_count,
+                            "streak": streak.streak_type_id.name,
                         },
-                    )
-                    self.env["gamification.activity"]._log_streak_milestone(
-                        streak.user_id,
-                        streak.streak_type_id,
-                        streak.current_count,
-                        total,
-                    )
+                    }
+                )
+
+        if karma_per_user:
+            self.env["res.users"].sudo()._add_karma_batch(karma_per_user)
+        if feed_entries:
+            self.env["gamification.activity"]._log_batch(feed_entries)
 
     def _break_streak(self) -> None:
         """Break the streak — reset current count but preserve longest."""
@@ -379,35 +366,58 @@ class GamificationStreak(models.Model):
                 ("last_checked_date", "=", False),
             ]
         )
-        for streak in active_streaks:
-            # One bad streak type must not abort the whole run: a malformed or
-            # stale domain raises inside safe_eval/search, which would roll
-            # back every streak already processed and leave the same poison
-            # record blocking the next run too.
+
+        # Resolve activity once per streak TYPE over all its users.  The per-
+        # streak call this replaces cost a measured 4.2 queries for every extra
+        # streak, on a workload whose correct marginal cost is zero: one streak
+        # type with a constant domain is one question, however many people hold
+        # a streak of it.
+        for streak_type, streaks in active_streaks.grouped("streak_type_id").items():
             try:
                 with self.env.cr.savepoint():
-                    self._process_streak_day(streak, yesterday)
+                    active_user_ids = streak_type._check_user_activity_batch(
+                        streaks.user_id, yesterday
+                    )
             except Exception:
                 _logger.exception(
-                    "Streak check failed for streak %s (type %s, user %s); "
+                    "Streak type %r (id %s) failed to evaluate activity for %s "
+                    "streak(s); skipping it and continuing the run.",
+                    streak_type.name,
+                    streak_type.id,
+                    len(streaks),
+                )
+                continue
+
+            qualified = streaks.filtered(
+                lambda s, ok=active_user_ids: s.user_id.id in ok
+            )
+            # One savepoint for the whole type, not one per streak: the karma
+            # grant and the feed insert are batched below, so a failure inside
+            # them is not attributable to a single streak anyway.
+            try:
+                with self.env.cr.savepoint():
+                    qualified._record_activity()
+                    for streak in streaks - qualified:
+                        self._process_missed_day(streak)
+                    streaks.last_checked_date = today
+            except Exception:
+                _logger.exception(
+                    "Streak run failed for type %r (id %s) over %s streak(s); "
                     "skipping it and continuing the run.",
-                    streak.id,
-                    streak.streak_type_id.name,
-                    streak.user_id.login,
+                    streak_type.name,
+                    streak_type.id,
+                    len(streaks),
                 )
 
-    def _process_streak_day(self, streak, check_date) -> None:
-        """Evaluate a single streak for ``check_date`` and record the outcome."""
-        had_activity = streak.streak_type_id._check_user_activity(
-            streak.user_id,
-            check_date,
-        )
-        if had_activity:
-            streak._record_activity()
-        elif streak.state == "broken":
+    def _process_missed_day(self, streak) -> None:
+        """Freeze or break one streak whose owner did not qualify.
+
+        :param streak: the ``gamification.streak`` to freeze or break.
+        """
+        if streak.state == "broken":
             # Already broken — nothing to freeze or break further
-            pass
-        elif streak.freeze_remaining > 0:
+            return
+        if streak.freeze_remaining > 0:
             streak.freeze_remaining -= 1
             _logger.info(
                 "Streak freeze used: %s for user %s (%s remaining)",
@@ -415,26 +425,24 @@ class GamificationStreak(models.Model):
                 streak.user_id.login,
                 streak.freeze_remaining,
             )
-        else:
-            _logger.info(
-                "Streak broken: %s for user %s (was %s days)",
-                streak.streak_type_id.name,
-                streak.user_id.login,
-                streak.current_count,
-            )
-            streak._break_streak()
-
-        # Mark the day as evaluated whatever the outcome, so a repeat run in
-        # the same day is a no-op.
-        streak.last_checked_date = fields.Date.today()
+            return
+        _logger.info(
+            "Streak broken: %s for user %s (was %s days)",
+            streak.streak_type_id.name,
+            streak.user_id.login,
+            streak.current_count,
+        )
+        streak._break_streak()
 
     @api.model
-    def _ensure_user_streaks(self, user: models.Model | None = None) -> None:
-        """Ensure a streak record exists for every active streak type.
+    def _get_user_streaks(self, user: models.Model | None = None) -> Self:
+        """Return this user's streaks, creating any that do not exist yet.
 
-        Called when a user first accesses gamification features.
-        Creates missing streak records with default values.
-        Uses a single SQL query to find missing types.
+        Called when a user first accesses gamification features.  A single query
+        finds the active streak types the user has no row for.
+
+        :param user: the owner; defaults to the current user.
+        :return: every ``gamification.streak`` the user now holds.
         """
         user = user or self.env.user
         self.env.cr.execute(
@@ -461,3 +469,4 @@ class GamificationStreak(models.Model):
                     for type_id, freeze_allowance in missing
                 ]
             )
+        return self.search([("user_id", "=", user.id)], order="current_count desc")

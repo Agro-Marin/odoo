@@ -22,7 +22,6 @@ class TestPostMigrate11(common.TransactionCase):
         "gamification.goal_gamification_manager_visibility": (
             "gamification.group_gamification_manager",
         ),
-        "gamification.streak_user_write": ("gamification.group_gamification_user",),
         "gamification.kudos_user_write": ("gamification.group_gamification_user",),
         "gamification.mentorship_own_only": ("gamification.group_gamification_user",),
         "gamification.mentorship_manager_rule": (
@@ -105,7 +104,7 @@ class TestPostMigrate11(common.TransactionCase):
 
         self.script.migrate(self.env.cr, "19.0.1.0")
 
-        survivor = self.env.ref("gamification.streak_user_write")
+        survivor = self.env.ref("gamification.mentorship_own_only")
         self.assertEqual(
             survivor.groups,
             self.env.ref("gamification.group_gamification_user"),

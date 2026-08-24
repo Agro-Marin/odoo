@@ -40,7 +40,7 @@ class TestAdaptiveDifficulty(common.TransactionCase):
             {
                 "name": "Once Challenge",
                 "period": "once",
-                "user_ids": [(6, 0, [self.user.id])],
+                "manual_user_ids": [(6, 0, [self.user.id])],
             }
         )
         self.env["gamification.challenge.line"].create(
@@ -50,7 +50,7 @@ class TestAdaptiveDifficulty(common.TransactionCase):
                 "target_goal": 100,
             }
         )
-        result = challenge._compute_adaptive_targets()
+        result = challenge._get_adaptive_targets()
         self.assertEqual(result, {})
 
     def test_no_adjustment_without_history(self):
@@ -59,7 +59,7 @@ class TestAdaptiveDifficulty(common.TransactionCase):
             {
                 "name": "Monthly Challenge",
                 "period": "monthly",
-                "user_ids": [(6, 0, [self.user.id])],
+                "manual_user_ids": [(6, 0, [self.user.id])],
             }
         )
         line = self.env["gamification.challenge.line"].create(
@@ -83,7 +83,7 @@ class TestAdaptiveDifficulty(common.TransactionCase):
             }
         )
 
-        result = challenge._compute_adaptive_targets()
+        result = challenge._get_adaptive_targets()
         self.assertEqual(result, {})
 
     def test_increase_on_consistent_overperformance(self):
@@ -92,7 +92,7 @@ class TestAdaptiveDifficulty(common.TransactionCase):
             {
                 "name": "Monthly Challenge",
                 "period": "monthly",
-                "user_ids": [(6, 0, [self.user.id])],
+                "manual_user_ids": [(6, 0, [self.user.id])],
             }
         )
         line = self.env["gamification.challenge.line"].create(
@@ -118,7 +118,7 @@ class TestAdaptiveDifficulty(common.TransactionCase):
                 }
             )
 
-        result = challenge._compute_adaptive_targets()
+        result = challenge._get_adaptive_targets()
         key = (self.user.id, line.id)
         self.assertIn(key, result)
         self.assertGreater(result[key], 100, "Target should increase")
@@ -133,7 +133,7 @@ class TestAdaptiveDifficulty(common.TransactionCase):
             {
                 "name": "Monthly Challenge",
                 "period": "monthly",
-                "user_ids": [(6, 0, [self.user.id])],
+                "manual_user_ids": [(6, 0, [self.user.id])],
             }
         )
         line = self.env["gamification.challenge.line"].create(
@@ -157,7 +157,7 @@ class TestAdaptiveDifficulty(common.TransactionCase):
                 }
             )
 
-        result = challenge._compute_adaptive_targets()
+        result = challenge._get_adaptive_targets()
         adjusted = result.get((self.user.id, line.id))
         self.assertFalse(
             adjusted and adjusted > 100,
@@ -170,7 +170,7 @@ class TestAdaptiveDifficulty(common.TransactionCase):
             {
                 "name": "Monthly Challenge",
                 "period": "monthly",
-                "user_ids": [(6, 0, [self.user.id])],
+                "manual_user_ids": [(6, 0, [self.user.id])],
             }
         )
         line = self.env["gamification.challenge.line"].create(
@@ -195,7 +195,7 @@ class TestAdaptiveDifficulty(common.TransactionCase):
                 }
             )
 
-        result = challenge._compute_adaptive_targets()
+        result = challenge._get_adaptive_targets()
         key = (self.user.id, line.id)
         self.assertIn(key, result)
         self.assertLess(result[key], 100, "Target should decrease")

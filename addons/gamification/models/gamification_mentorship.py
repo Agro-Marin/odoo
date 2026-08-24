@@ -1,3 +1,5 @@
+from typing import Any
+
 from odoo import _, api, exceptions, fields, models
 
 
@@ -34,11 +36,12 @@ class GamificationMentorship(models.Model):
     )
     state = fields.Selection(
         [
+            ("pending", "Awaiting Confirmation"),
             ("active", "Active"),
             ("completed", "Completed"),
             ("cancelled", "Cancelled"),
         ],
-        default="active",
+        default="pending",
         required=True,
         tracking=True,
         index=True,
@@ -62,6 +65,12 @@ class GamificationMentorship(models.Model):
     # arbitrary mentee, set an arbitrary payout and call ``action_complete()``
     # to mint unbounded karma.  ``groups=`` is enforced by the ORM on both read
     # and write, so the reward amounts can never come from the acting user.
+    #
+    # ``groups=`` does not stop the ORM applying the *default*, though, so a
+    # self-appointed mentor still collected 25 karma per mentee rank-up without
+    # the mentee doing or agreeing to anything.  Consent is what closes that:
+    # a mentorship starts ``pending`` and pays nothing until the counterparty
+    # confirms it -- see ``_check_may_accept``.
     mentor_karma_per_milestone = fields.Integer(
         "Mentor Karma per Milestone",
         default=25,
@@ -114,12 +123,47 @@ class GamificationMentorship(models.Model):
                 mentee=rec.mentee_id.name or "",
             )
 
-    @api.constrains("mentor_id", "mentee_id")
+    @api.constrains("mentor_id", "mentee_id", "state")
     def _check_not_self_mentoring(self):
-        """Prevent self-mentoring."""
+        """Reject a pairing that pays a user for their own progression.
+
+        Direct self-mentoring is the obvious case.  The reciprocal pair is the
+        same thing spread over two records: with A mentoring B *and* B mentoring
+        A, every rank-up on either side pays the other, and each payout can push
+        the payee over their own next threshold.  It terminates -- karma is
+        monotone and ranks are finite -- but it is an amplification loop between
+        two colluding users, so it is refused rather than bounded.
+        """
         for rec in self:
             if rec.mentor_id == rec.mentee_id:
                 raise exceptions.ValidationError(_("A user cannot mentor themselves."))
+
+        live = self.filtered(lambda r: r.state in ("pending", "active"))
+        if not live:
+            return
+        # One search for the whole recordset: the reciprocal of every live
+        # pairing at once, then matched in memory.
+        reciprocals = {
+            (other.mentor_id.id, other.mentee_id.id)
+            for other in self.sudo().search(
+                [
+                    ("mentor_id", "in", live.mentee_id.ids),
+                    ("mentee_id", "in", live.mentor_id.ids),
+                    ("state", "in", ("pending", "active")),
+                    ("id", "not in", live.ids),
+                ]
+            )
+        }
+        for rec in live:
+            if (rec.mentee_id.id, rec.mentor_id.id) in reciprocals:
+                raise exceptions.ValidationError(
+                    _(
+                        "%(a)s and %(b)s cannot mentor each other: a reciprocal "
+                        "pairing pays both sides for the same progression.",
+                        a=rec.mentor_id.name,
+                        b=rec.mentee_id.name,
+                    )
+                )
 
     @api.constrains("mentor_karma_per_milestone", "mentor_karma_on_completion")
     def _check_karma_rewards_positive(self):
@@ -129,6 +173,49 @@ class GamificationMentorship(models.Model):
                 raise exceptions.ValidationError(
                     _("Mentorship karma rewards cannot be negative.")
                 )
+
+    def _check_may_accept(self):
+        """Ensure the caller is the party who did *not* propose the mentorship.
+
+        A mentorship is a two-sided arrangement that pays one side, so the side
+        that proposed it cannot also confirm it.  Whoever created the record has
+        already said yes by creating it; the counterparty is the one whose
+        agreement is still missing.
+
+        :raises AccessError: if the current user is neither the counterparty nor
+            a gamification manager.
+        """
+        if self.env.su or self.env.user.has_group("base.group_erp_manager"):
+            return
+        for rec in self:
+            proposer = rec.create_uid
+            counterparty = rec.mentor_id if proposer == rec.mentee_id else rec.mentee_id
+            if counterparty != self.env.user:
+                raise exceptions.AccessError(
+                    _(
+                        "Only %(who)s or a gamification manager can confirm this "
+                        "mentorship. The person who proposed it cannot also "
+                        "accept it.",
+                        who=counterparty.name,
+                    )
+                )
+
+    def action_accept(self):
+        """Confirm a proposed mentorship, making its rewards live.
+
+        Callable by the counterparty or a manager only -- see
+        ``_check_may_accept``.  Until this runs the pairing exists but
+        ``_on_mentee_rank_up`` ignores it, so no karma moves.
+        """
+        self._check_may_accept()
+        self.filtered(lambda r: r.state == "pending").sudo().write({"state": "active"})
+
+    def action_decline(self):
+        """Refuse a proposed mentorship.  Same audience as ``action_accept``."""
+        self._check_may_accept()
+        self.filtered(lambda r: r.state == "pending").sudo().write(
+            {"state": "cancelled", "end_date": fields.Date.today()}
+        )
 
     def _check_may_complete(self):
         """Ensure the caller is allowed to close the mentorship.
@@ -196,35 +283,55 @@ class GamificationMentorship(models.Model):
             }
         )
 
-    def _on_mentee_rank_up(self, mentee):
-        """Called when a mentee reaches a new rank during an active mentorship.
+    def _on_mentee_rank_up(self, mentees):
+        """Pay the mentors of every mentee in ``mentees`` that just ranked up.
 
-        Grants karma to the mentor and increments the milestone counter.
+        Takes a recordset: ``_rank_changed`` now hands over a whole batch, and
+        one search plus one ``_add_karma_batch`` covers it instead of a search
+        and a karma write cycle per user.
 
-        :param mentee: ``res.users`` record of the mentee.
+        Only ``active`` pairings pay.  A mentorship starts ``pending`` until the
+        counterparty confirms it, which is what stops an employee naming
+        themselves mentor over a colleague and collecting on their progress.
+
+        :param mentees: ``res.users`` recordset that reached a new rank.
         """
+        if not mentees:
+            return
         # sudo: a rank-up is a system event.  The mentee triggering it has no
         # rights on their mentor's mentorship record (record rule) nor on the
         # manager-only reward fields, but the mentor must still be paid.
-        active_mentorships = self.sudo().search(
+        pairings = self.sudo().search(
             [
-                ("mentee_id", "=", mentee.id),
+                ("mentee_id", "in", mentees.ids),
                 ("state", "=", "active"),
+                ("mentor_karma_per_milestone", ">", 0),
             ]
         )
-        for rec in active_mentorships:
-            if rec.mentor_karma_per_milestone:
-                rec.mentor_id._add_karma(
-                    rec.mentor_karma_per_milestone,
-                    source=rec,
-                    reason=_(
+        if not pairings:
+            return
+
+        karma_per_mentor: dict[Any, dict[str, Any]] = {}
+        for rec in pairings:
+            mentee = rec.mentee_id
+            gain = rec.mentor_karma_per_milestone
+            entry = karma_per_mentor.setdefault(
+                rec.mentor_id,
+                {
+                    "gain": 0,
+                    "source": rec,
+                    "reason": _(
                         "Mentee %(mentee)s reached %(rank)s",
                         mentee=mentee.name,
                         rank=mentee.rank_id.name or "a new rank",
                     ),
-                )
-                rec.mentee_milestones_reached += 1
-                rec.total_mentor_karma += rec.mentor_karma_per_milestone
+                },
+            )
+            entry["gain"] += gain
+            rec.mentee_milestones_reached += 1
+            rec.total_mentor_karma += gain
+
+        self.env["res.users"].sudo()._add_karma_batch(karma_per_mentor)
 
     @api.model
     def get_suggested_mentors(self, limit=5):
@@ -242,24 +349,24 @@ class GamificationMentorship(models.Model):
             self.search(
                 [
                     ("mentee_id", "=", user.id),
-                    ("state", "=", "active"),
+                    ("state", "in", ("pending", "active")),
                 ]
             )
             .mapped("mentor_id")
             .ids
         )
 
-        mentors = self.env["res.users"].search(
+        Users = self.env["res.users"]
+        mentors = Users.search(
             [
-                ("active", "=", True),
-                ("share", "=", False),
                 ("karma", ">", user.karma),
                 ("id", "!=", user.id),
                 ("id", "not in", existing_mentor_ids),
                 ("company_id", "=", user.company_id.id),
+                *Users._get_domain_gamification_listable(),
             ],
             order="karma desc",
-            limit=limit,
+            limit=Users._gamification_clamp_limit(limit),
         )
         return [
             {

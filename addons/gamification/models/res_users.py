@@ -61,7 +61,9 @@ class ResUsers(models.Model):
         ],
         string="Profile Visibility",
         default="public",
-        help="Controls who can see this user's gamification profile.",
+        help="Keeps you out of the leaderboards, the activity feed, the mentor "
+        "suggestions and other people's badge and achievement lists. It does "
+        "not hide your karma or rank from someone who opens your user record.",
     )
     last_gamification_nudge_date = fields.Date(
         "Last Nudge Date",
@@ -96,6 +98,14 @@ class ResUsers(models.Model):
         Consolidation is karma-neutral under this definition: collapsing a
         month of rows into one whose gain equals their total leaves the sum
         unchanged, which is why no "skip computation" escape hatch is needed.
+
+        This computes karma and nothing else.  Re-ranking used to hang off the
+        end of it, which put ``_rank_changed`` -- outbound mail, badge creation,
+        activity rows and mentor payouts -- behind an ORM flush, reached through
+        a stack of five recompute frames.  It now hangs off
+        ``gamification.karma.tracking`` writes instead: that is the one table
+        every karma change goes through, including the technical view, so the
+        coverage is the same and the trigger is a place a reader can find.
         """
         self.env["gamification.karma.tracking"].flush_model()
 
@@ -111,12 +121,6 @@ class ResUsers(models.Model):
 
         for user in self:
             user.karma = user_karma_map.get(user.id, 0)
-
-        # Recompute ranks only for users with karma or a stale rank that
-        # needs clearing.  Avoids looping over every user in the system.
-        users_to_rerank = self.sudo().filtered(lambda u: u.karma > 0 or u.rank_id)
-        if users_to_rerank:
-            users_to_rerank._recompute_rank()
 
     @api.depends("badge_ids")
     def _get_user_badge_level(self) -> None:
@@ -164,6 +168,36 @@ class ResUsers(models.Model):
                     100.0,
                     round(100.0 * (user.karma - current_min) / span, 1),
                 )
+
+    #: Upper bound for the ``limit`` of any gamification list a client can ask
+    #: for over RPC.  These endpoints are public, so the parameter is attacker
+    #: controlled and ``limit=10**9`` was a valid call.
+    GAMIFICATION_MAX_LIMIT = 100
+
+    @api.model
+    def _gamification_clamp_limit(self, limit: int, default: int = 10) -> int:
+        """Return a sane ``limit`` for a public gamification endpoint."""
+        try:
+            limit = int(limit)
+        except TypeError, ValueError:
+            return default
+        return max(1, min(limit, self.GAMIFICATION_MAX_LIMIT))
+
+    @api.model
+    def _get_domain_gamification_listable(self) -> list[Any]:
+        """Domain for users who may appear in a gamification list.
+
+        One definition, four call sites.  It used to be four hand-written
+        domains -- the leaderboard, the activity feed and the season board each
+        filtered ``gamification_visibility``, and the mentor suggestions did
+        not.  Three agreeing implementations of a rule is three chances for the
+        fourth to disagree, and it did.
+        """
+        return [
+            ("active", "=", True),
+            ("share", "=", False),
+            ("gamification_visibility", "!=", "private"),
+        ]
 
     def _send_gamification_notification(
         self, notif_type: str, data: dict[str, Any]
@@ -369,62 +403,94 @@ WHERE sub.user_id = ANY(%s)""",
         return self.env.cr.dictfetchall()
 
     def _rank_changed(self) -> None:
-        """Notify users of rank change and auto-grant level-up badges.
+        """Notify users of a rank change and auto-grant the rank's badges.
 
-        Called on a batch of users who just received the same new rank.
+        Batched throughout: one search for the already-granted badges, one
+        ``create`` for the missing ones, one activity insert and one mentorship
+        pass for the whole set.  The per-user shape cost a search, a create and
+        a ``send_mail`` each, which is what a bulk re-rank multiplies.
+
         Skipped during module installation to avoid spamming.
         """
         if self.env.context.get("install_mode", False):
             return
 
-        # Auto-grant badges defined on the new rank
+        ranked = self.filtered("rank_id")
+        if not ranked:
+            return
+
+        # --- badges the new ranks unlock, in two queries rather than 2N ---
         BadgeUser = self.env["gamification.badge.user"].sudo()
-        for user in self:
-            if user.rank_id.unlock_badge_ids:
-                existing = BadgeUser.search(
+        wanted = {
+            (user.id, badge.id)
+            for user in ranked
+            for badge in user.rank_id.unlock_badge_ids
+        }
+        if wanted:
+            already = {
+                (bu.user_id.id, bu.badge_id.id)
+                for bu in BadgeUser.search(
                     [
-                        ("user_id", "=", user.id),
-                        ("badge_id", "in", user.rank_id.unlock_badge_ids.ids),
+                        ("user_id", "in", ranked.ids),
+                        ("badge_id", "in", [badge_id for _uid, badge_id in wanted]),
                     ]
-                ).mapped("badge_id")
-                for badge in user.rank_id.unlock_badge_ids - existing:
-                    BadgeUser.create(
-                        {
-                            "user_id": user.id,
-                            "badge_id": badge.id,
-                        }
-                    )._send_badge()
-
-        # Bus notification + activity feed for level-up
-        Activity = self.env["gamification.activity"]
-        for user in self:
-            if user.rank_id:
-                user._send_gamification_notification(
-                    "level_up",
-                    {
-                        "title": _("Level Up!"),
-                        "message": _("You reached %s!", user.rank_id.name),
-                    },
                 )
-                Activity._log_level_up(user, user.rank_id)
+            }
+            if missing := wanted - already:
+                BadgeUser.create(
+                    [
+                        {"user_id": user_id, "badge_id": badge_id}
+                        for user_id, badge_id in sorted(missing)
+                    ]
+                )._send_badge()
 
-        # Notify mentors about their mentees' rank-ups
-        Mentorship = self.env["gamification.mentorship"]
-        for user in self:
-            if user.rank_id:
-                Mentorship._on_mentee_rank_up(user)
+        # --- bus notification: inherently per user, it targets their own feed ---
+        for user in ranked:
+            user._send_gamification_notification(
+                "level_up",
+                {
+                    "title": _("Level Up!"),
+                    "message": _("You reached %s!", user.rank_id.name),
+                },
+            )
+
+        self.env["gamification.activity"]._log_batch(
+            [
+                {
+                    "activity_type": "level_up",
+                    "user_id": user.id,
+                    "summary_args": {"rank": user.rank_id.name},
+                }
+                for user in ranked
+            ]
+        )
+
+        self.env["gamification.mentorship"]._on_mentee_rank_up(ranked)
 
         template = self.env.ref(
             "gamification.mail_template_data_new_rank_reached", raise_if_not_found=False
         )
         if template:
-            for u in self:
-                if u.rank_id.karma_min > 0:
-                    template.send_mail(
-                        u.id,
-                        force_send=False,
-                        email_layout_xmlid="mail.mail_notification_light",
-                    )
+            for user in ranked.filtered(lambda u: u.rank_id.karma_min > 0):
+                template.send_mail(
+                    user.id,
+                    force_send=False,
+                    email_layout_xmlid="mail.mail_notification_light",
+                )
+
+    def _recompute_rank_if_relevant(self) -> None:
+        """Re-rank only the users a rank change could actually move.
+
+        A user with no karma and no rank is already where they belong, and the
+        callers of this are write hooks that fire on every karma event, so the
+        filter is what keeps a bulk import from walking the whole user table.
+        """
+        # Filter in the caller's environment and only then sudo: `self.sudo()`
+        # first hands back records in a *different* env, whose cache is empty, so
+        # the filter re-reads karma and rank that the caller had already loaded.
+        movable = self.filtered(lambda u: u.karma > 0 or u.rank_id)
+        if movable:
+            movable.sudo()._recompute_rank()
 
     def _recompute_rank(self) -> None:
         """Recompute rank_id and next_rank_id for each user based on karma.
@@ -445,32 +511,36 @@ WHERE sub.user_id = ANY(%s)""",
             self._recompute_rank_bulk()
             return
 
+        if not ranks:
+            return
+
+        # Group by the (rank, next_rank) pair each user lands on, so the whole
+        # set costs one write and one _rank_changed per distinct rank rather
+        # than one of each per user.
+        by_target: dict[tuple[int | bool, int | bool], list[int]] = {}
+        changed_ids: list[int] = []
         for user in self:
-            old_rank = user.rank_id
-            if ranks:
-                matched = False
-                for i, r in enumerate(ranks):
-                    if user.karma >= r["karma_min"]:
-                        user.write(
-                            {
-                                "rank_id": r["rank"].id,
-                                "next_rank_id": ranks[i - 1]["rank"].id
-                                if i > 0
-                                else False,
-                            }
-                        )
-                        matched = True
-                        break
-                if not matched:
-                    # Karma below all ranks — clear rank, point to lowest
-                    user.write(
-                        {
-                            "rank_id": False,
-                            "next_rank_id": ranks[-1]["rank"].id,
-                        }
+            for i, r in enumerate(ranks):
+                if user.karma >= r["karma_min"]:
+                    target = (
+                        r["rank"].id,
+                        ranks[i - 1]["rank"].id if i > 0 else False,
                     )
-            if old_rank != user.rank_id:
-                user._rank_changed()
+                    break
+            else:
+                # Karma below every rank — clear the rank, point at the lowest.
+                target = (False, ranks[-1]["rank"].id)
+            if (user.rank_id.id or False) != target[0]:
+                changed_ids.append(user.id)
+            by_target.setdefault(target, []).append(user.id)
+
+        for (rank_id, next_rank_id), user_ids in by_target.items():
+            self.browse(user_ids).write(
+                {"rank_id": rank_id, "next_rank_id": next_rank_id}
+            )
+
+        if changed_ids:
+            self.browse(changed_ids)._rank_changed()
 
     def _recompute_rank_bulk(self) -> None:
         """Compute rank of each user by rank.
@@ -603,8 +673,9 @@ WHERE sub.user_id = ANY(%s)""",
         AchUnlock = self.env["gamification.achievement.unlock"]
         Goal = self.env["gamification.goal"]
 
-        # Ensure streak records exist
-        Streak._ensure_user_streaks(user)
+        # Creates any missing streak rows and hands back the whole set, so the
+        # section below does not search for what we just built.
+        user_streaks = Streak._get_user_streaks(user)
 
         # Profile
         next_rank = user.next_rank_id or user._get_next_rank()
@@ -641,12 +712,7 @@ WHERE sub.user_id = ANY(%s)""",
                 "state": s.state,
                 "freeze_remaining": s.freeze_remaining,
             }
-            for s in Streak.search(
-                [
-                    ("user_id", "=", user.id),
-                ],
-                order="current_count desc",
-            )
+            for s in user_streaks
         ]
 
         # Active challenge goals
@@ -733,17 +799,14 @@ WHERE sub.user_id = ANY(%s)""",
         :param int limit: max entries to return.
         :return: list of dicts with user_id, user_name, karma, rank_name.
         """
-        company_id = self.env.company.id
         users = self.search(
             [
-                ("active", "=", True),
-                ("share", "=", False),
-                ("company_id", "=", company_id),
+                ("company_id", "=", self.env.company.id),
                 ("karma", ">", 0),
-                ("gamification_visibility", "!=", "private"),
+                *self._get_domain_gamification_listable(),
             ],
             order="karma desc",
-            limit=limit,
+            limit=self._gamification_clamp_limit(limit),
         )
         current_uid = self.env.uid
         return [

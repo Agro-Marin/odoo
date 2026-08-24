@@ -1,3 +1,5 @@
+from psycopg.errors import UniqueViolation
+
 from odoo import _, api, exceptions, fields, models
 
 
@@ -24,6 +26,7 @@ class GamificationSkillTree(models.Model):
 
     node_ids = fields.One2many("gamification.skill.node", "tree_id", string="Nodes")
     node_count = fields.Count("node_ids", "# Nodes")
+
 
 class GamificationSkillNode(models.Model):
     """Individual competency node within a skill tree.
@@ -96,22 +99,7 @@ class GamificationSkillNode(models.Model):
     unlock_ids = fields.One2many(
         "gamification.skill.node.unlock", "node_id", string="Unlocks"
     )
-    unlock_count = fields.Integer("# Unlocked", compute="_compute_unlock_count")
-
-    @api.depends("unlock_ids")
-    def _compute_unlock_count(self):
-        if not self.ids:
-            for node in self:
-                node.unlock_count = 0
-            return
-        data = self.env["gamification.skill.node.unlock"]._read_group(
-            [("node_id", "in", self.ids)],
-            groupby=["node_id"],
-            aggregates=["__count"],
-        )
-        count_map = {node.id: count for node, count in data}
-        for node in self:
-            node.unlock_count = count_map.get(node.id, 0)
+    unlock_count = fields.Count("unlock_ids", "# Unlocked")
 
     def check_unlock_for_user(self, user):
         """Check if a user meets the conditions to unlock this node.
@@ -192,8 +180,10 @@ class GamificationSkillNode(models.Model):
                         "user_id": user.id,
                     }
                 )
-        except Exception:
-            # Lost the race on the (user_id, node_id) unique index.
+        except UniqueViolation:
+            # Lost the race on the (user_id, node_id) unique index.  Narrow on
+            # purpose: `except Exception` here reported every failure, including
+            # access errors and plain bugs, as "already unlocked".
             return False
 
         # Grant rewards
@@ -211,19 +201,8 @@ class GamificationSkillNode(models.Model):
                 }
             )._send_badge()
 
-        # Log to activity feed
-        self.env["gamification.activity"].sudo().create(
-            {
-                "activity_type": "skill_unlocked",
-                "user_id": user.id,
-                "summary": _(
-                    "%(user)s unlocked skill '%(skill)s'",
-                    user=user.name,
-                    skill=self.name,
-                ),
-                "icon": "fa fa-puzzle-piece",
-                "karma_gained": self.karma_reward,
-            }
+        self.env["gamification.activity"]._log_skill_unlocked(
+            user, self, self.karma_reward
         )
 
         return unlock
@@ -259,6 +238,42 @@ class GamificationSkillNode(models.Model):
                     # Its dependents may now be reachable — visit them next.
                     next_frontier |= node.dependent_ids
             frontier = next_frontier
+
+    @api.model
+    def _cron_check_skill_unlocks(self):
+        """Unlock nodes whose conditions a user now meets.
+
+        ``check_unlock_for_user`` honours ``karma_threshold``, but its only
+        caller was ``_unlock_nodes_for_quest``, seeded from
+        ``search([("quest_id", "=", ...)])``.  A node gated on karma alone --
+        or on a prerequisite that a karma-gated node unlocks -- could therefore
+        never open, because nothing ever asked.  This asks, nightly.
+
+        Scoped to nodes that *can* open on karma: a node with no threshold and
+        no quest is either already reachable through its prerequisites or has no
+        condition to meet, and a quest-gated one is handled at completion.
+        """
+        candidates = self.search([("karma_threshold", ">", 0)])
+        if not candidates:
+            return
+        users = self.env["res.users"].search(
+            [
+                ("active", "=", True),
+                ("share", "=", False),
+                ("karma", ">=", min(candidates.mapped("karma_threshold"))),
+            ]
+        )
+        for node in candidates:
+            for user in users.filtered(lambda u, n=node: u.karma >= n.karma_threshold):
+                # Each unlock can satisfy the last missing prerequisite of a
+                # dependent, so walk the same frontier the quest path walks.
+                frontier = node
+                while frontier:
+                    opened = frontier.browse()
+                    for candidate in frontier:
+                        if candidate.unlock_for_user(user):
+                            opened |= candidate.dependent_ids
+                    frontier = opened
 
     @api.constrains("prerequisite_ids")
     def _check_no_prerequisite_cycle(self):

@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import common
 
 from odoo.addons.mail.tests.common import mail_new_test_user
@@ -35,8 +35,12 @@ class TestMentorship(common.TransactionCase):
             groups="base.group_user",
         )
 
-    def _create_mentorship(self, **kwargs):
-        """Helper to create a mentorship record."""
+    def _create_mentorship(self, accept=True, **kwargs):
+        """Helper to create a mentorship record.
+
+        :param accept: confirm it as the mentee, which is what makes the
+            rewards live.  Pass ``False`` to keep it ``pending``.
+        """
         vals = {
             "mentor_id": self.mentor.id,
             "mentee_id": self.mentee.id,
@@ -44,14 +48,64 @@ class TestMentorship(common.TransactionCase):
             "mentor_karma_on_completion": 100,
             **kwargs,
         }
-        return self.env["gamification.mentorship"].create(vals)
+        record = self.env["gamification.mentorship"].create(vals)
+        if accept:
+            record.action_accept()
+        return record
 
     def test_create_mentorship(self):
-        """Basic mentorship creation."""
-        m = self._create_mentorship()
-        self.assertEqual(m.state, "active")
+        """A new pairing waits for the other party before it pays anything."""
+        m = self._create_mentorship(accept=False)
+        self.assertEqual(m.state, "pending")
         self.assertEqual(m.mentor_id, self.mentor)
         self.assertEqual(m.mentee_id, self.mentee)
+
+        m.action_accept()
+        self.assertEqual(m.state, "active")
+
+    def test_pending_mentorship_pays_nothing(self):
+        """Milestone karma waits for consent.
+
+        An employee can name themselves mentor of any colleague -- the record
+        rule allows create where mentor_id is the acting user, and the
+        manager-only reward fields still receive their ORM defaults.  What used
+        to make that profitable was that _on_mentee_rank_up paid on the mentee's
+        next rank-up regardless.  It only pays `active` pairings now.
+        """
+        m = self._create_mentorship(accept=False)
+        before = self.mentor.karma
+
+        self.env["gamification.mentorship"]._on_mentee_rank_up(self.mentee)
+
+        self.assertEqual(m.state, "pending")
+        self.assertEqual(m.mentee_milestones_reached, 0)
+        self.assertEqual(self.mentor.karma, before)
+
+    def test_the_proposer_cannot_accept_their_own_proposal(self):
+        """Whoever created the pairing has already said yes by creating it."""
+        m = (
+            self.env["gamification.mentorship"]
+            .with_user(self.mentor)
+            .create({"mentor_id": self.mentor.id, "mentee_id": self.mentee.id})
+        )
+        with self.assertRaises(AccessError):
+            m.with_user(self.mentor).action_accept()
+
+        m.with_user(self.mentee).action_accept()
+        self.assertEqual(m.state, "active")
+
+    def test_declining_cancels_the_pairing(self):
+        m = self._create_mentorship(accept=False)
+        m.with_user(self.mentee).action_decline()
+        self.assertEqual(m.state, "cancelled")
+
+    def test_reciprocal_mentorship_is_refused(self):
+        """A mutually-mentoring pair pays both sides for the same progression."""
+        self._create_mentorship()
+        with self.assertRaises(ValidationError):
+            self.env["gamification.mentorship"].create(
+                {"mentor_id": self.mentee.id, "mentee_id": self.mentor.id}
+            )
 
     def test_self_mentoring_prevented(self):
         """Users cannot mentor themselves."""

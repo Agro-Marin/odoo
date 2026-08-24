@@ -49,6 +49,7 @@
                 <field name="mentor_id" widget="many2one_avatar_user"/>
                 <field name="mentee_id" widget="many2one_avatar_user"/>
                 <field name="state" widget="badge"
+                       decoration-warning="state == 'pending'"
                        decoration-success="state == 'active'"
                        decoration-info="state == 'completed'"
                        decoration-muted="state == 'cancelled'"/>
@@ -66,20 +67,22 @@
         <field name="arch" type="xml">
             <form string="Mentorship">
                 <header>
+                    <button string="Accept" type="object" name="action_accept" class="oe_highlight" invisible="state != 'pending'"/>
+                    <button string="Decline" type="object" name="action_decline" invisible="state != 'pending'"/>
                     <button name="action_complete" string="Complete" type="object"
                             class="btn-primary" invisible="state != 'active'"/>
                     <button name="action_cancel" string="Cancel" type="object"
                             invisible="state != 'active'"/>
                     <field name="state" widget="statusbar"
-                           statusbar_visible="active,completed"/>
+                           statusbar_visible="pending,active,completed"/>
                 </header>
                 <sheet>
                     <group>
                         <group string="Pairing">
                             <field name="mentor_id" widget="many2one_avatar_user"
-                                   readonly="state != 'active'"/>
+                                   readonly="state not in ('pending', 'active')"/>
                             <field name="mentee_id" widget="many2one_avatar_user"
-                                   readonly="state != 'active'"/>
+                                   readonly="state not in ('pending', 'active')"/>
                         </group>
                         <group string="Progress">
                             <field name="start_date"/>
@@ -113,6 +116,7 @@
             <search>
                 <field name="mentor_id"/>
                 <field name="mentee_id"/>
+                <filter string="Awaiting Confirmation" name="pending" domain="[('state', '=', 'pending')]"/>
                 <filter string="Active" name="active" domain="[('state', '=', 'active')]"/>
                 <filter string="Completed" name="completed" domain="[('state', '=', 'completed')]"/>
                 <group>

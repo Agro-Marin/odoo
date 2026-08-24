@@ -12,6 +12,7 @@ Four models use `safe_eval` to evaluate user-defined domains or code:
 | `goal` | `definition.compute_code` (python mode) | `object` (goal), `env`, `date`, `datetime`, `timedelta`, `time` |
 | `streak.type` | `domain` | `user`, `date_from`, `date_to` (string datetimes) |
 | `achievement` | `trigger_domain` | `user` (browse record) |
+| `achievement` | `trigger_domain` | `user` (browse record) |
 
 **Security note:** `safe_eval` prevents arbitrary code execution but domains
 can still read any model's data. Goal definitions with `computation_mode=python`
@@ -34,12 +35,21 @@ Only admin users (`group_erp_manager`) can create goal definitions.
    If a new module grants karma with a different source model, extend
    `_get_origin_selection_values()`.
 
-3. **Consolidation:** Karma is the sum of all recorded gains, and a
-   consolidated row carries the total gain of the rows it replaces, so
-   consolidation cannot change anyone's karma and needs no special context.
+3. **Consolidation:** Karma is the sum of all recorded gains, and the
+   consolidated row carries the SUM of the gains it replaces, computed in the
+   statement itself. It therefore cannot change anyone's karma **whatever
+   shape the chain is in** — do not restore the older form, which took the
+   newest `new_value` and only held if every row's `old_value` equalled the
+   previous row's `new_value`. Nothing declares or checks that, and an admin
+   editing or deleting a row in the technical view breaks it.
    Do **not** reintroduce a `skip_karma_computation` flag: an early `return`
    from a compute does not defer it, it discards it, because the ORM clears the
    to-compute flag before calling the compute.
+
+4. **Rank re-evaluation hangs off `gamification.karma.tracking`**, not off
+   `_compute_karma`. Its create/write/unlink call `_recompute_user_ranks`,
+   which covers every path that changes karma including the technical view.
+   `_compute_karma` computes karma and nothing else.
 
 ---
 
@@ -62,16 +72,20 @@ Only admin users (`group_erp_manager`) can create goal definitions.
 | `ir_cron_check_challenge` | `gamification.challenge` | Daily | `_cron_update()` |
 | `ir_cron_update_streaks` | `gamification.streak` | Daily 06:00 | `_cron_update_streaks()` |
 | `ir_cron_check_achievements` | `gamification.achievement` | Daily 07:00 | `_cron_check_achievements()` |
+| `ir_cron_check_skill_unlocks` | `gamification.skill.node` | Daily 07:30 | `_cron_check_skill_unlocks()` |
 | `ir_cron_engagement_snapshot` | `gamification.engagement.snapshot` | Daily 08:00 | `_cron_record_snapshot()` |
 | `ir_cron_engagement_nudges` | `res.users` | Daily 09:00 | `_cron_engagement_nudges()` |
+| `ir_cron_update_seasons` | `gamification.season` | Daily 05:00 | `_cron_update_seasons()` |
 | `ir_cron_consolidate` | `gamification.karma.tracking` | Monthly 1st 04:00 | `_consolidate_cron()` |
 
 **Execution order matters:**
-1. 06:00 — Streaks (may grant karma)
-2. 07:00 — Achievements (may check karma-dependent conditions)
-3. 08:00 — Engagement snapshot (captures fresh data after streaks/achievements)
-4. 09:00 — Nudges (detects patterns after all data is updated)
-5. Daily — Challenge check (goal evaluation + reports)
+1. 05:00 — Seasons (open/close by date, so the rest sees the right season state)
+2. 06:00 — Streaks (may grant karma)
+3. 07:00 — Achievements (may check karma-dependent conditions)
+4. 07:30 — Skill unlocks (karma-gated nodes, after the karma grants above)
+5. 08:00 — Engagement snapshot (captures fresh data after streaks/achievements)
+6. 09:00 — Nudges (detects patterns after all data is updated)
+7. Daily — Challenge check (goal evaluation + reports)
 
 ---
 
@@ -154,6 +168,12 @@ grep "tests when loading" ./odoo.log
 
 ## What NOT to Do
 
+0. **Don't widen an employee ACL to make a record rule "work".** A record rule
+   narrows ACL-granted access; it can never add any. `gamification.streak` is
+   read-only for employees on purpose — `current_count` selects the milestone
+   karma multiplier, so a user who could write it would park on day 6 and
+   collect the day-7 bonus nightly.
+
 1. **Don't create `gamification.badge.user` without checking granting rules.**
    The `create()` method calls `check_granting()` which validates permissions.
    Only `sudo()` bypasses this — used by challenge reward logic and achievement
@@ -164,9 +184,11 @@ grep "tests when loading" ./odoo.log
    exceeds `len(ranks) * 3`, but callers should still pre-filter to users
    with `karma > 0 or rank_id`.
 
-3. **Don't assume `_ensure_user_streaks` has been called.**
+3. **Don't assume `_get_user_streaks` has been called.**
    Streak records are lazily created when `get_gamification_dashboard_data()`
-   is called. Code that queries streaks should handle missing records.
+   is called. Code that queries streaks should handle missing records —
+   or call `_get_user_streaks(user)`, which creates the missing ones and
+   returns the whole set.
 
 4. **Don't use `f-strings` in `_add_karma` reason parameter for logging.**
    The reason is stored in the database, not a log message. Use descriptive

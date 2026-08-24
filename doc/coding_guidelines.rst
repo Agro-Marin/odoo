@@ -883,8 +883,8 @@ Two readings of the gate itself:
   hidden. Do not update those two digits. **1** hook is exempt today,
   ``crm.team._get_default_team_id``.
 * **The reserved prefixes are worn by more than the hooks**
-  ``[gate doc_restated_counts]``. ``field_hook_naming.py --unbound``: **154**
-  names, at **238** definitions, wear one while no field declaration and no
+  ``[gate doc_restated_counts]``. ``field_hook_naming.py --unbound``: **153**
+  names, at **237** definitions, wear one while no field declaration and no
   binding decorator names them (``_compute_`` leads at 72 names, ``_search_`` at
   49). A candidate population, not a violation count.
 
@@ -950,7 +950,7 @@ ways: 8 stems are written with two or more verbs drawn from one semantic family,
 and 100 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 23,707 non-test methods
+``[gate doc_restated_counts]``. The population is the 23,729 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. Semantic families are read off the table
 below, so the justification is computed from the rule it justifies. Census and
@@ -1189,9 +1189,9 @@ Four limits:
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** At 5,210 definitions it is 22.0 % of every method
+**``_get_`` is not a default.** At 5,212 definitions it is 22.0 % of every method
 in this repository's model layer, having absorbed reading, building, deriving and
-computing. The split that matters is against ``_prepare_``: 678 definitions are
+computing. The split that matters is against ``_prepare_``: 677 definitions are
 payload builders -- they end in ``_vals``, ``_values``, ``_data``, ``_dict``,
 ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet are
 spelled ``get_*``, against 686 already spelled ``_prepare_*``.
@@ -1274,7 +1274,7 @@ converter where a type would.
 
 **Validation raises; predicates return.** ``_check_*`` (953 definitions) is
 canonical and matches ``@api.constrains``. ``_validate_`` (37) plus ``_verify_``,
-``_ensure_`` and ``_control_`` (54 together) are the same operation under four
+``_ensure_`` and ``_control_`` (53 together) are the same operation under four
 names. A method that *answers* rather than enforces is ``_is_*`` / ``_has_*`` /
 ``_can_*`` and must not raise.
 
@@ -1504,7 +1504,7 @@ may not borrow that vocabulary, whether or not it is indented under a class.
 populations in the same files are counted by nothing: a function declared at
 **module level** -- **288** of them under ``models/`` and ``wizard/`` -- and a
 method on a **plain class** declared in the same file, of which there are **355**
-across **134** classes. Counted over the addon trees only, since a directory test
+across **135** classes. Counted over the addon trees only, since a directory test
 alone would sweep in ORM internals the vocabulary does not reach.
 
 **A file can be sixteen names wrong and green.** Three sweeps
@@ -1557,8 +1557,8 @@ binding and no prose.
 
 **A private method can be reached from outside the workspace**
 ``[gate doc_restated_counts]``. ``ir.actions.server`` stores **Python source in a
-database column**: **101** distinct private method names are reached that way from
-**110** code blocks in **68** shipped data files of this repository -- and the
+database column**: **103** distinct private method names are reached that way from
+**112** code blocks in **68** shipped data files of this repository -- and the
 shipped files are only the half a grep can see, since the field is edited in the
 UI. **The question is not public against private, but whether a name is written
 down anywhere this workspace cannot rewrite.** ``_for_xml_id`` is the case, and it

@@ -91,23 +91,7 @@ class GamificationAchievement(models.Model):
         "achievement_id",
         string="Unlocks",
     )
-    unlock_count = fields.Integer("# Unlocked", compute="_compute_unlock_count")
-
-    @api.depends("unlock_ids")
-    def _compute_unlock_count(self) -> None:
-        """Count how many users have unlocked this achievement."""
-        if not self.ids:
-            for rec in self:
-                rec.unlock_count = 0
-            return
-        data = self.env["gamification.achievement.unlock"]._read_group(
-            [("achievement_id", "in", self.ids)],
-            groupby=["achievement_id"],
-            aggregates=["__count"],
-        )
-        count_map = {ach.id: count for ach, count in data}
-        for rec in self:
-            rec.unlock_count = count_map.get(rec.id, 0)
+    unlock_count = fields.Count("unlock_ids", "# Unlocked")
 
     def _check_achievement_for_users(
         self,
@@ -149,11 +133,20 @@ class GamificationAchievement(models.Model):
         # row the user owns (a full COUNT(*) over e.g. account.move.line).  The
         # unlock creation is batched into one INSERT.
         trigger_count = max(self.trigger_count, 1)
-        unlock_vals = []
+        # Users whose evaluated domain is identical share one query.  A trigger
+        # that does not mention `user`, or keys on something coarse like the
+        # company, collapses to a single search_count for the whole population
+        # instead of one per candidate.
+        by_domain: dict[str, tuple[list, list]] = {}
         for user in candidates:
             domain = safe_eval(self.trigger_domain, {"user": user})
-            count = Obj.search_count(domain, limit=trigger_count)
-            if count >= trigger_count:
+            by_domain.setdefault(repr(domain), (domain, []))[1].append(user)
+
+        unlock_vals = []
+        for domain, domain_users in by_domain.values():
+            if Obj.search_count(domain, limit=trigger_count) < trigger_count:
+                continue
+            for user in domain_users:
                 unlock_vals.append(
                     {
                         "achievement_id": self.id,
@@ -175,6 +168,12 @@ class GamificationAchievement(models.Model):
         Processes each achievement and grants rewards for new unlocks.
         """
         achievements = self.search([("active", "=", True)])
+        # One user search for the whole run.  `_check_achievement_for_users`
+        # defaults to searching them itself, which put a full res.users scan
+        # inside the per-achievement loop.
+        users = self.env["res.users"].search(
+            [("active", "=", True), ("share", "=", False)]
+        )
         for achievement in achievements:
             # Isolate each achievement in a savepoint.  A single malformed
             # ``trigger_domain`` (bad syntax, or a field dropped by a module
@@ -184,7 +183,7 @@ class GamificationAchievement(models.Model):
             # every subsequent night, silently and indefinitely.
             try:
                 with self.env.cr.savepoint():
-                    new_unlocks = achievement._check_achievement_for_users()
+                    new_unlocks = achievement._check_achievement_for_users(users)
                     for unlock in new_unlocks:
                         unlock._grant_rewards()
             except Exception:

@@ -28,6 +28,47 @@ FLOORS = {
     # Recorded rather than attributed, for the same reason test_batch_queries
     # was: the scanner counts findings and not provenance, and guessing an owner
     # would be worse than saying there isn't one.
+    # 402 -> 395 on the rebase onto origin/19.0-marin, and the seven are this
+    # branch's own. Both parents were measured by running the gate at CI scope
+    # (`--addons-path=odoo/addons,addons`, only test_lint installed), which is the
+    # only scope these floors are defined at:
+    #
+    #   origin/19.0-marin   402   (its whole test_lint suite passes; 402 reproduces)
+    #   merged              395
+    #
+    # This branch's committed floor said 409 against origin's 402, so the two
+    # parents had each reduced findings the other could not see -- fourteen on
+    # origin's side, seven on this one -- over a common base of 416. They are
+    # disjoint, so the composition keeps both and lands on 395 rather than on
+    # either parent's number. Nothing here removed a query: an exact ratchet fails
+    # in the falling direction too, which is why the improvement is banked in the
+    # same change that produced it.
+    #
+    # 403 -> 402. The unit was already gone when this was measured: a clean
+    # worktree of HEAD reports 402 against the committed 403, so `test_batch_queries`
+    # had been failing in the falling direction for every commit since whichever
+    # change removed it. Re-floored here without an attribution, because the
+    # scanner records counts and not provenance and guessing one would be worse
+    # than saying so.
+    #
+    # 405 -> 403, two units, neither of them a hoisted query.
+    # 405 -> 404 was already standing at HEAD when this was measured: the gateway
+    # extraction that landed before it moved the count and did not re-floor, so
+    # `test_batch_queries` was failing in the falling direction for every commit
+    # since. Measured on a clean worktree of HEAD: 404.
+    # 404 -> 403 is `mail.message._discard_followed_documents`, whose
+    # `mail.followers.search_fetch()` moved into the named
+    # `_filter_records_followed_by_self` so `mail.activity._accessible_ids` could
+    # ask the same question rather than spell it a second time. **The query is
+    # still run once per model** -- the scanner is syntactic and no longer sees
+    # the call inside a `for`. It was never an N+1 to begin with: that loop is
+    # over document *models*, of which a message batch has one or two, not over
+    # records. A finding removed, not a query.
+    # Three below the committed 69, on an archive of HEAD. Whoever earned those
+    # three did not re-floor, so the gate has been failing in the falling
+    # direction since. Recorded rather than attributed, the way ruff.json's
+    # ninety were.
+    #
     "noqa-rationale": 66,
     "onchange-domain": 0,
     # 394 -> 392. The gate has been red in the *falling* direction since
@@ -43,7 +84,47 @@ FLOORS = {
     # two worktrees, 5bed3c22f90's tree and this one, whose offender lists are
     # identical line for line: no commit since is the -2, it was already stale
     # when it was written.
-    "n-plus-one-query": 384,
+    # 392 -> 389. ALL THREE ARE EARNED, ALL THREE IN gamification.
+    #
+    # Attributed by DELTA, not by an absolute reading: the shared checkout is
+    # carrying another session's uncommitted digest/loyalty work, which moves
+    # this count by -8 under any whole-tree measurement and is not this change's
+    # to floor. `addons/gamification` was swapped between HEAD and this change
+    # in the same checkout, seconds apart, and only its own findings counted:
+    # 18 at HEAD, 15 here. 392 - 3 = 389 is what a clean tree measures; the
+    # whole-tree reading here is 381, which is 389 with that -8 on top.
+    #
+    #   gamification_team._compute_team_stats   a search_count per team, run on
+    #       every karma change of every member because the field was stored and
+    #       depended on `member_ids.karma`. Now two _read_groups for the whole
+    #       recordset, and the fields are not stored at all, so an ordinary
+    #       kudos stops touching the team table.
+    #   res_users._rank_changed                 a badge search per user. Now one
+    #       search and one create over the batch the caller already had.
+    #   gamification_goal.update_goal           a search_count per goal even
+    #       when the definition's domain never mentions `user`. Goals are
+    #       grouped by their evaluated domain now, so goals that must get the
+    #       same answer share the query that produces it: measured 1.9 -> 1.0
+    #       queries per goal over 15 goals of one count-mode definition.
+    #
+    # The same domain-grouping shape went into `_check_achievement_for_users`
+    # and the streak checker; neither moves this count, because the scanner sees
+    # a call inside a loop either way -- what changed is how many distinct loops
+    # run. The streak one is the larger win regardless: its daily cron went from
+    # 4.2 to 0.20 queries per additional streak, measured at 5 and at 25.
+    # 52 -> 51, and the whole of the -1 is `digest`'s `/set_periodicity` route,
+    # which answered a periodicity outside the selection with
+    # `raise ValueError(_("Invalid periodicity set on digest"))` -- a 500 out of
+    # a translated developer string. It raises `NotFound` now.
+    #
+    # 389 -> 381 and 69 -> 66, re-measured after this change was replayed onto
+    # origin/19.0-marin. Two re-floorings composed here: the linear replay had
+    # already banked 392 -> 384 and 69 -> 66 against a tree this change had not
+    # landed on, and neither parent's number describes the result. Measured on
+    # the composed tree at CI scope, test_lint installed: 381 and 66. The -3 on
+    # top of 384 is this change's own, from the crons that stopped asking per
+    # record.
+    "n-plus-one-query": 381,
     "gettext-developer-error": 52,
     "config-chainmap-patch": 0,
 }

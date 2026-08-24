@@ -143,7 +143,7 @@ class TestTeam(common.TransactionCase):
             {
                 "name": "Team Test Challenge",
                 "period": "once",
-                "user_ids": [(6, 0, [self.user_1.id, self.user_2.id])],
+                "manual_user_ids": [(6, 0, [self.user_1.id, self.user_2.id])],
             }
         )
         self.env["gamification.challenge.line"].create(

@@ -73,7 +73,7 @@ quest_step_manager,"Quest Step Manager",model_gamification_quest_step,gamificati
 quest_enrollment_employee,"Quest Enrollment Employee",model_gamification_quest_enrollment,gamification.group_gamification_user,1,1,1,0
 quest_enrollment_manager,"Quest Enrollment Manager",model_gamification_quest_enrollment,gamification.group_gamification_manager,1,1,1,1
 
-quest_step_completion_employee,"Quest Step Completion Employee",model_gamification_quest_step_completion,gamification.group_gamification_user,1,1,1,0
+quest_step_completion_employee,"Quest Step Completion Employee",model_gamification_quest_step_completion,gamification.group_gamification_user,1,0,0,0
 quest_step_completion_manager,"Quest Step Completion Manager",model_gamification_quest_step_completion,gamification.group_gamification_manager,1,1,1,1
 
 season_employee,"Season Employee",model_gamification_season,gamification.group_gamification_user,1,0,0,0

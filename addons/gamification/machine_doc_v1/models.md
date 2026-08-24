@@ -512,7 +512,7 @@ active ←──→ broken
 | `_record_activity()` | Increment count, grant karma (with milestone multiplier) |
 | `_break_streak()` | Reset current_count=0, state=broken, preserve longest |
 | `_cron_update_streaks()` | Daily: check activity, use freeze or break, reset freeze on 1st |
-| `_ensure_user_streaks(user)` | Create missing streak records for all active types |
+| `_get_user_streaks(user)` | Create any missing streak records and return the user's whole set |
 
 ### gamification.streak.type Key Methods
 
@@ -718,7 +718,7 @@ active ←──→ broken
 |-------|------|----------------|---------|
 | `mentor_id` | Many2one `res.users` | required, indexed, tracking | Mentor |
 | `mentee_id` | Many2one `res.users` | required, indexed, tracking | Mentee |
-| `state` | Selection | `active/completed/cancelled`, tracking, indexed | Lifecycle |
+| `state` | Selection | `pending/active/completed/cancelled`, tracking, indexed | Lifecycle. Starts `pending`: rewards only accrue once the counterparty accepts, so an employee cannot appoint themselves mentor and collect on the mentee's rank-ups |
 | `start_date` | Date | default=today, readonly | When started |
 | `end_date` | Date | tracking | When ended |
 | `description` | Text | | Goals |

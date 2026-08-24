@@ -54,7 +54,7 @@ class TestKarmaTrackingCommon(common.TransactionCase):
                 ]
             )
             old_value = new_value
-            track_date = track_date + relativedelta(days=days_delta)
+            track_date += relativedelta(days=days_delta)
 
     def test_computation_gain(self):
         self._create_trackings(self.test_user, 20, 2, self.test_date, days_delta=30)
@@ -125,8 +125,14 @@ class TestKarmaTrackingCommon(common.TransactionCase):
         self.assertEqual(self.test_user.karma, 40)
         self.assertEqual(self.test_user_2.karma, 200)
 
+        # 8 -> 2: the statement pair is all consolidation does now.  It used to
+        # drag a karma recompute and a rank re-evaluation behind it, because
+        # `_compute_karma` ended by calling `_recompute_rank` and the ORM reached
+        # both through the flush.  The rank hook lives on this table's own
+        # create/write/unlink now, and consolidation writes in raw SQL precisely
+        # because it is karma-neutral -- so there is nothing for it to trigger.
         with (
-            self.assertQueryCount(8),
+            self.assertQueryCount(2),
             patch.object(self.registry["res.users"], "write") as patched_user_write,
         ):
             Tracking._consolidate_cron()

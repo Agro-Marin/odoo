@@ -56,10 +56,10 @@
         <field name="arch" type="xml">
             <form string="Goal" create="false">
                 <header>
-                    <button string="Start goal" type="object" name="action_start" invisible="state != 'draft'" class="oe_highlight"/>
+                    <button string="Start goal" type="object" name="action_start" invisible="state != 'draft'" class="oe_highlight" groups="gamification.group_gamification_manager"/>
 
-                    <button string="Goal Reached" type="object" name="action_reach" invisible="state != 'inprogress'" />
-                    <button string="Goal Failed" type="object" name="action_fail" invisible="state != 'inprogress'"/>
+                    <button string="Goal Reached" type="object" name="action_reach" invisible="state != 'inprogress'" groups="gamification.group_gamification_manager"/>
+                    <button string="Goal Failed" type="object" name="action_fail" invisible="state != 'inprogress'" groups="gamification.group_gamification_manager"/>
                     <button string="Reset Completion" type="object" name="action_cancel" invisible="state not in ('failed', 'reached')" groups="base.group_no_one" />
                     <field name="state" widget="statusbar" statusbar_visible="draft,inprogress,reached" />
                 </header>

@@ -51,6 +51,12 @@
                         <label for="user_domain" string="Assign Challenge to"/>
                         <div>
                             <field name="user_domain" widget="domain" options="{'model': 'res.users'}" />
+                            <label for="manual_user_ids" string="Plus"/>
+                            <field name="manual_user_ids" widget="many2many_tags"
+                                options="{'no_create': True}" nolabel="1"/>
+                            <label for="user_ids" string="Taking part"/>
+                            <field name="user_ids" widget="many2many_tags" readonly="1"
+                                nolabel="1"/>
                         </div>
                     </div>
                     <group>
@@ -93,6 +99,15 @@
                         <page string="Advanced Options" name="advanced_options">
                             <group string="Subscriptions">
                                 <field name="invited_user_ids" widget="many2many_tags" />
+                            <!-- accept_challenge / discard_challenge existed with
+                                 no way to reach them; an invitation nobody can
+                                 answer is not an invitation. -->
+                            <button name="accept_challenge" type="object"
+                                    string="Join this challenge" class="btn-link"
+                                    invisible="id not in invited_user_ids"/>
+                            <button name="discard_challenge" type="object"
+                                    string="No thanks" class="btn-link"
+                                    invisible="id not in invited_user_ids"/>
                             </group>
                             <group string="Notification Messages">
                                 <div class="opacity-50" colspan="4">

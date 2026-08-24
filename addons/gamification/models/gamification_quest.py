@@ -67,32 +67,28 @@ class GamificationQuest(models.Model):
     enrollment_ids = fields.One2many(
         "gamification.quest.enrollment", "quest_id", string="Enrollments"
     )
-    enrollment_count = fields.Integer("# Enrolled", compute="_compute_enrollment_count")
+    enrollment_count = fields.Count("enrollment_ids", "# Enrolled")
     completion_count = fields.Integer(
-        "# Completed", compute="_compute_enrollment_count"
+        "# Completed", compute="_compute_completion_count"
     )
 
     @api.depends("enrollment_ids.state")
-    def _compute_enrollment_count(self):
-        if not self.ids:
-            for q in self:
-                q.enrollment_count = 0
-                q.completion_count = 0
-            return
-        data = self.env["gamification.quest.enrollment"]._read_group(
-            [("quest_id", "in", self.ids)],
-            groupby=["quest_id", "state"],
-            aggregates=["__count"],
-        )
-        enroll_map = {}
-        complete_map = {}
-        for quest, state, count in data:
-            enroll_map[quest.id] = enroll_map.get(quest.id, 0) + count
-            if state == "completed":
-                complete_map[quest.id] = complete_map.get(quest.id, 0) + count
+    def _compute_completion_count(self):
+        """Count the enrolments that reached the end of the quest."""
+        counts = {}
+        if self.ids:
+            counts = {
+                quest.id: count
+                for quest, count in self.env[
+                    "gamification.quest.enrollment"
+                ]._read_group(
+                    [("quest_id", "in", self.ids), ("state", "=", "completed")],
+                    groupby=["quest_id"],
+                    aggregates=["__count"],
+                )
+            }
         for quest in self:
-            quest.enrollment_count = enroll_map.get(quest.id, 0)
-            quest.completion_count = complete_map.get(quest.id, 0)
+            quest.completion_count = counts.get(quest.id, 0)
 
 
 class GamificationQuestStep(models.Model):
@@ -207,7 +203,7 @@ class GamificationQuestEnrollment(models.Model):
         index=True,
     )
     progress_percent = fields.Float(
-        "Progress %", compute="_compute_progress", store=True
+        "Progress %", compute="_compute_progress_percent", store=True
     )
 
     # Step completions
@@ -223,7 +219,7 @@ class GamificationQuestEnrollment(models.Model):
     )
 
     @api.depends("completion_ids", "quest_id.step_ids")
-    def _compute_progress(self):
+    def _compute_progress_percent(self):
         for enrollment in self:
             total = len(enrollment.quest_id.step_ids)
             done = len(enrollment.completion_ids)
@@ -258,12 +254,20 @@ class GamificationQuestEnrollment(models.Model):
                     )
                 )
 
-        # Create completion
-        completion = self.env["gamification.quest.step.completion"].create(
-            {
-                "enrollment_id": self.id,
-                "step_id": step.id,
-            }
+        # sudo: employees have read-only access to the completion table now.
+        # It used to be employee-writable with no record rule, so anyone could
+        # INSERT a row on someone else's enrolment and skip the prerequisite
+        # check above -- the only place prerequisites are enforced.  Recording a
+        # completion is a system act; deciding to is what this method guards.
+        completion = (
+            self.env["gamification.quest.step.completion"]
+            .sudo()
+            .create(
+                {
+                    "enrollment_id": self.id,
+                    "step_id": step.id,
+                }
+            )
         )
 
         # Grant step rewards
@@ -312,19 +316,8 @@ class GamificationQuestEnrollment(models.Model):
                 }
             )._send_badge()
 
-        # Log to activity feed
-        self.env["gamification.activity"].sudo().create(
-            {
-                "activity_type": "quest_completed",
-                "user_id": user.id,
-                "summary": _(
-                    "%(user)s completed the '%(quest)s' quest!",
-                    user=user.name,
-                    quest=quest.name,
-                ),
-                "icon": "fa fa-flag-checkered",
-                "karma_gained": quest.reward_karma,
-            }
+        self.env["gamification.activity"]._log_quest_completed(
+            user, quest, quest.reward_karma
         )
 
         # Unlock any skill-tree nodes gated on this quest.  This is the link

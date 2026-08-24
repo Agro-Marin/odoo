@@ -62,13 +62,13 @@ class TestStreak(TestStreakCommon):
             ]
         ).unlink()
 
-    def test_ensure_user_streaks_creates_missing(self):
-        """_ensure_user_streaks creates streak records for all active types."""
+    def test_get_user_streaks_creates_missing(self):
+        """_get_user_streaks creates streak records for all active types."""
         Streak = self.env["gamification.streak"]
         # Clear any existing streaks for test user
         Streak.search([("user_id", "=", self.test_user.id)]).unlink()
 
-        Streak._ensure_user_streaks(self.test_user)
+        Streak._get_user_streaks(self.test_user)
 
         streaks = Streak.search([("user_id", "=", self.test_user.id)])
         active_types = self.env["gamification.streak.type"].search(
@@ -80,15 +80,15 @@ class TestStreak(TestStreakCommon):
             "Should create one streak per active type",
         )
 
-    def test_ensure_user_streaks_idempotent(self):
-        """Calling _ensure_user_streaks twice does not duplicate records."""
+    def test_get_user_streaks_idempotent(self):
+        """Calling _get_user_streaks twice does not duplicate records."""
         Streak = self.env["gamification.streak"]
         Streak.search([("user_id", "=", self.test_user.id)]).unlink()
 
-        Streak._ensure_user_streaks(self.test_user)
+        Streak._get_user_streaks(self.test_user)
         count_1 = Streak.search_count([("user_id", "=", self.test_user.id)])
 
-        Streak._ensure_user_streaks(self.test_user)
+        Streak._get_user_streaks(self.test_user)
         count_2 = Streak.search_count([("user_id", "=", self.test_user.id)])
 
         self.assertEqual(count_1, count_2, "Second call should not create duplicates")
@@ -236,8 +236,8 @@ class TestStreak(TestStreakCommon):
         # No activity yesterday, so freeze should be used
         with patch.object(
             type(self.streak_type),
-            "_check_user_activity",
-            return_value=False,
+            "_check_user_activity_batch",
+            side_effect=lambda users, check_date: set(),
         ):
             self.env["gamification.streak"]._cron_update_streaks()
 
@@ -262,8 +262,8 @@ class TestStreak(TestStreakCommon):
 
         with patch.object(
             type(self.streak_type),
-            "_check_user_activity",
-            return_value=False,
+            "_check_user_activity_batch",
+            side_effect=lambda users, check_date: set(),
         ):
             self.env["gamification.streak"]._cron_update_streaks()
 
@@ -272,7 +272,7 @@ class TestStreak(TestStreakCommon):
         self.assertEqual(streak.current_count, 0)
 
     def test_cron_records_activity_when_found(self):
-        """Cron records activity when _check_user_activity returns True."""
+        """Cron records activity when the batch check reports the user active."""
         streak = self.env["gamification.streak"].create(
             {
                 "user_id": self.test_user.id,
@@ -288,8 +288,8 @@ class TestStreak(TestStreakCommon):
 
         with patch.object(
             type(self.streak_type),
-            "_check_user_activity",
-            return_value=True,
+            "_check_user_activity_batch",
+            side_effect=lambda users, check_date: set(users.ids),
         ):
             self.env["gamification.streak"]._cron_update_streaks()
 
@@ -315,8 +315,8 @@ class TestStreak(TestStreakCommon):
 
         with patch.object(
             type(self.streak_type),
-            "_check_user_activity",
-            return_value=True,
+            "_check_user_activity_batch",
+            side_effect=lambda users, check_date: set(users.ids),
         ):
             self.env["gamification.streak"]._cron_update_streaks()
 
@@ -378,8 +378,8 @@ class TestStreak(TestStreakCommon):
             self.streak_type.user_count, 1, "Broken streaks should not count"
         )
 
-    def test_ensure_user_streaks_as_employee(self):
-        """_ensure_user_streaks works for employees who lack create permission.
+    def test_get_user_streaks_as_employee(self):
+        """_get_user_streaks works for employees who lack create permission.
 
         Regression: employees have perm_create=0 on gamification.streak.
         The method uses sudo() internally so the dashboard doesn't crash.
@@ -388,7 +388,7 @@ class TestStreak(TestStreakCommon):
         Streak.search([("user_id", "=", self.test_user.id)]).unlink()
 
         # Call as the employee user (group_user only, no erp_manager)
-        Streak.with_user(self.test_user)._ensure_user_streaks(self.test_user)
+        Streak.with_user(self.test_user)._get_user_streaks(self.test_user)
 
         streaks = Streak.search([("user_id", "=", self.test_user.id)])
         active_types = self.env["gamification.streak.type"].search(
@@ -397,7 +397,7 @@ class TestStreak(TestStreakCommon):
         self.assertEqual(
             len(streaks),
             len(active_types),
-            "Employee should be able to create streaks via _ensure_user_streaks",
+            "Employee should be able to create streaks via _get_user_streaks",
         )
 
     def test_cron_revives_broken_streak_on_activity(self):
@@ -420,8 +420,8 @@ class TestStreak(TestStreakCommon):
         # Simulate: user was active yesterday
         with patch.object(
             type(self.streak_type),
-            "_check_user_activity",
-            return_value=True,
+            "_check_user_activity_batch",
+            side_effect=lambda users, check_date: set(users.ids),
         ):
             self.env["gamification.streak"]._cron_update_streaks()
 
@@ -449,8 +449,8 @@ class TestStreak(TestStreakCommon):
 
         with patch.object(
             type(self.streak_type),
-            "_check_user_activity",
-            return_value=False,
+            "_check_user_activity_batch",
+            side_effect=lambda users, check_date: set(),
         ):
             self.env["gamification.streak"]._cron_update_streaks()
 

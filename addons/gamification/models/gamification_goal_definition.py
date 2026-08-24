@@ -129,14 +129,24 @@ class GamificationGoalDefinition(models.Model):
             if definition.computation_mode not in ("count", "sum"):
                 continue
 
-            Obj = self.env[definition.model_id.model]
-            try:
-                domain = safe_eval(
-                    definition.domain, {"user": self.env.user.with_user(self.env.user)}
+            if not definition.model_id:
+                # `self.env[False]` raised a bare KeyError from *outside* the
+                # try below, so a count/sum definition saved without a model
+                # produced a traceback instead of the message this method exists
+                # to produce.
+                raise exceptions.UserError(
+                    _(
+                        "The definition %(definition)s counts records, so it "
+                        "needs a model to count them on.",
+                        definition=definition.name,
+                    )
                 )
+            try:
+                Obj = self.env[definition.model_id.model]
+                domain = safe_eval(definition.domain, {"user": self.env.user})
                 # dummy search to make sure the domain is valid
                 Obj.search_count(domain)
-            except (ValueError, SyntaxError) as e:
+            except (KeyError, TypeError, ValueError, SyntaxError) as e:
                 msg = e
                 if isinstance(e, SyntaxError):
                     msg = e.msg + "\n" + e.text
