@@ -69,4 +69,14 @@ class PrettyXmlLinter(LintCase):
 # with nothing uncommitted in it:
 #
 #   python odoo/addons/test_lint/tests/_pretty_xml.py --count odoo/addons addons
-UNFORMATTED_FLOOR = 3643
+#
+# 3643 -> 3641: the two XML data files the digest rename left behind,
+# `addons/crm/data/digest_data.xml` and
+# `addons/link_tracker/views/utm_campaign_views.xml`. Both were opened for the
+# KPI digest work and canonicalised on the way out, so the debt is paid where
+# the change already was rather than in a sweep of its own. Measured on a tree
+# holding nothing else, against an archive of the parent commit, which reads
+# 3643 -- the floor this replaces was accurate:
+#
+#   python odoo/addons/test_lint/tests/_pretty_xml.py --count odoo/addons addons
+UNFORMATTED_FLOOR = 3641
