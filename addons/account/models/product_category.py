@@ -1,6 +1,6 @@
 from odoo import fields, models
 
-ACCOUNT_DOMAIN = "[('account_type', 'not in', ('asset_receivable','liability_payable','asset_cash','liability_credit_card','off_balance'))]"
+from odoo.addons.account.models.product import ACCOUNT_DOMAIN
 
 
 class ProductCategory(models.Model):
