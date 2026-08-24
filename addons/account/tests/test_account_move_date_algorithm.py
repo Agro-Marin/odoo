@@ -294,7 +294,7 @@ class TestAccountMoveDateAlgorithm(AccountTestInvoicingCommon):
             caba_move,
             [
                 {
-                    "date": fields.Date.from_string("2017-01-12"),
+                    "date": fields.Date.from_string("2017-01-04"),
                     "amount_total_signed": 440.0,
                 }
             ],
@@ -320,6 +320,40 @@ class TestAccountMoveDateAlgorithm(AccountTestInvoicingCommon):
                     "amount_total_signed": 440.0,
                 }
             ],
+        )
+
+    def test_caba_with_tax_lock_date(self):
+        self.env.company.tax_exigibility = True
+        tax = self.percent_tax(
+            10.0,
+            tax_exigibility="on_payment",
+            cash_basis_transition_account_id=self.env["account.account"]
+            .create(
+                {
+                    "name": "Tax waiting",
+                    "code": "TAX.WAIT",
+                    "account_type": "liability_current",
+                    "reconcile": True,
+                }
+            )
+            .id,
+        )
+        invoice = self._create_invoice(
+            "out_invoice",
+            "2025-01-01",
+            invoice_line_ids=[{"tax_ids": [Command.set(tax.ids)]}],
+        )
+        payment = self._create_payment("2025-02-01", amount=invoice.amount_total)
+        invoice.action_post()
+        self.env.company.tax_lock_date = fields.Date.to_date("2025-02-28")
+
+        (invoice + payment.move_id).line_ids.filtered(
+            lambda line: line.account_id.account_type == "asset_receivable"
+        ).reconcile()
+
+        self.assertEqual(
+            invoice.tax_cash_basis_created_move_ids.date,
+            fields.Date.to_date("2025-03-31"),
         )
 
     @freezegun.freeze_time("2023-05-01")
@@ -381,7 +415,7 @@ class TestAccountMoveDateAlgorithm(AccountTestInvoicingCommon):
                 )
 
                 self.assertEqual(caba_move.journal_id.type, "general")
-                self.assertEqual(caba_move.date.isoformat(), "2023-02-28")
+                self.assertEqual(caba_move.date.isoformat(), "2023-01-30")
 
     @freezegun.freeze_time("2024-08-05")
     def test_lock_date_exceptions(self):

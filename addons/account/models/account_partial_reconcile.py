@@ -1,8 +1,63 @@
 import json
+from datetime import timedelta
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools import frozendict
+
+
+def _get_matching_number2lines(partials):
+    """Group reconciled line IDs by their component's oldest partial ID."""
+    parent = {}
+    component_size = {}
+    component_number = {}
+
+    def find(line_id):
+        root_id = line_id
+        while parent[root_id] != root_id:
+            root_id = parent[root_id]
+        while parent[line_id] != line_id:
+            next_id = parent[line_id]
+            parent[line_id] = root_id
+            line_id = next_id
+        return root_id
+
+    for partial in partials:
+        debit_id = partial.debit_move_id.id
+        credit_id = partial.credit_move_id.id
+        for line_id in (debit_id, credit_id):
+            if line_id not in parent:
+                parent[line_id] = line_id
+                component_size[line_id] = 1
+                component_number[line_id] = partial.id
+
+        debit_root = find(debit_id)
+        credit_root = find(credit_id)
+        if debit_root == credit_root:
+            component_number[debit_root] = min(component_number[debit_root], partial.id)
+            continue
+
+        if component_size[debit_root] < component_size[credit_root]:
+            debit_root, credit_root = credit_root, debit_root
+        parent[credit_root] = debit_root
+        component_size[debit_root] += component_size.pop(credit_root)
+        component_number[debit_root] = min(
+            component_number[debit_root],
+            component_number.pop(credit_root),
+            partial.id,
+        )
+
+    number2lines = {}
+    for line_id in parent:
+        root_id = find(line_id)
+        number2lines.setdefault(component_number[root_id], []).append(line_id)
+    return number2lines
+
+
+def _get_partial_company(partial):
+    if partial.debit_move_id.move_id.is_invoice(include_receipts=True):
+        return partial.debit_move_id.company_id
+    return partial.credit_move_id.company_id
 
 
 class AccountPartialReconcile(models.Model):
@@ -52,15 +107,18 @@ class AccountPartialReconcile(models.Model):
 
     amount = fields.Monetary(
         currency_field="company_currency_id",
-        help="Always positive amount concerned by this matching expressed in the company currency.",
+        required=True,
+        help="Non-negative amount concerned by this matching expressed in the company currency.",
     )
     debit_amount_currency = fields.Monetary(
         currency_field="debit_currency_id",
-        help="Always positive amount concerned by this matching expressed in the debit line foreign currency.",
+        required=True,
+        help="Non-negative amount concerned by this matching expressed in the debit line foreign currency.",
     )
     credit_amount_currency = fields.Monetary(
         currency_field="credit_currency_id",
-        help="Always positive amount concerned by this matching expressed in the credit line foreign currency.",
+        required=True,
+        help="Non-negative amount concerned by this matching expressed in the credit line foreign currency.",
     )
 
     company_id = fields.Many2one(
@@ -78,6 +136,14 @@ class AccountPartialReconcile(models.Model):
         compute="_compute_max_date",
     )
 
+    _check_distinct_move_lines = models.Constraint(
+        "CHECK(debit_move_id != credit_move_id)",
+        "A journal item cannot be reconciled with itself.",
+    )
+    _check_nonnegative_amounts = models.Constraint(
+        "CHECK(amount >= 0 AND debit_amount_currency >= 0 AND credit_amount_currency >= 0)",
+        "Partial reconciliation amounts cannot be negative.",
+    )
 
     @api.constrains("debit_currency_id", "credit_currency_id")
     def _check_required_computed_currencies(self):
@@ -94,6 +160,42 @@ class AccountPartialReconcile(models.Model):
                 )
             )
 
+    @api.constrains("debit_move_id", "credit_move_id", "company_id")
+    def _check_company_consistency(self):
+        bad_partials = self.filtered(
+            lambda partial: (
+                partial.debit_move_id.company_id.root_id
+                != partial.credit_move_id.company_id.root_id
+                or partial.company_id != _get_partial_company(partial)
+            )
+        )
+        if bad_partials:
+            raise ValidationError(
+                _(
+                    "Partial reconciliations must belong to the same company hierarchy and use the invoice-side company."
+                )
+            )
+
+    @api.constrains("debit_move_id", "credit_move_id")
+    def _check_move_line_directions(self):
+        bad_partials = self.filtered(
+            lambda partial: (
+                not (
+                    partial.debit_move_id.balance > 0.0
+                    or partial.debit_move_id.amount_currency > 0.0
+                )
+                or not (
+                    partial.credit_move_id.balance < 0.0
+                    or partial.credit_move_id.amount_currency < 0.0
+                )
+            )
+        )
+        if bad_partials:
+            raise ValidationError(
+                _(
+                    "The debit journal item must have a positive residual direction and the credit journal item a negative one."
+                )
+            )
 
     @api.depends("debit_move_id.date", "credit_move_id.date")
     def _compute_max_date(self):
@@ -109,11 +211,7 @@ class AccountPartialReconcile(models.Model):
     @api.depends("debit_move_id", "credit_move_id")
     def _compute_company_id(self):
         for partial in self:
-            if partial.debit_move_id.move_id.is_invoice(True):
-                partial.company_id = partial.debit_move_id.company_id
-            else:
-                partial.company_id = partial.credit_move_id.company_id
-
+            partial.company_id = _get_partial_company(partial)
 
     def unlink(self):
         if not self:
@@ -161,7 +259,9 @@ class AccountPartialReconcile(models.Model):
         return partials
 
     def _get_to_update_payments(self, from_state):
-        to_update = []
+        to_update_ids = set()
+        group_amounts = {}
+        counted_invoice_ids = set()
         for partial in self:
             matched_payments = (
                 partial.credit_move_id | partial.debit_move_id
@@ -179,42 +279,37 @@ class AccountPartialReconcile(models.Model):
                 if not payment.currency_id.compare_amounts(
                     payment.amount_signed, amount
                 ):
-                    to_update.append(payment)
+                    to_update_ids.add(payment.id)
                     break
-        return self.env["account.payment"].union(*to_update)
+
+                if len(payment.invoice_ids) <= 1:
+                    continue
+                for invoice in payment.invoice_ids:
+                    invoice_key = (payment.id, invoice.id)
+                    if invoice_key in counted_invoice_ids:
+                        continue
+                    if payment.currency_id.compare_amounts(
+                        invoice.amount_total_signed, amount
+                    ):
+                        continue
+                    counted_invoice_ids.add(invoice_key)
+                    group_amounts[payment.id] = (
+                        group_amounts.get(payment.id, 0.0) + amount
+                    )
+                    break
+
+        for payment in self.env["account.payment"].browse(group_amounts):
+            if not payment.currency_id.compare_amounts(
+                payment.amount_signed, group_amounts[payment.id]
+            ):
+                to_update_ids.add(payment.id)
+        return self.env["account.payment"].browse(to_update_ids)
 
     @api.model
     def _update_matching_number(self, amls):
         amls = amls._all_reconciled_lines()
         all_partials = amls.matched_debit_ids | amls.matched_credit_ids
-
-        number2lines = {}
-        line2number = {}
-        for partial in all_partials.sorted("id"):
-            debit_min_id = line2number.get(partial.debit_move_id.id)
-            credit_min_id = line2number.get(partial.credit_move_id.id)
-            if (
-                debit_min_id and credit_min_id
-            ):
-                if debit_min_id != credit_min_id:
-                    min_min_id = min(debit_min_id, credit_min_id)
-                    max_min_id = max(debit_min_id, credit_min_id)
-                    for line_id in number2lines[max_min_id]:
-                        line2number[line_id] = min_min_id
-                    number2lines[min_min_id].extend(number2lines.pop(max_min_id))
-            elif debit_min_id:
-                number2lines[debit_min_id].append(partial.credit_move_id.id)
-                line2number[partial.credit_move_id.id] = debit_min_id
-            elif credit_min_id:
-                number2lines[credit_min_id].append(partial.debit_move_id.id)
-                line2number[partial.debit_move_id.id] = credit_min_id
-            else:
-                number2lines[partial.id] = [
-                    partial.debit_move_id.id,
-                    partial.credit_move_id.id,
-                ]
-                line2number[partial.debit_move_id.id] = partial.id
-                line2number[partial.credit_move_id.id] = partial.id
+        number2lines = _get_matching_number2lines(all_partials)
 
         amls.flush_recordset(["full_reconcile_id"])
         self.env.cr.execute_values(
@@ -236,7 +331,6 @@ class AccountPartialReconcile(models.Model):
         processed_amls.invalidate_recordset(["matching_number"])
         (amls - processed_amls).matching_number = False
 
-
     def _collect_tax_cash_basis_values(self):
         tax_cash_basis_values_per_move = {}
         collected_per_move = {}
@@ -250,6 +344,8 @@ class AccountPartialReconcile(models.Model):
                     partial[f"{field}_move_id"].move_id,
                     partial[f"{counterpart_field}_move_id"].move_id,
                 )
+                if move == counterpart_move:
+                    continue
 
                 if move.id not in collected_per_move:
                     collected_per_move[move.id] = move._collect_tax_cash_basis_values()
@@ -290,9 +386,10 @@ class AccountPartialReconcile(models.Model):
                     source_line = partial.credit_move_id
                     counterpart_line = partial.debit_move_id
 
-                if partial.debit_move_id.move_id.is_invoice(
-                    include_receipts=True
-                ) and partial.credit_move_id.move_id.is_invoice(include_receipts=True):
+                if all(
+                    candidate.is_invoice(include_receipts=True)
+                    for candidate in move | counterpart_move
+                ):
                     rate_amount = source_line.balance
                     rate_amount_currency = source_line.amount_currency
                     payment_date = move.date
@@ -337,6 +434,7 @@ class AccountPartialReconcile(models.Model):
                     "payment_rate": payment_rate,
                     "both_move_posted": partial.debit_move_id.move_id.state == "posted"
                     and partial.credit_move_id.move_id.state == "posted",
+                    "payment_date": payment_date,
                     "counterpart_move": counterpart_move,
                 }
 
@@ -444,6 +542,7 @@ class AccountPartialReconcile(models.Model):
             base_line_vals["partner_id"],
             base_line_vals["account_id"],
             tuple(base_taxes.filtered(lambda x: x.tax_exigibility == "on_payment").ids),
+            tuple(sorted(base_line_vals["tax_tag_ids"][0][2])),
             frozendict(base_line_vals["analytic_distribution"] or {}),
         )
 
@@ -460,6 +559,7 @@ class AccountPartialReconcile(models.Model):
                 .filtered(lambda x: x.tax_exigibility == "on_payment")
                 .ids
             ),
+            tuple(sorted(base_line.tax_tag_ids.ids)),
             frozendict(base_line.analytic_distribution or {}),
         )
 
@@ -473,6 +573,7 @@ class AccountPartialReconcile(models.Model):
             tax_line_vals["account_id"],
             tuple(base_taxes.filtered(lambda x: x.tax_exigibility == "on_payment").ids),
             tax_line_vals["tax_repartition_line_id"],
+            tuple(sorted(tax_line_vals["tax_tag_ids"][0][2])),
             frozendict(tax_line_vals["analytic_distribution"] or {}),
         )
 
@@ -488,19 +589,17 @@ class AccountPartialReconcile(models.Model):
                 ).ids
             ),
             tax_line.tax_repartition_line_id.id,
+            tuple(sorted(tax_line.tax_tag_ids.ids)),
             frozendict(tax_line.analytic_distribution or {}),
         )
 
     def _create_tax_cash_basis_moves(self):
         tax_cash_basis_values_per_move = self._collect_tax_cash_basis_values()
-        today = fields.Date.context_today(self)
-
         moves_to_create = []
         post_after_create = []
         to_reconcile_after = []
         for move_values in tax_cash_basis_values_per_move.values():
             move = move_values["move"]
-            pending_cash_basis_lines = []
             amount_residual_per_tax_line = {
                 line.id: line.amount_residual_currency
                 for line_type, line in move_values["to_process_lines"]
@@ -512,10 +611,8 @@ class AccountPartialReconcile(models.Model):
 
                 journal = partial.company_id.tax_cash_basis_journal_id
                 lock_date = move.company_id._get_user_fiscal_lock_date(journal)
-                move_date = (
-                    partial.max_date
-                    if partial.max_date and partial.max_date > lock_date
-                    else today
+                move_date = max(
+                    partial_values["payment_date"], lock_date + timedelta(days=1)
                 )
                 move_vals = {
                     "move_type": "entry",
@@ -553,7 +650,6 @@ class AccountPartialReconcile(models.Model):
                         partial_values["payment_rate"]
                         and amount_currency / partial_values["payment_rate"]
                     ) or 0.0
-
 
                     if caba_treatment == "tax":
                         cb_line_vals = self._prepare_cash_basis_tax_line_vals(
@@ -621,16 +717,11 @@ class AccountPartialReconcile(models.Model):
                                 }
                             )
 
-
                 sequence = 0
 
-                for grouping_key, aggregated_vals in partial_lines_to_create.items():
+                for aggregated_vals in partial_lines_to_create.values():
                     line_vals = aggregated_vals["vals"]
                     line_vals["sequence"] = sequence
-
-                    pending_cash_basis_lines.append(
-                        (grouping_key, line_vals["amount_currency"])
-                    )
 
                     if "tax_repartition_line_id" in line_vals:
                         tax_line = aggregated_vals["tax_line"]
