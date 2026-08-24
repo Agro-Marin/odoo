@@ -270,10 +270,10 @@ class AccountMove(models.Model):
         )
         return not bool(edi_documents_to_send)
 
-    def _post(self, soft=True):
+    def _post_entries(self):
         # OVERRIDE
         # Set the electronic document to be posted and post immediately for synchronous formats.
-        posted = super()._post(soft=soft)
+        posted = super()._post_entries()
 
         edi_document_vals_list = []
         for move in posted:

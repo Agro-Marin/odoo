@@ -412,12 +412,12 @@ class AccountMove(models.Model):
             }
         return super()._get_edi_decoder(file_data, new)
 
-    def _post(self, soft=True):
+    def _post_entries(self):
         # EXTENDS 'account'
         self.with_context(skip_is_manually_modified=True).write(
             {"l10n_it_edi_header": False}
         )
-        return super()._post(soft)
+        return super()._post_entries()
 
     def _get_fields_to_detach(self):
         # EXTENDS account

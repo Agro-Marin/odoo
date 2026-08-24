@@ -380,9 +380,9 @@ class AccountMove(models.Model):
         # EXTEND 'account'
         return super()._need_cancel_request() or self._l10n_vn_need_cancel_request()
 
-    def _post(self, soft=True):
+    def _post_entries(self):
         # EXTEND 'account'
-        posted = super()._post(soft=soft)
+        posted = super()._post_entries()
 
         # Ensure to tag the move as 'Ready to send' upon posting if it makes sense.
         posted.filtered(

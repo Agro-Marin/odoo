@@ -267,7 +267,7 @@ class AccountMove(models.Model):
         else:
             return super()._get_invoice_reference_odoo_invoice()
 
-    def _post(self, soft=True):
+    def _post_entries(self):
         for move in self:
             if move.country_code == "HR" and move.is_sale_document():
                 if not move.l10n_hr_fiscal_user_id:
@@ -290,7 +290,7 @@ class AccountMove(models.Model):
                         "Document eID %s reported as approved by recepient.",
                         move.l10n_hr_mer_document_eid,
                     )
-        return super()._post(soft=soft)
+        return super()._post_entries()
 
     def l10n_hr_edi_mer_action_reject(self):
         self.ensure_one()

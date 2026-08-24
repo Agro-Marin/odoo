@@ -77,8 +77,8 @@ class AccountMove(models.Model):
                 qr_code_str = base64.b64encode(str_to_encode).decode()
             record.l10n_sa_qr_code_str = qr_code_str
 
-    def _post(self, soft=True):
-        res = super()._post(soft)
+    def _post_entries(self):
+        res = super()._post_entries()
         for move in self:
             if move.country_code == 'SA' and move.is_sale_document():
                 vals = {}

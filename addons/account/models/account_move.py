@@ -5098,6 +5098,16 @@ class AccountMove(models.Model):
         ):
             raise AccessError(_("You don't have the access rights to post an invoice."))
 
+    def _post_check_business_rules(self):
+        # The seam for rules that decide whether a move may become posted at all --
+        # approval, credit limits, localisation constraints. It belongs here and not
+        # in action_post: the list-view "Confirm Entries" action, the auto-post cron,
+        # account.payment.write and every other caller reach _post directly, so a rule
+        # hung on action_post guards the form button and nothing else. Overrides run
+        # against every posting path, machine-generated entries included, so scope
+        # them on move_type or journal rather than assuming a user-facing document.
+        return
+
     def _post_validate_invoices(self, validation_msgs):
         for invoice in self.filtered(
             lambda move: move.is_invoice(include_receipts=True)
@@ -5215,7 +5225,7 @@ class AccountMove(models.Model):
                         _("The Bill/Refund date is required to validate this document.")
                     )
 
-    def _post_validate_moves(self, validation_msgs, soft):
+    def _post_validate_moves(self, validation_msgs):
         for move in self:
             if move.state in ["posted", "cancel"]:
                 validation_msgs.add(
@@ -5232,11 +5242,9 @@ class AccountMove(models.Model):
                 )
             ):
                 validation_msgs.add(_("Even magicians can't post nothing!"))
-            if (
-                not soft
-                and move.auto_post != "no"
-                and move.date > fields.Date.context_today(self)
-            ):
+            # No `soft` test: _post defers every move dated in the future before
+            # reaching here, so under a soft post none of them arrives at all.
+            if move.auto_post != "no" and move.date > fields.Date.context_today(self):
                 date_msg = move.date.strftime(get_lang(self.env).date_format)
                 validation_msgs.add(
                     _(
@@ -5284,13 +5292,13 @@ class AccountMove(models.Model):
                     )
                 )
 
-    def _post_validate(self, soft):
+    def _post_validate(self):
         validation_msgs = set()
 
         self._post_validate_invoices(validation_msgs)
 
         self.line_ids._check_account_is_usable()
-        self._post_validate_moves(validation_msgs, soft)
+        self._post_validate_moves(validation_msgs)
 
         if validation_msgs:
             msg = "\n".join(sorted(validation_msgs))
@@ -5308,16 +5316,24 @@ class AccountMove(models.Model):
                 )
             )
 
-    def _post_prepare_reconciliation(self, to_post):
-        draft_reverse_moves = to_post.filtered(
+    def _post_get_draft_reverse_moves(self):
+        return self.filtered(
             lambda move: (
                 move.reversed_entry_id and move.reversed_entry_id.state == "posted"
             )
         )
 
+    def _post_prepare_reconciliation(self):
+        # Returns the exchange-difference and cash-basis moves that reconciliation
+        # already created for these lines and that must reach 'posted' alongside
+        # them. They are NOT members of the posted set: they were never asked for,
+        # they skipped validation, and folding them in made _post return records
+        # its caller never passed and double-counted their partners' ranks.
+        side_moves = self.browse()
         partials_to_unlink = self.env["account.partial.reconcile"]
+        posted_ids = set(self.ids)
 
-        for aml in to_post.line_ids:
+        for aml in self.line_ids:
             for partials, counterpart_field in [
                 (aml.matched_debit_ids, "debit_move_id"),
                 (aml.matched_credit_ids, "credit_move_id"),
@@ -5326,10 +5342,9 @@ class AccountMove(models.Model):
                     counterpart_move = partial[counterpart_field].move_id
                     if (
                         counterpart_move.state == "posted"
-                        or counterpart_move in to_post
+                        or counterpart_move.id in posted_ids
                     ):
-                        if partial.exchange_move_id:
-                            to_post |= partial.exchange_move_id
+                        side_moves |= partial.exchange_move_id
 
                         if (
                             partial._get_draft_caba_move_vals()
@@ -5337,7 +5352,7 @@ class AccountMove(models.Model):
                         ):
                             partials_to_unlink |= partial
                         elif aml.move_id.tax_cash_basis_created_move_ids:
-                            to_post |= (
+                            side_moves |= (
                                 aml.move_id.tax_cash_basis_created_move_ids.filtered(
                                     lambda m, partial=partial: (
                                         m.tax_cash_basis_rec_id == partial
@@ -5345,7 +5360,7 @@ class AccountMove(models.Model):
                                 )
                             )
                         elif counterpart_move.tax_cash_basis_created_move_ids:
-                            to_post |= counterpart_move.tax_cash_basis_created_move_ids.filtered(
+                            side_moves |= counterpart_move.tax_cash_basis_created_move_ids.filtered(
                                 lambda m, partial=partial: (
                                     m.tax_cash_basis_rec_id == partial
                                 )
@@ -5354,11 +5369,11 @@ class AccountMove(models.Model):
         if partials_to_unlink:
             partials_to_unlink.unlink()
 
-        return to_post, draft_reverse_moves
+        return side_moves - self
 
-    def _post_update_partner_ranks(self, to_post):
+    def _post_update_partner_ranks(self):
         customer_count, supplier_count = defaultdict(int), defaultdict(int)
-        for invoice in to_post:
+        for invoice in self:
             if invoice.is_sale_document():
                 customer_count[invoice.partner_id] += 1
             elif invoice.is_purchase_document():
@@ -5393,14 +5408,18 @@ class AccountMove(models.Model):
         future_moves = self.filtered(
             lambda move: move.date > fields.Date.context_today(self)
         )
+        if not future_moves:
+            return self
         future_moves.filtered(lambda move: move.auto_post == "no").auto_post = "at_date"
-        for move in future_moves:
-            move.message_post(
-                body=_(
+        future_moves._message_log_batch(
+            bodies={
+                move.id: _(
                     "This move will be posted at the accounting date: %(date)s",
                     date=format_date(self.env, move.date),
                 )
-            )
+                for move in future_moves
+            }
+        )
         return self - future_moves
 
     def _post_update_accounting_dates(self):
@@ -5457,43 +5476,54 @@ class AccountMove(models.Model):
             self.env["account.move.line"].browse(line_ids).name = name
 
     def _post(self, soft=True):
+        # Do NOT override this method: it partitions, and an override placed here
+        # would run before the partition and so act on moves that a soft post is
+        # about to defer. `_post_entries` is the override point -- there `self`
+        # is exactly the set being posted, and it is what the method returns.
         self._post_check_access()
 
         moves = self.with_context(skip_is_manually_modified=True)
-        moves._post_validate(soft)
-
         to_post = moves._post_defer_future_moves() if soft else moves
 
-        to_post._post_update_accounting_dates()
-        to_post.line_ids._create_analytic_lines()
+        return to_post._post_entries() if to_post else to_post
 
-        if not moves.env.context.get("skip_recurring_copy"):
-            to_post.filtered(
+    def _post_entries(self):
+        self._post_validate()
+        self._post_check_business_rules()
+
+        self._post_update_accounting_dates()
+        self.line_ids._create_analytic_lines()
+
+        if not self.env.context.get("skip_recurring_copy"):
+            self.filtered(
                 lambda m: m.auto_post not in ("no", "at_date")
             )._copy_recurring_entries()
 
-        to_post._post_update_line_partners()
+        self._post_update_line_partners()
 
-        to_post, draft_reverse_moves = moves._post_prepare_reconciliation(to_post)
+        draft_reverse_moves = self._post_get_draft_reverse_moves()
+        side_moves = self._post_prepare_reconciliation()
 
-        to_post.write({"state": "posted", "posted_before": True})
-        to_post._reveal_partial_deductibility_group()
-        to_post._post_update_non_deductible_names()
+        (self | side_moves).write({"state": "posted", "posted_before": True})
+        self._reveal_partial_deductibility_group()
+        # After the state write, never before: the names it builds are derived from
+        # move.name, which the sequence only assigns as the move becomes posted.
+        self._post_update_non_deductible_names()
 
         draft_reverse_moves.reversed_entry_id._reconcile_reversed_moves(
-            draft_reverse_moves, moves.env.context.get("move_reverse_cancel", False)
+            draft_reverse_moves, self.env.context.get("move_reverse_cancel", False)
         )
-        to_post.line_ids._reconcile_marked()
-        moves._post_update_partner_ranks(to_post)
+        (self | side_moves).line_ids._reconcile_marked()
+        self._post_update_partner_ranks()
 
-        to_post.filtered(
+        self.filtered(
             lambda m: (
                 m.is_invoice(include_receipts=True)
                 and m.currency_id.is_zero(m.amount_total)
             )
         )._invoice_paid_hook()
 
-        return to_post
+        return self
 
     def _update_sequence_made_gap(self, invalidate_current=False):
         if not self:
@@ -5955,28 +5985,44 @@ class AccountMove(models.Model):
 
         return action
 
-    def action_post(self):
-        if self._is_abnormal_confirmation_requested() and self.filtered(
-            lambda m: m.abnormal_amount_warning or m.abnormal_date_warning
-        ):
-            wizard = self.env["validate.account.move"].create(
-                {
-                    "move_ids": [Command.set(self.ids)],
-                }
-            )
-            return {
-                "name": _("Confirm Entries"),
-                "type": "ir.actions.act_window",
-                "res_model": "validate.account.move",
-                "res_id": wizard.id,
-                "view_mode": "form",
-                "target": "new",
+    def _get_confirm_entries_action(self, view_id=None):
+        wizard = self.env["validate.account.move"].create(
+            {
+                "move_ids": [Command.set(self.ids)],
             }
-        if self:
-            self._post(soft=False)
-        if autopost_bills_wizard := self._show_autopost_bills_wizard():
+        )
+        action = {
+            "name": _("Confirm Entries"),
+            "type": "ir.actions.act_window",
+            "res_model": "validate.account.move",
+            "res_id": wizard.id,
+            "view_mode": "form",
+            "target": "new",
+        }
+        if view_id:
+            action["view_id"] = view_id
+        return action
+
+    def _post_needing_confirmation(self, need_confirmation, view_id=None):
+        # Both entry points post what they can and ask only about the rest. Sending
+        # the whole selection to the wizard because one move in it is flagged posts
+        # nothing and hides which move raised the question.
+        to_post = self - need_confirmation
+        if to_post:
+            to_post._post(soft=False)
+        if need_confirmation:
+            return need_confirmation._get_confirm_entries_action(view_id=view_id)
+        if autopost_bills_wizard := to_post._show_autopost_bills_wizard():
             return autopost_bills_wizard
         return False
+
+    def action_post(self):
+        need_confirmation = (
+            self.filtered(lambda m: m.abnormal_amount_warning or m.abnormal_date_warning)
+            if self._is_abnormal_confirmation_requested()
+            else self.browse()
+        )
+        return self._post_needing_confirmation(need_confirmation)
 
     def _get_moves_requiring_confirmation(self):
         return self.filtered(
@@ -5991,27 +6037,10 @@ class AccountMove(models.Model):
         if not draft_moves:
             raise UserError(_("There are no journal items in the draft state to post."))
 
-        need_confirmation_moves = draft_moves._get_moves_requiring_confirmation()
-
-        direct_validate_moves = draft_moves - need_confirmation_moves
-        if direct_validate_moves:
-            direct_validate_moves._post(soft=False)
-        if need_confirmation_moves:
-            wizard = self.env["validate.account.move"].create(
-                {
-                    "move_ids": [Command.set(need_confirmation_moves.ids)],
-                }
-            )
-            return {
-                "name": _("Confirm Entries"),
-                "type": "ir.actions.act_window",
-                "res_model": "validate.account.move",
-                "res_id": wizard.id,
-                "view_mode": "form",
-                "view_id": self.env.ref("account.validate_account_move_view").id,
-                "target": "new",
-            }
-        return False
+        return draft_moves._post_needing_confirmation(
+            draft_moves._get_moves_requiring_confirmation(),
+            view_id=self.env.ref("account.validate_account_move_view").id,
+        )
 
     def js_assign_outstanding_line(self, line_id):
         self.ensure_one()

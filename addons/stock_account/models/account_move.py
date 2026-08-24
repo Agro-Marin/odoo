@@ -32,12 +32,12 @@ class AccountMove(models.Model):
                     ]
         return vals_list
 
-    def _post(self, soft=True):
+    def _post_entries(self):
         # OVERRIDE
 
         # Don't change anything on moves used to cancel another ones.
         if self.env.context.get("move_reverse_cancel"):
-            return super()._post(soft)
+            return super()._post_entries()
 
         # Create additional COGS lines for customer invoices.
         self.env["account.move.line"].create(
@@ -45,7 +45,7 @@ class AccountMove(models.Model):
         )
 
         # Post entries.
-        res = super()._post(soft)
+        res = super()._post_entries()
 
         self.line_ids._get_stock_moves().filtered(
             lambda m: m.is_in or m.is_dropship

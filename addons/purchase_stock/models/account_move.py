@@ -28,14 +28,14 @@ class AccountMove(models.Model):
     # ACTION METHODS
     # ------------------------------------------------------------
 
-    def _post(self, soft=True):
+    def _post_entries(self):
 
         if not self.env.context.get("move_reverse_cancel"):
             self.env["account.move.line"].create(
                 self._stock_account_prepare_anglo_saxon_in_lines_vals(),
             )
 
-        return super()._post(soft)
+        return super()._post_entries()
 
     # ------------------------------------------------------------
     # HELPER METHODS

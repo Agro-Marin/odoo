@@ -6,14 +6,14 @@ from odoo import fields, models, _
 class AccountMove(models.Model):
     _inherit = 'account.move'
 
-    def _post(self, soft=True):
+    def _post_entries(self):
         vendor_bill_service = self.env.ref('account_fleet.data_fleet_service_type_vendor_bill', raise_if_not_found=False)
         if not vendor_bill_service:
-            return super()._post(soft)
+            return super()._post_entries()
 
         val_list = []
         log_list = []
-        posted = super()._post(soft)  # We need the move name to be set, but we also need to know which move are posted for the first time.
+        posted = super()._post_entries()  # We need the move name to be set, but we also need to know which move are posted for the first time.
         for line in posted.line_ids:
             if not line.vehicle_id or line.vehicle_log_service_ids\
                     or line.move_id.move_type != 'in_invoice'\

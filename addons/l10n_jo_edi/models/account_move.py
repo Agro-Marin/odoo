@@ -184,11 +184,11 @@ class AccountMove(models.Model):
         fields_list.append('l10n_jo_edi_xml_attachment_file')
         return fields_list
 
-    def _post(self, soft=True):
+    def _post_entries(self):
         # EXTENDS 'account'
         for invoice in self.filtered('l10n_jo_edi_is_needed'):
             invoice.l10n_jo_edi_state = 'to_send'
-        return super()._post(soft)
+        return super()._post_entries()
 
     def _get_name_invoice_report(self):
         # EXTENDS account

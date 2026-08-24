@@ -101,9 +101,9 @@ class AccountMove(models.Model):
         if self.company_id.country_id.code == 'CL':
             self.l10n_latam_document_type_id = False
 
-    def _post(self, soft=True):
+    def _post_entries(self):
         self._check_document_types_post()
-        return super()._post(soft)
+        return super()._post_entries()
 
     def _l10n_cl_get_formatted_sequence(self, number=0):
         return '%s %06d' % (self.l10n_latam_document_type_id.doc_code_prefix, number)

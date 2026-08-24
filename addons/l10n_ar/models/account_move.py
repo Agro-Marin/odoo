@@ -226,12 +226,12 @@ class AccountMove(models.Model):
         if doctype_fa_exterior:
             foreign_vendor_bills.l10n_latam_document_type_id = doctype_fa_exterior
 
-    def _post(self, soft=True):
+    def _post_entries(self):
         ar_invoices = self.filtered(lambda x: x.company_id.account_fiscal_country_id.code == "AR" and x.l10n_latam_use_documents)
         # We make validations here and not with a constraint because we want validation before sending electronic
         # data on l10n_ar_edi
         ar_invoices._check_argentinean_invoice_taxes()
-        posted = super()._post(soft=soft)
+        posted = super()._post_entries()
 
         posted_ar_invoices = posted & ar_invoices
         posted_ar_invoices._set_afip_responsibility()

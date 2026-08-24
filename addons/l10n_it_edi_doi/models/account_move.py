@@ -171,7 +171,7 @@ class AccountMove(models.Model):
             if validity_errors:
                 raise UserError('\n'.join(validity_errors))
 
-    def _post(self, soft=True):
+    def _post_entries(self):
         errors = []
         for move in self:
             declaration = move.l10n_it_edi_doi_id
@@ -199,7 +199,7 @@ class AccountMove(models.Model):
         if errors:
             raise UserError('\n'.join(errors))
 
-        return super()._post(soft)
+        return super()._post_entries()
 
     def action_open_declaration_of_intent(self):
         self.ensure_one()

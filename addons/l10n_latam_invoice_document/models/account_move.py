@@ -225,7 +225,7 @@ class AccountMove(models.Model):
 
         return super(AccountMove, self)._get_starting_sequence()
 
-    def _post(self, soft=True):
+    def _post_entries(self):
         for rec in self.filtered(
             lambda x: x.l10n_latam_use_documents and (not x.name or x.name == "/")
         ):
@@ -233,7 +233,7 @@ class AccountMove(models.Model):
                 raise UserError(
                     _("We do not accept the usage of document types on receipts yet. ")
                 )
-        return super()._post(soft)
+        return super()._post_entries()
 
     @api.constrains("state", "l10n_latam_document_type_id")
     def _check_l10n_latam_documents(self):

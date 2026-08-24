@@ -313,8 +313,8 @@ class AccountMove(models.Model):
                 move_line.sale_line_ids = self.env["sale.order.line"].create(vals)
         return True
 
-    def _post(self, soft=True):
-        posted = super()._post(soft)
+    def _post_entries(self):
+        posted = super()._post_entries()
 
         for invoice in posted.filtered(lambda move: move.is_invoice()):
             payments = invoice.mapped("transaction_ids.payment_id").filtered(

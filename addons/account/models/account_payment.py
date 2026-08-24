@@ -1350,7 +1350,7 @@ class AccountPayment(models.Model):
                     _(
                         "To record payments with %(method_name)s, the recipient bank account must be manually validated. "
                         "You should go on the partner bank account of %(partner)s in order to validate it.",
-                        method_name=self.payment_method_line_id.name,
+                        method_name=payment.payment_method_line_id.name,
                         partner=payment.partner_id.display_name,
                     )
                 )

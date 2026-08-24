@@ -121,9 +121,9 @@ class AccountMove(models.Model):
         return super().action_draft()
 
     # Business Methods
-    def _post(self, soft=True):
+    def _post_entries(self):
         # EXTENDS 'account'
-        res = super()._post(soft=soft)
+        res = super()._post_entries()
         self.filtered(lambda m: m._l10n_in_check_einvoice_eligible()).l10n_in_edi_status = 'to_send'
         return res
 

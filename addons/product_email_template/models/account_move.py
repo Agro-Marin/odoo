@@ -22,8 +22,8 @@ class AccountMove(models.Model):
                     )
         return True
 
-    def _post(self, soft=True):
+    def _post_entries(self):
         # OVERRIDE
-        posted = super()._post(soft)
+        posted = super()._post_entries()
         posted.invoice_validate_send_email()
         return posted

@@ -89,13 +89,13 @@ class AccountMove(models.Model):
                 raise UserError(_("You cannot reset to draft an entry that has been sent to Nilvera."))
         super().action_draft()
 
-    def _post(self, soft=True):
+    def _post_entries(self):
         for move in self:
             if move.l10n_tr_nilvera_send_status == 'error' and move.l10n_tr_nilvera_uuid:
                 raise UserError(_("To preserve accounting integrity and comply with legal requirements, invoices cannot be reused once an error occurs. Please create a new invoice to continue."))
             if move.country_code == 'TR' and not move.l10n_tr_nilvera_uuid:
                 move.l10n_tr_nilvera_uuid = str(uuid.uuid4())
-        return super()._post(soft=soft)
+        return super()._post_entries()
 
     def _l10n_tr_nilvera_submit_einvoice(self, xml_file, customer_alias):
         self._l10n_tr_nilvera_submit_document(

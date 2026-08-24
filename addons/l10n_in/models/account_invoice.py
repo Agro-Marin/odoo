@@ -550,9 +550,9 @@ class AccountMove(models.Model):
             return 'l10n_in.l10n_in_report_invoice_document_inherit'
         return super()._get_name_invoice_report()
 
-    def _post(self, soft=True):
+    def _post_entries(self):
         """Use journal type to define document type because not miss state in any entry including POS entry"""
-        posted = super()._post(soft)
+        posted = super()._post_entries()
         gst_treatment_name_mapping = {k: v for k, v in
                              self._fields['l10n_in_gst_treatment']._description_selection(self.env)}
         for move in posted.filtered(lambda m: m.country_code == 'IN' and m.company_id.l10n_in_is_gst_registered and m.is_sale_document()):
