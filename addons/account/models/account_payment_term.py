@@ -339,40 +339,22 @@ class AccountPaymentTerm(models.Model):
         residual_amount_currency = total_amount_currency
 
         for i, line in enumerate(self.line_ids):
-            term_vals = {
-                "date": line._get_due_date(date_ref),
-                "company_amount": 0,
-                "foreign_amount": 0,
-            }
+            term_vals = {"date": line._get_due_date(date_ref)}
 
-            on_balance_line = i == len(self.line_ids) - 1
-            if on_balance_line:
+            if i == len(self.line_ids) - 1:
                 term_vals["company_amount"] = residual_amount
                 term_vals["foreign_amount"] = residual_amount_currency
-            elif line.value == "fixed":
-                # with nothing to allocate there is no rate, and a fixed amount
-                # would otherwise be booked against a total that does not exist
-                term_vals["company_amount"] = (
-                    sign * company_currency.round(line.value_amount / rate)
-                    if rate
-                    else 0.0
-                )
-                term_vals["foreign_amount"] = (
-                    sign * currency.round(line.value_amount) if rate else 0.0
-                )
             else:
-                term_vals["company_amount"] = company_currency.round(
-                    total_amount * (line.value_amount / 100.0)
+                company_amount, foreign_amount = line._get_allocated_amounts(
+                    currency=currency,
+                    company_currency=company_currency,
+                    rate=rate,
+                    sign=sign,
+                    total_amount=total_amount,
+                    total_amount_currency=total_amount_currency,
                 )
-                term_vals["foreign_amount"] = currency.round(
-                    total_amount_currency * (line.value_amount / 100.0)
-                )
-
-            if not on_balance_line:
                 term_vals["foreign_amount"], term_vals["company_amount"] = (
-                    cash_rounded_pair(
-                        term_vals["foreign_amount"], term_vals["company_amount"]
-                    )
+                    cash_rounded_pair(foreign_amount, company_amount)
                 )
 
             residual_amount -= term_vals["company_amount"]
@@ -458,6 +440,31 @@ class AccountPaymentTermLine(models.Model):
         index=True,
         ondelete="cascade",
     )
+
+    def _get_allocated_amounts(
+        self,
+        *,
+        currency,
+        company_currency,
+        rate,
+        sign,
+        total_amount,
+        total_amount_currency,
+    ):
+        self.ensure_one()
+        if self.value == "fixed":
+            # with nothing to allocate there is no rate, and a fixed amount would
+            # otherwise be booked against a total that does not exist
+            if not rate:
+                return 0.0, 0.0
+            return (
+                sign * company_currency.round(self.value_amount / rate),
+                sign * currency.round(self.value_amount),
+            )
+        return (
+            company_currency.round(total_amount * (self.value_amount / 100.0)),
+            currency.round(total_amount_currency * (self.value_amount / 100.0)),
+        )
 
     def _get_due_date(self, date_ref):
         self.ensure_one()
