@@ -62,12 +62,12 @@
                                     <field name="match_amount" placeholder="Any amount"/>
                                     <field name="match_amount_min"
                                            invisible="match_amount in (False, 'lower')"
-                                           required="match_amount"/>
+                                           required="match_amount in ('greater', 'between')"/>
                                     <span class="o_form_label"
                                           invisible="match_amount != 'between'">and</span>
                                     <field name="match_amount_max"
                                            invisible="match_amount in (False, 'greater')"
-                                           required="match_amount == 'between'"/>
+                                           required="match_amount in ('lower', 'between')"/>
                                 </div>
                                 <label for="match_label"/>
                                 <div class="d-flex gap-3">

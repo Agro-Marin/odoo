@@ -1,6 +1,6 @@
 {
     "name": "Invoicing",
-    "version": "1.7",
+    "version": "1.8",
     "summary": "Invoices & Payments",
     "description": """
 Invoicing & Payments

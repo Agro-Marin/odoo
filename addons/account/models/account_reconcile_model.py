@@ -1,7 +1,8 @@
 import re
 
-from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo import api, fields, models
+from odoo.exceptions import ValidationError
+from odoo.libs.numbers import parse_amount
 
 
 class AccountReconcileModelLine(models.Model):
@@ -13,6 +14,7 @@ class AccountReconcileModelLine(models.Model):
 
     model_id = fields.Many2one(
         "account.reconcile.model",
+        required=True,
         readonly=True,
         index="btree_not_null",
         ondelete="cascade",
@@ -21,16 +23,12 @@ class AccountReconcileModelLine(models.Model):
     sequence = fields.Integer(required=True, default=10)
     account_id = fields.Many2one(
         "account.account",
-        string="Account",
         ondelete="cascade",
         domain="[('account_type', '!=', 'off_balance')]",
         check_company=True,
     )
-    partner_id = fields.Many2one(
-        comodel_name="res.partner",
-        string="Partner",
-    )
-    label = fields.Char(string="Label", translate=True)
+    partner_id = fields.Many2one("res.partner")
+    label = fields.Char(translate=True)
     amount_type = fields.Selection(
         selection=[
             ("fixed", "Fixed"),
@@ -41,15 +39,13 @@ class AccountReconcileModelLine(models.Model):
         required=True,
         default="percentage",
     )
-    amount = fields.Float(
-        string="Float Amount", compute="_compute_amount", store=True
-    )
+    amount = fields.Float(string="Float Amount", compute="_compute_amount")
     amount_string = fields.Char(
         string="Amount",
         default="100",
         required=True,
         help="""Value for the amount of the writeoff line
-    * Percentage: Percentage of the balance, between 0 and 100.
+    * Percentage: Percentage of the balance. Either separator convention is accepted, so 12,5 and 12.5 both read as 12.5.
     * Fixed: The fixed value of the writeoff. The amount will count as a debit if it is negative, as a credit if it is positive.
     * From Label: There is no need for regex delimiter, only the regex is needed. For instance if you want to extract the amount from\nR:9672938 10/07 AX 9415126318 T:5L:NA BRT: 3358,07 C:\nYou could enter\nBRT: ([\\d,]+)
     If the label is "01870912 0009065 00115" and you need the amount in decimal
@@ -75,28 +71,51 @@ class AccountReconcileModelLine(models.Model):
         elif self.amount_type == "regex":
             self.amount_string = r"([\d,]+)"
 
-    @api.depends("amount_string")
+    @api.depends("amount_string", "amount_type")
     def _compute_amount(self):
         for record in self:
-            try:
-                record.amount = float(record.amount_string)
-            except ValueError:
-                record.amount = 0
+            record.amount = (
+                0.0
+                if record.amount_type == "regex"
+                else parse_amount(record.amount_string) or 0.0
+            )
 
     @api.constrains("amount_string", "amount_type")
-    def _validate_amount(self):
+    def _check_amount(self):
         for record in self:
-            if record.amount_type == "fixed" and record.amount == 0:
-                raise UserError(_("The amount is not a number"))
-            if record.amount_type == "percentage_st_line" and record.amount == 0:
-                raise UserError(_("Statement line percentage can't be 0"))
-            if record.amount_type == "percentage" and record.amount == 0:
-                raise UserError(_("Balance percentage can't be 0"))
             if record.amount_type == "regex":
                 try:
                     re.compile(record.amount_string)
                 except re.error as err:
-                    raise UserError(_("The regex is not valid")) from err
+                    raise ValidationError(
+                        self.env._(
+                            "%(model)s: the amount regex is not valid.",
+                            model=record.model_id.display_name,
+                        )
+                    ) from err
+                continue
+
+            if parse_amount(record.amount_string) is None:
+                raise ValidationError(
+                    self.env._(
+                        "%(model)s: %(value)s is not a valid amount. Write a finite "
+                        "number, for example 100 or 12,5.",
+                        model=record.model_id.display_name,
+                        value=record.amount_string,
+                    )
+                )
+            if not record.amount:
+                raise ValidationError(
+                    self.env._(
+                        "%(model)s: the amount of a %(kind)s line cannot be zero.",
+                        model=record.model_id.display_name,
+                        kind=dict(
+                            record._fields["amount_type"]._description_selection(
+                                self.env
+                            )
+                        )[record.amount_type],
+                    )
+                )
 
 
 class AccountReconcileModel(models.Model):
@@ -108,8 +127,8 @@ class AccountReconcileModel(models.Model):
     _order = "sequence, id"
     _check_company_auto = True
 
-    active = fields.Boolean(default=True)
-    name = fields.Char(string="Name", required=True, translate=True)
+    active = fields.Boolean(default=True, tracking=True)
+    name = fields.Char(required=True, translate=True, tracking=True)
     sequence = fields.Integer(required=True, default=10)
     company_id = fields.Many2one(
         comodel_name="res.company",
@@ -146,6 +165,7 @@ class AccountReconcileModel(models.Model):
         string="Journals",
         domain="[('type', 'in', ('bank', 'cash', 'credit'))]",
         check_company=True,
+        tracking=True,
         help="The reconciliation model will only be available from the selected journals.",
     )
     match_amount = fields.Selection(
@@ -169,7 +189,7 @@ class AccountReconcileModel(models.Model):
         string="Label",
         tracking=True,
         help="""The reconciliation model will only be applied when either the statement line label, the transaction details or the note matches the following:
-        * Contains: The statement line must contains this string (case insensitive).
+        * Contains: The statement line must contains this string (case insensitive). It is matched literally, so % and _ carry no special meaning.
         * Not Contains: Negation of "Contains".
         * Match Regex: Define your own regular expression.""",
     )
@@ -177,27 +197,49 @@ class AccountReconcileModel(models.Model):
     match_partner_ids = fields.Many2many(
         "res.partner",
         string="Partners",
+        tracking=True,
         help="The reconciliation model will only be applied to the selected customers/vendors.",
     )
 
-    line_ids = fields.One2many("account.reconcile.model.line", "model_id", copy=True)
+    line_ids = fields.One2many(
+        "account.reconcile.model.line", "model_id", copy=True, tracking=True
+    )
 
     @api.constrains("match_label", "match_label_param")
     def _check_match_label_param(self):
         for record in self:
+            if not record.match_label:
+                continue
+            if not record.match_label_param:
+                raise ValidationError(
+                    self.env._(
+                        "%(model)s: the label filter is set to %(mode)s but no text "
+                        "was given, so the model would never match anything.",
+                        model=record.display_name,
+                        mode=dict(
+                            record._fields["match_label"]._description_selection(
+                                self.env
+                            )
+                        )[record.match_label],
+                    )
+                )
             if record.match_label == "match_regex":
-                if not record.match_label_param:
-                    raise UserError(_("The regex is not valid"))
                 try:
                     re.compile(record.match_label_param)
                 except re.error as err:
-                    raise UserError(_("The regex is not valid")) from err
+                    raise ValidationError(
+                        self.env._(
+                            "%(model)s: the label regex is not valid.",
+                            model=record.display_name,
+                        )
+                    ) from err
 
     @api.depends(
         "mapped_partner_id",
         "match_label",
         "match_amount",
         "match_partner_ids",
+        "match_journal_ids",
         "trigger",
     )
     def _compute_can_be_proposed(self):
@@ -206,6 +248,7 @@ class AccountReconcileModel(models.Model):
                 model.match_label
                 or model.match_amount
                 or model.match_partner_ids
+                or model.match_journal_ids
                 or model.trigger == "auto_reconcile"
             )
 
@@ -233,45 +276,52 @@ class AccountReconcileModel(models.Model):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "account.action_move_journal_line"
         )
-        self.env.cr.execute(
-            """
-            SELECT ARRAY_AGG(DISTINCT move_id)
-            FROM account_move_line
-            WHERE reconcile_model_id = %s
-        """,
-            [self.id],
-        )
         action.update(
             {
                 "context": {},
-                "domain": [("id", "in", self.env.cr.fetchone()[0] or [])],
+                "domain": [("line_ids.reconcile_model_id", "=", self.id)],
                 "help": """<p class="o_view_nocontent_empty_folder">{}</p>""".format(
-                    _("This reconciliation model has created no entry so far")
+                    self.env._("This reconciliation model has created no entry so far")
                 ),
             }
         )
         return action
+
+    def _get_copy_name(self, name):
+        """Return the unique "<name> (copy)…" a duplicate of ``name`` must carry."""
+        candidate = self.env._("%s (copy)", name)
+        while self.search_count([("name", "=", candidate)], limit=1):
+            candidate = self.env._("%s (copy)", candidate)
+        return candidate
+
+    def _get_copy_name_rounds(self, original, copied):
+        """Count the "(copy)" markers ``copied`` carries over ``original``.
+
+        Each round makes the string strictly longer, so the walk terminates on its own;
+        overshooting means the two names are unrelated and no rename is re-applied.
+        """
+        rounds, name = 0, original
+        while name != copied:
+            longer = self.env._("%s (copy)", name)
+            if len(longer) > len(copied):
+                return 0
+            name, rounds = longer, rounds + 1
+        return rounds
 
     def copy_data(self, default=None):
         default = dict(default or {})
         vals_list = super().copy_data(default)
         if default.get("name"):
             return vals_list
-        for model, vals in zip(self, vals_list, strict=False):
-            name = _("%s (copy)", model.name)
-            while self.env["account.reconcile.model"].search_count(
-                [("name", "=", name)], limit=1
-            ):
-                name = _("%s (copy)", name)
-            vals["name"] = name
+        for model, vals in zip(self, vals_list, strict=True):
+            vals["name"] = self._get_copy_name(model.name)
         return vals_list
 
     def copy_translations(self, new, excluded=()):
         super().copy_translations(new, excluded=(*excluded, "name"))
-        rounds, name = 0, self.name
-        while name != new.name and rounds < 10:
-            name = self.env._("%s (copy)", name)
-            rounds += 1
+        rounds = self._get_copy_name_rounds(self.name, new.name)
+        if not rounds:
+            return
 
         def rename(record, term):
             for _round in range(rounds):
