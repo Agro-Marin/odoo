@@ -1,8 +1,13 @@
-from contextlib import contextmanager
-
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import SQL
 from odoo.tools.misc import formatLang
+
+# A statement anchors the running balance of every line after it, and its own
+# balance_start is where that balance restarts.
+_RUNNING_BALANCE_TRIGGERS = frozenset(
+    {"balance_start", "first_line_index", "journal_id", "line_ids"}
+)
 
 
 class AccountBankStatement(models.Model):
@@ -32,7 +37,6 @@ class AccountBankStatement(models.Model):
     )
 
     first_line_index = fields.Char(
-        comodel_name="account.bank.statement.line",
         compute="_compute_first_line_index",
         store=True,
     )
@@ -109,7 +113,6 @@ class AccountBankStatement(models.Model):
     _journal_id_date_desc_id_desc_idx = models.Index("(journal_id, date DESC, id DESC)")
     _first_line_index_idx = models.Index("(journal_id, first_line_index)")
 
-
     @api.depends("create_date")
     def _compute_name(self):
         for stmt in self:
@@ -124,20 +127,19 @@ class AccountBankStatement(models.Model):
     @api.depends("line_ids.internal_index", "line_ids.state")
     def _compute_first_line_index(self):
         for stmt in self:
-            sorted_lines = stmt.line_ids.filtered("internal_index").sorted(
-                "internal_index"
-            )
-            stmt.first_line_index = sorted_lines[:1].internal_index
+            stmt.first_line_index = stmt._get_indexed_lines()[:1].internal_index
 
     @api.depends("line_ids.internal_index", "line_ids.state")
     def _compute_date(self):
-        for statement in self:
-            sorted_lines = statement.line_ids.filtered("internal_index").sorted(
-                "internal_index"
+        for stmt in self:
+            posted = stmt._get_indexed_lines().filtered(
+                lambda line: line.state == "posted"
             )
-            statement.date = sorted_lines.filtered(lambda l: l.state == "posted")[
-                -1:
-            ].date
+            stmt.date = posted[-1:].date
+
+    def _get_indexed_lines(self):
+        self.ensure_one()
+        return self.line_ids.filtered("internal_index").sorted("internal_index")
 
     @api.depends("create_date")
     def _compute_balance_start(self):
@@ -274,38 +276,43 @@ class AccountBankStatement(models.Model):
         )
 
         self.env.cr.execute(
-            f"""
-             WITH statements AS (
-                     SELECT st.id,
-                            st.balance_start,
-                            st.journal_id,
-                            LAG(st.balance_end_real) OVER (
-                                PARTITION BY st.journal_id
-                                    ORDER BY st.first_line_index
-                            ) AS prev_balance_end_real,
-                            -- Fall back to 2 dp when no currency resolves:
-                            -- ROUND(x, NULL) is NULL and `NULL != NULL` is NULL
-                            -- (falsy), so a broken statement would otherwise be
-                            -- silently reported as valid.
-                            COALESCE(currency.decimal_places, 2) AS decimal_places
-                       FROM account_bank_statement st
-                  LEFT JOIN res_company co ON st.company_id = co.id
-                  LEFT JOIN account_journal j ON st.journal_id = j.id
-                  LEFT JOIN res_currency currency ON COALESCE(j.currency_id, co.currency_id) = currency.id
-                      WHERE st.first_line_index IS NOT NULL
-                      {"" if all_statements else "AND st.journal_id = ANY(%(journal_ids)s)"}
-                  )
-           SELECT id
-             FROM statements
-            WHERE prev_balance_end_real IS NOT NULL
-              AND ROUND(prev_balance_end_real, decimal_places) != ROUND(balance_start, decimal_places)
-              {"" if all_statements else "AND id = ANY(%(ids)s)"};
-        """,
-            {"journal_ids": list(set(self.journal_id.ids)), "ids": list(self.ids)},
+            SQL(
+                """
+                 WITH statements AS (
+                         SELECT st.id,
+                                st.balance_start,
+                                st.journal_id,
+                                LAG(st.balance_end_real) OVER (
+                                    PARTITION BY st.journal_id
+                                        ORDER BY st.first_line_index
+                                ) AS prev_balance_end_real,
+                                -- Fall back to 2 dp when no currency resolves:
+                                -- ROUND(x, NULL) is NULL and `NULL != NULL` is NULL
+                                -- (falsy), so a broken statement would otherwise be
+                                -- silently reported as valid.
+                                COALESCE(currency.decimal_places, 2) AS decimal_places
+                           FROM account_bank_statement st
+                      LEFT JOIN res_company co ON st.company_id = co.id
+                      LEFT JOIN account_journal j ON st.journal_id = j.id
+                      LEFT JOIN res_currency currency
+                             ON COALESCE(j.currency_id, co.currency_id) = currency.id
+                          WHERE st.first_line_index IS NOT NULL
+                            %s
+                      )
+               SELECT id
+                 FROM statements
+                WHERE prev_balance_end_real IS NOT NULL
+                  AND ROUND(prev_balance_end_real, decimal_places)
+                   != ROUND(balance_start, decimal_places)
+                  %s
+                """,
+                SQL()
+                if all_statements
+                else SQL("AND st.journal_id = ANY(%s)", self.journal_id.ids),
+                SQL() if all_statements else SQL("AND id = ANY(%s)", self.ids),
+            )
         )
-        res = self.env.cr.fetchall()
-        return [r[0] for r in res]
-
+        return [statement_id for (statement_id,) in self.env.cr.fetchall()]
 
     @api.model
     def default_get(self, fields):
@@ -370,39 +377,49 @@ class AccountBankStatement(models.Model):
 
         return defaults
 
-    @contextmanager
-    def _check_attachments(self, container, values_list):
-        attachments_to_fix_list = []
+    def _collect_attachments(self, values_list):
+        attachments_list = []
         for values in values_list:
             attachment_ids = set()
             for orm_command in values.get("attachment_ids", []):
                 if orm_command[0] == Command.LINK:
                     attachment_ids.add(orm_command[1])
                 elif orm_command[0] == Command.SET:
-                    for attachment_id in orm_command[2]:
-                        attachment_ids.add(attachment_id)
+                    attachment_ids.update(orm_command[2])
+            attachments_list.append(
+                self.env["ir.attachment"].browse(sorted(attachment_ids))
+            )
+        return attachments_list
 
-            attachments = self.env["ir.attachment"].browse(list(attachment_ids))
-            attachments_to_fix_list.append(attachments)
-
-        yield
-
-        for stmt, attachments in zip(
-            container["records"], attachments_to_fix_list, strict=False
-        ):
+    def _reparent_attachments(self, statements, attachments_list):
+        for stmt, attachments in zip(statements, attachments_list, strict=True):
             attachments.write({"res_id": stmt.id, "res_model": stmt._name})
 
     @api.model_create_multi
     def create(self, vals_list):
-        container = {"records": self.env["account.bank.statement"]}
-        with self._check_attachments(container, vals_list):
-            container["records"] = stmts = super().create(vals_list)
+        attachments_list = self._collect_attachments(vals_list)
+        stmts = super().create(vals_list)
+        self._reparent_attachments(stmts, attachments_list)
+        self.env["account.bank.statement.line"]._invalidate_running_balance()
         return stmts
 
     def write(self, vals):
         if len(self) != 1 and "attachment_ids" in vals:
-            vals.pop("attachment_ids")
+            # An attachment carries one res_id, so the same ones cannot be filed
+            # under several statements. Drop them here rather than in the caller's
+            # dict, which the caller may still be holding.
+            vals = {
+                key: value for key, value in vals.items() if key != "attachment_ids"
+            }
 
-        container = {"records": self}
-        with self._check_attachments(container, [vals]):
-            return super().write(vals)
+        attachments_list = self._collect_attachments([vals] * len(self))
+        res = super().write(vals)
+        self._reparent_attachments(self, attachments_list)
+        if not _RUNNING_BALANCE_TRIGGERS.isdisjoint(vals):
+            self.env["account.bank.statement.line"]._invalidate_running_balance()
+        return res
+
+    def unlink(self):
+        res = super().unlink()
+        self.env["account.bank.statement.line"]._invalidate_running_balance()
+        return res

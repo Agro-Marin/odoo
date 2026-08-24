@@ -397,11 +397,10 @@ class AccountBankStatementLine(models.Model):
                 ],
                 limit=1,
             )
-            statement = last_line.statement_id
-            if statement:
-                defaults.setdefault("date", statement.date)
+            if last_line.statement_id:
+                defaults["date"] = last_line.statement_id.date
             elif last_line:
-                defaults.setdefault("date", last_line.date)
+                defaults["date"] = last_line.date
         return defaults
 
     @api.model
@@ -490,10 +489,13 @@ class AccountBankStatementLine(models.Model):
         self._invalidate_running_balance()
         return res
 
+    @api.model
     def _invalidate_running_balance(self):
         # running_balance is a projection over every earlier line of the journal, so
         # no @api.depends can express it and the ORM never drops it on its own. One
         # amount moves every balance after it: the whole field goes, not a recordset.
+        # account.bank.statement calls this too -- the projection reads its
+        # balance_start and first_line_index, which move without touching a line.
         self.env["account.bank.statement.line"].invalidate_model(["running_balance"])
 
     @api.model
@@ -676,37 +678,28 @@ class AccountBankStatementLine(models.Model):
             company_currency,
         ) = self._get_accounting_amounts_and_currencies()
 
-        rate_journal2foreign_curr = journal_amount and abs(transaction_amount) / abs(
-            journal_amount
+        rate_journal2foreign_curr = (
+            abs(transaction_amount) / abs(journal_amount) if journal_amount else 0.0
         )
-        rate_comp2journal_curr = company_amount and abs(journal_amount) / abs(
-            company_amount
+        rate_comp2journal_curr = (
+            abs(journal_amount) / abs(company_amount) if company_amount else 0.0
         )
 
         if currency == transaction_currency:
             trans_amount_currency = amount_currency
-            if rate_journal2foreign_curr:
-                journ_amount_currency = journal_currency.round(
-                    trans_amount_currency / rate_journal2foreign_curr
-                )
-            else:
-                journ_amount_currency = 0.0
-            if rate_comp2journal_curr:
-                new_balance = company_currency.round(
-                    journ_amount_currency / rate_comp2journal_curr
-                )
-            else:
-                new_balance = 0.0
+            journ_amount_currency = self._rounded_quotient(
+                journal_currency, trans_amount_currency, rate_journal2foreign_curr
+            )
+            new_balance = self._rounded_quotient(
+                company_currency, journ_amount_currency, rate_comp2journal_curr
+            )
         elif currency == journal_currency:
             trans_amount_currency = transaction_currency.round(
                 amount_currency * rate_journal2foreign_curr
             )
-            if rate_comp2journal_curr:
-                new_balance = company_currency.round(
-                    amount_currency / rate_comp2journal_curr
-                )
-            else:
-                new_balance = 0.0
+            new_balance = self._rounded_quotient(
+                company_currency, amount_currency, rate_comp2journal_curr
+            )
         else:
             journ_amount_currency = journal_currency.round(
                 balance * rate_comp2journal_curr
@@ -720,6 +713,9 @@ class AccountBankStatementLine(models.Model):
             "amount_currency": trans_amount_currency,
             "balance": new_balance,
         }
+
+    def _rounded_quotient(self, currency, amount, rate):
+        return currency.round(amount / rate) if rate else 0.0
 
     def _prepare_move_line_default_vals(self, counterpart_account_id=None):
         self.ensure_one()
