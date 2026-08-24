@@ -111,6 +111,40 @@ class TestVersionPayload:
         """A bump here is a protocol change; it must be deliberate."""
         assert common_mod.exp_version()["protocol_version"] == 1
 
+    def test_version_follows_a_late_patch_of_odoo_release(self, common_mod):
+        """Addons patch ``odoo.release`` after this module is imported --
+        `enterprise/web_enterprise/version.py` appends the ``+e`` edition
+        marker. Built once at import, the payload kept the pre-patch values and
+        reported a version the server is not running, which is why that addon
+        also had to re-apply its edit to `RPC_VERSION_1` by hand."""
+        import odoo.release
+
+        with (
+            patch.object(odoo.release, "version", "19.0-PATCHED+e"),
+            patch.object(odoo.release, "version_info", (19, 0, 0, "final", 0, "e")),
+        ):
+            payload = common_mod.exp_version()
+        assert payload["server_version"] == "19.0-PATCHED+e"
+        assert payload["server_version_info"] == (19, 0, 0, "final", 0, "e")
+
+        # ...and the payload goes back to tracking release once the patch lifts.
+        assert common_mod.exp_version()["server_version"] == odoo.release.version
+
+    def test_rpc_version_1_survives_as_a_snapshot(self, common_mod):
+        """The name is public API (`__all__`), so it still resolves -- but as a
+        fresh snapshot. Mutating what it returns must not change what the wire
+        verb answers; that shared mutable global was the defect."""
+        snapshot = common_mod.RPC_VERSION_1
+        assert snapshot == common_mod.exp_version()
+        snapshot["server_version"] = "tampered"
+        assert common_mod.exp_version()["server_version"] != "tampered"
+
+    def test_an_unknown_module_attribute_still_raises(self, common_mod):
+        """The module-level ``__getattr__`` must not turn every typo into
+        something that resolves."""
+        with pytest.raises(AttributeError, match="no attribute 'NoSuchName'"):
+            common_mod.NoSuchName
+
 
 # ---------------------------------------------------------------------------
 # exp_authenticate — connection-failure exceptions must NOT escape
