@@ -1,3 +1,9 @@
+# A key carrying an ``id`` entry marks a line the engine created for its own
+# bookkeeping rather than one a user typed. No producer in this tree emits such a
+# key today -- `needed_terms`, `epd_needed` and `discount_allocation_needed` all
+# key on `move_id` plus business fields -- so this is an extension point, not a
+# live path. It is kept, and pinned by `test_technical_keys_ignored_in_manual_guard`,
+# because the guard below must not mistake a technical line for user input.
 def filter_trivial(mapping):
     return {k: v for k, v in mapping.items() if "id" not in v}
 

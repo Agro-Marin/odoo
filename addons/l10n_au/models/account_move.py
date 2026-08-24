@@ -26,5 +26,5 @@ class AccountMove(models.Model):
             with_dgst_account = self.invoice_line_ids.account_id.tag_ids == self.env.ref("l10n_au.account_tag_dgst")
             if with_dgst_account:
                 # In this case, we want the balancing line to balance IN THE SAME ACCOUNT.
-                return self.invoice_line_ids.account_id.id
+                return self.invoice_line_ids.account_id
         return super()._get_automatic_balancing_account()

@@ -1967,6 +1967,14 @@ class AccountMoveLine(models.Model):
                     _("A reconciled line must have a matching number")
                 )
 
+    def _is_partially_deductible(self):
+        # The one reading of `deductible_amount` every caller shares. Two decimals
+        # is the convention the constraint below already enforces; comparing the
+        # raw float instead admits a window just under 100 where the sync builds a
+        # "private part" line the vals builder then declines to populate.
+        self.ensure_one()
+        return float_compare(self.deductible_amount, 100, precision_digits=2) < 0
+
     @api.constrains("deductible_amount")
     def _constrains_deductible_amount(self):
         for line in self:

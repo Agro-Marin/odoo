@@ -29,12 +29,35 @@ INVOICE_BASE_LINE_TRACKED_FIELDS = (
 )
 ENTRY_BASE_LINE_TRACKED_FIELDS = ("amount_currency",)
 
+# Outcomes of `_get_tax_rounding_mode`, spelled as the
+# (round_from_tax_lines, reapply_currency_rate) pair `_get_tax_line_changes` takes.
+SKIP = None
+FROM_BASE = (False, False)
+FROM_TAX = (True, False)
+FROM_TAX_REAPPLY_RATE = (True, True)
+
 
 @contextmanager
 def sync_boundary(prepare, commit):
     state = prepare()
     yield  # noqa: RUF075 - deliberate, and the reason every sync step in this module relies on it: an exception inside the `with` aborts the transaction, so a reconciliation skipped here changes nothing that would otherwise have been persisted
     commit(state)
+
+
+def written_value(record, fname):
+    return record._fields[fname].convert_to_write(record[fname], record)
+
+
+def values_differ(record, values):
+    return any(written_value(record, fname) != values[fname] for fname in values)
+
+
+def detach_container(value):
+    if isinstance(value, list):
+        return list(value)
+    if isinstance(value, dict):
+        return dict(value)
+    return value
 
 
 class AccountMove(models.Model):
@@ -45,17 +68,12 @@ class AccountMove(models.Model):
         difference = self.invoice_cash_rounding_id.compute_difference(
             self.currency_id, total_amount_currency
         )
-        if self.currency_id == self.company_id.currency_id:
-            return difference, difference
-        return (
-            self.currency_id._convert(
-                difference,
-                self.company_id.currency_id,
-                self.company_id,
-                self.invoice_date or self.date,
-            ),
-            difference,
-        )
+        # The rate has to be read the way `account.move.line._compute_currency_rate`
+        # reads it: the rounding line is a line of this move, and a balance derived
+        # from the rate table instead diverges from every sibling as soon as the
+        # user overrides the rate on the invoice.
+        rate = self.invoice_currency_rate or 1.0
+        return self.company_id.currency_id.round(difference / rate), difference
 
     def _get_cash_rounding_profit_loss_account(self, diff_balance):
         self.ensure_one()
@@ -69,7 +87,23 @@ class AccountMove(models.Model):
         candidates = self.line_ids.filtered(
             lambda line: line.tax_repartition_line_id and line.display_type == "tax"
         )
-        return max(candidates, key=lambda line: abs(line.balance), default=candidates)
+        return max(
+            candidates,
+            key=lambda line: abs(line.balance),
+            default=self.env["account.move.line"],
+        )
+
+    def _get_single_dynamic_line(self, lines):
+        # Every dynamic display_type is a per-move singleton, but nothing in the
+        # schema says so: a second one is representable, and every reader here
+        # reaches for a scalar field, so a duplicate raises a bare
+        # `Expected singleton` from inside a create. Taking the first is enough --
+        # the surplus is then absorbed by the same sync pass, which converges on
+        # one line with the right amount and a balanced move. Deleting it here is
+        # not an option: the duplicate is usually the record the ORM is still
+        # creating, and unlinking mid-create leaves that create's own hooks
+        # reading a missing row.
+        return lines[:1]
 
     def _get_cash_rounding_line_vals(self, diff_balance, diff_amount_currency):
         self.ensure_one()
@@ -117,12 +151,13 @@ class AccountMove(models.Model):
 
     def _recompute_cash_rounding_lines(self):
         self.ensure_one()
-        existing_cash_rounding_line = self.line_ids.filtered(
-            lambda line: line.display_type == "rounding"
+        existing_cash_rounding_line = self._get_single_dynamic_line(
+            self.line_ids.filtered(lambda line: line.display_type == "rounding")
         )
 
         if not self.invoice_cash_rounding_id:
-            existing_cash_rounding_line.unlink()
+            if existing_cash_rounding_line:
+                existing_cash_rounding_line.unlink()
             return
 
         if existing_cash_rounding_line:
@@ -149,7 +184,8 @@ class AccountMove(models.Model):
         if self.company_currency_id.is_zero(diff_balance) and self.currency_id.is_zero(
             diff_amount_currency
         ):
-            existing_cash_rounding_line.unlink()
+            if existing_cash_rounding_line:
+                existing_cash_rounding_line.unlink()
             return
 
         if (
@@ -171,6 +207,12 @@ class AccountMove(models.Model):
 
         vals = self._get_cash_rounding_line_vals(diff_balance, diff_amount_currency)
         if vals is None:
+            # Nowhere to book the difference. Degrade to the no-rounding case the
+            # never-configured invoice already gets: keeping the previous line
+            # leaves the move balanced around a total that belongs to neither the
+            # old rounding method nor the new one.
+            if existing_cash_rounding_line:
+                existing_cash_rounding_line.unlink()
             return
         if existing_cash_rounding_line:
             existing_cash_rounding_line.write(vals)
@@ -179,9 +221,10 @@ class AccountMove(models.Model):
 
     def _get_automatic_balancing_account(self):
         self.ensure_one()
-        if self.journal_id.default_account_id:
-            return self.journal_id.default_account_id.id
-        return self.company_id.account_journal_suspense_account_id.id
+        return (
+            self.journal_id.default_account_id
+            or self.company_id.account_journal_suspense_account_id
+        )
 
     def _sync_unbalanced_lines(self, container):
         def has_tax(move):
@@ -192,6 +235,8 @@ class AccountMove(models.Model):
 
         def commit(move_had_tax):
             balancing_line_by_move = {}
+            detaxed_moves = self.env["account.move"]
+            existing_balancing_lines = self.env["account.move.line"]
             for move in container["records"]:
                 if move.state != "draft":
                     continue
@@ -199,17 +244,25 @@ class AccountMove(models.Model):
                 if not has_tax(move) and not had_tax:
                     continue
                 if had_tax and not has_tax(move):
-                    move.line_ids.filtered("tax_line_id").unlink()
-                    move.line_ids.tax_tag_ids = [Command.set([])]
+                    detaxed_moves |= move
 
-                existing_balancing_line = move.line_ids.filtered(
-                    lambda line: line.display_type == "balancing"
+                existing_balancing_line = self._get_single_dynamic_line(
+                    move.line_ids.filtered(
+                        lambda line: line.display_type == "balancing"
+                    )
                 )
-                if existing_balancing_line:
-                    existing_balancing_line.balance = (
-                        existing_balancing_line.amount_currency
-                    ) = 0.0
+                existing_balancing_lines |= existing_balancing_line
                 balancing_line_by_move[move] = existing_balancing_line
+
+            if detaxed_moves:
+                detaxed_moves.line_ids.filtered("tax_line_id").unlink()
+                detaxed_moves.line_ids.tax_tag_ids = [Command.set([])]
+            if existing_balancing_lines:
+                # Zeroed before `_get_unbalanced_moves` flushes and queries, so a
+                # balancing line does not count against the imbalance it exists to
+                # absorb. One write for the batch: the per-move chained assignment
+                # this replaces was two `write()` calls each, both then overwritten.
+                existing_balancing_lines.write({"balance": 0.0, "amount_currency": 0.0})
 
             if not balancing_line_by_move:
                 return
@@ -226,10 +279,12 @@ class AccountMove(models.Model):
             )
         }
 
+        to_unlink = self.env["account.move.line"]
+        to_create = []
         for move, existing_balancing_line in balancing_line_by_move.items():
             unbalanced = unbalanced_by_move_id.get(move.id)
             if not unbalanced:
-                existing_balancing_line.unlink()
+                to_unlink |= existing_balancing_line
                 continue
             debit, credit = unbalanced
             balance = credit - debit
@@ -243,17 +298,22 @@ class AccountMove(models.Model):
                     }
                 )
             else:
-                self.env["account.move.line"].create(
+                to_create.append(
                     {
                         "balance": balance,
                         "name": _("Automatic Balancing Line"),
                         "display_type": "balancing",
                         "move_id": move.id,
-                        "account_id": move._get_automatic_balancing_account(),
+                        "account_id": move._get_automatic_balancing_account().id,
                         "currency_id": move.currency_id.id,
                         "tax_ids": False,
                     }
                 )
+
+        if to_unlink:
+            to_unlink.unlink()
+        if to_create:
+            self.env["account.move.line"].create(to_create)
 
     def _sync_rounding_lines(self, container):
         def commit(_state):
@@ -273,12 +333,19 @@ class AccountMove(models.Model):
                 continue
             for key, values in computed_needed.items():
                 if key not in res:
-                    res[key] = dict(values)
+                    # `dict(values)` alone would hand the caller the very list and
+                    # dict objects held in the cache for `epd_needed` /
+                    # `discount_allocation_needed`: editing a command list in the
+                    # result would then edit the stored field value.
+                    res[key] = {
+                        fname: detach_container(value)
+                        for fname, value in values.items()
+                    }
                     continue
                 merged_keys.add(key)
                 for fname, value in values.items():
                     if fname not in res[key]:
-                        res[key][fname] = value
+                        res[key][fname] = detach_container(value)
                     elif line_fields[fname].type == "monetary":
                         res[key][fname] += value
 
@@ -328,11 +395,19 @@ class AccountMove(models.Model):
         return (*grouping_key_fields, *extra_fields)
 
     def _get_tax_rounding_mode(self, move, before):
-        def value_of(record, field):
-            return record._fields[field].convert_to_write(record[field], record)
+        """Which side of the tax computation is authoritative for this move.
+
+        Four outcomes, and the caller star-unpacks whichever tuple comes back, so
+        they are named rather than spelled as bare booleans:
+
+        - ``SKIP`` -- nothing this step is responsible for moved.
+        - ``FROM_BASE`` -- recompute the tax lines from the base lines.
+        - ``FROM_TAX`` -- the tax lines are the truth; leave their amounts alone.
+        - ``FROM_TAX_REAPPLY_RATE`` -- same, and re-derive balances from the rate.
+        """
 
         def field_has_changed(values, record, field):
-            return value_of(record, field) != values.get(record, {}).get(field)
+            return written_value(record, field) != values.get(record, {}).get(field)
 
         def changed_lines_of(values, records):
             return [
@@ -353,20 +428,25 @@ class AccountMove(models.Model):
             field_has_changed(before["moves"], move, "currency_id")
             or field_has_changed(before["moves"], move, "move_type")
         ):
-            return False, False
+            return FROM_BASE
 
         if any(
             line not in base_lines
             for line, values in base_before.items()
             if values["tax_ids"]
         ):
-            return bool(changed_lines_of(tax_before, tax_lines)), False
+            if changed_lines_of(tax_before, tax_lines):
+                return FROM_TAX
+            return FROM_BASE
 
         if changed_lines := changed_lines_of(base_before, base_lines):
             round_from_tax_lines = all(
                 not line.tax_ids and not base_before.get(line, {}).get("tax_ids")
                 for line in changed_lines
             ) or (
+                # `tax_before[line]` below is only safe because this comparison
+                # short-circuits first: equal orderings guarantee every tax line
+                # is a key of the snapshot.
                 list(tax_before) != list(tax_lines)
                 or any(
                     self.env.is_protected(line._fields[fname], line)
@@ -379,13 +459,13 @@ class AccountMove(models.Model):
                 for line in changed_lines
                 for field in ("amount_currency", "balance")
             ):
-                return None
-            return round_from_tax_lines, False
+                return SKIP
+            return FROM_TAX if round_from_tax_lines else FROM_BASE
 
         if field_has_changed(before["moves"], move, "invoice_currency_rate"):
-            return True, True
+            return FROM_TAX_REAPPLY_RATE
 
-        return None
+        return SKIP
 
     def _get_non_deductible_tax_line_vals(self, move, base_lines_values):
         non_deductible_lines_values = [
@@ -397,9 +477,6 @@ class AccountMove(models.Model):
         if not non_deductible_lines_values:
             return None
 
-        existing = move.line_ids.filtered(
-            lambda line: line.display_type == "non_deductible_tax"
-        )
         tax_amount = 0.0
         tax_amount_currency = 0.0
         for line_values in non_deductible_lines_values:
@@ -413,9 +490,12 @@ class AccountMove(models.Model):
 
         return {
             "move_id": move.id,
+            # Reads the journal, like `_get_non_deductible_line_vals` does for the
+            # base half of the same feature. Preferring `existing.account_id` here
+            # pinned the account for the life of the line, so the two halves of one
+            # private part could end up in different accounts after a journal change.
             "account_id": (
-                existing.account_id
-                or move.journal_id.non_deductible_account_id
+                move.journal_id.non_deductible_account_id
                 or move.journal_id.default_account_id
             ).id,
             "display_type": "non_deductible_tax",
@@ -442,35 +522,28 @@ class AccountMove(models.Model):
             )
         )
 
-        def value_of(record, field):
-            return record._fields[field].convert_to_write(record[field], record)
+        def snapshot(record, fnames):
+            return {fname: written_value(record, fname) for fname in fnames}
 
         def prepare():
             return {
                 "moves": {
-                    move: {
-                        field: value_of(move, field) for field in MOVE_TRACKED_FIELDS
-                    }
+                    move: snapshot(move, MOVE_TRACKED_FIELDS)
                     for move in container["records"]
                 },
                 "base_lines": {
                     move: {
-                        line: {
-                            field: value_of(line, field)
-                            for field in move._get_base_line_tracked_fields(
-                                grouping_key_fields
-                            )
-                        }
+                        line: snapshot(
+                            line,
+                            move._get_base_line_tracked_fields(grouping_key_fields),
+                        )
                         for line in move._get_tax_base_amls()
                     }
                     for move in container["records"]
                 },
                 "tax_lines": {
                     move: {
-                        line: {
-                            field: value_of(line, field)
-                            for field in TAX_LINE_TRACKED_FIELDS
-                        }
+                        line: snapshot(line, TAX_LINE_TRACKED_FIELDS)
                         for line in move._get_tax_amls()
                     }
                     for move in container["records"]
@@ -485,7 +558,7 @@ class AccountMove(models.Model):
                 if move.state != "draft":
                     continue
                 mode = self._get_tax_rounding_mode(move, before)
-                if mode is None:
+                if mode is SKIP:
                     continue
                 move_delete, move_create, move_update = self._get_tax_line_changes(
                     move, *mode
@@ -524,8 +597,10 @@ class AccountMove(models.Model):
             base_lines_values, move.company_id, tax_lines=tax_lines_values
         )
 
-        non_deductible_tax_line = move.line_ids.filtered(
-            lambda line: line.display_type == "non_deductible_tax"
+        non_deductible_tax_line = move._get_single_dynamic_line(
+            move.line_ids.filtered(
+                lambda line: line.display_type == "non_deductible_tax"
+            )
         )
         non_deductible_vals = self._get_non_deductible_tax_line_vals(
             move, base_lines_values
@@ -540,6 +615,9 @@ class AccountMove(models.Model):
                     {
                         "amount_currency": non_deductible_vals["amount_currency"],
                         "balance": non_deductible_vals["balance"],
+                        # The account follows the journal, so a journal change has
+                        # to reach the existing line and not only a new one.
+                        "account_id": non_deductible_vals["account_id"],
                     },
                 )
             )
@@ -547,10 +625,7 @@ class AccountMove(models.Model):
             to_create.append(non_deductible_vals)
 
         def stage_update(line, values):
-            if any(
-                line._fields[fname].convert_to_write(line[fname], line) != values[fname]
-                for fname in values
-            ):
+            if values_differ(line, values):
                 to_update.append(((line.currency_id.id, frozendict(values)), line.id))
 
         for base_line, values in tax_results["base_lines_to_update"]:
@@ -581,7 +656,7 @@ class AccountMove(models.Model):
         vals_list = []
 
         for line in product_lines:
-            if float_compare(line.deductible_amount, 100, precision_digits=2) == 0:
+            if not line._is_partially_deductible():
                 continue
             percentage = 1 - line.deductible_amount / 100
             non_deductible_subtotal = line.currency_id.round(
@@ -633,7 +708,11 @@ class AccountMove(models.Model):
 
     def _sync_non_deductible_base_lines(self, container):
         def product_line_fingerprint(move):
-            return Counter(
+            # The journal is part of the fingerprint because both vals builders
+            # read it for the account they book the private part to: without it a
+            # journal change leaves those lines on the previous journal's account
+            # until some unrelated edit to a product line happens to refresh them.
+            return move.journal_id, Counter(
                 (
                     line.name,
                     line.price_subtotal,
@@ -649,13 +728,10 @@ class AccountMove(models.Model):
             return (
                 move.state == "draft"
                 and move.is_purchase_document(include_receipts=True)
-                and bool(
-                    move.line_ids.filtered(
-                        lambda line: (
-                            line.display_type == "product"
-                            and line.deductible_amount < 100
-                        )
-                    )
+                and any(
+                    line._is_partially_deductible()
+                    for line in move.line_ids
+                    if line.display_type == "product"
                 )
             )
 
@@ -668,9 +744,7 @@ class AccountMove(models.Model):
             to_delete = []
             to_create = []
             for move in container["records"]:
-                now = product_line_fingerprint(move)
-                was = before.get(move, Counter())
-                if not (was - now or now - was):
+                if product_line_fingerprint(move) == before.get(move):
                     continue
 
                 to_delete += move.line_ids.filtered(
@@ -746,6 +820,9 @@ class AccountMove(models.Model):
         self, existing_before, existing_after, needed_before, needed_after, line_type
     ):
         AccountMoveLine = self.env["account.move.line"]
+        # Counterpart of `filter_trivial`: a needed key that names a line by `id`
+        # must not resurrect one that has since been deleted. No producer in this
+        # tree emits such a key today; see the note in `dynamic_lines`.
         live_ids = set(
             AccountMoveLine.browse(k["id"] for k in needed_before if "id" in k)
             .exists()
@@ -756,12 +833,6 @@ class AccountMove(models.Model):
             for k, v in needed_before.items()
             if "id" not in k or k["id"] in live_ids
         }
-
-        def values_differ(line, values):
-            return any(
-                line._fields[fname].convert_to_write(line[fname], line) != values[fname]
-                for fname in values
-            )
 
         plan = plan_dynamic_line_sync(
             existing_before,
@@ -774,10 +845,28 @@ class AccountMove(models.Model):
             return
         to_delete, to_create, to_write = plan
 
-        if to_delete:
-            AccountMoveLine.browse(
-                [line.id for line in to_delete]
-            ).exists().with_context(dynamic_unlink=True).unlink()
+        # Rewrite a doomed line into a needed one instead of deleting and
+        # recreating it: the id survives, and so does everything the plan does not
+        # carry -- the label and the analytic distribution a user set on it. It is
+        # also what keeps a due-date change legal on a posted move, where deleting
+        # a journal item is refused outright.
+        #
+        # Pairing is per move. A pool shared across the container matches by pop
+        # order alone, and once the two sequences fall out of step a line is
+        # rewritten with another move's `move_id` -- it migrates between invoices,
+        # taking its analytic distribution with it, while both moves still balance.
+        recyclable = defaultdict(list)
+        for line in AccountMoveLine.browse([line.id for line in to_delete]).exists():
+            recyclable[line.move_id.id].append(line)
+        for key in list(to_create):
+            candidates = recyclable.get(key.get("move_id"))
+            if not candidates:
+                continue
+            candidates.pop().write(
+                {**key, **to_create.pop(key), "display_type": line_type}
+            )
+        if leftover := [line for lines in recyclable.values() for line in lines]:
+            AccountMoveLine.union(*leftover).with_context(dynamic_unlink=True).unlink()
         if to_create:
             AccountMoveLine.with_context(clean_context(self.env.context)).create(
                 [
@@ -825,6 +914,9 @@ class AccountMove(models.Model):
                 lambda m: m.is_entry() and not m.tax_cash_basis_origin_move_id
             )
 
+            # Returned for `l10n_in._sync_l10n_in_gstr_section`, which unpacks it:
+            # the containers are re-pointed while the sync runs, so a step appended
+            # from outside this module can only read them by calling this.
             return tax_container, invoice_container, misc_container
 
         stack = [

@@ -417,3 +417,315 @@ class TestMarinAccountMoveSyncFixes(AccountTestInvoicingCommon):
                 "amount_currency: the two readers of invoice_currency_rate have to "
                 "agree, or the line sync silently repairs what this builds",
             )
+
+    def _plain_invoice(self, price_unit=100.0, **move_vals):
+        return self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-01-01",
+                "invoice_date_due": "2026-02-01",
+                "invoice_payment_term_id": False,
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "p",
+                            "quantity": 1,
+                            "price_unit": price_unit,
+                            "tax_ids": [Command.clear()],
+                        }
+                    )
+                ],
+                **move_vals,
+            }
+        )
+
+    def _payment_term_line(self, move):
+        return move.line_ids.filtered(lambda line: line.display_type == "payment_term")
+
+    def test_due_date_change_recycles_the_receivable_line(self):
+        invoice = self._plain_invoice()
+        line = self._payment_term_line(invoice)
+        line.name = "CUSTOMER PO 4711"
+        line.analytic_distribution = {str(self._analytic_account().id): 100}
+        line_id = line.id
+
+        invoice.invoice_date_due = "2026-06-01"
+
+        line = self._payment_term_line(invoice)
+        self.assertEqual(
+            line.id,
+            line_id,
+            "the receivable line carries user data the plan does not: rewriting it "
+            "in place is what keeps the label and the analytic distribution",
+        )
+        self.assertEqual(line.name, "CUSTOMER PO 4711")
+        self.assertTrue(line.analytic_distribution)
+        self.assertEqual(str(line.date_maturity), "2026-06-01")
+
+    def test_due_date_change_is_allowed_on_a_posted_invoice(self):
+        invoice = self._plain_invoice()
+        invoice.action_post()
+        line_id = self._payment_term_line(invoice).id
+
+        self.assertNotIn(
+            "invoice_date_due",
+            self.env["account.move"]._UNMODIFIABLE_WHEN_POSTED,
+            "the policy this test relies on: the due date stays writable once posted",
+        )
+        invoice.invoice_date_due = "2026-09-09"
+
+        line = self._payment_term_line(invoice)
+        self.assertEqual(line.id, line_id)
+        self.assertEqual(str(line.date_maturity), "2026-09-09")
+
+    def test_recycling_never_moves_a_line_between_moves(self):
+        term_2 = self.env["account.payment.term"].create(
+            {
+                "name": "2x",
+                "line_ids": [
+                    Command.create(
+                        {"value": "percent", "value_amount": 50.0, "nb_days": 5}
+                    ),
+                    Command.create(
+                        {"value": "percent", "value_amount": 50.0, "nb_days": 45}
+                    ),
+                ],
+            }
+        )
+        term_3 = self.env["account.payment.term"].create(
+            {
+                "name": "3x",
+                "line_ids": [
+                    Command.create(
+                        {"value": "percent", "value_amount": 30.0, "nb_days": 0}
+                    ),
+                    Command.create(
+                        {"value": "percent", "value_amount": 30.0, "nb_days": 30}
+                    ),
+                    Command.create(
+                        {"value": "percent", "value_amount": 40.0, "nb_days": 60}
+                    ),
+                ],
+            }
+        )
+        moves = self.env["account.move"]
+        analytic_by_move = {}
+        for price in (100.0, 300.0):
+            move = self._plain_invoice(
+                price_unit=price, invoice_payment_term_id=term_2.id
+            )
+            analytic = self._analytic_account("AA %s" % price)
+            for line in self._payment_term_line(move):
+                line.analytic_distribution = {str(analytic.id): 100}
+            analytic_by_move[move] = analytic
+            moves |= move
+
+        moves.invoice_payment_term_id = term_3
+
+        for move, analytic in analytic_by_move.items():
+            for line in self._payment_term_line(move):
+                self.assertFalse(
+                    set(line.analytic_distribution or {}) - {str(analytic.id)},
+                    "a recycled line paired with another move's key migrates "
+                    "between invoices, taking its analytic distribution along, "
+                    "and both moves still balance so nothing raises",
+                )
+
+    def _analytic_account(self, name="AA"):
+        plan = self.env["account.analytic.plan"].search([], limit=1) or self.env[
+            "account.analytic.plan"
+        ].create({"name": "Plan"})
+        return self.env["account.analytic.account"].create(
+            {"name": name, "plan_id": plan.id}
+        )
+
+    def _foreign_currency(self, rate=2.0):
+        currency = self.env.ref("base.EUR")
+        if currency == self.env.company.currency_id:
+            currency = self.env.ref("base.USD")
+        self.env["res.currency.rate"].create(
+            {
+                "name": "2026-01-01",
+                "currency_id": currency.id,
+                "rate": rate,
+                "company_id": self.env.company.id,
+            }
+        )
+        return currency
+
+    def test_rounding_line_uses_the_rate_its_siblings_use(self):
+        currency = self._foreign_currency(rate=2.0)
+        invoice = self._rounded_invoice(
+            self._cash_rounding("add_invoice_line", rounding=1.0),
+            100.40,
+            self.env["account.tax"],
+        )
+        invoice.currency_id = currency
+        for override in (None, 5.0):
+            with self.subTest(rate=override):
+                if override:
+                    invoice.invoice_currency_rate = override
+                receivable = invoice.line_ids.filtered(
+                    lambda line: line.display_type == "payment_term"
+                )
+                self.assertAlmostEqual(
+                    receivable.balance,
+                    invoice.company_currency_id.round(
+                        invoice.amount_total / invoice.invoice_currency_rate
+                    ),
+                    places=2,
+                    msg="the rounding line converted through the rate table while "
+                    "every sibling used invoice_currency_rate, and the receivable "
+                    "silently absorbed the difference",
+                )
+
+    def test_rounding_line_goes_when_the_new_method_cannot_book_it(self):
+        configured = self._cash_rounding("add_invoice_line", rounding=0.05)
+        bare = self._cash_rounding(
+            "add_invoice_line", rounding=0.05, with_accounts=False
+        )
+        invoice = self._rounded_invoice(configured, 100.02, self.env["account.tax"])
+        self.assertTrue(
+            invoice.line_ids.filtered(lambda line: line.display_type == "rounding")
+        )
+
+        invoice.invoice_cash_rounding_id = bare
+        invoice.invoice_line_ids[0].price_unit = 100.03
+
+        self.assertFalse(
+            invoice.line_ids.filtered(lambda line: line.display_type == "rounding"),
+            "keeping the previous method's line leaves the invoice balanced around "
+            "a total that belongs to neither method",
+        )
+        self.assertEqual(invoice.amount_total, 100.03)
+
+    def test_a_duplicated_dynamic_line_does_not_break_the_sync(self):
+        cases = (
+            (
+                "rounding",
+                lambda: self._rounded_invoice(
+                    self._cash_rounding("add_invoice_line", rounding=0.05),
+                    100.02,
+                    self.env["account.tax"],
+                ),
+            ),
+            ("balancing", lambda: self._unbalanced_entry(self.env, "first")),
+        )
+        for display_type, build in cases:
+            with self.subTest(display_type=display_type):
+                move = build()
+                line = move.line_ids.filtered(
+                    lambda line, dt=display_type: line.display_type == dt
+                )
+                self.assertTrue(line, "fixture must produce a %s line" % display_type)
+                line.copy({"move_id": move.id})
+                self.env.flush_all()
+                self.assertEqual(
+                    len(
+                        move.line_ids.filtered(
+                            lambda line, dt=display_type: line.display_type == dt
+                        )
+                    ),
+                    1,
+                    "a second %s line is representable, and every reader of it "
+                    "reaches for a scalar field -- the sync has to converge on one "
+                    "rather than raise Expected singleton from inside a create"
+                    % display_type,
+                )
+                self.assertAlmostEqual(
+                    sum(move.line_ids.mapped("balance")), 0.0, places=2
+                )
+
+    def test_deductibility_just_under_100_builds_no_orphan_total(self):
+        for deductible, expected in ((99.999, 0), (99.99, 2)):
+            with self.subTest(deductible=deductible):
+                bill = self.env["account.move"].create(
+                    {
+                        "move_type": "in_invoice",
+                        "partner_id": self.partner_a.id,
+                        "invoice_date": "2026-01-01",
+                        "invoice_line_ids": [
+                            Command.create(
+                                {
+                                    "name": "x",
+                                    "quantity": 1,
+                                    "price_unit": 100.0,
+                                    "deductible_amount": deductible,
+                                    "tax_ids": [Command.clear()],
+                                }
+                            )
+                        ],
+                    }
+                )
+                lines = bill.line_ids.filtered(
+                    lambda line: (
+                        line.display_type
+                        in ("non_deductible_product", "non_deductible_product_total")
+                    )
+                )
+                self.assertEqual(
+                    len(lines),
+                    expected,
+                    "the gate and the vals builder must read deductible_amount the "
+                    "same way, or one alone emits a 0.00 total with no counterpart",
+                )
+
+    def test_changing_the_journal_repoints_the_private_part(self):
+        first = self.env["account.journal"].search(
+            [("type", "=", "purchase"), ("company_id", "=", self.env.company.id)],
+            limit=1,
+        )
+        account_a = self.company_data["default_account_expense"].copy()
+        account_b = self.company_data["default_account_expense"].copy()
+        first.non_deductible_account_id = account_a
+        second = first.copy({"name": "Purchases B", "code": "PURB"})
+        second.non_deductible_account_id = account_b
+
+        bill = self.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-01-01",
+                "journal_id": first.id,
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "x",
+                            "quantity": 1,
+                            "price_unit": 100.0,
+                            "deductible_amount": 50,
+                            "tax_ids": [
+                                Command.set(
+                                    self.company_data["default_tax_purchase"].ids
+                                )
+                            ],
+                        }
+                    )
+                ],
+            }
+        )
+        bill.journal_id = second
+
+        for display_type in ("non_deductible_product_total", "non_deductible_tax"):
+            line = bill.line_ids.filtered(
+                lambda line, dt=display_type: line.display_type == dt
+            )
+            self.assertEqual(
+                line.account_id,
+                account_b,
+                "%s stayed on the previous journal's non-deductible account"
+                % display_type,
+            )
+
+    def test_merged_needed_values_do_not_alias_the_source(self):
+        key = self._needed_values_key()
+        tax_ids = [Command.set([1, 2])]
+        source = {key: {"balance": 1.0, "amount_currency": 1.0, "tax_ids": tax_ids}}
+        merged = self.env["account.move"]._sync_dynamic_line_needed_values([source])
+        self.assertIsNot(
+            merged[key]["tax_ids"],
+            tax_ids,
+            "the merged values are handed to callers while the source is the ORM "
+            "cache entry for epd_needed / discount_allocation_needed",
+        )

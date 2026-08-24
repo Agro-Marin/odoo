@@ -105,6 +105,10 @@ class AccountMove(models.Model):
                             "date_maturity": fields.Date.context_today(
                                 move.expense_ids
                             ),
+                            # Same shape as `_compute_term_key`, or the key can
+                            # never match the line it describes and every sync
+                            # rebuilds the term line from scratch.
+                            "discount_date": False,
                         }
                     ): {
                         "balance": -sum(term_lines.mapped("balance")),
