@@ -668,11 +668,15 @@ class GamificationChallenge(models.Model):
                 "definition_condition",
             ],
         )
-        # Partition goals by line_id
-        goals_by_line: dict = {}
+        # Partition goals by line_id.  Collect ids and browse once per line:
+        # `recordset |= record` inside a loop rebuilds the set every iteration,
+        # which is quadratic in the number of goals a challenge has.
+        ids_by_line: dict[int, list[int]] = {}
         for goal in all_goals:
-            goals_by_line.setdefault(goal.line_id.id, Goals.browse(()))
-            goals_by_line[goal.line_id.id] |= goal
+            ids_by_line.setdefault(goal.line_id.id, []).append(goal.id)
+        goals_by_line = {
+            line_id: Goals.browse(goal_ids) for line_id, goal_ids in ids_by_line.items()
+        }
 
         res_lines = []
         for line in self.line_ids:
@@ -786,10 +790,25 @@ class GamificationChallenge(models.Model):
                 )
 
         else:
-            # generate individual reports
-            for user in users or challenge.user_ids:
+            # Generate individual reports.
+            #
+            # The goals come out of the database once for the whole audience and
+            # are sliced per user, instead of `_get_serialized_challenge_lines`
+            # running its own `search_fetch` for each: a personal challenge with
+            # 10 participants measured 16 queries per participant, and the search
+            # was the part that scaled. The render and the notification stay per
+            # user because they genuinely are -- each is written in that user's
+            # language and delivered to their partner alone.
+            recipients = users or challenge.user_ids
+            goals_by_user = challenge._get_report_goals_by_user(
+                recipients, subset_goals
+            )
+            for user in recipients:
+                user_goals = goals_by_user.get(user.id)
+                if not user_goals:
+                    continue
                 lines = challenge._get_serialized_challenge_lines(
-                    user, restrict_goals=subset_goals
+                    user, restrict_goals=user_goals
                 )
                 if not lines:
                     continue
@@ -813,6 +832,35 @@ class GamificationChallenge(models.Model):
                         email_layout_xmlid="mail.mail_notification_light",
                     )
         return challenge.write({"last_report_date": fields.Date.today()})
+
+    def _get_report_goals_by_user(self, users, subset_goals=False) -> dict:
+        """Fetch this challenge's reportable goals for ``users`` in one query.
+
+        :param users: ``res.users`` recordset the report is being built for.
+        :param subset_goals: optional restriction, as ``report_progress`` takes.
+        :return: ``{user_id: gamification.goal recordset}``, users with no goal
+            omitted.
+        """
+        self.ensure_one()
+        Goals = self.env["gamification.goal"]
+        domain = [
+            ("line_id", "in", self.line_ids.ids),
+            ("state", "!=", "draft"),
+            ("user_id", "in", users.ids),
+        ]
+        if subset_goals:
+            domain.append(("id", "in", subset_goals.ids))
+        else:
+            (start_date, end_date) = start_end_date_for_period(self.period)
+            if start_date:
+                domain.append(("start_date", "=", start_date))
+            if end_date:
+                domain.append(("end_date", "=", end_date))
+
+        ids_by_user: dict[int, list[int]] = {}
+        for goal in Goals.search_fetch(domain, ["user_id"]):
+            ids_by_user.setdefault(goal.user_id.id, []).append(goal.id)
+        return {uid: Goals.browse(ids) for uid, ids in ids_by_user.items()}
 
     # --- Challenge participation ---
     def accept_challenge(self) -> bool:

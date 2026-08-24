@@ -124,7 +124,30 @@ FLOORS = {
     # the composed tree at CI scope, test_lint installed: 381 and 66. The -3 on
     # top of 384 is this change's own, from the crons that stopped asking per
     # record.
-    "n-plus-one-query": 381,
+    # 381 -> 378. ALL THREE ARE EARNED, ALL THREE IN gamification, and they are
+    # the follow-up to the three above -- same attribution method, same addon,
+    # measured the same way: 15 findings there at 250683d676f, 12 now.
+    #
+    #   challenge.report_progress          a personal-mode report ran
+    #       `_get_serialized_challenge_lines` per recipient, each with its own
+    #       search_fetch. The goals come out once for the whole audience and are
+    #       sliced per user now; the render and the notification stay per user
+    #       because each is in that user's language and to their partner alone.
+    #       Marginal cost 16.2 -> 10.7 queries per participant, measured at 5
+    #       and 20 recipients. What is left is the mail, which no grouping
+    #       removes.
+    #   badge._compute_owner_stats         two SQL passes over
+    #       gamification_badge_user carrying the same @api.depends, so they
+    #       always recomputed together and always cost two round-trips to answer
+    #       one question about one table. One pass with FILTER clauses now: all
+    #       seven statistics on a badge read in 1 query.
+    #   res_users._recompute_rank          the second implementation this
+    #       dispatched to, `_recompute_rank_bulk`, is deleted. It ran three
+    #       searches per rank to derive what the grouped path already holds in
+    #       memory, and it skipped `_rank_changed` for users dropping below the
+    #       lowest rank, so the two did not agree on behaviour either. Measured
+    #       on 60 users with every rank changing: 385 queries against its 429.
+    "n-plus-one-query": 378,
     "gettext-developer-error": 52,
     "config-chainmap-patch": 0,
 }

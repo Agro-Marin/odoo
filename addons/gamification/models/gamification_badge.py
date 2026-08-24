@@ -84,39 +84,39 @@ class GamificationBadge(models.Model):
 
     granted_count = fields.Integer(
         "Total",
-        compute="_get_owners_info",
+        compute="_compute_owner_stats",
         help="The number of time this badge has been received.",
     )
     granted_users_count = fields.Integer(
         "Number of users",
-        compute="_get_owners_info",
+        compute="_compute_owner_stats",
         help="The number of time this badge has been received by unique users.",
     )
     unique_owner_ids = fields.Many2many(
         "res.users",
         string="Unique Owners",
-        compute="_get_owners_info",
+        compute="_compute_owner_stats",
         help="The list of unique users having received this badge.",
     )
 
     stat_this_month = fields.Integer(
         "Monthly total",
-        compute="_get_badge_user_stats",
+        compute="_compute_owner_stats",
         help="The number of time this badge has been received this month.",
     )
     stat_my = fields.Integer(
         "My Total",
-        compute="_get_badge_user_stats",
+        compute="_compute_owner_stats",
         help="The number of time the current user has received this badge.",
     )
     stat_my_this_month = fields.Integer(
         "My Monthly Total",
-        compute="_get_badge_user_stats",
+        compute="_compute_owner_stats",
         help="The number of time the current user has received this badge this month.",
     )
     stat_my_monthly_sending = fields.Integer(
         "My Monthly Sending Total",
-        compute="_get_badge_user_stats",
+        compute="_compute_owner_stats",
         help="The number of time the current user has sent this badge this month.",
     )
 
@@ -126,65 +126,29 @@ class GamificationBadge(models.Model):
         help="If a maximum is set",
     )
 
+    # Every column here is "as seen by the acting user": the four stat_* ones
+    # count that user's own sending and receiving, and the owner ones go through
+    # res.users._search, so record rules decide which owners are visible. Merging
+    # the two passes made that one compute, and it has to say so or the cache
+    # serves one user's numbers to the next.
+    @api.depends_context("uid")
     @api.depends("owner_ids")
-    def _get_owners_info(self) -> None:
-        """Return:
-        the list of unique res.users ids having received this badge
-        the total number of time this badge was granted
-        the total number of users this badge was granted to
+    def _compute_owner_stats(self) -> None:
+        """Fill every per-badge statistic from a single aggregation.
+
+        This was two passes over ``gamification_badge_user`` carrying the same
+        ``@api.depends``, so they always recomputed together and always cost two
+        round-trips to answer one question about one table.
+
+        The owner columns go through ``res.users._search`` so that who you are
+        still decides which owners you can see; the four ``stat_*`` columns are
+        about the acting user's own sending and receiving and need no such
+        scoping.
         """
         defaults = {
             "granted_count": 0,
             "granted_users_count": 0,
             "unique_owner_ids": [],
-        }
-        if not self.ids:
-            self.update(defaults)
-            return
-
-        Users = self.env["res.users"]
-        query = Users._search([])
-        badge_alias = query.join(
-            "res_users", "id", "gamification_badge_user", "user_id", "badges"
-        )
-
-        rows = self.env.execute_query(
-            SQL(
-                """
-              SELECT %(badge_alias)s.badge_id, count(res_users.id) as stat_count,
-                     count(distinct(res_users.id)) as stat_count_distinct,
-                     array_agg(distinct(res_users.id)) as unique_owner_ids
-                FROM %(from_clause)s
-               WHERE %(where_clause)s
-                 AND %(badge_alias)s.badge_id IN %(ids)s
-            GROUP BY %(badge_alias)s.badge_id
-            """,
-                from_clause=query.from_clause,
-                where_clause=query.where_clause or SQL("TRUE"),
-                badge_alias=SQL.identifier(badge_alias),
-                ids=tuple(self.ids),
-            )
-        )
-
-        mapping = {
-            badge_id: {
-                "granted_count": count,
-                "granted_users_count": distinct_count,
-                "unique_owner_ids": owner_ids,
-            }
-            for (badge_id, count, distinct_count, owner_ids) in rows
-        }
-        for badge in self:
-            badge.update(mapping.get(badge.id, defaults))
-
-    @api.depends("owner_ids")
-    def _get_badge_user_stats(self) -> None:
-        """Compute per-badge statistics using a single SQL aggregation.
-
-        Computes: total received by current user, monthly total, monthly
-        received by current user, and monthly sent by current user.
-        """
-        defaults = {
             "stat_my": 0,
             "stat_this_month": 0,
             "stat_my_this_month": 0,
@@ -194,31 +158,45 @@ class GamificationBadge(models.Model):
             self.update(defaults)
             return
 
-        first_month_day = date.today().replace(day=1)
-        uid = self.env.uid
-        self.env.cr.execute(
-            """
-            SELECT badge_id,
-                   COUNT(*) FILTER (WHERE user_id = %(uid)s) AS stat_my,
-                   COUNT(*) FILTER (WHERE create_date >= %(month)s) AS stat_this_month,
-                   COUNT(*) FILTER (WHERE user_id = %(uid)s AND create_date >= %(month)s) AS stat_my_this_month,
-                   COUNT(*) FILTER (WHERE create_uid = %(uid)s AND create_date >= %(month)s) AS stat_my_monthly_sending
-              FROM gamification_badge_user
-             WHERE badge_id = ANY(%(ids)s)
-          GROUP BY badge_id
-        """,
-            {"uid": uid, "month": first_month_day, "ids": list(self.ids)},
+        query = self.env["res.users"]._search([])
+        badge_alias = query.join(
+            "res_users", "id", "gamification_badge_user", "user_id", "badges"
         )
-
-        mapping = {
-            row["badge_id"]: {
-                "stat_my": row["stat_my"],
-                "stat_this_month": row["stat_this_month"],
-                "stat_my_this_month": row["stat_my_this_month"],
-                "stat_my_monthly_sending": row["stat_my_monthly_sending"],
-            }
-            for row in self.env.cr.dictfetchall()
-        }
+        rows = self.env.execute_query_dict(
+            SQL(
+                """
+              SELECT %(badge_alias)s.badge_id AS badge_id,
+                     count(res_users.id) AS granted_count,
+                     count(distinct res_users.id) AS granted_users_count,
+                     array_agg(distinct res_users.id) AS unique_owner_ids,
+                     count(*) FILTER (
+                         WHERE %(badge_alias)s.user_id = %(uid)s
+                     ) AS stat_my,
+                     count(*) FILTER (
+                         WHERE %(badge_alias)s.create_date >= %(month)s
+                     ) AS stat_this_month,
+                     count(*) FILTER (
+                         WHERE %(badge_alias)s.user_id = %(uid)s
+                           AND %(badge_alias)s.create_date >= %(month)s
+                     ) AS stat_my_this_month,
+                     count(*) FILTER (
+                         WHERE %(badge_alias)s.create_uid = %(uid)s
+                           AND %(badge_alias)s.create_date >= %(month)s
+                     ) AS stat_my_monthly_sending
+                FROM %(from_clause)s
+               WHERE %(where_clause)s
+                 AND %(badge_alias)s.badge_id IN %(ids)s
+            GROUP BY %(badge_alias)s.badge_id
+            """,
+                from_clause=query.from_clause,
+                where_clause=query.where_clause or SQL("TRUE"),
+                badge_alias=SQL.identifier(badge_alias),
+                ids=tuple(self.ids),
+                uid=self.env.uid,
+                month=date.today().replace(day=1),
+            )
+        )
+        mapping = {row.pop("badge_id"): row for row in rows}
         for badge in self:
             badge.update(mapping.get(badge.id, defaults))
 

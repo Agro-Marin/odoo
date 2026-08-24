@@ -1,0 +1,8 @@
+{
+  "expected": {},
+  "note": "Zero expected failures, and that is the point of recording it. The suite was 1 failed of 215 for an unknown stretch -- test_user_tracking's assertQueryCount(23) reading 24 -- which is exactly the state this file exists to make attributable rather than folklore. That pin is now under budget and every other test passes, so any red here is new work's, not inherited. Measured on a fresh DB at the CI addons-path (odoo/addons,addons); the workspace path with enterprise present gives the same result.",
+  "run_spec": "-i gamification --test-enable --test-tags '/gamification'",
+  "suite": "/gamification",
+  "tests_total": 233,
+  "verified_at": "90dac1082f2"
+}

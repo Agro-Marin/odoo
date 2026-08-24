@@ -293,6 +293,53 @@ class GamificationActivity(models.Model):
 
     # ── Feed API ────────────────────────────────────────────────────
 
+    def _get_display_summary(self) -> str:
+        """Re-render this activity's sentence in the reader's language.
+
+        Falls back to the stored ``summary`` when the row does not carry enough
+        structure to rebuild -- rows written before a source record was deleted,
+        and any type a future module adds without teaching ``_render_summary``.
+        """
+        self.ensure_one()
+        args = {}
+        if self.activity_type == "streak_milestone":
+            # The streak's name and day count are not columns on this model, so
+            # the stored sentence is the only record of them.
+            return self.summary
+        if self.activity_type == "kudos" or self.activity_type in (
+            "quest_completed",
+            "skill_unlocked",
+        ):
+            return self.summary
+        if self.activity_type == "level_up":
+            if not self.user_id.rank_id:
+                return self.summary
+            args = {"rank": self.user_id.rank_id.name}
+        # The source m2os are all `ondelete="set null"`, so a deleted badge or
+        # challenge leaves the row intact with a blank reference. Rendering that
+        # produces a sentence with `False` where the name was -- worse than the
+        # stored one, and it does not raise, so a try/except cannot catch it.
+        # Check the reference this type needs is still there.
+        required = {
+            "badge": self.badge_id,
+            "achievement": self.achievement_id,
+            "challenge_completed": self.challenge_id,
+        }.get(self.activity_type)
+        if required is not None and not required:
+            return self.summary
+
+        vals = {
+            "user_id": self.user_id.id,
+            "target_user_id": self.target_user_id.id,
+            "badge_id": self.badge_id.id,
+            "achievement_id": self.achievement_id.id,
+            "challenge_id": self.challenge_id.id,
+        }
+        try:
+            return self._render_summary(self.activity_type, vals, args)
+        except KeyError, ValueError:
+            return self.summary
+
     @api.model
     def get_activity_feed(self, limit=30):
         """Return the latest activities for the dashboard social feed.
@@ -318,6 +365,12 @@ class GamificationActivity(models.Model):
             ],
             limit=self.env["res.users"]._gamification_clamp_limit(limit, default=30),
         )
+        # Render the sentence NOW rather than serving the stored one. `summary`
+        # is written once, in the language of whoever triggered the event and
+        # with the names as they read that day, so a French reader saw English
+        # and a renamed badge stayed renamed only in the future. The stored
+        # column is kept: it is this model's `_rec_name` and what the list view
+        # and every existing row use.
         return [
             {
                 "id": a.id,
@@ -326,7 +379,7 @@ class GamificationActivity(models.Model):
                 "target_user_name": a.target_user_id.name
                 if a.target_user_id
                 else False,
-                "summary": a.summary,
+                "summary": a._get_display_summary(),
                 "icon": a.icon,
                 "karma_gained": a.karma_gained,
                 "date": a.activity_date.date().isoformat()

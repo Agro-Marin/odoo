@@ -135,18 +135,20 @@ cls.user = mail_new_test_user(
    ```python
    from freezegun import freeze_time
 
+
    @freeze_time("2026-04-01")
-   def test_first_of_month(self):
-       ...
+   def test_first_of_month(self): ...
    ```
 
 4. **Clean up before each test** when unique constraints exist:
    ```python
    def setUp(self):
        super().setUp()
-       self.env["gamification.streak"].search([
-           ("user_id", "=", self.test_user.id),
-       ]).unlink()
+       self.env["gamification.streak"].search(
+           [
+               ("user_id", "=", self.test_user.id),
+           ]
+       ).unlink()
    ```
 
 ### Running Tests

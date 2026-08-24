@@ -18,8 +18,8 @@ adaptive difficulty, and smart nudges.
 | Views | 20 XML files |
 | Wizards | 2 transient models |
 | Cron jobs | 8 |
-| Test files | 13 (common + 12 test modules) |
-| Total tests | 231 (`--test-tags /gamification`) |
+| Test files | 19 (common + 18 test modules) |
+| Total tests | 233 (`--test-tags /gamification`) |
 | OWL components | 2 (dashboard + notification service) |
 
 ## File Inventory
@@ -72,6 +72,12 @@ adaptive difficulty, and smart nudges.
 | `test_mentorship.py` | `TestMentorship` | Mentorship lifecycle, karma rewards, suggested mentors |
 | `test_quest.py` | `TestQuest`, `TestSeason`, `TestSkillTree` | Quest steps/prerequisites, season lifecycle, skill node unlocking |
 | `test_intelligence.py` | `TestAdaptiveDifficulty`, `TestEngagementNudges`, `TestVisibilityControls` | Adaptive targets, nudge patterns, privacy filtering |
+| `test_goal.py` | `TestGoal` | Goal state machine, completeness, remind delay |
+| `test_goal_definition.py` | `TestGoalDefinition` | Domain and model validation on create/write |
+| `test_security.py` | `TestSecurityRules`, `TestGroupMigration`, `TestAclParity` | ACL rows per tier, record-rule reach, group re-pointing |
+| `test_menu_security.py` | `TestMenuSecurity` | Which menus each audience actually loads |
+| `test_migrations.py` | `TestPostMigrate11` | The 1.1 rule/menu re-pointing script |
+| `test_regressions.py` | `TestKarmaIntegrity`, `TestStreakTimezone`, `TestCronErrorIsolation`, `TestSkillTreeWiring`, `TestNudgeBudget`, `TestProfilePrivacy`, `TestGoalOutcomeFields`, `TestQuestOwnership`, `TestChallengeRetargeting`, `TestConsolidationPreservesGain`, … | One class per audited defect; each was red before its fix |
 
 ### Data (`data/`)
 

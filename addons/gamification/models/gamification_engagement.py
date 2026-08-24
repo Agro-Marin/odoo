@@ -132,6 +132,13 @@ class GamificationEngagementSnapshot(models.Model):
         if existing:
             return existing
 
+        # Every query below reads through `cr.execute`, which does not flush.
+        # `res_users.karma` in particular is a stored compute, so a snapshot
+        # taken in the same transaction as a karma grant read the pre-grant
+        # column. The cron runs after the streak and achievement crons by
+        # design, which is exactly when there is pending work to miss.
+        self.env.flush_all()
+
         cr = self.env.cr
         d7 = today - timedelta(days=7)
         d30 = today - timedelta(days=30)

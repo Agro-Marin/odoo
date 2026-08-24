@@ -1107,3 +1107,49 @@ class TestConsolidationPreservesGain(common.TransactionCase):
         rows = self.Tracking.search([("user_id", "=", self.user.id)])
         self.assertEqual(len(rows), 1)
         self.assertEqual(self._gains(), expected)
+
+
+class TestActivityFeedRendersAtReadTime(common.TransactionCase):
+    """`summary` is written once, in the writer's language and with the names
+    of that day. The feed re-renders it for the reader instead of serving the
+    frozen string.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.actor = mail_new_test_user(
+            cls.env,
+            login="feed_actor",
+            name="Original Name",
+            email="feed@example.com",
+            groups="base.group_user",
+        )
+        cls.badge = cls.env["gamification.badge"].create({"name": "Original Badge"})
+
+    def test_a_rename_reaches_the_feed(self):
+        self.env["gamification.activity"]._log_badge(self.actor, self.badge)
+        self.env.flush_all()
+
+        self.actor.name = "Renamed Person"
+        self.badge.name = "Renamed Badge"
+        self.env.flush_all()
+
+        feed = self.env["gamification.activity"].get_activity_feed(limit=10)
+        entry = next(e for e in feed if e["user_name"] == "Renamed Person")
+        self.assertIn("Renamed Person", entry["summary"])
+        self.assertIn("Renamed Badge", entry["summary"])
+
+    def test_a_row_whose_source_is_gone_keeps_its_stored_sentence(self):
+        """CONTROL: `badge_id` is ondelete='set null', so the render must fall
+        back rather than raise or produce a sentence with a hole in it."""
+        self.env["gamification.activity"]._log_badge(self.actor, self.badge)
+        self.env.flush_all()
+        stored = self.env["gamification.activity"].search(
+            [("user_id", "=", self.actor.id)], limit=1
+        )
+        original = stored.summary
+        self.badge.unlink()
+        stored.invalidate_recordset()
+
+        self.assertEqual(stored._get_display_summary(), original)

@@ -581,24 +581,49 @@ class TestComputeRankCommon(common.TransactionCase):
             "Should just recompute for the 7 users between 500 and 700",
         )
 
-    def test_03_test_bulk_call(self):
+    def test_03_reranking_writes_once_per_rank_not_once_per_user(self):
+        """The write count follows the ranks, not the users.
+
+        Two earlier versions of this test measured nothing, and both are worth
+        recording. The first re-ranked users whose rank was already correct, so
+        the ORM skipped every write and the count was identical whatever the
+        loop did. The second cleared the ranks but asserted on TOTAL queries --
+        which do scale with users, because `_rank_changed` sends a bus message
+        and queues an email per user who moved, and no grouping can remove
+        those.
+
+        So assert the thing that actually changed: how many `write` calls the
+        re-ranking makes. One per distinct target rank is the property;
+        one per user is the regression.
+        """
         self.assertEqual(len(self.users), 35)
+        self.users.sudo().write({"rank_id": False, "next_rank_id": False})
+        self.env.flush_all()
 
-        def _patched_check_in_bulk(*args, **kwargs):
-            raise RuntimeError("Bulk function should not be called")
+        calls = []
+        real_write = type(self.env["res.users"]).write
 
-        patch_bulk = patch(
-            "odoo.addons.gamification.models.res_users.ResUsers._recompute_rank_bulk",
-            _patched_check_in_bulk,
+        def counting_write(records, vals):
+            if "rank_id" in vals:
+                calls.append(len(records))
+            return real_write(records, vals)
+
+        self.patch(type(self.env["res.users"]), "write", counting_write)
+        self.users._recompute_rank()
+
+        ranks = self.env["gamification.karma.rank"].search_count([])
+        self.assertTrue(calls, "re-ranking wrote nothing at all")
+        self.assertLessEqual(
+            len(calls),
+            ranks + 1,
+            f"re-ranking 35 users made {len(calls)} rank writes over {ranks} "
+            f"ranks; it should group them, not write per user",
         )
-        self.startPatcher(patch_bulk)
-
-        # call on 5 users should not trigger the bulk function
-        self.users[0:5]._recompute_rank()
-
-        # call on 50 users should trigger the bulk function
-        with self.assertRaises(Exception):
-            self.users[0:50]._recompute_rank()
+        self.assertEqual(
+            sum(calls),
+            len(self.users),
+            "every user must still be written exactly once",
+        )
 
     def test_get_next_rank(self):
         """Test the computation of the next user rank.
