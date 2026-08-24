@@ -1,4 +1,5 @@
 import ast
+from uuid import uuid4
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
@@ -13,15 +14,12 @@ class LoyaltyRule(models.Model):
     def default_get(self, fields):
         # Copy the rule defaults of the program type given in the context, if any
         result = super().default_get(fields)
-        if 'program_type' in self.env.context:
-            program_type = self.env.context['program_type']
-            program_default_values = self.env['loyalty.program']._program_type_default_values()
-            if program_type in program_default_values and\
-                len(program_default_values[program_type]['rule_ids']) == 2 and\
-                isinstance(program_default_values[program_type]['rule_ids'][1][2], dict):
-                result.update({
-                    k: v for k, v in program_default_values[program_type]['rule_ids'][1][2].items() if k in fields
-                })
+        program_type = self.env.context.get('program_type')
+        if program_type:
+            defaults = self.env['loyalty.program']._get_child_default_values(
+                program_type, 'rule_ids'
+            )
+            result.update({k: v for k, v in defaults.items() if k in fields})
         return result
 
     def _get_reward_point_mode_selection(self):
@@ -90,14 +88,14 @@ class LoyaltyRule(models.Model):
     )
 
     @api.constrains('reward_point_split')
-    def _constraint_trigger_multi(self):
+    def _check_reward_point_split(self):
         # Splitting per unit makes no sense when points accumulate on a nominative card
         for rule in self:
             if rule.reward_point_split and (rule.program_id.applies_on == 'both' or rule.program_id.program_type == 'ewallet'):
                 raise ValidationError(_("Split per unit is not allowed for Loyalty and eWallet programs."))
 
     @api.constrains('code', 'active')
-    def _constrains_code(self):
+    def _check_code(self):
         mapped_codes = self.filtered(lambda r: r.code and r.active).mapped('code')
         # Program code must be unique
         if len(mapped_codes) != len(set(mapped_codes)) or\
@@ -114,12 +112,34 @@ class LoyaltyRule(models.Model):
         ], limit=1):
             raise ValidationError(_("A coupon with the same code was found."))
 
+    @api.model
+    def _generate_code(self):
+        """Return a fresh promo code, unique enough not to hit `_check_code`.
+
+        Generated per rule and not baked into `loyalty.program`'s per-type defaults:
+        those are one dict written to every program of the type being changed, so a
+        code held there was the *same* code for each of them.
+        """
+        return f"PROMO_CODE_{uuid4().hex[:8].upper()}"
+
     @api.depends('mode')
     def _compute_code(self):
-        # Reset code when mode is set to auto
         for rule in self:
             if rule.mode == 'auto':
+                # Reset code when mode is set to auto
                 rule.code = False
+            elif rule.mode == 'with_code' and not rule.code:
+                # A trigger rule is reached by its code, so it needs one, and the
+                # code has to be unique -- which a per-program-type default cannot
+                # be. Generated here, once per rule.
+                #
+                # The `mode == 'with_code'` test is not redundant with the branch
+                # above: `mode` is itself computed from `code`, so the pair can be
+                # evaluated in either order and this one runs first on a new rule,
+                # while `mode` is still unset. Treating "not auto" as "with code"
+                # there gave every automatic rule a code -- and `_compute_mode`
+                # then read that code back and called the rule coded.
+                rule.code = rule._generate_code()
 
     @api.depends('code')
     def _compute_mode(self):
@@ -130,8 +150,9 @@ class LoyaltyRule(models.Model):
                 rule.mode = 'auto'
 
     @api.depends_context('uid')
-    @api.depends('mode')
     def _compute_user_has_debug(self):
+        # No field dependency: the answer is about the reader, not the record. It
+        # used to name one at random, which only widened invalidation.
         self.user_has_debug = self.env.user.has_group('base.group_no_one')
 
     def _get_valid_product_domain(self):

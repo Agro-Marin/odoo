@@ -1,0 +1,4 @@
+{
+  "count": 0,
+  "note": "74 -> 0, a new scope.\n\n`pyfunclen` measures `odoo/`, the core package, and `pyfunclen_addons` runs `--mode no-increase` over the whole bundled tree -- so a single addon could sit at 74 excess lines indefinitely and only be stopped from growing. `loyalty`'s whole 74 was one function, `_program_type_default_values`, at 157 lines: a dict literal that is also control flow, read by `_compute_from_program_type`, by `create`, by `default_get`, and by `loyalty.rule` / `loyalty.reward` indexing back into it.\n\nSplit into one method per program type, each documenting what that type is. The produced dict is byte-identical before and after -- checked by dumping it for all eight types on either side of the split.\n\nFloored at zero because that is what it measures now; the scope is small enough that any new function over the 80-line budget here is worth arguing for."
+}

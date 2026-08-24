@@ -112,7 +112,13 @@ class TestLoyalty(TransactionCase):
             sent_mails |= self
 
         partner = self.env['res.partner'].create({'name': 'Test Partner'})
-        with patch('odoo.addons.mail.models.mail_template.MailTemplate.send_mail', new=mock_send_mail):
+        # `send_mail_batch`, not `send_mail`: the coupon paths send one batch per
+        # (template, author) rather than one mail per coupon, and `send_mail` is
+        # itself a one-record wrapper over the batch entry point.
+        with patch(
+            'odoo.addons.mail.models.mail_template.MailTemplate.send_mail_batch',
+            new=mock_send_mail,
+        ):
             # Send mail at creation
             coupon = self.env['loyalty.card'].create({
                 'program_id': self.program.id,
@@ -245,11 +251,13 @@ class TestLoyalty(TransactionCase):
         """Test merging nominative loyalty cards from source partners to a destination partner
         when partners are merged.
         """
+        # `applies_on: 'both'` is what makes the program nominative; passing
+        # `is_nominative` here did nothing -- it is a non-stored compute.
         program = self.env['loyalty.program'].create({
             'name': 'Test Program',
-            'is_nominative': True,
             'applies_on': 'both',
         })
+        self.assertTrue(program.is_nominative)
 
         partner_1, partner_2, dest_partner = self.env['res.partner'].create([
             {'name': 'Source Partner 1'},
@@ -286,6 +294,18 @@ class TestLoyalty(TransactionCase):
         self.assertFalse(self.env['loyalty.card'].search([
             ('partner_id', 'in', [partner_1.id, partner_2.id]),
         ]))
+
+        # The surviving balance has to be explained: 30 of its 60 points arrived
+        # from the two cards that were drained, and each of those says where its
+        # own balance went.
+        moved_in = self.env['loyalty.history'].search([
+            ('card_id', '=', dest_partner_loyalty_cards.id), ('issued', '>', 0),
+        ])
+        self.assertEqual(sum(moved_in.mapped('issued')), 30)
+        moved_out = self.env['loyalty.history'].with_context(active_test=False).search([
+            ('card_id.program_id', '=', program.id), ('used', '>', 0),
+        ])
+        self.assertEqual(sorted(moved_out.mapped('used')), [10, 20])
 
     def test_card_description_on_tag_change(self):
         product_tag = self.env['product.tag'].create({'name': 'Multiple Products'})

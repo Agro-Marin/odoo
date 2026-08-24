@@ -11,6 +11,9 @@ class TestUnlinkReward(TestSaleCouponCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        # The reward is declared with the program: a program created with a
+        # `program_type` and no `reward_ids` is given the one its type implies, so
+        # adding a second one afterwards left the order claiming whichever it liked.
         cls.promotion_program = cls.env["loyalty.program"].create(
             {
                 "name": "Buy A + 1 B, 1 B are free",
@@ -28,14 +31,10 @@ class TestUnlinkReward(TestSaleCouponCommon):
                         }
                     )
                 ],
+                "reward_ids": [Command.create({"reward_type": "discount"})],
             }
         )
-        cls.reward = cls.env["loyalty.reward"].create(
-            {
-                "program_id": cls.promotion_program.id,
-                "reward_type": "discount",
-            }
-        )
+        cls.reward = cls.promotion_program.reward_ids.ensure_one()
 
     def test_sale_unlink_reward(self):
         order = self.empty_order

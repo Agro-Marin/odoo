@@ -6,3 +6,15 @@ from . import test_loyalty_rule
 from . import test_loyalty_generate_selected
 from . import test_loyalty_reward
 from . import test_loyalty_product
+from . import test_loyalty_card_batch_cost
+from . import test_loyalty_card_expiration
+from . import test_loyalty_defaults
+from . import test_loyalty_generate_scope
+from . import test_loyalty_program_fields
+from . import test_loyalty_program_write
+from . import test_loyalty_reward_domain
+from . import test_loyalty_batching
+from . import test_loyalty_communication
+from . import test_loyalty_merge
+from . import test_loyalty_program_type_children
+from . import test_loyalty_description

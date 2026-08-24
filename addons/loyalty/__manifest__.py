@@ -2,7 +2,7 @@
     'name': "Coupons & Loyalty",
     'summary': "Use discounts, gift card, eWallets and loyalty programs in different sales channels",
     'category': 'Sales',
-    'version': '1.0',
+    'version': '1.1',
     'depends': ['account'],
     'data': [
         'security/ir.model.access.csv',
@@ -35,6 +35,9 @@
             # Don't include dark mode files in light mode
         ],
         "web.assets_web_dark": [
+        ],
+        'web.assets_unit_tests': [
+            'loyalty/static/tests/unit/**/*',
         ],
         'web.assets_frontend': [
             'loyalty/static/src/js/portal/**/*',

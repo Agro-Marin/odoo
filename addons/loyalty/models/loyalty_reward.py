@@ -4,6 +4,7 @@ import json
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
+from odoo.tools.misc import str2bool
 
 
 class LoyaltyReward(models.Model):
@@ -12,19 +13,25 @@ class LoyaltyReward(models.Model):
     _rec_name = 'description'
     _order = 'required_points asc'
 
+    # Everything `_get_discount_product_domain` reads, and so every field that
+    # invalidates both representations of the discounted products.
+    _DISCOUNT_PRODUCT_DEPENDS = (
+        'discount_product_ids',
+        'discount_product_category_id',
+        'discount_product_tag_id',
+        'discount_product_domain',
+    )
+
     @api.model
     def default_get(self, fields):
         # Copy the reward defaults of the program type given in the context, if any
         result = super().default_get(fields)
-        if 'program_type' in self.env.context:
-            program_type = self.env.context['program_type']
-            program_default_values = self.env['loyalty.program']._program_type_default_values()
-            if program_type in program_default_values and\
-                len(program_default_values[program_type]['reward_ids']) == 2 and\
-                isinstance(program_default_values[program_type]['reward_ids'][1][2], dict):
-                result.update({
-                    k: v for k, v in program_default_values[program_type]['reward_ids'][1][2].items() if k in fields
-                })
+        program_type = self.env.context.get('program_type')
+        if program_type:
+            defaults = self.env['loyalty.program']._get_child_default_values(
+                program_type, 'reward_ids'
+            )
+            result.update({k: v for k, v in defaults.items() if k in fields})
         return result
 
     def _get_discount_mode_select(self):
@@ -143,8 +150,11 @@ class LoyaltyReward(models.Model):
         "The discount must be strictly positive.",
     )
 
-    @api.depends('reward_product_id.product_tmpl_id.uom_id', 'reward_product_tag_id')
+    @api.depends('reward_product_ids.product_tmpl_id.uom_id')
     def _compute_reward_product_uom_id(self):
+        # `reward_product_ids` is itself computed from the product, the tag and the
+        # reward type: depending on the first two alone left the unit of a reward
+        # behind when its type flipped away from 'product'.
         for reward in self:
             reward.reward_product_uom_id = reward.reward_product_ids.product_tmpl_id.uom_id[:1]
 
@@ -156,6 +166,17 @@ class LoyaltyReward(models.Model):
         return child_ids
 
     def _get_discount_product_domain(self):
+        """Return the domain of the products this reward discounts.
+
+        **This domain must stay evaluable by `@web/core/domain`.** It is serialised
+        into `reward_product_domain` and re-evaluated in the browser by the PoS
+        (`pos_loyalty/static/src/app/services/pos_store.js`), where `child_of` and
+        `parent_of` compile to `() => true` -- every product would match. That is why
+        the category is expanded into an id list here while `loyalty.rule` states the
+        same condition as the server-only `('categ_id', 'child_of', id)`. The two
+        methods look like duplicates and are not: unifying them on `child_of` makes
+        every PoS discount apply to the whole catalogue.
+        """
         self.ensure_one()
         constrains = []
         if self.discount_product_ids:
@@ -187,23 +208,70 @@ class LoyaltyReward(models.Model):
                             ('reward_product_ids.active', '=', True)
         ]
 
-    @api.depends('discount_product_domain')
-    def _compute_reward_product_domain(self):
-        compute_all_discount_product = self.env['ir.config_parameter'].sudo().get_param('loyalty.compute_all_discount_product_ids', 'enabled')
-        for reward in self:
-            if compute_all_discount_product == 'enabled':
-                reward.reward_product_domain = "null"
-            else:
-                reward.reward_product_domain = json.dumps(list(reward._get_discount_product_domain()))
+    def _expands_discount_products(self):
+        """Whether the discounted products are resolved here or left to the client.
 
-    @api.depends('discount_product_ids', 'discount_product_category_id', 'discount_product_tag_id', 'discount_product_domain')
-    def _compute_all_discount_product_ids(self):
-        compute_all_discount_product = self.env['ir.config_parameter'].sudo().get_param('loyalty.compute_all_discount_product_ids', 'enabled')
+        Two representations of one thing, and exactly one of them is filled in:
+        `all_discount_product_ids` (a server-side search, exact but O(products)) or
+        `reward_product_domain` (the domain itself, evaluated by the PoS against the
+        products it already holds).
+        """
+        # The switch is an on/off flag stored as a string. It shipped as the literal
+        # "False" while the code compared against "enabled" and defaulted to
+        # "enabled" when unset -- so deleting the parameter meant the opposite of
+        # what the parameter said. `str2bool` reads the shipped value, the default
+        # agrees with it, and "enabled" is still honoured for databases that set it.
+        value = self.env['ir.config_parameter'].sudo().get_param(
+            'loyalty.compute_all_discount_product_ids', ''
+        )
+        return value == 'enabled' or str2bool(value, False)
+
+    @api.depends(*_DISCOUNT_PRODUCT_DEPENDS)
+    def _compute_reward_product_domain(self):
+        # Same dependencies as `_compute_all_discount_product_ids`: both serialise
+        # `_get_discount_product_domain`, so both go stale on the same fields. This
+        # one used to depend on `discount_product_domain` alone, which left the PoS
+        # evaluating a domain that ignored the reward's products, category and tag.
+        expands = self._expands_discount_products()
         for reward in self:
-            if compute_all_discount_product == 'enabled':
-                reward.all_discount_product_ids = self.env['product.product'].search(reward._get_discount_product_domain())
-            else:
-                reward.all_discount_product_ids = self.env['product.product']
+            reward.reward_product_domain = "null" if expands else json.dumps(
+                list(reward._get_discount_product_domain())
+            )
+
+    def _get_discount_products(self):
+        """Return the products each of these rewards discounts, in one query.
+
+        One search over the union of the rewards' domains, then each reward's own
+        domain applied to the result in memory. Every reward's domain implies the
+        union, so nothing a per-reward `search` would have found is missing, and
+        `filtered_domain` answers the same as `search` for every operator these
+        domains can carry -- `child_of` and a hand-written `discount_product_domain`
+        included.
+
+        The trade is one query for the whole set against materialising the union: a
+        reward with no constraint contributes `Domain.TRUE` and pulls in the whole
+        catalogue. That is the same set `all_discount_product_ids` holds for such a
+        reward anyway, and it is loaded once here instead of once per reward.
+
+        :return: the matching products per reward
+        :rtype: dict[loyalty.reward, product.product]
+        """
+        domains = {reward: reward._get_discount_product_domain() for reward in self}
+        if not domains:
+            return {}
+        candidates = self.env['product.product'].search(Domain.OR(domains.values()))
+        return {
+            reward: candidates.filtered_domain(domain)
+            for reward, domain in domains.items()
+        }
+
+    @api.depends(*_DISCOUNT_PRODUCT_DEPENDS)
+    def _compute_all_discount_product_ids(self):
+        if not self._expands_discount_products():
+            self.all_discount_product_ids = self.env['product.product']
+            return
+        for reward, products in self._get_discount_products().items():
+            reward.all_discount_product_ids = products
 
     @api.depends('reward_product_id', 'reward_product_tag_id', 'reward_type')
     def _compute_multi_product(self):
@@ -231,6 +299,60 @@ class LoyaltyReward(models.Model):
     @api.depends('reward_type', 'reward_product_id', 'discount_mode', 'reward_product_tag_id',
                  'discount', 'currency_id', 'discount_applicability', 'all_discount_product_ids')
     def _compute_description(self):
+        """Describe each reward, in every language the database has installed.
+
+        `description` is generated *and* translated, and writing a translated field
+        under the session's language also writes the source term when the record has
+        no source yet. Building the string with `_()` under a Spanish session
+        therefore stored Spanish as `en_US` -- so every reward's English description
+        was Spanish, and every language without its own translation fell back to it.
+
+        Written once per installed language, source first: writing `en_US` leaves
+        existing translations alone, and writing a translation leaves the source
+        alone, so each language ends up holding its own current string.
+        """
+        # Resolved for the whole batch: naming the single product a reward discounts
+        # used to cost one `search` per reward. Language-independent, so it is done
+        # once outside the loop below.
+        products_per_reward = self.filtered(
+            lambda reward: reward.program_type not in ('gift_card', 'ewallet')
+            and reward.reward_type == 'discount'
+            and reward.discount_applicability == 'specific'
+        )._get_discount_products()
+        # A record being created is written once -- `description` is `precompute`d
+        # into the INSERT -- and that single value lands in both the source and the
+        # session's language. A new reward therefore gets the source term only,
+        # exactly what an English session has always produced, and its translations
+        # arrive with the first recompute. It also has to be assigned on `self` and
+        # not through another env, or the compute leaves it unset.
+        saved = self.browse(self.ids)
+        unsaved = self - saved
+        for reward, text in zip(
+            unsaved, unsaved.with_context(lang='en_US')._description_texts(products_per_reward),
+            strict=True,
+        ):
+            reward.description = text
+        installed = [code for code, __ in self.env['res.lang'].get_installed()]
+        for code in ['en_US', *(code for code in installed if code != 'en_US')]:
+            translated = saved.with_context(lang=code)
+            for reward, text in zip(
+                translated, translated._description_texts(products_per_reward), strict=True
+            ):
+                reward.description = text
+
+    def _description_texts(self, products_per_reward):
+        """Describe each of these rewards in this recordset's language.
+
+        Returns the texts rather than writing them: which record they are written
+        to, and in which env, is what decides whether they land in the source term
+        or in a translation.
+
+        :param dict products_per_reward: the products each reward discounts, from
+            `_get_discount_products`
+        :return: one description per reward, in order
+        :rtype: list[str]
+        """
+        descriptions = []
         for reward in self:
             reward_string = ""
             if reward.program_type == 'gift_card':
@@ -261,7 +383,7 @@ class LoyaltyReward(models.Model):
                 elif reward.discount_applicability == 'cheapest':
                     reward_string += _("the cheapest product")
                 elif reward.discount_applicability == 'specific':
-                    product_available = self.env['product.product'].search(reward._get_discount_product_domain(), limit=2)
+                    product_available = products_per_reward.get(reward, self.env['product.product'])
                     if len(product_available) == 1:
                         reward_string += product_available.with_context(display_default_code=False).display_name
                     else:
@@ -272,7 +394,8 @@ class LoyaltyReward(models.Model):
                         format_string = "%(symbol)s %(amount)g"
                     formatted_amount = format_string % {'amount': reward.discount_max_amount, 'symbol': reward.currency_id.symbol}
                     reward_string += _(" (Max %s)", formatted_amount)
-            reward.description = reward_string
+            descriptions.append(reward_string)
+        return descriptions
 
     @api.depends('reward_type', 'discount_applicability', 'discount_mode')
     def _compute_is_global_discount(self):
@@ -284,8 +407,9 @@ class LoyaltyReward(models.Model):
             )
 
     @api.depends_context('uid')
-    @api.depends('reward_type')
     def _compute_user_has_debug(self):
+        # No field dependency: the answer is about the reader, not the record. It
+        # used to name one at random, which only widened invalidation.
         self.user_has_debug = self.env.user.has_group('base.group_no_one')
 
     @api.constrains('reward_product_id')
@@ -324,7 +448,7 @@ class LoyaltyReward(models.Model):
         programs = self.program_id
         res = super().unlink()
         # Unlinking rewards does not always trigger the program's constraint
-        programs._constrains_reward_ids()
+        programs.exists()._check_reward_ids()
         return res
 
     def _get_discount_product_values(self):

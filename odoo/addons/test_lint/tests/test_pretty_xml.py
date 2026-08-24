@@ -59,4 +59,14 @@ class PrettyXmlLinter(LintCase):
 # The tree held 3812 against the committed 3811 and had since before this
 # branch -- a clean worktree of 3921edc2844 measures 3812 too -- so this
 # gate was red for every commit in between.
-UNFORMATTED_FLOOR = 3658
+# 3658 -> 3643: `addons/loyalty` canonicalised, all 16 of its XML files. The
+# module leaves this gate's debt rather than shrinking its share of it.
+#
+# Re-measured after rebasing onto origin/19.0-marin, which had moved the floor to
+# 3658 under this branch. The earlier note recorded 3660 -> 3644 against the old
+# base and attributed two further units to files held uncommitted elsewhere; that
+# arithmetic is superseded by the measurement below, taken on the rebased tree
+# with nothing uncommitted in it:
+#
+#   python odoo/addons/test_lint/tests/_pretty_xml.py --count odoo/addons addons
+UNFORMATTED_FLOOR = 3643

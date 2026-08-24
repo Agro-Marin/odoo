@@ -1,3 +1,4 @@
+from collections import defaultdict
 from uuid import uuid4
 
 from odoo import _, api, fields, models
@@ -23,6 +24,9 @@ class LoyaltyCard(models.Model):
 
     program_id = fields.Many2one(
         comodel_name='loyalty.program',
+        # Required: a card with no program has no company, no currency and no point
+        # name, and its display name read "False: 044f-d2de-4011".
+        required=True,
         ondelete='restrict',
         index='btree_not_null',
         default=lambda self: self.env.context.get('active_id', None),
@@ -54,21 +58,23 @@ class LoyaltyCard(models.Model):
     )
 
     @api.constrains('code')
-    def _contrains_code(self):
+    def _check_code(self):
         # Prevent a coupon from sharing its code with a program trigger
         if self.env['loyalty.rule'].search_count([('mode', '=', 'with_code'), ('code', 'in', self.mapped('code'))], limit=1):
             raise ValidationError(_("A trigger with the same code as one of your coupon already exists."))
+
+    @api.constrains('expiration_date', 'program_id')
+    def _check_expiration_date(self):
+        # A constraint and not an onchange: the onchange this replaces guarded the
+        # form alone, and let `create`/`write`/an import set the date anyway.
+        for card in self:
+            if card.program_type == 'loyalty' and card.expiration_date:
+                raise ValidationError(_("Expiration date cannot be set on a loyalty card."))
 
     @api.depends('points', 'point_name')
     def _compute_points_display(self):
         for card in self:
             card.points_display = card._format_points(card.points)
-
-    @api.onchange('expiration_date')
-    def _restrict_expiration_on_loyalty(self):
-        for card in self:
-            if card.program_type == 'loyalty' and card.expiration_date:
-                raise ValidationError(_("Expiration date cannot be set on a loyalty card."))
 
     def _format_points(self, points):
         self.ensure_one()
@@ -78,8 +84,12 @@ class LoyaltyCard(models.Model):
             return f"{int(points)} {self.point_name or ''}"
         return f"{points:.2f} {self.point_name or ''}"
 
-    # Meant to be overridden
     def _compute_use_count(self):
+        """Count the order lines this card has paid for. Zero without a channel.
+
+        Overridden by `sale_loyalty` and `pos_loyalty`, both with a `_read_group`;
+        see `loyalty.program._compute_total_order_count` for what that costs.
+        """
         self.use_count = 0
 
     def _get_default_template(self):
@@ -123,30 +133,54 @@ class LoyaltyCard(models.Model):
             'context': ctx,
         }
 
+    def _plans_per_program(self, trigger):
+        """Return the communication plans of each program of these coupons.
+
+        :param str trigger: the `loyalty.mail.trigger` to keep
+        :rtype: dict[loyalty.program, loyalty.mail]
+        """
+        return {
+            program: program.communication_plan_ids.filtered(
+                lambda plan: plan.trigger == trigger
+            )
+            for program in self.program_id
+        }
+
     def _send_creation_communication(self, force_send=False):
-        """Send the 'At Creation' communication plans of the given coupons, if any."""
+        """Send the 'At Creation' communication plans of the given coupons, if any.
+
+        One `send_mail_batch` per (template, author) rather than one `send_mail` per
+        coupon: the coupon-generation wizard's whole purpose is bulk, and a mail per
+        coupon measured about seven queries each.
+        """
         if self.env.context.get('loyalty_no_mail', False) or self.env.context.get('action_no_send_mail', False):
             return
-        # Ideally one per program, but multiple is supported
-        create_comm_per_program = {}
-        for program in self.program_id:
-            create_comm_per_program[program] = program.communication_plan_ids.filtered(lambda c: c.trigger == 'create')
+        # Ideally one plan per program, but multiple is supported
+        plans_per_program = self._plans_per_program('create')
+        if not any(plans_per_program.values()):
+            return
+        # `_mail_get_customer` is `ensure_one`; the batch behind it is not.
+        customers = self._mail_get_partners()
+        coupons_per_sender = defaultdict(list)
         for coupon in self:
-            if not create_comm_per_program[coupon.program_id] or not coupon._mail_get_customer():
+            if not plans_per_program[coupon.program_id] or not customers.get(coupon.id):
                 continue
-            for comm in create_comm_per_program[coupon.program_id]:
-                mail_template = comm.mail_template_id
-                email_values = {}
-                if not mail_template.email_from:
-                    # provide author_id & email_from values to ensure the email gets sent
-                    author = coupon._get_mail_author()
-                    email_values.update(author_id=author.id, email_from=author.email_formatted)
-                mail_template.send_mail(
-                    res_id=coupon.id,
-                    force_send=force_send,
-                    email_layout_xmlid='mail.mail_notification_light',
-                    email_values=email_values,
-                )
+            for plan in plans_per_program[coupon.program_id]:
+                template = plan.mail_template_id
+                # A template with no `email_from` needs an author to be sent at all,
+                # and the author falls back to the coupon's own company -- so the
+                # coupons are grouped by the author they each resolve to.
+                author = self.env['res.partner'] if template.email_from else coupon._get_mail_author()
+                coupons_per_sender[template, author].append(coupon.id)
+        for (template, author), coupon_ids in coupons_per_sender.items():
+            template.send_mail_batch(
+                coupon_ids,
+                force_send=force_send,
+                email_layout_xmlid='mail.mail_notification_light',
+                email_values={
+                    'author_id': author.id, 'email_from': author.email_formatted
+                } if author else {},
+            )
 
     def _send_points_reach_communication(self, points_changes):
         """Send the 'When Reaching' communication plans for the given coupons.
@@ -155,43 +189,77 @@ class LoyaltyCard(models.Model):
         """
         if self.env.context.get('loyalty_no_mail', False):
             return
-        milestones_per_program = {}
-        for program in self.program_id:
-            milestones_per_program[program] = program.communication_plan_ids\
-                .filtered(lambda c: c.trigger == 'points_reach')\
-                .sorted('points', reverse=True)
+        milestones_per_program = {
+            program: plans.sorted('points', reverse=True)
+            for program, plans in self._plans_per_program('points_reach').items()
+        }
+        if not any(milestones_per_program.values()):
+            return
+        customers = self._mail_get_partners()
+        coupons_per_milestone = defaultdict(list)
         for coupon in self:
-            if not coupon._mail_get_customer():
-                continue
-            coupon_change = points_changes[coupon]
-            # Skip cards without milestone or partner, and those that gained no points
+            # Skip cards without milestone, customer or partner, and those that
+            # gained no points
             if not milestones_per_program[coupon.program_id] or\
                 not coupon.partner_id or\
-                coupon_change['old'] >= coupon_change['new']:
+                not customers.get(coupon.id):
                 continue
-            this_milestone = False
+            change = points_changes[coupon]
+            if change['old'] >= change['new']:
+                continue
             for milestone in milestones_per_program[coupon.program_id]:
-                if coupon_change['old'] < milestone.points and milestone.points <= coupon_change['new']:
-                    this_milestone = milestone
+                if change['old'] < milestone.points <= change['new']:
+                    coupons_per_milestone[milestone].append(coupon.id)
                     break
-            if not this_milestone:
-                continue
-            this_milestone.mail_template_id.send_mail(res_id=coupon.id, email_layout_xmlid='mail.mail_notification_light')
+        for milestone, coupon_ids in coupons_per_milestone.items():
+            milestone.mail_template_id.send_mail_batch(
+                coupon_ids, email_layout_xmlid='mail.mail_notification_light'
+            )
 
+
+    # What `res.partner._compute_count_active_cards` searches on. Changing any of
+    # them changes some partner's count.
+    _PARTNER_COUNT_FIELDS = frozenset({
+        'active', 'expiration_date', 'partner_id', 'points', 'program_id',
+    })
+
+    def _invalidate_partner_card_count(self):
+        """Drop the cached `res.partner.loyalty_card_count`.
+
+        The count is a search, so it has no `@api.depends` to declare and nothing
+        invalidates it: a card created or spent in a transaction was invisible to
+        every later read of the count in that same transaction. Invalidated for the
+        whole model rather than for `self.partner_id`, because the count rolls a
+        partner's children up into it and the ancestors are not known here.
+
+        The field is not stored, so this drops cache entries and issues no query.
+        """
+        self.env['res.partner'].invalidate_model(['loyalty_card_count'])
 
     @api.model_create_multi
     def create(self, vals_list):
         res = super().create(vals_list)
+        res._invalidate_partner_card_count()
         res._send_creation_communication()
         return res
 
     def write(self, vals):
-        if not self.env.context.get('loyalty_no_mail', False) and 'points' in vals:
+        track_points = not self.env.context.get('loyalty_no_mail', False) and 'points' in vals
+        if track_points:
             points_before = {coupon: coupon.points for coupon in self}
         res = super().write(vals)
-        if not self.env.context.get('loyalty_no_mail', False) and 'points' in vals:
+        if not self._PARTNER_COUNT_FIELDS.isdisjoint(vals):
+            self._invalidate_partner_card_count()
+        if track_points:
             points_changes = {coupon: {'old': points_before[coupon], 'new': coupon.points} for coupon in self}
             self._send_points_reach_communication(points_changes)
+        return res
+
+    def unlink(self):
+        partner_count_affected = bool(self.partner_id)
+        res = super().unlink()
+        if partner_count_affected:
+            self._invalidate_partner_card_count()
         return res
 
     def action_loyalty_update_balance(self):

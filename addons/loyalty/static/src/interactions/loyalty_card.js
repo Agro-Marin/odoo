@@ -3,7 +3,7 @@ import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
 import { rpc } from "@web/core/network";
-import { PortalLoyaltyCardDialog } from '../js/portal/loyalty_card_dialog/loyalty_card_dialog.js';
+import { PortalLoyaltyCardDialog } from "../js/portal/loyalty_card_dialog/loyalty_card_dialog.js";
 
 export class LoyaltyCard extends Interaction {
     static selector = ".o_loyalty_container .o_loyalty_card";
@@ -12,11 +12,11 @@ export class LoyaltyCard extends Interaction {
     };
 
     async onLoyaltyCardClick() {
-        const data = await this.waitFor(rpc(`/my/loyalty_card/${this.el.dataset.card_id}/values`));
+        const data = await this.waitFor(
+            rpc(`/my/loyalty_card/${this.el.dataset.card_id}/values`),
+        );
         this.services.dialog.add(PortalLoyaltyCardDialog, data);
     }
 }
 
-registry
-    .category("public.interactions")
-    .add("loyalty.loyalty_card", LoyaltyCard);
+registry.category("public.interactions").add("loyalty.loyalty_card", LoyaltyCard);

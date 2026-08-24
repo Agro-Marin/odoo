@@ -9,9 +9,12 @@ class LoyaltyRule(models.Model):
 
     # NOTE: is this sufficient?
     @api.constrains("code", "website_id", "active")
-    def _constrains_code(self):
-        # Programs with the same code are allowed to coexist as long
-        # as they are not both accessible from a website.
+    def _check_code(self):
+        # Overrides `loyalty.rule._check_code` -- it must keep that name, or both
+        # run and the website-blind base one rejects a legitimate cross-website
+        # duplicate.
+        # Programs with the same code are allowed to coexist as long as they are
+        # not both accessible from a website.
         with_code = self.filtered(lambda r: r.mode == "with_code" and r.active)
         mapped_codes = with_code.mapped("code")
         read_result = self.env["loyalty.rule"].search_read(

@@ -28,22 +28,22 @@ export class LoyaltyActionHelper extends Component {
             "loyalty.program",
             "create_from_template",
             [templateId],
-            {context: this.env.model.root.context},
+            { context: this.env.model.root.context },
         );
         if (!action) {
             return;
         }
         this.action.doAction(action);
     }
-};
+}
 
 export class LoyaltyListRenderer extends ListRenderer {
     static template = "loyalty.LoyaltyListRenderer";
     static components = {
-        ...LoyaltyListRenderer.components,
+        ...ListRenderer.components,
         LoyaltyActionHelper,
     };
-};
+}
 
 export const LoyaltyListView = {
     ...listView,

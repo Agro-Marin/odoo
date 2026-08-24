@@ -55,13 +55,11 @@ class TestBuyGiftCard(TestSaleCouponCommon):
                 "auto_delete": False,
             }
         )
+        # Replace, not append: a gift card program is created with the "At Creation"
+        # plan its type implies, and this test counts the mails one plan produces.
         self.program_gift_card.communication_plan_ids = [
-            Command.create(
-                {
-                    "trigger": "create",
-                    "mail_template_id": mail_template.id,
-                }
-            )
+            Command.clear(),
+            Command.create({"trigger": "create", "mail_template_id": mail_template.id}),
         ]
         order = self.empty_order
         salesman = order.user_id.partner_id.ensure_one()

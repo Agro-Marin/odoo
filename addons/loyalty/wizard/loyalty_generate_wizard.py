@@ -29,14 +29,20 @@ class LoyaltyGenerateWizard(models.TransientModel):
     description = fields.Text(string="Description")
 
     def _get_partners(self):
+        """Return the customers this wizard issues a coupon to, one each."""
         self.ensure_one()
         if self.mode != 'selected':
             return self.env['res.partner']
         domains = []
         if self.customer_ids:
-            domains.append([('id', 'in', self.customer_ids.ids)])
+            domains.append(Domain('id', 'in', self.customer_ids.ids))
         if self.customer_tag_ids:
-            domains.append([('category_id', 'in', self.customer_tag_ids.ids)])
+            domains.append(Domain('category_id', 'in', self.customer_tag_ids.ids))
+        # An empty selection deliberately means *every* partner, and the form says
+        # so: `customer_ids` is placeheld "For all customers" and a warning banner
+        # shows `confirmation_message`, which carries the exact count, before
+        # anything is generated. Pinned by `sale_loyalty`'s
+        # `TestProgramWithCodeOperations.test_program_usability`.
         return self.env['res.partner'].search(Domain.OR(domains) if domains else Domain.TRUE)
 
     @api.depends('program_type', 'points_granted', 'coupon_qty')
@@ -64,29 +70,39 @@ class LoyaltyGenerateWizard(models.TransientModel):
             wizard.will_send_mail = wizard.mode == 'selected' and 'create' in wizard.program_id.mapped('communication_plan_ids.trigger')
 
     def _get_coupon_values(self, partner):
+        """Return the creation values of one coupon, held by `partner` if nominative."""
         self.ensure_one()
         return {
             'program_id': self.program_id.id,
             'points': self.points_granted,
             'expiration_date': self.valid_until,
-            'partner_id': partner.id if self.mode == 'selected' else False,
+            'partner_id': partner.id if partner else False,
         }
 
     def generate_coupons(self):
+        """Issue this wizard's coupons and record what each one was granted."""
         if any(not wizard.program_id for wizard in self):
             raise ValidationError(_("Can not generate coupon, no program is set."))
         if any(wizard.coupon_qty <= 0 for wizard in self):
             raise ValidationError(_("Invalid quantity."))
         coupon_create_vals = []
+        issuers = []  # the wizard each coupon came from, to describe its history line
         for wizard in self:
-            customers = wizard._get_partners() or range(wizard.coupon_qty)
-            coupon_create_vals.extend(wizard._get_coupon_values(partner) for partner in customers)
+            holders = (
+                wizard._get_partners() if wizard.mode == 'selected'
+                else [self.env['res.partner']] * wizard.coupon_qty
+            )
+            if not holders:
+                continue
+            coupon_create_vals.extend(wizard._get_coupon_values(partner) for partner in holders)
+            issuers.extend([wizard] * len(holders))
         coupons = self.env['loyalty.card'].create(coupon_create_vals)
+        # `self` may hold several wizards, each with its own grant and description.
         self.env['loyalty.history'].create([
             {
-                'description': self.description or _("Gift For Customer"),
+                'description': wizard.description or _("Gift For Customer"),
                 'card_id': coupon.id,
-                'issued': self.points_granted,
-            } for coupon in coupons
+                'issued': wizard.points_granted,
+            } for coupon, wizard in zip(coupons, issuers, strict=True)
         ])
         return coupons

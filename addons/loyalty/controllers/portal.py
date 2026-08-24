@@ -26,6 +26,17 @@ class CustomerPortalLoyalty(CustomerPortal):
 
         return values
 
+    def _get_own_loyalty_card(self, card_id):
+        """Return the visitor's own card `card_id`, or an empty recordset.
+
+        Both loyalty routes are `auth='user'` and read through `sudo()`; this is the
+        single place that turns a URL id back into a card the visitor may see.
+        """
+        return request.env['loyalty.card'].sudo().search([
+            ('id', '=', card_id),
+            ('partner_id', '=', request.env.user.partner_id.id),
+        ])
+
     def _get_loyalty_searchbar_sortings(self):
         return {
             'date': {'label': _("Date"), 'order': 'create_date desc'},
@@ -44,10 +55,7 @@ class CustomerPortalLoyalty(CustomerPortal):
         website=True,
     )
     def portal_my_loyalty_card_history(self, card_id, page=1, sortby='date', **kw):
-        card_sudo = request.env['loyalty.card'].sudo().search([
-            ('id', '=', int(card_id)),
-            ('partner_id', '=', request.env.user.partner_id.id),
-        ])
+        card_sudo = self._get_own_loyalty_card(card_id)
         if not card_sudo:
             return request.redirect('/my')
 
@@ -57,19 +65,19 @@ class CustomerPortalLoyalty(CustomerPortal):
         # a supplied unknown key reached this indexing as a KeyError (HTTP 500).
         sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, 'date')
         order = searchbar_sortings[sortby]['order']
-        lines_count = LoyaltyHistorySudo.search_count([('card_id', '=', card_id)])
+        # The card is already the visitor's own, so ownership is not restated here:
+        # a second condition that the count above does not carry would page over one
+        # set and count another.
+        history_domain = [('card_id', '=', card_sudo.id)]
         pager = portal_pager(
             url='/my/loyalty_card/<int:card_id>/history',
             url_args={'sortby': sortby, 'card_id': card_id},
-            total=lines_count,
+            total=LoyaltyHistorySudo.search_count(history_domain),
             page=page,
             step=self._items_per_page,
         )
         history_lines = LoyaltyHistorySudo.search(
-            domain=[
-                ('card_id', '=', card_id),
-                ('card_id.partner_id', '=', request.env.user.partner_id.id)
-            ],
+            domain=history_domain,
             order=order,
             limit=self._items_per_page,
             offset=pager['offset'],
@@ -93,10 +101,7 @@ class CustomerPortalLoyalty(CustomerPortal):
                  rewards and its program type image path.
         :rtype: dict
         """
-        card_sudo = request.env['loyalty.card'].sudo().search([
-            ('id', '=', int(card_id)),
-            ('partner_id', '=', request.env.user.partner_id.id)
-        ])
+        card_sudo = self._get_own_loyalty_card(card_id)
         if not card_sudo:
             return {}
 
@@ -123,10 +128,12 @@ class CustomerPortalLoyalty(CustomerPortal):
             'history_lines': [{
                 'order_id': line.order_id,
                 'description': line.description,
-                'order_portal_url': line._get_order_portal_url(),
+                'order_portal_url': line.order_portal_url,
                 'points': f'{"-" if line.issued < line.used else "+"}'
                           f'{card_sudo._format_points(abs(line.issued - line.used))}',
-            } for line in card_sudo.history_ids[:5]],
+            } for line in request.env['loyalty.history'].sudo().search(
+                [('card_id', '=', card_sudo.id)], limit=5,
+            )],
             'rewards': [{
                 'description': reward.description,
                 'points': card_sudo._format_points(reward.required_points),
