@@ -3454,6 +3454,14 @@ class AccountMoveLine(models.Model):
             if not full_batch["is_fully_reconciled"]:
                 continue
             amls = full_batch["amls"]
+            # A nested plan -- the exchange difference, the cash-basis entry -- re-derives
+            # this same closure and finds it fully reconciled again. Creating a second
+            # account.full.reconcile for it repoints every line at the newcomer and leaves
+            # the first with nothing, which is where orphan rows come from.
+            if len(amls.full_reconcile_id) == 1 and all(
+                aml.full_reconcile_id for aml in amls
+            ):
+                continue
             involved_partials = amls.matched_debit_ids | amls.matched_credit_ids
             full_reconcile_values_list.append(
                 {

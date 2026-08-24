@@ -7577,6 +7577,35 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             payment,
         )
 
+    def test_one_full_reconcile_per_group_when_an_exchange_difference_is_created(self):
+        # The exchange difference re-enters _reconcile_plan, which re-derives the same
+        # closure and finds it fully reconciled again. A second account.full.reconcile
+        # for it repoints every line at the newcomer and leaves the first with nothing.
+        currency = self.other_currency
+        debit_line = self.create_line_for_reconciliation(
+            1200.0, 3600.0, currency, "2016-01-01"
+        )
+        credit_line = self.create_line_for_reconciliation(
+            -1800.0, -3600.0, currency, "2017-01-01"
+        )
+        before = self.env["account.full.reconcile"].search([])
+
+        (debit_line + credit_line).reconcile()
+
+        created = self.env["account.full.reconcile"].search([]) - before
+        self.assertTrue(
+            (debit_line + credit_line).matched_debit_ids.exchange_move_id
+            | (debit_line + credit_line).matched_credit_ids.exchange_move_id,
+            "the fixture must produce an exchange difference for this to test anything",
+        )
+        self.assertEqual(len(created), 1, "one reconciliation, one full reconcile")
+        self.assertFalse(
+            self.env["account.full.reconcile"]
+            .search([])
+            .filtered(lambda full: not full.reconciled_line_ids),
+            "no full reconcile should be left without lines",
+        )
+
     def test_matching_number_invariants_hold_after_the_raw_sql_write(self):
         # _update_matching_number writes matching_number with execute_values, which
         # no @api.constrains sees. Run the constraint here so the invariants it
