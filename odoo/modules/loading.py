@@ -394,7 +394,7 @@ class _PackageLoader:
 
         if self.operation:
             model_names = registry.descendants(model_names, "_inherit", "_inherits")
-            self.models_updated |= model_names
+            self.models_updated.update(model_names)
             self.models_to_check -= model_names
             registry._setup_models__(self.env.cr, [], skip_if_clean=True)
             registry.init_models(
