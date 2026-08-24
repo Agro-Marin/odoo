@@ -327,3 +327,62 @@ class TestFieldSearchMethodLadder(unittest.TestCase):
         with self.assertRaisesRegex(UserError, "Unsupported operator"):
             DomainCondition("f", "like", "x")._optimize_field_search_method(model)
         self.assertEqual(calls, ["like", "not like"])
+
+
+class TestResetOptCopyUndoesAModelDependentRewrite(unittest.TestCase):
+    """A domain optimized for one model must not carry its rewrite to another.
+
+    ``_optimize_in_required`` strips ``False`` from an ``in`` set because the
+    field is NOT NULL *on that model*. ``_reset_opt_copy`` reset the
+    optimization level and copied every other slot, so the strip survived into
+    the copy and the next model inherited an answer that was never true for it.
+    """
+
+    def _model(self, field, *, not_null):
+        model = _StubModel()
+        model._fields[field.name] = field
+        model._ids = (1, 2)
+        model.env.registry = types.SimpleNamespace(
+            not_null_fields={field} if not_null else set()
+        )
+        return model
+
+    def test_the_strip_does_not_survive_into_another_model(self):
+        strict_field = _StubField("rel", "many2one", relational=True, comodel="m")
+        strict_field.required = True
+        loose_field = _StubField("rel", "many2one", relational=True, comodel="m")
+        loose_field.required = False
+
+        original = DomainCondition("rel", "in", OrderedSet([False, 5]))
+        stripped = optimizations._optimize_in_required(
+            original, self._model(strict_field, not_null=True)
+        )
+        self.assertEqual(list(stripped.value), [5], "test premise: it strips")
+
+        reset = stripped._reset_opt_copy()
+        self.assertEqual(
+            list(reset.value),
+            [False, 5],
+            "the reset copy kept the strip the previous model justified",
+        )
+
+    def test_the_reset_copy_drops_the_stale_fallback(self):
+        field = _StubField("rel", "many2one", relational=True, comodel="m")
+        field.required = True
+        original = DomainCondition("rel", "in", OrderedSet([False, 5]))
+        stripped = optimizations._optimize_in_required(
+            original, self._model(field, not_null=True)
+        )
+        reset = stripped._reset_opt_copy()
+        self.assertIsNone(
+            getattr(reset, "_predicate_fallback", None),
+            "a fallback naming the previous model's strip must not ride along",
+        )
+
+    def test_a_condition_with_no_fallback_is_copied_as_before(self):
+        condition = DomainCondition("rel", "in", OrderedSet([1, 2]))
+        reset = condition._reset_opt_copy()
+        self.assertIsNot(reset, condition)
+        self.assertEqual(list(reset.value), [1, 2])
+        self.assertEqual(reset.field_expr, "rel")
+        self.assertEqual(reset.operator, "in")

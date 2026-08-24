@@ -60,23 +60,22 @@ class Cache:
             core.iter_field_items(), key=lambda item: str(item[0])
         ):
             dirty_ids = core.get_dirty(field) or ()
+
+            def entries(values, dirty_ids=dirty_ids, field=field):
+                return {
+                    Starred(id_) if id_ in dirty_ids else id_: (
+                        "<binary>" if field.is_binary else val
+                    )
+                    for id_, val in values.items()
+                }
+
             if field in self.transaction.registry.field_depends_context:
                 data[field] = {
-                    key: {
-                        Starred(id_) if id_ in dirty_ids else id_: (
-                            val if not field.is_binary else "<binary>"
-                        )
-                        for id_, val in key_cache.items()
-                    }
+                    key: entries(key_cache)
                     for key, key_cache in core.iter_context_caches(field)
                 }
             else:
-                data[field] = {
-                    Starred(id_) if id_ in dirty_ids else id_: (
-                        val if not field.is_binary else "<binary>"
-                    )
-                    for id_, val in field_cache.items()
-                }
+                data[field] = entries(field_cache)
         return repr(data)
 
     def _field_cache(self, model: BaseModel, field: Field) -> dict[IdType, typing.Any]:
