@@ -26,8 +26,8 @@ The cause was that ``BaseModel`` held two responsibilities: it is the
 attributes reached as ``self._name`` / ``self._fields``; only the class that
 *declares* them moves, and attribute lookup crosses that hop through the MRO for
 free. That matters: counting ``self.``-qualified reads in this repo's two addon
-trees (``odoo/addons/`` and ``addons/``), ``self._name`` has about 380 sites
-and ``self._fields`` about 340 — a change in how they are *reached* would be a
+trees (``odoo/addons/`` and ``addons/``), ``self._name`` has about 400 sites
+and ``self._fields`` about 360 — a change in how they are *reached* would be a
 breaking change to the most widely used surface in the framework, for no
 structural gain the MRO does not already give. The sibling repos
 (``enterprise``, ``agromarin``, ``design-themes``) add several hundred more;
