@@ -28,15 +28,22 @@ FLOORS = {
     # Recorded rather than attributed, for the same reason test_batch_queries
     # was: the scanner counts findings and not provenance, and guessing an owner
     # would be worse than saying there isn't one.
-    "noqa-rationale": 69,
+    "noqa-rationale": 66,
     "onchange-domain": 0,
     # 394 -> 392. The gate has been red in the *falling* direction since
+    # 392 -> 384 and 69 -> 66 on the linear replay onto origin/19.0-marin. Neither
+    # is a query removed or a rationale written: both floors were replayed from this
+    # branch, measured before origin's 23 commits were under them, so they describe a
+    # tree that no longer exists. Measured on the replayed tree with test_lint
+    # installed at CI scope, the only scope these floors are defined at. An exact
+    # ratchet fails in the falling direction too, so the improvement is banked in the
+    # same change that produced it rather than left red.
     # 5bed3c22f90 committed 394 against a tree that measures 392 -- the same
     # mis-floor 0e393e4955f had just corrected for `computectx`. Measured in
     # two worktrees, 5bed3c22f90's tree and this one, whose offender lists are
     # identical line for line: no commit since is the -2, it was already stale
     # when it was written.
-    "n-plus-one-query": 392,
+    "n-plus-one-query": 384,
     "gettext-developer-error": 52,
     "config-chainmap-patch": 0,
 }
