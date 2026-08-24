@@ -1080,6 +1080,10 @@ class DocumentsDocument(models.Model):
                     if self.env.context.get("documents_copy_skip_rename")
                     else _("%s (copy)", document.name)
                 )
+        if "legal_number" in self._fields and "legal_number" not in default:
+            for document, vals in zip(self, vals_list, strict=True):
+                if document.legal_number:
+                    vals["legal_number"] = _("%s (copy)", document.legal_number)
         for vals in vals_list:
             vals["access_ids"] = default.get("access_ids", False)
             if "owner_id" not in vals:
