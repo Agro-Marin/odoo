@@ -86,7 +86,7 @@ class UnlinkMixin(_ModelStubs):
 
         self._log_unlinked_ids(deleted_ids)
 
-        prof.stop()
+        prof.stop("invalidate")
         self._log_unlink_profile(prof, len(deleted_ids))
 
         return True
@@ -112,23 +112,9 @@ class UnlinkMixin(_ModelStubs):
             )
 
     def _log_unlink_profile(self, prof: _OrmProfile, record_count: int) -> None:
-        if prof.debug:
-            _orm_crud.debug(
-                "[%.3f ms] unlink %s: %d records"
-                " | acl=%.1f ondelete=%.1f flush=%.1f before=%.1f"
-                " sql=%.1f invalidate=%.1f",
-                prof.elapsed * 1000,
-                self._name,
-                record_count,
-                prof.ms("start", "acl"),
-                prof.ms("acl", "ondelete"),
-                prof.ms("ondelete", "flush"),
-                prof.ms("flush", "before"),
-                prof.ms("before", "sql"),
-                prof.ms("sql", "end"),
-            )
+        prof.report(_orm_crud, "unlink %s: %d records", self._name, record_count)
         if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record_unlink(self._name, record_count, prof.elapsed)
+            p.record("unlink", self._name, record_count, prof.elapsed)
 
     def _invalidate_after_delete(self) -> None:
         env = self.env

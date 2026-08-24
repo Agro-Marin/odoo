@@ -294,24 +294,16 @@ class CreateMixin(_ModelStubs):
         if self._check_company_auto:
             records._check_company()
 
-        prof.stop()
-        if prof.debug:
-            _orm_crud.debug(
-                "[%.3f ms] create %s: %d records, %d fields"
-                " | acl=%.1f prep=%.1f parent=%.1f sql=%.1f trigger=%.1f validate=%.1f",
-                prof.elapsed * 1000,
-                self._name,
-                len(records),
-                len(field_names),
-                prof.ms("start", "acl"),
-                prof.ms("acl", "prep"),
-                prof.ms("prep", "parent"),
-                prof.ms("parent", "sql"),
-                prof.ms("sql", "trigger"),
-                prof.ms("trigger", "end"),
-            )
+        prof.stop("validate")
+        prof.report(
+            _orm_crud,
+            "create %s: %d records, %d fields",
+            self._name,
+            len(records),
+            len(field_names),
+        )
         if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record_create(self._name, len(records), prof.elapsed)
+            p.record("create", self._name, len(records), prof.elapsed)
 
         self._create_update_xmlids(records, vals_list)
         return records
@@ -467,19 +459,8 @@ class CreateMixin(_ModelStubs):
         records._validate_fields(name for data in data_list for name in data["stored"])
         records.check_access("create")
 
-        prof.stop()
-        if prof.debug:
-            _orm_crud.debug(
-                "[%.3f ms] _create %s: %d records"
-                " | sql=%.1f cache=%.1f inverses=%.1f trigger=%.1f",
-                prof.elapsed * 1000,
-                self._name,
-                len(records),
-                prof.ms("start", "sql"),
-                prof.ms("sql", "cache"),
-                prof.ms("cache", "inverses"),
-                prof.ms("inverses", "end"),
-            )
+        prof.stop("trigger")
+        prof.report(_orm_crud, "_create %s: %d records", self._name, len(records))
         return records
 
     def _create_rows_sql(
@@ -505,15 +486,14 @@ class CreateMixin(_ModelStubs):
                 binary=True,
             )
             ids.extend(batch_ids)
-            if subprof.debug:
-                subprof.stop()
-                _orm_crud.debug(
-                    "[%.3f ms] _create %s: %d records via COPY (%d columns)",
-                    subprof.elapsed * 1000,
-                    self._name,
-                    len(stored_list),
-                    len(columns),
-                )
+            subprof.stop()
+            subprof.report(
+                _orm_crud,
+                "_create %s: %d records via COPY (%d columns)",
+                self._name,
+                len(stored_list),
+                len(columns),
+            )
         else:
             if col_fields:
                 rows: list[tuple] = self._build_insert_rows(
@@ -532,15 +512,14 @@ class CreateMixin(_ModelStubs):
                 )
             )
             ids.extend(id_ for (id_,) in cr.fetchall())
-            if subprof.debug:
-                subprof.stop()
-                _orm_crud.debug(
-                    "[%.3f ms] _create %s: %d records via INSERT (%d columns)",
-                    subprof.elapsed * 1000,
-                    self._name,
-                    len(stored_list),
-                    len(columns),
-                )
+            subprof.stop()
+            subprof.report(
+                _orm_crud,
+                "_create %s: %d records via INSERT (%d columns)",
+                self._name,
+                len(stored_list),
+                len(columns),
+            )
         return ids
 
     def _populate_create_cache(

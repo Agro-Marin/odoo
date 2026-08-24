@@ -71,8 +71,7 @@ class _ConstraintsMixin(_ModelStubs):
             return
 
         prof = _OrmProfile(_orm_crud)
-        if prof.debug:
-            _count = 0
+        _count = 0
 
         records_sudo = self.sudo()
         records_user = self
@@ -88,10 +87,6 @@ class _ConstraintsMixin(_ModelStubs):
                     _count += 1
 
         prof.stop()
-        if prof.debug:
-            _orm_crud.debug(
-                "[%.3f ms] _validate_fields %s: %d constraints",
-                prof.elapsed * 1000,
-                self._name,
-                _count,
-            )
+        prof.report(
+            _orm_crud, "_validate_fields %s: %d constraints", self._name, _count
+        )

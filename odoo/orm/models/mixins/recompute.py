@@ -62,29 +62,33 @@ class RecomputeMixin(_ModelStubs):
         scheduler: RecomputeScheduler,
     ) -> None:
         prof = _OrmProfile(_orm_compute)
+        # Initialised unconditionally, because `prof.report` is a call and its
+        # arguments are evaluated whether or not it emits. The two counters are
+        # a store each; the field-name list is the one that would allocate, so
+        # it stays empty until the debug branch below fills it.
+        _fnames_list: typing.Any = ()
+        _mark_count = 0
+        _invalidate_count = 0
         if prof.debug:
             _fnames_list = (
                 list(fnames) if not isinstance(fnames, (list, dict)) else fnames
             )
-            _mark_count = 0
-            _invalidate_count = 0
 
         _field_triggers = self.pool._ensure_field_triggers()
         _fields = self._fields
         fields = [_fields[fname] for fname in fnames]
         if not any(f in _field_triggers for f in fields):
             prof.stop()
-            if prof.debug:
-                _orm_compute.debug(
-                    "[%.3f ms] modified %s: %d fields on %d records (create=%s, no triggers)",
-                    prof.elapsed * 1000,
-                    self._name,
-                    len(_fnames_list),
-                    len(self),
-                    create,
-                )
+            prof.report(
+                _orm_compute,
+                "modified %s: %d fields on %d records (create=%s, no triggers)",
+                self._name,
+                len(_fnames_list),
+                len(self),
+                create,
+            )
             if prof.agg and (p := self.env.transaction._orm_profiler):
-                p.record_modified(self._name, len(self), prof.elapsed)
+                p.record("modified", self._name, len(self), prof.elapsed)
             return
 
         todo = [self._modified(fields, create)]
@@ -119,23 +123,19 @@ class RecomputeMixin(_ModelStubs):
                 else:
                     _invalidate_count += n
 
-        prof.stop()
-        if prof.debug:
-            _orm_compute.debug(
-                "[%.3f ms] modified %s: %d fields on %d records (create=%s)"
-                " | tree=%.1f traverse=%.1f marked=%d invalidated=%d",
-                prof.elapsed * 1000,
-                self._name,
-                len(_fnames_list),
-                len(self),
-                create,
-                prof.ms("start", "tree"),
-                prof.ms("tree", "end"),
-                _mark_count,
-                _invalidate_count,
-            )
+        prof.stop("traverse")
+        prof.report(
+            _orm_compute,
+            "modified %s: %d fields on %d records (create=%s, marked=%d, invalidated=%d)",
+            self._name,
+            len(_fnames_list),
+            len(self),
+            create,
+            _mark_count,
+            _invalidate_count,
+        )
         if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record_modified(self._name, len(self), prof.elapsed)
+            p.record("modified", self._name, len(self), prof.elapsed)
 
     def _modified(
         self, fields: list[Field], create: bool
@@ -256,16 +256,15 @@ class RecomputeMixin(_ModelStubs):
         field.recompute(records)
 
         prof.stop()
-        if prof.debug:
-            _orm_compute.debug(
-                "[%.3f ms] recompute_field %s.%s: %d records",
-                prof.elapsed * 1000,
-                field.model_name,
-                field.name,
-                len(records),
-            )
+        prof.report(
+            _orm_compute,
+            "recompute_field %s.%s: %d records",
+            field.model_name,
+            field.name,
+            len(records),
+        )
         if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record_recompute(field.model_name, len(records), prof.elapsed)
+            p.record("recompute", field.model_name, len(records), prof.elapsed)
 
     @api.private
     def flush_model(self, fnames: Collection[str] | None = None) -> None:
@@ -285,15 +284,8 @@ class RecomputeMixin(_ModelStubs):
         if fields is None or any(map(core.has_dirty_field, fields)):
             self._flush()
 
-        prof.stop()
-        if prof.debug:
-            _orm_cache.debug(
-                "[%.3f ms] flush_model %s | recompute=%.1f flush=%.1f",
-                prof.elapsed * 1000,
-                self._name,
-                prof.ms("start", "recompute"),
-                prof.ms("recompute", "end"),
-            )
+        prof.stop("flush")
+        prof.report(_orm_cache, "flush_model %s", self._name)
 
     @api.private
     def flush_recordset(self, fnames: Collection[str] | None = None) -> None:
@@ -346,9 +338,8 @@ class RecomputeMixin(_ModelStubs):
 
         dirty_ids = list(id_to_fields)
         prof.mark("collect")
-        if prof.debug:
-            _batch_count = 0
 
+        _batch_count = 0
         BATCH_SIZE = 1000
         with env.cr.pipeline():
             for some_ids in batched(dirty_ids, BATCH_SIZE, strict=False):
@@ -385,18 +376,14 @@ class RecomputeMixin(_ModelStubs):
                     ) from e
                 model.browse(some_ids)._write_multi(vals_list)
 
-        prof.stop()
-        if prof.debug:
-            _orm_cache.debug(
-                "[%.3f ms] _flush %s: %d fields, %d records, %d batches"
-                " | collect=%.1f update=%.1f",
-                prof.elapsed * 1000,
-                self._name,
-                len(dirty_field_ids),
-                len(dirty_ids),
-                _batch_count,
-                prof.ms("start", "collect"),
-                prof.ms("collect", "end"),
-            )
+        prof.stop("update")
+        prof.report(
+            _orm_cache,
+            "_flush %s: %d fields, %d records, %d batches",
+            self._name,
+            len(dirty_field_ids),
+            len(dirty_ids),
+            _batch_count,
+        )
         if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record_flush(self._name, len(dirty_ids), prof.elapsed)
+            p.record("flush", self._name, len(dirty_ids), prof.elapsed)

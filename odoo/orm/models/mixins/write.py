@@ -158,7 +158,7 @@ class WriteMixin(_ModelStubs):
 
             inverse_fields = [f.name for fs in determine_inverses.values() for f in fs]
             real_recs._validate_fields(vals, inverse_fields)
-            prof.mark("validate1")
+            prof.mark("validate")
 
             for fields in determine_inverses.values():
                 for field in fields:
@@ -189,29 +189,16 @@ class WriteMixin(_ModelStubs):
         if self._check_company_auto:
             self._check_company(list(vals))
 
-        prof.stop()
+        prof.stop("inverse")
         if prof.debug:
             _fnames = (
                 ", ".join(sorted(vals)) if len(vals) <= 20 else f"{len(vals)} fields"
             )
-            _orm_crud.debug(
-                "[%.3f ms] write %s: %d records, %s"
-                " | acl=%.1f classify=%.1f before=%.1f dirty=%.1f after=%.1f"
-                " validate=%.1f inverse=%.1f",
-                prof.elapsed * 1000,
-                self._name,
-                len(self),
-                _fnames,
-                prof.ms("start", "acl"),
-                prof.ms("acl", "classify"),
-                prof.ms("classify", "before"),
-                prof.ms("before", "dirty"),
-                prof.ms("dirty", "after"),
-                prof.ms("after", "validate1"),
-                prof.ms("validate1", "end"),
+            prof.report(
+                _orm_crud, "write %s: %d records, %s", self._name, len(self), _fnames
             )
         if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record_write(self._name, len(self), prof.elapsed)
+            p.record("write", self._name, len(self), prof.elapsed)
 
         return True
 
@@ -258,15 +245,14 @@ class WriteMixin(_ModelStubs):
         if parent_records:
             parent_records._parent_store_update()
 
-        if prof.debug:
-            prof.stop()
-            _orm_crud.debug(
-                "[%.3f ms] _write_multi %s: %d records, %d column-group(s)",
-                prof.elapsed * 1000,
-                self._name,
-                len(self),
-                len(updates),
-            )
+        prof.stop()
+        prof.report(
+            _orm_crud,
+            "_write_multi %s: %d records, %d column-group(s)",
+            self._name,
+            len(self),
+            len(updates),
+        )
 
     def _sync_log_access_cache(
         self, log_vals: ValuesType, log_only_ids: dict[str, list]

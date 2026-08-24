@@ -232,17 +232,8 @@ class _QueryMixin(_ModelStubs):
         if offset is not None and offset is not False:
             query.offset = 1 if offset is True else offset
 
-        prof.stop()
-        if prof.debug:
-            _orm_read.debug(
-                "[%.3f ms] _search %s | acl=%.1f domain=%.1f rules=%.1f query=%.1f",
-                prof.elapsed * 1000,
-                self._name,
-                prof.ms("start", "acl"),
-                prof.ms("acl", "domain"),
-                prof.ms("domain", "rules"),
-                prof.ms("rules", "end"),
-            )
+        prof.stop("query")
+        prof.report(_orm_read, "_search %s", self._name)
         return query
 
     def _as_query(self, ordered: bool = True) -> Query:

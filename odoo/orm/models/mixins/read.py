@@ -77,19 +77,16 @@ class ReadMixin(_ModelStubs):
         prof.mark("fetch")
         result = self._read_format(fnames=fields, load=load)
 
-        prof.stop()
-        if prof.debug:
-            _orm_read.debug(
-                "[%.3f ms] read %s: %d records, %d fields | fetch=%.1f format=%.1f",
-                prof.elapsed * 1000,
-                self._name,
-                len(self),
-                len(fields),
-                prof.ms("start", "fetch"),
-                prof.ms("fetch", "end"),
-            )
+        prof.stop("format")
+        prof.report(
+            _orm_read,
+            "read %s: %d records, %d fields",
+            self._name,
+            len(self),
+            len(fields),
+        )
         if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record_read(self._name, len(self), prof.elapsed)
+            p.record("read", self._name, len(self), prof.elapsed)
 
         return result
 
@@ -273,15 +270,14 @@ class ReadMixin(_ModelStubs):
 
         fetched = self._fetch_query(query, fields_to_fetch)
 
-        if prof.debug:
-            prof.stop()
-            _orm_read.debug(
-                "[%.3f ms] fetch %s: %d records, %d fields",
-                prof.elapsed * 1000,
-                self._name,
-                len(self),
-                len(fields_to_fetch),
-            )
+        prof.stop()
+        prof.report(
+            _orm_read,
+            "fetch %s: %d records, %d fields",
+            self._name,
+            len(self),
+            len(fields_to_fetch),
+        )
 
         if fetched != self:
             forbidden = (self - fetched).exists()
@@ -396,20 +392,15 @@ class ReadMixin(_ModelStubs):
             for field in other_fields:
                 field.read(fetched)
 
-        prof.stop()
-        if prof.debug:
-            _orm_read.debug(
-                "[%.3f ms] _fetch_query %s: %d col + %d other fields -> %d rows"
-                " | sql=%.1f cache=%.1f other=%.1f",
-                prof.elapsed * 1000,
-                self._name,
-                len(column_fields),
-                len(other_fields),
-                len(fetched),
-                prof.ms("start", "sql"),
-                prof.ms("sql", "cache"),
-                prof.ms("cache", "end"),
-            )
+        prof.stop("other")
+        prof.report(
+            _orm_read,
+            "_fetch_query %s: %d col + %d other fields -> %d rows",
+            self._name,
+            len(column_fields),
+            len(other_fields),
+            len(fetched),
+        )
 
         return fetched
 

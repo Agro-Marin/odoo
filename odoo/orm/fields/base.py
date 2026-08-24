@@ -3,7 +3,6 @@ import collections
 import functools
 import itertools
 import logging
-import time
 import typing
 import warnings
 from collections.abc import (
@@ -19,6 +18,7 @@ from operator import attrgetter
 from odoo.db import schema as sql
 from odoo.exceptions import AccessError, MissingError
 from odoo.libs._field_access import to_prefetch_ids as _to_prefetch_ids
+from odoo.libs.profiling import _OrmProfile
 from odoo.tools import SQL, reset_cached_properties
 from odoo.tools.misc import (
     PENDING,
@@ -1355,9 +1355,8 @@ class Field[T](
         if not to_compute_ids:
             return
 
-        _debug = _orm_compute.isEnabledFor(logging.DEBUG)
-        if _debug:
-            _t0 = time.perf_counter()
+        prof = _OrmProfile(_orm_compute)
+        if prof.debug:
             _pending_before = len(to_compute_ids)
 
             def _count():
@@ -1386,14 +1385,14 @@ class Field[T](
                         self.compute_value(record)
 
             apply_except_missing(recursive_compute, records)
-            if _debug:
-                _orm_compute.debug(
-                    "[%.3f ms] recompute %s.%s: %d records (recursive=True)",
-                    (time.perf_counter() - _t0) * 1000,
-                    self.model_name,
-                    self.name,
-                    _count(),
-                )
+            prof.stop()
+            prof.report(
+                _orm_compute,
+                "recompute %s.%s: %d records (recursive=True)",
+                self.model_name,
+                self.name,
+                _count() if prof.debug else 0,
+            )
             return
 
         for record in records:
@@ -1407,19 +1406,17 @@ class Field[T](
                     pass
                 self.compute_value(record)
 
-        if _debug:
-            _orm_compute.debug(
-                "[%.3f ms] recompute %s.%s: %d records (recursive=False)",
-                (time.perf_counter() - _t0) * 1000,
-                self.model_name,
-                self.name,
-                _count(),
-            )
+        prof.stop()
+        prof.report(
+            _orm_compute,
+            "recompute %s.%s: %d records (recursive=False)",
+            self.model_name,
+            self.name,
+            _count() if prof.debug else 0,
+        )
 
     def compute_value(self, records: ModelLike) -> None:
-        _debug = _orm_compute.isEnabledFor(logging.DEBUG)
-        if _debug:
-            _t0 = time.perf_counter()
+        prof = _OrmProfile(_orm_compute)
 
         env = records.env
         if self.compute_sudo:
@@ -1439,31 +1436,29 @@ class Field[T](
                     env.add_to_compute(field, records)
             raise
 
-        if _debug:
-            _orm_compute.debug(
-                "[%.3f ms] compute_value %s.%s: %d records (sudo=%s)",
-                (time.perf_counter() - _t0) * 1000,
-                self.model_name,
-                self.name,
-                len(records),
-                self.compute_sudo,
-            )
+        prof.stop()
+        prof.report(
+            _orm_compute,
+            "compute_value %s.%s: %d records (sudo=%s)",
+            self.model_name,
+            self.name,
+            len(records),
+            self.compute_sudo,
+        )
 
     def determine_inverse(self, records: ModelLike) -> None:
-        _debug = _orm_compute.isEnabledFor(logging.DEBUG)
-        if _debug:
-            _t0 = time.perf_counter()
+        prof = _OrmProfile(_orm_compute)
 
         determine(self.inverse, records)
 
-        if _debug:
-            _orm_compute.debug(
-                "[%.3f ms] determine_inverse %s.%s: %d records",
-                (time.perf_counter() - _t0) * 1000,
-                self.model_name,
-                self.name,
-                len(records),
-            )
+        prof.stop()
+        prof.report(
+            _orm_compute,
+            "determine_inverse %s.%s: %d records",
+            self.model_name,
+            self.name,
+            len(records),
+        )
 
     def determine_domain(
         self, records: BaseModel, operator: str, value: typing.Any

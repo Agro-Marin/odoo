@@ -41,17 +41,16 @@ class SearchMixin(_ModelStubs):
         count = len(query)
 
         prof.stop()
-        if prof.debug:
-            _orm_read.debug(
-                "[%.3f ms] search_count %s: domain=%s, limit=%s -> %d",
-                prof.elapsed * 1000,
-                self._name,
-                str(domain)[:200],
-                limit,
-                count,
-            )
+        prof.report(
+            _orm_read,
+            "search_count %s: domain=%s, limit=%s -> %d",
+            self._name,
+            str(domain)[:200],
+            limit,
+            count,
+        )
         if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record_search(self._name, count, prof.elapsed)
+            p.record("search", self._name, count, prof.elapsed)
 
         return count
 
@@ -87,18 +86,15 @@ class SearchMixin(_ModelStubs):
         if query.is_empty():
             if not self.env.su:
                 self._determine_fields_to_fetch(field_names)
-            prof.stop()
-            if prof.debug:
-                _orm_read.debug(
-                    "[%.3f ms] search_fetch %s: domain=%s -> 0 records (empty query)"
-                    " | search=%.1f",
-                    prof.elapsed * 1000,
-                    self._name,
-                    str(domain)[:200],
-                    prof.ms("start", "search"),
-                )
+            prof.stop("fields")
+            prof.report(
+                _orm_read,
+                "search_fetch %s: domain=%s -> 0 records (empty query)",
+                self._name,
+                str(domain)[:200],
+            )
             if prof.agg and (p := self.env.transaction._orm_profiler):
-                p.record_search(self._name, 0, prof.elapsed)
+                p.record("search", self._name, 0, prof.elapsed)
             return self.browse()
 
         fields_to_fetch = self._determine_fields_to_fetch(field_names)
@@ -106,23 +102,18 @@ class SearchMixin(_ModelStubs):
 
         result = self._fetch_query(query, fields_to_fetch)
 
-        prof.stop()
-        if prof.debug:
-            _orm_read.debug(
-                "[%.3f ms] search_fetch %s: domain=%s, offset=%d, limit=%s -> %d records"
-                " | search=%.1f fields=%.1f fetch=%.1f",
-                prof.elapsed * 1000,
-                self._name,
-                str(domain)[:200],
-                offset,
-                limit,
-                len(result),
-                prof.ms("start", "search"),
-                prof.ms("search", "fields"),
-                prof.ms("fields", "end"),
-            )
+        prof.stop("fetch")
+        prof.report(
+            _orm_read,
+            "search_fetch %s: domain=%s, offset=%d, limit=%s -> %d records",
+            self._name,
+            str(domain)[:200],
+            offset,
+            limit,
+            len(result),
+        )
         if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record_search(self._name, len(result), prof.elapsed)
+            p.record("search", self._name, len(result), prof.elapsed)
 
         return result
 

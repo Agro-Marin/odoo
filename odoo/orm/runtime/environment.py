@@ -1,6 +1,5 @@
 import functools
 import logging
-import time
 import typing
 from collections import defaultdict
 from collections.abc import Collection, Iterator, Mapping, MutableMapping
@@ -14,6 +13,7 @@ from odoo.db import BaseCursor
 from odoo.exceptions import AccessError, UserError
 from odoo.libs.datetime import timezone as get_timezone
 from odoo.libs.datetime import utc
+from odoo.libs.profiling import _OrmProfile
 from odoo.tools import (
     SQL,
     OrderedSet,
@@ -377,9 +377,7 @@ class Environment(Mapping[str, "BaseModel"]):
         self.transaction.invalidate_field_data()
 
     def flush_all(self) -> None:
-        _debug = _orm_cache.isEnabledFor(logging.DEBUG)
-        if _debug:
-            _t0 = time.perf_counter()
+        prof = _OrmProfile(_orm_cache)
 
         def recompute_fn(field):
             self[field.model_name]._recompute_field(field)
@@ -409,13 +407,8 @@ class Environment(Mapping[str, "BaseModel"]):
                     f"Use context key 'tolerant_recompute' to suppress."
                 )
 
-        if _debug:
-            _t_end = time.perf_counter()
-            _orm_cache.debug(
-                "[%.3f ms] flush_all: %d iterations",
-                (_t_end - _t0) * 1000,
-                result.iterations,
-            )
+        prof.stop()
+        prof.report(_orm_cache, "flush_all: %d iterations", result.iterations)
 
     def is_protected(self, field: Field, record: BaseModel) -> bool:
         return self._core.is_protected(field, record.id)
