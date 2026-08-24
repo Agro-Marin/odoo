@@ -783,7 +783,10 @@ class AccountAccount(models.Model):
                         )
                     )
 
-        if vals.get("deprecated") and self.env[
+        # Deprecating an account is archiving it since `deprecated` was folded into
+        # `active`; the guard kept reading the old key, so the ORM rejected the write
+        # before it could ever be true and this never fired.
+        if vals.get("active") is False and self.env[
             "account.tax.repartition.line"
         ].search_count(
             [("account_id", "in", self.ids)],
