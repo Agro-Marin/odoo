@@ -15,15 +15,11 @@ from odoo.addons.link_tracker.tools.html import (
 
 _logger = logging.getLogger(__name__)
 
-#: Skipped by ``_shorten_links_text`` on top of whatever the caller blacklists.
-#: ``/r/`` is ours -- shortening a short link chains a redirect onto itself.
-#: ``/sms/`` is not: it is ``mass_mailing_sms``'s unsubscribe page, and this
-#: module does not depend on ``sms``. It stays until every caller of
-#: ``_shorten_links_text`` that can emit one passes it in `blacklist` --
-#: ``mass_mailing_sms``'s mailing and composer, and enterprise's social,
-#: social_youtube and marketing_automation_whatsapp. Dropping it before then
-#: would shorten an unsubscribe link, which is the one link that must not break.
-TEXT_SHORTEN_SKIP_PATHS = ('/r/', '/sms/')
+#: Skipped by ``_shorten_links_text`` before any caller blacklist. ``/r/`` is
+#: ours -- shortening a short link chains a redirect onto itself. Anything else
+#: belongs to the module that owns the route, and arrives through
+#: ``_shorten_links_text_skip_prefixes``.
+TEXT_SHORTEN_SKIP_PATHS = ('/r/',)
 
 
 class MixinMailRender(models.AbstractModel):
@@ -93,6 +89,18 @@ class MixinMailRender(models.AbstractModel):
         return new_html
 
     @api.model
+    def _shorten_links_text_skip_prefixes(self, base_url):
+        """Absolute URL prefixes ``_shorten_links_text`` leaves alone.
+
+        A hook rather than a constant so a route's own module can claim it. This
+        one used to carry ``/sms/`` -- ``mass_mailing_sms``'s unsubscribe page --
+        in a module that does not depend on ``sms``, and every caller of
+        ``_shorten_links_text`` inherited that carve-out whether or not it could
+        ever emit one.
+        """
+        return tuple(base_url + path for path in TEXT_SHORTEN_SKIP_PATHS)
+
+    @api.model
     def _shorten_links_text(self, content, link_tracker_vals, blacklist=None, base_url=None):
         """ Shorten links in a string content. Works like ``_shorten_links`` but
         targeting string content, not html.
@@ -102,7 +110,7 @@ class MixinMailRender(models.AbstractModel):
         if not content:
             return content
         base_url = base_url or self.env['ir.config_parameter'].sudo().get_param('web.base.url')
-        skip_prefixes = tuple(base_url + path for path in TEXT_SHORTEN_SKIP_PATHS)
+        skip_prefixes = self._shorten_links_text_skip_prefixes(base_url)
 
         # Sorted, not a bare set: iteration order used to vary with
         # PYTHONHASHSEED, so which URL got which code changed between runs.

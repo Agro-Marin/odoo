@@ -319,6 +319,36 @@ And a last, with question mark: {self.base_url}/r/(\w+)"""
             '<a href="https://paren.example.com/x">text</a>', {}, blacklist=["("])
         self.assertIn("/r/", shortened)
 
+    def test_shorten_links_text_skips_only_our_own_routes(self):
+        """`/sms/` belongs to mass_mailing_sms, not here.
+
+        This module skipped it unconditionally while depending on neither `sms`
+        nor `mass_mailing_sms`, so every caller inherited the carve-out whether or
+        not it could emit one. It now arrives through
+        `_shorten_links_text_skip_prefixes`, which the owning module extends --
+        so what is asserted depends on which side of that split is installed.
+        """
+        base_url = self.env["mixin.mail.render"].get_base_url()
+        prefixes = self.env["mixin.mail.render"]._shorten_links_text_skip_prefixes(base_url)
+        self.assertIn(base_url + "/r/", prefixes, "link_tracker claims its own short-link route")
+
+        # an already-shortened link is left alone either way
+        short = f"{base_url}/r/abcdefgh"
+        self.assertEqual(self.env["mixin.mail.render"]._shorten_links_text(short, {}), short)
+
+        sms_prefix = base_url + "/sms/"
+        sms_installed = bool(self.env["ir.module.module"].sudo().search_count(
+            [("name", "=", "mass_mailing_sms"), ("state", "=", "installed")]))
+        if sms_installed:
+            self.assertIn(sms_prefix, prefixes,
+                          "mass_mailing_sms extends the hook with its unsubscribe route")
+        else:
+            self.assertNotIn(sms_prefix, prefixes,
+                             "without its owner installed, /sms/ is an ordinary url")
+            shortened = self.env["mixin.mail.render"]._shorten_links_text(
+                f"{base_url}/sms/3/somecode", {})
+            self.assertIn("/r/", shortened)
+
     def test_shorten_links_keeps_the_body_structure(self):
         """`fromstring` synthesises a wrapper around a multi-root fragment."""
         body = '<p>Hello</p><p><a href="https://struct.example.com">Click</a></p>'
