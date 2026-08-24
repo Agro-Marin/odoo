@@ -6,6 +6,7 @@ from psycopg.errors import CheckViolation
 from odoo import Command, fields
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import Form, tagged, users
+from odoo.tools import SQL
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
@@ -7352,6 +7353,11 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             {"amount": -1},
             {"debit_amount_currency": -1},
             {"credit_amount_currency": -1},
+            {
+                "amount": 0,
+                "debit_amount_currency": 0,
+                "credit_amount_currency": 0,
+            },
         ):
             with (
                 self.subTest(invalid_vals=invalid_vals),
@@ -7368,7 +7374,33 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
                 }
             )
 
+        other_account_credit_line = self.create_line_for_reconciliation(
+            -1000,
+            -1000,
+            currency,
+            "2016-01-01",
+            self.extra_receivable_account_1,
+        )
+        with self.assertRaises(ValidationError):
+            self.env["account.partial.reconcile"].create(
+                valid_vals | {"credit_move_id": other_account_credit_line.id}
+            )
+
         partial = self.env["account.partial.reconcile"].create(valid_vals)
+        for field_name, invalid_value in (
+            ("amount", "NaN"),
+            ("debit_amount_currency", "Infinity"),
+            ("credit_amount_currency", "Infinity"),
+        ):
+            with self.subTest(field_name=field_name), self.assertRaises(CheckViolation):
+                self.env.cr.execute(
+                    SQL(
+                        "UPDATE account_partial_reconcile SET %s = %s WHERE id = %s",
+                        SQL.identifier(field_name),
+                        invalid_value,
+                        partial.id,
+                    )
+                )
         other_company = self.env["res.company"].create({"name": "Other Company"})
         with self.assertRaises(ValidationError):
             partial.company_id = other_company
@@ -7381,6 +7413,41 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         (line_a + line_b).reconcile()
         self.assertEqual(line_a.matching_number, f"P{line_a.matched_credit_ids.id}")
         self.assertEqual(line_a.matching_number, line_b.matching_number)
+
+    def test_unlink_reverses_shared_exchange_move_once(self):
+        currency = self.env.company.currency_id
+        debit_line = self.create_line_for_reconciliation(
+            1000, 1000, currency, "2016-01-01"
+        )
+        credit_lines = self.create_line_for_reconciliation(
+            -500, -500, currency, "2016-01-01"
+        ) + self.create_line_for_reconciliation(-500, -500, currency, "2016-01-01")
+        exchange_move = debit_line.move_id
+        partials = self.env["account.partial.reconcile"].create(
+            [
+                {
+                    "amount": 500,
+                    "debit_amount_currency": 500,
+                    "credit_amount_currency": 500,
+                    "debit_move_id": debit_line.id,
+                    "credit_move_id": credit_line.id,
+                    "exchange_move_id": exchange_move.id,
+                }
+                for credit_line in credit_lines
+            ]
+        )
+
+        move_model = type(exchange_move)
+        with patch.object(
+            move_model,
+            "_reverse_moves",
+            autospec=True,
+            return_value=self.env["account.move"],
+        ) as reverse_moves:
+            partials.unlink()
+
+        reverse_moves.assert_called_once()
+        self.assertEqual(reverse_moves.call_args.args[0], exchange_move)
 
     def test_matching_number_partial_multi_reconcile(self):
         currency = self.env.company.currency_id
@@ -9429,7 +9496,120 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
 
         payment.outstanding_account_id = False
         payment.state = "paid"
+        self.env.invalidate_all()
+        with self.assertQueryCount(default=10, flush=False):
+            result = partials._get_to_update_payments(from_state="paid")
+        self.assertEqual(result, payment)
+
+    def test_group_outbound_payment_state_updates_from_all_bill_partials(self):
+        bills = self.env["account.move"].create(
+            [
+                {
+                    "move_type": "in_invoice",
+                    "partner_id": self.partner_a.id,
+                    "invoice_date": "2025-01-01",
+                    "invoice_line_ids": [
+                        Command.create(
+                            {
+                                "name": "Grouped bill line",
+                                "quantity": 1,
+                                "price_unit": amount,
+                            }
+                        )
+                    ],
+                }
+                for amount in (30.0, 10.0)
+            ]
+        )
+        bills.action_post()
+        payment = (
+            self.env["account.payment.register"]
+            .with_context(active_model="account.move", active_ids=bills.ids)
+            .create({"group_payment": True, "amount": 40.0})
+            ._create_payments()
+        )
+        payment_lines = payment.move_id.line_ids
+        partials = payment_lines.matched_debit_ids | payment_lines.matched_credit_ids
+        self.assertEqual(len(partials), 2)
+
+        payment.outstanding_account_id = False
+        payment.state = "paid"
         self.assertEqual(partials._get_to_update_payments(from_state="paid"), payment)
+
+    def test_payment_state_updates_from_all_payment_term_partials(self):
+        invoice = self.init_invoice(
+            "out_invoice",
+            partner=self.partner_a,
+            invoice_date="2025-01-01",
+            amounts=[100.0],
+        )
+        invoice.invoice_payment_term_id = self.pay_terms_b
+        invoice.action_post()
+        payment = (
+            self.env["account.payment.register"]
+            .with_context(active_model="account.move", active_ids=invoice.ids)
+            .create({"amount": 100.0})
+            ._create_payments()
+        )
+        payment_lines = payment.move_id.line_ids
+        partials = payment_lines.matched_debit_ids | payment_lines.matched_credit_ids
+        self.assertEqual(len(partials), 2)
+
+        payment.outstanding_account_id = False
+        payment.state = "paid"
+        self.assertEqual(partials._get_to_update_payments(from_state="paid"), payment)
+
+    def test_cash_basis_rejects_zero_allocation_total(self):
+        currencies_and_errors = (
+            (
+                self.env.company.currency_id,
+                "company-currency payment total is zero",
+            ),
+            (
+                self.setup_other_currency(
+                    "EUR", rates=[("2025-01-01", 1.0), ("2025-01-02", 1.0)]
+                ),
+                "foreign-currency payment total is zero",
+            ),
+        )
+        for currency, error in currencies_and_errors:
+            with self.subTest(currency=currency.name):
+                debit_line = self.create_line_for_reconciliation(
+                    100.0, 100.0, currency, "2025-01-01"
+                )
+                credit_line = self.create_line_for_reconciliation(
+                    -100.0, -100.0, currency, "2025-01-02"
+                )
+                partial = self.env["account.partial.reconcile"].create(
+                    {
+                        "amount": 100.0,
+                        "debit_amount_currency": 100.0,
+                        "credit_amount_currency": 100.0,
+                        "debit_move_id": debit_line.id,
+                        "credit_move_id": credit_line.id,
+                    }
+                )
+                move_values = {
+                    "move": debit_line.move_id,
+                    "to_process_lines": [("base", debit_line)],
+                    "total_balance": 0.0,
+                    "total_amount_currency": 0.0,
+                    "currency": currency,
+                }
+
+                move_model = type(debit_line.move_id)
+                with (
+                    patch.object(
+                        move_model,
+                        "_collect_tax_cash_basis_values",
+                        autospec=True,
+                        side_effect=lambda move, move_values=move_values, debit_move=debit_line.move_id: (
+                            move_values if move == debit_move else None
+                        ),
+                    ),
+                    self.assertRaisesRegex(ValidationError, error),
+                ):
+                    partial._collect_tax_cash_basis_values()
 
     def test_cash_basis_keeps_product_tag_amounts_separate(self):
         self.env.company.tax_exigibility = True

@@ -65,10 +65,14 @@ class AccountPartialReconcile(models.Model):
     _description = "Partial Reconcile"
 
     debit_move_id = fields.Many2one(
-        comodel_name="account.move.line", index=True, required=True
+        comodel_name="account.move.line",
+        index=True,
+        required=True,
     )
     credit_move_id = fields.Many2one(
-        comodel_name="account.move.line", index=True, required=True
+        comodel_name="account.move.line",
+        index=True,
+        required=True,
     )
     full_reconcile_id = fields.Many2one(
         comodel_name="account.full.reconcile",
@@ -77,7 +81,8 @@ class AccountPartialReconcile(models.Model):
         index="btree_not_null",
     )
     exchange_move_id = fields.Many2one(
-        comodel_name="account.move", index="btree_not_null"
+        comodel_name="account.move",
+        index="btree_not_null",
     )
 
     draft_caba_move_vals = fields.Json(
@@ -141,8 +146,16 @@ class AccountPartialReconcile(models.Model):
         "A journal item cannot be reconciled with itself.",
     )
     _check_nonnegative_amounts = models.Constraint(
-        "CHECK(amount >= 0 AND debit_amount_currency >= 0 AND credit_amount_currency >= 0)",
-        "Partial reconciliation amounts cannot be negative.",
+        """CHECK(
+            amount >= 0 AND amount < 'Infinity'
+            AND debit_amount_currency >= 0 AND debit_amount_currency < 'Infinity'
+            AND credit_amount_currency >= 0 AND credit_amount_currency < 'Infinity'
+        )""",
+        "Partial reconciliation amounts must be finite and non-negative.",
+    )
+    _check_nonzero_amount = models.Constraint(
+        "CHECK(amount > 0 OR debit_amount_currency > 0 OR credit_amount_currency > 0)",
+        "A partial reconciliation must reconcile a non-zero amount.",
     )
 
     @api.constrains("debit_currency_id", "credit_currency_id")
@@ -177,23 +190,36 @@ class AccountPartialReconcile(models.Model):
             )
 
     @api.constrains("debit_move_id", "credit_move_id")
-    def _check_move_line_directions(self):
+    def _check_move_line_consistency(self):
         bad_partials = self.filtered(
             lambda partial: (
-                not (
-                    partial.debit_move_id.balance > 0.0
-                    or partial.debit_move_id.amount_currency > 0.0
+                partial.debit_move_id.account_id != partial.credit_move_id.account_id
+                or not (
+                    partial.debit_move_id.company_currency_id.compare_amounts(
+                        partial.debit_move_id.balance, 0.0
+                    )
+                    > 0
+                    or partial.debit_currency_id.compare_amounts(
+                        partial.debit_move_id.amount_currency, 0.0
+                    )
+                    > 0
                 )
                 or not (
-                    partial.credit_move_id.balance < 0.0
-                    or partial.credit_move_id.amount_currency < 0.0
+                    partial.credit_move_id.company_currency_id.compare_amounts(
+                        partial.credit_move_id.balance, 0.0
+                    )
+                    < 0
+                    or partial.credit_currency_id.compare_amounts(
+                        partial.credit_move_id.amount_currency, 0.0
+                    )
+                    < 0
                 )
             )
         )
         if bad_partials:
             raise ValidationError(
                 _(
-                    "The debit journal item must have a positive residual direction and the credit journal item a negative one."
+                    "Partial reconciliations require journal items on the same account, with a positive debit direction and a negative credit direction."
                 )
             )
 
@@ -221,11 +247,11 @@ class AccountPartialReconcile(models.Model):
         moves_to_reverse = self.env["account.move"].search(
             [("tax_cash_basis_rec_id", "in", self.ids)]
         )
-        moves_to_reverse += self.exchange_move_id
+        moves_to_reverse |= self.exchange_move_id
 
         full_to_unlink = self.full_reconcile_id
 
-        all_reconciled = self.debit_move_id + self.credit_move_id
+        all_reconciled = self.debit_move_id | self.credit_move_id
 
         res = super().unlink()
 
@@ -239,7 +265,7 @@ class AccountPartialReconcile(models.Model):
                     "date": move._get_accounting_date(
                         move.date, move._affect_tax_report()
                     ),
-                    "ref": move.env._("Reversal of: %s", move.name),
+                    "ref": _("Reversal of: %s", move.name),
                 }
                 for move in not_draft_moves
             ]
@@ -255,17 +281,44 @@ class AccountPartialReconcile(models.Model):
     def create(self, vals_list):
         partials = super().create(vals_list)
         partials._get_to_update_payments(from_state="in_process").state = "paid"
-        self._update_matching_number(partials.debit_move_id + partials.credit_move_id)
+        self._update_matching_number(partials.debit_move_id | partials.credit_move_id)
         return partials
 
     def _get_to_update_payments(self, from_state):
+        """Return payments that reached the opposite state through ``self``.
+
+        An exact partial can represent a later bank reconciliation, so its payment
+        need not be an endpoint. Multiple partials, however, are aggregated only for
+        an endpoint payment; otherwise unrelated invoice partials could be counted.
+        """
+        self.fetch(
+            [
+                "debit_move_id",
+                "credit_move_id",
+                "debit_amount_currency",
+                "credit_amount_currency",
+            ]
+        )
+        endpoint_moves = (self.debit_move_id | self.credit_move_id).move_id
+        endpoint_moves.fetch(["matched_payment_ids"])
+        matched_payments = endpoint_moves.matched_payment_ids
+        matched_payments.fetch(
+            [
+                "move_id",
+                "outstanding_account_id",
+                "state",
+                "payment_type",
+                "currency_id",
+                "amount_signed",
+            ]
+        )
+        matched_payments.currency_id.fetch(["rounding"])
+
         to_update_ids = set()
-        group_amounts = {}
-        counted_invoice_ids = set()
+        grouped_amounts = {}
         for partial in self:
-            matched_payments = (
-                partial.credit_move_id | partial.debit_move_id
-            ).move_id.matched_payment_ids
+            endpoint_moves = (partial.credit_move_id | partial.debit_move_id).move_id
+            matched_payments = endpoint_moves.matched_payment_ids
             to_check_payments = matched_payments.filtered(
                 lambda payment: (
                     not payment.outstanding_account_id and payment.state == from_state
@@ -280,27 +333,14 @@ class AccountPartialReconcile(models.Model):
                     payment.amount_signed, amount
                 ):
                     to_update_ids.add(payment.id)
-                    break
-
-                if len(payment.invoice_ids) <= 1:
-                    continue
-                for invoice in payment.invoice_ids:
-                    invoice_key = (payment.id, invoice.id)
-                    if invoice_key in counted_invoice_ids:
-                        continue
-                    if payment.currency_id.compare_amounts(
-                        invoice.amount_total_signed, amount
-                    ):
-                        continue
-                    counted_invoice_ids.add(invoice_key)
-                    group_amounts[payment.id] = (
-                        group_amounts.get(payment.id, 0.0) + amount
+                elif payment.move_id in endpoint_moves:
+                    grouped_amounts[payment.id] = (
+                        grouped_amounts.get(payment.id, 0.0) + amount
                     )
-                    break
 
-        for payment in self.env["account.payment"].browse(group_amounts):
+        for payment in self.env["account.payment"].browse(grouped_amounts):
             if not payment.currency_id.compare_amounts(
-                payment.amount_signed, group_amounts[payment.id]
+                payment.amount_signed, grouped_amounts[payment.id]
             ):
                 to_update_ids.add(payment.id)
         return self.env["account.payment"].browse(to_update_ids)
@@ -308,6 +348,17 @@ class AccountPartialReconcile(models.Model):
     @api.model
     def _update_matching_number(self, amls):
         amls = amls._all_reconciled_lines()
+        while amls:
+            amls.lock_for_update(allow_referencing=True)
+            amls.invalidate_recordset(["matching_number"])
+            amls.invalidate_recordset(
+                ["matched_debit_ids", "matched_credit_ids"],
+                flush=False,
+            )
+            expanded_amls = amls._all_reconciled_lines()
+            if not (expanded_amls - amls):
+                break
+            amls = expanded_amls
         all_partials = amls.matched_debit_ids | amls.matched_credit_ids
         number2lines = _get_matching_number2lines(all_partials)
 
@@ -397,17 +448,31 @@ class AccountPartialReconcile(models.Model):
                     payment_date = counterpart_line.date
 
                 if move_values["currency"] == move.company_id.currency_id:
+                    total = move_values["total_balance"]
                     if move.company_currency_id.is_zero(partial_amount):
                         continue
+                    if move.company_currency_id.is_zero(total):
+                        raise ValidationError(
+                            _(
+                                "Cash-basis taxes cannot be allocated for %(move)s because its company-currency payment total is zero.",
+                                move=move.display_name,
+                            )
+                        )
 
-                    percentage = partial_amount / move_values["total_balance"]
+                    percentage = partial_amount / total
                 else:
+                    total = move_values["total_amount_currency"]
                     if move.currency_id.is_zero(partial_amount_currency):
                         continue
+                    if move.currency_id.is_zero(total):
+                        raise ValidationError(
+                            _(
+                                "Cash-basis taxes cannot be allocated for %(move)s because its foreign-currency payment total is zero.",
+                                move=move.display_name,
+                            )
+                        )
 
-                    percentage = (
-                        partial_amount_currency / move_values["total_amount_currency"]
-                    )
+                    percentage = partial_amount_currency / total
 
                 if source_line.currency_id != counterpart_line.currency_id:
                     if "forced_rate_from_register_payment" in self.env.context:
@@ -457,7 +522,7 @@ class AccountPartialReconcile(models.Model):
         product_tags = base_line.tax_tag_ids.filtered(
             lambda x: x.applicability == "products"
         )
-        all_tags = tax_tags + product_tags
+        all_tags = tax_tags | product_tags
 
         return {
             "name": base_line.move_id.name,
@@ -499,7 +564,7 @@ class AccountPartialReconcile(models.Model):
         product_tags = tax_line.tax_tag_ids.filtered(
             lambda x: x.applicability == "products"
         )
-        all_tags = base_tags + tax_line.tax_repartition_line_id.tag_ids + product_tags
+        all_tags = base_tags | tax_line.tax_repartition_line_id.tag_ids | product_tags
 
         return {
             "name": tax_line.name,
@@ -705,7 +770,7 @@ class AccountPartialReconcile(models.Model):
                                     + cb_line_vals["tax_base_amount"],
                                 }
                             )
-                            partial_lines_to_create[grouping_key]["tax_line"] += line
+                            partial_lines_to_create[grouping_key]["tax_line"] |= line
                     else:
                         partial_lines_to_create[grouping_key] = {
                             "vals": cb_line_vals,
