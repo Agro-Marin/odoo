@@ -1446,9 +1446,13 @@ class HrExpense(models.Model):
             "currency_id": currency_id.id,
         }
 
-        account = product.product_tmpl_id._get_product_accounts()["expense"]
-        if account:
-            vals["account_id"] = account.id
+        # `_parse_expense_subject` returns an empty product when the subject names
+        # none, which the caller two lines up already accounts for -- and
+        # `_get_product_accounts` is `ensure_one()`.
+        if product:
+            account = product.product_tmpl_id._get_product_accounts()["expense"]
+            if account:
+                vals["account_id"] = account.id
 
         expense = super().message_new(msg_dict, dict(custom_values or {}, **vals))
         self._send_expense_success_mail(msg_dict, expense)

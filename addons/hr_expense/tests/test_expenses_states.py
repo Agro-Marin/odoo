@@ -126,9 +126,14 @@ class TestExpensesStates(TestExpenseCommon, MailCase):
         self.expenses_all.action_approve()
         self.post_expenses_with_wizard(self.expenses_all)
 
-        self.expenses_all.account_move_id._reverse_moves(
+        moves = self.expenses_all.account_move_id
+        self.assertTrue(len(moves) > 1, "the fixture posts one move per payment mode")
+        moves._reverse_moves(
+            # One entry per move, as `hr.expense.action_reset` builds it. A single
+            # entry used to reverse the second move with no defaults at all, which
+            # `zip(..., strict=True)` now refuses instead of silently dropping.
             default_values_list=[
-                {"invoice_date": fields.Date.context_today(self.expenses_all)}
+                {"invoice_date": fields.Date.context_today(move)} for move in moves
             ],
             cancel=True,
         )
