@@ -108,6 +108,7 @@ class TestServiceMetrics:
         server.population = 4
         server.generation = 17
         server.long_polling_pid = 999
+        server.pid = os.getpid()  # this process IS the master
 
         with patch.object(lifecycle, "server", server):
             out = mod.service_metrics()
@@ -116,6 +117,47 @@ class TestServiceMetrics:
         assert out["worker_population"] == 4
         assert out["worker_generation"] == 17
         assert out["long_polling_alive"] is True
+
+    def test_forked_worker_omits_the_master_only_gauges(self, mod):
+        """A prefork worker inherits the master's PreforkServer through
+        ``os.fork()``; every fleet counter on it is frozen at the instant of the
+        fork.  The worker must publish none of them rather than publish a stale
+        view that disagrees with every other worker.
+        """
+        from odoo.service import lifecycle
+
+        server = MagicMock()
+        type(server).__name__ = "PreforkServer"
+        server.workers_http = {1: object(), 2: object()}
+        server.workers_cron = {3: object()}
+        server.workers_job = {}
+        server.population = 4
+        server.generation = 17
+        server.long_polling_pid = 999
+        server.pid = os.getpid() + 1  # a child: master pid inherited at fork
+
+        with patch.object(lifecycle, "server", server):
+            out = mod.service_metrics()
+        assert out["flavor"] == "prefork"
+        for key in (
+            "workers",
+            "worker_population",
+            "worker_generation",
+            "long_polling_alive",
+        ):
+            assert key not in out, f"{key} is master-only but a worker emitted it"
+
+        with patch.object(lifecycle, "server", server):
+            text = mod.render_prometheus()
+        for family in (
+            "odoo_workers",
+            "odoo_worker_population",
+            "odoo_worker_generation",
+            "odoo_long_polling_alive",
+        ):
+            assert family not in text
+        _, errors = parse_exposition(text)
+        assert not errors, errors
 
     def test_threaded_reports_thread_counts_and_slot_ceiling(self, mod):
         import threading
@@ -249,6 +291,7 @@ class TestPrometheusExposition:
         server.population = 0
         server.generation = 0
         server.long_polling_pid = None
+        server.pid = os.getpid()  # this process IS the master
 
         with patch.object(lifecycle, "server", server):
             text = mod.render_prometheus()
