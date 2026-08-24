@@ -1,5 +1,6 @@
 from . import mixin_default_read_fields
 from . import mixin_sequence
+from . import mixin_payment_qr_code
 from . import mixin_account_document_import
 from . import account_fiscal_position
 from . import res_partner

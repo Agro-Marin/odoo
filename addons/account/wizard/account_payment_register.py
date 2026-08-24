@@ -11,6 +11,7 @@ from odoo.tools.misc import clean_context
 
 class AccountPaymentRegister(models.TransientModel):
     _name = "account.payment.register"
+    _inherit = ["mixin.payment.qr.code"]
     _description = "Pay"
     _check_company_auto = True
 
@@ -1150,29 +1151,7 @@ class AccountPaymentRegister(models.TransientModel):
     )
     def _compute_qr_code(self):
         for pay in self:
-            qr_html = False
-            if (
-                pay.partner_bank_id
-                and pay.partner_bank_id.allow_out_payment
-                and pay.payment_method_line_id.code == "manual"
-                and pay.payment_type == "outbound"
-                and pay.amount
-                and pay.currency_id
-            ):
-                b64_qr = pay.partner_bank_id.build_qr_code_base64(
-                    amount=pay.amount,
-                    free_communication=pay.communication,
-                    structured_communication=pay.communication,
-                    currency=pay.currency_id,
-                    debtor_partner=pay.partner_id,
-                )
-                if b64_qr:
-                    qr_html = f'''
-                        <img class="border border-dark rounded" src="{b64_qr}"/>
-                        <br/>
-                        <strong>{_("Scan me with your banking app.")}</strong>
-                    '''
-            pay.qr_code = qr_html
+            pay.qr_code = pay._render_payment_qr_code(pay.amount, pay.communication)
 
     @api.depends("partner_id", "amount", "payment_date", "payment_type", "line_ids")
     def _compute_duplicate_payment_ids(self):

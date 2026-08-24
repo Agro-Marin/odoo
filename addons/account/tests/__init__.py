@@ -70,6 +70,7 @@ from . import test_marin_account_move_audit
 from . import test_marin_account_move_fixes
 from . import test_marin_account_move_sync_fixes
 from . import test_marin_outstanding_widget_guards
+from . import test_marin_payment_audit
 from . import test_marin_payment_receipt_report
 from . import test_marin_taxes_country_constraint
 from . import test_marin_wizard_audit

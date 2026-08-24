@@ -7,7 +7,11 @@ from odoo.tools import SQL
 
 class AccountPayment(models.Model):
     _name = "account.payment"
-    _inherit = ["mixin.mail.thread.main.attachment", "mixin.mail.activity"]
+    _inherit = [
+        "mixin.mail.thread.main.attachment",
+        "mixin.mail.activity",
+        "mixin.payment.qr.code",
+    ]
     _description = "Payments"
     _order = "date desc, name desc"
     _check_company_auto = True
@@ -200,7 +204,7 @@ class AccountPayment(models.Model):
         "account.move",
         string="Reconciled Invoices",
         compute="_compute_stat_buttons_from_reconciliation",
-        search="_search_reconciled_move_ids",
+        search="_search_reconciled_invoice_ids",
         help="Invoices whose journal items have been reconciled with these payments.",
     )
     reconciled_invoices_count = fields.Count(
@@ -216,8 +220,8 @@ class AccountPayment(models.Model):
         "account.move",
         string="Reconciled Bills",
         compute="_compute_stat_buttons_from_reconciliation",
-        search="_search_reconciled_move_ids",
-        help="Invoices whose journal items have been reconciled with these payments.",
+        search="_search_reconciled_bill_ids",
+        help="Bills whose journal items have been reconciled with these payments.",
     )
     reconciled_bills_count = fields.Count(
         "reconciled_bill_ids",
@@ -229,9 +233,9 @@ class AccountPayment(models.Model):
         compute="_compute_stat_buttons_from_reconciliation",
         help="Statements lines matched to this payment",
     )
-    reconciled_statement_lines_count = fields.Integer(
+    reconciled_statement_lines_count = fields.Count(
+        "reconciled_statement_line_ids",
         string="# Reconciled Statement Lines",
-        compute="_compute_stat_buttons_from_reconciliation",
     )
 
     payment_method_code = fields.Char(
@@ -285,24 +289,27 @@ class AccountPayment(models.Model):
     def _seek_for_lines(self):
         self.ensure_one()
 
-        lines = [self.env["account.move.line"] for _dummy in range(3)]
+        empty = self.env["account.move.line"]
+        buckets = ([], [], [])
         valid_account_types = self._get_valid_payment_account_types()
+        liquidity_accounts = self._get_valid_liquidity_accounts()
         for line in self.move_id.line_ids:
-            if line.account_id in self._get_valid_liquidity_accounts():
-                lines[0] += line
+            if line.account_id in liquidity_accounts:
+                buckets[0].append(line.id)
             elif (
                 line.account_id.account_type in valid_account_types
                 or line.account_id == line.company_id.transfer_account_id
             ):
-                lines[1] += line
+                buckets[1].append(line.id)
             else:
-                lines[2] += line
+                buckets[2].append(line.id)
 
+        lines = [empty.browse(bucket) for bucket in buckets]
         if len(lines[2]) == 1:
             for i in (0, 1):
                 if not lines[i]:
                     lines[i] = lines[2]
-                    lines[2] -= lines[2]
+                    lines[2] = empty
 
         return lines
 
@@ -401,20 +408,10 @@ class AccountPayment(models.Model):
         )
         withholding_balance = sum(x["balance"] for x in withholding_lines)
 
-        if withholding_lines and write_off_lines:
-            write_off_lines = []
-            write_off_amount_currency = 0.0
-            write_off_balance = 0.0
-
-        if self.payment_type == "inbound":
-            liquidity_amount_currency = self.amount
-        elif self.payment_type == "outbound":
-            liquidity_amount_currency = -self.amount
-        else:
-            liquidity_amount_currency = 0.0
+        sign = -1 if self.payment_type == "outbound" else 1
+        liquidity_amount_currency = sign * self.amount
 
         if not write_off_line_vals and force_balance is not None:
-            sign = 1 if liquidity_amount_currency > 0 else -1
             liquidity_balance = sign * abs(force_balance)
         else:
             liquidity_balance = self.currency_id._convert(
@@ -470,7 +467,7 @@ class AccountPayment(models.Model):
             line_vals += sub_line_vals
         return line_vals
 
-    @api.depends("move_id.name", "state")
+    @api.depends("move_id.name", "state", "company_id", "date")
     def _compute_name(self):
         for payment in self:
             if (
@@ -488,7 +485,7 @@ class AccountPayment(models.Model):
                     sequence_date=payment.date,
                 )
 
-    @api.depends("company_id", "partner_id")
+    @api.depends("company_id", "partner_id", "payment_type")
     def _compute_journal_id(self):
         default_journal_by_company = {}
         for payment in self:
@@ -498,7 +495,7 @@ class AccountPayment(models.Model):
                 if payment.payment_type in ("inbound", "outbound")
                 else None
             )
-            if not bool(payment._origin) and (partner or payment_type):
+            if not payment._origin and partner and payment_type:
                 field_name = f"property_{payment_type}_payment_method_line_id"
                 default_payment_method_line = payment.partner_id.with_company(
                     payment.company_id
@@ -565,6 +562,11 @@ class AccountPayment(models.Model):
         "move_id.line_ids.amount_residual_currency",
         "move_id.line_ids.account_id",
         "state",
+        "amount",
+        "currency_id",
+        "company_id.currency_id",
+        "outstanding_account_id",
+        "journal_id.default_account_id",
     )
     def _compute_reconciliation_status(self):
         for pay in self:
@@ -619,7 +621,7 @@ class AccountPayment(models.Model):
             "res_id": self.id,
         }
 
-    @api.depends("payment_method_code")
+    @api.depends("payment_method_code", "journal_id.type", "state")
     def _compute_show_require_partner_bank(self):
         for payment in self:
             if payment.journal_id.type == "cash":
@@ -636,7 +638,8 @@ class AccountPayment(models.Model):
             )
 
     @api.depends(
-        "move_id.amount_total_signed",
+        "move_id.line_ids.balance",
+        "move_id.line_ids.account_id",
         "amount",
         "payment_type",
         "currency_id",
@@ -667,7 +670,9 @@ class AccountPayment(models.Model):
             else:
                 payment.amount_signed = payment.amount
 
-    @api.depends("partner_id", "company_id", "payment_type")
+    @api.depends(
+        "partner_id", "company_id", "payment_type", "journal_id.bank_account_id"
+    )
     def _compute_available_partner_bank_ids(self):
         for pay in self:
             if pay.payment_type == "inbound":
@@ -683,16 +688,13 @@ class AccountPayment(models.Model):
             if pay.partner_bank_id not in pay.available_partner_bank_ids:
                 pay.partner_bank_id = pay.available_partner_bank_ids[:1]._origin
 
-    @api.depends("available_payment_method_line_ids")
+    @api.depends("available_payment_method_line_ids", "partner_id", "company_id")
     def _compute_payment_method_line_id(self):
         for pay in self:
             available_payment_method_lines = pay.available_payment_method_line_ids
-            inbound_payment_method = (
-                pay.partner_id.property_inbound_payment_method_line_id
-            )
-            outbound_payment_method = (
-                pay.partner_id.property_outbound_payment_method_line_id
-            )
+            partner = pay.partner_id.with_company(pay.company_id)
+            inbound_payment_method = partner.property_inbound_payment_method_line_id
+            outbound_payment_method = partner.property_outbound_payment_method_line_id
             if (
                 pay.payment_type == "inbound"
                 and inbound_payment_method.id in available_payment_method_lines.ids
@@ -704,7 +706,7 @@ class AccountPayment(models.Model):
             ):
                 pay.payment_method_line_id = outbound_payment_method
             elif pay.payment_method_line_id.id in available_payment_method_lines.ids:
-                pay.payment_method_line_id = pay.payment_method_line_id
+                continue
             elif available_payment_method_lines:
                 pay.payment_method_line_id = available_payment_method_lines[0]._origin
             else:
@@ -724,35 +726,38 @@ class AccountPayment(models.Model):
                     )
                 )
 
-    @api.depends("payment_type")
+    @api.depends("payment_type", "company_id")
     def _compute_available_journal_ids(self):
-        journals = self.env["account.journal"].search(
-            [
-                "|",
-                ("company_id", "parent_of", self.env.company.id),
-                ("company_id", "child_of", self.env.company.id),
-                ("type", "in", ("bank", "cash", "credit")),
-            ]
-        )
+        journals_per_company = {}
         for pay in self:
-            if pay.payment_type == "inbound":
-                pay.available_journal_ids = journals.filtered(
-                    "inbound_payment_method_line_ids"
+            company = pay.company_id or self.env.company
+            if company not in journals_per_company:
+                journals_per_company[company] = self.env["account.journal"].search(
+                    [
+                        "|",
+                        ("company_id", "parent_of", company.id),
+                        ("company_id", "child_of", company.id),
+                        ("type", "in", ("bank", "cash", "credit")),
+                    ]
                 )
-            else:
-                pay.available_journal_ids = journals.filtered(
-                    "outbound_payment_method_line_ids"
-                )
+            method_lines = (
+                "inbound_payment_method_line_ids"
+                if pay.payment_type == "inbound"
+                else "outbound_payment_method_line_ids"
+            )
+            pay.available_journal_ids = journals_per_company[company].filtered(
+                method_lines
+            )
 
     def _get_payment_method_codes_to_exclude(self):
         self.ensure_one()
         return []
 
-    @api.depends("journal_id")
+    @api.depends("journal_id.currency_id", "company_id.currency_id")
     def _compute_currency_id(self):
         for pay in self:
             pay.currency_id = (
-                pay.journal_id.currency_id or pay.journal_id.company_id.currency_id
+                pay.journal_id.currency_id or pay.company_id.currency_id
             )
 
     @api.depends("payment_method_line_id")
@@ -810,39 +815,20 @@ class AccountPayment(models.Model):
         "move_id.state",
         "payment_method_line_id",
         "payment_type",
+        "state",
     )
     def _compute_qr_code(self):
         for pay in self:
-            if (
-                pay.state in ("draft", "in_process")
-                and pay.partner_bank_id
-                and pay.partner_bank_id.allow_out_payment
-                and pay.payment_method_line_id.code == "manual"
-                and pay.payment_type == "outbound"
-                and pay.currency_id
-            ):
-                if pay.partner_bank_id:
-                    qr_code = pay.partner_bank_id.build_qr_code_base64(
-                        pay.amount, pay.memo, pay.memo, pay.currency_id, pay.partner_id
-                    )
-                else:
-                    qr_code = None
-
-                if qr_code:
-                    pay.qr_code = """
-                        <br/>
-                        <img class="border border-dark rounded" src="{qr_code}"/>
-                        <br/>
-                        <strong class="text-center">{txt}</strong>
-                        """.format(
-                        txt=_("Scan me with your banking app."), qr_code=qr_code
-                    )
-                    continue
-
-            pay.qr_code = None
+            pay.qr_code = (
+                pay._render_payment_qr_code(pay.amount, pay.memo)
+                if pay.state in ("draft", "in_process")
+                else False
+            )
 
     @api.depends(
-        "move_id.line_ids.matched_debit_ids", "move_id.line_ids.matched_credit_ids"
+        "move_id.line_ids.matched_debit_ids",
+        "move_id.line_ids.matched_credit_ids",
+        "invoice_ids",
     )
     def _compute_stat_buttons_from_reconciliation(self):
         stored_payments = self.filtered("id")
@@ -851,7 +837,6 @@ class AccountPayment(models.Model):
             self.reconciled_invoices_type = False
             self.reconciled_bill_ids = False
             self.reconciled_statement_line_ids = False
-            self.reconciled_statement_lines_count = 0
             return
 
         self.env["account.payment"].flush_model(
@@ -867,8 +852,9 @@ class AccountPayment(models.Model):
             fnames=["debit_move_id", "credit_move_id"]
         )
 
-        self.env.cr.execute(
-            """
+        invoices_per_payment = self.env.execute_query(
+            SQL(
+                """
             SELECT
                 payment.id,
                 ARRAY_AGG(DISTINCT invoice.id) AS invoice_ids,
@@ -889,12 +875,16 @@ class AccountPayment(models.Model):
             WHERE account.account_type IN ('asset_receivable', 'liability_payable')
                 AND payment.id = ANY(%(payment_ids)s)
                 AND line.id != counterpart_line.id
-                AND invoice.move_type in ('out_invoice', 'out_refund', 'in_invoice', 'in_refund', 'out_receipt', 'in_receipt')
+                AND invoice.move_type = ANY(%(move_types)s)
             GROUP BY payment.id, invoice.move_type
         """,
-            {"payment_ids": list(stored_payments.ids)},
+                payment_ids=stored_payments.ids,
+                move_types=list(
+                    self.env["account.move"].get_sale_types(True)
+                    + self.env["account.move"].get_purchase_types(True)
+                ),
+            )
         )
-        query_res = self.env.cr.dictfetchall()
 
         for pay in self:
             pay.reconciled_invoice_ids = pay.invoice_ids.filtered(
@@ -904,16 +894,14 @@ class AccountPayment(models.Model):
                 lambda m: m.is_purchase_document(True)
             )
 
-        for res in query_res:
-            pay = self.browse(res["id"])
-            if res["move_type"] in self.env["account.move"].get_sale_types(True):
-                pay.reconciled_invoice_ids |= self.env["account.move"].browse(
-                    res.get("invoice_ids", [])
-                )
+        sale_types = self.env["account.move"].get_sale_types(True)
+        for payment_id, invoice_ids, move_type in invoices_per_payment:
+            pay = self.browse(payment_id)
+            invoices = self.env["account.move"].browse(invoice_ids)
+            if move_type in sale_types:
+                pay.reconciled_invoice_ids |= invoices
             else:
-                pay.reconciled_bill_ids |= self.env["account.move"].browse(
-                    res.get("invoice_ids", [])
-                )
+                pay.reconciled_bill_ids |= invoices
 
         query_res = dict(
             self.env.execute_query(
@@ -948,7 +936,6 @@ class AccountPayment(models.Model):
         for pay in self:
             statement_line_ids = query_res.get(pay.id, [])
             pay.reconciled_statement_line_ids = [Command.set(statement_line_ids)]
-            pay.reconciled_statement_lines_count = len(statement_line_ids)
             if (
                 len(pay.reconciled_invoice_ids.mapped("move_type")) == 1
                 and pay.reconciled_invoice_ids[0].move_type == "out_refund"
@@ -960,7 +947,15 @@ class AccountPayment(models.Model):
     def _compute_payment_receipt_title(self):
         self.payment_receipt_title = _("Payment Receipt")
 
-    @api.depends("partner_id", "amount", "date", "payment_type")
+    @api.depends(
+        "partner_id",
+        "amount",
+        "date",
+        "payment_type",
+        "company_id",
+        "currency_id",
+        "state",
+    )
     def _compute_duplicate_payment_ids(self):
         payment_to_duplicate_move = self._get_duplicate_reference()
         for payment in self:
@@ -968,11 +963,23 @@ class AccountPayment(models.Model):
                 payment._origin.id, self.env["account.payment"]
             )
 
-    def _search_reconciled_move_ids(self, operator, value):
+    def _search_reconciled_move_ids(self, operator, value, move_filter=None):
         if operator not in ("in", "="):
             return NotImplemented
-        move_ids = self.env["account.move"].browse(value).reconciled_payment_ids.ids
-        return [("id", "in", move_ids)]
+        moves = self.env["account.move"].browse(value).exists()
+        if move_filter is not None:
+            moves = moves.filtered(move_filter)
+        return [("id", "in", moves.reconciled_payment_ids.ids)]
+
+    def _search_reconciled_invoice_ids(self, operator, value):
+        return self._search_reconciled_move_ids(
+            operator, value, lambda move: move.is_sale_document(True)
+        )
+
+    def _search_reconciled_bill_ids(self, operator, value):
+        return self._search_reconciled_move_ids(
+            operator, value, lambda move: move.is_purchase_document(True)
+        )
 
     def _get_duplicate_reference(self, matching_states=("draft", "in_process")):
         payments = self.filtered(
@@ -993,7 +1000,8 @@ class AccountPayment(models.Model):
         self.flush_model(used_fields)
 
         payment_table_and_alias = SQL("account_payment AS payment")
-        if not self[0].id:
+        if not self.ids:
+            self.ensure_one()
             values = {
                 field_name: self._fields[field_name].convert_to_write(
                     self[field_name], self
@@ -1099,7 +1107,7 @@ class AccountPayment(models.Model):
             self.env["account.move"]._get_invoice_in_payment_state() == "in_payment"
         )
 
-        for i, (pay, vals) in enumerate(zip(payments, vals_list, strict=False)):
+        for i, (pay, vals) in enumerate(zip(payments, vals_list, strict=True)):
             if (
                 not accounting_installed and not pay.outstanding_account_id
             ) or self.env.context.get("force_payment_move"):
@@ -1155,17 +1163,13 @@ class AccountPayment(models.Model):
         return res
 
     def unlink(self):
-        self.move_id.filtered(lambda m: m.state != "draft").action_draft()
-        self.move_id.unlink()
-
-        linked_invoices = self.reconciled_invoice_ids
+        moves = self.move_id
         res = super().unlink()
-        self.env.add_to_compute(
-            linked_invoices._fields["payment_state"], linked_invoices
-        )
+        moves.filtered(lambda m: m.state != "draft").action_draft()
+        moves.unlink()
         return res
 
-    @api.depends("move_id.name")
+    @api.depends("name")
     def _compute_display_name(self):
         for payment in self:
             payment.display_name = payment.name or _("Draft Payment")
@@ -1173,7 +1177,7 @@ class AccountPayment(models.Model):
     def copy_data(self, default=None):
         default = dict(default or {})
         vals_list = super().copy_data(default)
-        for payment, vals in zip(self, vals_list, strict=False):
+        for payment, vals in zip(self, vals_list, strict=True):
             vals.update(
                 {
                     "journal_id": payment.journal_id.id,
@@ -1194,6 +1198,18 @@ class AccountPayment(models.Model):
                     {"res_model": self._name, "res_id": payment.id}
                 )
         return super()._message_mail_after_hook(mails)
+
+    @api.model
+    def _reconcile_line_commands(self, lines, line_vals):
+        commands = []
+        for line, vals in zip_longest(lines, line_vals):
+            if line is not None and vals is not None:
+                commands.append(Command.update(line.id, vals))
+            elif vals is not None:
+                commands.append(Command.create(vals))
+            else:
+                commands.append(Command.delete(line.id))
+        return commands
 
     def _synchronize_to_moves(self, changed_fields):
         if not any(
@@ -1231,34 +1247,20 @@ class AccountPayment(models.Model):
             line_vals_per_type = pay._prepare_move_lines_per_type(
                 write_off_line_vals=write_off_line_vals
             )
-            line_ids_commands = []
-
-            liquidity_lines_vals = line_vals_per_type.get("liquidity_lines", [])
-            for liquidity_line, newline_val in zip_longest(
-                liquidity_lines, liquidity_lines_vals
-            ):
-                if liquidity_line and newline_val:
-                    line_ids_commands.append(
-                        Command.update(liquidity_line.id, newline_val)
-                    )
-                elif not liquidity_line and newline_val:
-                    line_ids_commands.append(Command.create(newline_val))
-                elif liquidity_line and not newline_val:
-                    line_ids_commands.append(Command.delete(liquidity_line.id))
-
-            counterpart_lines_vals = line_vals_per_type.get("counterpart_lines", [])
-            line_ids_commands.append(
-                Command.update(counterpart_lines.id, counterpart_lines_vals[0])
-                if counterpart_lines
-                else Command.create(counterpart_lines_vals[0])
-            )
-
-            line_ids_commands.extend((2, line.id) for line in writeoff_lines)
-            line_ids_commands.extend(
-                (0, 0, extra_line_vals)
-                for extra_line_vals in line_vals_per_type.get("write_off_lines", [])
-                + line_vals_per_type.get("withholding_lines", [])
-            )
+            line_ids_commands = [
+                *self._reconcile_line_commands(
+                    liquidity_lines, line_vals_per_type.get("liquidity_lines", [])
+                ),
+                *self._reconcile_line_commands(
+                    counterpart_lines, line_vals_per_type.get("counterpart_lines", [])
+                ),
+                *(Command.delete(line.id) for line in writeoff_lines),
+                *(
+                    Command.create(extra_line_vals)
+                    for extra_line_vals in line_vals_per_type.get("write_off_lines", [])
+                    + line_vals_per_type.get("withholding_lines", [])
+                ),
+            ]
             to_write = {
                 "date": pay.date,
                 "partner_id": pay.partner_id.id,
@@ -1282,7 +1284,8 @@ class AccountPayment(models.Model):
             "amount",
             "payment_type",
             "partner_type",
-            "payment_reference",
+            "memo",
+            "payment_method_line_id",
             "currency_id",
             "partner_id",
             "destination_account_id",
@@ -1303,7 +1306,7 @@ class AccountPayment(models.Model):
             for pay in need_move
         ]
         moves = self.env["account.move"].create(move_vals)
-        for pay, move in zip(need_move, moves, strict=False):
+        for pay, move in zip(need_move, moves, strict=True):
             pay.write({"move_id": move.id, "state": "in_process"})
 
     def _generate_move_vals(
@@ -1394,53 +1397,19 @@ class AccountPayment(models.Model):
 
     def button_open_bills(self):
         self.ensure_one()
-
-        action = {
-            "name": _("Paid Bills"),
-            "type": "ir.actions.act_window",
-            "res_model": "account.move",
-            "context": {"create": False},
-        }
-        if len(self.reconciled_bill_ids) == 1:
-            action.update(
-                {
-                    "view_mode": "form",
-                    "res_id": self.reconciled_bill_ids.id,
-                }
-            )
-        else:
-            action.update(
-                {
-                    "view_mode": "list,form",
-                    "domain": [("id", "in", self.reconciled_bill_ids.ids)],
-                }
-            )
-        return action
+        return self.reconciled_bill_ids.with_context(
+            create=False
+        )._get_records_action(
+            name=_("Paid Bills"),
+        )
 
     def button_open_statement_lines(self):
         self.ensure_one()
-
-        action = {
-            "name": _("Matched Transactions"),
-            "type": "ir.actions.act_window",
-            "res_model": "account.bank.statement.line",
-            "context": {"create": False},
-        }
-        if len(self.reconciled_statement_line_ids) == 1:
-            action.update(
-                {
-                    "view_mode": "form",
-                    "res_id": self.reconciled_statement_line_ids.id,
-                }
-            )
-        else:
-            action.update(
-                {
-                    "view_mode": "list,form",
-                    "domain": [("id", "in", self.reconciled_statement_line_ids.ids)],
-                }
-            )
-        return action
+        return self.reconciled_statement_line_ids.with_context(
+            create=False
+        )._get_records_action(
+            name=_("Matched Transactions"),
+        )
 
     def button_open_journal_entry(self):
         self.ensure_one()
