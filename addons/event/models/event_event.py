@@ -576,7 +576,7 @@ class EventEvent(models.Model):
         "seats_limited",
     )
     def _compute_event_registrations_sold_out(self):
-        """Note that max seats limits for events and sum of limits for all its tickets may not be
+        """Max seats limits for events and sum of limits for all its tickets may not be
         equal to enable flexibility.
         E.g. max 20 seats for ticket A, 20 seats for ticket B
             * With max 20 seats for the event
@@ -790,7 +790,7 @@ class EventEvent(models.Model):
           * lines that have no registrations linked are remove;
           * type lines are added;
 
-        Note that updating event_ticket_ids triggers _compute_start_sale_datetime
+        Updating event_ticket_ids triggers _compute_start_sale_datetime
         (start_sale_datetime computation) so ensure result to avoid cache miss.
         """
         for event in self:
