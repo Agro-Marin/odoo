@@ -1,4 +1,5 @@
 import ast
+import contextlib
 import fnmatch
 import functools
 import inspect
@@ -7,7 +8,7 @@ import re
 from collections.abc import Iterable
 from pathlib import Path
 
-from odoo import tools
+from odoo import SUPERUSER_ID, api, tools
 from odoo.modules import Manifest
 from odoo.modules.registry import Registry
 from odoo.tests.common import BaseCase, get_db_name, no_retry
@@ -176,34 +177,64 @@ class LintCase(BaseCase):
 
     @staticmethod
     def served_bundle_names(env) -> list[str]:
-        installed = set(
+        installed = frozenset(
             env["ir.module.module"].search([("state", "=", "installed")]).mapped("name")
         )
-        names = set()
-        included = set()
-        for manifest in Manifest.all_addon_manifests():
-            if manifest.name not in installed:
-                continue
-            assets = manifest.get("assets") or {}
-            names.update(assets)
-            for entries in assets.values():
-                for entry in entries:
-                    if (
-                        isinstance(entry, (list, tuple))
-                        and len(entry) > 1
-                        and entry[0] == "include"
-                    ):
-                        included.add(entry[1])
+        return list(_served_bundle_names(installed, env))
 
-        env.cr.execute("SELECT arch_db::text FROM ir_ui_view WHERE arch_db IS NOT NULL")
-        linked = {
-            name
-            for (arch,) in env.cr.fetchall()
-            for name in _T_CALL_ASSETS_RE.findall(arch)
-        }
-        return sorted(
-            name for name in (names - included) | (names & linked) if "." in name
+    @staticmethod
+    @contextlib.contextmanager
+    def superuser_env():
+        """A short-lived superuser environment on its own cursor.
+
+        Six modules spelled this out by hand. `LintCase` is a `BaseCase`, so
+        there is no `self.env` to borrow and each gate opens its own.
+        """
+        with Registry(get_db_name()).cursor() as cr:
+            yield api.Environment(cr, SUPERUSER_ID, {})
+
+
+def _served_bundle_names(installed: frozenset[str], env) -> tuple[str, ...]:
+    cached = _SERVED_BUNDLES.get(installed)
+    if cached is None:
+        cached = _SERVED_BUNDLES[installed] = _compute_served_bundle_names(
+            installed, env
         )
+    return cached
+
+
+#: Keyed on the installed set, which is what the answer depends on. Five gates
+#: call this and it re-walks every manifest and re-runs a raw SELECT over
+#: `ir_ui_view` each time.
+_SERVED_BUNDLES: dict[frozenset[str], tuple[str, ...]] = {}
+
+
+def _compute_served_bundle_names(installed: frozenset[str], env) -> tuple[str, ...]:
+    names = set()
+    included = set()
+    for manifest in Manifest.all_addon_manifests():
+        if manifest.name not in installed:
+            continue
+        assets = manifest.get("assets") or {}
+        names.update(assets)
+        for entries in assets.values():
+            for entry in entries:
+                if (
+                    isinstance(entry, (list, tuple))
+                    and len(entry) > 1
+                    and entry[0] == "include"
+                ):
+                    included.add(entry[1])
+
+    env.cr.execute("SELECT arch_db::text FROM ir_ui_view WHERE arch_db IS NOT NULL")
+    linked = {
+        name
+        for (arch,) in env.cr.fetchall()
+        for name in _T_CALL_ASSETS_RE.findall(arch)
+    }
+    return tuple(
+        sorted(name for name in (names - included) | (names & linked) if "." in name)
+    )
 
 
 def iter_registry_methods(registry=None):

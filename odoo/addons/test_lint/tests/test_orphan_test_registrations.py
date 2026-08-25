@@ -2,39 +2,16 @@ import logging
 import re
 from pathlib import Path
 
-from odoo.modules import Manifest
 from odoo.tests import tagged
 
-from . import lint_case
+from . import _js_sources, lint_case
 
 _logger = logging.getLogger(__name__)
 
-IMPORT_RE = re.compile(
-    r"""(?:^|[\s;}])(?:import|export)\s+(?:[^'"()]*?\sfrom\s+)?["']([^"']+)["']""",
-    re.MULTILINE,
-)
 REGISTRATION_RE = re.compile(
     r"^(?:onRpc|defineModels|defineParams|mockService)\(", re.MULTILINE
 )
 TEST_SUFFIX = ".test.js"
-
-
-def _addon_js():
-    for manifest in Manifest.all_addon_manifests():
-        static_root = Path(manifest.path) / "static"
-        if not static_root.is_dir():
-            continue
-        for path in static_root.rglob("*.js"):
-            try:
-                yield manifest.name, path, path.read_text(encoding="utf-8")
-            except OSError, UnicodeDecodeError:
-                continue
-
-
-def _module_key(addon, path):
-    """`<addon>/<posix path under static/>`, without the .js suffix."""
-    parts = path.as_posix().split("/static/", 1)
-    return f"{addon}/{parts[1].removesuffix('.js')}" if len(parts) == 2 else None
 
 
 def _resolve(specifier, addon, path):
@@ -47,7 +24,7 @@ def _resolve(specifier, addon, path):
     if spec.startswith("."):
         here = path.as_posix().rsplit("/", 1)[0]
         resolved = Path(f"{here}/{spec}").resolve().as_posix()
-        return _module_key(addon, Path(resolved))
+        return _js_sources.module_key(addon, Path(resolved))
     return None
 
 
@@ -63,12 +40,13 @@ class TestOrphanTestRegistrations(lint_case.LintCase):
         imported = set()
         candidates = {}
         scanned = 0
-        for addon, path, source in _addon_js():
+        for addon, path, source in _js_sources.addon_js():
             scanned += 1
             imported.update(
                 resolved
                 for resolved in (
-                    _resolve(spec, addon, path) for spec in IMPORT_RE.findall(source)
+                    _resolve(spec, addon, path)
+                    for spec in _js_sources.STATIC_IMPORT_RE.findall(source)
                 )
                 if resolved
             )
@@ -76,7 +54,7 @@ class TestOrphanTestRegistrations(lint_case.LintCase):
             if "/static/tests/" not in posix or posix.endswith(TEST_SUFFIX):
                 continue
             if REGISTRATION_RE.search(source):
-                key = _module_key(addon, path)
+                key = _js_sources.module_key(addon, path)
                 if key:
                     candidates[posix] = key
 

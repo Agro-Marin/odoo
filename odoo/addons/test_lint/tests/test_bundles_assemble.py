@@ -1,10 +1,7 @@
 import logging
 
-from odoo import SUPERUSER_ID, api
 from odoo.modules import Manifest
-from odoo.modules.registry import Registry
 from odoo.tests import tagged
-from odoo.tests.common import get_db_name
 from odoo.tools.assets.esm_graph import find_escaping_relative_imports
 
 from . import lint_case
@@ -16,8 +13,7 @@ _logger = logging.getLogger(__name__)
 class TestBundlesAssemble(lint_case.LintCase):
     def test_every_declared_bundle_assembles(self):
         failures = []
-        with Registry(get_db_name()).cursor() as cr:
-            env = api.Environment(cr, SUPERUSER_ID, {})
+        with self.superuser_env() as env:
             bundles = self.served_bundle_names(env)
 
             self.assertTrue(bundles, "no bundles found — the scan reached nothing")
@@ -39,8 +35,7 @@ class TestBundlesAssemble(lint_case.LintCase):
 
     def test_every_bundled_module_can_resolve_its_own_imports(self):
         failures = []
-        with Registry(get_db_name()).cursor() as cr:
-            env = api.Environment(cr, SUPERUSER_ID, {})
+        with self.superuser_env() as env:
             bundles = self.served_bundle_names(env)
             self.assertTrue(bundles, "no bundles found — the scan reached nothing")
 
@@ -110,8 +105,7 @@ class TestBundlesAssemble(lint_case.LintCase):
         reasoning: it builds whatever is in the JS set.
         """
         failures = []
-        with Registry(get_db_name()).cursor() as cr:
-            env = api.Environment(cr, SUPERUSER_ID, {})
+        with self.superuser_env() as env:
             qweb = env["ir.qweb"]
             js_bundles, _css_bundles = qweb._get_bundles_to_pregenerate()
             self.assertTrue(

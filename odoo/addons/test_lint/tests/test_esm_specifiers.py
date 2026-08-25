@@ -1,41 +1,17 @@
-import functools
 import logging
-import re
 from pathlib import Path
 
 from odoo.modules import Manifest
 from odoo.tools.assets.esm_registry import external_libs
 
-from . import lint_case
+from . import _js_sources, lint_case
 from odoo.addons.base.models.ir_qweb_assets import IrQweb
 
 _logger = logging.getLogger(__name__)
 
-STATIC_IMPORT_RE = re.compile(
-    r"""(?:^|[\s;}])(?:import|export)\s+(?:[^'"()]*?\sfrom\s+)?["']([^"']+)["']""",
-    re.MULTILINE,
-)
-DYNAMIC_IMPORT_RE = re.compile(r"""\bimport\(\s*["']([^"']+)["']\s*\)""")
-COMMENT_RE = re.compile(r"/\*.*?\*/|//[^\n]*", re.DOTALL)
 
-
-@functools.cache
 def _addon_js_sources():
-    return tuple(_read_addon_js())
-
-
-def _read_addon_js():
-    for manifest in Manifest.all_addon_manifests():
-        static_root = Path(manifest.path) / "static"
-        if not static_root.is_dir():
-            continue
-        for path in static_root.rglob("*.js"):
-            if "lib" in path.relative_to(static_root).parts[:1]:
-                continue
-            try:
-                yield path, path.read_text(encoding="utf-8")
-            except OSError, UnicodeDecodeError:
-                continue
+    return _js_sources.addon_js_outside_lib()
 
 
 class TestEsmSpecifiers(lint_case.LintCase):
@@ -44,11 +20,8 @@ class TestEsmSpecifiers(lint_case.LintCase):
         self.assertGreater(
             len(_addon_js_sources()), 1000, "the scan reached almost no JS"
         )
-        for path, source in _addon_js_sources():
-            code = COMMENT_RE.sub(" ", source)
-            specs = set(STATIC_IMPORT_RE.findall(code))
-            specs |= set(DYNAMIC_IMPORT_RE.findall(code))
-            for spec in specs:
+        for _addon, path, source in _addon_js_sources():
+            for spec in _js_sources.specifiers(source, strip_comments=True):
                 if not spec.startswith("."):
                     continue
                 target = (path.parent / spec).resolve()
@@ -75,11 +48,9 @@ class TestEsmSpecifiers(lint_case.LintCase):
         broken = []
         scanned = 0
 
-        for path, source in _addon_js_sources():
+        for _addon, path, source in _addon_js_sources():
             scanned += 1
-            specs = set(STATIC_IMPORT_RE.findall(source))
-            specs |= set(DYNAMIC_IMPORT_RE.findall(source))
-            for spec in specs:
+            for spec in _js_sources.specifiers(source):
                 if spec in external_libs():
                     continue
                 url = IrQweb._specifier_to_static_url(spec)

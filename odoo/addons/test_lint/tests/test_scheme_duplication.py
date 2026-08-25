@@ -3,10 +3,7 @@ import logging
 import re
 from collections import Counter
 
-from odoo import SUPERUSER_ID, api
-from odoo.modules.registry import Registry
 from odoo.tests import tagged
-from odoo.tests.common import get_db_name
 
 from . import lint_case
 
@@ -290,8 +287,7 @@ class TestSchemeDuplication(lint_case.LintCase):
 
     def test_no_svg_data_uri_reads_a_custom_property(self):
         offenders = []
-        with Registry(get_db_name()).cursor() as cr:
-            env = api.Environment(cr, SUPERUSER_ID, {})
+        with self.superuser_env() as env:
             for bundle in ("web.assets_web", "web.assets_web_dark"):
                 for source, selector, prop, value in parse(self._css(env, bundle)):
                     if "svg+xml" not in value:
@@ -311,8 +307,8 @@ class TestSchemeDuplication(lint_case.LintCase):
         )
 
     def test_the_single_bundle_gap_does_not_grow(self):
-        with Registry(get_db_name()).cursor() as cr:
-            env = api.Environment(cr, SUPERUSER_ID, {})
+        with self.superuser_env() as env:
+            self._require_the_floors_can_be_exercised(env)
             gap, answered, light, dark = self._measure(env)
 
         self.assertGreater(
@@ -377,6 +373,29 @@ class TestSchemeDuplication(lint_case.LintCase):
             f"differently from what the dark bundle serves:\n  "
             + "\n  ".join(offenders),
         )
+
+    def _require_the_floors_can_be_exercised(self, env):
+        """A floor over a module nobody installed describes an absence.
+
+        These floors are per module -- 28 of them -- and a bundle only carries
+        what installed modules contribute. Under `test_lint.yml`, whose INSTALL is
+        `test_lint` alone, 3 of the 28 are reachable and `web` reads 91 against a
+        floor of 136: 45 under, and it cannot fail, because this ratchet only
+        fires on growth. That is not a pass, and it should not report as one.
+        `asset_lint.yml` is the lane that installs the eleven modules these
+        numbers were taken against; anywhere narrower, skip.
+        """
+        installed = set(
+            env["ir.module.module"].search([("state", "=", "installed")]).mapped("name")
+        )
+        missing = sorted(set(SINGLE_BUNDLE_GAP_FLOOR) - installed)
+        if missing:
+            self.skipTest(
+                f"{len(missing)} of {len(SINGLE_BUNDLE_GAP_FLOOR)} floored "
+                f"module(s) are not installed, so their floors would pass by "
+                f"describing an absence. Run this under asset_lint.yml's INSTALL "
+                f"set. Missing: {', '.join(missing)}"
+            )
 
     def test_every_floor_names_a_module_that_exists(self):
         self.assertFalse(

@@ -1,11 +1,8 @@
 import logging
 from pathlib import Path
 
-from odoo import SUPERUSER_ID, api
 from odoo.modules import Manifest
-from odoo.modules.registry import Registry
 from odoo.tests import tagged
-from odoo.tests.common import get_db_name
 
 from . import lint_case
 from odoo.addons.base.models.ir_asset_paths import (
@@ -24,8 +21,7 @@ class TestAssetPathsExist(lint_case.LintCase):
         manifests = list(Manifest.all_addon_manifests())
         addon_dirs = {m.name: Path(m.path) for m in manifests}
         attachment_urls = set()
-        with Registry(get_db_name()).cursor() as cr:
-            env = api.Environment(cr, SUPERUSER_ID, {})
+        with self.superuser_env() as env:
             attachment_urls.update(
                 (row["url"] or "").lstrip("/")
                 for row in env["ir.attachment"].search_read(

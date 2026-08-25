@@ -2,10 +2,7 @@ import logging
 import re
 from pathlib import Path
 
-from odoo import SUPERUSER_ID, api
-from odoo.modules.registry import Registry
 from odoo.tests import tagged
-from odoo.tests.common import get_db_name
 
 from . import lint_case
 
@@ -106,8 +103,7 @@ class TestBundleTokenDefs(lint_case.LintCase):
         skipped = []
         empty = []
         cache = {}
-        with Registry(get_db_name()).cursor() as cr:
-            env = api.Environment(cr, SUPERUSER_ID, {})
+        with self.superuser_env() as env:
             for bundle in self.served_bundle_names(env):
                 try:
                     files = env["ir.qweb"]._get_asset_bundle(bundle, css=True).files

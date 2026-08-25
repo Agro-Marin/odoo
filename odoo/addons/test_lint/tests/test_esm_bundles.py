@@ -1,3 +1,4 @@
+import functools
 import logging
 import re
 from pathlib import Path
@@ -29,80 +30,99 @@ LAZY_BUNDLE_RE = re.compile(
 )
 
 
-class TestEsmBundles(lint_case.LintCase):
-    def _scan(self, pattern, glob, transform=None):
-        found = {}
-        for path in self.iter_module_files(glob):
-            try:
-                content = Path(path).read_text(encoding="utf-8")
-            except OSError, UnicodeDecodeError:
-                continue
-            for match in pattern.finditer(content):
-                name = transform(match) if transform else match.group(1)
-                if name:
-                    found.setdefault(name, path)
-        return found
+#: Every source this class scans, read once. The two runtime tests below each
+#: called `_runtime_fetched_bundles()`, which makes three passes -- `*.js` twice
+#: and `*.xml` once -- so the identical 18,953-file sweep ran twice per run:
+#: 37,906 of the 56,754 reads the JS gates performed between them. `_declaration_index`
+#: walked every manifest once per test on top of that.
+@functools.cache
+def _sources(glob: str) -> tuple[tuple[str, str], ...]:
+    out = []
+    for path in lint_case.iter_module_files(glob):
+        try:
+            out.append((path, Path(path).read_text(encoding="utf-8")))
+        except OSError, UnicodeDecodeError:
+            continue
+    return tuple(out)
 
-    def _rendered_bundles(self):
-        rendered = set()
-        for path in self.iter_module_files("*.xml"):
-            try:
-                content = Path(path).read_text(encoding="utf-8")
-            except OSError, UnicodeDecodeError:
-                continue
-            for name, attrs in CALL_ASSETS_RE.findall(content):
-                if not JS_DISABLED_RE.search(attrs):
-                    rendered.add(name)
-        return rendered
 
-    @staticmethod
-    def _wants_js(match):
-        options = match.groupdict().get("options")
-        return not (options and JS_DISABLED_OPTION_RE.search(options))
-
-    def _runtime_fetched_bundles(self):
-        found = {}
-        for glob, pattern in (
-            ("*.js", LOAD_BUNDLE_RE),
-            ("*.js", LAZY_BUNDLE_RE),
-            ("*.xml", LAZY_BUNDLE_RE),
-        ):
-            scanned = self._scan(
-                pattern,
-                glob,
-                transform=lambda m: m.group(1) if self._wants_js(m) else None,
-            )
-            for name, path in scanned.items():
+def _scan(pattern, glob, transform=None):
+    found = {}
+    for path, content in _sources(glob):
+        for match in pattern.finditer(content):
+            name = transform(match) if transform else match.group(1)
+            if name:
                 found.setdefault(name, path)
-        return found
+    return found
 
-    def _declaration_index(self):
-        manifests = list(Manifest.all_addon_manifests())
-        addon_dirs = {m.name: Path(m.path) for m in manifests}
 
-        declared = set()
-        own_files = {}
-        includes = {}
-        for manifest in manifests:
-            esm = manifest.get("esm") or {}
-            declared.update(esm.get("bundles") or ())
-            declared.update(esm.get("standalone_bundles") or ())
-            for key in (
-                "dynamic_children",
-                "import_map_includes",
-                "secondary_import_map_includes",
-            ):
-                for parent, children in (esm.get(key) or {}).items():
-                    declared.add(parent)
-                    declared.update(children)
-            for bundle, entries in (manifest.get("assets") or {}).items():
-                for entry in entries:
-                    if isinstance(entry, (list, tuple)):
-                        if len(entry) == 2 and entry[0] == "include":
-                            includes.setdefault(bundle, set()).add(entry[1])
-                    elif isinstance(entry, str):
-                        own_files.setdefault(bundle, []).append(entry)
-        return declared, own_files, includes, addon_dirs
+def _wants_js(match):
+    options = match.groupdict().get("options")
+    return not (options and JS_DISABLED_OPTION_RE.search(options))
+
+
+@functools.cache
+def _rendered_bundles() -> frozenset[str]:
+    rendered = set()
+    for _path, content in _sources("*.xml"):
+        for name, attrs in CALL_ASSETS_RE.findall(content):
+            if not JS_DISABLED_RE.search(attrs):
+                rendered.add(name)
+    return frozenset(rendered)
+
+
+@functools.cache
+def _runtime_fetched_bundles() -> dict[str, str]:
+    found = {}
+    for glob, pattern in (
+        ("*.js", LOAD_BUNDLE_RE),
+        ("*.js", LAZY_BUNDLE_RE),
+        ("*.xml", LAZY_BUNDLE_RE),
+    ):
+        scanned = _scan(
+            pattern,
+            glob,
+            transform=lambda m: m.group(1) if _wants_js(m) else None,
+        )
+        for name, path in scanned.items():
+            found.setdefault(name, path)
+    return found
+
+
+@functools.cache
+def _declaration_index():
+    manifests = list(Manifest.all_addon_manifests())
+    addon_dirs = {m.name: Path(m.path) for m in manifests}
+
+    declared = set()
+    own_files = {}
+    includes = {}
+    for manifest in manifests:
+        esm = manifest.get("esm") or {}
+        declared.update(esm.get("bundles") or ())
+        declared.update(esm.get("standalone_bundles") or ())
+        for key in (
+            "dynamic_children",
+            "import_map_includes",
+            "secondary_import_map_includes",
+        ):
+            for parent, children in (esm.get(key) or {}).items():
+                declared.add(parent)
+                declared.update(children)
+        for bundle, entries in (manifest.get("assets") or {}).items():
+            for entry in entries:
+                if isinstance(entry, (list, tuple)):
+                    if len(entry) == 2 and entry[0] == "include":
+                        includes.setdefault(bundle, set()).add(entry[1])
+                elif isinstance(entry, str):
+                    own_files.setdefault(bundle, []).append(entry)
+    return declared, own_files, includes, addon_dirs
+
+
+class TestEsmBundles(lint_case.LintCase):
+    _rendered_bundles = staticmethod(_rendered_bundles)
+    _runtime_fetched_bundles = staticmethod(_runtime_fetched_bundles)
+    _declaration_index = staticmethod(_declaration_index)
 
     @staticmethod
     def _module_files(bundle, own_files, includes, addon_dirs, seen):
