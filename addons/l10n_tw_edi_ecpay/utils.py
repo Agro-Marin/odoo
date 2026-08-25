@@ -42,7 +42,7 @@ def call_ecpay_api(endpoint, json_data, company_id, is_b2b=False):
     This function provides a structured way to configure and prepare requests
     for ECPay's B2B or B2C invoice services
 
-    AES-CBC encryption is used for hashashkey and hashIV:
+    AES-CBC encryption is used for hashkey and hashIV:
     https://developers.ecpay.com.tw/?p=22160
     """
     url = STAGING_URL if company_id.l10n_tw_edi_ecpay_staging_mode else PRODUCTION_URL
