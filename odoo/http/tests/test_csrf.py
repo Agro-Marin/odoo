@@ -86,6 +86,36 @@ def test_expired_token_is_rejected():
     assert req.validate_csrf(token) is False
 
 
+def test_zero_time_limit_is_not_read_as_unset():
+    """0 is a valid offset, and the only value `or` could not tell from unset.
+
+    Under `or`, 0 alone was read as "not supplied" and produced a token good for
+    CSRF_TOKEN_MAX_AGE -- a year -- while -10 and 1 were both honoured. The
+    assertion is on the LIFETIME rather than on acceptance: a 0 offset puts
+    `max_ts` at the current second, and `validate_csrf` expires a token only
+    once `max_ts < now`, so it stays acceptable for that second. That boundary
+    is the validator's and is deliberately left alone here.
+    """
+    req = _FakeRequest()
+    token = req.csrf_token(time_limit=0)
+    lifetime = int(token.rpartition("o")[2]) - int(time.time())
+    assert lifetime == pytest.approx(0, abs=1)
+    assert lifetime < CSRF_TOKEN_MAX_AGE
+
+
+def test_a_positive_time_limit_is_still_honoured():
+    req = _FakeRequest()
+    assert req.validate_csrf(req.csrf_token(time_limit=60)) is True
+
+
+def test_the_default_lifetime_is_unchanged_when_unset():
+    req = _FakeRequest()
+    token = req.csrf_token()
+    max_ts = int(token.rpartition("o")[2])
+    assert max_ts - int(time.time()) == pytest.approx(CSRF_TOKEN_MAX_AGE, abs=5)
+    assert req.validate_csrf(token) is True
+
+
 @pytest.mark.parametrize(
     "bad",
     [

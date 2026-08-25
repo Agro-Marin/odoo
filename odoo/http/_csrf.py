@@ -17,7 +17,11 @@ class _RequestCsrfMixin(RequestState):
             msg = "CSRF protection requires a configured database secret"
             raise ValueError(msg)
 
-        max_ts = int(time.time() + (time_limit or CSRF_TOKEN_MAX_AGE))
+        # `is None`, not `or`: 0 is a valid offset meaning "expire now",
+        # and `or` cannot tell it from an omitted argument.
+        if time_limit is None:
+            time_limit = CSRF_TOKEN_MAX_AGE
+        max_ts = int(time.time() + time_limit)
         msg = f"{self.session.sid[:STORED_SESSION_BYTES]}{max_ts}".encode()
 
         hm = hmac.new(secret.encode("ascii"), msg, hashlib.sha256).hexdigest()
