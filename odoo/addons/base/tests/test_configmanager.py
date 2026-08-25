@@ -168,6 +168,7 @@ class TestConfigManager(TransactionCase):
                 "max_cron_threads": 2,
                 "job_workers": 1,
                 "limit_time_worker_cron": 0,
+                "limit_time_worker_job": -1,
                 "unaccent": False,
                 "geoip_city_db": "/usr/share/GeoIP/GeoLite2-City.mmdb",
                 "geoip_country_db": "/usr/share/GeoIP/GeoLite2-Country.mmdb",
@@ -179,6 +180,7 @@ class TestConfigManager(TransactionCase):
                 "limit_time_cpu": 60,
                 "limit_time_real": 120,
                 "limit_time_real_cron": -1,
+                "limit_time_real_job": -1,
                 "limit_request": 2**16,
             }
         )
@@ -288,6 +290,7 @@ class TestConfigManager(TransactionCase):
                 "max_cron_threads": 4,
                 "job_workers": 4,
                 "limit_time_worker_cron": 600,
+                "limit_time_worker_job": -1,
                 "unaccent": True,
                 "geoip_city_db": "/tmp/city.db",
                 "geoip_country_db": "/tmp/country.db",
@@ -299,6 +302,7 @@ class TestConfigManager(TransactionCase):
                 "limit_time_cpu": 60,
                 "limit_time_real": 61,
                 "limit_time_real_cron": 62,
+                "limit_time_real_job": -1,
                 "limit_request": 100,
             }
         )
@@ -392,6 +396,7 @@ class TestConfigManager(TransactionCase):
                 "max_cron_threads": 2,
                 "job_workers": 1,
                 "limit_time_worker_cron": 0,
+                "limit_time_worker_job": -1,
                 "osv_memory_count_limit": 0,
                 "overwrite_existing_translations": False,
                 "pg_path": "",
@@ -444,6 +449,7 @@ class TestConfigManager(TransactionCase):
                 "limit_time_cpu": 60,
                 "limit_time_real": 120,
                 "limit_time_real_cron": -1,
+                "limit_time_real_job": -1,
                 "limit_request": 1 << 16,
                 "db_maxconn_replica": None,
                 "db_maxconn_gevent": None,
@@ -646,6 +652,7 @@ class TestConfigManager(TransactionCase):
                 "max_cron_threads": 4,
                 "job_workers": 4,
                 "limit_time_worker_cron": 0,
+                "limit_time_worker_job": -1,
                 "unaccent": True,
                 "geoip_city_db": "/tmp/city.db",
                 "geoip_country_db": "/tmp/country.db",
@@ -657,6 +664,7 @@ class TestConfigManager(TransactionCase):
                 "limit_time_cpu": 60,
                 "limit_time_real": 61,
                 "limit_time_real_cron": 62,
+                "limit_time_real_job": -1,
                 "limit_request": 100,
             }
         )
@@ -778,6 +786,7 @@ class TestConfigManager(TransactionCase):
                 "max_cron_threads": 4,
                 "job_workers": 4,
                 "limit_time_worker_cron": 0,
+                "limit_time_worker_job": -1,
                 "unaccent": True,
                 "geoip_city_db": "/tmp/city.db",
                 "geoip_country_db": "/tmp/country.db",
@@ -789,6 +798,7 @@ class TestConfigManager(TransactionCase):
                 "limit_time_cpu": 60,
                 "limit_time_real": 61,
                 "limit_time_real_cron": 62,
+                "limit_time_real_job": -1,
                 "limit_request": 100,
             }
         )
