@@ -1338,7 +1338,7 @@ class HrApplicant(models.Model):
         return super()._message_post_after_hook(message, msg_vals)
 
     def create_employee_from_applicant(self):
-        """Create an employee from applicant"""
+        """Create the employee and return an action opening it."""
         self.ensure_one()
         self._check_interviewer_access()
 
