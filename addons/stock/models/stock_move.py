@@ -391,7 +391,7 @@ class StockMove(models.Model):
         string="Is quantity done editable",
         compute="_compute_is_quantity_done_editable",
     )
-    move_lines_count = fields.Integer(compute="_compute_move_lines_count")
+    move_lines_count = fields.Count("move_line_ids")
     show_lot_actions = fields.Boolean(
         string="Show Lot/Serial Actions",
         compute="_compute_show_info",
@@ -779,11 +779,6 @@ class StockMove(models.Model):
         if self.create_uid and self.create_uid.id != SUPERUSER_ID:
             label += f" ({self.create_uid.display_name})"
         return label
-
-    @api.depends("move_line_ids")
-    def _compute_move_lines_count(self):
-        for move in self:
-            move.move_lines_count = len(move.move_line_ids)
 
     @api.depends("product_id", "product_uom_id", "product_uom_qty")
     def _compute_product_qty(self):

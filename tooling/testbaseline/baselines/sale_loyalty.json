@@ -1,0 +1,11 @@
+{
+  "expected": {
+    "sale_loyalty/TestProgramWithCodeOperations.test_change_reward_on_confirmed_order": "ERROR",
+    "sale_loyalty/TestSaleInvoicing.test_invoicing_order_with_promotions": "FAIL"
+  },
+  "note": "Two reds, neither of them loyalty's -- /loyalty alone measures 0 of 109. test_change_reward_on_confirmed_order errors on 'sale.order.line has no attribute product_updatable': the test writes a field the model no longer declares, so the test is what is stale. test_invoicing_order_with_promotions expects 0 invoiceable lines and finds 1. Both verified pre-existing by reverting this session's loyalty change and re-running them at HEAD -- character-identical.",
+  "run_spec": "-d <db with loyalty,sale_loyalty installed> --test-enable --no-http --stop-after-init --test-tags /sale_loyalty",
+  "suite": "/sale_loyalty",
+  "tests_total": 104,
+  "verified_at": "598cf211cc2"
+}

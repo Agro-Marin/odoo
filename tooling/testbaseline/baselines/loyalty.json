@@ -1,0 +1,8 @@
+{
+  "expected": {},
+  "note": "Green. Recorded so the suite's zero is a statement rather than an absence: a suite with no baseline gets no verdict, and this one was measured while splitting loyalty.program's _compute_coupon_count_display into two exactly-named hooks.",
+  "run_spec": "-d <db with loyalty,sale_loyalty installed> --test-enable --no-http --stop-after-init --test-tags /loyalty",
+  "suite": "/loyalty",
+  "tests_total": 109,
+  "verified_at": "598cf211cc2"
+}

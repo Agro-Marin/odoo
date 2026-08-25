@@ -98,7 +98,7 @@ class LoyaltyProgram(models.Model):
     coupon_count_label = fields.Char(
         string="Items Name",
         help="What this program's cards are called: coupons, gift cards, eWallets...",
-        compute='_compute_coupon_count_display',
+        compute='_compute_coupon_count_label',
     )
     coupon_count_display = fields.Char(string="Items", compute='_compute_coupon_count_display')
 
@@ -229,12 +229,16 @@ class LoyaltyProgram(models.Model):
         """
         self.total_order_count = 0
 
-    @api.depends('coupon_count', 'program_type')
-    def _compute_coupon_count_display(self):
+    @api.depends('program_type')
+    def _compute_coupon_count_label(self):
         program_items_name = self._program_items_name()
         for program in self:
             # `.get`: a program being created has no type yet, and indexing raised.
             program.coupon_count_label = program_items_name.get(program.program_type) or ''
+
+    @api.depends('coupon_count', 'coupon_count_label')
+    def _compute_coupon_count_display(self):
+        for program in self:
             program.coupon_count_display = f"{program.coupon_count or 0} {program.coupon_count_label}"
 
     @api.depends('communication_plan_ids.mail_template_id')

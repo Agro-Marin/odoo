@@ -1,4 +1,4 @@
 {
-  "count": 617,
-  "note": "560 -> 617. The rise is this branch's new translatable strings landing on origin's catalogue. Re-derived on the rebase of 19.0-marin onto origin/19.0-marin. Neither parent's floor measures the composed tree: this branch's was taken before origin's 102 commits were under it, origin's before this branch's 124 were. Measured in a detached worktree at the rebased tip, so no working-tree state is carried. An exact ratchet fails in the falling direction too, which is why the reductions are banked here rather than left red."
+  "count": 510,
+  "note": "617 -> 510. HEAD 598cf211cc2 regenerated odoo/addons/base/i18n/base.pot (+11210 lines) and 107 previously-unresolvable strings became resolvable. The commit banked neither this floor nor translation_catalog's MEASURED block, so architecture.yml's translations step and tooling_selftest's freshness test were both red on the tip of 19.0-marin from the moment it landed -- an exact ratchet fails in the falling direction too. Re-measured 510 on a detached worktree at HEAD before banking, and no .pot is modified in any working tree, so no in-flight state is carried."
 }
