@@ -1428,6 +1428,83 @@ class TestCheckDbExposed:
         mock_list.assert_called_once_with(True)
 
 
+class TestListDbsConfiguredNamesAreAnAssertion:
+    """``-d`` is an operator assertion, not a check that the database exists.
+
+    With ``db_name`` set and no ``dbfilter``, ``list_dbs`` returns the configured
+    names verbatim and never touches ``pg_database`` -- the fast path exists so a
+    pinned deployment needs no connection to ``postgres`` to answer at all. The
+    consequence is that ``check_db_exposed`` admits a name whose database was
+    dropped. That is inherited upstream behaviour and deliberate; these tests
+    pin the contract so the next reader does not have to re-derive which gate is
+    loose and which is not.
+    """
+
+    def test_configured_names_are_returned_without_consulting_the_catalogue(
+        self, db_mod
+    ):
+        import odoo.db
+
+        with (
+            patch.object(
+                odoo.tools,
+                "config",
+                {
+                    "list_db": True,
+                    "dbfilter": "",
+                    "db_name": ["definitely_not_a_db_xyz"],
+                },
+            ),
+            patch.object(odoo.db, "db_connect") as connect,
+        ):
+            assert db_mod.list_dbs(True) == ["definitely_not_a_db_xyz"]
+        connect.assert_not_called()
+
+    def test_check_db_exposed_admits_a_configured_name_that_no_longer_exists(
+        self, db_mod
+    ):
+        import odoo.db
+
+        with (
+            patch.object(
+                odoo.tools,
+                "config",
+                {
+                    "list_db": True,
+                    "dbfilter": "",
+                    "db_name": ["definitely_not_a_db_xyz"],
+                },
+            ),
+            patch.object(odoo.db, "db_connect") as connect,
+        ):
+            assert db_mod.check_db_exposed("definitely_not_a_db_xyz") is None
+            # ...and a real database that is NOT in -d is still refused.
+            with pytest.raises(odoo.exceptions.AccessDenied):
+                db_mod.check_db_exposed("some_other_real_db")
+        connect.assert_not_called()
+
+    def test_rpc_db_exist_does_not_inherit_that_looseness(self, db_mod):
+        """It ends at ``exp_db_exist``, which opens a connection, so a dead name
+        answers False even though it passes the membership test."""
+        import odoo.tools
+
+        with (
+            patch.object(
+                odoo.tools,
+                "config",
+                {
+                    "list_db": True,
+                    "dbfilter": "",
+                    "db_name": ["definitely_not_a_db_xyz"],
+                    "db_template": "template0",
+                },
+            ),
+            patch.object(db_mod.listing, "exp_db_exist", return_value=False) as exists,
+        ):
+            assert db_mod.listing._rpc_db_exist("definitely_not_a_db_xyz") is False
+        exists.assert_called_once_with("definitely_not_a_db_xyz")
+
+
 class TestExpDumpAllowlistGate:
     """``exp_dump`` refuses a source outside the allowlist before dumping."""
 

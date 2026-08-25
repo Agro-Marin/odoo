@@ -109,6 +109,24 @@ def _rpc_db_exist(db_name: str) -> bool:
 
 
 def list_dbs(force: bool = False) -> list[str]:
+    """Databases this instance is willing to expose.
+
+    Two paths, and the difference matters to callers:
+
+    * ``db_name`` set (``-d``) with no ``dbfilter`` -- the configured names are
+      returned VERBATIM.  The catalogue is never consulted, so a name whose
+      database was dropped (or never created) is still returned.  ``-d`` is an
+      operator ASSERTION about what this instance serves, not a check that it
+      exists; the fast path exists precisely so a pinned deployment needs no
+      connection to ``postgres`` to answer.
+    * otherwise -- the real catalogue, filtered to databases this PG role owns.
+
+    ``check_db_exposed`` gates on membership of this list, so on the first path
+    it admits a name whose database is gone; the operation behind it then fails
+    on its own when it cannot connect.  ``_rpc_db_exist`` does NOT inherit that
+    looseness: it ends at ``exp_db_exist``, which opens a connection, and so
+    answers ``False`` for a dead name either way.
+    """
     if not odoo.tools.config["list_db"] and not force:
         raise odoo.exceptions.AccessDenied
 
