@@ -1048,7 +1048,6 @@ class TestTimeBasedTriggers(TransactionCase):
         self.assertEqual(partner.phone, "Auto2")
 
     def test_cron_skips_inactive_automations(self):
-        """Test cron skips inactive automations."""
         _logger.info("Testing cron skips inactive automations")
 
         import datetime

@@ -941,7 +941,6 @@ record.write({
     # =========================================================================
 
     def test_automation_respects_company_context(self):
-        """Test automation respects company context."""
         model = self.env.ref("base.model_res_partner")
         automation = self.env["base.automation"].create(
             {
