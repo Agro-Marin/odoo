@@ -553,7 +553,7 @@ class CalendarEvent(models.Model):
         # stop and duration fields both depends on the start field.
         # But they also depends on each other.
         # When start is updated, we want to update the stop datetime based on
-        # the *current* duration. In other words, we want: change start => keep the duration fixed and
+        # the *current* duration. We want: change start => keep the duration fixed and
         # recompute stop accordingly.
         # However, while computing stop, duration is marked to be recomputed. Calling `event.duration` would trigger
         # its recomputation. To avoid this we manually mark the field as computed.
@@ -785,7 +785,7 @@ class CalendarEvent(models.Model):
         """
         This method sets the videocall_location to a discuss route.
         If no access_token exists for this event, we create one.
-        Note that recurring events will have different access_tokens.
+        Recurring events will have different access_tokens.
         This is done by design to prevent users not being able to join a discuss meeting because the base event of the recurrency was deleted.
         """
         if not self.access_token:
