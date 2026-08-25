@@ -59,7 +59,12 @@ class DictBackend:
             if row is not None:
                 row.update(values)
             else:
+                # Inserting an explicit id must carry the sequence past it, or a
+                # later insert_rows/next_id hands the same id out again and
+                # silently overwrites this row. `put_rows` has always done this;
+                # this branch is the other writer that can introduce an id.
                 tbl[id_] = {"id": id_, **values}
+                self._sequences[table] = max(self._sequences[table], id_)
 
     def delete_rows(self, table: str, ids: list[int]) -> None:
         tbl = self._tables.get(table)
