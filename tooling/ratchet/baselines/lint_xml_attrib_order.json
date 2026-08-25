@@ -1,4 +1,4 @@
 {
-  "count": 2455,
-  "note": "A baseline describes the COMMITTED tree. This said 2454, which is what another session's in-flight base/views audit (153 files, uncommitted) will measure -- it rode into 9e4caaae370 on a blanket `-- tooling/ratchet/baselines` pathspec, and left the gate red by one for everybody else in the meantime. HEAD measures 2455. When that audit lands it banks 2454 with the note it already wrote: \"dropping domain=[] from 362 group-by-only filters and normalising 66 optional=hidden values took one element into canonical attribute order.\""
+  "count": 2454,
+  "note": "base/views audit: dropping domain=\"[]\" from 362 group-by-only filters and normalising 66 optional=\"hidden\" values took one element into canonical attribute order. 2455 -> 2454.\n\nEarned by 1ffebf0efb9, which landed that audit and did not re-floor. The number had been round-tripping between 2454 and 2455 for a few hours while the audit was uncommitted and its baseline was not: a floor describes the COMMITTED tree, so 2455 was right while the audit was in flight and 2454 is right now that it has landed."
 }
