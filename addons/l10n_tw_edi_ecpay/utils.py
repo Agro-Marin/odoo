@@ -17,7 +17,7 @@ TIMEOUT = 20
 
 def transfer_time(time_before):
     ecpay_time = datetime.datetime.strptime(time_before, "%Y-%m-%d %H:%M:%S")
-    ecpay_time = ecpay_time.replace(tzinfo=timezone('Asia/Taipei'))
+    ecpay_time = ecpay_time.replace(tzinfo=timezone("Asia/Taipei"))
     return ecpay_time.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
 
@@ -50,7 +50,9 @@ def call_ecpay_api(endpoint, json_data, company_id, is_b2b=False):
     hashkey = company_id.sudo().l10n_tw_edi_ecpay_hashkey
     hashIV = company_id.sudo().l10n_tw_edi_ecpay_hashIV
     try:
-        cipher = Cipher(algorithms.AES(hashkey.encode('utf-8')), modes.CBC(hashIV.encode('utf-8')))
+        cipher = Cipher(
+            algorithms.AES(hashkey.encode("utf-8")), modes.CBC(hashIV.encode("utf-8"))
+        )
         # Encode the JSON string firstly then do AES encryption
         urlencode_data = urllib.parse.quote(json.dumps(json_data))
         encrypted_data = encrypt(urlencode_data, cipher)
@@ -59,20 +61,29 @@ def call_ecpay_api(endpoint, json_data, company_id, is_b2b=False):
             "RqHeader": {
                 "Timestamp": round(datetime.datetime.now().timestamp()),
             },
-            "Data": base64.b64encode(encrypted_data).decode('utf-8'),
+            "Data": base64.b64encode(encrypted_data).decode("utf-8"),
         }
-        response = requests.post(request_url + endpoint, json=json_body, timeout=TIMEOUT)
+        response = requests.post(
+            request_url + endpoint, json=json_body, timeout=TIMEOUT
+        )
         response_json = response.json()
         if response.status_code != 200:
             return {
                 "RtnCode": 0,
-                "RtnMsg": company_id.env._("ECPay API Error: %(error_message)s.", error_message=response_json.get("TransMsg")),
+                "RtnMsg": company_id.env._(
+                    "ECPay API Error: %(error_message)s.",
+                    error_message=response_json.get("TransMsg"),
+                ),
             }
 
         if not response_json.get("Data"):
             return {
                 "RtnCode": 0,
-                "RtnMsg": company_id.env._("ECPay API Error: %(error_message)s, Error Code: %(error_code)s", error_message=response_json.get("TransMsg"), error_code=response_json.get("TransCode")),
+                "RtnMsg": company_id.env._(
+                    "ECPay API Error: %(error_message)s, Error Code: %(error_code)s",
+                    error_message=response_json.get("TransMsg"),
+                    error_code=response_json.get("TransCode"),
+                ),
             }
         # AES decryption to the Data firstly then decode
         decrypted_response_data = decrypt(response_json["Data"], cipher)
@@ -80,11 +91,17 @@ def call_ecpay_api(endpoint, json_data, company_id, is_b2b=False):
         json_data = json.loads(unquoted_data)
     except ValueError as e:
         if "key" in str(e):
-            error_message = company_id.env._("ECPay API Error: Invalid Hashkey. Please check your ECPay configuration.")
+            error_message = company_id.env._(
+                "ECPay API Error: Invalid Hashkey. Please check your ECPay configuration."
+            )
         elif "IV" in str(e):
-            error_message = company_id.env._("ECPay API Error: Invalid HashIV. Please check your ECPay configuration.")
+            error_message = company_id.env._(
+                "ECPay API Error: Invalid HashIV. Please check your ECPay configuration."
+            )
         else:
-            error_message = company_id.env._("ECPay API Error: %(error_message)s", error_message=str(e))
+            error_message = company_id.env._(
+                "ECPay API Error: %(error_message)s", error_message=str(e)
+            )
         return {
             "RtnCode": 0,
             "RtnMsg": error_message,
