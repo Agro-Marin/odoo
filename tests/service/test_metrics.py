@@ -73,7 +73,7 @@ def parse_exposition(text: str) -> tuple[dict[str, str], list[str]]:
             continue
         name, labels = match.group(1), match.group(2)
         sampled.add(name)
-        base = name.removesuffix("_bucket").removesuffix("_sum")
+        base = name.removesuffix("_bucket").removesuffix("_sum").removesuffix("_count")
         if name not in declared and base not in declared:
             errors.append(f"{lineno}: sample {name} has no TYPE")
         errors.extend(
@@ -328,5 +328,101 @@ class TestPrometheusExposition:
         ):
             text = mod.render_prometheus()
         assert "odoo_up 1" in text
+        _, errors = parse_exposition(text)
+        assert not errors, errors
+
+
+class TestBorrowWaitHistogramFamily:
+    """``odoo_pool_borrow_wait_seconds`` is one histogram family, not three.
+
+    It used to be published as three independent families -- ``_sum`` and
+    ``_bucket`` as counters, ``_max`` as a gauge -- with no ``_count`` sample
+    and no ``# TYPE ... histogram`` line anywhere in the scrape.
+    ``histogram_quantile()`` still worked off the ``le`` buckets, so the gap
+    stayed invisible; what a client could not do was read the family AS a
+    histogram, which is what its name promises.
+    """
+
+    HEALTH = {
+        "pool": {
+            "borrows": 8,
+            "borrow_wait_seconds_total": 0.42,
+            "borrow_wait_seconds_max": 0.19,
+            "borrow_wait_seconds": {
+                "le_0.001": 4,
+                "le_0.01": 7,
+                "le_0.1": 8,
+                "le_1.0": 8,
+                "le_5.0": 8,
+                "le_30.0": 8,
+                "le_+Inf": 8,
+            },
+        },
+    }
+
+    def _render(self, mod):
+        exp = mod._Exposition({"pid": "1234"})
+        mod._add_pool_family(exp, "read_write", self.HEALTH)
+        return exp.render()
+
+    def test_the_family_is_declared_once_as_a_histogram(self, mod):
+        text = self._render(mod)
+        assert "# TYPE odoo_pool_borrow_wait_seconds histogram" in text
+        assert text.count("# TYPE odoo_pool_borrow_wait_seconds ") == 1
+        for suffix in ("_sum", "_bucket", "_count"):
+            assert f"# TYPE odoo_pool_borrow_wait_seconds{suffix} " not in text
+
+    def test_count_is_emitted_and_equals_the_inf_bucket(self, mod):
+        text = self._render(mod)
+        count = [
+            line
+            for line in text.splitlines()
+            if line.startswith("odoo_pool_borrow_wait_seconds_count")
+        ]
+        assert len(count) == 1
+        assert count[0].endswith(" 8")
+        inf = [
+            line
+            for line in text.splitlines()
+            if 'le="+Inf"' in line and "_bucket" in line
+        ]
+        assert inf[0].endswith(" 8")
+
+    def test_the_mean_wait_is_now_computable(self, mod):
+        """`_sum / _count` is the whole point of a histogram family; without a
+        ``_count`` sample the mean had to be reconstructed from an unrelated
+        counter."""
+        text = self._render(mod)
+        values = {}
+        for line in text.splitlines():
+            for suffix in ("_sum", "_count"):
+                head = f"odoo_pool_borrow_wait_seconds{suffix}"
+                if line.startswith(head + "{"):
+                    values[suffix] = float(line.rsplit(" ", 1)[1])
+        assert values["_sum"] / values["_count"] == pytest.approx(0.0525)
+
+    def test_max_stays_its_own_gauge_declared_before_the_histogram(self, mod):
+        """``_max`` is not a histogram suffix, so it keeps its own family -- and
+        must be declared before the histogram's samples start, or its TYPE line
+        would land in the middle of them."""
+        text = self._render(mod)
+        assert "# TYPE odoo_pool_borrow_wait_seconds_max gauge" in text
+        assert text.index(
+            "# TYPE odoo_pool_borrow_wait_seconds_max gauge"
+        ) < text.index("# TYPE odoo_pool_borrow_wait_seconds histogram")
+
+    def test_the_whole_scrape_still_parses(self, mod):
+        _, errors = parse_exposition(self._render(mod))
+        assert not errors, errors
+
+    def test_an_empty_bucket_map_still_emits_a_declared_family(self, mod):
+        exp = mod._Exposition({"pid": "1234"})
+        mod._add_pool_family(exp, "read_write", {"pool": {}})
+        text = exp.render()
+        assert "# TYPE odoo_pool_borrow_wait_seconds histogram" in text
+        assert (
+            'odoo_pool_borrow_wait_seconds_count{pid="1234",pool="read_write"} 0'
+            in text
+        )
         _, errors = parse_exposition(text)
         assert not errors, errors
