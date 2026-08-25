@@ -24,6 +24,7 @@ Run with::
     python -m pytest tests/service/test_threaded_lifecycle.py -v
 """
 
+import os
 import signal
 import threading
 import time
@@ -43,8 +44,14 @@ def server():
     ``psutil.Process``; every attribute it assigns is restated here, so a field
     added there without a matching line below fails loudly on first access
     rather than silently changing which branch a test takes.
+
+    That promise is now CHECKED — ``TestTheFixtureMatchesTheConstructor`` below
+    compares the two field sets.  It was false when the check was added:
+    ``__init__`` sets twelve attributes and this fixture restated eleven, having
+    missed ``pid``.  A docstring is not a gate.
     """
     s = object.__new__(_threaded.ThreadedServer)
+    s.pid = os.getpid()
     s.main_thread_id = threading.current_thread().ident
     s.quit_signals_received = 0
     s.httpd = None
@@ -282,3 +289,40 @@ class TestGracefulStop:
             t0 = time.monotonic()
             stopped()
         assert time.monotonic() - t0 < 5, "stop() did not bound its join loop"
+
+
+class TestTheFixtureMatchesTheConstructor:
+    """The ``server`` fixture claims to carry "exactly the fields ``__init__``
+    sets".  This is what makes that true.
+
+    Only fixtures that CLAIM parity are checked this way.  ``test_server.py``'s
+    ``prefork_server`` deliberately populates "only the attributes consumed by
+    the tested methods" and says so; asserting parity there would be asserting
+    the opposite of its design.
+    """
+
+    def test_the_field_sets_agree(self, server):
+        from unittest.mock import patch
+
+        from odoo.service import _base_server
+        from odoo.tools import config
+
+        config.parse_config([], setup_logging=False)
+        cfg = dict(config.options)
+        cfg.update({"http_interface": "", "http_port": 8069, "limit_time_real": 120})
+        with (
+            patch.object(_threaded, "config", cfg),
+            patch.object(_base_server, "config", cfg),
+        ):
+            real = _threaded.ThreadedServer(MagicMock())
+
+        missing = sorted(set(vars(real)) - set(vars(server)))
+        extra = sorted(set(vars(server)) - set(vars(real)))
+        assert not missing and not extra, (
+            "the `server` fixture has drifted from the constructor it stands in "
+            f"for.\n  set by __init__ but absent from the fixture: {missing}\n"
+            f"  in the fixture but never set by __init__:    {extra}\n"
+            "Either restate the field, or drop the parity claim from the "
+            "fixture's docstring and let it be a minimal stand-in like "
+            "test_server.py's prefork_server."
+        )
