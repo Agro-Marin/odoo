@@ -150,7 +150,7 @@ class PosOrder(models.Model):
         return computed_hash
 
     def _compute_hash(self, previous_hash):
-        """Computes the hash of the browse_record given as self, based on the hash
+        """Computes the hash of the record given as self, based on the hash
         of the previous record in the company's securisation sequence given as parameter"""
         self.ensure_one()
         hash_string = sha256(
