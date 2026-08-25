@@ -4834,7 +4834,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
         - Create an allocation that uses the above accrual plan:
             - Starts on 01/01/2023
         - First carryover date 01/04/2024. The carried over days will expire in 5 months.
-        - The expiration date should be 01/09/2024 and not 01/06/2024. In other words, the expiration date
+        - The expiration date should be 01/09/2024 and not 01/06/2024. The expiration date
           should be computed using the first level's validity period and not the second level's expiration period.
         """
         accrual_plan = (

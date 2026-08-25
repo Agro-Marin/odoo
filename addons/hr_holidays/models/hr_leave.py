@@ -1719,7 +1719,6 @@ Versions:
         E.g. (start, stop) -> (start, split_date_from - 1day), (split_date_to, stop)
         :param split_date_from: The starting date of the splicing interval (includes)
         :param split_date_to: The ending date of the splicing interval. (not includes)
-        :param changes_message: The message will be translated and posted in the first leave's chatter
 
         If split_date_to is not set; the splicing interval will be equals to [split_date_form, split_date_from -1]
         to avoid one day leave.

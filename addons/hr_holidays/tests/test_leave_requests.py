@@ -1786,7 +1786,7 @@ class TestLeaveRequests(TestHrHolidaysCommon):
         self.assertEqual(time_off.number_of_days, 0)
 
     def test_time_off_irregular_working_schedule(self):
-        # Test a specific case where `_get_attendances` bugged out when a
+        # Test a specific case that bugged out when a
         # very specific working schedule was used.
         calendar = self.env["resource.calendar"].create(
             {
