@@ -40,8 +40,8 @@ class AccountMove(models.Model):
         # the install of `l10n_cl` would call the compute method,
         # because `l10n_latam_invoice_document` would be installed at the same time,
         # but then `l10n_ar` would miss it, because `l10n_latam_invoice_document` would already be installed.
-        # Besides, this field is computed only for drafts invoices, as stated in the compute method:
-        # `for rec in self.filtered(lambda x: x.state == 'draft'):`
+        # Besides, this field is computed only for drafts invoices, per the filter
+        # in `_compute_l10n_latam_document_type_id` below.
         # So, if we want this field to be computed on install, it must be done only on draft invoices, and only once
         # the localization modules are loaded.
         # It should be done in a dedicated post init hook,
