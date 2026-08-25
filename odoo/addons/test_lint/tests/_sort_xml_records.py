@@ -7,6 +7,11 @@ from pathlib import Path
 from lxml import etree
 
 try:
+    from ._xml_identity import preserves_content
+except ImportError:  # run as a script: `python _sort_xml_records.py <roots>`
+    from _xml_identity import preserves_content
+
+try:
     from . import _pretty_xml
 except ImportError:
     import _pretty_xml
@@ -243,17 +248,28 @@ def sort_xml_file(
     if not was_modified:
         return False
 
+    buf = BytesIO()
+    tree.write(buf, xml_declaration=False, encoding="utf-8", pretty_print=False)
+    body = buf.getvalue()
+
+    had_decl = source.lstrip().startswith(b"<?xml")
+    new_content = (_XML_DECL + b"\n" + body) if had_decl else body
+
+    if source.endswith(b"\n") and not new_content.endswith(b"\n"):
+        new_content += b"\n"
+
+    # The sorter used to write whatever lxml serialised, with no check at all --
+    # `_pretty_xml` refused an unfaithful rewrite and this did not, though this is
+    # the fixer that MOVES elements. Its invariant is order-INSENSITIVE, since
+    # reordering is the job: the same elements, attributes and words come out.
+    if not preserves_content(source, new_content):
+        print(
+            f"  SKIP  {path}: the sorted output would not say the same thing",
+            file=sys.stderr,
+        )
+        return None
+
     if not dry_run:
-        buf = BytesIO()
-        tree.write(buf, xml_declaration=False, encoding="utf-8", pretty_print=False)
-        body = buf.getvalue()
-
-        had_decl = source.lstrip().startswith(b"<?xml")
-        new_content = (_XML_DECL + b"\n" + body) if had_decl else body
-
-        if source.endswith(b"\n") and not new_content.endswith(b"\n"):
-            new_content += b"\n"
-
         path.write_bytes(new_content)
 
     return True

@@ -9,11 +9,16 @@ from lxml import etree
 from odoo.modules import Manifest
 from odoo.tests.common import BaseCase, no_retry
 
-from . import _pretty_xml, _sort_manifests, _sort_xml_records
+from . import (
+    _pretty_xml,
+    _sort_manifests,
+    _sort_xml_records,
+    _xml_identity,
+    _xml_sweep,
+)
 from .lint_case import (
     LintCase,
     core_data_files,
-    core_root,
     core_xml_files,
     is_core_path,
 )
@@ -21,6 +26,7 @@ from .lint_case import (
 _PARSER = etree.XMLParser(remove_comments=False, strip_cdata=False)
 
 DECLINED_BY_THE_FORMATTER: list[str] = []
+DECLINED_BY_THE_SORTER: list[str] = []
 
 
 def _semantic(xml: bytes) -> bytes:
@@ -47,16 +53,6 @@ def _shape(xml: bytes) -> list[tuple]:
 
     walk(root, 0)
     return sorted(out)
-
-
-def _words(xml: bytes) -> list[str]:
-    root = etree.fromstring(xml)
-    return sorted(
-        word
-        for element in root.iter()
-        for chunk in ((element.text or ""), (element.tail or ""))
-        for word in chunk.split()
-    )
 
 
 @no_retry
@@ -127,10 +123,10 @@ for record in self:
     def test_the_faithfulness_check_sees_a_reindented_preserve_block(self):
         original = b"<odoo><t><pre>\nfor x in y:\n    z(x)\n</pre></t></odoo>"
         flattened = b"<odoo><t><pre>\nfor x in y:\nz(x)\n</pre></t></odoo>"
-        self.assertFalse(_pretty_xml._is_faithful(original, flattened))
+        self.assertFalse(_xml_identity.is_faithful(original, flattened))
         prose = b"<odoo><t><p>one\n   two</p></t></odoo>"
         rewrapped = b"<odoo><t><p>one\n      two</p></t></odoo>"
-        self.assertTrue(_pretty_xml._is_faithful(prose, rewrapped))
+        self.assertTrue(_xml_identity.is_faithful(prose, rewrapped))
 
     def test_text_between_children_survives(self):
         out = self._format("""
@@ -321,7 +317,7 @@ for record in self:
         rebuilt = path.read_text()
 
         self.assertTrue(
-            _pretty_xml._is_faithful(document, rebuilt.encode()),
+            _xml_identity.is_faithful(document, rebuilt.encode()),
             "the formatter's own output must read as faithful",
         )
         for label, prefix in (
@@ -336,7 +332,7 @@ for record in self:
                 mutated = "\n".join(lines).encode()
                 self.assertNotEqual(mutated, rebuilt.encode(), f"{label} not dropped")
                 self.assertFalse(
-                    _pretty_xml._is_faithful(document, mutated),
+                    _xml_identity.is_faithful(document, mutated),
                     f"losing {label} must not read as a faithful rewrite",
                 )
 
@@ -415,88 +411,61 @@ class TestSortXmlRecords(BaseCase):
 
 @no_retry
 class TestFixersOverTheRepository(LintCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.data_files = [
-            path
-            for path in map(Path, core_xml_files())
-            if _pretty_xml.is_formattable(path)
-        ]
+    """Both fixers, over every core data file, in one pass each.
 
-    def _run_over_the_tree(self, fixer, *, twice: bool = False):
-        offences, declined, unsettled = [], [], []
-        with tempfile.TemporaryDirectory() as tmp:
-            for index, source in enumerate(self.data_files):
-                original = source.read_bytes()
-                try:
-                    before_shape, before_words = _shape(original), _words(original)
-                except etree.XMLSyntaxError:
-                    continue
-                target = Path(tmp) / f"{index}.xml"
-                target.write_bytes(original)
-                if fixer(target) is None:
-                    declined.append(str(source.relative_to(core_root())))
-                    continue
-                once = target.read_bytes()
-                try:
-                    after_shape, after_words = _shape(once), _words(once)
-                except etree.XMLSyntaxError as exc:
-                    offences.append(f"{source}: does not parse after the pass ({exc})")
-                    continue
-                if before_shape != after_shape:
-                    offences.append(
-                        f"{source}: {len(before_shape)} element(s) before, "
-                        f"{len(after_shape)} after, or an attribute changed"
-                    )
-                elif before_words != after_words:
-                    lost = sorted(set(before_words) - set(after_words))[:5]
-                    offences.append(f"{source}: text changed, e.g. lost {lost}")
-                if twice and fixer(target) and target.read_bytes() != once:
-                    unsettled.append(str(source))
-        return offences, declined, unsettled
+    What this used to assert with `_shape` and `_words` -- sorted projections of
+    the element tree and its text -- is now `_xml_identity.comparable`, which
+    both fixers already refuse to write against. The projections were strictly
+    weaker in every direction but one (attribute-value whitespace), and that one
+    is folded into the shared definition, so re-deriving them here bought
+    nothing: `format_xml_file` cannot return True for output the check rejects.
+    Proven by mutation -- a formatter made to swallow comments was caught 143
+    times by the identity check and 0 times by `_shape`/`_words`.
+    """
 
     def test_the_scan_reaches_the_data_files(self):
         self.assertGreater(
-            len(self.data_files), 3000, "the scan reached almost nothing"
+            _xml_sweep.formatter_sweep().checked,
+            3000,
+            "the scan reached almost nothing",
         )
 
-    def test_the_formatter_preserves_every_data_file(self):
-        offences, declined, unsettled = self._run_over_the_tree(
-            _pretty_xml.format_xml_file, twice=True
-        )
+    def test_the_formatter_settles_on_every_data_file(self):
+        sweep = _xml_sweep.formatter_sweep()
         self.assertFalse(
-            offences,
-            f"{len(offences)} file(s) did not survive a formatting pass:\n  "
-            + "\n  ".join(offences[:40]),
-        )
-        self.assertFalse(
-            unsettled,
-            f"{len(unsettled)} file(s) change again on a second pass, so the "
-            f"gate can never go green on them:\n  " + "\n  ".join(unsettled[:40]),
+            sweep.unsettled,
+            f"{len(sweep.unsettled)} file(s) change again on a second pass, so "
+            f"the gate can never go green on them:\n  "
+            + "\n  ".join(sweep.unsettled[:40]),
         )
         self.assertEqual(
-            sorted(declined),
+            sorted(sweep.declined),
             sorted(DECLINED_BY_THE_FORMATTER),
             "the set of files the formatter refuses has moved. A new entry is a "
             "file it can no longer reproduce faithfully -- which is safe, but it "
             "is also a file the gate will never be able to report on.",
         )
 
-    def test_the_record_sorter_preserves_every_data_file(self):
-        offences, _declined, _unsettled = self._run_over_the_tree(
-            _sort_xml_records.sort_xml_file
+    def test_the_record_sorter_settles_on_every_data_file(self):
+        sweep = _xml_sweep.sorter_sweep()
+        self.assertEqual(
+            sorted(sweep.declined),
+            sorted(DECLINED_BY_THE_SORTER),
+            "the sorter refused a file. Until this change it had no faithfulness "
+            "check at all and wrote whatever lxml serialised -- though it is the "
+            "fixer that MOVES elements -- so a refusal here is new information, "
+            "not a regression.",
         )
         self.assertFalse(
-            offences,
-            f"{len(offences)} file(s) lost or gained content while being "
-            f"sorted:\n  " + "\n  ".join(offences[:40]),
+            sweep.unsettled,
+            f"{len(sweep.unsettled)} file(s) sort differently on a second pass:\n  "
+            + "\n  ".join(sweep.unsettled[:40]),
         )
 
     def test_the_two_fixers_agree_on_the_order_they_run_in(self):
         with tempfile.TemporaryDirectory() as tmp:
             disagreeing = []
-            for index, source in enumerate(self.data_files[:400]):
+            for index, source in enumerate(core_data_files()[:400]):
                 a = Path(tmp) / f"a{index}.xml"
                 a.write_bytes(source.read_bytes())
                 _sort_xml_records.sort_xml_file(a)
@@ -711,9 +680,7 @@ class TestFixerScope(LintCase):
         self.assertTrue(_pretty_xml.is_formattable(Path("/a/account/views/x.xml")))
 
     def test_the_cli_and_the_lint_test_select_the_same_files(self):
-        from .test_pretty_xml import PrettyXmlLinter
-
-        lint_selection = {str(path) for path in PrettyXmlLinter._files(self)}
+        lint_selection = {str(path) for path in core_data_files()}
         cli_selection = {
             path for path in core_xml_files() if _pretty_xml.is_formattable(Path(path))
         }
@@ -725,13 +692,30 @@ class TestFixerScope(LintCase):
         )
 
     def test_both_xml_gates_own_the_same_files_as_both_fixers(self):
-        from .test_pretty_xml import PrettyXmlLinter
         from .test_xml_records import XmlRecordLinter
 
         shared = {str(path) for path in core_data_files()}
         self.assertTrue(shared, "the shared selection reached no data files")
-        self.assertEqual({str(p) for p in PrettyXmlLinter._files(self)}, shared)
         self.assertEqual({str(p) for p in XmlRecordLinter.scanned_files()}, shared)
+        self.assertEqual(
+            _xml_sweep.formatter_sweep().checked
+            + len(_xml_sweep.formatter_sweep().unparseable),
+            len(shared),
+            "the formatter sweep and the shared selection disagree",
+        )
+
+    def test_no_fixture_directory_is_selected_as_data(self):
+        """A fixture is not a data file, and canonicalising one is a defect.
+
+        271 of the 3641 units this gate's floor used to carry lived under a
+        tests/ directory, including l10n_it_edi's deliberately malformed EDI
+        samples -- one of which does not parse at all. No manifest names a data
+        or demo file under tests/, so nothing that loads is lost.
+        """
+        self.assertFalse(
+            [str(path) for path in core_data_files() if "tests" in path.parts],
+            "a tests/ fixture is being held to the data-file conventions",
+        )
 
     def test_the_cli_walk_selects_what_the_gate_reports(self):
         with tempfile.TemporaryDirectory() as tmp:

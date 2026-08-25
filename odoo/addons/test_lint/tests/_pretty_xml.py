@@ -6,7 +6,12 @@ from pathlib import Path
 
 from lxml import etree
 
-_PARSER = etree.XMLParser(remove_comments=False, strip_cdata=False)
+try:
+    from ._xml_identity import PARSER as _PARSER
+    from ._xml_identity import is_faithful
+except ImportError:  # run as a script: `python _pretty_xml.py <roots>`
+    from _xml_identity import PARSER as _PARSER
+    from _xml_identity import is_faithful
 
 _INDENT = "    "
 
@@ -18,7 +23,14 @@ _OPAQUE_TAGS: frozenset[str] = frozenset({"template"})
 
 _PRESERVE_TAGS: frozenset[str] = frozenset({"pre", "textarea"})
 
-EXCLUDED_DIRS: frozenset[str] = frozenset({"_vendor", "static", "node_modules"})
+#: `tests` is here because a fixture is not a data file. 281 of the XML files
+#: this used to select live under a tests/ directory, 271 of them unformatted,
+#: and canonicalising one changes what its test asserts -- l10n_it_edi's EDI
+#: samples are deliberately malformed, and one of them does not parse at all. No
+#: manifest names a data or demo file under tests/, so nothing that loads is lost.
+EXCLUDED_DIRS: frozenset[str] = frozenset(
+    {"_vendor", "static", "node_modules", "tests"}
+)
 
 
 def is_formattable(path: Path) -> bool:
@@ -388,63 +400,6 @@ def _format_children(
     return lines
 
 
-_XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
-
-
-def _preserves_space(element) -> bool:
-    return element.tag in _PRESERVE_TAGS or element.get(_XML_SPACE) == "preserve"
-
-
-def _comparable(source: bytes) -> list:
-
-    def squeeze(value: str | None) -> str:
-        return " ".join((value or "").split())
-
-    out: list = []
-
-    def walk(element, depth: int, preserve: bool = False) -> None:
-        keep = preserve or (not callable(element.tag) and _preserves_space(element))
-        text = (element.text or "") if keep else squeeze(element.text)
-        if callable(element.tag):
-            out.append((depth, "#text-node", text))
-        else:
-            out.append(
-                (
-                    depth,
-                    element.tag,
-                    tuple(sorted((k, squeeze(v)) for k, v in element.attrib.items())),
-                    tuple(sorted(element.nsmap.items(), key=lambda kv: kv[0] or "")),
-                    text,
-                )
-            )
-        for child in element:
-            walk(child, depth + 1, keep)
-        tail = (element.tail or "") if preserve else squeeze(element.tail)
-        out.append((depth, "#tail", tail))
-
-    tree = etree.parse(BytesIO(source), _PARSER)
-    root = tree.getroot()
-    prologue: list = [
-        source.lstrip().startswith(b"<?xml"),
-        tree.docinfo.doctype,
-    ]
-    node = root.getprevious()
-    while node is not None:
-        prologue.append(("#comment" if callable(node.tag) else node.tag, node.text))
-        node = node.getprevious()
-    out.append(("#prologue", tuple(prologue)))
-
-    walk(root, 0)
-    return out
-
-
-def _is_faithful(source: bytes, formatted: bytes) -> bool:
-    try:
-        return _comparable(source) == _comparable(formatted)
-    except etree.LxmlError:
-        return False
-
-
 def format_xml_file(
     path: Path,
     *,
@@ -486,7 +441,7 @@ def format_xml_file(
     if new_bytes == source:
         return False
 
-    if not _is_faithful(source, new_bytes):
+    if not is_faithful(source, new_bytes):
         print(
             f"  SKIP  {path}: the formatted output would not say the same thing",
             file=sys.stderr,
