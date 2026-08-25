@@ -121,6 +121,48 @@ def service_metrics() -> dict[str, Any]:
     return out
 
 
+def _add_borrow_wait_histogram(exp: _Exposition, mode: str, stats: dict) -> None:
+    """The borrow-wait family: one gauge, then one histogram.
+
+    Split out of ``_add_pool_family`` because it is the only part of that
+    function that emits a multi-sample family rather than one metric per entry
+    of a table, and it is the part whose ordering matters.
+    """
+    label = {"pool": mode}
+
+    # Its own family: ``_max`` is not a histogram suffix, so it is declared
+    # first, before the histogram's samples begin -- otherwise its TYPE line
+    # lands in the middle of them.
+    exp.add(
+        "odoo_pool_borrow_wait_seconds_max",
+        stats.get("borrow_wait_seconds_max", 0.0),
+        help="Longest single borrow wait observed.",
+        labels=label,
+    )
+
+    buckets = stats.get("borrow_wait_seconds") or {}
+    exp.declare(
+        _BORROW_WAIT,
+        "histogram",
+        help="Time borrows spent waiting for a connection.",
+    )
+    for edge, count in buckets.items():
+        exp.sample(
+            f"{_BORROW_WAIT}_bucket",
+            count,
+            labels={"pool": mode, "le": edge.removeprefix("le_")},
+        )
+    exp.sample(
+        f"{_BORROW_WAIT}_sum",
+        stats.get("borrow_wait_seconds_total", 0.0),
+        labels=label,
+    )
+    # The ``+Inf`` bucket IS the observation count, and it comes from the same
+    # snapshot as the rest -- so the mean cannot skew the way it would against a
+    # separately-read counter.
+    exp.sample(f"{_BORROW_WAIT}_count", buckets.get("le_+Inf", 0), labels=label)
+
+
 def _add_pool_family(exp: _Exposition, mode: str, health: dict) -> None:
     counters = {
         "borrows": ("odoo_pool_borrows_total", "Connections borrowed from the pool."),
@@ -213,36 +255,7 @@ def _add_pool_family(exp: _Exposition, mode: str, health: dict) -> None:
             labels=label,
         )
 
-    # Its own family: ``_max`` is not a histogram suffix, so it is declared
-    # first, before the histogram's samples begin.
-    exp.add(
-        "odoo_pool_borrow_wait_seconds_max",
-        stats.get("borrow_wait_seconds_max", 0.0),
-        help="Longest single borrow wait observed.",
-        labels=label,
-    )
-
-    buckets = stats.get("borrow_wait_seconds") or {}
-    exp.declare(
-        _BORROW_WAIT,
-        "histogram",
-        help="Time borrows spent waiting for a connection.",
-    )
-    for edge, count in buckets.items():
-        exp.sample(
-            f"{_BORROW_WAIT}_bucket",
-            count,
-            labels={"pool": mode, "le": edge.removeprefix("le_")},
-        )
-    exp.sample(
-        f"{_BORROW_WAIT}_sum",
-        stats.get("borrow_wait_seconds_total", 0.0),
-        labels=label,
-    )
-    # The ``+Inf`` bucket IS the observation count, and it comes from the same
-    # snapshot as the rest -- so the mean cannot skew the way it would against a
-    # separately-read counter.
-    exp.sample(f"{_BORROW_WAIT}_count", buckets.get("le_+Inf", 0), labels=label)
+    _add_borrow_wait_histogram(exp, mode, stats)
 
     for database, per_db in (health.get("per_database") or {}).items():
         for key, value in (per_db or {}).items():
