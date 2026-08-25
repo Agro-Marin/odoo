@@ -35,7 +35,6 @@ class Browser:
         :param url: URL to open in the browser
         :param _x_screen: X screen number
         :param env: Environment variables (e.g. os.environ.copy())
-        :param kiosk: Whether the browser should be in kiosk mode
         """
         self.url = url
         self.browser = "chromium"
