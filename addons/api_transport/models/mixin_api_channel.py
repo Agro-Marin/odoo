@@ -65,7 +65,7 @@ class MixinApiChannel(models.AbstractModel):
         help="Timestamp of most recent activity (request received or sent)",
     )
 
-    @api.constrains("rate_limit_requests")
+    @api.constrains("rate_limit_requests", "rate_limit_enabled")
     def _check_rate_limit_requests(self):
         for record in self:
             if record.rate_limit_enabled and record.rate_limit_requests <= 0:
@@ -73,7 +73,7 @@ class MixinApiChannel(models.AbstractModel):
                     self.env._("Rate limit requests must be greater than 0"),
                 )
 
-    @api.constrains("retry_max_attempts")
+    @api.constrains("retry_max_attempts", "retry_enabled")
     def _check_retry_max_attempts(self):
         for record in self:
             if record.retry_enabled and record.retry_max_attempts <= 0:
@@ -81,7 +81,7 @@ class MixinApiChannel(models.AbstractModel):
                     self.env._("Max retry attempts must be greater than 0"),
                 )
 
-    @api.constrains("retry_initial_delay")
+    @api.constrains("retry_initial_delay", "retry_enabled")
     def _check_retry_initial_delay(self):
         for record in self:
             if record.retry_enabled and record.retry_initial_delay <= 0:
