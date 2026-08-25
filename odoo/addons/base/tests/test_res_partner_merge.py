@@ -491,3 +491,83 @@ class TestMergePartnerGroupSize(TransactionCase):
         wizard = self.Wizard.create({"group_by_parent_id": True})
         with self.assertRaises(UserError):
             wizard.action_start_manual_process()
+
+
+class TestMergePartnerDefaultsCache(TransactionCase):
+    """The merge repoints `ir.default` rows with raw SQL, so it must say so.
+
+    `ir.default`'s reads are ormcached and `flush_all` only pushes pending
+    writes out -- it does not drop what was already read. The wizard unlinks
+    the source right after repointing, so a default left holding the source id
+    hands the next record created in this process a many2one pointing at a row
+    that no longer exists.
+    """
+
+    def _company_dependent_m2o(self):
+        model = self.env["ir.model"].sudo().search([("model", "=", "res.partner")])
+        self.env["ir.model.fields"].sudo().create(
+            {
+                "name": "x_merge_default_probe",
+                "field_description": "Merge Default Probe",
+                "model_id": model.id,
+                "ttype": "many2one",
+                "relation": "res.partner",
+                "company_dependent": True,
+                "state": "manual",
+            }
+        )
+        self.env.flush_all()
+        self.env.registry._setup_models__(self.env.cr, [])
+        return "x_merge_default_probe"
+
+    def test_a_repointed_default_is_not_served_from_cache(self):
+        fname = self._company_dependent_m2o()
+        Partner = self.env["res.partner"]
+        src = Partner.create({"name": "dflt src", "email": "dflt@example.com"})
+        dst = Partner.create({"name": "dflt dst", "email": "dflt@example.com"})
+
+        self.env["ir.default"].set(
+            "res.partner", fname, src.id, company_id=self.env.company.id
+        )
+        self.env.flush_all()
+        self.assertEqual(
+            self.env["ir.default"]._get_model_defaults("res.partner").get(fname),
+            src.id,
+            "the default must start out pointing at the source",
+        )
+
+        self.env["base.partner.merge.automatic.wizard"].create({})._merge(
+            [src.id, dst.id], dst
+        )
+        self.env.flush_all()
+
+        self.assertFalse(src.exists(), "the wizard deletes the source")
+        self.assertEqual(
+            self.env["ir.default"]._get_model_defaults("res.partner").get(fname),
+            dst.id,
+            "the cached default must follow the merge, not keep the dead id",
+        )
+
+    def test_a_record_created_after_the_merge_gets_a_live_default(self):
+        fname = self._company_dependent_m2o()
+        Partner = self.env["res.partner"]
+        src = Partner.create({"name": "live src", "email": "live@example.com"})
+        dst = Partner.create({"name": "live dst", "email": "live@example.com"})
+        self.env["ir.default"].set(
+            "res.partner", fname, src.id, company_id=self.env.company.id
+        )
+        self.env.flush_all()
+        self.env["ir.default"]._get_model_defaults("res.partner")
+
+        self.env["base.partner.merge.automatic.wizard"].create({})._merge(
+            [src.id, dst.id], dst
+        )
+        self.env.flush_all()
+
+        fresh = Partner.create({"name": "created after the merge"})
+        default = fresh[fname]
+        self.assertTrue(
+            default.exists(),
+            "a record created after the merge must not default to a deleted partner",
+        )
+        self.assertEqual(default, dst)
