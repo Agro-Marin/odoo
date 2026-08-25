@@ -52,7 +52,6 @@ class BaseGeocoder(models.AbstractModel):
         """
         provider = self._get_provider().tech_name
         if hasattr(self, "_geo_query_address_" + provider):
-            # Makes the transformation defined for provider
             return getattr(self, "_geo_query_address_" + provider)(
                 street, zip_code, city, state, country
             )
@@ -92,7 +91,7 @@ class BaseGeocoder(models.AbstractModel):
     def _call_openstreetmap(self, addr, **kw):
         """
         Use Openstreemap Nominatim service to retrieve location
-        :return: (latitude, longitude) or None if not found
+        :return: (latitude, longitude), or None only when addr is empty; raises if the provider returns zero results
         """
         if not addr:
             _logger.info("invalid address given")
@@ -124,7 +123,7 @@ class BaseGeocoder(models.AbstractModel):
         Use Openstreemap Nominatim service to retrieve location from latitude and longitude
         :param lat: Latitude
         :param lon: Longitude
-        :return: Address string or None if not found
+        :return: parsed JSON response (dict) from the Nominatim reverse endpoint, or None if lat/lon are missing
 
         """
         if not (lat and lon):
