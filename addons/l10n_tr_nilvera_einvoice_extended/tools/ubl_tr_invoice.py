@@ -1,5 +1,5 @@
 # The Invoice dict defines the structure of a UBL TR Invoice, with all nodes in the correct order.
-# It can be passed as the `template` argument to `clean_dict_nodes` and then  `dict_to_xml` to
+# It can be passed as the `template` argument to `clean_node_dict` and then  `dict_to_xml` to
 # enforce the order of nodes. The TR Invoice dict is a created as a seperate dict than the UBL 2.1
 # and cleaned, since Turkey follows UBL 1.2.
 
