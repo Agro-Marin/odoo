@@ -202,3 +202,26 @@ def test_the_cors_preflight_is_also_bodyless():
 
 def test_the_abstract_dispatcher_still_declares_no_expose_headers():
     assert not hasattr(Dispatcher, "cors_expose_headers")
+
+
+def test_cors_methods_resolves_each_step_with_is_none():
+    """`Access-Control-Allow-Methods` must not widen an empty declaration.
+
+    The old `dispatcher_methods or routing["methods"] or CORS_DEFAULT` chain read
+    an EMPTY collection as "not set" and fell through, so a dispatcher or route
+    that exposes no methods over CORS advertised GET, POST instead.
+    """
+    from odoo.http.constants import CORS_DEFAULT_ALLOWED_METHODS
+    from odoo.http.dispatcher import _cors_methods
+
+    # nothing declared anywhere -> the CORS default
+    assert tuple(_cors_methods(None, {})) == tuple(CORS_DEFAULT_ALLOWED_METHODS)
+    assert tuple(_cors_methods(None, {"methods": None})) == tuple(
+        CORS_DEFAULT_ALLOWED_METHODS
+    )
+    # an empty declaration is honoured at either level, not widened
+    assert tuple(_cors_methods((), {"methods": ("PUT",)})) == ()
+    assert tuple(_cors_methods(None, {"methods": ()})) == ()
+    # a real declaration still wins, dispatcher over route
+    assert tuple(_cors_methods(("POST",), {"methods": ("PUT",)})) == ("POST",)
+    assert tuple(_cors_methods(None, {"methods": ("PUT",)})) == ("PUT",)
