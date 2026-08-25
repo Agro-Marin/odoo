@@ -847,7 +847,7 @@ class AccountEdiUBL(models.AbstractModel):
         - a total amount of 114.95
 
         In the UBL, an allowance is added with an amount of 5 and 21% tax applied on it plus a charge with an amount of 5.
-        Basically, it's like you had a discount on the full amount but we put back the discount you get on the base as a charge
+        It's like you had a discount on the full amount but we put back the discount you get on the base as a charge
         to only get the discount regarding the tax amount.
 
         :param vals:        Some custom data.
