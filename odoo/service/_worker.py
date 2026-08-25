@@ -106,12 +106,10 @@ class Worker:
         )
 
     def sleep(self) -> None:
-        try:
-            self._selector.select(timeout=self.multi.beat)
-            empty_pipe(self.wakeup_fd_r)
-        except OSError as e:
-            if e.args[0] != errno.EINTR:
-                raise
+        # No EINTR guard: see PreforkServer.sleep.  Since PEP 475 neither
+        # ``select`` nor ``os.read`` raises EINTR; they retry internally.
+        self._selector.select(timeout=self.multi.beat)
+        empty_pipe(self.wakeup_fd_r)
 
     def check_limits(self) -> None:
         if self.ppid != os.getppid():
@@ -295,13 +293,11 @@ class WorkerCron(Worker):
             if self.watchdog_timeout:
                 interval = min(interval, max(self.watchdog_timeout / 2, 1))
 
-            try:
-                self._pg_selector.select(timeout=interval)
-                time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
-                empty_pipe(self.wakeup_fd_r)
-            except OSError as e:
-                if e.args[0] != errno.EINTR:
-                    raise
+            # No EINTR guard: see PreforkServer.sleep.  ``time.sleep`` is
+            # covered by PEP 475 too -- it resumes for the remaining duration.
+            self._pg_selector.select(timeout=interval)
+            time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
+            empty_pipe(self.wakeup_fd_r)
 
     def check_limits(self) -> None:
         super().check_limits()
