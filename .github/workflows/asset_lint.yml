@@ -46,6 +46,13 @@ name: Asset & Palette Lint (DB-backed)
 # (project.webclient's theme globs, web_enterprise's navbar) are not reachable
 # from this repo and stay a manual check.
 #
+# TestBundlesAssemble and TestSetupBundleHasNoTests were in NEITHER lane's wide
+# scope: they ran only under test_lint.yml, where TestBundlesAssemble logs its own
+# verdict -- "22 of 118 declared bundle(s) resolve their own relative imports; the
+# rest belong to modules not installed at this scope and are checked by nothing".
+# Here it is 50 of 118. Both are green at this INSTALL, which is why they are
+# added rather than proposed.
+#
 # TestSchemeDuplication is here for that same reason, and was not: its floors are
 # per module -- 26 of them, mail 58, html_editor 28, website 19 -- and a module
 # that is not installed contributes nothing to measure, so every floor but web's
@@ -93,9 +100,17 @@ env:
   # registry, so a bundle whose module is not installed is a bundle the sweep
   # cannot see. `/web/bundle/spreadsheet.o_spreadsheet` served HTTP 500 for
   # nine days behind exactly that gap.
+  # Widened by the ten modules TestSchemeDuplication's floors name and this set
+  # lacked. Without them the gate SKIPS -- its floors are per module, and one
+  # over a module nobody installed describes an absence, which is not a pass.
+  # Re-measured with them present, its floors summed to 306 against a tree that
+  # reads 227: 79 units of headroom it could never fail on, `web` alone 136
+  # against 91. The floors say what this set measures now.
   INSTALL: >-
     web,mail,portal,project,im_livechat,website,
-    point_of_sale,hr_attendance,mrp_subcontracting,spreadsheet,test_lint
+    point_of_sale,hr_attendance,mrp_subcontracting,spreadsheet,test_lint,
+    base_automation,calendar,documents,event,hr_gamification,hr_recruitment,
+    hr_skills_slides,sale,survey,website_sale
   TEST_TAGS: >-
     /test_lint:TestAssetPathsExist,
     /test_lint:TestBundleTokenDefs,
@@ -104,6 +119,8 @@ env:
     /test_lint:TestGreyRampToken,
     /test_lint:TestColorSchemeReads,
     /test_lint:TestSchemeDuplication,
+    /test_lint:TestBundlesAssemble,
+    /test_lint:TestSetupBundleHasNoTests,
     /web:TestDarkBundles,
     /web:TestTokenLayer,
     /web:TestLazyBundleRelativeImports,

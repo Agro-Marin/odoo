@@ -32,7 +32,8 @@ class TestPythonLint(LintCase):
                         key=lambda finding: finding.sort_key,
                     ),
                     rule.gate,
-                    f"{rule.name} finding(s)",
+                    f"{rule.name} finding(s)"
+                    + (f" [{rule.code}]" if rule.code else ""),
                     f"{rule.advice}.",
                 )
 

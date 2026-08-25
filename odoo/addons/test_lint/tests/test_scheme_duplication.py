@@ -28,34 +28,47 @@ _KEYWORDS = {
     "#fff": "#ffffff",
 }
 
+#: Per module, the declarations a light bundle under `data-color-scheme="dark"`
+#: resolves differently from what the dark bundle serves.
+#:
+#: MEASURED AT `asset_lint.yml`'s INSTALL SET, which is the only place this gate
+#: runs -- `test_lint.yml` installs `test_lint` alone, where 24 of these name a
+#: module that is not there and `_require_the_floors_can_be_exercised` skips.
+#: Re-taken when that set was widened to cover all 28: the previous numbers
+#: summed to 306 against a tree that reads 227, so the gate carried 79 units of
+#: headroom it could never fail on. `web` alone was 136 against 91.
+#:
+#: A module at 0 is installed and contributes nothing; it stays listed so the
+#: guard can tell "absent" from "clean", and so the first declaration to appear
+#: there fails.
 SINGLE_BUNDLE_GAP_FLOOR = {
-    "account": 5,
+    "account": 4,
     "account_edi_ubl_cii": 1,
-    "base_automation": 1,
+    "base_automation": 0,
     "base_import": 1,
     "calendar": 2,
-    "documents": 14,
+    "documents": 11,
     "event": 1,
     "google_address_autocomplete": 1,
     "hr_gamification": 1,
     "hr_recruitment": 1,
-    "hr_skills_slides": 1,
-    "html_editor": 28,
+    "hr_skills_slides": 0,
+    "html_editor": 17,
     "im_livechat": 4,
-    "mail": 58,
+    "mail": 52,
     "mrp": 2,
     "onboarding": 1,
     "point_of_sale": 2,
     "product": 1,
-    "project": 7,
+    "project": 5,
     "sale": 11,
-    "spreadsheet": 1,
+    "spreadsheet": 0,
     "spreadsheet_dashboard": 2,
     "stock": 1,
     "survey": 1,
-    "web": 136,
-    "web_tour": 2,
-    "website": 19,
+    "web": 91,
+    "web_tour": 0,
+    "website": 13,
     "website_sale": 1,
 }
 
