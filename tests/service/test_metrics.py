@@ -73,6 +73,9 @@ def parse_exposition(text: str) -> tuple[dict[str, str], list[str]]:
             continue
         name, labels = match.group(1), match.group(2)
         sampled.add(name)
+        # ``_count`` belongs with ``_bucket``/``_sum``: a histogram declares one
+        # TYPE and emits all three suffixes under it, so omitting it here would
+        # report a perfectly valid ``_count`` sample as having no TYPE.
         base = name.removesuffix("_bucket").removesuffix("_sum").removesuffix("_count")
         if name not in declared and base not in declared:
             errors.append(f"{lineno}: sample {name} has no TYPE")
@@ -159,7 +162,7 @@ class TestServiceMetrics:
         _, errors = parse_exposition(text)
         assert not errors, errors
 
-    def test_threaded_reports_thread_counts_and_slot_ceiling(self, mod):
+    def test_threaded_reports_thread_counts_and_slot_ceiling(self, mod, monkeypatch):
         import threading
 
         from odoo.service import lifecycle
@@ -169,17 +172,14 @@ class TestServiceMetrics:
         server.httpd.max_http_threads = 31
         server.limits_reached_threads = set()
 
-        marker = threading.current_thread()
-        original = getattr(marker, "type", None)
-        marker.type = "http"
-        try:
-            with patch.object(lifecycle, "server", server):
-                out = mod.service_metrics()
-        finally:
-            if original is None:
-                del marker.type
-            else:
-                marker.type = original
+        # ``monkeypatch``, not a hand-rolled try/finally: ``current_thread().type``
+        # is process-global state this test does not own, and conftest's
+        # ``_no_global_state_leak`` message asks for exactly this spelling so that
+        # ``patch`` owns the teardown.  The guard now watches ``.type`` too, so a
+        # blanket restore would be the one thing it cannot see.
+        monkeypatch.setattr(threading.current_thread(), "type", "http", raising=False)
+        with patch.object(lifecycle, "server", server):
+            out = mod.service_metrics()
 
         assert out["flavor"] == "threaded"
         assert out["http_threads_max"] == 31
@@ -327,7 +327,13 @@ class TestPrometheusExposition:
             patch.object(mod, "service_metrics", side_effect=RuntimeError("no server")),
         ):
             text = mod.render_prometheus()
-        assert "odoo_up 1" in text
+        # Match the SAMPLE, not the substring.  ``assert "odoo_up 1" in text``
+        # stood here and was satisfied by the HELP COMMENT — whose text begins
+        # "1 when the metrics endpoint is serving." — so it passed unchanged
+        # when the renderer reported ``odoo_up 0``, i.e. exactly the outcome
+        # this test exists to rule out.  ``test_booleans_render_as_one_and_zero``
+        # forty lines up already spells it the right way.
+        assert f'odoo_up{{pid="{os.getpid()}"}} 1' in text
         _, errors = parse_exposition(text)
         assert not errors, errors
 

@@ -21,6 +21,7 @@ in the tree does.
 """
 
 import ast
+import functools
 import pathlib
 import re
 
@@ -43,11 +44,10 @@ SUBMODULES = frozenset(p.stem for p in PKG.glob("*.py") if p.stem != "__init__")
 #: Where a patch string may point. Anything else is aimed at the package.
 _STRING_TARGET = re.compile(r'["\']odoo\.service\.db\.([A-Za-z_][\w.]*)["\']')
 
-#: Names a file binds to the package itself. ``db_mod`` is this suite's fixture;
-#: the addon suites use ``db``/``db_service`` from ``from odoo.service import
-#: db``. Detected per file rather than hard-coded, because the first version of
-#: this gate knew only ``db_mod`` and so missed
-#: ``patch.object(db_service, "_drop_database")`` in
+#: Names a file binds to the package itself. The addon suites use
+#: ``db``/``db_service`` from ``from odoo.service import db``. Detected per file
+#: rather than hard-coded, because the first version of this gate knew only
+#: ``db_mod`` and so missed ``patch.object(db_service, "_drop_database")`` in
 #: ``addons/base/tests/test_db_service_drop.py`` — which broke against a real
 #: database, not here.
 _ALIAS_BINDING = re.compile(
@@ -56,11 +56,24 @@ _ALIAS_BINDING = re.compile(
     re.MULTILINE,
 )
 
+#: A fixture that RETURNS the package binds it too, e.g. this suite's
+#: ``def db_mod(): import odoo.service.db as mod; return mod``. Matched on the
+#: import inside the body rather than on the fixture's NAME: ``db_mod`` was
+#: hard-coded here, and ``test_dump_scanner.py`` deliberately binds that same
+#: name to ``_dump_scanner`` (its fixture docstring says so), so a correct
+#: ``patch.object(db_mod, "_assert_dump_sql_safe")`` there would have been
+#: rejected with advice — "use <alias>.<submodule>" — that means nothing for a
+#: module which has none.
+_FIXTURE_BINDING = re.compile(
+    r"^def\s+(\w+)\([^)]*\):(?:(?!\n(?:def|class)\s).)*?"
+    r"import\s+odoo\.service\.db\b",
+    re.MULTILINE | re.DOTALL,
+)
+
 
 def _package_aliases(text: str) -> set[str]:
-    names = {"db_mod"} if "def db_mod(" in text or "db_mod" in text else set()
-    for m in _ALIAS_BINDING.finditer(text):
-        names.add(m.group(1) or m.group(2) or "db")
+    names = {m.group(1) or m.group(2) or "db" for m in _ALIAS_BINDING.finditer(text)}
+    names.update(m.group(1) for m in _FIXTURE_BINDING.finditer(text))
     return names
 
 
@@ -93,16 +106,37 @@ PACKAGE_LEVEL_OK = frozenset(
 )
 
 
-def _sources():
+#: Cheap precondition for BOTH detectors, and strictly weaker than either: a
+#: string target must spell ``odoo.service.db``, and an alias binding must spell
+#: ``odoo.service``. Filtering on it therefore cannot change a verdict — it only
+#: stops the scan regex-ing 64 MB to find the handful of files that can match.
+_MIGHT_MATCH = "odoo.service"
+
+
+@functools.cache
+def _sources() -> tuple[tuple[pathlib.Path, str], ...]:
+    """Every candidate file, read ONCE per process and shared by all tests.
+
+    Each of the three tests below used to walk and read the whole of
+    ``tests/service``, ``odoo/addons`` and ``addons`` for itself: 9 409 files,
+    64.2 MB, three times, of which 53 can possibly match. That was ~7.3 of the
+    service suite's ~14.8 CPU-seconds; caching plus the pre-filter returns about
+    5 of them.
+    """
+    out = []
     for root in SCANNED:
         if not root.is_dir():
             continue
         for path in root.rglob("*.py"):
             if path.resolve() == _HERE:
                 continue  # this file quotes the bad forms as examples
-            yield path, path.read_text(encoding="utf-8", errors="replace")
+            text = path.read_text(encoding="utf-8", errors="replace")
+            if _MIGHT_MATCH in text:
+                out.append((path, text))
+    return tuple(out)
 
 
+@functools.cache
 def _module_uses(sub: str, name: str) -> bool:
     """Does ``odoo.service.db.<sub>`` actually bind *name*?"""
     tree = ast.parse((PKG / f"{sub}.py").read_text(encoding="utf-8"))
@@ -192,10 +226,26 @@ def test_every_submodule_target_is_real():
 def test_the_guard_would_catch_a_regression():
     """Non-vacuity: the detectors must fire on the forms they exist to reject."""
     assert _STRING_TARGET.search('patch("odoo.service.db._create_empty_database")')
-    assert list(_object_targets('db_mod\npatch.object(db_mod, "_drop_database")'))
+    # A fixture that RETURNS the package binds it, whatever the fixture is called.
+    db_mod_fixture = (
+        "def db_mod():\n    import odoo.service.db as mod\n    return mod\n"
+    )
+    assert list(
+        _object_targets(db_mod_fixture + 'patch.object(db_mod, "_drop_database")')
+    )
     assert list(
         _object_targets(
-            'db_mod\nmonkeypatch.setattr(db_mod, "_STDERR_DRAIN_JOIN_S", 1)'
+            db_mod_fixture + 'monkeypatch.setattr(db_mod, "_STDERR_DRAIN_JOIN_S", 1)'
+        )
+    )
+    # ...and the NAME alone does not, or the gate rejects correct code. Verified
+    # against the real thing: test_dump_scanner.py binds ``db_mod`` to
+    # ``_dump_scanner``, and a patch through it must not be flagged.
+    assert not list(
+        _object_targets(
+            "def db_mod():\n"
+            "    return _dump_scanner\n"
+            'patch.object(db_mod, "_assert_dump_sql_safe")'
         )
     )
     # The alias form the first version of this gate missed entirely.

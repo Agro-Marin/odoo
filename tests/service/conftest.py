@@ -101,13 +101,36 @@ def _no_global_state_leak():
             # to decide a thread is over its time limit.  Leaked, it makes every
             # later reader see a permanently over-limit thread.
             "current_thread().start_time": getattr(thread, "start_time", missing),
+            # Read by ``_metrics.service_metrics`` to bucket live threads by
+            # kind.  A test that stamps it and does not restore it makes every
+            # later ``service_metrics()`` count the MainThread as an http
+            # worker.  It was being save/restored by hand in ``test_metrics``,
+            # which is the spelling the message below argues against.
+            "current_thread().type": getattr(thread, "type", missing),
         }
 
     before = snapshot()
+    # ``model._PUBLIC_METHOD_CACHE`` is keyed by CLASS OBJECT, so a test that
+    # resolves a method on a locally-defined class pins that class for the life
+    # of the process.  Watching the key set (not the contents) catches the leak
+    # without objecting to the legitimate warm-up every RPC test performs on the
+    # models it shares.
+    from odoo.service import model as _model_mod
+
+    classes_before = set(_model_mod._PUBLIC_METHOD_CACHE)
 
     yield
 
     after = snapshot()
+    strays = set(_model_mod._PUBLIC_METHOD_CACHE) - classes_before
+    if strays:
+        pytest.fail(
+            "this test left classes in odoo.service.model._PUBLIC_METHOD_CACHE, "
+            "which is keyed by class object and never evicted:\n"
+            + "\n".join(f"  {c!r}" for c in strays)
+            + "\nPop them in a fixture teardown, as TestGetPublicMethodCache does.",
+            pytrace=False,
+        )
     leaked = {k: (before[k], after[k]) for k in before if before[k] is not after[k]}
     # `is not` above catches identity changes; fall back to equality so an equal
     # but freshly-built value (a new str with the same text) is not a false positive.

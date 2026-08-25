@@ -132,36 +132,47 @@ class TestGetPublicMethod:
 
     @pytest.fixture
     def fake_model(self, mod):
-        """Return a _FakeModel instance with BaseModel patched in the module."""
+        """A ``_FakeModel`` instance, with ``BaseModel`` patched for the test.
+
+        The patch is held open for the whole test, so the body does NOT need to
+        re-enter it — six tests here used to, redundantly.
+
+        Teardown also pops ``_FakeModel`` out of ``_PUBLIC_METHOD_CACHE``.  That
+        memo is keyed by class object and never evicted, so a resolved entry
+        outlives the test that made it; ``test_rebinding_the_method_invalidates_
+        the_entry`` below records what that cost the first time (a patched
+        method cached, then served to unrelated test classes for the rest of the
+        process).  Scoped to the one class this fixture owns, so conftest's
+        ``_no_global_state_leak`` still catches anything else.
+        """
         instance = _FakeModel()
         with patch.object(mod, "BaseModel", _FakeBaseModel):
-            yield instance
+            try:
+                yield instance
+            finally:
+                mod._PUBLIC_METHOD_CACHE.pop(_FakeModel, None)
 
     def test_underscore_prefix_blocked(self, mod, fake_model) -> None:
         from odoo.exceptions import AccessError
 
-        with patch.object(mod, "BaseModel", _FakeBaseModel):
-            with pytest.raises(AccessError):
-                mod.get_public_method(fake_model, "_underscore")
+        with pytest.raises(AccessError):
+            mod.get_public_method(fake_model, "_underscore")
 
     def test_unsafe_attribute_blocked(self, mod, fake_model) -> None:
         from odoo.exceptions import AccessError
 
-        with patch.object(mod, "BaseModel", _FakeBaseModel):
-            with pytest.raises(AccessError):
-                mod.get_public_method(fake_model, "__class__")
+        with pytest.raises(AccessError):
+            mod.get_public_method(fake_model, "__class__")
 
     def test_api_private_blocked(self, mod, fake_model) -> None:
         from odoo.exceptions import AccessError
 
-        with patch.object(mod, "BaseModel", _FakeBaseModel):
-            with pytest.raises(AccessError):
-                mod.get_public_method(fake_model, "api_private_method")
+        with pytest.raises(AccessError):
+            mod.get_public_method(fake_model, "api_private_method")
 
     def test_non_callable_raises_attribute_error(self, mod, fake_model) -> None:
-        with patch.object(mod, "BaseModel", _FakeBaseModel):
-            with pytest.raises(AttributeError):
-                mod.get_public_method(fake_model, "not_callable")
+        with pytest.raises(AttributeError):
+            mod.get_public_method(fake_model, "not_callable")
 
     @pytest.mark.parametrize("name", [123, b"write", None, ("write",), 4.0])
     def test_non_string_method_name_raises_attribute_error(
@@ -170,13 +181,11 @@ class TestGetPublicMethod:
         """A non-str RPC ``method`` param (reachable via JSON-RPC) must surface as
         AttributeError — the canonical "method not found" signal — not the
         TypeError that ``getattr(cls, name)`` / ``name.startswith`` would raise."""
-        with patch.object(mod, "BaseModel", _FakeBaseModel):
-            with pytest.raises(AttributeError):
-                mod.get_public_method(fake_model, name)
+        with pytest.raises(AttributeError):
+            mod.get_public_method(fake_model, name)
 
     def test_public_method_returned(self, mod, fake_model) -> None:
-        with patch.object(mod, "BaseModel", _FakeBaseModel):
-            method = mod.get_public_method(fake_model, "public_method")
+        method = mod.get_public_method(fake_model, "public_method")
         assert callable(method)
         assert method.__name__ == "public_method"
 
@@ -206,9 +215,16 @@ class TestGetPublicMethod:
             pass
 
         leaf_instance = Leaf()
-        with patch.object(mod, "BaseModel", _FakeBaseModel):
-            with pytest.raises(AccessError):
-                mod.get_public_method(leaf_instance, "deep_private")
+        try:
+            with patch.object(mod, "BaseModel", _FakeBaseModel):
+                with pytest.raises(AccessError):
+                    mod.get_public_method(leaf_instance, "deep_private")
+        finally:
+            # ``Leaf`` is defined in this function body, and the memo is keyed by
+            # class object with no eviction — so without this the class (and its
+            # whole MRO) is pinned for the life of the process.
+            for cls in (Leaf, Mid, Base):
+                mod._PUBLIC_METHOD_CACHE.pop(cls, None)
 
 
 class TestGetPublicMethodCache:
