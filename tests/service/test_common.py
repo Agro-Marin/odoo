@@ -12,6 +12,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from .conftest import fake_pg_cursor
+
 
 @pytest.fixture(scope="module")
 def common_mod():
@@ -524,9 +526,7 @@ class TestExpAuthenticateCredentialOutcome:
 
     @staticmethod
     def _registry(authenticate):
-        cursor = MagicMock()
-        cursor.__enter__ = MagicMock(return_value=cursor)
-        cursor.__exit__ = MagicMock(return_value=False)
+        cursor = fake_pg_cursor()
         users = MagicMock()
         users.authenticate = authenticate
         registry = MagicMock()

@@ -31,6 +31,8 @@ import pytest
 
 from odoo.service import _watcher
 
+from .conftest import fake_pg_cursor
+
 
 @pytest.fixture(scope="module")
 def srv():
@@ -174,11 +176,8 @@ class TestFSWatcherAssetInvalidation:
             def db_connect(db_name):
                 if db_name in failing:
                     raise psycopg.OperationalError(f"{db_name} is unreachable")
-                cursor = MagicMock()
-                cursor.__enter__ = MagicMock(return_value=cursor)
-                cursor.__exit__ = MagicMock(return_value=None)
-                cursor.execute.side_effect = lambda sql, *a: statements.append(
-                    (db_name, sql)
+                cursor = fake_pg_cursor(
+                    execute=lambda sql, *a: statements.append((db_name, sql))
                 )
                 handle = MagicMock()
                 handle.cursor.return_value = cursor
@@ -235,10 +234,13 @@ class TestFSWatcherAssetInvalidation:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(
-    __import__("odoo.service._watcher", fromlist=["inotify"]).inotify is None,
-    reason="inotify backend not installed",
-)
+# ``_watcher`` is already imported at the top of this file, so the module global
+# says this directly.  The ``__import__(..., fromlist=[...])`` spelling that stood
+# here re-imported the module inside a decorator argument, which is both obscure
+# and evaluated at collection — the pattern ``contract``/``process`` conftests
+# each argue against at length.  It is cheap here (an import, not a connect), so
+# this is a readability fix rather than the performance one they made.
+@pytest.mark.skipif(_watcher.inotify is None, reason="inotify backend not installed")
 class TestFSWatcherInotifyRewatch:
     """A subtree moved in whole must be watched down to its leaves.
 

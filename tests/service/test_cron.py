@@ -22,20 +22,41 @@ from odoo.service import _helpers
 
 
 class TestCronDatabaseList:
-    """``cron_database_list()``: config override vs list_dbs fallback."""
+    """``cron_database_list()``: config override vs ``list_dbs`` fallback.
 
-    def test_returns_config_db_name_when_set(self):
+    ``config["db_name"]`` is a LIST at runtime under every invocation form —
+    unset gives ``[]``, ``-d mydb`` gives ``["mydb"]``, ``-d a,b,c`` gives
+    ``["a", "b", "c"]`` — and both callers do ``OrderedSet(cron_database_list())``.
+    These tests used to feed a bare string and a ``None``, neither of which the
+    config can produce, and the string one asserted the pass-through: with
+    ``db_name = "mydb"`` the callers would have iterated it into four
+    one-character "databases" and run the cron pass against each.  Pinning a
+    shape production cannot produce also means a refactor that correctly
+    normalised the type would fail here.
+    """
+
+    def test_returns_the_configured_databases(self):
         with (
-            patch("odoo.service._helpers.config", {"db_name": "mydb"}),
+            patch("odoo.service._helpers.config", {"db_name": ["db1", "db2"]}),
             patch("odoo.service._helpers.list_dbs") as mock_list,
         ):
             result = _helpers.cron_database_list()
-        assert result == "mydb"
+        assert result == ["db1", "db2"]
         mock_list.assert_not_called()
 
-    def test_falls_back_to_list_dbs_when_empty(self):
+    def test_a_single_configured_database_is_still_a_list(self):
+        """``-d mydb`` is ``["mydb"]``, and the callers iterate the result."""
         with (
-            patch("odoo.service._helpers.config", {"db_name": None}),
+            patch("odoo.service._helpers.config", {"db_name": ["mydb"]}),
+            patch("odoo.service._helpers.list_dbs"),
+        ):
+            result = _helpers.cron_database_list()
+        assert list(result) == ["mydb"]
+
+    def test_falls_back_to_list_dbs_when_empty(self):
+        """Unset is ``[]``, not ``None``."""
+        with (
+            patch("odoo.service._helpers.config", {"db_name": []}),
             patch(
                 "odoo.service._helpers.list_dbs", return_value=["db1", "db2"]
             ) as mock_list,
@@ -43,6 +64,17 @@ class TestCronDatabaseList:
             result = _helpers.cron_database_list()
         mock_list.assert_called_once_with(True)
         assert result == ["db1", "db2"]
+
+    def test_the_result_survives_the_ordered_set_the_callers_build(self):
+        """Both drivers do ``OrderedSet(cron_database_list())``.  A string would
+        pass every assertion above and still decompose into characters here."""
+        from odoo.tools.misc import OrderedSet
+
+        with (
+            patch("odoo.service._helpers.config", {"db_name": ["mydb"]}),
+            patch("odoo.service._helpers.list_dbs"),
+        ):
+            assert list(OrderedSet(_helpers.cron_database_list())) == ["mydb"]
 
 
 # ---------------------------------------------------------------------------

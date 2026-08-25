@@ -44,6 +44,7 @@ import subprocess
 
 from odoo.service._dump_scanner import _find_disallowed_psql_meta_command
 
+from .._pg import psql_path
 from .conftest import requires_pg, requires_psql
 
 # Bounded so the contract suite stays fast; a case costs roughly one psql
@@ -178,8 +179,24 @@ if __name__ == "__main__":  # pragma: no cover - investigation entry point
         case = out / f"case_{seed}.sql"
         case.write_text(sql, encoding="latin-1")
         rejected = _find_disallowed_psql_meta_command(sql) is not None
+        # Same program and same flags as ``run_psql`` and as ``restore_db``
+        # itself.  ``-X`` was missing here: without it a host ``psqlrc`` runs
+        # before the script, and a line as small as ``\set ON_ERROR_STOP off``
+        # changes which generated cases reach their payload at all — on exactly
+        # the question this entry point exists to answer.  ``test_psql_restore_
+        # rc_isolation`` is the test that proves the flag is load-bearing.
         subprocess.run(
-            ["psql", "-d", db, "-q", "-v", "ON_ERROR_STOP=1", "-f", str(case)],
+            [
+                psql_path(),
+                "-d",
+                db,
+                "-X",
+                "-q",
+                "-v",
+                "ON_ERROR_STOP=1",
+                "-f",
+                str(case),
+            ],
             check=False,
             capture_output=True,
             timeout=30,

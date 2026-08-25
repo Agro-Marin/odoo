@@ -12,6 +12,7 @@ population converges, an externally killed worker is replaced, nothing is left
 defunct, and the server keeps serving throughout.
 """
 
+import os
 import signal
 import time
 
@@ -64,7 +65,7 @@ class TestPreforkReplacesAKilledWorker:
         """
         before = {w.pid for w in _http_workers(prefork)}
         victim = min(before)
-        os_kill(victim)
+        os.kill(victim, signal.SIGKILL)
 
         replaced = prefork.wait_until(
             lambda: (
@@ -88,7 +89,7 @@ class TestPreforkReplacesAKilledWorker:
         a long uptime with ``limit_request`` recycling, that is unbounded.
         """
         victim = min(w.pid for w in _http_workers(prefork))
-        os_kill(victim)
+        os.kill(victim, signal.SIGKILL)
         assert prefork.wait_until(
             lambda: victim not in {w.pid for w in _http_workers(prefork)}, timeout=60
         )
@@ -102,9 +103,3 @@ class TestPreforkReplacesAKilledWorker:
             except psutil.NoSuchProcess:
                 continue
         assert not zombies, f"unreaped worker(s) left defunct: {zombies}"
-
-
-def os_kill(pid):
-    import os
-
-    os.kill(pid, signal.SIGKILL)

@@ -149,7 +149,7 @@ def _no_global_state_leak():
         )
 
 
-def fake_pg_cursor(*, fetchone=None, fetchall=(), execute=None):
+def fake_pg_cursor(*, fetchone=None, fetchone_sequence=None, fetchall=(), execute=None):
     """A ``MagicMock`` cursor that is safe as BOTH a context manager and a value.
 
     ``odoo.service.db`` opens its maintenance cursor two different ways —
@@ -158,6 +158,11 @@ def fake_pg_cursor(*, fetchone=None, fetchall=(), execute=None):
     versions of this appear a dozen times across the suite and disagree about
     which: some set ``__enter__``/``__exit__``, some set only
     ``cursor.return_value``, one sets both and then overwrites it.
+
+    ``fetchone_sequence`` answers successive reads in order, for the callers that
+    make several — ``_warn_on_connection_budget`` reads three settings, the
+    faketime check reads two clocks.  Without it those sites had to hand-roll the
+    whole cursor, which is how the copies below drifted apart in the first place.
 
     ``fetchone`` defaults to ``None`` — "no row" — and that default is the point.
     A bare ``MagicMock().fetchone()`` returns a MagicMock, which is TRUTHY, so a
@@ -169,7 +174,10 @@ def fake_pg_cursor(*, fetchone=None, fetchall=(), execute=None):
     from unittest.mock import MagicMock
 
     cr = MagicMock()
-    cr.fetchone.return_value = fetchone
+    if fetchone_sequence is not None:
+        cr.fetchone.side_effect = list(fetchone_sequence)
+    else:
+        cr.fetchone.return_value = fetchone
     cr.fetchall.return_value = fetchall
     if execute is not None:
         cr.execute.side_effect = execute
@@ -190,3 +198,68 @@ def fake_pg_connection(cursor=None, **cursor_kwargs):
     conn = MagicMock()
     conn.cursor.return_value = cr
     return conn, cr
+
+
+def retrying_env(*, on_commit=None, closed=False):
+    """A minimal ``Environment`` stand-in for ``odoo.service.transaction.retrying``.
+
+    ``retrying`` reads a narrow, fixed set of attributes off the env and its
+    cursor — ``cr.closed``, ``cr.commit_count``, ``flush``/``commit``/``rollback``,
+    ``transaction.reset``, ``registry.reset_changes``/``signal_changes``/``values``
+    and ``env._`` — and every one of them has to be present or the call fails for
+    a reason unrelated to the test.  Four hand-built copies of that block existed
+    (three in ``test_retrying_postcommit``, one in ``test_model``), differing only
+    in what ``commit`` does.
+
+    ``on_commit`` receives the env, so a caller expresses just the difference:
+
+        retrying_env()                                    # a clean commit
+        retrying_env(on_commit=_durable_then_raise)       # COMMIT landed, a hook blew up
+        retrying_env(on_commit=_durable_then_close)       # COMMIT landed, a hook closed cr
+        retrying_env(closed=True)                         # cursor already back in the pool
+
+    ``commit_count`` is what tells a failed COMMIT from a committed one whose
+    post-commit hook raised, so a stand-in that starts it anywhere but 0 — or
+    forgets to bump it — inverts the branch under test.  Real cursors carry it
+    from ``BaseCursor.__init__``.
+    """
+    from unittest.mock import MagicMock
+
+    env = MagicMock()
+    env.cr._closed = closed
+    env.cr.closed = closed
+    env.cr.flush = MagicMock()
+    env.cr.rollback = MagicMock()
+    env.cr.commit_count = 0
+    env.cr.commit = MagicMock(
+        side_effect=(lambda: on_commit(env)) if on_commit is not None else None
+    )
+    env.transaction.reset = MagicMock()
+    env.registry.reset_changes = MagicMock()
+    env.registry.signal_changes = MagicMock()
+    env.registry.values.return_value = []
+    env._.side_effect = lambda tmpl, *args: tmpl % args if args else tmpl
+    return env
+
+
+def durable_then_raise(exc=None):
+    """``commit`` side effect: the SQL COMMIT lands, then a hook raises."""
+    error = exc if exc is not None else RuntimeError("post-commit hook failed")
+
+    def _commit(env):
+        env.cr.commit_count += 1  # the transaction is now durable
+        raise error
+
+    return _commit
+
+
+def durable_then_close(env):
+    """``commit`` side effect: the SQL COMMIT lands, then a hook closes the cursor.
+
+    Returns normally — which is the whole point.  ``retrying``'s last line is
+    ``if not env.cr.closed: env.registry.signal_changes()``, so a hook that closes
+    the cursor WITHOUT raising skips the announcement for a transaction that is
+    already durable.
+    """
+    env.cr.commit_count += 1
+    env.cr.closed = True

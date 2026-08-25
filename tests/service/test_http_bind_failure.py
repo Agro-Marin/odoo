@@ -28,6 +28,18 @@ import pytest
 from odoo.service import _threaded
 
 
+def failing_bind():
+    """``ThreadedWSGIServerReloadable`` raising ``SystemExit(1)``, as werkzeug does.
+
+    werkzeug's ``BaseWSGIServer.__init__`` reports a bind failure by ``print``-ing
+    to stderr and calling ``sys.exit(1)``; this is the only way to reach
+    ``http_spawn``'s handler.  Spelled out five times before, once per test.
+    """
+    return patch.object(
+        _threaded, "ThreadedWSGIServerReloadable", side_effect=SystemExit(1)
+    )
+
+
 @pytest.fixture
 def server():
     """A ``ThreadedServer`` with the interface/port fields ``http_spawn`` reads."""
@@ -43,9 +55,7 @@ def server():
 class TestBindFailureIsLogged:
     def test_systemexit_is_reported_at_critical(self, server, caplog):
         with (
-            patch.object(
-                _threaded, "ThreadedWSGIServerReloadable", side_effect=SystemExit(1)
-            ),
+            failing_bind(),
             caplog.at_level(logging.CRITICAL, logger="odoo.service.server"),
             pytest.raises(SystemExit),
         ):
@@ -59,9 +69,7 @@ class TestBindFailureIsLogged:
         """An operator reading only the log must learn *which* address failed."""
         server.interface, server.port = "127.0.0.1", 8899
         with (
-            patch.object(
-                _threaded, "ThreadedWSGIServerReloadable", side_effect=SystemExit(1)
-            ),
+            failing_bind(),
             caplog.at_level(logging.CRITICAL, logger="odoo.service.server"),
             pytest.raises(SystemExit),
         ):
@@ -75,18 +83,14 @@ class TestBindFailureIsLogged:
 
     def test_the_exit_still_propagates(self, server):
         """Logging must not swallow the failure: the process still exits 1."""
-        with patch.object(
-            _threaded, "ThreadedWSGIServerReloadable", side_effect=SystemExit(1)
-        ):
+        with failing_bind():
             with pytest.raises(SystemExit) as excinfo:
                 server.http_spawn()
         assert excinfo.value.code == 1
 
     def test_no_serving_thread_is_started_on_failure(self, server):
         with (
-            patch.object(
-                _threaded, "ThreadedWSGIServerReloadable", side_effect=SystemExit(1)
-            ),
+            failing_bind(),
             patch.object(_threaded.threading, "Thread") as thread,
             pytest.raises(SystemExit),
         ):

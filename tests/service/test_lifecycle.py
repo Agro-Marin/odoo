@@ -148,8 +148,18 @@ class TestWarnOnConnectionBudget:
             mod, make_config(workers=4, max_cron_threads=2, job_workers=2)
         )
         logger.warning.assert_called_once()
-        args = logger.warning.call_args[0]
-        assert args[1:] == (9, 576, 97, 100, 3, 10)
+        # Assert the RENDERED message, not a positional tuple.  ``args[1:] ==
+        # (9, 576, 97, 100, 3, 10)`` stood here: six magic numbers pinned by
+        # position, so reordering the format arguments or adding a field broke it
+        # with no diagnosis, and a reader could not tell which number meant what.
+        template, *args = logger.warning.call_args[0]
+        message = template % tuple(args)
+        assert "9 process" in message, message  # 4 http + 2 cron + 2 job + evented
+        assert "576" in message, message  # 9 x db_maxconn=64
+        assert "97" in message, message  # max_connections 100 - 3 reserved
+        # Spelled with its surrounding words: a bare "10" also matches
+        # "max_connections=100" and would pass with no suggestion at all.
+        assert "to 10 or less" in message, message
 
     def test_silent_when_the_budget_fits(self, mod):
         logger = self._run(

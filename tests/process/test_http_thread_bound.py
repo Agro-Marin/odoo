@@ -65,10 +65,20 @@ class TestHalfOpenConnectionsDoNotStarveTheAcceptLoop:
                 with contextlib.suppress(OSError):
                     s.close()
 
-    def test_the_pool_recovers_after_the_attack_stops(self, server):
-        """Slots must come back, i.e. the semaphore is released on the timeout
-        path too — a leak there would degrade the server permanently rather
-        than for the duration of the attack."""
+    def test_the_pool_recovers_after_repeated_bursts(self, server):
+        """Slots must come back after each burst, or the pool degrades for good.
+
+        This drives the EOF path, not the timeout path: the attackers are closed
+        immediately, so the server sees end-of-stream and releases through the
+        ordinary route.  The docstring used to claim the timeout path, which it
+        cannot reach — a socket closed before the deadline never trips it.  The
+        timeout path is covered by the sibling test above, which holds its
+        sockets open for the whole request.
+
+        Kept as its own case because REPEATED bursts are what a single-shot test
+        cannot show: a slot leaked once per burst still leaves the pool serving
+        after one, and only starves after several.
+        """
         srv = server(
             "--workers",
             "0",
@@ -86,9 +96,11 @@ class TestHalfOpenConnectionsDoNotStarveTheAcceptLoop:
                 s.sendall(b"GET /slo")
             for s in attackers:
                 s.close()
-            time.sleep(1.5)  # let the timeouts fire and the slots return
+            # Let the server observe the EOFs and return the slots. Not a
+            # timeout wait — nothing here is waiting for one.
+            time.sleep(1.5)
 
         assert srv.wait_until(lambda: srv.is_serving(timeout=5), timeout=30), (
             "the thread pool did not recover after repeated half-open bursts; "
-            "a slot is leaking on the socket-timeout path"
+            "a slot is leaking on the EOF path"
         )

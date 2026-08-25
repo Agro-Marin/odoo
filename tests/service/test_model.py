@@ -33,6 +33,8 @@ import odoo.http  # noqa: F401 - see below; imported for its side effect
 from odoo.db.errors import PG_RETRY_EXCEPTIONS, PG_RETRY_SQLSTATES
 from odoo.service.model import Params
 
+from .conftest import fake_pg_cursor, retrying_env
+
 # ``odoo.http`` is imported for a SIDE EFFECT, not for use: several tests below
 # ``patch("odoo.http")``, which resolves the attribute ``http`` on the ``odoo``
 # package and raises ``AttributeError`` if nothing has imported the submodule
@@ -86,22 +88,13 @@ class _FakeIntegrityError(psycopg.errors.IntegrityError):
 
 @pytest.fixture
 def mock_env():
-    """Minimal Environment stub for ``retrying()``."""
-    e = MagicMock()
-    e.cr._closed = False
-    e.cr.closed = False
-    e.cr.flush = MagicMock()
-    e.cr.rollback = MagicMock()
-    e.cr.commit = MagicMock()
-    # Real cursors carry this from BaseCursor.__init__; retrying() reads it to
-    # tell a failed COMMIT from a committed one whose post-commit hook raised.
-    e.cr.commit_count = 0
-    e.transaction.reset = MagicMock()
-    e.registry.reset_changes = MagicMock()
-    e.registry.signal_changes = MagicMock()
-    e.registry.values.return_value = []
-    e._.side_effect = lambda tmpl, *args: tmpl % args if args else tmpl
-    return e
+    """Minimal Environment stub for ``retrying()`` — see ``conftest.retrying_env``.
+
+    Shared with ``test_retrying_postcommit``, which drives the same function
+    through its durable-commit branches; the block was written out by hand in
+    both files and in two further variants inside that one.
+    """
+    return retrying_env()
 
 
 class _FakeBaseModel:
@@ -1759,9 +1752,7 @@ class TestDispatchExecuteVersusExecuteKw:
             return "ok"
 
         registry = MagicMock()
-        cursor = MagicMock()
-        cursor.__enter__ = MagicMock(return_value=cursor)
-        cursor.__exit__ = MagicMock(return_value=False)
+        cursor = fake_pg_cursor()
         registry.check_signaling.return_value = registry
         registry.cursor.return_value = cursor
 
@@ -1811,9 +1802,7 @@ class TestDispatchExecuteVersusExecuteKw:
         from odoo.exceptions import AccessDenied
 
         registry = MagicMock()
-        cursor = MagicMock()
-        cursor.__enter__ = MagicMock(return_value=cursor)
-        cursor.__exit__ = MagicMock(return_value=False)
+        cursor = fake_pg_cursor()
         registry.check_signaling.return_value = registry
         registry.cursor.return_value = cursor
 

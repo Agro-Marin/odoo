@@ -1,35 +1,31 @@
+"""``retrying()`` must announce a DURABLE commit, and only a durable one.
+
+``Cursor.commit`` runs the SQL ``COMMIT`` and then ``postcommit.run()``, so
+"the commit failed" and "the commit succeeded and a hook then failed" arrive at
+``retrying`` as the same exception.  The only thing that separates them is
+whether ``commit_count`` moved.  Get it wrong in one direction and a committed
+change is never announced — every other worker keeps serving a stale registry
+and ormcache.  Get it wrong in the other and a failed transaction resets the
+local registry to a state the database never accepted.
+
+Run with::
+
+    python -m pytest tests/service/test_retrying_postcommit.py -v
+"""
+
 from unittest.mock import MagicMock
 
 import pytest
 
 from odoo.service.transaction import retrying
 
+from .conftest import durable_then_close, durable_then_raise, retrying_env
+
 
 @pytest.fixture
 def committed_env():
-    """An env whose SQL COMMIT succeeds but whose post-commit hooks raise.
-
-    Mirrors ``Cursor.commit``: the COMMIT lands (so ``commit_count`` is bumped)
-    and only then does a hook blow up.
-    """
-    env = MagicMock()
-    env.cr._closed = False
-    env.cr.closed = False
-    env.cr.flush = MagicMock()
-    env.cr.rollback = MagicMock()
-    env.cr.commit_count = 0
-
-    def commit_then_hook_fails():
-        env.cr.commit_count += 1  # the transaction is now durable
-        raise RuntimeError("post-commit hook failed")
-
-    env.cr.commit = MagicMock(side_effect=commit_then_hook_fails)
-    env.transaction.reset = MagicMock()
-    env.registry.reset_changes = MagicMock()
-    env.registry.signal_changes = MagicMock()
-    env.registry.values.return_value = []
-    env._.side_effect = lambda tmpl, *a: tmpl % a if a else tmpl
-    return env
+    """An env whose SQL COMMIT succeeds but whose post-commit hooks raise."""
+    return retrying_env(on_commit=durable_then_raise())
 
 
 @pytest.fixture
@@ -95,15 +91,9 @@ class TestClosedCursorIsNotSilentSuccess:
     """
 
     def _closed_env(self):
-        env = MagicMock()
-        env.cr.closed = True
-        env.cr.commit = MagicMock()
-        env.cr.flush = MagicMock()
-        env.registry.signal_changes = MagicMock()
-        env.registry.values.return_value = []
-        return env
+        return retrying_env(closed=True)
 
-    def test_result_is_still_returned(self, caplog):
+    def test_result_is_still_returned(self):
         env = self._closed_env()
         assert retrying(lambda: "handler result", env) == "handler result"
 
@@ -147,23 +137,7 @@ class TestHookClosedCursorStillSignals:
     """
 
     def _env_whose_hook_closes_the_cursor(self):
-        env = MagicMock()
-        env.cr.closed = False
-        env.cr.flush = MagicMock()
-        env.cr.rollback = MagicMock()
-        env.cr.commit_count = 0
-
-        def commit_then_hook_closes():
-            env.cr.commit_count += 1  # durable
-            env.cr.closed = True  # a post-commit hook closed it, no exception
-
-        env.cr.commit = MagicMock(side_effect=commit_then_hook_closes)
-        env.transaction.reset = MagicMock()
-        env.registry.reset_changes = MagicMock()
-        env.registry.signal_changes = MagicMock()
-        env.registry.values.return_value = []
-        env._.side_effect = lambda tmpl, *a: tmpl % a if a else tmpl
-        return env
+        return retrying_env(on_commit=durable_then_close)
 
     def test_the_commit_is_durable(self):
         """Guard the guard: if the commit never ran, the test below is vacuous."""

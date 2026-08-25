@@ -37,7 +37,7 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from .conftest import fake_pg_connection
+from .conftest import fake_pg_connection, fake_pg_cursor
 
 
 @pytest.fixture(scope="module")
@@ -570,11 +570,7 @@ class TestDumpDbZipLargeSqlMember:
     """
 
     def _patches(self, db_mod, stdout: bytes, zip64_limit: int) -> list:
-        mock_cr = MagicMock()
-        mock_cr.__enter__ = MagicMock(return_value=mock_cr)
-        mock_cr.__exit__ = MagicMock(return_value=False)
-        mock_db = MagicMock()
-        mock_db.cursor.return_value = mock_cr
+        mock_db, _mock_cr = fake_pg_connection()
         return [
             patch("odoo.service.db.dump.find_pg_tool", return_value="/usr/bin/pg_dump"),
             patch("odoo.service.db.dump.exec_pg_environ", return_value={}),
@@ -1118,10 +1114,9 @@ class TestCheckFaketimeMode:
         import odoo.tools
 
         fake_now = datetime.datetime(2026, 1, 1)
-        fake_cursor = MagicMock()
-        fake_cursor.fetchone.side_effect = [(fake_now,), (fake_now,)]
-        fake_db = MagicMock()
-        fake_db.cursor.return_value.__enter__.return_value = fake_cursor
+        fake_db, fake_cursor = fake_pg_connection(
+            fetchone_sequence=[(fake_now,), (fake_now,)]
+        )
 
         with (
             patch.dict("os.environ", {"ODOO_FAKETIME_TEST_MODE": "1"}),
@@ -2421,11 +2416,10 @@ class TestExpDuplicateRollback:
 
     def test_drops_db_when_filestore_copy_fails(self, db_mod, duplicate_env):
         """A ``shutil.copytree`` failure must trigger ``_drop_database``."""
+        # A Registry, not a connection — but its ``cursor()`` is entered the same
+        # way, so the shared helper describes it too.
         fake_registry = MagicMock()
-        fake_registry.cursor.return_value.__enter__ = MagicMock(
-            return_value=MagicMock()
-        )
-        fake_registry.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        fake_registry.cursor.return_value = fake_pg_cursor()
 
         with duplicate_env["stack"]:
             with (

@@ -29,38 +29,97 @@ def _clean_env():
 
 
 # ---------------------------------------------------------------------------
-# env_float
+# The contract env_float and env_int share
+# ---------------------------------------------------------------------------
+
+#: Both public parsers are thin wrappers over one ``_env._parse``, so every rule
+#: below holds for both by construction — and used to be asserted for one.
+#: ``TestEnvInt`` carried none of the four logger cases ``TestEnvFloat`` did, and
+#: the two sets could drift without either failing.  Each entry is
+#: ``(parser, a valid raw value, its parsed form, a default)``.
+PARSERS = [
+    pytest.param(_env.env_float, "45", 45.0, 30.0, id="env_float"),
+    pytest.param(_env.env_int, "45", 45, 30, id="env_int"),
+]
+
+
+@pytest.mark.parametrize(("parse", "raw", "parsed", "default"), PARSERS)
+class TestGuardedParserContract:
+    """What every ``ODOO_*`` knob gets, whichever parser reads it."""
+
+    @pytest.mark.usefixtures("_clean_env")
+    def test_unset_returns_default(self, parse, raw, parsed, default):
+        assert parse(VAR, default) == default
+
+    def test_parses_a_valid_value(self, parse, raw, parsed, default):
+        with patch.dict(os.environ, {VAR: raw}):
+            assert parse(VAR, default) == parsed
+
+    def test_malformed_falls_back_to_default(self, parse, raw, parsed, default):
+        with patch.dict(os.environ, {VAR: "not-a-number"}):
+            assert parse(VAR, default) == default
+
+    def test_below_minimum_clamps_up(self, parse, raw, parsed, default):
+        with patch.dict(os.environ, {VAR: "1"}):
+            assert parse(VAR, default, minimum=8) == 8
+
+    def test_at_or_above_minimum_passes_through(self, parse, raw, parsed, default):
+        with patch.dict(os.environ, {VAR: raw}):
+            assert parse(VAR, default, minimum=8) == parsed
+
+    def test_negative_clamps_to_minimum(self, parse, raw, parsed, default):
+        with patch.dict(os.environ, {VAR: "-3"}):
+            assert parse(VAR, default, minimum=8) == 8
+
+    def test_zero_is_preserved(self, parse, raw, parsed, default):
+        """``0`` is a meaningful opt-out for several knobs (``ODOO_MAX_HTTP_
+        THREADS``, ``limit_time_cpu``) and must not be treated as falsy-and-
+        replaced."""
+        with patch.dict(os.environ, {VAR: "0"}):
+            assert parse(VAR, default) == 0
+
+    def test_warns_on_malformed_when_a_logger_is_given(
+        self, parse, raw, parsed, default
+    ):
+        logger = logging.getLogger("odoo.service.test_env")
+        with patch.dict(os.environ, {VAR: "garbage"}):
+            with patch.object(logger, "warning") as warn:
+                assert parse(VAR, default, logger=logger) == default
+        warn.assert_called_once()
+
+    def test_warns_on_clamp_when_a_logger_is_given(self, parse, raw, parsed, default):
+        logger = logging.getLogger("odoo.service.test_env")
+        with patch.dict(os.environ, {VAR: "1"}):
+            with patch.object(logger, "warning") as warn:
+                assert parse(VAR, default, minimum=8, logger=logger) == 8
+        warn.assert_called_once()
+
+    def test_silent_when_no_logger_is_given(self, parse, raw, parsed, default, caplog):
+        """No logger argument means no record reaches logging at all.
+
+        ``_env`` imports ``logging`` but deliberately keeps no module-level
+        logger: it is imported by every ``odoo.service`` submodule, and a
+        fallback ``_logger`` here would attribute the warning to ``_env`` rather
+        than to the module that owns the knob.  Asserting on the assignment alone
+        would not notice one being added — this does.
+        """
+        with caplog.at_level(logging.DEBUG):
+            with patch.dict(os.environ, {VAR: "garbage"}):
+                assert parse(VAR, default) == default
+        assert caplog.records == [], (
+            f"{parse.__name__} logged without being given a logger: {caplog.records!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# env_float — what is specific to parsing a float
 # ---------------------------------------------------------------------------
 
 
 class TestEnvFloat:
-    @pytest.mark.usefixtures("_clean_env")
-    def test_unset_returns_default(self):
-        assert _env.env_float(VAR, 3600.0) == 3600.0
-
-    def test_parses_valid_value(self):
-        with patch.dict(os.environ, {VAR: "45"}):
-            assert _env.env_float(VAR, 30.0) == 45.0
-
     def test_parses_float_string(self):
         with patch.dict(os.environ, {VAR: "0.25"}):
             assert _env.env_float(VAR, 30.0) == 0.25
-
-    def test_malformed_falls_back_to_default(self):
-        with patch.dict(os.environ, {VAR: "not-a-number"}):
-            assert _env.env_float(VAR, 30.0) == 30.0
-
-    def test_below_minimum_clamps(self):
-        with patch.dict(os.environ, {VAR: "0.001"}):
-            assert _env.env_float(VAR, 2.0, minimum=0.1) == 0.1
-
-    def test_at_or_above_minimum_passes_through(self):
-        with patch.dict(os.environ, {VAR: "5"}):
-            assert _env.env_float(VAR, 2.0, minimum=0.1) == 5.0
-
-    def test_negative_clamped_to_minimum(self):
-        with patch.dict(os.environ, {VAR: "-3"}):
-            assert _env.env_float(VAR, 2.0, minimum=0.1) == 0.1
 
     @pytest.mark.parametrize(
         "raw", ["inf", "-inf", "Infinity", "nan", "NaN", "1e400", "-1e400"]
@@ -109,36 +168,6 @@ class TestEnvFloat:
         rendered = warn.call_args.args[0] % warn.call_args.args[1:]
         assert rendered == f"{VAR}='nan' is not finite; using default 1.5"
 
-    def test_warns_on_malformed_when_logger_given(self):
-        logger = logging.getLogger("odoo.service.test_env")
-        with patch.dict(os.environ, {VAR: "garbage"}):
-            with patch.object(logger, "warning") as warn:
-                assert _env.env_float(VAR, 30.0, logger=logger) == 30.0
-        warn.assert_called_once()
-
-    def test_silent_on_malformed_when_no_logger(self, caplog):
-        """No logger argument means no record reaches logging at all.
-
-        ``_env`` imports ``logging`` but deliberately keeps no module-level
-        logger: it is imported by every ``odoo.service`` submodule, and a
-        fallback ``_logger`` here would attribute the warning to ``_env``
-        rather than to the module that owns the knob.  Asserting on the
-        assignment alone would not notice one being added — this does.
-        """
-        with caplog.at_level(logging.DEBUG):
-            with patch.dict(os.environ, {VAR: "garbage"}):
-                assert _env.env_float(VAR, 30.0) == 30.0
-        assert caplog.records == [], (
-            f"env_float logged without being given a logger: {caplog.records!r}"
-        )
-
-    def test_warns_on_clamp_when_logger_given(self):
-        logger = logging.getLogger("odoo.service.test_env")
-        with patch.dict(os.environ, {VAR: "0.0"}):
-            with patch.object(logger, "warning") as warn:
-                assert _env.env_float(VAR, 2.0, minimum=0.1, logger=logger) == 0.1
-        warn.assert_called_once()
-
 
 # ---------------------------------------------------------------------------
 # env_int
@@ -146,38 +175,16 @@ class TestEnvFloat:
 
 
 class TestEnvInt:
-    @pytest.mark.usefixtures("_clean_env")
-    def test_unset_returns_default(self):
-        assert _env.env_int(VAR, 8) == 8
-
-    def test_parses_valid_value(self):
-        with patch.dict(os.environ, {VAR: "12"}):
-            assert _env.env_int(VAR, 8) == 12
-
-    def test_zero_is_preserved(self):
-        # "0" is a meaningful opt-out for ODOO_MAX_HTTP_THREADS — must not be
-        # treated as falsy-and-replaced by the parser.
-        with patch.dict(os.environ, {VAR: "0"}):
-            assert _env.env_int(VAR, 8) == 0
+    """Only what differs from the shared contract above."""
 
     def test_float_string_is_malformed(self):
         # int("2.0") raises ValueError -> default (no implicit truncation),
-        # matching the historical ``int(os.environ[...])`` call sites.
+        # matching the historical ``int(os.environ[...])`` call sites. The float
+        # parser accepts the same string, which is the whole difference.
         with patch.dict(os.environ, {VAR: "2.0"}):
             assert _env.env_int(VAR, 8) == 8
-
-    def test_malformed_falls_back_to_default(self):
-        with patch.dict(os.environ, {VAR: "not-a-number"}):
-            assert _env.env_int(VAR, 8) == 8
-
-    def test_below_minimum_clamps_up(self):
-        # ODOO_ADMIN_PASSWORD_MIN_LENGTH semantics: env can only RAISE the floor.
-        with patch.dict(os.environ, {VAR: "4"}):
-            assert _env.env_int(VAR, 8, minimum=8) == 8
-
-    def test_above_minimum_passes_through(self):
-        with patch.dict(os.environ, {VAR: "12"}):
-            assert _env.env_int(VAR, 8, minimum=8) == 12
+        with patch.dict(os.environ, {VAR: "2.0"}):
+            assert _env.env_float(VAR, 8.0) == 2.0
 
 
 # ---------------------------------------------------------------------------
