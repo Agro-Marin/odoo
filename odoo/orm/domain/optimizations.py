@@ -42,11 +42,16 @@ if typing.TYPE_CHECKING:
 _logger = logging.getLogger("odoo.domains")
 
 
-def operator_optimization(
-    operators: Collection[str],
-    level: OptimizationLevel = OptimizationLevel.BASIC,
-) -> typing.Callable[[typing.Any], typing.Any]:
-    assert operators, "Missing operator to register"
+def _check_operators(caller: str, operators: Collection[str]) -> None:
+    """Refuse to register an optimization under an operator that does not exist.
+
+    Shared by every registrar that takes operators, so the three of them cannot
+    drift apart again: an optimization filed under a name nothing will ever look
+    up is dead on arrival, and silence about it costs a lost optimization that
+    no test can see -- domains keep returning correct results either way.
+    """
+    if not operators:
+        raise ValueError(f"{caller}() requires at least one operator")
     if unknown := set(operators) - ACCEPTED_CONDITION_OPERATORS:
         raise ValueError(
             f"unknown domain operator(s) {sorted(unknown)!r}. Framework "
@@ -58,6 +63,13 @@ def operator_optimization(
             f"either a typo, a missing declaration, or a registration that "
             f"happens too late."
         )
+
+
+def operator_optimization(
+    operators: Collection[str],
+    level: OptimizationLevel = OptimizationLevel.BASIC,
+) -> typing.Callable[[typing.Any], typing.Any]:
+    _check_operators("operator_optimization", operators)
 
     def register(optimization: typing.Any) -> typing.Any:
         mapping = _OPTIMIZATIONS_FOR[level]
@@ -92,6 +104,7 @@ def nary_optimization(optimization: typing.Any) -> typing.Any:
 def nary_condition_optimization(
     operators: Collection[str], field_types: Collection[str] | None = None
 ) -> typing.Callable[[typing.Any], typing.Any]:
+    _check_operators("nary_condition_optimization", operators)
 
     def register(optimization: typing.Any) -> typing.Any:
         def optimizer(
