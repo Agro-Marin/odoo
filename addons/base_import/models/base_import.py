@@ -1032,7 +1032,7 @@ class Base_ImportImport(models.TransientModel):
         distance. That distance will be used during the deduplicate process
         (see :meth:`_deduplicate_mapping_suggestions`) and only the
         mapping with the smallest distance will be kept in case of multiple
-        mapping on the same field. Note that we don't need to return the
+        mapping on the same field. We don't need to return the
         distance in case of hierachy mapping as we consider that as an
         advanced behaviour. The deduplicate process will ignore hierarchy
         mapping. The user will have to manually select on which field he
@@ -1124,9 +1124,9 @@ class Base_ImportImport(models.TransientModel):
                         ),
                     )
 
-                # Keep only the closest mapping suggestion. Note that in case of multiple mapping on the same field,
+                # Keep only the closest mapping suggestion. In case of multiple mapping on the same field,
                 # a mapping suggestion could be canceled by another one that has a smaller distance on the same field.
-                # See 'deduplicate_mapping_suggestions' method for more info.
+                # See '_deduplicate_mapping_suggestions' method for more info.
                 current_field_dist = min(distances)
                 if current_field_dist < min_dist:
                     min_dist_field = fname
