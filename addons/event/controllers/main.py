@@ -44,7 +44,7 @@ class EventController(Controller):
         Throw Forbidden if no registration is valid / hash is invalid / parameters are missing.
         This route is used in links in emails to attendees, as well as in registration confirmation screens.
 
-        :param event: the id of prompted event. Only its attendees will be considered.
+        :param event_id: the id of prompted event. Only its attendees will be considered.
         :param registration_ids: ids of event.registrations of which tickets are generated
         :param tickets_hash: string hash used to access the tickets.
         :param badge_mode: boolean, True to use template of foldable badge instead of full page ticket.
