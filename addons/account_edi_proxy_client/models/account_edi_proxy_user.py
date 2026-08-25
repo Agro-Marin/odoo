@@ -277,7 +277,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
         self.sudo().refresh_token = response["refresh_token"]
 
     def _decrypt_data(self, data, symmetric_key):
-        """Decrypt the data. Note that the data is encrypted with a symmetric key, which is encrypted with an asymmetric key.
+        """Decrypt the data. The data is encrypted with a symmetric key, which is encrypted with an asymmetric key.
         We must therefore decrypt the symmetric key.
 
         :param data:            The data to decrypt.
