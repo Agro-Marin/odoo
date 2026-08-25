@@ -1409,17 +1409,38 @@ class TestCallKw:
         model.with_context.return_value = model
         return model
 
+    @staticmethod
+    def _resolver(expected_name, method):
+        """Stub ``get_public_method`` that ANSWERS BY ARGUMENT.
+
+        A bare ``return_value=`` hands the same method back whatever name it is
+        asked for, so ``call_kw`` resolving a name other than the caller's is
+        invisible — and ``get_public_method`` is the RPC access check, so the
+        name it resolves is the name that gets authorised.  Verified by
+        mutation: ``get_public_method(model, name)`` ->
+        ``get_public_method(model, "read")`` left all 887 tests green.
+        """
+
+        def _get(_model, name):
+            assert name == expected_name, (
+                f"call_kw resolved {name!r} for a call to {expected_name!r}; "
+                "the access-control gate is checking the wrong method"
+            )
+            return method
+
+        return _get
+
     def test_create_with_dict_vals_returns_scalar_id(self, mod):
         method = MagicMock(__name__="create", _api_model=True)
         method.return_value = MagicMock(id=42, ids=[42])
-        with patch.object(mod, "get_public_method", return_value=method):
+        with patch.object(mod, "get_public_method", self._resolver("create", method)):
             out = mod.call_kw(self._model(), "create", [{"name": "x"}], {})
         assert out == 42
 
     def test_create_with_list_vals_returns_ids_list(self, mod):
         method = MagicMock(__name__="create", _api_model=True)
         method.return_value = MagicMock(id=1, ids=[1, 2])
-        with patch.object(mod, "get_public_method", return_value=method):
+        with patch.object(mod, "get_public_method", self._resolver("create", method)):
             out = mod.call_kw(self._model(), "create", [[{"a": 1}, {"a": 2}]], {})
         assert out == [1, 2]
 
@@ -1458,7 +1479,7 @@ class TestCallKw:
         rs = MagicMock(spec=mod.BaseModel)
         rs.ids = [7, 8]
         method = MagicMock(__name__="search", _api_model=False, return_value=rs)
-        with patch.object(mod, "get_public_method", return_value=method):
+        with patch.object(mod, "get_public_method", self._resolver("search", method)):
             out = mod.call_kw(self._model(), "search", [[1, 2]], {})
         assert out == [7, 8]
 
@@ -1469,7 +1490,7 @@ class TestCallKw:
         del method._api_model
         model = MagicMock()
         model._name = "res.partner"
-        with patch.object(mod, "get_public_method", return_value=method):
+        with patch.object(mod, "get_public_method", self._resolver("write", method)):
             with pytest.raises(AccessError):
                 mod.call_kw(model, "write", [], {})
 
@@ -1485,7 +1506,7 @@ class TestCallKw:
         method = MagicMock(__name__="write", return_value=True)
         del method._api_model
         model = self._model()
-        with patch.object(mod, "get_public_method", return_value=method):
+        with patch.object(mod, "get_public_method", self._resolver("write", method)):
             mod.call_kw(model, "write", [[7, 8], {"name": "x"}, "extra"], {})
         model.browse.assert_called_once_with([7, 8])
         recs = model.browse.return_value.with_context.return_value
@@ -1504,7 +1525,7 @@ class TestCallKw:
         del method._api_model
         model = self._model()
         ctx = {"lang": "es_MX", "tz": "America/Mexico_City"}
-        with patch.object(mod, "get_public_method", return_value=method):
+        with patch.object(mod, "get_public_method", self._resolver("read", method)):
             mod.call_kw(model, "read", [[1]], {"context": ctx})
         model.browse.return_value.with_context.assert_called_once_with(ctx)
 
@@ -1512,7 +1533,7 @@ class TestCallKw:
         method = MagicMock(__name__="read", return_value=[])
         del method._api_model
         model = self._model()
-        with patch.object(mod, "get_public_method", return_value=method):
+        with patch.object(mod, "get_public_method", self._resolver("read", method)):
             mod.call_kw(model, "read", [[1]], {})
         model.browse.return_value.with_context.assert_called_once_with({})
 
@@ -1522,7 +1543,7 @@ class TestCallKw:
         method = MagicMock(__name__="read", return_value=[])
         del method._api_model
         model = self._model()
-        with patch.object(mod, "get_public_method", return_value=method):
+        with patch.object(mod, "get_public_method", self._resolver("read", method)):
             mod.call_kw(model, "read", [[1]], {"context": {"lang": "en"}, "load": "_"})
         assert "context" not in method.call_args.kwargs
         assert method.call_args.kwargs == {"load": "_"}
@@ -1540,7 +1561,7 @@ class TestCallKw:
         from odoo.exceptions import AccessError
 
         method = MagicMock(__name__="create", _api_model=True)
-        with patch.object(mod, "get_public_method", return_value=method):
+        with patch.object(mod, "get_public_method", self._resolver("create", method)):
             with pytest.raises(AccessError, match="requires a vals dict"):
                 mod.call_kw(self._model(), "create", [], {})
         method.assert_not_called()

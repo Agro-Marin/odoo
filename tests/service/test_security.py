@@ -9,7 +9,7 @@ Run with::
 """
 
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -41,14 +41,27 @@ class _FakeSession:
         return self._data[key]
 
 
-def _make_env(expected_token: str):
-    """Build a minimal Environment mock returning ``expected_token`` from compute."""
+def _make_env(expected_token: str, device_log=None):
+    """A minimal Environment mock whose user computes ``expected_token``.
+
+    ``device_log`` supplies ``env["res.device.log"]`` when a test drives the
+    request path.  It used to be unsupported, so the three tests that need one
+    each rebuilt this whole block by hand — the copies then had to be kept in
+    step by eye.
+    """
     env = MagicMock()
     user = MagicMock()
     user._compute_session_token.return_value = expected_token
-    env.__getitem__ = MagicMock(
-        return_value=MagicMock(browse=MagicMock(return_value=user))
-    )
+    users = MagicMock(browse=MagicMock(return_value=user))
+
+    def getitem(key):
+        if key == "res.users":
+            return users
+        if key == "res.device.log" and device_log is not None:
+            return device_log
+        return MagicMock()
+
+    env.__getitem__ = MagicMock(side_effect=getitem)
     return env, user
 
 
@@ -64,12 +77,31 @@ class TestCheckSession:
         assert sec.check_session(session, env) is False
 
     def test_token_mismatch_returns_false(self, sec) -> None:
-        """A session whose token doesn't match the computed HMAC is rejected."""
+        """A session whose token doesn't match the computed HMAC is rejected.
+
+        ``consteq`` is deliberately NOT patched here.  It is a pure function of
+        two strings and returns the same answer either way, so a stub buys
+        nothing — and costs the assertion: with it in place ``check_session``
+        may compare *any* pair of values and still pass.  Verified by mutation:
+        ``actual = session.session_token`` -> ``session.sid`` left all 887 tests
+        green while the stubs were there, and fails now.
+        """
         session = _FakeSession(uid=1, sid="abc", token="wrong")
         env, _ = _make_env("correct")
-        with patch("odoo.service.security.consteq", return_value=False):
-            result = sec.check_session(session, env)
-        assert result is False
+        assert sec.check_session(session, env) is False
+
+    def test_non_string_token_is_refused_before_the_comparison(self, sec) -> None:
+        """``session_token`` arrives from storage and need not be a ``str``.
+
+        The ``isinstance(actual, str)`` guard is what stops one reaching
+        ``consteq``, where a non-``str`` raises rather than returning False —
+        turning a uniform ``False`` into a distinguishable error.  Verified by
+        mutation: deleting the guard left the suite green.
+        """
+        for bad in (None, 42, b"tok", ["tok"]):
+            session = _FakeSession(uid=1, sid="abc", token=bad)
+            env, _ = _make_env("correct")
+            assert sec.check_session(session, env) is False, bad
 
     def test_no_expected_token_returns_false(self, sec) -> None:
         """If ``_compute_session_token`` returns empty/None, reject immediately."""
@@ -82,8 +114,7 @@ class TestCheckSession:
         """Matching token with no HTTP request returns True without touching device log."""
         session = _FakeSession(uid=1, sid="abc", token="good_token")
         env, _ = _make_env("good_token")
-        with patch("odoo.service.security.consteq", return_value=True):
-            result = sec.check_session(session, env)
+        result = sec.check_session(session, env)
         assert result is True
         # device log must not be touched when request=None
         accessed_keys = [c.args[0] for c in env.__getitem__.call_args_list]
@@ -93,23 +124,11 @@ class TestCheckSession:
         """On a valid session with a live request, ``_update_device`` must be called."""
         session = _FakeSession(uid=1, sid="abc", token="good_token")
 
-        env = MagicMock()
-        user = MagicMock()
-        user._compute_session_token.return_value = "good_token"
         device_log = MagicMock()
-
-        def env_getitem(key):
-            if key == "res.users":
-                return MagicMock(browse=MagicMock(return_value=user))
-            if key == "res.device.log":
-                return device_log
-            return MagicMock()
-
-        env.__getitem__ = MagicMock(side_effect=env_getitem)
+        env, _ = _make_env("good_token", device_log=device_log)
 
         mock_request = MagicMock()
-        with patch("odoo.service.security.consteq", return_value=True):
-            result = sec.check_session(session, env, request=mock_request)
+        result = sec.check_session(session, env, request=mock_request)
 
         assert result is True
         device_log._update_device.assert_called_once_with(mock_request)
@@ -131,24 +150,12 @@ class TestCheckSession:
         """
         session = _FakeSession(uid=1, sid="abc", token="good_token")
 
-        env = MagicMock()
-        user = MagicMock()
-        user._compute_session_token.return_value = "good_token"
         device_log = MagicMock()
         device_log._update_device.side_effect = RuntimeError("device log table full")
-
-        def env_getitem(key):
-            if key == "res.users":
-                return MagicMock(browse=MagicMock(return_value=user))
-            if key == "res.device.log":
-                return device_log
-            return MagicMock()
-
-        env.__getitem__ = MagicMock(side_effect=env_getitem)
+        env, _ = _make_env("good_token", device_log=device_log)
 
         mock_request = MagicMock()
-        with patch("odoo.service.security.consteq", return_value=True):
-            result = sec.check_session(session, env, request=mock_request)
+        result = sec.check_session(session, env, request=mock_request)
 
         assert result is True, (
             "a device-log write failure logged the user out; the session was "
@@ -164,25 +171,11 @@ class TestCheckSession:
         import logging
 
         session = _FakeSession(uid=1, sid="abc", token="good_token")
-        env = MagicMock()
-        user = MagicMock()
-        user._compute_session_token.return_value = "good_token"
         device_log = MagicMock()
         device_log._update_device.side_effect = RuntimeError("device log table full")
+        env, _ = _make_env("good_token", device_log=device_log)
 
-        def env_getitem(key):
-            if key == "res.users":
-                return MagicMock(browse=MagicMock(return_value=user))
-            if key == "res.device.log":
-                return device_log
-            return MagicMock()
-
-        env.__getitem__ = MagicMock(side_effect=env_getitem)
-
-        with (
-            patch("odoo.service.security.consteq", return_value=True),
-            caplog.at_level(logging.WARNING, logger="odoo.service.security"),
-        ):
+        with caplog.at_level(logging.WARNING, logger="odoo.service.security"):
             assert sec.check_session(session, env, request=MagicMock()) is True
 
         assert any(r.levelno >= logging.WARNING for r in caplog.records), (
@@ -193,6 +186,5 @@ class TestCheckSession:
         """``_delete_old_sessions()`` is invoked on every call, even before token check."""
         session = _FakeSession(uid=1, sid="abc", token="tok")
         env, _ = _make_env("tok")
-        with patch("odoo.service.security.consteq", return_value=True):
-            sec.check_session(session, env)
+        sec.check_session(session, env)
         session._delete_old_sessions.assert_called_once()

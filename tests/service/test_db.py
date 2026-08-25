@@ -2010,8 +2010,13 @@ class TestAdminGates:
 
         with patch.object(
             odoo.tools.config, "verify_admin_password", return_value=True
-        ):
+        ) as verify:
             assert db_mod.check_super("correct") is True
+        # The gate must hand the verifier the password it was GIVEN.  Both tests
+        # here stub the verifier, so without this the ARGUMENT is unobserved and
+        # `verify_admin_password(passwd)` -> `verify_admin_password("")` passes
+        # the whole suite (verified by mutation).
+        verify.assert_called_once_with("correct")
 
     def test_wrong_master_password_is_refused(self, db_mod):
         import odoo.tools
@@ -2019,9 +2024,10 @@ class TestAdminGates:
 
         with patch.object(
             odoo.tools.config, "verify_admin_password", return_value=False
-        ):
+        ) as verify:
             with pytest.raises(AccessDenied):
                 db_mod.check_super("wrong")
+        verify.assert_called_once_with("wrong")
 
     def test_empty_master_password_is_refused(self, db_mod):
         """Short-circuited before the comparison, so an unset ``admin_passwd``
@@ -2930,6 +2936,54 @@ class TestCreateEmptyDatabaseHardening:
         conn = MagicMock()
         conn.cursor.return_value = cr
         return patch.object(odoo.db, "db_connect", return_value=conn), conn, cr
+
+    @pytest.mark.parametrize("template", ["template0", "tpl_custom"])
+    def test_the_new_database_is_created_from_the_template_not_vice_versa(
+        self, db_mod, bypass_db_mgmt, template
+    ):
+        """``CREATE DATABASE <new> ... TEMPLATE <template>`` — in that order.
+
+        Both quoted identifiers go through ``database_identifier``, and every
+        other test here stubs it with a CONSTANT ``return_value``, so which
+        argument lands in which slot is unobserved: swapping them
+        (``database_identifier(cr, name)`` -> ``...(cr, chosen_template)``) left
+        the whole 887-test suite green.  Keying the stub on its argument, and
+        recording the order, is what pins it.
+
+        Parametrized over both templates on purpose: ``_create_empty_database``
+        branches on ``chosen_template == "template0"`` and spells the identifier
+        pair out separately in each arm, so a test that drives only one arm
+        leaves the other unpinned — which is how the first version of this test
+        missed the very mutation it was written for.
+        """
+        import odoo.tools
+
+        seen: list[str] = []
+
+        def identifier(_cr, name):
+            seen.append(name)
+            return name
+
+        fake_db, _fake_cr = fake_pg_connection()
+        with (
+            patch.object(
+                odoo.tools,
+                "config",
+                _MockConfig(
+                    {"list_db": True, "db_template": template, "unaccent": False}
+                ),
+            ),
+            patch("odoo.service.db.lifecycle.odoo.db.db_connect", return_value=fake_db),
+            patch("odoo.service.db.lifecycle.database_identifier", identifier),
+            patch("odoo.service.db.lifecycle._check_faketime_mode"),
+        ):
+            db_mod._create_empty_database("newdb")
+
+        assert seen[:2] == ["newdb", template], (
+            f"CREATE DATABASE quoted {seen[:2]}; the new database must come "
+            f"first and the template second, or a create silently targets the "
+            f"template (or clones the wrong source)"
+        )
 
     def test_rejects_malformed_db_template(self, db_mod, bypass_db_mgmt):
         """A ``%``-bearing (malformed) template fails fast with a clear

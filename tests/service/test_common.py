@@ -174,8 +174,14 @@ class TestExpAuthenticateExceptionAbsorption:
 
         with patch.object(
             common_mod, "Registry", side_effect=PoolError("pool exhausted")
-        ):
+        ) as registry:
             assert common_mod.exp_authenticate("any_db", "u", "p", None) is False
+        # Every test in this class drives ``Registry`` to raise and none observed
+        # the name it was called with, so authenticating against a DIFFERENT
+        # database than the caller named was invisible: `Registry(db)` ->
+        # `Registry("postgres")` passed the whole suite (verified by mutation).
+        # One assertion here covers the shared call site.
+        registry.assert_called_once_with("any_db")
 
     def test_psycopg_operational_error_still_returns_false(self, common_mod):
         """Regression-check the surviving catch: bypass paths that don't go
