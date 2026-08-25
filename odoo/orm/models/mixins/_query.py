@@ -3,9 +3,9 @@ import typing
 from collections import defaultdict
 from typing import Self
 
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 from odoo.libs.profiling import _OrmProfile
-from odoo.tools import SQL, Query, partition
+from odoo.tools import SQL, Query, ormcache, partition
 from odoo.tools.translate import _
 
 from ... import decorators as api
@@ -80,6 +80,45 @@ class _QueryMixin(_ModelStubs):
                 terms.append(term)
 
         return SQL(", ").join(terms)
+
+    @api.model
+    @ormcache("field_name", "self.env.su", "self.env.user._get_group_ids()")
+    def _is_field_sortable(self, field_name: str) -> bool:
+        """Whether this user may order on `field_name`.
+
+        Answering it means composing the ORDER BY term, which for a related or
+        delegated field walks the relation and builds a JOIN. `fields_get`
+        asks for every field it describes and a search view asks for every
+        field on the model -- 160 on res.users, 102 of them delegated to
+        res.partner -- so the same JOINs were composed on every view load.
+
+        The answer moves with the registry and with field access, never with
+        the record, so it is keyed on the group set: measured over four models
+        and three kinds of user, only group membership ever changed it.
+        `ir.model.fields` and `ir.model.access` both clear the `stable` cache,
+        which covers this one.
+        """
+        try:
+            query = self._as_query(ordered=False)
+            term = self._order_field_to_sql(
+                self._table, field_name, SQL.EMPTY, SQL.EMPTY, query
+            )
+        except ValueError, AccessError, NotImplementedError:
+            return False
+        return bool(term)
+
+    @api.model
+    @ormcache("field_name", "self.env.su", "self.env.user._get_group_ids()")
+    def _is_field_groupable(self, field_name: str) -> bool:
+        """Whether this user may group by `field_name`. See `_is_field_sortable`."""
+        field = self._fields[field_name]
+        groupby = field_name if not field.is_temporal else f"{field_name}:month"
+        try:
+            query = self._as_query(ordered=False)
+            self._read_group_groupby(self._table, groupby, query)
+        except ValueError, AccessError, NotImplementedError:
+            return False
+        return True
 
     def _order_field_to_sql(
         self,

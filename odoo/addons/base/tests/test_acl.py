@@ -793,3 +793,80 @@ class TestResGroupsCacheInvalidation(TransactionCaseWithUserDemo):
         )
 
         self.assertIn(granter.id, admin._get_group_ids())
+
+
+class TestFieldDescriptionCachePerGroupSet(TransactionCaseWithUserDemo):
+    """`sortable` and `groupable` are cached, and the key must carry the groups.
+
+    Deciding either for a related or delegated field composes a JOIN, and a
+    search view asks for every field on the model, so the answers are cached.
+    They are not user-invariant: a portal user cannot group by `category_id`
+    where an internal user can, because the traversal hits a field their groups
+    do not reach. A key that forgot the groups would serve one user's answer to
+    another.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        Users = cls.env["res.users"]
+        Partner = cls.env["res.partner"]
+        cls.internal_user = Users.create(
+            {
+                "login": "fdesc_internal",
+                "partner_id": Partner.create({"name": "FDesc Internal"}).id,
+                "group_ids": [Command.set([cls.env.ref("base.group_user").id])],
+            }
+        )
+        cls.portal_user = Users.create(
+            {
+                "login": "fdesc_portal",
+                "partner_id": Partner.create({"name": "FDesc Portal"}).id,
+                "group_ids": [Command.set([cls.env.ref("base.group_portal").id])],
+            }
+        )
+
+    def _answers(self, user, model_name, fname):
+        env = self.env(user=user.id)
+        field = env[model_name]._fields[fname]
+        return (field._description_sortable(env), field._description_groupable(env))
+
+    def test_two_group_sets_do_not_share_an_answer(self):
+        internal_first = self._answers(self.internal_user, "res.partner", "category_id")
+        portal_after = self._answers(self.portal_user, "res.partner", "category_id")
+
+        self.assertNotEqual(
+            internal_first,
+            portal_after,
+            "a portal user must not be served the internal user's cached answer",
+        )
+        self.assertEqual(
+            self._answers(self.internal_user, "res.partner", "category_id"),
+            internal_first,
+            "and the internal user's answer must survive the portal read",
+        )
+
+    def test_the_order_the_users_ask_in_does_not_matter(self):
+        portal_first = self._answers(self.portal_user, "res.partner", "category_id")
+        internal_after = self._answers(self.internal_user, "res.partner", "category_id")
+        self.env.registry.clear_cache()
+
+        self.assertEqual(
+            self._answers(self.portal_user, "res.partner", "category_id"),
+            portal_first,
+        )
+        self.assertEqual(
+            self._answers(self.internal_user, "res.partner", "category_id"),
+            internal_after,
+        )
+
+    def test_a_cached_answer_matches_a_freshly_computed_one(self):
+        env = self.env(user=self.internal_user.id)
+        model = env["res.users"]
+        for fname, field in model._fields.items():
+            warm = (field._description_sortable(env), field._description_groupable(env))
+            self.env.registry.clear_cache()
+            cold = (field._description_sortable(env), field._description_groupable(env))
+            self.assertEqual(
+                warm, cold, f"cached and freshly computed must agree for {fname!r}"
+            )

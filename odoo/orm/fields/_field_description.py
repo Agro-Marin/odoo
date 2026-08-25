@@ -4,9 +4,6 @@ from collections.abc import (
 )
 
 from odoo.exceptions import AccessError
-from odoo.tools import (
-    SQL,
-)
 
 if typing.TYPE_CHECKING:
     from .._typing import BaseModel, ValuesType
@@ -46,31 +43,14 @@ class _FieldDescriptionMixin(_FieldStubs):
             return True
         if self.inherited_field and self.inherited_field._description_sortable(env):
             return True
-
-        model = env[self.model_name]
-        try:
-            query = model._as_query(ordered=False)
-            term = model._order_field_to_sql(
-                model._table, self.name, SQL.EMPTY, SQL.EMPTY, query
-            )
-        except ValueError, AccessError, NotImplementedError:
-            return False
-        return bool(term)
+        return env[self.model_name]._is_field_sortable(self.name)
 
     def _description_groupable(self, env: Environment) -> bool:
         if self.is_column:
             return True
         if self.inherited_field and self.inherited_field._description_groupable(env):
             return True
-
-        model = env[self.model_name]
-        groupby = self.name if not self.is_temporal else f"{self.name}:month"
-        try:
-            query = model._as_query(ordered=False)
-            model._read_group_groupby(model._table, groupby, query)
-            return True
-        except ValueError, AccessError, NotImplementedError:
-            return False
+        return env[self.model_name]._is_field_groupable(self.name)
 
     def _description_aggregator(self, env: Environment) -> str | None:
         if not self.aggregator or self.is_column:
