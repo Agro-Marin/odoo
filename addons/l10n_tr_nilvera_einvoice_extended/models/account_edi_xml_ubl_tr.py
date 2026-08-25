@@ -1,9 +1,13 @@
 from collections import defaultdict
+
 from lxml import etree
 
 from odoo import api, models
 from odoo.tools import float_compare, frozendict
-from odoo.addons.l10n_tr_nilvera_einvoice_extended.tools.clean_node_dict import clean_node_dict
+
+from odoo.addons.l10n_tr_nilvera_einvoice_extended.tools.clean_node_dict import (
+    clean_node_dict,
+)
 from odoo.addons.l10n_tr_nilvera_einvoice_extended.tools.ubl_tr_invoice import TrInvoice
 
 
@@ -24,7 +28,12 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         """
         document_node = super()._get_invoice_node(vals)
         self._add_invoice_buyer_customer_party_nodes(document_node, vals)
-        return clean_node_dict(document_node, self._get_document_template({'document_node': document_node, 'document_type': 'invoice'}))
+        return clean_node_dict(
+            document_node,
+            self._get_document_template(
+                {"document_node": document_node, "document_type": "invoice"}
+            ),
+        )
 
     def _add_invoice_header_nodes(self, document_node, vals):
         """Extend the invoice header node generation with Turkish-specific fields.
@@ -39,13 +48,19 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         """
         super()._add_invoice_header_nodes(document_node, vals)
         # The Nilvera Extended flow is only for out_invoice type
-        if vals['document_type'] != 'invoice':
+        if vals["document_type"] != "invoice":
             return
-        invoice = vals['invoice']
-        document_node.update({
-            'cbc:ProfileID': {'_text': self._get_tr_profile_id(invoice)},
-            'cbc:InvoiceTypeCode': {'_text': 'ISTISNA' if invoice.l10n_tr_is_export_invoice else invoice.l10n_tr_gib_invoice_type},
-        })
+        invoice = vals["invoice"]
+        document_node.update(
+            {
+                "cbc:ProfileID": {"_text": self._get_tr_profile_id(invoice)},
+                "cbc:InvoiceTypeCode": {
+                    "_text": "ISTISNA"
+                    if invoice.l10n_tr_is_export_invoice
+                    else invoice.l10n_tr_gib_invoice_type
+                },
+            }
+        )
 
     @api.model
     def _add_invoice_buyer_customer_party_nodes(self, document_node, vals):
@@ -57,14 +72,19 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         :param document_node: dict representing the invoice XML structure to modify.
         :param vals: dict containing invoice-related values, including 'invoice'.
         """
-        if vals['invoice'].l10n_tr_is_export_invoice:
-            buyer_party_node = self._get_party_node({**vals, 'partner': vals['customer'], 'role': 'buyer'})
-            buyer_party_node['cac:PartyIdentification'] = [{'cbc:ID': {
-                '_text': 'EXPORT',
-                'schemeID': 'PARTYTYPE',
-                },
-            }]
-            document_node['cac:BuyerCustomerParty'] = {'cac:Party': buyer_party_node}
+        if vals["invoice"].l10n_tr_is_export_invoice:
+            buyer_party_node = self._get_party_node(
+                {**vals, "partner": vals["customer"], "role": "buyer"}
+            )
+            buyer_party_node["cac:PartyIdentification"] = [
+                {
+                    "cbc:ID": {
+                        "_text": "EXPORT",
+                        "schemeID": "PARTYTYPE",
+                    },
+                }
+            ]
+            document_node["cac:BuyerCustomerParty"] = {"cac:Party": buyer_party_node}
 
     def _add_invoice_accounting_customer_party_nodes(self, document_node, vals):
         """Extend invoice accounting customer party nodes for TR E-Invoicing.
@@ -76,8 +96,10 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         :param vals: dict containing invoice-related values, including 'invoice'.
         """
         super()._add_invoice_accounting_customer_party_nodes(document_node, vals)
-        if vals['invoice'].l10n_tr_is_export_invoice:
-            document_node['cac:AccountingCustomerParty'] = {'cac:Party': self._get_ministry_party_node()}
+        if vals["invoice"].l10n_tr_is_export_invoice:
+            document_node["cac:AccountingCustomerParty"] = {
+                "cac:Party": self._get_ministry_party_node()
+            }
 
     def _add_invoice_monetary_total_nodes(self, document_node, vals):
         """Extend invoice monetary total nodes for TR E-Invoicing.
@@ -89,9 +111,11 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         :param vals: dict containing invoice-related values, including 'invoice'.
         """
         super()._add_invoice_monetary_total_nodes(document_node, vals)
-        if vals['invoice'].l10n_tr_gib_invoice_type == "IHRACKAYITLI":
+        if vals["invoice"].l10n_tr_gib_invoice_type == "IHRACKAYITLI":
             document_node["cac:LegalMonetaryTotal"]["cbc:PayableAmount"]["_text"] = (
-                document_node["cac:LegalMonetaryTotal"]["cbc:TaxExclusiveAmount"]["_text"]
+                document_node["cac:LegalMonetaryTotal"]["cbc:TaxExclusiveAmount"][
+                    "_text"
+                ]
             )
 
     @api.model
@@ -104,22 +128,24 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         :return: dict containing ministry party node.
         """
         return {
-            'cac:PartyIdentification': {
-                'cbc:ID': {
-                    '_text': '1460415308',
-                    'schemeID': 'VKN',
+            "cac:PartyIdentification": {
+                "cbc:ID": {
+                    "_text": "1460415308",
+                    "schemeID": "VKN",
                 },
             },
-            'cac:PartyName': {
-                'cbc:Name': {'_text': 'Gümrük ve Ticaret Bakanlığı Gümrükler Genel Müdürlüğü- Bilgi İşlem Dairesi Başkanlığı'},
+            "cac:PartyName": {
+                "cbc:Name": {
+                    "_text": "Gümrük ve Ticaret Bakanlığı Gümrükler Genel Müdürlüğü- Bilgi İşlem Dairesi Başkanlığı"
+                },
             },
-            'cac:PostalAddress': {
-                'cbc:CitySubdivisionName': {'_text': 'Ulus'},
-                'cbc:CityName': {'_text': 'Ankara'},
-                'cac:Country': {'cbc:Name': {'_text': 'Türkiye'}},
+            "cac:PostalAddress": {
+                "cbc:CitySubdivisionName": {"_text": "Ulus"},
+                "cbc:CityName": {"_text": "Ankara"},
+                "cac:Country": {"cbc:Name": {"_text": "Türkiye"}},
             },
-            'cac:PartyTaxScheme': {
-                'cac:TaxScheme': {'cbc:Name': {'_text': 'Ulus'}},
+            "cac:PartyTaxScheme": {
+                "cac:TaxScheme": {"cbc:Name": {"_text": "Ulus"}},
             },
         }
 
@@ -137,11 +163,13 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         :param invoice: account.move record (the invoice).
         :return: str, TR profile ID to be used in E-invoicing.
         """
-        if (is_einvoice := invoice.l10n_tr_nilvera_customer_status == 'einvoice') and invoice.l10n_tr_gib_invoice_scenario:
+        if (
+            is_einvoice := invoice.l10n_tr_nilvera_customer_status == "einvoice"
+        ) and invoice.l10n_tr_gib_invoice_scenario:
             return invoice.l10n_tr_gib_invoice_scenario
         if invoice.l10n_tr_is_export_invoice:
-            return 'IHRACAT'
-        return 'TEMELFATURA' if is_einvoice else 'EARSIVFATURA'
+            return "IHRACAT"
+        return "TEMELFATURA" if is_einvoice else "EARSIVFATURA"
 
     def _get_document_template(self, vals):
         """Determines the document template to use based on the provided values.
@@ -152,7 +180,10 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         :param vals: Dictionary containing document data, including 'document_node' and 'document_type'.
         :return: Document template class to be used for generating the document.
         """
-        if vals['document_node']['cbc:CustomizationID']['_text'] == 'TR1.2' and vals['document_type'] == 'invoice':
+        if (
+            vals["document_node"]["cbc:CustomizationID"]["_text"] == "TR1.2"
+            and vals["document_type"] == "invoice"
+        ):
             return TrInvoice
         return super()._get_document_template(vals)
 
@@ -165,10 +196,12 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         :param vals: dict containing invoice-related values.
         :return: dict representing the updated party node.
         """
-        partner = vals['partner']
+        partner = vals["partner"]
         party_node = super()._get_party_node(vals)
         if tax_office := partner.l10n_tr_tax_office_id:
-            party_node['cac:PartyTaxScheme']['cac:TaxScheme']['cbc:Name']['_text'] = tax_office.name
+            party_node["cac:PartyTaxScheme"]["cac:TaxScheme"]["cbc:Name"]["_text"] = (
+                tax_office.name
+            )
         return party_node
 
     def _get_invoice_line_node(self, vals):
@@ -180,7 +213,9 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         :param vals: dict with invoice line data.
         :return: invoice line node dict ready for XML rendering.
         """
-        line_node = super(AccountEdiXmlUblTr, self.with_context(skip_tr_reason_code=True))._get_invoice_line_node(vals)
+        line_node = super(
+            AccountEdiXmlUblTr, self.with_context(skip_tr_reason_code=True)
+        )._get_invoice_line_node(vals)
         self._add_invoice_line_delivery_nodes(line_node, vals)
         return line_node
 
@@ -194,23 +229,47 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         :param line_node: dict representing the invoice line XML structure to update.
         :param vals: dict containing invoice line data.
         """
-        move_line = vals['base_line']['record']
+        move_line = vals["base_line"]["record"]
         if move_line.move_id.l10n_tr_is_export_invoice:
-            line_node['cac:Delivery'] = {
-                'cac:DeliveryAddress': {
-                    'cbc:StreetName': {'_text': move_line.move_id.partner_id.street},
-                    'cbc:CitySubdivisionName': {'_text': move_line.move_id.partner_id.city},
-                    'cbc:CityName': {'_text': move_line.move_id.partner_id.state_id.with_context(lang='tr_TR').name},
-                    'cbc:PostalZone': {'_text': move_line.move_id.partner_id.zip},
-                    'cac:Country': {'cbc:Name': {'_text': move_line.move_id.partner_id.country_id.with_context(lang='tr_TR').name}},
+            line_node["cac:Delivery"] = {
+                "cac:DeliveryAddress": {
+                    "cbc:StreetName": {"_text": move_line.move_id.partner_id.street},
+                    "cbc:CitySubdivisionName": {
+                        "_text": move_line.move_id.partner_id.city
+                    },
+                    "cbc:CityName": {
+                        "_text": move_line.move_id.partner_id.state_id.with_context(
+                            lang="tr_TR"
+                        ).name
+                    },
+                    "cbc:PostalZone": {"_text": move_line.move_id.partner_id.zip},
+                    "cac:Country": {
+                        "cbc:Name": {
+                            "_text": move_line.move_id.partner_id.country_id.with_context(
+                                lang="tr_TR"
+                            ).name
+                        }
+                    },
                 },
-                'cac:DeliveryTerms': {
-                    'cbc:ID': {'_text': move_line.move_id.invoice_incoterm_id.code, 'schemeID': 'INCOTERMS'},
+                "cac:DeliveryTerms": {
+                    "cbc:ID": {
+                        "_text": move_line.move_id.invoice_incoterm_id.code,
+                        "schemeID": "INCOTERMS",
+                    },
                 },
-                'cac:Shipment': {
-                    'cbc:ID': {'_text': 'NO_ID'},
-                    'cac:GoodsItem': {'cbc:RequiredCustomsID': {'_text': move_line.l10n_tr_ctsp_number or move_line.product_id.l10n_tr_ctsp_number}},
-                    'cac:ShipmentStage': {'cbc:TransportModeCode': {'_text': move_line.move_id.l10n_tr_shipping_type}},
+                "cac:Shipment": {
+                    "cbc:ID": {"_text": "NO_ID"},
+                    "cac:GoodsItem": {
+                        "cbc:RequiredCustomsID": {
+                            "_text": move_line.l10n_tr_ctsp_number
+                            or move_line.product_id.l10n_tr_ctsp_number
+                        }
+                    },
+                    "cac:ShipmentStage": {
+                        "cbc:TransportModeCode": {
+                            "_text": move_line.move_id.l10n_tr_shipping_type
+                        }
+                    },
                 },
             }
 
@@ -225,7 +284,7 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         :param vals: Dictionary containing the invoice data.
         :return: Updated XML line node with tax total information.
         """
-        if vals['invoice'].l10n_tr_gib_invoice_type == 'TEVKIFAT':
+        if vals["invoice"].l10n_tr_gib_invoice_type == "TEVKIFAT":
             return self._add_withholding_document_line_tax_total_nodes(line_node, vals)
         return super()._add_document_line_tax_total_nodes(line_node, vals)
 
@@ -241,7 +300,7 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         :return: lxml.etree.Element or similar XML node representing the updated invoice document.
 
         """
-        if vals['invoice'].l10n_tr_gib_invoice_type == 'TEVKIFAT':
+        if vals["invoice"].l10n_tr_gib_invoice_type == "TEVKIFAT":
             return self._add_withholding_document_tax_total_nodes(document_node, vals)
         return super()._add_document_tax_total_nodes(document_node, vals)
 
@@ -266,44 +325,83 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         :param line_node: XML node representing the invoice line to be updated.
         :param vals: Dictionary containing invoice data and base lines.
         """
-        base_lines_aggregated_tax_details = self.env['account.tax']._aggregate_base_lines_tax_details(vals['base_lines'], self.tax_grouping_function)
-        aggregated_tax_details = self.env['account.tax']._aggregate_base_lines_aggregated_values(base_lines_aggregated_tax_details)
+        base_lines_aggregated_tax_details = self.env[
+            "account.tax"
+        ]._aggregate_base_lines_tax_details(
+            vals["base_lines"], self.tax_grouping_function
+        )
+        aggregated_tax_details = self.env[
+            "account.tax"
+        ]._aggregate_base_lines_aggregated_values(base_lines_aggregated_tax_details)
 
         for base_line, aggregated_values in base_lines_aggregated_tax_details:
             for grouping_key in aggregated_values:
-                taxes_data = base_line.get('tax_details', {}).get('taxes_data', [])
-                rounding = base_line.get('record').currency_id.rounding
+                taxes_data = base_line.get("tax_details", {}).get("taxes_data", [])
+                rounding = base_line.get("record").currency_id.rounding
 
                 # Sum of positive tax amounts (with rounding check)
                 total_taxed_amount = sum(
-                    tax_line['tax_amount']
+                    tax_line["tax_amount"]
                     for tax_line in taxes_data
-                    if float_compare(tax_line['tax_amount'], 0, precision_rounding=rounding) > 0
+                    if float_compare(
+                        tax_line["tax_amount"], 0, precision_rounding=rounding
+                    )
+                    > 0
                 )
 
                 # Sum of all tax amounts
-                total_residual_amount = sum(tax_line['tax_amount'] for tax_line in taxes_data)
+                total_residual_amount = sum(
+                    tax_line["tax_amount"] for tax_line in taxes_data
+                )
 
                 # Update values_per_grouping_key
                 group_vals = aggregated_tax_details[grouping_key]
-                group_vals['tr_total_taxed_amount'] = group_vals.get('tr_total_taxed_amount', 0.0) + total_taxed_amount
-                group_vals['tr_total_taxed_residual_amount'] = group_vals.get('tr_total_taxed_residual_amount', 0.0) + total_residual_amount
+                group_vals["tr_total_taxed_amount"] = (
+                    group_vals.get("tr_total_taxed_amount", 0.0) + total_taxed_amount
+                )
+                group_vals["tr_total_taxed_residual_amount"] = (
+                    group_vals.get("tr_total_taxed_residual_amount", 0.0)
+                    + total_residual_amount
+                )
 
-        aggregated_tax_details_by_l10n_tr_tax_withholding_code_id = {'tax': defaultdict(dict), 'withholding_tax': defaultdict(dict)}
+        aggregated_tax_details_by_l10n_tr_tax_withholding_code_id = {
+            "tax": defaultdict(dict),
+            "withholding_tax": defaultdict(dict),
+        }
 
         for grouping_key, values in aggregated_tax_details.items():
             if grouping_key:
-                key = 'withholding_tax' if (l10n_tr_tax_withheld := grouping_key['l10n_tr_tax_withheld']) else 'tax'
-                aggregated_tax_details_by_l10n_tr_tax_withholding_code_id[key][l10n_tr_tax_withheld][grouping_key] = values
+                key = (
+                    "withholding_tax"
+                    if (l10n_tr_tax_withheld := grouping_key["l10n_tr_tax_withheld"])
+                    else "tax"
+                )
+                aggregated_tax_details_by_l10n_tr_tax_withholding_code_id[key][
+                    l10n_tr_tax_withheld
+                ][grouping_key] = values
 
-        line_node['cac:TaxTotal'] = [
-            self._get_withholding_tax_total_node({**vals, 'aggregated_tax_details': tax_details, 'role': 'line'})
-            for tax_details in aggregated_tax_details_by_l10n_tr_tax_withholding_code_id['tax'].values()
+        line_node["cac:TaxTotal"] = [
+            self._get_withholding_tax_total_node(
+                {**vals, "aggregated_tax_details": tax_details, "role": "line"}
+            )
+            for tax_details in aggregated_tax_details_by_l10n_tr_tax_withholding_code_id[
+                "tax"
+            ].values()
         ]
-        if vals['document_type'] == 'invoice':
-            line_node['cac:WithholdingTaxTotal'] = [
-                self._get_withholding_tax_total_node({**vals, 'aggregated_tax_details': tax_details, 'role': 'line', 'withholding': True, 'sign': -1})
-                for tax_details in aggregated_tax_details_by_l10n_tr_tax_withholding_code_id['withholding_tax'].values()
+        if vals["document_type"] == "invoice":
+            line_node["cac:WithholdingTaxTotal"] = [
+                self._get_withholding_tax_total_node(
+                    {
+                        **vals,
+                        "aggregated_tax_details": tax_details,
+                        "role": "line",
+                        "withholding": True,
+                        "sign": -1,
+                    }
+                )
+                for tax_details in aggregated_tax_details_by_l10n_tr_tax_withholding_code_id[
+                    "withholding_tax"
+                ].values()
             ]
 
     @api.model
@@ -331,14 +429,21 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         tax = tax_data["tax"]
 
         grouping_key = {
-            "tax_category_code": self._get_tax_category_code(customer.commercial_partner_id, supplier, tax),
-            **self._get_tax_exemption_reason(customer.commercial_partner_id, supplier, tax),
+            "tax_category_code": self._get_tax_category_code(
+                customer.commercial_partner_id, supplier, tax
+            ),
+            **self._get_tax_exemption_reason(
+                customer.commercial_partner_id, supplier, tax
+            ),
             "amount": tax.amount if tax else 0.0,
             "amount_type": tax.amount_type if tax else "percent",
             "l10n_tr_tax_withheld": tax.l10n_tr_tax_withholding_code_id.id,
         }
 
-        if invoice.l10n_tr_gib_invoice_type == "TEVKIFAT" and tax.l10n_tr_tax_withholding_code_id:
+        if (
+            invoice.l10n_tr_gib_invoice_type == "TEVKIFAT"
+            and tax.l10n_tr_tax_withholding_code_id
+        ):
             withholding_code = tax.l10n_tr_tax_withholding_code_id
             grouping_key.update(
                 {
@@ -365,10 +470,12 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         :param vals: Tax values used to compute withholding amounts.
         """
         encountered_groups = set()
-        base_line = vals['base_line']
-        tax_details = base_line['tax_details']
-        taxes_data = tax_details['taxes_data']
-        aggregated_tax_details = self.env['account.tax']._aggregate_base_line_tax_details(base_line, self.tax_grouping_function)
+        base_line = vals["base_line"]
+        tax_details = base_line["tax_details"]
+        taxes_data = tax_details["taxes_data"]
+        aggregated_tax_details = self.env[
+            "account.tax"
+        ]._aggregate_base_line_tax_details(base_line, self.tax_grouping_function)
 
         for tax_data in taxes_data:
             grouping_key = self.tax_grouping_function(base_line, tax_data)
@@ -377,31 +484,68 @@ class AccountEdiXmlUblTr(models.AbstractModel):
             already_accounted = grouping_key in encountered_groups
             encountered_groups.add(grouping_key)
             if not already_accounted:
-                taxes_data = base_line.get('tax_details', {}).get('taxes_data', [])
-                rounding = base_line.get('record').currency_id.rounding
+                taxes_data = base_line.get("tax_details", {}).get("taxes_data", [])
+                rounding = base_line.get("record").currency_id.rounding
 
-                total_taxed_amount = sum(tax_line['tax_amount'] for tax_line in taxes_data if float_compare(tax_line['tax_amount'], 0, precision_rounding=rounding) > 0)
-                total_residual_amount = sum(tax_line['tax_amount'] for tax_line in taxes_data)
+                total_taxed_amount = sum(
+                    tax_line["tax_amount"]
+                    for tax_line in taxes_data
+                    if float_compare(
+                        tax_line["tax_amount"], 0, precision_rounding=rounding
+                    )
+                    > 0
+                )
+                total_residual_amount = sum(
+                    tax_line["tax_amount"] for tax_line in taxes_data
+                )
 
                 group_vals = aggregated_tax_details[grouping_key]
-                group_vals['tr_total_taxed_amount'] = group_vals.get('tr_total_taxed_amount', 0.0) + total_taxed_amount
-                group_vals['tr_total_taxed_residual_amount'] = group_vals.get('tr_total_taxed_residual_amount', 0.0) + total_residual_amount
+                group_vals["tr_total_taxed_amount"] = (
+                    group_vals.get("tr_total_taxed_amount", 0.0) + total_taxed_amount
+                )
+                group_vals["tr_total_taxed_residual_amount"] = (
+                    group_vals.get("tr_total_taxed_residual_amount", 0.0)
+                    + total_residual_amount
+                )
 
-        aggregated_tax_details_by_l10n_tr_tax_withholding_code_id = {'tax': defaultdict(dict), 'withholding_tax': defaultdict(dict)}
+        aggregated_tax_details_by_l10n_tr_tax_withholding_code_id = {
+            "tax": defaultdict(dict),
+            "withholding_tax": defaultdict(dict),
+        }
 
         for grouping_key, values in aggregated_tax_details.items():
             if grouping_key:
-                key = 'withholding_tax' if (l10n_tr_tax_withheld := grouping_key['l10n_tr_tax_withheld']) else 'tax'
-                aggregated_tax_details_by_l10n_tr_tax_withholding_code_id[key][l10n_tr_tax_withheld][grouping_key] = values
+                key = (
+                    "withholding_tax"
+                    if (l10n_tr_tax_withheld := grouping_key["l10n_tr_tax_withheld"])
+                    else "tax"
+                )
+                aggregated_tax_details_by_l10n_tr_tax_withholding_code_id[key][
+                    l10n_tr_tax_withheld
+                ][grouping_key] = values
 
-        line_node['cac:TaxTotal'] = [
-            self._get_withholding_tax_total_node({**vals, 'aggregated_tax_details': tax_details, 'role': 'line'})
-            for tax_details in aggregated_tax_details_by_l10n_tr_tax_withholding_code_id['tax'].values()
+        line_node["cac:TaxTotal"] = [
+            self._get_withholding_tax_total_node(
+                {**vals, "aggregated_tax_details": tax_details, "role": "line"}
+            )
+            for tax_details in aggregated_tax_details_by_l10n_tr_tax_withholding_code_id[
+                "tax"
+            ].values()
         ]
-        if vals['document_type'] == 'invoice':
-            line_node['cac:WithholdingTaxTotal'] = [
-                self._get_withholding_tax_total_node({**vals, 'aggregated_tax_details': tax_details, 'role': 'line', 'withholding': True, 'sign': -1})
-                for tax_details in aggregated_tax_details_by_l10n_tr_tax_withholding_code_id['withholding_tax'].values()
+        if vals["document_type"] == "invoice":
+            line_node["cac:WithholdingTaxTotal"] = [
+                self._get_withholding_tax_total_node(
+                    {
+                        **vals,
+                        "aggregated_tax_details": tax_details,
+                        "role": "line",
+                        "withholding": True,
+                        "sign": -1,
+                    }
+                )
+                for tax_details in aggregated_tax_details_by_l10n_tr_tax_withholding_code_id[
+                    "withholding_tax"
+                ].values()
             ]
 
     @api.model
@@ -413,51 +557,63 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         :param vals: dict containing tax details, currency info, and related data.
         :return: dict representing the withholding tax total node.
         """
-        aggregated_tax_details = vals['aggregated_tax_details']
-        currency_suffix = vals['currency_suffix']
-        currency_name = vals['currency_name']
-        precision = vals['currency_dp']
-        sign = vals.get('sign', 1)
-        is_withholding = vals.get('withholding')
+        aggregated_tax_details = vals["aggregated_tax_details"]
+        currency_suffix = vals["currency_suffix"]
+        currency_name = vals["currency_name"]
+        precision = vals["currency_dp"]
+        sign = vals.get("sign", 1)
+        is_withholding = vals.get("withholding")
 
         def get_tax_amount_total():
             """Compute total tax amount depending on whether it is withholding."""
             if is_withholding:
                 return sum(
-                    details[f'tax_amount{currency_suffix}']
+                    details[f"tax_amount{currency_suffix}"]
                     for grouping_key, details in aggregated_tax_details.items()
                     if grouping_key
                 )
             return sum(
-                values['tr_total_taxed_residual_amount']
+                values["tr_total_taxed_residual_amount"]
                 for grouping_key, values in aggregated_tax_details.items()
                 if grouping_key
             )
 
         def get_total_tax_subtotal_amount(details):
             """Compute the total taxable amount depending on whether it is withholding."""
-            return details['tr_total_taxed_amount'] if is_withholding else details.get(f'base_amount{currency_suffix}', 0)
+            return (
+                details["tr_total_taxed_amount"]
+                if is_withholding
+                else details.get(f"base_amount{currency_suffix}", 0)
+            )
 
         return {
-            'cbc:TaxAmount': {
-                '_text': self.format_float(sign * get_tax_amount_total(), precision),
-                'currencyID': currency_name,
+            "cbc:TaxAmount": {
+                "_text": self.format_float(sign * get_tax_amount_total(), precision),
+                "currencyID": currency_name,
             },
-            'cac:TaxSubtotal': [
+            "cac:TaxSubtotal": [
                 {
-                    'cbc:TaxableAmount': {
-                        '_text': self.format_float(get_total_tax_subtotal_amount(details), precision),
-                        'currencyID': currency_name,
+                    "cbc:TaxableAmount": {
+                        "_text": self.format_float(
+                            get_total_tax_subtotal_amount(details), precision
+                        ),
+                        "currencyID": currency_name,
                     },
-                    'cbc:TaxAmount': {
-                        '_text': self.format_float(sign * details[f'tax_amount{currency_suffix}'], precision),
-                        'currencyID': currency_name,
+                    "cbc:TaxAmount": {
+                        "_text": self.format_float(
+                            sign * details[f"tax_amount{currency_suffix}"], precision
+                        ),
+                        "currencyID": currency_name,
                     },
-                    'cbc:Percent': {
+                    "cbc:Percent": {
                         # The percentatge can't be a float as it is expected to return as an integer
-                        '_text': grouping_key['percent_withheld'] if is_withholding else grouping_key['amount'],
+                        "_text": grouping_key["percent_withheld"]
+                        if is_withholding
+                        else grouping_key["amount"],
                     },
-                    'cac:TaxCategory': self._get_tax_category_node({**vals, 'grouping_key': grouping_key}),
+                    "cac:TaxCategory": self._get_tax_category_node(
+                        {**vals, "grouping_key": grouping_key}
+                    ),
                 }
                 for grouping_key, details in aggregated_tax_details.items()
                 if grouping_key
@@ -477,23 +633,27 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         :param vals: Dictionary containing: grouping_key & invoice record.
         :return: dict representing the XML structure of the tax category node.
         """
-        grouping_key = vals['grouping_key']
-        if grouping_key.get('l10n_tr_tax_withheld'):
+        grouping_key = vals["grouping_key"]
+        if grouping_key.get("l10n_tr_tax_withheld"):
             return {
-                'cac:TaxScheme': {
-                    'cbc:Name': {'_text': grouping_key['name']},
-                    'cbc:TaxTypeCode': {'_text': grouping_key['tax_type_code']},
+                "cac:TaxScheme": {
+                    "cbc:Name": {"_text": grouping_key["name"]},
+                    "cbc:TaxTypeCode": {"_text": grouping_key["tax_type_code"]},
                 },
             }
         tax_totals_vals = super()._get_tax_category_node(vals)
-        tax_invoice_exemption = vals['invoice'].l10n_tr_exemption_code_id
-        if self.env.context.get('skip_tr_reason_code') or not tax_invoice_exemption:
+        tax_invoice_exemption = vals["invoice"].l10n_tr_exemption_code_id
+        if self.env.context.get("skip_tr_reason_code") or not tax_invoice_exemption:
             return tax_totals_vals
 
-        tax_totals_vals.update({
-            'cbc:TaxExemptionReasonCode': {'_text': tax_invoice_exemption.code},
-            'cbc:TaxExemptionReason': {'_text': tax_invoice_exemption.with_context(lang='tr_TR').name},
-        })
+        tax_totals_vals.update(
+            {
+                "cbc:TaxExemptionReasonCode": {"_text": tax_invoice_exemption.code},
+                "cbc:TaxExemptionReason": {
+                    "_text": tax_invoice_exemption.with_context(lang="tr_TR").name
+                },
+            }
+        )
         return tax_totals_vals
 
     def _export_invoice(self, invoice):
@@ -503,8 +663,10 @@ class AccountEdiXmlUblTr(models.AbstractModel):
         # We'll replace the empty value by a dummy one so that the node doesn't get cleaned up and remove its content after the file generation.
         xml, errors = super()._export_invoice(invoice)
         xml_root = etree.fromstring(xml)
-        shipment_id_elements = xml_root.findall('.//cac:Shipment/cbc:ID', namespaces=xml_root.nsmap)
+        shipment_id_elements = xml_root.findall(
+            ".//cac:Shipment/cbc:ID", namespaces=xml_root.nsmap
+        )
         for element in shipment_id_elements:
-            if element.text == 'NO_ID':
-                element.text = ''
-        return etree.tostring(xml_root, xml_declaration=True, encoding='UTF-8'), errors
+            if element.text == "NO_ID":
+                element.text = ""
+        return etree.tostring(xml_root, xml_declaration=True, encoding="UTF-8"), errors
