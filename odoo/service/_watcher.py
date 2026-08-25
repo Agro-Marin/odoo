@@ -75,7 +75,21 @@ def inotify_limit_diagnosis(exc: BaseException) -> str:
 
 
 class FSWatcherBase:
+    #: Trailing-flush delay for backends that have no end-of-pass boundary of
+    #: their own. Short enough to stay inside an edit/reload loop, long enough
+    #: that a multi-file save collapses into one signal.
+    _BURST_FLUSH_S = 0.2
+
+    #: False for backends that emit the trailing edge themselves.
+    _needs_burst_timer = True
+
     _reload_triggered = False
+
+    def __init__(self) -> None:
+        self._burst_lock = threading.Lock()
+        self._assets_dirty = False
+        self._burst_active = False
+        self._burst_timer: threading.Timer | None = None
 
     @staticmethod
     def watch_paths() -> list[str]:
@@ -116,7 +130,8 @@ class FSWatcherBase:
                     paths.append(str(tree))
         return paths
 
-    def handle_asset_file(self, path: str) -> None:
+    def _signal_asset_change(self, path: str) -> None:
+        """One transaction per database. The expensive half of an invalidation."""
         from odoo import db as odoo_db
         from odoo.orm.runtime.registry import Registry
         from odoo.tools import config
@@ -133,6 +148,64 @@ class FSWatcherBase:
                     path,
                     exc_info=True,
                 )
+
+    def handle_asset_file(self, path: str) -> None:
+        """Signal on the leading edge, then coalesce the rest of the burst.
+
+        Without this, a compile that touches N files with D databases open costs
+        N x D transactions -- measured at 60 cursors for 20 files across three
+        databases, against 6 with coalescing. This lived only in the inotify
+        backend, so which of those two a developer paid depended on which
+        optional library was installed.
+
+        The leading edge keeps a single edit as prompt as an uncoalesced signal;
+        everything after it collapses into one trailing flush.
+        """
+        with self._burst_lock:
+            self._assets_dirty = True
+            leading = not self._burst_active
+            if leading:
+                self._burst_active = True
+        if leading:
+            self._flush_asset_invalidation()
+        self._arm_burst_flush()
+
+    def _flush_asset_invalidation(self) -> None:
+        with self._burst_lock:
+            if not self._assets_dirty:
+                return
+            self._assets_dirty = False
+        self._signal_asset_change(ASSET_BURST_PATH)
+
+    def _end_burst(self) -> None:
+        """Trailing edge: emit anything pending and re-arm the leading edge."""
+        self._cancel_burst_flush()
+        self._flush_asset_invalidation()
+        with self._burst_lock:
+            self._burst_active = False
+
+    def _arm_burst_flush(self) -> None:
+        """Schedule the trailing flush for backends with no end-of-pass hook.
+
+        ``FSWatcherInotify`` calls ``_end_burst`` itself once per pass of its
+        event generator, so it needs no timer. ``FSWatcherWatchdog`` is called
+        back per event by the observer and has no such boundary.
+        """
+        if not self._needs_burst_timer:
+            return
+        with self._burst_lock:
+            if self._burst_timer is not None:
+                self._burst_timer.cancel()
+            timer = threading.Timer(self._BURST_FLUSH_S, self._end_burst)
+            timer.daemon = True
+            self._burst_timer = timer
+        timer.start()
+
+    def _cancel_burst_flush(self) -> None:
+        with self._burst_lock:
+            timer, self._burst_timer = self._burst_timer, None
+        if timer is not None:
+            timer.cancel()
 
     def handle_file(self, path: str) -> bool | None:
         from odoo.tools import config
@@ -174,6 +247,7 @@ class FSWatcherBase:
 
 class FSWatcherWatchdog(FSWatcherBase):
     def __init__(self) -> None:
+        super().__init__()
         self.observer = Observer()
         paths = self.watch_paths()
         _logger.info("Watching %d folder(s) for changes", len(paths))
@@ -191,6 +265,7 @@ class FSWatcherWatchdog(FSWatcherBase):
         _logger.info("AutoReload watcher running with watchdog")
 
     def stop(self) -> None:
+        self._end_burst()
         self.observer.stop()
         self.observer.join(timeout=_OBSERVER_JOIN_TIMEOUT_S)
         if self.observer.is_alive():
@@ -202,29 +277,13 @@ class FSWatcherWatchdog(FSWatcherBase):
 
 
 class FSWatcherInotify(FSWatcherBase):
-    _assets_dirty = False
-    _burst_active = False
-
-    def handle_asset_file(self, path: str) -> None:
-        self._assets_dirty = True
-        if not self._burst_active:
-            self._burst_active = True
-            self._flush_asset_invalidation()
-
-    def _flush_asset_invalidation(self) -> None:
-        if not self._assets_dirty:
-            return
-        self._assets_dirty = False
-        super().handle_asset_file(ASSET_BURST_PATH)
-
-    def _end_burst(self) -> None:
-        self._flush_asset_invalidation()
-        self._burst_active = False
+    # Emits the trailing edge itself: ``run`` calls ``_end_burst`` once per pass
+    # of the event generator, which is a real quiescence boundary.
+    _needs_burst_timer = False
 
     def __init__(self) -> None:
+        super().__init__()
         self.started = False
-        self._assets_dirty = False
-        self._burst_active = False
         self.thread: threading.Thread | None = None
         inotify.adapters._LOGGER.setLevel(logging.ERROR)
         paths = self.watch_paths()
@@ -312,6 +371,7 @@ class FSWatcherInotify(FSWatcherBase):
 
     def stop(self) -> None:
         self.started = False
+        self._end_burst()
         if self.thread is not None:
             self.thread.join()
             self.thread = None
