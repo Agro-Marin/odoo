@@ -285,7 +285,7 @@ class PasskeyTest(HttpCaseWithUserDemo):
                         "type": "webauthn",
                         "webauthn_response": json.dumps(webauthn_response),
                         "csrf_token": csrf_token,
-                        "password": "",  # Currently mandatory because of `if request.params['password'] != 'admin':`
+                        "password": "",
                     },
                 )
 
