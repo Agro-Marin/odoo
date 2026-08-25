@@ -99,11 +99,12 @@ class ResponseCache(models.Model):
         url: str,
         params: dict[str, Any] | None = None,
         company_id: int | None = None,
+        credential_id: int | None = None,
     ) -> dict[str, Any] | None:
         if company_id is None:
             company_id = self.env.company.id
 
-        cache_key = self._generate_cache_key(endpoint_code, url, params)
+        cache_key = self._generate_cache_key(endpoint_code, url, params, credential_id)
         cache_entry = self.search(
             [
                 ("cache_key", "=", cache_key),
@@ -142,6 +143,7 @@ class ResponseCache(models.Model):
         ttl: int | None = None,
         params: dict[str, Any] | None = None,
         company_id: int | None = None,
+        credential_id: int | None = None,
     ):
         if company_id is None:
             company_id = self.env.company.id
@@ -158,7 +160,7 @@ class ResponseCache(models.Model):
         if ttl is None:
             ttl = service.cache_ttl or 300
 
-        cache_key = self._generate_cache_key(endpoint_code, url, params)
+        cache_key = self._generate_cache_key(endpoint_code, url, params, credential_id)
         params_hash = self._generate_params_hash(params)
         now = fields.Datetime.now()
         date_expiration = now + timedelta(seconds=ttl)
@@ -256,8 +258,18 @@ class ResponseCache(models.Model):
         endpoint_code: str,
         url: str,
         params: dict[str, Any] | None = None,
+        credential_id: int | None = None,
     ) -> str:
-        content = f"{endpoint_code}:{url}"
+        # The credential belongs in the key. `company_id` used to be the only
+        # isolating dimension, but a credential resolves PER USER when the
+        # endpoint sets `allow_user_credentials`, so two users of one company
+        # calling the same endpoint/url/params collided on a single row and the
+        # second was served the first one's body.
+        #
+        # Keying on the credential keeps sharing exactly where sharing is safe:
+        # an endpoint with one company-wide credential yields the same key for
+        # every caller, so the cache behaves as before.
+        content = f"{endpoint_code}:{credential_id or 0}:{url}"
 
         if params:
             params_str = (

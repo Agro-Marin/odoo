@@ -24,3 +24,4 @@ from . import test_user_credential_scope
 from . import test_private_host
 from . import test_webhook_action_endpoint
 from . import test_access_log_outcome
+from . import test_cache_credential_scope
