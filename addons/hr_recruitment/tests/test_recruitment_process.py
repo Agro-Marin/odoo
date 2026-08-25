@@ -5,8 +5,6 @@ from odoo.addons.hr.tests.common import TestHrCommon
 
 class TestRecruitmentProcess(TestHrCommon):
     def test_00_recruitment_process(self):
-        """Test recruitment process"""
-
         dep_rd = self.env["hr.department"].create(
             {
                 "name": "Research & Development",
