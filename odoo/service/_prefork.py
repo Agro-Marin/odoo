@@ -344,20 +344,20 @@ class PreforkServer(CommonServer):
                 return
 
     def sleep(self) -> None:
-        try:
-            fds = {w.watchdog_pipe[0]: w for w in self.workers.values()}
-            with selectors.DefaultSelector() as sel:
-                for fd in list(fds) + [self.pipe[0]]:
-                    sel.register(fd, selectors.EVENT_READ)
-                ready = sel.select(self.beat)
-            for key, _ in ready:
-                fd = key.fileobj
-                if fd in fds:
-                    fds[fd].watchdog_time = time.monotonic()
-                empty_pipe(fd)
-        except OSError as e:
-            if e.args[0] != errno.EINTR:
-                raise
+        # No EINTR guard: since PEP 475 (Python 3.5) ``selectors.select`` retries
+        # the syscall itself and returns early instead of raising, and
+        # ``empty_pipe`` is ``os.read`` under the same rule.  Measured: 20
+        # SIGUSR1 delivered while blocked in ``select`` produced 0 OSError.
+        fds = {w.watchdog_pipe[0]: w for w in self.workers.values()}
+        with selectors.DefaultSelector() as sel:
+            for fd in list(fds) + [self.pipe[0]]:
+                sel.register(fd, selectors.EVENT_READ)
+            ready = sel.select(self.beat)
+        for key, _ in ready:
+            fd = key.fileobj
+            if fd in fds:
+                fds[fd].watchdog_time = time.monotonic()
+            empty_pipe(fd)
 
     def start(self) -> None:
         self.pipe = self.pipe_new()

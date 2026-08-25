@@ -28,8 +28,13 @@ Run with::
     python -m pytest tests/service/test_contracts.py -v
 """
 
+import os
+import selectors
+import signal
 import subprocess
 import sys
+import threading
+import time
 
 import psycopg
 import pytest
@@ -159,3 +164,71 @@ class TestSubprocessPipeOwnership:
         finally:
             proc.stdout.close()
             proc.stderr.close()
+
+
+class TestSignalsDoNotSurfaceAsEINTR:
+    """PEP 475: a signal delivered mid-syscall no longer raises ``EINTR``.
+
+    ``PreforkServer.sleep`` and the two ``Worker`` sleep loops used to carry
+    ``except OSError as e: if e.args[0] != errno.EINTR: raise`` around
+    ``select`` + ``empty_pipe`` + ``time.sleep``.  Since Python 3.5 the
+    interpreter retries the syscall itself, so that branch was unreachable --
+    and ``e.args[0]`` turns any ``OSError`` built with no arguments into a
+    confusing ``IndexError`` instead.  The guards are gone; this is the
+    assumption their removal rests on.
+    """
+
+    def _drain(self, fd):
+        while True:
+            try:
+                if not os.read(fd, 4096):
+                    return
+            except BlockingIOError:
+                return
+
+    def test_select_read_and_sleep_survive_a_signal_storm(self):
+        handled = 0
+
+        def handler(*_args):
+            nonlocal handled
+            handled += 1
+
+        previous = signal.signal(signal.SIGUSR1, handler)
+        read_fd, write_fd = os.pipe()
+        os.set_blocking(read_fd, False)
+        selector = selectors.DefaultSelector()
+        selector.register(read_fd, selectors.EVENT_READ)
+        target = os.getpid()
+        stop = threading.Event()
+
+        def bombard():
+            for _ in range(20):
+                if stop.wait(0.02):
+                    return
+                os.kill(target, signal.SIGUSR1)
+
+        sender = threading.Thread(target=bombard, daemon=True)
+        sender.start()
+        try:
+            for _ in range(20):
+                # No try/except: an EINTR here would fail the test, which is
+                # the point.
+                selector.select(0.2)
+                self._drain(read_fd)
+                time.sleep(0.01)
+        finally:
+            stop.set()
+            sender.join(timeout=2)
+            selector.close()
+            os.close(read_fd)
+            os.close(write_fd)
+            signal.signal(signal.SIGUSR1, previous)
+
+        assert handled, "no signal was delivered; the test proved nothing"
+
+    def test_an_argless_oserror_has_no_args_but_does_have_errno(self):
+        """Why ``e.errno`` and never ``e.args[0]``: the removed guards would
+        have raised ``IndexError`` from inside an exception handler."""
+        with pytest.raises(IndexError):
+            OSError().args[0]
+        assert OSError().errno is None
