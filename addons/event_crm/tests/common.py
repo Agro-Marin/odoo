@@ -79,9 +79,7 @@ class EventCrmCase(TestCrmCommon, EventCase):
     def assertLeadConvertion(self, rule, registrations, partner=None, **expected):
         """Tool method hiding details of lead value generation and check
 
-        :param lead: lead created through automated rule;
         :param rule: event.lead.rule that created the lead;
-        :param event: original event;
         :param registrations: source registrations (singleton or record set if done in batch);
         :param partner: partner on lead;
         """
