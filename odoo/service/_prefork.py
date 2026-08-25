@@ -307,12 +307,21 @@ class PreforkServer(CommonServer):
     def process_spawn(self) -> None:
         if time.monotonic() < self._respawn_not_before:
             return
+        # ``.snapshot`` is a copy (odoo/libs/lru.py), not the live LRU.
         registries = Registry.registries.snapshot
+        # Signalling is checked at most once per spawn cycle, before the first
+        # worker of that cycle is forked, so no child inherits a stale registry.
+        # Every later call below is a no-op; ``checked`` says so, where the
+        # previous ``registries.clear()`` said it by emptying the copy and read
+        # as if it were emptying the server's live registry cache.
+        checked = False
 
         def check_registries():
-            if not registries:
+            nonlocal checked
+            if checked or not registries:
                 return
-            for db_name, registry in list(registries.items()):
+            checked = True
+            for db_name, registry in registries.items():
                 try:
                     with registry.cursor() as cr:
                         registry.check_signaling(cr)
@@ -323,7 +332,6 @@ class PreforkServer(CommonServer):
                         db_name,
                         exc_info=True,
                     )
-            registries.clear()
             db.close_all()
 
         if config["http_enable"]:
