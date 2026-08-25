@@ -27,7 +27,11 @@ def allow_header(methods: Iterable[str] | None = None) -> str:
     which is how the entry point's rejection of ``TRACE`` came to name six
     verbs against ``pre_dispatch``'s seven.
     """
-    return ", ".join(dict.fromkeys([*(methods or DEFAULT_ALLOWED_METHODS), "OPTIONS"]))
+    # `is None`, not `or`: an EMPTY collection means "this resource accepts
+    # nothing", which must not silently widen to the full default set.
+    if methods is None:
+        methods = DEFAULT_ALLOWED_METHODS
+    return ", ".join(dict.fromkeys([*methods, "OPTIONS"]))
 
 
 CORS_DEFAULT_ALLOWED_METHODS = ("GET", "POST")

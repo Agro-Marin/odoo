@@ -70,3 +70,17 @@ def test_allow_header_does_not_repeat_a_declared_options():
 
 def test_allow_header_is_parseable_back_into_valid_methods():
     assert allow_header(("GET",)).split(", ") == ["GET", "OPTIONS"]
+
+
+def test_allow_header_treats_empty_as_a_declaration_not_an_absence():
+    """An empty collection means "this resource accepts nothing".
+
+    Under `methods or DEFAULT_ALLOWED_METHODS` it silently became the full
+    default set, so a route declared `@route(..., methods=[])` answered OPTIONS
+    with `Allow: GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS` while the
+    werkzeug rule accepted only OPTIONS. Nothing rejects that declaration, so
+    the header has to tell the truth about it.
+    """
+    assert allow_header(()) == "OPTIONS"
+    assert allow_header([]) == "OPTIONS"
+    assert allow_header(None) == ", ".join([*DEFAULT_ALLOWED_METHODS, "OPTIONS"])

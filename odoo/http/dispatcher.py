@@ -51,6 +51,24 @@ def infer_dispatcher_for_unmatched(request: Request) -> type[Dispatcher]:
     return _dispatchers["http"]
 
 
+def _cors_methods(
+    dispatcher_methods: collections.abc.Collection[str] | None,
+    routing: collections.abc.Mapping[str, Any],
+) -> collections.abc.Collection[str]:
+    """Which methods to advertise in ``Access-Control-Allow-Methods``.
+
+    Resolved with ``is None`` per step rather than as one ``or`` chain: an EMPTY
+    collection is a declaration -- "expose nothing" -- not an absence, and must
+    not fall through to the next default.
+    """
+    if dispatcher_methods is not None:
+        return dispatcher_methods
+    routed = routing.get("methods")
+    if routed is not None:
+        return routed
+    return CORS_DEFAULT_ALLOWED_METHODS
+
+
 class Dispatcher(ABC):
     routing_type: str
     mimetypes: collections.abc.Collection[str] = ()
@@ -111,11 +129,7 @@ class Dispatcher(ABC):
                 set_header("Access-Control-Allow-Origin", allow_origin)
                 set_header(
                     "Access-Control-Allow-Methods",
-                    ", ".join(
-                        self.cors_allowed_methods
-                        or routing["methods"]
-                        or CORS_DEFAULT_ALLOWED_METHODS
-                    ),
+                    ", ".join(_cors_methods(self.cors_allowed_methods, routing)),
                 )
                 expose = routing.get("cors_expose_headers")
                 if expose:
