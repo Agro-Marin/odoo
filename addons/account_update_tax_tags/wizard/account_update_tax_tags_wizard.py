@@ -48,7 +48,7 @@ class AccountUpdateTaxTagsWizard(models.TransientModel):
     # ==== Business methods ====
     def _modify_tag_to_aml_relation(self, company_id, date_from):
         """Update Journal Items' tax grids to match current taxes' configuration.
-        The next query work in 3 steps.
+        The next query work in 4 steps.
         1) Get a duo: (aml_id, tag_id or NULL) for each aml involved with the tax.
             This first step is achieved in the 3 first table: base line, tax line, fusion.
             a) As the base line and tax line aren't linked to tax in the same way, we need to gather them separately.
@@ -58,6 +58,7 @@ class AccountUpdateTaxTagsWizard(models.TransientModel):
         3) Insert the new relation aml - tag.
         4) Gather the ids of impacted amls into an array and return it.
         :param: int company_id id of company
+        :param date_from: date from which journal items are updated
         :return: list of impacted account.move.line ids
         """
         self.env.flush_all()
