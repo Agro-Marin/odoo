@@ -38,11 +38,15 @@ class IrConfig_Parameter(models.Model):
 
     @mute_logger("odoo.addons.base.models.ir_config_parameter")
     def init(self, force: bool = False) -> None:
-        self = self.with_context(prefetch_fields=False)
+        self = self.with_context(prefetch_fields=False).sudo()
+        # One read for the whole set; searching per key cost a query each,
+        # every time the registry initialises this model.
+        present = set(
+            self.search([("key", "in", list(_default_parameters))]).mapped("key")
+        )
         for key, func in _default_parameters.items():
-            params = self.sudo().search([("key", "=", key)])
-            if force or not params:
-                params.set_param(key, func())
+            if force or key not in present:
+                self.set_param(key, func())
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:

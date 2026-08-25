@@ -480,11 +480,13 @@ class ResPartner(models.Model):
             elif not partner.lang:
                 partner.lang = default_lang or self.env.lang
 
-    @api.depends("lang")
     def _compute_active_lang_count(self) -> None:
+        # Every partner gets the same number, and it moves when a *language*
+        # is installed, never when a partner's own `lang` changes. Depending
+        # on `lang` recomputed on the one event that cannot change the value
+        # and stayed put on the one that can.
         lang_count = len(self.env["res.lang"].get_installed())
-        for partner in self:
-            partner.active_lang_count = lang_count
+        self.active_lang_count = lang_count
 
     @api.depends("tz")
     def _compute_tz_offset(self) -> None:

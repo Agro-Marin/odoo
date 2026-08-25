@@ -299,7 +299,12 @@ class ResGroups(models.Model):
 
     @api.depends("all_implied_by_ids.user_ids")
     def _compute_all_user_ids(self) -> None:
-        for group in self.with_context(active_test=False):
+        groups = self.with_context(active_test=False)
+        # Read the relation for every implied group at once. Reading it inside
+        # the loop instead prefetches only the current group's own implied set,
+        # which costs one query per group in `self`.
+        groups.all_implied_by_ids.fetch(["user_ids"])
+        for group in groups:
             group.all_user_ids = group.all_implied_by_ids.user_ids
 
     def _inverse_all_user_ids(self) -> None:

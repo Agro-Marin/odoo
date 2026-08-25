@@ -1539,3 +1539,112 @@ class TestPrivilegeGroupSorting(common.TransactionCase):
         self.assertEqual(result, [gb.id, g1.id, ga.id, g2.id, g3.id])
         hierarchy = Groups._get_view_group_hierarchy()
         self.assertEqual(hierarchy["privileges"][privilege.id]["group_ids"], result)
+
+
+@common.tagged("at_install", "groups")
+class TestAllUserIdsBatchCost(common.TransactionCase):
+    """Reading `all_user_ids` must not cost a query per group.
+
+    `_compute_all_user_ids` read `group.all_implied_by_ids.user_ids` inside its
+    loop. Each group's implied set is its own recordset, so the relation was
+    prefetched for that group alone and the read cost one query per group in
+    `self` -- 147 queries for 213 groups, against 3 once the relation is read
+    for every implied group at once.
+
+    Asserted as a marginal cost rather than an absolute count: a single-record
+    measurement cannot see this class of defect at all, and comparing a small
+    batch against a large one keeps cache warmth from making it vacuous.
+    """
+
+    def _make_groups(self, count, prefix):
+        base_group = self.env.ref("base.group_user")
+        groups = self.env["res.groups"].create(
+            [
+                {
+                    "name": f"{prefix} {index}",
+                    "implied_ids": [Command.link(base_group.id)],
+                }
+                for index in range(count)
+            ]
+        )
+        partners = self.env["res.partner"].create(
+            [{"name": f"{prefix} p{index}"} for index in range(count)]
+        )
+        self.env["res.users"].create(
+            [
+                {
+                    "login": f"{prefix.replace(' ', '')}{index}",
+                    "partner_id": partners[index].id,
+                    "group_ids": [Command.link(groups[index].id)],
+                }
+                for index in range(count)
+            ]
+        )
+        self.env.flush_all()
+        return groups
+
+    def _queries_for(self, groups):
+        self.env.flush_all()
+        self.env.invalidate_all()
+        before = self.cr.sql_log_count
+        groups.mapped("all_user_ids")
+        return self.cr.sql_log_count - before
+
+    def test_reading_all_user_ids_does_not_scale_with_group_count(self):
+        small = self._make_groups(2, "batch small")
+        large = self._make_groups(20, "batch large")
+
+        small_cost = self._queries_for(small)
+        large_cost = self._queries_for(large)
+
+        self.assertLessEqual(
+            large_cost,
+            small_cost + 2,
+            "reading `all_user_ids` for 18 further groups must not cost "
+            f"a query each (2 groups: {small_cost}, 20 groups: {large_cost})",
+        )
+
+    def test_all_user_ids_still_spans_implied_groups(self):
+        Groups = self.env["res.groups"]
+        implied = Groups.create({"name": "batch implied"})
+        implying = Groups.create(
+            {"name": "batch implying", "implied_ids": [Command.link(implied.id)]}
+        )
+        partner = self.env["res.partner"].create({"name": "batch member"})
+        user = self.env["res.users"].create(
+            {
+                "login": "batchmember",
+                "partner_id": partner.id,
+                "group_ids": [Command.link(implying.id)],
+            }
+        )
+        self.env.flush_all()
+
+        self.assertIn(user, implied.all_user_ids, "an implied group holds the user")
+        self.assertIn(user, implying.all_user_ids)
+
+    def test_archived_users_follow_the_reading_environment(self):
+        """`active_test` is decided by the env reading the field, not the compute.
+
+        `_compute_all_user_ids` reads its own recordset under
+        `active_test=False`, but the field is recomputed per environment, so a
+        default env still filters archived users out and only an env that
+        disables `active_test` sees them. Pinned because batching the relation
+        read must not quietly move where that filter applies.
+        """
+        groups = self._make_groups(1, "batch archived")
+        user = groups.all_user_ids.filtered(lambda u: u.login == "batcharchived0")
+        self.assertTrue(user, "the fixture user must be there to archive")
+
+        user.active = False
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        self.assertNotIn(
+            user, groups.all_user_ids, "a default env filters archived users out"
+        )
+        self.assertIn(
+            user,
+            groups.with_context(active_test=False).all_user_ids,
+            "an env with active_test disabled still sees them",
+        )

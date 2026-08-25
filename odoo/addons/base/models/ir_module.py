@@ -1020,6 +1020,7 @@ class IrModuleModule(models.Model):
         known_mods = self.with_context(lang=None).search([])
         known_mods_names = {mod.name: mod for mod in known_mods}
         auto_install_requirements: dict[int, Collection[str]] = {}
+        category_cache: dict[str, int] = {}
 
         for manifest in modules.Manifest.all_addon_manifests():
             mod = known_mods_names.get(manifest.name)
@@ -1048,34 +1049,83 @@ class IrModuleModule(models.Model):
                 mod = self.create(dict(name=manifest.name, state=state, **values))
                 added += 1
 
-            mod._update_from_terp(manifest)
+            mod._update_from_terp(manifest, category_cache)
             auto_install_requirements[mod.id] = manifest.get("auto_install") or ()
 
         self._sync_auto_install_required(auto_install_requirements)
 
         return UpdateListResult(updated=updated, added=added)
 
-    def _update_from_terp(self, terp: dict[str, Any] | Manifest) -> None:
+    def _update_from_terp(
+        self,
+        terp: dict[str, Any] | Manifest,
+        category_cache: dict[str, int] | None = None,
+    ) -> None:
         self._update_dependencies(terp.get("depends", []))
         self._update_countries(terp.get("countries", []))
         self._update_exclusions(terp.get("excludes", []))
-        self._update_category(terp.get("category", "Uncategorized"))
+        self._update_category(terp.get("category", "Uncategorized"), category_cache)
+
+    def _sync_link_rows(
+        self,
+        table: str,
+        column: str,
+        existing: set,
+        needed: set,
+        cast: SQL,
+    ) -> bool:
+        """Bring `table`'s rows for this module in line with `needed`.
+
+        The three manifest-fed link tables differ only in what they key on, so
+        they share this. One statement per direction rather than one per row:
+        a first `update_list` over this workspace inserts ~3.5k dependency
+        rows, which was ~3.5k round trips.
+
+        Returns whether any row moved, so a caller can skip an invalidation
+        that has nothing to invalidate.
+        """
+        # These statements name `self.id`; an empty recordset would spell it
+        # `False` and insert rows under a NULL `module_id`, which the column
+        # accepts and nothing ever collects.
+        self.ensure_one()
+        cr = self.env.cr
+        # Sorted, so the rows land in a reproducible order. Inserting one row
+        # per set element left it at the mercy of per-process string hashing:
+        # the same manifest produced a different `dependencies_id` order in
+        # every process, and the model declares no `_order`, so `id` decides.
+        if to_add := sorted(needed - existing):
+            cr.execute(
+                SQL(
+                    "INSERT INTO %s (module_id, %s) SELECT %s, unnest(%s::%s)",
+                    SQL.identifier(table),
+                    SQL.identifier(column),
+                    self.id,
+                    to_add,
+                    cast,
+                )
+            )
+        if to_remove := sorted(existing - needed):
+            cr.execute(
+                SQL(
+                    "DELETE FROM %s WHERE module_id = %s AND %s = ANY(%s)",
+                    SQL.identifier(table),
+                    self.id,
+                    SQL.identifier(column),
+                    to_remove,
+                )
+            )
+        return bool(to_add or to_remove)
 
     def _update_dependencies(self, depends: list[str] | None = None) -> None:
         self.env["ir.module.module.dependency"].flush_model()
-        existing = {dep.name for dep in self.dependencies_id}
-        needed = set(depends or [])
-        for dep in needed - existing:
-            self.env.cr.execute(
-                "INSERT INTO ir_module_module_dependency (module_id, name) values (%s, %s)",
-                (self.id, dep),
-            )
-        for dep in existing - needed:
-            self.env.cr.execute(
-                "DELETE FROM ir_module_module_dependency WHERE module_id = %s and name = %s",
-                (self.id, dep),
-            )
-        self.invalidate_recordset(["dependencies_id"])
+        if self._sync_link_rows(
+            "ir_module_module_dependency",
+            "name",
+            {dep.name for dep in self.dependencies_id},
+            set(depends or []),
+            SQL("varchar[]"),
+        ):
+            self.invalidate_recordset(["dependencies_id"])
 
     @api.model
     def _sync_auto_install_required(
@@ -1104,46 +1154,39 @@ class IrModuleModule(models.Model):
 
     def _update_countries(self, countries: tuple[str, ...] | list[str] = ()) -> None:
         existing = set(self.country_ids.ids)
-        needed = set(
-            self.env["res.country"]
-            .search([("code", "in", [c.upper() for c in countries])])
-            .ids
-        )
-        for dep in needed - existing:
-            self.env.cr.execute(
-                "INSERT INTO module_country (module_id, country_id) values (%s, %s)",
-                (self.id, dep),
-            )
-        for dep in existing - needed:
-            self.env.cr.execute(
-                "DELETE FROM module_country WHERE module_id = %s and country_id = %s",
-                (self.id, dep),
-            )
-        self.invalidate_recordset(["country_ids"])
-        self.env["res.company"].invalidate_model(["uninstalled_l10n_module_ids"])
+        id_by_code = self.env["res.country"]._id_by_code()
+        needed = {
+            country_id
+            for code in countries
+            if (country_id := id_by_code.get(code.upper()))
+        }
+        if self._sync_link_rows(
+            "module_country", "country_id", existing, needed, SQL("integer[]")
+        ):
+            self.invalidate_recordset(["country_ids"])
+            # Model-wide, so it was flushing every company's cache once per
+            # module scanned -- 1556 times for the 239 that carry a country.
+            self.env["res.company"].invalidate_model(["uninstalled_l10n_module_ids"])
 
     def _update_exclusions(self, excludes: list[str] | None = None) -> None:
         self.env["ir.module.module.exclusion"].flush_model()
-        existing = {excl.name for excl in self.exclusion_ids}
-        needed = set(excludes or [])
-        for name in needed - existing:
-            self.env.cr.execute(
-                "INSERT INTO ir_module_module_exclusion (module_id, name) VALUES (%s, %s)",
-                (self.id, name),
-            )
-        for name in existing - needed:
-            self.env.cr.execute(
-                "DELETE FROM ir_module_module_exclusion WHERE module_id=%s AND name=%s",
-                (self.id, name),
-            )
-        self.invalidate_recordset(["exclusion_ids"])
+        if self._sync_link_rows(
+            "ir_module_module_exclusion",
+            "name",
+            {excl.name for excl in self.exclusion_ids},
+            set(excludes or []),
+            SQL("varchar[]"),
+        ):
+            self.invalidate_recordset(["exclusion_ids"])
 
-    def _update_category(self, category: str = "Uncategorized") -> None:
+    def _update_category(
+        self,
+        category: str = "Uncategorized",
+        category_cache: dict[str, int] | None = None,
+    ) -> None:
         current_category = self.category_id
         seen = set()
-        current_category_path = []
         while current_category:
-            current_category_path.insert(0, current_category.name)
             seen.add(current_category.id)
             if current_category.parent_id.id in seen:
                 current_category.parent_id = False
@@ -1153,9 +1196,17 @@ class IrModuleModule(models.Model):
                 )
             current_category = current_category.parent_id
 
-        categs = category.split("/")
-        if categs != current_category_path:
-            cat_id = modules.db.create_categories(self.env.cr, categs)
+        # Compare the resolved category, not the manifest path against the
+        # stored display names: `create_categories` keys a category by an xml_id
+        # derived from the path, and base data is free to give that record any
+        # name it likes -- `Accounting/Accounting` is stored as `Invoicing`. A
+        # name comparison therefore never matches for such a category, and
+        # rewrote `category_id` to the value it already held on every call. It
+        # was language-dependent too, `name` being translated.
+        cat_id = modules.db.create_categories(
+            self.env.cr, category.split("/"), category_cache
+        )
+        if cat_id != self.category_id.id:
             self.write({"category_id": cat_id})
 
     def _update_translations(
