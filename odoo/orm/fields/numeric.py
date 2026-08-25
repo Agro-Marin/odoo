@@ -274,15 +274,15 @@ class Monetary(Field[float]):
 
     def _description_aggregator(self, env: Environment) -> str | None:
         model = env[self.model_name]
-        query = model._as_query(ordered=False)
         currency_field_name = self.get_currency_field(model)
         currency_field = model._fields[currency_field_name]
         if not currency_field.column_type or not currency_field.store:
             try:
+                query = model._as_query(ordered=False)
                 model._read_group_select(
                     f"{currency_field_name}:array_agg_distinct", query
                 )
-            except ValueError, AccessError:
+            except ValueError, AccessError, NotImplementedError:
                 return None
 
         return super()._description_aggregator(env)

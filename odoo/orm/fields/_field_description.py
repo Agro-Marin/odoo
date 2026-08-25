@@ -79,11 +79,11 @@ class _FieldDescriptionMixin(_FieldStubs):
             return self.inherited_field.aggregator
 
         model = env[self.model_name]
-        query = model._as_query(ordered=False)
         try:
+            query = model._as_query(ordered=False)
             model._read_group_select(f"{self.name}:{self.aggregator}", query)
             return self.aggregator
-        except ValueError, AccessError:
+        except ValueError, AccessError, NotImplementedError:
             return None
 
     def _description_string(self, env: Environment) -> str:
