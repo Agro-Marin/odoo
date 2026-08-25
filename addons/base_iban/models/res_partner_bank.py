@@ -33,10 +33,11 @@ def get_iban_part(iban, number_kind):
     """Get part of the iban depending on the mask
     .. code-block:: python
         # template = 'ITkk KBBB BBSS SSSC CCCC CCCC CCC'
-        partner.acc_number = 'IT60X0542811101000000123456'
-        get_iban_part(partner.acc_number, 'bank') == '05428'
-        get_iban_part(partner.acc_number, 'account') == '000000123456'
-    Returns ``False`` in case of failure
+        partner.acc_number = "IT60X0542811101000000123456"
+        get_iban_part(partner.acc_number, "bank") == "05428"
+        get_iban_part(partner.acc_number, "account") == "000000123456"
+
+    :return: matched mask characters as a string, or ``False`` if number_kind is unrecognized
     """
     iban_part_map = {
         # General
