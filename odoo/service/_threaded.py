@@ -36,6 +36,8 @@ from ._helpers import (
     SLEEP_INTERVAL,
     capped_backoff,
     cron_database_list,
+    job_max_age,
+    job_time_real,
     over_memory_soft_limit,
 )
 from .lifecycle import preload_registries
@@ -96,12 +98,16 @@ class ThreadedServer(CommonServer):
                 if start_time:
                     thread_execution_time = now - start_time
                     thread_limit_time_real = config["limit_time_real"]
-                    if (
-                        thread_type in ("cron", "job")
-                        and config["limit_time_real_cron"]
-                        and config["limit_time_real_cron"] > 0
-                    ):
-                        thread_limit_time_real = config["limit_time_real_cron"]
+                    if thread_type in ("cron", "job"):
+                        # Jobs resolve their own limit, which defaults to the
+                        # cron one; before, they were simply governed by it.
+                        limit = (
+                            job_time_real()
+                            if thread_type == "job"
+                            else config["limit_time_real_cron"]
+                        )
+                        if limit and limit > 0:
+                            thread_limit_time_real = limit
                     if (
                         thread_limit_time_real > 0
                         and thread_execution_time > thread_limit_time_real
@@ -149,6 +155,9 @@ class ThreadedServer(CommonServer):
         process_jobs: Any,
         label: str,
     ) -> None:
+        # Shared by the cron and job threads, so the max age has to be resolved
+        # per label rather than read from the cron setting for both.
+        max_age = job_max_age() if label == "job" else config["limit_time_worker_cron"]
 
         cron_logger = self.logger.getChild(f"{label}{number}")
         cron_logger.info("Alive")
@@ -166,11 +175,7 @@ class ThreadedServer(CommonServer):
             first_pass = True
             with selectors.DefaultSelector() as _sel:
                 _sel.register(pg_conn, selectors.EVENT_READ)
-                while (
-                    config["limit_time_worker_cron"] <= 0
-                    or (time.monotonic() - alive_time)
-                    <= config["limit_time_worker_cron"]
-                ):
+                while max_age <= 0 or (time.monotonic() - alive_time) <= max_age:
                     _sel.select(timeout=0 if first_pass else SLEEP_INTERVAL + number)
                     first_pass = False
                     time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
@@ -218,7 +223,7 @@ class ThreadedServer(CommonServer):
                 else:
                     cron_logger.info(
                         "Max age (%ss) reached, recycling pg connection",
-                        config["limit_time_worker_cron"],
+                        max_age,
                     )
             except SystemExit:
                 raise

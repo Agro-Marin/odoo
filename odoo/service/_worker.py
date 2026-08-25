@@ -47,6 +47,7 @@ from ._helpers import (
     capped_backoff,
     cron_database_list,
     empty_pipe,
+    job_max_age,
     over_memory_soft_limit,
 )
 from .wsgi import BaseWSGIServerNoBind, http_socket_timeout
@@ -299,14 +300,19 @@ class WorkerCron(Worker):
             time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
             empty_pipe(self.wakeup_fd_r)
 
+    def max_age(self) -> int:
+        """Seconds this worker may live before it is recycled; 0 disables it.
+
+        Overridden by ``WorkerJob`` so job workers can be tuned separately.
+        """
+        return config["limit_time_worker_cron"]
+
     def check_limits(self) -> None:
         super().check_limits()
 
-        if (
-            config["limit_time_worker_cron"] > 0
-            and (time.monotonic() - self.alive_time) > config["limit_time_worker_cron"]
-        ):
-            self.logger.info("Max age (%ss) reached.", config["limit_time_worker_cron"])
+        max_age = self.max_age()
+        if max_age > 0 and (time.monotonic() - self.alive_time) > max_age:
+            self.logger.info("Max age (%ss) reached.", max_age)
             self.alive = False
 
     def _backoff_after_failed_connect(
@@ -435,7 +441,25 @@ class WorkerCron(Worker):
 
 
 class WorkerJob(WorkerCron):
+    """Background job-queue worker.
+
+    Subclasses ``WorkerCron`` for its LISTEN/NOTIFY plumbing, not for its
+    configuration.  It used to inherit both, so ``--limit-time-worker-cron`` and
+    ``--limit-time-real-cron`` silently retuned the job fleet as well and there
+    was no way to say otherwise -- ``--job-workers`` was the only knob jobs
+    owned.  Both limits now have a ``*-job`` counterpart that defaults to
+    following the cron value, so the inherited behaviour is the default rather
+    than the only option.
+    """
+
     listen_channel = JOB_QUEUE_CHANNEL
+
+    def __init__(self, multi: PreforkServer) -> None:
+        super().__init__(multi)
+        self.watchdog_timeout = multi.job_timeout
+
+    def max_age(self) -> int:
+        return job_max_age()
 
     def _process_db(self, db_name: str) -> None:
         from odoo.addons.base.models.ir_job import IrJob

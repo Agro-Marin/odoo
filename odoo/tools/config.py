@@ -1263,6 +1263,15 @@ class configmanager:
             type="int",
         )
         group.add_option(
+            "--limit-time-worker-job",
+            dest="limit_time_worker_job",
+            my_default=-1,
+            help="Maximum time a job thread/worker stays alive before it is "
+            "restarted. Set to 0 to disable, -1 to follow "
+            "--limit-time-worker-cron. (default: -1)",
+            type="int",
+        )
+        group.add_option(
             "--job-workers",
             dest="job_workers",
             my_default=1,
@@ -1375,6 +1384,14 @@ class configmanager:
             my_default=-1,
             help="Maximum allowed Real time per cron job. (default: --limit-time-real). "
             "Set to 0 for no limit. ",
+            type="int",
+        )
+        group.add_option(
+            "--limit-time-real-job",
+            dest="limit_time_real_job",
+            my_default=-1,
+            help="Maximum allowed Real time per background job. Set to 0 for no "
+            "limit, -1 to follow --limit-time-real-cron. (default: -1)",
             type="int",
         )
         group.add_option(

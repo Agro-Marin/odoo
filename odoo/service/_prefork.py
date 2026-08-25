@@ -27,7 +27,7 @@ from odoo.tools.misc import dumpstacks, stripped_sys_argv
 from . import lifecycle
 from ._base_server import CommonServer
 from ._env import env_float
-from ._helpers import empty_pipe
+from ._helpers import empty_pipe, job_time_real
 from ._worker import Worker, WorkerCron, WorkerHTTP, WorkerJob
 from .lifecycle import _reexec, preload_registries
 
@@ -61,6 +61,8 @@ class PreforkServer(CommonServer):
         self.limit_request = config["limit_request"]
         cron_timeout = config["limit_time_real_cron"]
         self.cron_timeout = self.timeout if cron_timeout < 0 else cron_timeout or None
+        job_timeout = job_time_real()
+        self.job_timeout = self.timeout if job_timeout < 0 else job_timeout or None
         self.beat = 4
         self.socket = None
         self.workers_http = {}
