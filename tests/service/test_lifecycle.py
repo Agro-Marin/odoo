@@ -485,7 +485,7 @@ class TestServerPhoenixSingleSourceOfTruth:
 
 
 # ---------------------------------------------------------------------------
-# WorkerCron._connect_postgres()
+# lifecycle.start() — watcher cleanup on the error path
 # ---------------------------------------------------------------------------
 
 
@@ -632,7 +632,7 @@ class TestRestartGuard:
 
 
 # ---------------------------------------------------------------------------
-# ThreadedServer SIGCHLD no-op handler removed
+# SIGHUP — local sentinel, no signal-module monkey-patch
 # ---------------------------------------------------------------------------
 
 
@@ -672,8 +672,3 @@ class TestSigHupSentinel:
     # see ``TestSignalHandlerOnAPlatformWithoutSighup`` in
     # ``test_threaded_lifecycle.py``.  The AST walk that used to live here only
     # proved the name appeared in an ``if`` test.
-
-
-# ---------------------------------------------------------------------------
-# stop_workers_gracefully — dict-mutation race regression
-# ---------------------------------------------------------------------------

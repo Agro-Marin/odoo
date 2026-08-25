@@ -164,6 +164,12 @@ def prefork_server(srv):
     # psutil handles kept across a drain so ``_sweep_stale_workers`` can tell a
     # surviving worker from a recycled pid.  Empty = "every pid already gone".
     obj._drain_procs = {}
+    # The per-kind registries ``worker_pop`` maintains alongside ``workers`` and
+    # ``_metrics.service_metrics`` reads.  ``worker_pop`` was mocked out at every
+    # call site, so its body -- and these three dicts -- ran in no test at all.
+    obj.workers_http = {}
+    obj.workers_cron = {}
+    obj.workers_job = {}
     return obj
 
 
@@ -210,7 +216,7 @@ class TestEmptyPipe:
 
 
 # ---------------------------------------------------------------------------
-# FSWatcherBase.handle_file()
+# EventServer.watchdog() — a transient failure must not retire it
 # ---------------------------------------------------------------------------
 
 
@@ -357,7 +363,7 @@ class TestPreforkForkAndReloadNoSocket:
 
 
 # ---------------------------------------------------------------------------
-# server_phoenix / server — single source of truth (lifecycle)
+# WorkerCron._connect_postgres()
 # ---------------------------------------------------------------------------
 
 
@@ -1159,7 +1165,7 @@ class TestCommonServerCallbacks:
 
 
 # ---------------------------------------------------------------------------
-# cron_database_list()
+# PreforkServer.process_zombie()
 # ---------------------------------------------------------------------------
 
 
@@ -1523,7 +1529,7 @@ class TestPreforkGracefulStopEscalation:
 
 
 # ---------------------------------------------------------------------------
-# PreforkServer.process_timeout()
+# PreforkServer.__init__() — limit_time_real -> watchdog timeouts
 # ---------------------------------------------------------------------------
 
 
@@ -1686,6 +1692,73 @@ class TestPreforkProcessTimeout:
 # ---------------------------------------------------------------------------
 # PreforkServer.worker_kill()
 # ---------------------------------------------------------------------------
+
+
+class TestPreforkWorkerPop:
+    """``worker_pop()``: the only place a dead worker leaves the bookkeeping.
+
+    Every test that reaches this method mocks it (``worker_kill``,
+    ``process_zombie`` and the graceful-stop drain all do), so the body ran in no
+    test at all — measured with a line-coverage probe over the whole suite, lines
+    207-214 of ``_prefork.py`` were never executed, only the ``def``.
+
+    What that leaves unguarded is not cosmetic: the method pops the pid out of
+    four registries and calls ``worker.close()``, which releases the two pipe
+    pairs ``Worker.__init__`` allocated.  A worker is replaced on every request
+    cap, memory soft limit and crash-respawn, so anything missed here leaks once
+    per recycle for the life of the master.
+    """
+
+    @staticmethod
+    def _register(prefork_server, pid, kind="workers_http"):
+        worker = MagicMock()
+        prefork_server.workers[pid] = worker
+        getattr(prefork_server, kind)[pid] = worker
+        return worker
+
+    def test_the_worker_is_closed_so_its_pipes_are_released(self, prefork_server):
+        worker = self._register(prefork_server, 1234)
+        prefork_server.worker_pop(1234)
+        worker.close.assert_called_once_with()
+
+    def test_every_registry_forgets_the_pid(self, prefork_server):
+        """``workers`` plus all three per-kind dicts, or ``service_metrics``
+        keeps counting a worker that is gone."""
+        for kind in ("workers_http", "workers_cron", "workers_job"):
+            self._register(prefork_server, 7, kind=kind)
+            prefork_server.worker_pop(7)
+            assert 7 not in prefork_server.workers, kind
+            assert 7 not in getattr(prefork_server, kind), kind
+
+    def test_a_worker_of_one_kind_does_not_disturb_the_others(self, prefork_server):
+        self._register(prefork_server, 1, kind="workers_http")
+        self._register(prefork_server, 2, kind="workers_cron")
+        prefork_server.worker_pop(1)
+        assert list(prefork_server.workers) == [2]
+        assert list(prefork_server.workers_cron) == [2]
+        assert prefork_server.workers_http == {}
+
+    def test_the_evented_child_clears_long_polling_pid(self, prefork_server):
+        """The long-poller is not in ``workers`` at all — it is a ``Popen``, and
+        ``process_spawn`` decides whether to respawn it by testing this field for
+        None.  Left set, the master never replaces a dead evented child."""
+        prefork_server.long_polling_pid = 4321
+        prefork_server.worker_pop(4321)
+        assert prefork_server.long_polling_pid is None
+
+    def test_an_unknown_pid_is_a_noop(self, prefork_server):
+        """``process_zombie`` reaps whatever ``waitpid`` hands it, including
+        children this master never registered."""
+        worker = self._register(prefork_server, 1234)
+        prefork_server.worker_pop(9999)  # must not raise
+        assert 1234 in prefork_server.workers
+        worker.close.assert_not_called()
+
+    def test_popping_twice_does_not_raise(self, prefork_server):
+        """``worker_kill(SIGKILL)`` pops, and the later reap pops again."""
+        self._register(prefork_server, 1234)
+        prefork_server.worker_pop(1234)
+        prefork_server.worker_pop(1234)
 
 
 class TestPreforkWorkerKill:
@@ -2797,7 +2870,7 @@ class TestForkAndReloadTimeout:
 
 
 # ---------------------------------------------------------------------------
-# lifecycle.start() — watcher cleanup on the error path
+# CommonServer._ON_STOP_FUNCS — the module-level callback list
 # ---------------------------------------------------------------------------
 
 
@@ -2850,7 +2923,7 @@ class TestOnStopFuncsModuleLevel:
 
 
 # ---------------------------------------------------------------------------
-# SIGHUP — local sentinel, no signal-module monkey-patch
+# PreforkServer.stop_workers_gracefully() — dict-mutation race
 # ---------------------------------------------------------------------------
 
 
@@ -3781,8 +3854,3 @@ class TestWorkerCpuLimitHandoff:
             o[0] for o in order
         ].index("stop"), "joined after stop() closed resources"
         assert ("stop", False) in order, "self.alive was not cleared before stop()"
-
-
-# ---------------------------------------------------------------------------
-# FSWatcherInotify: watches nested directories inside a subtree moved in
-# ---------------------------------------------------------------------------

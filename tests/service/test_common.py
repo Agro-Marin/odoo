@@ -445,7 +445,7 @@ class TestExpAuthenticateNeverServableNames:
 
 
 # ---------------------------------------------------------------------------
-# Module docstring — must be reachable
+# exp_authenticate — hostile argument types
 # ---------------------------------------------------------------------------
 
 

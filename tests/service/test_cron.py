@@ -46,7 +46,7 @@ class TestCronDatabaseList:
 
 
 # ---------------------------------------------------------------------------
-# PreforkServer.process_zombie()
+# _cron.order_notified_first — scheduling order + de-duplication
 # ---------------------------------------------------------------------------
 
 
@@ -103,8 +103,3 @@ class TestOrderNotifiedFirst:
         # every notified-and-served db precedes every non-notified served db
         notified_served = [d for d in dict.fromkeys(notified) if d in set(all_dbs)]
         assert result[: len(notified_served)] == notified_served
-
-
-# ---------------------------------------------------------------------------
-# ThreadedServer._listen_thread — the threaded cron/job driver loop
-# ---------------------------------------------------------------------------

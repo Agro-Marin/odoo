@@ -231,7 +231,7 @@ class TestFSWatcherAssetInvalidation:
 
 
 # ---------------------------------------------------------------------------
-# PreforkServer.process_signals()
+# FSWatcherInotify — re-watching a subtree the kernel moved or recreated
 # ---------------------------------------------------------------------------
 
 
@@ -624,3 +624,150 @@ class TestBothBackendsCoalesceAssetBursts:
         while len(flushed) < 2 and time.monotonic() < deadline:
             time.sleep(0.01)
         assert len(flushed) == 2, "the timer never emitted the trailing flush"
+
+
+# ---------------------------------------------------------------------------
+# The wiring each backend depends on — recursion, daemon-ness, the run loop
+# ---------------------------------------------------------------------------
+
+
+class TestWatcherWiring:
+    """Four one-token settings that decide whether the watcher works at all.
+
+    None of them changes an observable RESULT in a test that mocks the backend,
+    so all four survived a mutation sweep over ``_watcher`` — and every one is
+    silent when wrong, which is the failure mode this whole file exists for:
+    under ``--dev`` a broken watcher does not error, it simply stops noticing
+    edits (and, for assets, keeps serving the previous bundle).
+    """
+
+    def test_the_watchdog_observer_schedules_recursively(self, srv):
+        """``recursive=False`` would watch each addons ROOT and nothing below it
+        — i.e. no module's source would be watched at all.
+
+        Runs without the ``watchdog`` package installed: ``Observer()`` is the
+        only thing ``__init__`` takes from it, and ``create=True`` supplies the
+        name.  That matters — ``requirements-dev.txt`` pins ``watchdog`` for
+        ``sys_platform != 'linux'`` only, so a skip here would mean the test
+        never ran on any of this fork's CI lanes.
+        """
+        scheduled = []
+
+        class _Observer:
+            def schedule(self, handler, path, recursive):
+                scheduled.append((path, recursive))
+
+        with patch.object(srv, "Observer", _Observer, create=True):
+            srv.FSWatcherWatchdog()
+
+        assert scheduled, "no path was scheduled"
+        assert all(recursive for _, recursive in scheduled), scheduled
+
+    def test_the_inotify_thread_is_a_daemon(self, srv):
+        """A non-daemon watcher thread keeps the interpreter alive after the
+        server has stopped, so a reload never completes its exit."""
+        watcher = object.__new__(srv.FSWatcherInotify)
+        watcher.started = False
+        watcher.thread = None
+        made = []
+
+        class _Thread:
+            def __init__(self, **kwargs):
+                self.daemon = False
+                made.append(self)
+
+            def start(self):
+                pass
+
+        with patch.object(srv.threading, "Thread", _Thread):
+            watcher.start()
+
+        assert made and made[0].daemon is True
+
+    def test_start_arms_the_loop_and_stop_disarms_it(self, srv):
+        """``run()`` is ``while self.started``; if ``start`` did not set it the
+        thread would exit immediately, and if ``stop`` did not clear it the join
+        below would never return."""
+        watcher = object.__new__(srv.FSWatcherInotify)
+        srv.FSWatcherBase.__init__(watcher)
+        watcher.started = False
+        watcher.thread = None
+
+        with patch.object(srv.threading, "Thread", MagicMock()):
+            watcher.start()
+        assert watcher.started is True
+
+        watcher.thread = MagicMock()
+        watcher.watcher = MagicMock()
+        watcher.stop()
+        assert watcher.started is False
+        assert watcher.thread is None
+
+    def test_the_event_loop_does_not_ask_for_none_events(self, srv):
+        """``yield_nones=True`` makes ``event_gen`` emit ``None`` between real
+        events, and the loop unpacks every item into four names — so the first
+        idle tick raises ``TypeError`` inside the watcher thread and reloading
+        stops for the rest of the session."""
+        watcher = object.__new__(srv.FSWatcherInotify)
+        srv.FSWatcherBase.__init__(watcher)
+        watcher.started = True
+        seen = {}
+
+        def event_gen(**kwargs):
+            seen.update(kwargs)
+            watcher.started = False  # one pass, then leave the loop
+            return iter(())
+
+        watcher.watcher = MagicMock(event_gen=event_gen)
+        watcher.run()
+
+        assert seen.get("yield_nones") is False, seen
+
+
+class TestInotifyWatchDirectory:
+    """``_watch_directory``: add, and if the kernel already holds a watch for
+    that path, purge the stale one and add again.
+
+    ``add_watch`` returning a descriptor means the watch was armed and there is
+    nothing more to do.  Returning ``None`` means the adapter already holds an
+    entry for that path — which, for a directory that was deleted and recreated,
+    is a stale descriptor watching nothing.  That is when the purge-and-retry
+    runs.  Both halves of the decision survived mutation.
+    """
+
+    @staticmethod
+    def _watcher(srv, add_results):
+        w = object.__new__(srv.FSWatcherInotify)
+        tree = MagicMock()
+        tree.add_watch.side_effect = list(add_results)
+        w.watcher = MagicMock(_i=tree, _mask=0o777)
+        w.internals = srv._InotifyInternals(w.watcher)
+        return w, tree
+
+    def test_a_fresh_directory_is_watched_once(self, srv, tmp_path):
+        """A descriptor came back: armed, nothing to purge."""
+        w, tree = self._watcher(srv, [7])
+        w._watch_directory(tmp_path)
+        assert tree.add_watch.call_count == 1
+        tree.remove_watch.assert_not_called()
+
+    def test_a_stale_descriptor_is_purged_and_re_added(self, srv, tmp_path):
+        """``None`` means the adapter thinks it is already watching this path.
+        For a recreated directory that is a stale entry watching nothing, so the
+        watch is purged and armed again — without which every edit below a
+        directory that was replaced goes unseen."""
+        w, tree = self._watcher(srv, [None, 7])
+        w._watch_directory(tmp_path)
+        tree.remove_watch.assert_called_once()
+        assert tree.add_watch.call_count == 2
+
+    def test_a_failure_to_watch_is_logged_and_swallowed(self, srv, tmp_path, caplog):
+        """This runs on the watcher thread, from inside the event loop: an
+        escaping exception ends reloading for the whole session.  An inotify
+        limit is the ordinary cause and it must not be fatal."""
+        import logging
+
+        w, _tree = self._watcher(srv, [OSError("ENOSPC: inotify limit reached")])
+        with caplog.at_level(logging.WARNING, logger="odoo.service._watcher"):
+            w._watch_directory(tmp_path)  # must not raise
+        assert any(r.levelno >= logging.WARNING for r in caplog.records)
