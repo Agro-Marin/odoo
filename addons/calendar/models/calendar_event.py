@@ -685,7 +685,9 @@ class CalendarEvent(models.Model):
     @api.depends("recurrence_id", "recurrency", "rrule_type_ui")
     def _compute_recurrence(self):
         recurrence_fields = self._get_fields_recurrent()
-        false_values = dict.fromkeys(recurrence_fields, False)  # computes need to set a value
+        false_values = dict.fromkeys(
+            recurrence_fields, False
+        )  # computes need to set a value
         defaults = self.env["calendar.recurrence"].default_get(recurrence_fields)
         default_rrule_values = self.recurrence_id.default_get(recurrence_fields)
         for event in self:
@@ -927,7 +929,13 @@ class CalendarEvent(models.Model):
                 continue
 
             values["activity_ids"] = [
-                (0, 0, self._prepare_meeting_activity_vals(values, meeting_activity_type[0]))
+                (
+                    0,
+                    0,
+                    self._prepare_meeting_activity_vals(
+                        values, meeting_activity_type[0]
+                    ),
+                )
             ]
 
     def _prepare_meeting_activity_vals(self, values, activity_type):
@@ -1020,8 +1028,12 @@ class CalendarEvent(models.Model):
         original index of every vals so `events` can be rebuilt in caller order.
         """
         recurrence_fields = self._get_fields_recurrent()
-        other_idx = [i for i, vals in enumerate(vals_list) if not vals.get("recurrency")]
-        recurring_idx = [i for i, vals in enumerate(vals_list) if vals.get("recurrency")]
+        other_idx = [
+            i for i, vals in enumerate(vals_list) if not vals.get("recurrency")
+        ]
+        recurring_idx = [
+            i for i, vals in enumerate(vals_list) if vals.get("recurrency")
+        ]
         other_vals = [vals_list[i] for i in other_idx]
         recurring_vals = [vals_list[i] for i in recurring_idx]
 
@@ -1033,9 +1045,7 @@ class CalendarEvent(models.Model):
 
         events_by_index = dict(zip(other_idx, other_events, strict=True))
         events_by_index.update(zip(recurring_idx, recurring_events, strict=True))
-        events = self.browse(
-            events_by_index[i].id for i in range(len(vals_list))
-        )
+        events = self.browse(events_by_index[i].id for i in range(len(vals_list)))
 
         for event, vals in zip(recurring_events, recurring_vals, strict=True):
             recurrence_values = {
@@ -1241,8 +1251,7 @@ class CalendarEvent(models.Model):
 
         if (
             not recurrence_update_setting
-            or (recurrence_update_setting == "self_only"
-            and len(self) == 1)
+            or (recurrence_update_setting == "self_only" and len(self) == 1)
         ) and "follow_recurrence" not in values:
             if touches_time:
                 values["follow_recurrence"] = False
@@ -1761,20 +1770,19 @@ class CalendarEvent(models.Model):
         # fallback here the two halves of the pair disagree: the predicate calls such
         # an event public while the domain hides it from everyone, so it vanishes
         # from any search that touches a non-public field even for its own attendees.
-        if (
-            self.env["res.users"]._default_user_calendar_default_privacy()
-            != "private"
-        ):
+        if self.env["res.users"]._default_user_calendar_default_privacy() != "private":
             owner_default_is_public |= Domain(
                 "user_id", "not in", settings._search([]).select("user_id")
             )
-        return Domain.OR([
-            Domain("privacy", "in", ["public", "confidential"]),
-            Domain("user_id", "=", self.env.user.id),
-            Domain("partner_ids", "in", self.env.user.partner_id.id),
-            Domain("privacy", "=", False)
-            & (Domain("user_id", "=", False) | owner_default_is_public),
-        ])
+        return Domain.OR(
+            [
+                Domain("privacy", "in", ["public", "confidential"]),
+                Domain("user_id", "=", self.env.user.id),
+                Domain("partner_ids", "in", self.env.user.partner_id.id),
+                Domain("privacy", "=", False)
+                & (Domain("user_id", "=", False) | owner_default_is_public),
+            ]
+        )
 
     def _is_event_over(self):
         """Check if the event is over. This method is used to check if the event
@@ -1809,9 +1817,7 @@ class CalendarEvent(models.Model):
 
     def action_open_calendar_event(self):
         if self.res_model and self.res_id:
-            return (
-                self.env[self.res_model].browse(self.res_id).get_formview_action()
-            )
+            return self.env[self.res_model].browse(self.res_id).get_formview_action()
         return False
 
     def action_sendmail(self):
@@ -1989,7 +1995,9 @@ class CalendarEvent(models.Model):
                 # In cron, setup alarm only when there is a next date on the target. Otherwise the 'now()'
                 # check in the call below can generate undeterministic behavior and setup random alarms.
                 if next_date:
-                    event.recurrence_id.with_context(date=next_date)._schedule_next_occurrence_alarm()
+                    event.recurrence_id.with_context(
+                        date=next_date
+                    )._schedule_next_occurrence_alarm()
 
     def _setup_alarms(self):
         """Schedule cron triggers for future events"""
@@ -2003,9 +2011,7 @@ class CalendarEvent(models.Model):
                 alarm for alarm in event.alarm_ids if alarm.alarm_type in alarm_types
             ):
                 at = event.start - timedelta(minutes=alarm.duration_minutes)
-                create_trigger = (
-                    not existing_trigger or existing_trigger.call_at != at
-                )
+                create_trigger = not existing_trigger or existing_trigger.call_at != at
                 if create_trigger and (not cron.lastcall or at > cron.lastcall):
                     # Don't trigger for past alarms, they would be skipped by design
                     trigger = cron._trigger(at=at)
