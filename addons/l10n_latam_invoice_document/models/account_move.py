@@ -196,7 +196,7 @@ class AccountMove(models.Model):
     def _deduce_sequence_number_reset(self, name):
         if self.l10n_latam_use_documents:
             return "never"
-        return super(AccountMove, self)._deduce_sequence_number_reset(name)
+        return super()._deduce_sequence_number_reset(name)
 
     def _get_last_sequence_domain(self, relaxed=False):
         no_anti_regex = False
@@ -221,7 +221,7 @@ class AccountMove(models.Model):
             # There was no pattern found, propose one
             return ""
 
-        return super(AccountMove, self)._get_starting_sequence()
+        return super()._get_starting_sequence()
 
     def _post_entries(self):
         for rec in self.filtered(
@@ -280,7 +280,7 @@ class AccountMove(models.Model):
                         internal_type,
                     )
                 )
-            elif internal_type == "credit_note" and invoice_type in [
+            if internal_type == "credit_note" and invoice_type in [
                 "out_invoice",
                 "in_invoice",
             ]:
