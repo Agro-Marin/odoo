@@ -148,8 +148,8 @@ class ResourceCalendarLeaves(models.Model):
     def _ensure_datetime(self, datetime_representation, date_format=None):
         """
         Be sure to get a datetime object if we have the necessary information.
-        :param datetime_reprentation: object which should represent a datetime
-        :rtype: datetime if a correct datetime_represtion, None otherwise
+        :param datetime_representation: object which should represent a datetime
+        :rtype: datetime if a correct datetime_representation, None otherwise
         """
         if isinstance(datetime_representation, datetime):
             return datetime_representation
