@@ -267,7 +267,7 @@ class AccountMove(models.Model):
     def _compute_show_reset_to_draft_button(self):
         """
         Disallow resetting to draft in the following cases:
-        * The move is registered (accepted, regsitered_with_errors, cancelled)
+        * The move is registered (accepted, registered_with_errors, cancelled)
         * We are waiting to sent a document to the AEAT
         """
         # EXTENDS 'account'
