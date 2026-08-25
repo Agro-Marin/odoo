@@ -71,14 +71,14 @@ class AccountMove(models.Model):
         return mod10r(internal_ref)
 
     def _get_invoice_reference_ch_invoice(self):
-        """This sets QRR reference number which is generated based on customer's `Bank Account` and set it as
+        """This sets the QRR reference number as
         `Payment Reference` of the invoice when invoice's journal is using Switzerland's communication standard
         """
         self.ensure_one()
         return self.get_l10n_ch_qrr_number()
 
     def _get_invoice_reference_ch_partner(self):
-        """This sets QRR reference number which is generated based on customer's `Bank Account` and set it as
+        """This sets the QRR reference number as
         `Payment Reference` of the invoice when invoice's journal is using Switzerland's communication standard
         """
         self.ensure_one()
@@ -101,7 +101,7 @@ class AccountMove(models.Model):
     @api.model
     def space_scor_reference(self, iso11649_ref):
         """Makes the provided SCOR reference human-friendly, spacing its elements
-        by blocks of 5 from right to left.
+        by blocks of 4 from left to right.
         """
         return " ".join(iso11649_ref[i : i + 4] for i in range(0, len(iso11649_ref), 4))
 
