@@ -21,6 +21,11 @@ repos:
     hooks:
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
+        # These are byte-exact expectations of what `config.save()` writes, and
+        # configparser emits "key = " with a trailing space for an empty value.
+        # Stripping it makes test_03_save_default_options compare a file the
+        # server can never produce.
+        exclude: ^odoo/addons/base/tests/config/
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-xml
