@@ -8,6 +8,10 @@ from odoo.modules.registry import Registry
 
 CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 
+#: Base name of the borrow-wait histogram family.  Its samples are
+#: ``<name>_bucket`` / ``_sum`` / ``_count``; the family is declared once.
+_BORROW_WAIT = "odoo_pool_borrow_wait_seconds"
+
 _LABEL_ESCAPES = str.maketrans({"\\": "\\\\", '"': '\\"', "\n": "\\n"})
 
 
@@ -26,6 +30,33 @@ class _Exposition:
         self._declared: set[str] = set()
         self._base = dict(base_labels or {})
 
+    def declare(self, name: str, kind: str, help: str = "") -> None:
+        """Declare a family whose samples carry a suffix.
+
+        A Prometheus histogram is ONE family -- one HELP, one TYPE -- exposed
+        through ``_bucket`` / ``_sum`` / ``_count`` samples.  Declaring each
+        suffix as its own family (two counters and a gauge, which is what this
+        module used to publish) yields something no client reads as a histogram:
+        the quantile functions still work off the ``le`` buckets, but the family
+        has no declared type and the mean has no ``_count`` to divide by.
+        """
+        if name in self._declared:
+            return
+        self._declared.add(name)
+        self._lines.append(f"# HELP {name} {help}")
+        self._lines.append(f"# TYPE {name} {kind}")
+
+    def sample(
+        self,
+        name: str,
+        value: float | bool,
+        *,
+        labels: dict[str, str] | None = None,
+    ) -> None:
+        """Emit a sample of an already-declared family, with no TYPE of its own."""
+        rendered = int(value) if isinstance(value, bool) else value
+        self._lines.append(f"{name}{_labels(self._base | (labels or {}))} {rendered}")
+
     def add(
         self,
         name: str,
@@ -35,12 +66,8 @@ class _Exposition:
         help: str = "",
         labels: dict[str, str] | None = None,
     ) -> None:
-        if name not in self._declared:
-            self._declared.add(name)
-            self._lines.append(f"# HELP {name} {help}")
-            self._lines.append(f"# TYPE {name} {kind}")
-        rendered = int(value) if isinstance(value, bool) else value
-        self._lines.append(f"{name}{_labels(self._base | (labels or {}))} {rendered}")
+        self.declare(name, kind, help)
+        self.sample(name, value, labels=labels)
 
     def render(self) -> str:
         return "\n".join(self._lines) + "\n"
@@ -186,27 +213,36 @@ def _add_pool_family(exp: _Exposition, mode: str, health: dict) -> None:
             labels=label,
         )
 
-    exp.add(
-        "odoo_pool_borrow_wait_seconds_sum",
-        stats.get("borrow_wait_seconds_total", 0.0),
-        kind="counter",
-        help="Total time borrows spent waiting for a connection.",
-        labels=label,
-    )
+    # Its own family: ``_max`` is not a histogram suffix, so it is declared
+    # first, before the histogram's samples begin.
     exp.add(
         "odoo_pool_borrow_wait_seconds_max",
         stats.get("borrow_wait_seconds_max", 0.0),
         help="Longest single borrow wait observed.",
         labels=label,
     )
-    for edge, count in (stats.get("borrow_wait_seconds") or {}).items():
-        exp.add(
-            "odoo_pool_borrow_wait_seconds_bucket",
+
+    buckets = stats.get("borrow_wait_seconds") or {}
+    exp.declare(
+        _BORROW_WAIT,
+        "histogram",
+        help="Time borrows spent waiting for a connection.",
+    )
+    for edge, count in buckets.items():
+        exp.sample(
+            f"{_BORROW_WAIT}_bucket",
             count,
-            kind="counter",
-            help="Cumulative borrow waits at or below the bound.",
             labels={"pool": mode, "le": edge.removeprefix("le_")},
         )
+    exp.sample(
+        f"{_BORROW_WAIT}_sum",
+        stats.get("borrow_wait_seconds_total", 0.0),
+        labels=label,
+    )
+    # The ``+Inf`` bucket IS the observation count, and it comes from the same
+    # snapshot as the rest -- so the mean cannot skew the way it would against a
+    # separately-read counter.
+    exp.sample(f"{_BORROW_WAIT}_count", buckets.get("le_+Inf", 0), labels=label)
 
     for database, per_db in (health.get("per_database") or {}).items():
         for key, value in (per_db or {}).items():
