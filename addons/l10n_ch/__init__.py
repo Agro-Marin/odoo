@@ -4,7 +4,7 @@ from . import wizard
 
 
 def init_settings(env):
-    """If the company is localized in Switzerland, activate the cash rounding by default."""
+    """If the company is localized in Switzerland or Liechtenstein, activate the cash rounding by default."""
     # The cash rounding is activated by default only if the company is localized in Switzerland or Liechtenstein.
     for company in env["res.company"].search(
         [("partner_id.country_id.code", "in", ["CH", "LI"])]
