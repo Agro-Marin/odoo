@@ -181,7 +181,7 @@ class Base_ImportImport(models.TransientModel):
             header name and fields tachnical names, labels and user language
             translated labels. Keep only the closest match.
 
-       #. Prepare examples for each columns using the first non null value from each column.
+       #. Prepare up to 5 example values per column, from the first non-null values found.
        #. Send the info back to the UI where the user can modify the suggested mapping.
     #. Execute the import: There are two import mode with uses the same process. (see :meth:`execute_import`)
 
@@ -199,7 +199,7 @@ class Base_ImportImport(models.TransientModel):
             mapped on the same field (see :meth:`_handle_multi_mapping`).
           - Handle fallback values for boolean and selection fields, in case
             input data does not match any allowed values (see :meth:`_handle_fallback_values`).
-          - Load data (see ir.model "load" method).
+          - Load data (see the target model's "load" method).
           - Rollback transaction if test mode or if encountered error.
           - Save mapping if any import is successful to ease later mapping suggestions.
           - Return import result to the UI (success or errors if any).
@@ -819,6 +819,7 @@ class Base_ImportImport(models.TransientModel):
         :param preview_values: list of value for the column to determine
                                see :meth:`parse_preview` for more details.
         :param options: parsing options
+        :rtype: list[str]
         """
         # Nothing to go on at all -- a header-only file, so every field is a
         # candidate. This is the same answer as the all-blank case below, but
@@ -2515,14 +2516,12 @@ class Base_ImportImport(models.TransientModel):
                     value = self._stringify_date_like_objects(
                         value, self.env.context.get("import_options", {})
                     )
-                    # Boolean
                     if fallback_values[field]["field_type"] == "boolean":
                         value = (
                             value
                             if value.lower() in ("0", "1", "true", "false")
                             else fallback_value
                         )
-                    # Selection
                     elif (
                         fallback_values[field]["field_type"] == "selection"
                         and value.lower()
