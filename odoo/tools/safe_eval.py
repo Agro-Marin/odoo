@@ -1,4 +1,5 @@
 import ast
+import collections
 import dis
 import functools
 import logging
@@ -675,10 +676,25 @@ def test_python_expr(expr: str, mode: str = "eval") -> str | typing.Literal[Fals
 
 
 _UNSEARCHABLE = (str, bytes, bytearray, int, float, complex, bool, type(None))
-_CONTAINERS = (dict, list, tuple, set, frozenset)
+_MAPPINGS = (dict, types.MappingProxyType)
+_CONTAINERS = (*_MAPPINGS, list, tuple, set, frozenset, collections.deque)
 
 
 def _check_module(value: object, seen: set[int] | None = None) -> None:
+    """Refuse a module reachable from ``value`` through plain data.
+
+    "Plain data" is the whole contract, and it is narrower than it looks: only
+    the carriers in ``_CONTAINERS`` are walked. Two omissions are deliberate.
+
+    Arbitrary iterables are not walked, because walking consumes them -- an
+    iterator handed in would arrive empty at the template that asked for it.
+
+    Object attributes are not walked, because evaluation contexts carry
+    recordsets, and reaching through their attributes would trigger database
+    reads via ``__getattr__``/prefetch. So a module held as an attribute of an
+    arbitrary object does still reach the context; none of the wrapped modules
+    this package exposes holds one.
+    """
     if isinstance(value, _UNSEARCHABLE):
         return
     if isinstance(value, types.ModuleType):
@@ -700,7 +716,7 @@ Pre-wrapped modules are provided as attributes of `odoo.tools.safe_eval`.
     if obj_id in seen:
         return
     seen.add(obj_id)
-    if isinstance(value, dict):
+    if isinstance(value, _MAPPINGS):
         for k, v in value.items():
             _check_module(k, seen)
             _check_module(v, seen)
