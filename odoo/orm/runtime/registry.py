@@ -46,9 +46,25 @@ _schema = logging.getLogger("odoo.schema")
 
 _REPLICA_RETRY_TIME = 20 * 60
 
-_SIGNALING_TABLES = tuple(
-    f"orm_signaling_{cache_name}" for cache_name in ["registry", *CACHES_BY_KEY]
+
+def signaling_table_name(cache_name: str) -> str:
+    """Name of the signalling table for a cache group.
+
+    One rule, one place. It was spelled out separately in the constant below, in
+    `signal_changes`, and a third time outside this package in
+    `ir_autovacuum._gc_orm_signaling`, which had to re-derive the whole list
+    because the constant was private.
+    """
+    return f"orm_signaling_{cache_name}"
+
+
+#: Every signalling table, in the order the cache groups declare them.
+SIGNALING_TABLES = tuple(
+    signaling_table_name(cache_name) for cache_name in ["registry", *CACHES_BY_KEY]
 )
+
+#: Kept for the private name this module used before the derivation was exported.
+_SIGNALING_TABLES = SIGNALING_TABLES
 
 _ASSERTION_REPORTS: dict[str, typing.Any] = {}
 
@@ -734,7 +750,7 @@ class Registry(
                     cr.execute(
                         SQL(
                             "INSERT INTO %s DEFAULT VALUES RETURNING id",
-                            SQL.identifier(f"orm_signaling_{cache_name}"),
+                            SQL.identifier(signaling_table_name(cache_name)),
                         )
                     )
                     self.cache_sequences[cache_name] = self._signalled_id(
