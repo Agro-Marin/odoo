@@ -453,6 +453,69 @@ class TestSqlLint(BaseCase):
         nodes = _py_scan.walk_with_parents(tree)
         return list(_checker_sql.SqlInjectionChecker(filepath).check_nodes(nodes))
 
+    def test_a_helper_used_many_times_is_one_finding(self):
+        """One fix, one finding.
+
+        The deferred path -- a helper defined AFTER the calls that reach it --
+        yielded once per recorded call site, all anchored at the same `def` line
+        and column, so a helper called from several places counted as several
+        offences against the floor. `_callsites` records some calls twice, which
+        inflated it further: `sale_oyb_wizard.py:736` was ten of agromarin's
+        twenty-two findings, from five call sites.
+        """
+        violations = self._check("""
+        def a(self, t):
+            self.env.cr.execute(build(t))
+
+        def b(self, t):
+            self.env.cr.execute(build(t))
+
+        def c(self, t):
+            self.env.cr.execute(build(t))
+
+        def build(table):
+            return f"SELECT * FROM {table}"
+        """)
+        self.assertEqual(len(violations), 1, "one helper, one finding")
+        for line in ("2", "5", "8"):
+            self.assertIn(f"dummy.py:{line}", violations[0].message)
+
+    def test_a_helper_defined_first_is_reported_at_each_call(self):
+        """The other order is genuinely several findings, and stays several.
+
+        With the helper already known, each `execute` is judged where it stands,
+        so the findings are at distinct lines and each names one risky call --
+        which is what a reader needs to fix them. Only the deferred path
+        collapsed, and only because it reported the same `def` repeatedly.
+        """
+        violations = self._check("""
+        def build(table):
+            return f"SELECT * FROM {table}"
+
+        def a(self, t):
+            self.env.cr.execute(build(t))
+
+        def b(self, t):
+            self.env.cr.execute(build(t))
+        """)
+        self.assertEqual(len(violations), 2)
+        self.assertEqual(sorted(v.lineno for v in violations), [5, 8])
+
+    def test_two_queries_on_one_line_are_two_findings(self):
+        """They differ by column, which is what `Finding.col_offset` carries.
+
+        The deduplication above must not reach these: `mixin_sql_report.py:191`
+        and `base_partner_merge.py:398` each really do build two queries on one
+        line, and `odoo` reads 37 findings on 35 lines because of it.
+        """
+        violations = self._check(
+            "def f(self, a, b):\n"
+            '    self.env.cr.execute(f"S {a}"), self.env.cr.execute(f"S {b}")\n'
+        )
+        self.assertEqual(len(violations), 2)
+        self.assertEqual(violations[0].lineno, violations[1].lineno)
+        self.assertNotEqual(violations[0].col_offset, violations[1].col_offset)
+
     def test_a_local_constant_is_resolved_through_its_scope(self):
         self.assertFalse(
             self._check("""

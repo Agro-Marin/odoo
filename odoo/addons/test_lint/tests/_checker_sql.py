@@ -99,15 +99,35 @@ class SqlInjectionChecker:
             yield Violation(node.lineno, node.col_offset)
 
     def _visit_functiondef(self, node: ast.FunctionDef) -> Iterator[Violation]:
+        """One violation for a helper that builds a query, however often it is used.
+
+        This used to yield once per RECORDED CALL SITE, all of them anchored at
+        the same `def` line and column, so one helper called ten times counted as
+        ten offences against the floor -- and `_callsites` records some calls
+        twice, which inflated it further. `sale_oyb_wizard.py:736` was ten of
+        agromarin's twenty-two. The fix is one fix; the count now says one, and
+        the message names every distinct call site instead of one per row.
+
+        Two findings that really are on the same LINE stay two: they differ by
+        column, which is what `Finding.col_offset` carries.
+        """
         self._function_defs[node.name].append(node)
 
-        for position, const_args, call in self._callsites[node.name]:
-            if not self._is_const_def(node, position=position, const_args=const_args):
-                yield Violation(
-                    node.lineno,
-                    node.col_offset,
-                    f"because it is used to build a query at {self.filepath}:{call.lineno}",
-                )
+        offending = {
+            call.lineno
+            for position, const_args, call in self._callsites[node.name]
+            if not self._is_const_def(node, position=position, const_args=const_args)
+        }
+        if not offending:
+            return
+        sites = sorted(offending)
+        shown = ", ".join(f"{self.filepath}:{line}" for line in sites[:3])
+        more = f" and {len(sites) - 3} more" if len(sites) > 3 else ""
+        yield Violation(
+            node.lineno,
+            node.col_offset,
+            f"because it is used to build a query at {shown}{more}",
+        )
 
     def _check_sql_injection_risky(self, node: ast.Call) -> bool:
         if not node.args:
