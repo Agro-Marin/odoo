@@ -67,6 +67,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import _sources
 from _repo_root import find_odoo_root, sibling_repos_root
 
 ADR = "0055"
@@ -138,22 +139,11 @@ class Offence:
         return f"  {self.kind:14}  {self.file}:{self.line}  {self.what}"
 
 
-def _display(path: Path) -> str:
-    try:
-        return str(path.relative_to(ROOT))
-    except ValueError:
-        return str(path)
-
-
-def _is_test_path(path: Path) -> bool:
-    return "tests" in path.parts or path.name.startswith("test_")
-
-
 def iter_source_files(src: Path | None = None) -> list[Path]:
     return sorted(
         p
         for p in (SCOPE if src is None else src).rglob("*.py")
-        if "__pycache__" not in p.parts and not _is_test_path(p)
+        if "__pycache__" not in p.parts and not _sources.is_test_path(p)
     )
 
 
@@ -226,7 +216,7 @@ def measure(
             tree = ast.parse(path.read_bytes())
         except SyntaxError:
             continue
-        display = _display(path)
+        display = _sources.display(path, ROOT)
 
         # Every string literal that is the first argument of an SQL(...) call:
         # those are judged per placeholder below, and every OTHER SQL literal in

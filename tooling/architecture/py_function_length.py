@@ -11,6 +11,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import _sources
 from _repo_root import find_odoo_root
 
 ADR = "0025"
@@ -23,12 +24,21 @@ DEFAULT_ADDON = "core"
 
 ALL_ADDONS = "addons"
 
+#: The gates themselves. Measured by nothing until 2026-08-25, which is the
+#: shape this whole directory exists to refuse: `pyfunclen` floors `odoo/`,
+#: `addons/`, `mail` and `loyalty`, and the tree it is implemented in was not
+#: among them. It scored 20 offenders and 910 excess lines the first time it was
+#: pointed at itself, nine of them the `main()` of another gate.
+TOOLING = "tooling"
+
 
 def addon_src(addon: str = DEFAULT_ADDON) -> Path:
     if addon == DEFAULT_ADDON:
         return SCOPE
     if addon == ALL_ADDONS:
         return ROOT / "addons"
+    if addon == TOOLING:
+        return ROOT / "tooling"
     return ROOT / "addons" / addon
 
 
@@ -46,23 +56,15 @@ class LongFunction:
         return f"  {self.lines:5d}  {self.file}:{self.line}  {self.what}"
 
 
-def _display(path: Path) -> str:
-    try:
-        return str(path.relative_to(ROOT))
-    except ValueError:
-        return str(path)
-
-
-def _is_test_path(path: Path) -> bool:
-    return "tests" in path.parts or path.name.startswith("test_")
-
-
 def iter_source_files(src: Path | None = None) -> list[Path]:
-    return sorted(
-        p
-        for p in (SCOPE if src is None else src).rglob("*.py")
-        if "__pycache__" not in p.parts and not _is_test_path(p)
-    )
+    """Every non-test Python source in scope, extension-less runners included.
+
+    `_sources.iter_python_files` rather than a local `rglob("*.py")`: five files
+    under `tooling/` are `#!/bin/sh` polyglots carrying 1,647 lines that a glob
+    cannot see, and `hoot:main` is the second-longest function in this repo's own
+    tooling at 222 lines.
+    """
+    return _sources.iter_python_files(SCOPE if src is None else src)
 
 
 def measure(
@@ -92,7 +94,7 @@ def measure(
             if length > MAX_LINES:
                 found.append(
                     LongFunction(
-                        file=_display(path),
+                        file=_sources.display(path, ROOT),
                         line=node.lineno,
                         lines=length,
                         what=node.name,
@@ -117,7 +119,8 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             f"what to measure: {DEFAULT_ADDON} (default) is the odoo/ package, "
             f"{ALL_ADDONS} is the whole bundled-addons tree as one number, "
-            f"anything else is that one module under addons/"
+            f"{TOOLING} is the gates themselves, and anything else is that one "
+            f"module under addons/"
         ),
     )
     args = parser.parse_args(argv)
@@ -135,7 +138,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps([asdict(f) for f in found], indent=2))
         return 0
 
-    where = {DEFAULT_ADDON: "odoo/", ALL_ADDONS: "addons/"}.get(
+    where = {DEFAULT_ADDON: "odoo/", ALL_ADDONS: "addons/", TOOLING: "tooling/"}.get(
         args.addon, f"addons/{args.addon}/"
     )
     print(f"Python function-length budget (> {MAX_LINES} lines, {where})")

@@ -1,4 +1,4 @@
 {
-  "count": 24,
-  "note": "website_forum.forum.forum loses two search_count-in-a-loop counters to one _read_group: 26 -> 24. This is the OTHER remedy ADR-0052 admits -- the module docstring says a compute that already uses _read_group is correct as written -- and it is the one that fits a filtered domain, which fields.Count cannot express. Both domains differed from each other only by state and from record to record only by forum_id, so one grouped query over (\"forum_id\", \"in\", self.ids) serves the whole recordset for both counters. Neither compute declared an @api.depends at all; the merged one depends on post_ids.state. Verified against the query it replaces, forum by forum, including an archived pending post that active_test must still exclude: six comparisons, all equal."
+  "count": 23,
+  "note": "24 -> 23. The addons-wide aggregate of the same fix that took py_x2many_count_stock to 0: stock.move.move_lines_count is fields.Count(\"move_line_ids\") and its hand-written _compute_move_lines_count is gone. Banked late -- 647da3f3edd moved the stock scope and left this one one over, which an exact ratchet fails in the falling direction."
 }

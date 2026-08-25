@@ -48,6 +48,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "architecture"))
+import _consumer_scopes
+
 HERE = Path(__file__).resolve().parent
 # Located by the `odoo-bin` marker rather than by counting `parents[]`: the count
 # is silently wrong one directory either way, and a WORKFLOWS path that resolves
@@ -86,22 +89,33 @@ _ASSERT_RATCHET = re.compile(r"assert_ratchet\(")
 #: register as enforcement.
 _PY_CONSUMERS = ("odoo/addons/test_lint/tests",)
 
-#: Floors measured over a sibling checkout, invoked from THAT repo's
-#: `architecture.yml` (`--mode no-increase`) with this repo checked out beside
-#: it. CI here checks this repository out alone and cannot see those workflows,
-#: so they are named rather than discovered. The pin stays in `odoo` on purpose
-#: — one floor cannot drift out of step with itself, two would — which is the
-#: arrangement `tooling/README.md` describes for the cross-repo gates.
-ENFORCED_BY_A_SIBLING: frozenset[str] = frozenset(
-    {
-        "py_count_as_boolean_agromarin",
-        "py_count_as_boolean_enterprise",
-        "py_x2many_count_agromarin",
-        "py_x2many_count_enterprise",
-        "sql_in_placeholder_agromarin",
-        "sql_in_placeholder_enterprise",
-    }
+#: The consumer checkouts that carry their own `architecture.yml`, taken from the
+#: gates' own registry so the two cannot disagree about who exists.
+SIBLING_SCOPES: tuple[str, ...] = tuple(
+    name for name, _root in _consumer_scopes.CONSUMER_ROOTS if name != "odoo"
 )
+
+
+def sibling_scope_of(gate: str) -> str | None:
+    """The sibling a floor is scoped to, by the `<gate>_<scope>` suffix.
+
+    A RULE rather than a list, and the list came first. Six floors were named
+    here by hand; `tooling/lint/py_lint.py` then landed fifteen more of the same
+    shape in one commit, and the hand-written set reported every one as debt
+    nobody was paying. The suffix is the convention both sides already use --
+    `py_lint.gate_name` BUILDS it as `f"lint_{rule}_{scope}"` and discovers
+    floors back out of it the same way.
+
+    These are measured from the sibling's own lane, with this repo checked out
+    beside it, and the floor stays here on purpose: one floor cannot drift out of
+    step with itself, two would. CI here checks this repository out alone and
+    cannot read those workflows, which is why the rule is declared and only
+    verified when the sibling happens to be present.
+    """
+    for scope in SIBLING_SCOPES:
+        if gate.endswith(f"_{scope}"):
+            return scope
+    return None
 
 
 def recorded_floors() -> set[str]:
@@ -188,7 +202,8 @@ def test_the_discovery_finds_something():
 
 @pytest.mark.parametrize("gate", sorted(recorded_floors()))
 def test_every_floor_is_read_by_some_consumer(gate):
-    if gate in ENFORCED_BY_A_SIBLING:
+    scope = sibling_scope_of(gate)
+    if scope is not None:
         return
     assert gate in enforced_gates(), (
         f"baselines/{gate}.json is read by nothing — no workflow step in "
@@ -224,18 +239,32 @@ def test_every_workflow_invocation_names_a_recorded_floor(gate):
     )
 
 
-def test_no_sibling_pin_has_gone_stale():
-    ghosts = ENFORCED_BY_A_SIBLING - recorded_floors()
-    assert not ghosts, (
-        f"{sorted(ghosts)} are excused as sibling-enforced but have no baseline "
-        f"file. Remove them, or restore the floor they name."
-    )
-    here = ENFORCED_BY_A_SIBLING & enforced_gates()
-    assert not here, (
-        f"{sorted(here)} are excused as sibling-enforced but this repo now "
-        f"reads them itself. Drop them from ENFORCED_BY_A_SIBLING so they are "
-        f"checked like every other floor."
-    )
+def test_every_sibling_scoped_floor_has_a_lane_to_be_read_by():
+    """The suffix excuses a floor from this repo's lanes; something must still run it.
+
+    Verified only where the sibling is checked out, which is a workspace and
+    never CI. Without this the rule would excuse a floor named
+    `..._designthemes` -- a typo that matches no scope -- or one whose repo has
+    no workflow at all, which is the hole `design-themes` sat in until it got one.
+    """
+    scoped = {g: sibling_scope_of(g) for g in recorded_floors()}
+    scoped = {g: s for g, s in scoped.items() if s is not None}
+    assert scoped, "no sibling-scoped floor found — the suffix rule has rotted"
+    for gate, scope in sorted(scoped.items()):
+        root = dict(_consumer_scopes.CONSUMER_ROOTS)[scope]
+        workflow = root / ".github" / "workflows" / "architecture.yml"
+        if not workflow.is_file():
+            if root.is_dir():
+                pytest.fail(
+                    f"{gate} is scoped to {scope}, which is checked out and has "
+                    f"no architecture.yml — so that floor is read by nothing."
+                )
+            continue
+        text = workflow.read_text(encoding="utf-8")
+        assert "tooling/" in text, (
+            f"{scope}'s architecture.yml runs no tooling gate, so {gate} is read "
+            f"by nothing."
+        )
 
 
 def test_every_baseline_parses_as_a_floor():

@@ -11,6 +11,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import _sources
 from _repo_root import find_odoo_root
 
 ADR = "0058"
@@ -49,13 +50,6 @@ class UnresolvedCall:
 
     def __str__(self) -> str:
         return f"  {self.file}:{self.line}  {self.name}\n      {self.source}"
-
-
-def _display(path: Path) -> str:
-    try:
-        return str(path.relative_to(ROOT))
-    except ValueError:
-        return str(path)
 
 
 def iter_source_files(scopes: tuple[Path, ...] = SCOPES) -> list[Path]:
@@ -122,7 +116,7 @@ def measure(scopes: tuple[Path, ...] = SCOPES) -> list[UnresolvedCall]:
             calls.append((path, node, lines[node.lineno - 1].strip()))
 
     found = [
-        UnresolvedCall(_display(path), node.lineno, node.func.attr, source)
+        UnresolvedCall(_sources.display(path, ROOT), node.lineno, node.func.attr, source)
         for path, node, source in calls
         if node.func.attr not in defined
         and node.func.attr not in bound

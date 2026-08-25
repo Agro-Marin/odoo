@@ -13,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import _ast_cache
+import _sources
 from _repo_root import find_odoo_root
 
 ADR = "0033"
@@ -419,13 +420,6 @@ def _python_files(roots: list[Path]) -> list[Path]:
     return found
 
 
-def _display(path: Path) -> Path:
-    try:
-        return path.relative_to(ROOT)
-    except ValueError:
-        return path
-
-
 #: Verbs §2.4 makes canonical. Together with ``ABOLISHED`` — which maps every
 #: abolished spelling onto the canonical it loses to — these ARE the semantic
 #: families the section prints, so the census below is derived from the rule
@@ -778,7 +772,7 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
                     continue
                 out.append(
                     Violation(
-                        path=str(_display(path)),
+                        path=_sources.display(path, ROOT),
                         line=item.lineno,
                         name=item.name,
                         verb=hit[0],

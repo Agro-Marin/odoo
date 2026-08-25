@@ -1,0 +1,4 @@
+{
+  "count": 910,
+  "note": "First floor for tooling/ itself. The gates in this directory floor odoo/ (3569), addons/ (no-increase), mail (245) and loyalty (0); the tree they are implemented in was measured by nothing, and scored 20 offenders / 910 excess lines the first time it was pointed at itself.\n\nFive of those 20 -- 253 excess lines, hoot:main alone 222 -- are in the extension-less #!/bin/sh polyglots that rglob('*.py') cannot see. ruff.toml had already named them one by one in extend-include for the same reason, recording that they are '23% of tooling's Python' that 'ruff check tooling/' passed over in silence; _sources.iter_python_files discovers them by their prologue marker instead, so a sixth is measured the day it lands.\n\nNine of the 20 are a gate's own main(). 56 of them hold 3,371 lines over a flag vocabulary that is almost entirely shared (--json 54x, --check 42x, --count 21x), so the floor has an obvious way down that is not deletion."
+}

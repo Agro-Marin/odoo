@@ -116,6 +116,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import _sources
 from _repo_root import find_odoo_root
 
 ADR = "unrecorded"
@@ -157,23 +158,12 @@ class Violation:
         return f"{self.key:<8} {self.file}:{self.line}  {self.method}"
 
 
-def _display(path: Path) -> str:
-    try:
-        return str(path.relative_to(ROOT))
-    except ValueError:
-        return str(path)
-
-
-def _is_test_path(path: Path) -> bool:
-    return "tests" in path.parts or path.name.startswith("test_")
-
-
 def _python_files(roots: list[Path]) -> list[Path]:
     return sorted(
         p
         for root in roots
         for p in root.rglob("*.py")
-        if "__pycache__" not in p.parts and not _is_test_path(p)
+        if "__pycache__" not in p.parts and not _sources.is_test_path(p)
     )
 
 
@@ -275,7 +265,7 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
                 continue
             missing = read_keys(node) - declared_keys(node)
             found.extend(
-                Violation(_display(path), node.lineno, node.name, key)
+                Violation(_sources.display(path, ROOT), node.lineno, node.name, key)
                 for key in sorted(missing)
             )
     return sorted(found, key=lambda v: (v.key, v.file, v.line))

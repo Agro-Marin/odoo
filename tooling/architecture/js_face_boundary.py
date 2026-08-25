@@ -6,6 +6,7 @@ from pathlib import Path
 from js_imports import collect_imports, collect_type_imports
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import _sources
 from _repo_root import find_odoo_root
 
 ADR = "0020"
@@ -55,15 +56,6 @@ def _is_web_internal(path: Path, web_root: Path) -> bool:
     return True
 
 
-def _display(path: Path) -> str:
-    for base in (ROOT.parent, ROOT):
-        try:
-            return path.relative_to(base).as_posix()
-        except ValueError:
-            continue
-    return path.as_posix()
-
-
 def measure(
     consumer_roots=CONSUMER_ROOTS, web_src: Path = WEB_SRC
 ) -> list[dict[str, object]]:
@@ -107,7 +99,7 @@ def _reaches(consumer_roots, web_src: Path, collect) -> list[dict[str, object]]:
                     {
                         "spec": spec,
                         "face": f"@web/{face}",
-                        "consumer": _display(path),
+                        "consumer": _sources.display_across_repos(path, ROOT),
                         "line": line,
                     }
                 )

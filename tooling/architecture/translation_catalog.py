@@ -103,6 +103,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import _sources
 import doc_measured
 from _repo_root import find_odoo_root
 
@@ -140,17 +141,6 @@ class Unresolved:
     def __str__(self) -> str:
         text = self.source if len(self.source) <= 72 else self.source[:69] + "..."
         return f"  {self.file}:{self.line}  {text!r}"
-
-
-def _display(path: Path) -> str:
-    try:
-        return str(path.relative_to(ROOT))
-    except ValueError:
-        return str(path)
-
-
-def _is_test_path(path: Path) -> bool:
-    return "tests" in path.parts or path.name.startswith("test_")
 
 
 def iter_modules(roots: tuple[Path, ...] = ADDON_ROOTS) -> list[tuple[str, Path, Path]]:
@@ -313,7 +303,7 @@ def measure(roots: tuple[Path, ...] = ADDON_ROOTS) -> tuple[list[Unresolved], di
     if not modules:
         raise RuntimeError(
             "no module ships an i18n/<module>.pot under "
-            + ", ".join(_display(r) for r in roots)
+            + ", ".join(_sources.display(r, ROOT) for r in roots)
             + " -- refusing to report a clean zero on a tree this gate never read"
         )
     unresolved: list[Unresolved] = []
@@ -321,13 +311,13 @@ def measure(roots: tuple[Path, ...] = ADDON_ROOTS) -> tuple[list[Unresolved], di
     for module, module_dir, pot in modules:
         msgids = read_msgids(pot)
         for source_file in sorted(module_dir.rglob("*.py")):
-            if "__pycache__" in source_file.parts or _is_test_path(source_file):
+            if "__pycache__" in source_file.parts or _sources.is_test_path(source_file):
                 continue
             for lineno, text in iter_gettext_literals(source_file):
                 total += 1
                 if text not in msgids:
                     unresolved.append(
-                        Unresolved(module, _display(source_file), lineno, text)
+                        Unresolved(module, _sources.display(source_file, ROOT), lineno, text)
                     )
     stats = {"modules": len(modules), "strings": total, "unresolved": len(unresolved)}
     return unresolved, stats

@@ -238,7 +238,7 @@ Eleven and not eight, which is what counting only the table above would give:
 the self-test rather than a step of their own, and `cross_repo_coherence` is the
 fiftieth.
 
-**Seventy** is how many steps CI runs the fifty-one in, each step invoking
+**Seventy-one** is how many steps CI runs the fifty-one in, each step invoking
 exactly one checker; the self-test is the step above them all. The two figures
 differ because a gate governing several scopes gets one step per scope —
 `py_x2many_count` alone accounts for six.
@@ -256,8 +256,8 @@ done right: it derives the tree and compares.
 
 ## The two count ratchets beyond the boundary gates
 
-**Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns fifty tool
-counts into one-way contracts: **mypy, ruff, c901, c901_addons, eslint, tsc, tsc_serviceworker, jsfunclen, jsfunclen_mail, jsfunclen_account, jsfunclen_stock, jsfunclen_product, pyfunclen, pyfunclen_addons, pyfunclen_mail, pyfunclen_loyalty, py_x2many_count, py_x2many_count_addons, py_x2many_count_mail, py_x2many_count_account, py_x2many_count_stock, py_x2many_count_project, py_x2many_count_enterprise, py_x2many_count_agromarin, sql_in_placeholder, sql_in_placeholder_addons, sql_in_placeholder_enterprise, sql_in_placeholder_agromarin, py_count_as_boolean, py_count_as_boolean_addons, py_count_as_boolean_enterprise, py_count_as_boolean_agromarin, jsprivate, jsprivate_crosstree, jsserviceshape, jsserviceshape_mail, jsserviceshape_account, jsserviceshape_stock, jsforcedrender, jsvacuous, jsduplication, prettier_scss, naming, fieldhooks, hookpurity, computectx, translations, mypy_tools, orderlineqty and unresolved_calls**
+**Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns fifty-one tool
+counts into one-way contracts: **mypy, ruff, c901, c901_addons, eslint, tsc, tsc_serviceworker, jsfunclen, jsfunclen_mail, jsfunclen_account, jsfunclen_stock, jsfunclen_product, pyfunclen, pyfunclen_addons, pyfunclen_mail, pyfunclen_loyalty, pyfunclen_tooling, py_x2many_count, py_x2many_count_addons, py_x2many_count_mail, py_x2many_count_account, py_x2many_count_stock, py_x2many_count_project, py_x2many_count_enterprise, py_x2many_count_agromarin, sql_in_placeholder, sql_in_placeholder_addons, sql_in_placeholder_enterprise, sql_in_placeholder_agromarin, py_count_as_boolean, py_count_as_boolean_addons, py_count_as_boolean_enterprise, py_count_as_boolean_agromarin, jsprivate, jsprivate_crosstree, jsserviceshape, jsserviceshape_mail, jsserviceshape_account, jsserviceshape_stock, jsforcedrender, jsvacuous, jsduplication, prettier_scss, naming, fieldhooks, hookpurity, computectx, translations, mypy_tools, orderlineqty and unresolved_calls**
 (floors in `tooling/ratchet/baselines/`, one JSON per gate). CI fails
 on any increase and — in the default `exact` mode — on an un-committed decrease,
 so every cleanup is locked in.
