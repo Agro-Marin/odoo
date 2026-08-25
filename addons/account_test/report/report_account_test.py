@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
-import datetime
 from odoo import api, models
+from odoo.tools.safe_eval import datetime as safe_datetime
 from odoo.tools.safe_eval import safe_eval
+
 #
 # Use period and Journal for selection or resources
 #
@@ -61,13 +61,15 @@ class ReportAccount_TestReport_Accounttest(models.AbstractModel):
 
     @api.model
     def _get_report_values(self, docids, data=None):
-        report = self.env['ir.actions.report']._get_report_from_name('account_test.report_accounttest')
-        records = self.env['accounting.assert.test'].browse(self.ids)
+        # `self` is an AbstractModel here, so `self.ids` is always empty: the
+        # records to print are the ones the caller passed. And the raw datetime
+        # module is refused by `safe_eval.check_values`, which every qweb render
+        # runs -- the wrapped one is what a template may hold.
         return {
-            'doc_ids': self._ids,
-            'doc_model': report.model,
-            'docs': records,
+            'doc_ids': docids,
+            'doc_model': 'accounting.assert.test',
+            'docs': self.env['accounting.assert.test'].browse(docids),
             'data': data,
             'execute_code': self._execute_code,
-            'datetime': datetime
+            'datetime': safe_datetime,
         }
