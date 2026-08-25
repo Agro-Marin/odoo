@@ -1,4 +1,4 @@
-from odoo import api, SUPERUSER_ID
+from odoo import SUPERUSER_ID, api
 
 
 def migrate(cr, version):
@@ -7,9 +7,9 @@ def migrate(cr, version):
     # So, we update amls of this line only, to make this report consistent.
 
     env = api.Environment(cr, SUPERUSER_ID, {})
-    country = env['res.country'].search([('code', '=', 'DE')], limit=1)
-    tags_68 = env['account.account.tag']._get_tax_tags('68', country.id)
-    tags_60 = env['account.account.tag']._get_tax_tags('60', country.id)
+    country = env["res.country"].search([("code", "=", "DE")], limit=1)
+    tags_68 = env["account.account.tag"]._get_tax_tags("68", country.id)
+    tags_60 = env["account.account.tag"]._get_tax_tags("60", country.id)
 
     if tags_68.filtered(lambda tag: tag.tax_negate):
         cr.execute(
@@ -20,8 +20,8 @@ def migrate(cr, version):
             """,
             [
                 tags_60.filtered(lambda tag: tag.tax_negate)[0].id,
-                tags_68.filtered(lambda tag: tag.tax_negate).ids
-            ]
+                tags_68.filtered(lambda tag: tag.tax_negate).ids,
+            ],
         )
 
     if tags_68.filtered(lambda tag: not tag.tax_negate):
@@ -33,6 +33,6 @@ def migrate(cr, version):
             """,
             [
                 tags_60.filtered(lambda tag: not tag.tax_negate)[0].id,
-                tags_68.filtered(lambda tag: not tag.tax_negate).ids
-            ]
+                tags_68.filtered(lambda tag: not tag.tax_negate).ids,
+            ],
         )
