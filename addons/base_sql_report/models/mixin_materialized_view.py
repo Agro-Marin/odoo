@@ -95,7 +95,7 @@ class MixinMaterializedView(models.AbstractModel):
     # ------------------------------------------------------------------
 
     def _view_exists(self, table) -> bool:
-        """True if a materialized view named ``table`` exists in the current schema."""
+        """True if a relation of kind ``self._relation_kind`` named ``table`` exists in the current schema."""
         self.env.cr.execute(
             SQL(
                 "SELECT 1 FROM pg_class "
