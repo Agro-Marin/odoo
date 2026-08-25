@@ -117,3 +117,48 @@ def test_an_unparseable_file_is_reported_rather_than_skipped(tmp_path, monkeypat
     (addon / "broken.py").write_text("def f(:\n")
     monkeypatch.chdir(tmp_path)
     assert "unreadable-source" in {rule for rule, *_ in py_lint.scan(["repo"])}
+
+
+def test_a_gate_name_round_trips_through_the_baseline_glob():
+    """`--check` discovers a scope's rules by globbing its baselines.
+
+    A rule driven to zero would otherwise stop being evaluated the moment it
+    reported nothing, leaving its floor unchecked while the debt crept back.
+    The glob has to invert `gate_name` exactly, including for a scope whose own
+    name carries a hyphen.
+    """
+    for scope in ("agromarin", "enterprise", "design-themes"):
+        for rule in ("sql-injection", "n-plus-one-query", "noqa-rationale"):
+            gate = py_lint.gate_name(rule, scope)
+            suffix = f"_{scope}.json"
+            recovered = gate + ".json"
+            recovered = recovered[len("lint_") : -len(suffix)].replace("_", "-")
+            assert recovered == rule, (scope, rule, gate)
+
+
+def test_check_passes_at_the_floor_and_fails_above_it(tmp_path, monkeypatch):
+    ratchet = py_lint._ratchet()
+    monkeypatch.setattr(ratchet, "BASELINES_DIR", tmp_path)
+    (tmp_path / "lint_sql_injection_probe.json").write_text('{"count": 2, "note": ""}')
+
+    at_floor = [("sql-injection", "a.py", 1, ""), ("sql-injection", "b.py", 1, "")]
+    assert py_lint.check(at_floor, "probe", "no-increase") == 0
+    assert (
+        py_lint.check(
+            [*at_floor, ("sql-injection", "c.py", 1, "")], "probe", "no-increase"
+        )
+        == 1
+    )
+    # Under no-increase an improvement is not a failure; the floor is lowered by
+    # hand from a workspace that holds every checkout.
+    assert py_lint.check(at_floor[:1], "probe", "no-increase") == 0
+    assert py_lint.check(at_floor[:1], "probe", "exact") == 1
+
+
+def test_a_rule_with_no_baseline_is_held_at_zero(tmp_path, monkeypatch):
+    ratchet = py_lint._ratchet()
+    monkeypatch.setattr(ratchet, "BASELINES_DIR", tmp_path)
+    assert py_lint.check([], "probe", "no-increase") == 0
+    assert (
+        py_lint.check([("sql-injection", "a.py", 1, "")], "probe", "no-increase") == 1
+    )

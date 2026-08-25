@@ -13,17 +13,22 @@ this script, under exactly the corpus rules the gate applies:
     ---------------------------------------------
                                     889, against 557 in the repository that is gated
 
-WHAT THIS IS AND IS NOT. It is the capability: the same checkers, the same
-suppression rules, the same corpus exclusions, pointable at any tree, so
-`--count` can be ratcheted the way `naming_vocabulary.py` is. It is NOT coverage
-yet -- nothing runs it in CI. Wiring it into the sibling repositories' own
-"Architecture Boundaries (cross-repo)" workflows, which already check this fork
-out beside themselves, is the step that turns a capability into a gate, and it
-has to happen in those repositories. Until then this is a tool a developer runs,
-and no baseline is committed for a scope nothing measures.
+Each sibling repository runs `--check` from its own "Architecture Boundaries
+(cross-repo)" workflow, which already checks this fork out beside itself. The
+floors live here, in `tooling/ratchet/baselines/lint_<rule>_<scope>.json`,
+because that is where the gate and every other floor live -- scoped by
+provenance, so a run judges only its own repository's count.
 
     python tooling/lint/py_lint.py ../agromarin --count
     python tooling/lint/py_lint.py ../agromarin --rule sql-injection
+    python tooling/lint/py_lint.py ../agromarin --count --rule sql-injection   # bare integer
+    python tooling/lint/py_lint.py agromarin --check --scope agromarin
+
+`--check` defaults to `--mode no-increase` for the same reason the other
+cross-repo ratchets do: an exact floor across a repository boundary would make
+every fix in a sibling red until a matching commit landed here to bank it.
+Growth still fails. Lowering a sibling floor is done by hand from a workspace
+that holds all four checkouts, which is what `naming` already asks for.
 """
 
 from __future__ import annotations
@@ -189,6 +194,66 @@ def scan(roots: list[str]):
     return findings
 
 
+def _ratchet():
+    """`tooling/ratchet/ratchet.py`, loaded by path.
+
+    Registered in `sys.modules` before execution: it carries `from __future__
+    import annotations` and a dataclass whose field annotations name the class
+    itself, which `dataclasses` resolves through `sys.modules[cls.__module__]`.
+    """
+    name = "_py_lint_ratchet"
+    if name in sys.modules:
+        return sys.modules[name]
+    path = REPO / "tooling" / "ratchet" / "ratchet.py"
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        del sys.modules[name]
+        raise
+    return module
+
+
+def gate_name(rule: str, scope: str) -> str:
+    return f"lint_{rule.replace('-', '_')}_{scope}"
+
+
+def check(findings, scope: str, mode: str) -> int:
+    """Hold every rule at its floor for this scope. Returns a process exit code."""
+    ratchet = _ratchet()
+    counts = Counter(rule for rule, *_ in findings)
+    rules = sorted(set(counts) | _scoped_gates(ratchet, scope))
+    worst = 0
+    for rule in rules:
+        gate = gate_name(rule, scope)
+        baseline = ratchet.Baseline.load(gate)
+        if baseline is None:
+            baseline = ratchet.Baseline(count=0)
+        verdict = ratchet.evaluate(gate, counts.get(rule, 0), baseline, mode)
+        print(f"[{'OK' if verdict.ok else 'FAIL'}] {verdict.message}")
+        if not verdict.ok:
+            worst = 1
+    if not rules:
+        print(f"no findings and no baselines for scope {scope!r}")
+    return worst
+
+
+def _scoped_gates(ratchet, scope: str) -> set[str]:
+    """Rules this scope already has a committed floor for.
+
+    Without this a rule that has been driven to zero would stop being evaluated
+    the moment it reported nothing, and its floor would sit there unchecked
+    while the debt crept back under a `no-increase` mode that never ran.
+    """
+    suffix = f"_{scope}.json"
+    return {
+        path.name[len("lint_") : -len(suffix)].replace("_", "-")
+        for path in ratchet.BASELINES_DIR.glob(f"lint_*{suffix}")
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="py_lint.py", description=__doc__.split("\n")[0]
@@ -198,13 +263,35 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--count", action="store_true", help="print counts, not findings"
     )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="hold every rule at its committed floor for --scope",
+    )
+    parser.add_argument("--scope", help="provenance tag for --check, e.g. agromarin")
+    parser.add_argument(
+        "--mode",
+        choices=("exact", "no-increase"),
+        default="no-increase",
+        help="ratchet mode for --check (default: no-increase, see the module docstring)",
+    )
     args = parser.parse_args(argv)
+
+    if args.check and not args.scope:
+        parser.error("--check needs --scope")
 
     findings = scan(args.roots)
     if args.rule:
         findings = [f for f in findings if f[0] == args.rule]
 
-    if args.count:
+    if args.check:
+        return check(findings, args.scope, args.mode)
+
+    if args.count and args.rule:
+        # A bare integer, so the existing `--count | xargs ratchet.py ...` shape
+        # the other cross-repo gates use works here too.
+        print(len(findings))
+    elif args.count:
         by_rule = Counter(rule for rule, *_ in findings)
         for rule, n in sorted(by_rule.items(), key=lambda kv: (-kv[1], kv[0])):
             print(f"{n:6d}  {rule}")
