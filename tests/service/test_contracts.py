@@ -28,7 +28,10 @@ Run with::
     python -m pytest tests/service/test_contracts.py -v
 """
 
+import errno
+import inspect
 import os
+import pathlib
 import selectors
 import signal
 import subprocess
@@ -232,3 +235,69 @@ class TestSignalsDoNotSurfaceAsEINTR:
         with pytest.raises(IndexError):
             OSError().args[0]
         assert OSError().errno is None
+
+
+@pytest.mark.skipif(
+    __import__("odoo.service._watcher", fromlist=["inotify"]).inotify is None,
+    reason="inotify backend not installed",
+)
+class TestInotifyPrivateSurface:
+    """``_InotifyInternals`` reaches into four private names of the ``inotify``
+    package, two of them name-mangled.
+
+    Recovery from ``IN_Q_OVERFLOW`` is built on them, and it is the path that
+    only runs when the kernel queue has already overrun -- i.e. never in a normal
+    development session, and exactly once during a branch switch, when a
+    developer is least likely to read a warning carefully. A rename in a minor
+    release of the library would break it at a distance.
+
+    ``requirements-dev.txt`` pins ``inotify==0.2.12``. A pin holds the surface
+    still; it does not say anything when someone lifts it. This does: these
+    assertions fail in CI on the upgrade commit, naming the attribute that moved,
+    rather than leaving a server that has quietly stopped noticing edits.
+    """
+
+    def _trees(self, tmp_path):
+        from odoo.service._watcher import INOTIFY_LISTEN_EVENTS, InotifyTrees
+
+        try:
+            return InotifyTrees(
+                [str(tmp_path)], mask=INOTIFY_LISTEN_EVENTS, block_duration_s=0.05
+            )
+        except OSError as exc:
+            if exc.errno != errno.ENOSPC:
+                raise
+            # Per-USER inotify cap, shared with every editor and test run on the
+            # box; not a property of this checkout.
+            pytest.skip(str(exc))
+
+    def test_inotify_trees_still_exposes_i_and_mask(self, tmp_path):
+        trees = self._trees(tmp_path)
+        assert hasattr(trees, "_i"), "InotifyTrees._i moved"
+        assert hasattr(trees, "_mask"), "InotifyTrees._mask moved"
+
+    def test_the_watch_descriptor_map_is_still_name_mangled_watches_r(self, tmp_path):
+        trees = self._trees(tmp_path)
+        mapping = getattr(trees._i, "_Inotify__watches_r", None)
+        assert isinstance(mapping, dict), "Inotify.__watches_r moved or changed type"
+
+    def test_remove_watch_still_takes_superficial(self, tmp_path):
+        """``superficial=True`` is what lets a stale descriptor be dropped
+        without an ``inotify_rm_watch`` the kernel would refuse."""
+        trees = self._trees(tmp_path)
+        parameters = inspect.signature(trees._i.remove_watch).parameters
+        assert "superficial" in parameters, "Inotify.remove_watch signature changed"
+        assert parameters["superficial"].default is False
+
+    def test_the_adapter_is_the_only_place_that_reaches_in(self):
+        """Structural: the private spellings must not creep back out into the
+        watcher body, or this contract test stops covering them."""
+        from odoo.service import _watcher
+
+        source = pathlib.Path(_watcher.__file__).read_text(encoding="utf-8")
+        body = source.split("class _InotifyInternals", 1)[1]
+        after_adapter = body.split("class FSWatcherInotify", 1)[1]
+        for spelling in ("_Inotify__watches_r", "._i", "._mask"):
+            assert spelling not in after_adapter, (
+                f"{spelling} is reached outside _InotifyInternals again"
+            )
