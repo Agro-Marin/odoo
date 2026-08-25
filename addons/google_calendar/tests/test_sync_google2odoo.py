@@ -3208,7 +3208,7 @@ class TestSyncGoogle2Odoo(TestSyncGoogle):
     @patch_api
     def test_keep_organizer_attendee_writing_recurrence_from_google(self):
         """
-        When receiving recurrence updates from google in 'write_from_google', make
+        When receiving recurrence updates from google in '_write_from_google', make
         sure the organizer is kept as attendee of the events. This will guarantee
         that the newly updated events will not disappear from the calendar view.
         """
