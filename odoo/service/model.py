@@ -91,14 +91,35 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
 
 def call_kw(model: BaseModel, name: str, args: list, kwargs: Mapping) -> typing.Any:
     method = get_public_method(model, name)
+    api_model = getattr(method, "_api_model", False)
 
-    if name == "create" and not args:
-        raise AccessError(
-            f"Method '{model._name}.create' requires a vals dict or list "
-            f"of vals dicts as its first positional argument."
-        )
+    # Captured before the shift below, not re-read from ``args`` afterwards.
+    # The shift only happens on the ``not api_model`` branch, and the return
+    # shaping at the bottom needs the vals the CALLER sent, not whatever
+    # occupies index 0 once a leading ids argument has been consumed.
+    create_vals = None
 
-    if getattr(method, "_api_model", False):
+    if name == "create":
+        if not args:
+            raise AccessError(
+                f"Method '{model._name}.create' requires a vals dict or list "
+                f"of vals dicts as its first positional argument."
+            )
+        if not api_model:
+            # An override that drops @api.model_create_multi lands on the shift
+            # branch, so the vals dict is browsed as record ids and the failure
+            # surfaces far from its cause -- as a TypeError naming the
+            # override's own parameters, or an IndexError from the return
+            # shaping when only one positional argument was sent.
+            raise AccessError(
+                f"Method '{model._name}.create' is not declared with "
+                f"@api.model_create_multi (or @api.model). An override that "
+                f"drops the decorator makes call_kw treat the vals as record "
+                f"ids."
+            )
+        create_vals = args[0]
+
+    if api_model:
         recs = model
     else:
         if not args:
@@ -117,7 +138,7 @@ def call_kw(model: BaseModel, name: str, args: list, kwargs: Mapping) -> typing.
     result = method(recs, *args, **kwargs)
 
     if name == "create":
-        result = result.id if isinstance(args[0], Mapping) else result.ids
+        result = result.id if isinstance(create_vals, Mapping) else result.ids
     elif isinstance(result, BaseModel):
         result = result.ids
 

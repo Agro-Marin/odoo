@@ -1423,6 +1423,37 @@ class TestCallKw:
             out = mod.call_kw(self._model(), "create", [[{"a": 1}, {"a": 2}]], {})
         assert out == [1, 2]
 
+    def test_create_return_shape_reads_the_vals_the_caller_sent(self, mod):
+        """The shaping used to re-read ``args[0]`` AFTER the branch that may
+        have shifted ``args`` left by one. On stock code the two never meet --
+        ``create`` is ``@api.model_create_multi``, so no shift happens -- but
+        nothing enforced that, and the shaped value is what goes back on the
+        wire."""
+        method = MagicMock(__name__="create", _api_model=True)
+        method.return_value = MagicMock(id=42, ids=[42])
+        model = self._model()
+        with patch.object(mod, "get_public_method", return_value=method):
+            out = mod.call_kw(model, "create", [{"name": "x"}, {"extra": "arg"}], {})
+        # A Mapping in first position means "one record": scalar id, not a list,
+        # even with a trailing positional the ORM method also received.
+        assert out == 42
+
+    def test_create_without_the_api_model_marker_names_the_cause(self, mod):
+        """An override that loses ``@api.model_create_multi`` takes the shift
+        branch, so the vals dict is browsed as record ids. Verified against a
+        live registry before this guard: a single-positional call reached the
+        return shaping with ``args`` already empty and died on ``IndexError:
+        list index out of range``, several frames from the actual mistake."""
+        from odoo.exceptions import AccessError
+
+        method = MagicMock(__name__="create", _api_model=False)
+        model = self._model()
+        with patch.object(mod, "get_public_method", return_value=method):
+            with pytest.raises(AccessError, match=r"api\.model_create_multi"):
+                mod.call_kw(model, "create", [{"name": "x"}], {})
+        method.assert_not_called()
+        model.browse.assert_not_called()
+
     def test_recordset_result_is_reduced_to_ids(self, mod):
         rs = MagicMock(spec=mod.BaseModel)
         rs.ids = [7, 8]
