@@ -161,7 +161,7 @@ def describe_model_doc(model):
 
     Only classes that *are* this model count. Every mixin it inherits sits in
     the same MRO carrying its own ``_name`` and its own prose, and the first
-    docstring found walking blindly is `mail.thread`'s far more often than the
+    docstring found walking blindly is `mixin.mail.thread`'s far more often than the
     model's -- which would document Contact as "allow sending messages".
 
     :param model: a recordset
