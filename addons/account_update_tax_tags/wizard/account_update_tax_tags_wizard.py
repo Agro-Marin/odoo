@@ -1,39 +1,53 @@
 from datetime import timedelta
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
 class AccountUpdateTaxTagsWizard(models.TransientModel):
-    _name = 'account.update.tax.tags.wizard'
-    _description = 'Update Tax Tags Wizard'
+    _name = "account.update.tax.tags.wizard"
+    _description = "Update Tax Tags Wizard"
 
-    company_id = fields.Many2one(comodel_name='res.company', required=True, readonly=True, default=lambda self: self.env.company)
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        required=True,
+        readonly=True,
+        default=lambda self: self.env.company,
+    )
     date_from = fields.Date(
-        string='Starting from',
-        help='Date from which journal items will be updated.',
-        compute='_compute_date_from',
+        string="Starting from",
+        help="Date from which journal items will be updated.",
+        compute="_compute_date_from",
         store=True,
         readonly=False,
         required=True,
     )
-    display_lock_date_warning = fields.Boolean(compute='_compute_display_lock_date_warning')
+    display_lock_date_warning = fields.Boolean(
+        compute="_compute_display_lock_date_warning"
+    )
 
     # ==== Compute methods ====
-    @api.depends('company_id')
+    @api.depends("company_id")
     def _compute_date_from(self):
         for wizard in self:
             tax_lock_date = self.company_id.tax_lock_date
-            wizard.date_from = tax_lock_date + timedelta(days=1) if tax_lock_date else fields.Date.context_today(self)
+            wizard.date_from = (
+                tax_lock_date + timedelta(days=1)
+                if tax_lock_date
+                else fields.Date.context_today(self)
+            )
 
-    @api.depends('date_from')
+    @api.depends("date_from")
     def _compute_display_lock_date_warning(self):
         for wizard in self:
             tax_lock_date = self.company_id.tax_lock_date
-            wizard.display_lock_date_warning = tax_lock_date and wizard.date_from < tax_lock_date
+            wizard.display_lock_date_warning = (
+                tax_lock_date and wizard.date_from < tax_lock_date
+            )
 
     # ==== Business methods ====
     def _modify_tag_to_aml_relation(self, company_id, date_from):
-        """ Update Journal Items' tax grids to match current taxes' configuration.
+        """Update Journal Items' tax grids to match current taxes' configuration.
         The next query work in 3 steps.
         1) Get a duo: (aml_id, tag_id or NULL) for each aml involved with the tax.
             This first step is achieved in the 3 first table: base line, tax line, fusion.
@@ -47,7 +61,8 @@ class AccountUpdateTaxTagsWizard(models.TransientModel):
         :return: list of impacted account.move.line ids
         """
         self.env.flush_all()
-        self.env.cr.execute("""
+        self.env.cr.execute(
+            """
             -- 1.a) Handle base line: relation aml <-> tag, if no relation, tag is NULL
             WITH base_aml_id_rep_tag_to_insert AS (
                 SELECT aml.id AS aml_id, rep_tags.account_account_tag_id AS tag_id
@@ -162,21 +177,29 @@ class AccountUpdateTaxTagsWizard(models.TransientModel):
 
             SELECT ARRAY_AGG(impacted_aml.aml_id)
               FROM impacted_aml
-        """, params={
-            'date_from': date_from,
-            'company_id': company_id,
-        })
+        """,
+            params={
+                "date_from": date_from,
+                "company_id": company_id,
+            },
+        )
         self.env.invalidate_all()
         return self.env.cr.fetchone()[0]
 
     def update_amls_tax_tags(self):
-        parent_taxes = self.env['account.tax'].search([
-            ('company_id', '=', self.company_id.id),
-            ('children_tax_ids', '!=', False),
-        ])
+        parent_taxes = self.env["account.tax"].search(
+            [
+                ("company_id", "=", self.company_id.id),
+                ("children_tax_ids", "!=", False),
+            ]
+        )
         children_taxes = []
         for tax in parent_taxes:
             children_taxes += tax.children_tax_ids.ids
         if len(children_taxes) > len(parent_taxes.children_tax_ids.ids):
-            raise UserError(_('Update with children taxes that are child of multiple parents is not supported.'))
+            raise UserError(
+                _(
+                    "Update with children taxes that are child of multiple parents is not supported."
+                )
+            )
         self._modify_tag_to_aml_relation(self.company_id.id, self.date_from)
