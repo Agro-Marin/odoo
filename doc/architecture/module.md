@@ -49,6 +49,7 @@ odoo/
 │   │               rpc -> {restore -> {lifecycle, listing}, dump -> listing,
 │   │                       lifecycle -> listing}
 │   └── transaction (the retrying() primitive), model, security, common,
+│       _dispatch (one arity policy for the common/db RPC tables),
 │       _env, _helpers, _db_helpers, _dump_scanner, _metrics
 ├── modules/        The module graph (iterated by phase, dependency depth,
 │   │               then name) and what loads it
