@@ -185,6 +185,28 @@ class TestDictBackendSealedApi(unittest.TestCase):
         self.backend.upsert_rows("partner", [(7, {"name": "New"})])
         self.assertEqual(self.backend.get_row("partner", 7), {"id": 7, "name": "New"})
 
+    def test_put_rows_copies_the_callers_dict(self) -> None:
+        """A stored row is a copy, not the caller's dict.
+
+        Otherwise mutating that dict after the write changes stored state with
+        no write call -- something no real cursor offers, so a test could pass
+        (or corrupt itself) through a path PostgreSQL does not have.
+        """
+        row = {"id": 1, "name": "Alice"}
+        self.backend.put_rows("partner", [row])
+        row["name"] = "mutated after the write"
+        self.assertEqual(self.backend.get_row("partner", 1)["name"], "Alice")
+
+    def test_reads_do_not_hand_out_a_handle_on_the_table(self) -> None:
+        """`get_row`/`get_rows` return reads, not live rows."""
+        self.backend.put_rows("partner", [{"id": 1, "name": "Alice"}])
+        got = self.backend.get_row("partner", 1)
+        got["name"] = "mutated via read"
+        self.assertEqual(self.backend.get_row("partner", 1)["name"], "Alice")
+        many = self.backend.get_rows("partner", [1])
+        many[1]["name"] = "mutated via get_rows"
+        self.assertEqual(self.backend.get_row("partner", 1)["name"], "Alice")
+
     def test_upsert_advances_sequence_past_explicit_id(self) -> None:
         """The sibling of ``test_put_rows_advances_sequence_past_explicit_id``.
 
