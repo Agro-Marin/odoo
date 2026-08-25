@@ -269,8 +269,27 @@ Related:
       --test-enable --test-tags /test_lint --stop-after-init --no-http
   ```
 
-  The handful of gates that read the *installed registry* rather than the tree
-  (`test_docstring`) are one-sided ratchets for that reason, and say so.
+  **The floors are not in Python.** `LintCase.assert_ratchet` takes a ratchet
+  gate name and reads `tooling/ratchet/baselines/` like every other gate;
+  handed an integer it raises, so one cannot go back. Absence of a baseline file
+  means a floor of zero, which keeps `ratchet.py --list` a list of debt rather
+  than of every assertion. Move one the same way as any other:
+
+  ```bash
+  python tooling/ratchet/ratchet.py lint_<rule> --count N --update --note '<what moved and why>'
+  ```
+
+  The gates that read the *installed registry* rather than the tree cannot be
+  graded at the narrow scope at all. `test_docstring` is a one-sided ratchet for
+  that reason (it measures 1 there and 32 on a fuller install — do not floor it
+  at the former), and `TestSchemeDuplication`, whose floors are per module,
+  **skips** at that scope rather than passing: 24 of its 28 floors name a module
+  `test_lint.yml` does not install, and `web` reads 91 against a floor of 136
+  without being able to fail. `asset_lint.yml` is its lane.
+
+  `odoo/addons/test_lint/machine_doc_v1/` is the map — two halves (`_rules.py`
+  declares what a rule is, `_py_scan.py` runs the scan), which fixer answers to
+  which document-identity invariant, and what each lane can and cannot measure.
 
 - `.github/workflows/` — **check it before assuming a gate does not exist.** The
   suites, ratchets, architecture, doc-link, free-threading, Rust and vendored-lib

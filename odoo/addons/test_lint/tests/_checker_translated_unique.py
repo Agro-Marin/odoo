@@ -3,7 +3,7 @@ import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
-_MODEL_BASES = frozenset({"Model", "TransientModel", "AbstractModel", "BaseModel"})
+from ._checker_unlink import looks_like_model_class
 
 _UNIQUE_COLUMNS = re.compile(
     r"unique\s*(?:nulls\s+not\s+distinct\s*)?\(([^)]*)\)", re.IGNORECASE
@@ -54,16 +54,6 @@ def _str_or_list(node: ast.AST) -> tuple[str, ...]:
     return ()
 
 
-def _looks_like_model(node: ast.ClassDef) -> bool:
-    for base in node.bases:
-        match base:
-            case ast.Attribute(attr=attr) if attr in _MODEL_BASES:
-                return True
-            case ast.Name(id=name) if name in _MODEL_BASES:
-                return True
-    return False
-
-
 def _is_translated_field(call: ast.Call) -> bool:
     func = call.func
     if not (isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name)):
@@ -79,7 +69,7 @@ def _is_translated_field(call: ast.Call) -> bool:
 def collect(tree: ast.Module) -> list[ClassInfo]:
     out = []
     for node in ast.walk(tree):
-        if not (isinstance(node, ast.ClassDef) and _looks_like_model(node)):
+        if not (isinstance(node, ast.ClassDef) and looks_like_model_class(node)):
             continue
         names: tuple[str, ...] = ()
         inherits: tuple[str, ...] = ()

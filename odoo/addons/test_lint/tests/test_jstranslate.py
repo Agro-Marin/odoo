@@ -23,11 +23,11 @@ class TestJsTranslations(lint_case.LintCase):
         for m in TSTRING_RE.finditer(text):
             template_string = m.group(0)
             if EXPRESSION_RE.search(template_string):
-                line_nb = text[: m.start()].count("\n") + 1
+                line_nb = lint_case.line_of(text, m.start())
                 error_list.append((line_nb, template_string))
 
         for m in UNDERSCORE_RE.finditer(text):
-            lineno = text[: m.start()].count("\n") + 1
+            lineno = lint_case.line_of(text, m.start())
             error_list.append((lineno, None))
 
         return error_list

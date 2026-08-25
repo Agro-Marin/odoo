@@ -16,6 +16,16 @@ from odoo.tests.common import BaseCase, get_db_name, no_retry
 _T_CALL_ASSETS_RE = re.compile(r"""t-call-assets=\\?["']([\w.]+)\\?["']""")
 
 
+def line_of(text: str, offset: int) -> int:
+    """The 1-based line holding `offset`.
+
+    Four gates spelled `text[: m.start()].count("\n") + 1` inline. It is O(n) per
+    match, which is fine on one file and is not the reason this is here -- four
+    copies of one expression is.
+    """
+    return text.count("\n", 0, offset) + 1
+
+
 def core_root() -> str:
     return str(Path(tools.config.root_path).parent)
 

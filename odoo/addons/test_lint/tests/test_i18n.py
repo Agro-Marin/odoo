@@ -101,7 +101,7 @@ class TestI18n(lint_case.LintCase):
             with tools.file_open(file_path, "r") as f:
                 file_content = f.read()
             for m in self.PROPS_RE.finditer(file_content):
-                lineno = file_content[: m.start()].count("\n") + 1
+                lineno = lint_case.line_of(file_content, m.start())
                 offenders.append(f"{file_path}:{lineno}: {m.group(3)}")
 
         _logger.info("checked %s component template(s)", checked)

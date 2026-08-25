@@ -17,7 +17,7 @@ ALLOWED = {
 class TestGreyRampToken(lint_case.LintCase):
     def check_text(self, text):
         return sorted(
-            text[: m.start()].count("\n") + 1 for m in BS_RAMP_RE.finditer(text)
+            lint_case.line_of(text, m.start()) for m in BS_RAMP_RE.finditer(text)
         )
 
     def test_regular_expression(self):

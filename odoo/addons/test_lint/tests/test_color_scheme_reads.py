@@ -18,7 +18,7 @@ ALLOWED_SUFFIXES = ("/web/static/src/core/color_scheme.js",)
 class TestColorSchemeReads(lint_case.LintCase):
     def check_text(self, text):
         return sorted(
-            text[: m.start()].count("\n") + 1
+            lint_case.line_of(text, m.start())
             for regex in REGEXES
             for m in regex.finditer(text)
         )

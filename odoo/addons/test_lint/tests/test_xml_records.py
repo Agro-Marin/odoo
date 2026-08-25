@@ -3,11 +3,10 @@ import logging
 from lxml import etree
 
 from . import _sort_xml_records
+from ._xml_identity import PARSER as _PARSER
 from .lint_case import LintCase, core_data_files
 
 _logger = logging.getLogger(__name__)
-
-_PARSER = etree.XMLParser(remove_comments=False, strip_cdata=False)
 
 
 class XmlRecordLinter(LintCase):

@@ -23,7 +23,7 @@ from .lint_case import (
     is_core_path,
 )
 
-_PARSER = etree.XMLParser(remove_comments=False, strip_cdata=False)
+_PARSER = _xml_identity.PARSER
 
 DECLINED_BY_THE_FORMATTER: list[str] = []
 DECLINED_BY_THE_SORTER: list[str] = []

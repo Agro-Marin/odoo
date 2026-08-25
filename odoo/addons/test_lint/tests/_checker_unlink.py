@@ -21,7 +21,8 @@ class Violation:
     )
 
 
-def _looks_like_model_class(node: ast.ClassDef) -> bool:
+def looks_like_model_class(node: ast.ClassDef) -> bool:
+    """Shared with `_checker_translated_unique`, which carried a verbatim copy."""
     for base in node.bases:
         match base:
             case ast.Attribute(attr=attr) if attr in _MODEL_BASE_NAMES:
@@ -35,7 +36,7 @@ def check(tree: ast.Module, nodes=None) -> Iterator[Violation]:
     for node in nodes if nodes is not None else ast.walk(tree):
         if not isinstance(node, ast.ClassDef):
             continue
-        if not _looks_like_model_class(node):
+        if not looks_like_model_class(node):
             continue
 
         for item in node.body:
