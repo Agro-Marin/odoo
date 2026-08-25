@@ -1459,3 +1459,81 @@ class TestSelfFieldBatchAccessLeak(UsersCommonCase):
         self.addCleanup(setattr, login, "groups", original_groups)
         own = self.env(user=alice)["res.users"].browse(alice.id).mapped("login")
         self.assertEqual(own, ["b7_alice2"])
+
+
+class TestSessionTokenInvalidation(TransactionCase):
+    """A password change must not leave old sessions valid.
+
+    `_compute_session_token` is an ormcache keyed on the user and the session
+    id, over fields that include `password`. `write` clears that cache, but
+    both raw-SQL setters reach the column directly, and a stale token keeps
+    every session issued under the *old* password working.
+    `_check_credentials` repaired this by hand at its own call site, which left
+    every other caller exposed -- `auth_ldap.change_password` empties the local
+    password and returns without ever going through `write`.
+    """
+
+    SID = "session-id-under-test-0123456789"
+
+    def _user(self, login):
+        return new_test_user(self.env, login, password="Secret!Pwd123")
+
+    def test_write_path_rotates_the_token(self):
+        user = self._user("sess_write")
+        before = user._compute_session_token(self.SID)
+        self.assertTrue(before)
+
+        user.write({"password": "Another!Pwd456"})
+        self.env.flush_all()
+        self.assertNotEqual(before, user._compute_session_token(self.SID))
+
+    def test_encrypted_setter_rotates_the_token(self):
+        user = self._user("sess_encrypted")
+        before = user._compute_session_token(self.SID)
+
+        hashed = self.env["res.users"]._crypt_context().hash("Another!Pwd456")
+        user._set_encrypted_password(user.id, hashed)
+        self.env.flush_all()
+
+        self.assertNotEqual(
+            before,
+            user._compute_session_token(self.SID),
+            "a password written straight to the column must still end the session",
+        )
+
+    def test_empty_password_setter_rotates_the_token(self):
+        user = self._user("sess_empty")
+        before = user._compute_session_token(self.SID)
+
+        user._set_empty_password()
+        self.env.flush_all()
+
+        self.assertNotEqual(
+            before,
+            user._compute_session_token(self.SID),
+            "clearing the password must end the session -- this is the path "
+            "auth_ldap.change_password takes",
+        )
+
+    def test_archiving_rotates_the_token(self):
+        user = self._user("sess_archive")
+        before = user._compute_session_token(self.SID)
+
+        user.active = False
+        self.env.flush_all()
+
+        self.assertNotEqual(before, user._compute_session_token(self.SID))
+
+    def test_an_untouched_user_keeps_its_token(self):
+        user = self._user("sess_stable")
+        other = self._user("sess_other")
+        before = user._compute_session_token(self.SID)
+
+        other.write({"password": "Another!Pwd456"})
+        self.env.flush_all()
+
+        self.assertEqual(
+            before,
+            user._compute_session_token(self.SID),
+            "one user's password change must not invalidate another's session",
+        )
