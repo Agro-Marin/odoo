@@ -276,6 +276,53 @@ class FSWatcherWatchdog(FSWatcherBase):
             )
 
 
+class _InotifyInternals:
+    """Every reach into ``inotify``'s private surface, named in one place.
+
+    There are four, and two are name-mangled, so a rename in a minor release of
+    the library breaks recovery from ``IN_Q_OVERFLOW`` at a distance and each
+    one fails differently: losing ``__watches_r`` raises out of
+    ``_build_watcher`` (autoreload off, loudly); losing ``_mask`` degrades to a
+    per-directory warning inside ``_watch_directory``; losing ``_i`` escapes
+    that handler entirely and unwinds ``_resync``.
+
+    Collected here so the surface is enumerable rather than scattered, and
+    asserted by ``tests/service/test_contracts.py`` so an upgrade fails a test
+    that names the assumption instead of a server that quietly stops noticing
+    edits. The version is pinned in ``requirements-dev.txt``; a pin keeps the
+    surface still, it does not tell you when someone lifts it.
+    """
+
+    def __init__(self, trees: InotifyTrees) -> None:
+        self._trees = trees
+
+    @property
+    def _inotify(self):
+        """``InotifyTrees._i`` -- the single ``Inotify`` behind the tree."""
+        return self._trees._i
+
+    @property
+    def mask(self) -> int:
+        """``InotifyTrees._mask`` -- the event mask the trees were built with."""
+        return self._trees._mask
+
+    def register_path(self, wd: int, path: str) -> None:
+        """``Inotify.__watches_r`` -- the watch-descriptor to path map.
+
+        Name-mangled, hence the ``_Inotify__`` spelling. The overflow descriptor
+        is synthetic and has no real watch, so the library never adds it.
+        """
+        self._inotify._Inotify__watches_r[wd] = path
+
+    def add_watch(self, path: str):
+        return self._inotify.add_watch(path, self.mask)
+
+    def remove_watch_superficially(self, path: str) -> None:
+        """``superficial=True``: drop our bookkeeping without an inotify_rm_watch
+        the kernel would reject for an already-reaped descriptor."""
+        self._inotify.remove_watch(path, superficial=True)
+
+
 class FSWatcherInotify(FSWatcherBase):
     # Emits the trailing edge itself: ``run`` calls ``_end_burst`` once per pass
     # of the event generator, which is a real quiescence boundary.
@@ -301,7 +348,8 @@ class FSWatcherInotify(FSWatcherBase):
             if not diagnosis:
                 raise
             raise OSError(errno.ENOSPC, diagnosis) from exc
-        self.watcher._i._Inotify__watches_r[OVERFLOW_WD] = OVERFLOW_PATH
+        self.internals = _InotifyInternals(self.watcher)
+        self.internals.register_path(OVERFLOW_WD, OVERFLOW_PATH)
 
     def _resync(self) -> None:
         _logger.warning(
@@ -319,15 +367,15 @@ class FSWatcherInotify(FSWatcherBase):
 
     def _watch_directory(self, directory: Path) -> None:
         path = str(directory)
-        tree = self.watcher._i
         try:
-            if tree.add_watch(path, self.watcher._mask) is not None:
+            internals = self.internals
+            if internals.add_watch(path) is not None:
                 return
             try:
-                tree.remove_watch(path, superficial=True)
+                internals.remove_watch_superficially(path)
             except Exception:
                 _logger.debug("autoreload: stale watch purge for %s", path)
-            tree.add_watch(path, self.watcher._mask)
+            internals.add_watch(path)
         except Exception as exc:
             _logger.warning(
                 "autoreload: cannot watch %s; edits below it will not be seen. %s",
