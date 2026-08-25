@@ -3,7 +3,7 @@ from odoo import SUPERUSER_ID, api
 
 def migrate(cr, version):
     # The tax report line 68 has been removed as it does not appear in tax report anymore.
-    # But, it was referenced in the account.sales.report
+    # But, it was referenced in the sales report
     # So, we update amls of this line only, to make this report consistent.
 
     env = api.Environment(cr, SUPERUSER_ID, {})

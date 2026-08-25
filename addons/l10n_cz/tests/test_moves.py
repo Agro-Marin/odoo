@@ -51,7 +51,7 @@ class TestAccountCZ(AccountTestInvoicingCommon):
 
     def test_cz_bank_rec_no_taxable_supply_date(self):
         """
-        Test that when creating a new bank reconciliation, the taxable payable date is not set automatically.
+        Test that when creating a new bank reconciliation, the taxable supply date is not set automatically.
         """
         st_line = self.env["account.bank.statement.line"].create(
             {
