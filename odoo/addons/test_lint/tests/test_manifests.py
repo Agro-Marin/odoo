@@ -65,7 +65,7 @@ class ManifestLinter(LintCase):
         )
 
     def _test_manifest_keys(self, manifest_data: Manifest):
-        manifest_keys = manifest_data._Manifest__manifest_content.keys()
+        manifest_keys = manifest_data.declared.keys()
         unknown_keys = manifest_keys - MANIFEST_KEYS
         self.assertEqual(
             unknown_keys,
@@ -74,7 +74,7 @@ class ManifestLinter(LintCase):
         )
 
     def _test_manifest_key_order(self, manifest_data: Manifest):
-        actual = list(manifest_data._Manifest__manifest_content.keys())
+        actual = list(manifest_data.declared.keys())
         expected = _sort_manifests.expected_key_order(actual)
         self.assertEqual(
             actual,
@@ -103,7 +103,7 @@ class ManifestLinter(LintCase):
             )
 
         redundant = []
-        for key, value in manifest_data._Manifest__manifest_content.items():
+        for key, value in manifest_data.declared.items():
             if key in _DEFAULT_MANIFEST:
                 if key in verified_keys and value == _DEFAULT_MANIFEST[key]:
                     redundant.append(key)

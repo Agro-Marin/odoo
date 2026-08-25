@@ -94,7 +94,7 @@ class TestI18n(lint_case.LintCase):
     def test_user_content_as_prop_is_translatable(self):
         offenders = []
         checked = 0
-        for file_path in self.iter_module_files("**/static/**/*.xml"):
+        for file_path in self.iter_module_files("*/static/*", "*.xml"):
             if not lint_case.is_core_path(file_path):
                 continue
             checked += 1

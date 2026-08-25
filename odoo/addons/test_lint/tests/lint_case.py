@@ -71,6 +71,14 @@ def module_file_paths(modules: tuple[str, ...] | None = None) -> tuple[str, ...]
 
 
 def iter_module_files(*globs: str, modules=None):
+    """Every file under an addon whose full path matches all of `globs`.
+
+    The globs are `fnmatch`, NOT pathlib: `*` crosses `/`, so `"*.xml"` reaches
+    every depth and a leading `**/` buys nothing. Spelling one the pathlib way
+    silently narrows the scan -- `"**/static/**/*.xml"` requires a directory
+    between `static` and the file, and so missed every XML sitting directly in
+    `<module>/static/`. Match on a path fragment instead: `"*/static/*"`.
+    """
     for path in module_file_paths(None if modules is None else tuple(modules)):
         if all(fnmatch.fnmatch(path, glob) for glob in globs):
             yield path

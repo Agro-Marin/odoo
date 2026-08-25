@@ -205,6 +205,22 @@ class Manifest(Mapping[str, typing.Any]):
         self.__manifest_content = manifest_content
 
     @property
+    def declared(self) -> types.MappingProxyType:
+        """The manifest exactly as its file writes it.
+
+        Distinct from this object's `Mapping` interface, which answers with
+        defaults filled in and `_COMPUTED_KEYS` added. Which keys an author
+        actually wrote, and in what order, is a different question from what the
+        module ends up configured with -- and it is the only one that can decide
+        whether a key is unknown, out of canonical order, or a restatement of the
+        default.
+
+        `test_lint`'s manifest gate asked it by reaching for
+        `_Manifest__manifest_content` through the name mangling, in three places.
+        """
+        return types.MappingProxyType(self.__manifest_content)
+
+    @property
     def addons_path(self) -> str:
         p = Path(self.path)
         assert p.name == self.name

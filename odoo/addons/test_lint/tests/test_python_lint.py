@@ -1,6 +1,8 @@
 import tomllib
 from pathlib import Path
 
+import psutil
+
 import odoo
 
 from . import _py_scan, _rules
@@ -80,8 +82,6 @@ class TestPythonLint(LintCase):
         )
 
     def test_the_scan_leaves_no_child_process_behind(self):
-        import psutil
-
         _py_scan.findings()
         _py_scan._run_parallel([], 2)
         self.assertEqual(
