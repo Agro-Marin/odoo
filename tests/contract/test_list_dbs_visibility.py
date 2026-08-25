@@ -30,6 +30,7 @@ import uuid
 
 import pytest
 
+from .._pg import pg_reachable
 from .conftest import requires_pg
 
 
@@ -85,6 +86,12 @@ def cluster(odoo_config):
     uses it skips — rather than skipping the whole class, which would lose
     the three filters that need no special privilege.
     """
+    # The autouse skip fixture is function-scoped, so it cannot save a
+    # MODULE-scoped fixture from running first: without this, an absent
+    # PostgreSQL turns seven clean skips into seven errors out of `createdb`.
+    # ``conftest.scratch_db`` guards itself the same way, for the same reason.
+    if not pg_reachable():
+        pytest.skip("no reachable PostgreSQL")
     tag = uuid.uuid4().hex[:10]
     names = {
         "plain": f"odoo_list_plain_{tag}",
