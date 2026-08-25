@@ -513,9 +513,10 @@ def _print_baseline(report: Report) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Gate which members the framework calls on addon-owned models."
-    )
+    # `__doc__`, not a paraphrase of it: the module already explains the rule at
+    # length, and a hand-written line meant `--help` showed a summary while the
+    # reasoning sat unread three lines above it.
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="CI mode: exit 1 on drift")
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     parser.add_argument(

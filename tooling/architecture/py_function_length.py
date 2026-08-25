@@ -1,4 +1,32 @@
 #!/usr/bin/env python3
+"""Python functions over an 80-line budget, ratcheted by EXCESS LINES.
+
+The unit is deliberate and is the thing to know before moving the number:
+`--count` prints ``sum(length - 80)``, not the number of offenders. Splitting one
+250-line function into three 90-line ones RAISES the offender count from 1 to 3
+and LOWERS this by 10, which is the right direction and the reason the count of
+offenders is not what is floored.
+
+SCOPES, each floored separately, because one number over everything hides where
+the debt is::
+
+    core (default)  odoo/            the framework package
+    addons          addons/          the bundled tree, --mode no-increase
+    mail, loyalty   addons/<name>/   an addon's own budget
+    tooling         tooling/         the gates themselves
+
+`tooling` was added 2026-08-25 and is the one worth explaining. The gates in this
+directory floor the rest of the repository; the tree they are implemented in was
+measured by nothing, and scored 910 excess lines over 20 functions the first time
+it was pointed at itself. Five of those twenty -- 253 excess lines, `hoot:main`
+alone 222 -- live in extension-less `#!/bin/sh` polyglots that `rglob("*.py")`
+cannot match, which is why file discovery goes through
+:mod:`_sources` rather than a local glob.
+
+WHAT IT DOES NOT MEASURE. Test files, by `_sources.is_test_path`: a long test is
+usually a table of cases and splitting it makes it harder to read, which is the
+opposite of what the budget is for.
+"""
 
 
 from __future__ import annotations

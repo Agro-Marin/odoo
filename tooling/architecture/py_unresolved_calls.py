@@ -1,4 +1,25 @@
 #!/usr/bin/env python3
+"""``self._something()`` whose definition is nowhere in the checkout (ADR-0058).
+
+A call to a private method that no class in this tree defines is one of three
+things: a typo, a method deleted from under its caller, or a reach into a base
+that lives outside the repository. The first two are defects that only fail when
+the branch runs -- which for an error path can be never -- and the third is
+legitimate and finite.
+
+So the third is enumerated rather than guessed. :data:`EXTERNAL` names the
+attributes reached on a receiver whose class this scan cannot see: a stdlib or
+third-party base, or a namedtuple. **An entry there is a claim that the receiver
+is external, so check the call site before adding one** -- "I could not find it"
+is the finding, not the excuse for silencing it.
+
+SCOPE IS ``odoo/`` AND ``addons/`` TOGETHER, and unlike its sibling counters this
+one does NOT exclude test files: 7 of the floored 25 findings sit under `tests/`
+(`addons/sale_mrp/tests/test_sale_mrp_flow.py`, `odoo/tests/suite.py`, …). A test
+calling a method that no longer exists is the same defect as production code
+doing it, and arguably worse, because the test then cannot fail for the reason it
+was written.
+"""
 
 
 from __future__ import annotations
