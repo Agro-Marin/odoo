@@ -185,6 +185,31 @@ class TestDictBackendSealedApi(unittest.TestCase):
         self.backend.upsert_rows("partner", [(7, {"name": "New"})])
         self.assertEqual(self.backend.get_row("partner", 7), {"id": 7, "name": "New"})
 
+    def test_upsert_advances_sequence_past_explicit_id(self) -> None:
+        """The sibling of ``test_put_rows_advances_sequence_past_explicit_id``.
+
+        Both writers can introduce an explicit id, so both must carry the
+        sequence past it. Without this, a later insert re-issues the id and
+        overwrites the upserted row -- measured before the fix: upsert id 100,
+        then 100 inserts, and row 100 became the hundredth insert.
+        """
+        self.backend.upsert_rows("partner", [(5, {"name": "Alice"})])
+        self.assertEqual(self.backend.next_id("partner"), 6)
+
+    def test_upsert_then_insert_does_not_clobber(self) -> None:
+        """Inserts must walk PAST the upserted id, not up to and over it.
+
+        The insert count has to exceed the upserted id: with the sequence left
+        at 0, the first few inserts get ids below it and look innocent, and only
+        the one that reaches it destroys the row.
+        """
+        self.backend.upsert_rows("partner", [(3, {"name": "Kept"})])
+        for i in range(5):
+            new_ids = self.backend.insert_rows("partner", ["name"], [(f"n{i}",)])
+            self.assertNotIn(3, new_ids)
+        self.assertEqual(self.backend.get_row("partner", 3)["name"], "Kept")
+        self.assertEqual(self.backend.row_count("partner"), 6)
+
     def test_update_rows_skips_missing(self) -> None:
         self.backend.update_rows("partner", [(7, {"name": "New"})])
         self.assertIsNone(self.backend.get_row("partner", 7))
