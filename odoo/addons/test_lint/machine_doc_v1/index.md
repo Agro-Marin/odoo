@@ -71,20 +71,27 @@ additionally drops `_vendor/`, `upgrades/` and `migrations/`;
 `_pretty_xml.is_formattable` drops `_vendor`, `static`, `node_modules` and
 `tests`, because a fixture is not a data file.
 
-**The sibling repositories are ungated.** `tooling/lint/py_lint.py` runs these
-same checkers over any roots without odoo-bin, and reports more findings in
-`enterprise`, `agromarin` and `design-themes` together than this repository's own
-total. Nothing runs it in CI yet — wiring it into those repositories'
-"Architecture Boundaries (cross-repo)" workflows is what turns the capability
-into a gate, and it has to happen there.
+**The sibling repositories are gated from their own CI.**
+`tooling/lint/py_lint.py` runs these same checkers over any roots without
+odoo-bin, and `enterprise`, `agromarin` and `design-themes` each call it with
+`--check --scope <repo>` from their "Architecture Boundaries (cross-repo)"
+workflow, which already checks this fork out beside itself. Their floors live
+here, scoped by provenance, alongside every other floor:
 
 ```bash
-python tooling/lint/py_lint.py ../agromarin --count
+python tooling/ratchet/ratchet.py --list | grep -E '^lint_.*_(agromarin|enterprise|design-themes)'
+python tooling/lint/py_lint.py ../agromarin --check --scope agromarin
 python tooling/lint/py_lint.py odoo addons --count   # agrees with the gate, rule for rule
 ```
 
-`tooling/lint/test_py_lint.py` pins that agreement: the corpus exclusions and the
-addon/framework split, which is what decides whether the facade rule applies.
+Those runs are `--mode no-increase`: an exact floor across a repository boundary
+would make every fix in a sibling red until a matching commit landed here to bank
+it. **Lowering a sibling floor therefore needs a workspace holding all four
+checkouts**, which is what `naming` already asks for.
+
+`tooling/lint/test_py_lint.py` pins what makes the tool worth trusting: the
+corpus exclusions, the addon/framework split (which decides whether the facade
+rule applies), and that a rule driven to zero keeps being evaluated.
 
 ## Lanes
 
