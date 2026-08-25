@@ -282,7 +282,7 @@ class AccountEdiXmlUblTr(models.AbstractModel):
 
         :param line_node: XML node representing the invoice line.
         :param vals: Dictionary containing the invoice data.
-        :return: Updated XML line node with tax total information.
+        :return: None
         """
         if vals["invoice"].l10n_tr_gib_invoice_type == "TEVKIFAT":
             return self._add_withholding_document_line_tax_total_nodes(line_node, vals)
@@ -297,7 +297,7 @@ class AccountEdiXmlUblTr(models.AbstractModel):
 
         :param document_node: XML node representing the full invoice document.
         :param vals: Dictionary containing the invoice data.
-        :return: lxml.etree.Element or similar XML node representing the updated invoice document.
+        :return: None
 
         """
         if vals["invoice"].l10n_tr_gib_invoice_type == "TEVKIFAT":
