@@ -7,7 +7,7 @@ from odoo.addons.project.tests.test_project_sharing import TestProjectSharingCom
 @tagged("post_install", "-at_install")
 class TestPortalTimesheet(TestProjectSharingCommon):
     def test_ensure_fields_view_get_access(self):
-        """Ensure that the method _fields_view_get is accessible without
+        """Ensure that the method get_view is accessible without
         raising an error for all portal users
         """
         # A portal collaborator is added to a project to enable the rule analytic.account.analytic.line.timesheet.portal.user
