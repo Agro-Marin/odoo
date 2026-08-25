@@ -57,8 +57,14 @@ redaction and the event log.
   What ``AIOrchestrator`` drives.
 * ``tools/catalog_client.py`` -- ``CatalogAIClient``, one class driving every
   catalog vendor off ``PROVIDERS``. Fail-soft, key passed in per call, and the
-  only one that reaches ``groq``, ``moonshot`` and ``gemini_openai``, which have
-  no class. It arrived from ``telegram_bot`` in 19.0.1.7.0, where being a second
+  only way to reach the ``gemini_openai`` endpoint, which the catalog's
+  ``gemini`` entry uses for chat and which no class targets -- ``GeminiClient``
+  is on ``gemini``, the native wire. ``groq`` and ``moonshot`` DO have classes,
+  in ``tools/ai_clients/openai_wire_vendors.py``, registered like the rest:
+  ``tests/test_registry_coherence.py`` requires every catalog vendor to be in
+  ``AI_CLIENT_REGISTRY`` so that ``_get_ai_client`` can answer for whichever one
+  the orchestrator selects. Neither is re-exported from ``tools/__init__.py``.
+  It arrived from ``telegram_bot`` in 19.0.1.7.0, where being a second
   implementation of the same two chat wires had let the two drift.
 
 The third is not HTTP at all and so inherits none of that.
