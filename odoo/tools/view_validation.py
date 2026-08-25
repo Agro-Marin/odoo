@@ -1,12 +1,12 @@
 import ast
 import collections
+import functools
 import logging
 import typing
 from pathlib import Path
 
 from lxml import etree
 
-import odoo.orm.domain as domains
 from odoo import tools
 
 if typing.TYPE_CHECKING:
@@ -48,11 +48,28 @@ IGNORED_IN_EXPRESSION = {
     "str",
     "set",
 }
-DOMAIN_OPERATORS = {
-    domains.DomainNot.OPERATOR,
-    domains.DomainAnd.OPERATOR,
-    domains.DomainOr.OPERATOR,
-}
+
+
+@functools.cache
+def domain_operators() -> frozenset[str]:
+    """The domain combinator operators, resolved on first use.
+
+    Importing ``odoo.orm.domain`` at module scope pulled the whole ORM into this
+    module's import: the package's ``__init__`` reaches ``.ast``, which does
+    ``from odoo.tools import SQL``. Under ``pytest odoo/tools/tests`` -- the
+    per-path form CI uses for every other Tier-1 suite -- ``odoo.tools`` is a
+    stub, so that chain failed and this module's test file could not even be
+    collected. Deferring the import keeps ``odoo.tools`` a leaf.
+    """
+    import odoo.orm.domain as domains
+
+    return frozenset(
+        {
+            domains.DomainNot.OPERATOR,
+            domains.DomainAnd.OPERATOR,
+            domains.DomainOr.OPERATOR,
+        }
+    )
 
 
 def _filter_contextual_names(contextual_values: set[str]) -> set[str]:
@@ -73,7 +90,7 @@ def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
     try:
         if isinstance(domain, list):
             for leaf in domain:
-                if leaf in DOMAIN_OPERATORS or leaf in (True, False):
+                if leaf in domain_operators() or leaf in (True, False):
                     continue
                 left, _operator, _right = leaf
                 if isinstance(left, str):
@@ -125,7 +142,7 @@ def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
                 for ast_item in ast_domain.elts:
                     if isinstance(ast_item, ast.Constant):
                         if (
-                            ast_item.value not in DOMAIN_OPERATORS
+                            ast_item.value not in domain_operators()
                             and ast_item.value not in (True, False)
                         ):
                             raise ValueError
