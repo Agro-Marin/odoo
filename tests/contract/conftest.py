@@ -13,7 +13,7 @@ import uuid
 
 import pytest
 
-from .._pg import pg_dump_path, pg_reachable, psql_path
+from .._pg import dependency_plugin, pg_dump_path, pg_reachable, psql_path
 
 # Plain markers, NOT ``skipif`` conditions.  A ``skipif`` argument is evaluated
 # when the decorator runs — i.e. at import, during collection — which made a
@@ -24,24 +24,13 @@ requires_pg = pytest.mark.requires_pg
 requires_psql = pytest.mark.requires_psql
 requires_pg_dump = pytest.mark.requires_pg_dump
 
-_REQUIREMENTS = {
+REQUIREMENTS = {
     "requires_pg": (pg_reachable, "no reachable PostgreSQL (contract suite needs one)"),
     "requires_psql": (lambda: psql_path() is not None, "psql not on PATH"),
     "requires_pg_dump": (lambda: pg_dump_path() is not None, "pg_dump not on PATH"),
 }
 
-
-def pytest_configure(config):
-    for name in _REQUIREMENTS:
-        config.addinivalue_line("markers", f"{name}: needs that external dependency")
-
-
-@pytest.fixture(autouse=True)
-def _skip_without_dependencies(request):
-    """Skip a test whose external dependency is absent — resolved lazily."""
-    for name, (available, reason) in _REQUIREMENTS.items():
-        if request.node.get_closest_marker(name) and not available():
-            pytest.skip(reason)
+pytest_configure, _skip_without_dependencies = dependency_plugin(REQUIREMENTS)
 
 
 @pytest.fixture(scope="session", autouse=True)

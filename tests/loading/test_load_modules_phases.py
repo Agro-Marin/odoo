@@ -20,15 +20,12 @@ still happens and the trace describes a genuine run.
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from unittest import mock
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 pytestmark = pytest.mark.requires_pg
 
@@ -116,15 +113,6 @@ def _load(dbname: str, **kwargs) -> list[str]:
     with _Tracer() as tracer:
         Registry.new(dbname, **kwargs)
     return tracer.collapse()
-
-
-def test_dependencies_are_present():
-    """Canary: this suite must not be silently skipped in CI."""
-    from tests._pg import pg_reachable
-
-    if not pg_reachable():
-        pytest.skip("no reachable PostgreSQL")
-    assert pg_reachable()
 
 
 #: Loading an already-initialised database, ``update_module=False``. Note the

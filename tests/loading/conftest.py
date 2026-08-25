@@ -26,22 +26,17 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO_ROOT))
+from .._pg import dependency_plugin, pg_reachable
 
-from tests._pg import pg_reachable  # noqa: E402
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 requires_pg = pytest.mark.requires_pg
 
+REQUIREMENTS = {
+    "requires_pg": (pg_reachable, "no reachable PostgreSQL (loading suite needs one)"),
+}
 
-def pytest_configure(config):
-    config.addinivalue_line("markers", "requires_pg: needs a reachable PostgreSQL")
-
-
-@pytest.fixture(autouse=True)
-def _skip_without_pg(request):
-    if request.node.get_closest_marker("requires_pg") and not pg_reachable():
-        pytest.skip("no reachable PostgreSQL (loading suite needs one)")
+pytest_configure, _skip_without_dependencies = dependency_plugin(REQUIREMENTS)
 
 
 @pytest.fixture(scope="session", autouse=True)

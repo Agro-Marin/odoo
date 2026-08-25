@@ -29,8 +29,6 @@ from unittest import mock
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 pytestmark = pytest.mark.requires_pg
 
@@ -40,8 +38,16 @@ VICTIM = "test_uninstall"
 
 
 def _psql(dbname: str, sql: str) -> str:
+    """Run one statement through ``psql``, using libpq's own defaults.
+
+    No ``-U``: the role comes from ``PGUSER`` / the OS user, exactly as it does
+    for the ``createdb`` / ``dropdb`` / ``odoo-bin`` calls in ``conftest``. A
+    hardcoded role passes only on the machine that owns it — this line named
+    one developer's OS account and would have raised ``CalledProcessError``
+    ("role does not exist") on any other, CI included.
+    """
     proc = subprocess.run(
-        ["psql", "-U", "marin", "-d", dbname, "-tAc", sql],
+        ["psql", "-d", dbname, "-tAc", sql],
         capture_output=True,
         text=True,
         check=True,

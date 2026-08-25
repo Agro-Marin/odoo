@@ -41,7 +41,7 @@ from pathlib import Path
 import psutil
 import pytest
 
-from .._pg import pg_reachable
+from .._pg import dependency_plugin, pg_reachable
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ODOO_BIN = REPO_ROOT / "odoo-bin"
@@ -60,7 +60,15 @@ BOOT_TIMEOUT_S = 90.0
 requires_pg = pytest.mark.requires_pg
 requires_posix = pytest.mark.requires_posix
 
-_REQUIREMENTS = {
+# ``requires_pg`` is NOT gratuitous, despite "No database" above.  That note is
+# about what the PROPERTIES need, and it is true — a ``--workers 0`` server does
+# serve with PostgreSQL unreachable.  The SUITE needs one anyway: ``/`` reaches
+# ``list_dbs()``, which pays a full connect timeout (measured: a 303 after
+# 10.018 s), while ``is_serving`` allows 5 s and ``BOOT_TIMEOUT_S`` allows 90 s
+# for three attempts.  Measured with the marker neutralised and PG unreachable:
+# two failures, two errors, then no completion inside 900 s.  Dropping the
+# marker therefore requires a readiness probe that does not list databases.
+REQUIREMENTS = {
     "requires_pg": (pg_reachable, "process suite needs a reachable PostgreSQL"),
     "requires_posix": (
         lambda: os.name == "posix",
@@ -68,18 +76,7 @@ _REQUIREMENTS = {
     ),
 }
 
-
-def pytest_configure(config):
-    for name in _REQUIREMENTS:
-        config.addinivalue_line("markers", f"{name}: needs that external dependency")
-
-
-@pytest.fixture(autouse=True)
-def _skip_without_dependencies(request):
-    """Skip a test whose external dependency is absent — resolved lazily."""
-    for name, (available, reason) in _REQUIREMENTS.items():
-        if request.node.get_closest_marker(name) and not available():
-            pytest.skip(reason)
+pytest_configure, _skip_without_dependencies = dependency_plugin(REQUIREMENTS)
 
 
 def free_port() -> int:
