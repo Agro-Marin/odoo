@@ -48,12 +48,12 @@ class _FieldDescriptionMixin(_FieldStubs):
             return True
 
         model = env[self.model_name]
-        query = model._as_query(ordered=False)
         try:
+            query = model._as_query(ordered=False)
             term = model._order_field_to_sql(
                 model._table, self.name, SQL.EMPTY, SQL.EMPTY, query
             )
-        except ValueError, AccessError:
+        except ValueError, AccessError, NotImplementedError:
             return False
         return bool(term)
 
@@ -64,12 +64,12 @@ class _FieldDescriptionMixin(_FieldStubs):
             return True
 
         model = env[self.model_name]
-        query = model._as_query(ordered=False)
         groupby = self.name if not self.is_temporal else f"{self.name}:month"
         try:
+            query = model._as_query(ordered=False)
             model._read_group_groupby(model._table, groupby, query)
             return True
-        except ValueError, AccessError:
+        except ValueError, AccessError, NotImplementedError:
             return False
 
     def _description_aggregator(self, env: Environment) -> str | None:

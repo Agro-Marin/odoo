@@ -189,6 +189,13 @@ class MixinOrderLineFields(models.AbstractModel):
         raise NotImplementedError(f"{self._name} must implement _get_order_type()")
 
     def _domain_product_id(self):
+        if self._abstract:
+            # Field descriptions are evaluated lazily, so `fields_get()` reaches
+            # this domain on the mixin itself -- from Studio, from JSON-RPC, from
+            # base's technical-guide report. There is no order type there, and no
+            # records to filter either, so the honest answer is "no restriction"
+            # rather than the NotImplementedError a concrete host still gets.
+            return []
         return [(f"{self._get_order_type()}_ok", "=", True)]
 
     def _get_merge_date_field(self):
