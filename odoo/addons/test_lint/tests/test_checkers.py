@@ -1290,3 +1290,60 @@ class TestBatchLint(BaseCase):
                 Partner.search([('id', '=', record.id)])
         """)
         self.assertTrue(violations, "CamelCase model search should be flagged")
+
+
+@no_retry
+class TestSuppressionSpans(BaseCase):
+    """A directive on the closing line of a wrapped statement counts.
+
+    Ruff anchors on the first line only, and so did this, which made the
+    placement a developer reaches for first do nothing at all -- silently, since
+    an ignored directive looks exactly like an absent one.
+    """
+
+    @staticmethod
+    def _spans(source: str) -> dict[int, int]:
+        return _rules.statement_spans(_rules.walk_with_parents(ast.parse(source)))
+
+    def _suppresses(self, source: str, lineno: int, rule: str) -> bool:
+        spans = self._spans(source)
+        return _suppression.Suppressions.of(
+            source, _rules.ALIASES, _rules.UNSUPPRESSABLE
+        ).suppresses(lineno, rule, spans.get(lineno))
+
+    def test_a_directive_on_the_closing_line_of_a_wrapped_call_counts(self):
+        source = dedent("""\
+            def f(self, t):
+                self.env.cr.execute(
+                    f"SELECT {t}"
+                )  # noqa: E8501  the table name comes from _table
+            """)
+        self.assertTrue(self._suppresses(source, 2, "sql-injection"))
+
+    def test_a_directive_on_the_line_itself_still_counts(self):
+        source = "x = 1  # noqa: E8501  because\n"
+        self.assertTrue(self._suppresses(source, 1, "sql-injection"))
+
+    def test_a_directive_past_the_statement_does_not_count(self):
+        source = dedent("""\
+            def f(self, t):
+                self.env.cr.execute(
+                    f"SELECT {t}"
+                )
+                other()  # noqa: E8501  a different statement
+            """)
+        self.assertFalse(self._suppresses(source, 2, "sql-injection"))
+
+    def test_a_block_body_cannot_waive_its_own_header(self):
+        """Otherwise one directive anywhere in a function silences the `def`.
+
+        `_checker_sql` reports a helper that builds a query at the FunctionDef's
+        own line, so the span for a compound statement must stay one line.
+        """
+        source = dedent("""\
+            def build(table):
+                x = 1  # noqa: E8501  unrelated
+                return f"SELECT {table}"
+            """)
+        self.assertEqual(self._spans(source).get(1, 1), 1)
+        self.assertFalse(self._suppresses(source, 1, "sql-injection"))

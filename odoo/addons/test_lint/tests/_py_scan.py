@@ -22,6 +22,7 @@ from ._rules import (  # re-exported: the vocabulary of a scan
     Source,
     Unit,
     is_test_path,
+    statement_spans,
     walk_with_parents,
 )
 from ._suppression import Suppressions, Untokenisable, comment_lines
@@ -43,6 +44,7 @@ __all__ = [
     "report",
     "scan_many",
     "scan_one",
+    "statement_spans",
     "walk_with_parents",
 ]
 
@@ -108,6 +110,7 @@ def scan_one(path: str, in_module: bool) -> tuple[list[Row], list]:
         comments,
     )
     suppressions = Suppressions(comments, ALIASES, UNSUPPRESSABLE)
+    spans = statement_spans(unit.nodes)
     lines = text.split("\n")
 
     out: list[Row] = []
@@ -130,7 +133,7 @@ def scan_one(path: str, in_module: bool) -> tuple[list[Row], list]:
         for violation in violations:
             name = checker.rule or violation.rule
             lineno = violation.lineno
-            if suppressions.suppresses(lineno, name):
+            if suppressions.suppresses(lineno, name, spans.get(lineno)):
                 continue
             message = (
                 getattr(violation, "message", "")

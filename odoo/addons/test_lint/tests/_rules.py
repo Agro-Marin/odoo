@@ -64,6 +64,40 @@ def is_test_path(path: str) -> bool:
     return any(part == "tests" or part.startswith("test_") for part in path.split("/"))
 
 
+#: Statements that own a block. A finding anchored on one of their header lines
+#: must NOT be waivable from anywhere inside the block: a directive halfway down
+#: a function body would otherwise silence a finding reported against the `def`.
+_COMPOUND = (
+    ast.FunctionDef,
+    ast.AsyncFunctionDef,
+    ast.ClassDef,
+    ast.For,
+    ast.AsyncFor,
+    ast.While,
+    ast.If,
+    ast.Try,
+    ast.With,
+    ast.AsyncWith,
+    ast.Match,
+)
+
+
+def statement_spans(nodes: list[ast.AST]) -> dict[int, int]:
+    """`{first line: last line}` for the statement starting on each line.
+
+    What a developer means by "this line" when a call is wrapped over several.
+    """
+    spans: dict[int, int] = {}
+    for node in nodes:
+        start = getattr(node, "lineno", None)
+        end = getattr(node, "end_lineno", None)
+        if start is None or end is None or isinstance(node, _COMPOUND):
+            continue
+        if end > spans.get(start, start):
+            spans[start] = end
+    return spans
+
+
 def walk_with_parents(tree: ast.AST) -> list[ast.AST]:
     nodes: list[ast.AST] = []
     stack: list[ast.AST] = [tree]
