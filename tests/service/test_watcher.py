@@ -263,6 +263,10 @@ class TestFSWatcherInotifyRewatch:
         root.mkdir()
         seen = []
         obj = w.FSWatcherInotify.__new__(w.FSWatcherInotify)
+        # The burst state (lock, flags, timer slot) lives on FSWatcherBase now
+        # that both backends coalesce; __new__ skips it, so set it up the way
+        # __init__ would rather than hand-rolling the attributes.
+        w.FSWatcherBase.__init__(obj)
         obj.started = False
         obj.thread = None
         # Production builder, so the test covers what __init__ actually sets up
@@ -409,6 +413,7 @@ class TestFSWatcherInotifyRewatch:
             return _W()
 
         obj = w.FSWatcherInotify.__new__(w.FSWatcherInotify)
+        w.FSWatcherBase.__init__(obj)  # burst state; see the fixture above
         obj.started = True
         obj.watcher = _watcher_raising("IN_Q_OVERFLOW")
         calls = []
@@ -436,7 +441,9 @@ class TestFSWatcherInotifyRewatch:
 
         inserts = []
         with patch.object(
-            FSWatcherBase, "handle_asset_file", lambda self, path: inserts.append(path)
+            FSWatcherBase,
+            "_signal_asset_change",
+            lambda self, path: inserts.append(path),
         ):
             for i in range(50):
                 obj.handle_asset_file(f"/x/f{i}.js")
@@ -455,7 +462,9 @@ class TestFSWatcherInotifyRewatch:
 
         inserts = []
         with patch.object(
-            FSWatcherBase, "handle_asset_file", lambda self, path: inserts.append(path)
+            FSWatcherBase,
+            "_signal_asset_change",
+            lambda self, path: inserts.append(path),
         ):
             obj.handle_asset_file("/x/first.js")
             assert len(inserts) == 1
@@ -472,7 +481,9 @@ class TestFSWatcherInotifyRewatch:
 
         inserts = []
         with patch.object(
-            FSWatcherBase, "handle_asset_file", lambda self, path: inserts.append(path)
+            FSWatcherBase,
+            "_signal_asset_change",
+            lambda self, path: inserts.append(path),
         ):
             obj.handle_asset_file("/x/only.js")
             assert len(inserts) == 1, "single edit was deferred to the idle tick"
@@ -522,3 +533,94 @@ class TestBothBackendsWatchTheSameTree:
         source = pathlib.Path(w.__file__).read_text(encoding="utf-8")
         assert source.count("self.watch_paths()") == 2
         assert "odoo.addons.__path__" not in source.split("class FSWatcherWatchdog")[1]
+
+
+class TestBothBackendsCoalesceAssetBursts:
+    """Burst coalescing used to exist only in the inotify backend.
+
+    ``FSWatcherWatchdog`` inherited the uncoalesced ``handle_asset_file``, which
+    opens a cursor and runs one ``INSERT INTO orm_signaling_assets`` per file per
+    database. A compile touching N files with D databases open therefore cost
+    N x D transactions under watchdog and roughly D per burst under inotify --
+    measured at 60 against 6 for 20 files and three databases. Which one a
+    developer paid depended on which optional library was installed.
+    """
+
+    DBS = ("db1", "db2", "db3")
+
+    def _count_transactions(self, cls, files, monkeypatch):
+        import odoo.db
+        import odoo.tools
+        from odoo.orm.runtime.registry import Registry
+        from odoo.service import _watcher as w
+
+        opened = []
+
+        class _Cursor:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def execute(self, *args):
+                pass
+
+        class _Connection:
+            def cursor(self):
+                opened.append(1)
+                return _Cursor()
+
+        monkeypatch.setattr(odoo.db, "db_connect", lambda name: _Connection())
+        monkeypatch.setitem(odoo.tools.config.options, "db_name", list(self.DBS))
+        monkeypatch.setattr(
+            type(Registry.registries), "snapshot", property(lambda self: {})
+        )
+
+        obj = cls.__new__(cls)
+        w.FSWatcherBase.__init__(obj)
+        # The timer is the watchdog backend's trailing edge; drive it by hand so
+        # the test measures coalescing, not scheduler latency.
+        obj._needs_burst_timer = False
+        for i in range(files):
+            obj.handle_asset_file(f"/addon/static/src/f{i}.js")
+        obj._end_burst()
+        return len(opened)
+
+    @pytest.mark.parametrize("backend", ["FSWatcherWatchdog", "FSWatcherInotify"])
+    def test_a_burst_costs_two_flushes_per_database_not_one_per_file(
+        self, backend, monkeypatch
+    ):
+        from odoo.service import _watcher as w
+
+        cls = getattr(w, backend)
+        count = self._count_transactions(cls, 20, monkeypatch)
+        # leading edge + trailing flush, once per database
+        assert count == 2 * len(self.DBS)
+        assert count < 20 * len(self.DBS)
+
+    def test_the_watchdog_backend_arms_a_timer_for_its_trailing_edge(self):
+        """It is called back per event by the observer and has no end-of-pass
+        boundary, so the trailing flush has to come from somewhere."""
+        from odoo.service import _watcher as w
+
+        assert w.FSWatcherWatchdog._needs_burst_timer is True
+        assert w.FSWatcherInotify._needs_burst_timer is False
+
+    def test_the_timer_fires_the_trailing_flush(self, monkeypatch):
+        from odoo.service import _watcher as w
+
+        flushed = []
+        obj = w.FSWatcherWatchdog.__new__(w.FSWatcherWatchdog)
+        w.FSWatcherBase.__init__(obj)
+        monkeypatch.setattr(obj, "_BURST_FLUSH_S", 0.01)
+        monkeypatch.setattr(
+            w.FSWatcherBase, "_signal_asset_change", lambda self, p: flushed.append(p)
+        )
+        obj.handle_asset_file("/addon/static/src/a.js")
+        assert len(flushed) == 1, "leading edge did not fire"
+        obj.handle_asset_file("/addon/static/src/b.js")
+        deadline = time.monotonic() + 2.0
+        while len(flushed) < 2 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert len(flushed) == 2, "the timer never emitted the trailing flush"
