@@ -2913,6 +2913,196 @@ class TestDatabaseIdentifierPercent:
         assert (sql.code % sql.params) == '"weird%name"'
 
 
+class TestDatabaseDdlSetsAutocommitFirst:
+    """Every verb that issues database-level DDL must set ``autocommit`` BEFORE it.
+
+    psycopg opens a transaction implicitly on the first statement, and PostgreSQL
+    refuses ``CREATE DATABASE`` and ``DROP DATABASE`` inside one
+    (``tests/contract/test_autocommit_ddl.py`` pins that against the real server;
+    ``ALTER DATABASE ... RENAME`` is allowed, so that one flag is consistency
+    rather than necessity).  ``odoo/service/db/lifecycle.py`` therefore assigns
+    ``cr.connection.autocommit = True`` at five places, and all five were
+    unpinned: flipping any of them to ``False`` left the whole suite green.
+
+    ORDER is the property, not just the value.  Setting the flag after the first
+    statement is exactly as broken as not setting it, and an assertion on the
+    final value cannot tell the two apart — so these record the sequence.
+
+    Four of the five sites are pinned here; flipping any of them to ``False``
+    fails a test.  The fifth is deliberately not: it is on ``_drop_database``'s
+    existence PROBE, which issues only ``SELECT 1 FROM pg_database``, and a
+    ``SELECT`` inside a transaction is perfectly legal.  Nothing observable
+    depends on that assignment, so asserting it would pin a line rather than a
+    behaviour — the same reason ``_rename_database``'s flag is described below as
+    consistency rather than necessity.  Stated explicitly so the gap reads as a
+    decision instead of an oversight.
+    """
+
+    @staticmethod
+    def _recorder():
+        """``db_connect`` stand-in giving each call its OWN recording connection.
+
+        Per connection, not per call site: ``_drop_database`` opens two — a probe
+        and the one that issues the ``DROP`` — and each has to set the flag for
+        itself, because ``autocommit`` is a property of the connection.  A shared
+        recorder would let the probe's assignment satisfy the assertion for the
+        drop, which is how the first version of this test missed two of the five
+        sites it was written for.
+        """
+        connections = []
+
+        def db_connect(_name, **_kwargs):
+            events = []
+            cr = MagicMock()
+            connection = MagicMock()
+            type(connection).autocommit = property(
+                lambda _self: True,
+                lambda _self, value, _e=events: _e.append(("autocommit", value)),
+            )
+            cr.connection = connection
+            cr.execute.side_effect = lambda sql, *a, **kw: events.append(
+                ("execute", str(sql)[:40])
+            )
+            cr.fetchone.return_value = (1,)
+            cr.fetchall.return_value = []
+            cr.__enter__ = MagicMock(return_value=cr)
+            cr.__exit__ = MagicMock(return_value=False)
+            conn = MagicMock()
+            conn.cursor.return_value = cr
+            connections.append(events)
+            return conn
+
+        return db_connect, connections
+
+    #: Statements PostgreSQL refuses inside a transaction block, plus the rename
+    #: that it allows but which is written the same way. Scoped deliberately:
+    #: ``_create_empty_database`` also opens a connection to the NEW database to
+    #: run ``CREATE EXTENSION``, which is transaction-safe and correctly does not
+    #: set the flag — a blanket "every connection" rule would reject it.
+    _DATABASE_DDL = ("CREATE DATABASE", "DROP DATABASE", "ALTER DATABASE")
+
+    @classmethod
+    def _assert_every_statement_follows_autocommit(cls, connections, verb):
+        """On every connection that issued DATABASE-LEVEL DDL, the flag came first."""
+        issuing = [
+            e
+            for e in connections
+            if any(
+                kind == "execute" and any(d in sql.upper() for d in cls._DATABASE_DDL)
+                for kind, sql in e
+            )
+        ]
+        assert issuing, (
+            f"{verb} issued no database-level DDL on any connection; either it "
+            f"stopped doing so or this test no longer drives it. "
+            f"Connections: {connections}"
+        )
+        for events in issuing:
+            assert ("autocommit", True) in events, (
+                f"{verb} issued SQL on a connection whose autocommit it never "
+                f"set; PostgreSQL refuses database DDL inside the transaction "
+                f"psycopg opens implicitly. Events: {events}"
+            )
+            first_autocommit = events.index(("autocommit", True))
+            first_execute = next(
+                i for i, (kind, _) in enumerate(events) if kind == "execute"
+            )
+            assert first_autocommit < first_execute, (
+                f"{verb} issued a statement before setting autocommit, which "
+                f"opens the very transaction the flag avoids. Events: {events}"
+            )
+
+    def test_create_empty_database(self, db_mod, bypass_db_mgmt):
+        import odoo.tools
+
+        db_connect, connections = self._recorder()
+        with (
+            patch.object(
+                odoo.tools,
+                "config",
+                _MockConfig(
+                    {"list_db": True, "db_template": "template0", "unaccent": False}
+                ),
+            ),
+            patch("odoo.service.db.lifecycle.odoo.db.db_connect", db_connect),
+            patch("odoo.service.db.lifecycle.database_identifier", return_value="x"),
+            patch("odoo.service.db.lifecycle._check_faketime_mode"),
+        ):
+            db_mod._create_empty_database("newdb")
+        self._assert_every_statement_follows_autocommit(
+            connections, "_create_empty_database"
+        )
+
+    def test_duplicate_database(self, db_mod, bypass_db_mgmt):
+        """``CREATE DATABASE ... TEMPLATE`` — the same refusal as a plain create."""
+        import odoo.tools
+
+        db_connect, connections = self._recorder()
+        with (
+            patch.object(
+                odoo.tools,
+                "config",
+                _MockConfig(
+                    {"list_db": True, "unaccent": False, "db_template": "template0"}
+                ),
+            ),
+            patch("odoo.service.db.lifecycle.odoo.db.db_connect", db_connect),
+            patch("odoo.service.db.lifecycle.database_identifier", return_value="x"),
+            patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "forget"),
+            patch.object(db_mod.lifecycle.odoo.db, "close_db"),
+            patch.object(db_mod.lifecycle, "_drop_conn"),
+            patch.object(db_mod.lifecycle, "_assert_filestore_dest_free"),
+            patch.object(db_mod.lifecycle.shutil, "copytree"),
+        ):
+            # The duplication continues well past the CREATE — filestore copy,
+            # uuid reset, optional neutralisation — and mocking that whole
+            # pipeline would make this test about the pipeline. The subject is
+            # the ordering on the connection that issues the DDL, which is
+            # already recorded by the time anything downstream fails; the
+            # assertion below refuses to pass unless that DDL really ran.
+            with contextlib.suppress(Exception):
+                db_mod._duplicate_database("src", "dst")
+        self._assert_every_statement_follows_autocommit(
+            connections, "_duplicate_database"
+        )
+
+    def test_drop_database(self, db_mod, bypass_db_mgmt):
+        """Two connections — the existence probe and the one issuing the DROP —
+        and each has to set the flag for itself."""
+        db_connect, connections = self._recorder()
+        with (
+            patch("odoo.service.db.lifecycle.odoo.db.db_connect", db_connect),
+            patch("odoo.service.db.lifecycle.database_identifier", return_value="x"),
+            patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "forget"),
+            patch.object(db_mod.lifecycle.odoo.db, "close_db"),
+            patch.object(db_mod.lifecycle, "_drop_conn"),
+        ):
+            db_mod._drop_database("victim")
+        assert (
+            len([e for e in connections if any(k == "execute" for k, _ in e)]) >= 2
+        ), (
+            "expected the probe AND the drop to issue SQL on separate connections; "
+            "if that changed, this test no longer covers both autocommit sites"
+        )
+        self._assert_every_statement_follows_autocommit(connections, "_drop_database")
+
+    def test_rename_database(self, db_mod, bypass_db_mgmt):
+        """Allowed in a transaction today, so this pins consistency rather than
+        necessity — but a rename that silently stopped setting it would drift
+        away from its siblings unnoticed."""
+        db_connect, connections = self._recorder()
+        with (
+            patch("odoo.service.db.lifecycle.odoo.db.db_connect", db_connect),
+            patch("odoo.service.db.lifecycle.database_identifier", return_value="x"),
+            patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "forget"),
+            patch.object(db_mod.lifecycle.odoo.db, "close_db"),
+            patch.object(db_mod.lifecycle, "_drop_conn"),
+            patch.object(db_mod.lifecycle.shutil, "move"),
+        ):
+            db_mod._rename_database("old_name", "new_name")
+        self._assert_every_statement_follows_autocommit(connections, "_rename_database")
+
+
 class TestCreateEmptyDatabaseHardening:
     def _mock_pg(self, db_mod, *, create_raises=None):
         """Patch ``odoo.db.db_connect`` and return (patch_cm, connect_mock, cr).
