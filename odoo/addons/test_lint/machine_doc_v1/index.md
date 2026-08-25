@@ -71,10 +71,20 @@ additionally drops `_vendor/`, `upgrades/` and `migrations/`;
 `_pretty_xml.is_formattable` drops `_vendor`, `static`, `node_modules` and
 `tests`, because a fixture is not a data file.
 
-**The sibling repositories are ungated.** Running these same checkers over
-`enterprise`, `agromarin` and `design-themes` reports findings that nothing in CI
-sees — more than this repository's own total. `odoo/addons/test_lint/machine_doc_v1/factcheck.sh` does not measure
-that; the number is in the vault write-up named in `CLAUDE.md` §15.
+**The sibling repositories are ungated.** `tooling/lint/py_lint.py` runs these
+same checkers over any roots without odoo-bin, and reports more findings in
+`enterprise`, `agromarin` and `design-themes` together than this repository's own
+total. Nothing runs it in CI yet — wiring it into those repositories'
+"Architecture Boundaries (cross-repo)" workflows is what turns the capability
+into a gate, and it has to happen there.
+
+```bash
+python tooling/lint/py_lint.py ../agromarin --count
+python tooling/lint/py_lint.py odoo addons --count   # agrees with the gate, rule for rule
+```
+
+`tooling/lint/test_py_lint.py` pins that agreement: the corpus exclusions and the
+addon/framework split, which is what decides whether the facade rule applies.
 
 ## Lanes
 
