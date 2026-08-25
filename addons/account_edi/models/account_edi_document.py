@@ -313,7 +313,6 @@ class AccountEdiDocument(models.Model):
         * If the attachment's content is returned, a new one is created and linked to the wizard. Thus, when sending
         the mail (clicking on 'send & print' in the wizard), a new attachment is added to the move (see
         _action_send_mail in mail.compose.message).
-        :param document: an edi document
         :return: dict {
             'attachments': tuple with the name and base64 content of the attachment}
             'attachment_ids': list containing the id of the attachment
