@@ -52,13 +52,82 @@ def test_the_tree_is_what_a_direct_parse_would_have_given():
     assert ast.dump(_ast_cache.parse_file(SAMPLE)) == ast.dump(direct)
 
 
-def test_errors_mode_is_part_of_the_key():
-    # A caller reading with errors="ignore" catches only SyntaxError, so it must
-    # never be handed a tree that a strict read produced -- or a file with bad
-    # bytes would reach it as an uncaught UnicodeDecodeError.
+@pytest.fixture
+def bad_bytes(tmp_path):
+    """A source file that is valid Python but not valid UTF-8.
+
+    The ONLY input on which `errors="strict"` and `errors="ignore"` disagree,
+    and therefore the only one that can distinguish the two modes at all. The
+    corpus holds none -- 0 of 10047 `.py` files under `odoo/` and `addons/`
+    fail a strict decode -- which is why keying the cache per mode bought
+    nothing and cost a second copy of every file.
+    """
+    path = tmp_path / "mojibake.py"
+    path.write_bytes(b'X = "caf\xe9"\n')  # latin-1 e-acute, invalid UTF-8
+    return path
+
+
+def test_a_lenient_reader_reuses_the_strict_tree():
+    # A file that decodes strictly decodes IDENTICALLY when errors are ignored,
+    # so the two modes want the same tree and holding two is pure waste.
     _ast_cache.enable()
     strict = _ast_cache.parse_file(SAMPLE)
-    assert _ast_cache.parse_file(SAMPLE, errors="ignore") is not strict
+    assert _ast_cache.parse_file(SAMPLE, errors="ignore") is strict
+    assert len(_ast_cache._TREES) == 1
+
+
+def test_a_strict_decode_failure_is_never_served_to_a_lenient_reader(bad_bytes):
+    # The case the per-mode key was defending, and the one that survives: a
+    # lenient caller catches SyntaxError only, so handing it the strict read's
+    # UnicodeDecodeError would surface as an uncaught error inside the gate.
+    _ast_cache.enable()
+    with pytest.raises(UnicodeDecodeError):
+        _ast_cache.parse_file(bad_bytes)
+    tree = _ast_cache.parse_file(bad_bytes, errors="ignore")
+    assert isinstance(tree, ast.Module)
+
+
+def test_a_lenient_tree_is_never_served_to_a_strict_reader(bad_bytes):
+    # The other direction, which is NOT symmetric: the lenient tree was parsed
+    # from silently-dropped bytes, and a caller that asked to be told about them
+    # must still be told.
+    _ast_cache.enable()
+    assert isinstance(_ast_cache.parse_file(bad_bytes, errors="ignore"), ast.Module)
+    with pytest.raises(UnicodeDecodeError):
+        _ast_cache.parse_file(bad_bytes)
+
+
+def test_two_lenient_modes_never_share(bad_bytes):
+    # `ignore` DROPS the undecodable byte, `replace` substitutes U+FFFD, so the
+    # two produce different trees. The first version of the path-keyed cache
+    # asked only "is the caller strict?" and served `replace` the `ignore` tree:
+    # `X = "caf"` where `X = "caf\ufffd"` was correct, silently, forever.
+    _ast_cache.enable()
+    dropped = _ast_cache.parse_file(bad_bytes, errors="ignore")
+    substituted = _ast_cache.parse_file(bad_bytes, errors="replace")
+    assert dropped is not substituted
+    assert dropped.body[0].value.value == "caf"
+    assert substituted.body[0].value.value == "caf\ufffd"
+
+
+def test_a_lenient_entry_is_not_evicted_by_another_lenient_mode(bad_bytes):
+    # Storing the second mode would make the pair thrash: each call evicts the
+    # other's entry and neither ever hits.
+    _ast_cache.enable()
+    first = _ast_cache.parse_file(bad_bytes, errors="ignore")
+    _ast_cache.parse_file(bad_bytes, errors="replace")
+    assert _ast_cache.parse_file(bad_bytes, errors="ignore") is first
+
+
+def test_a_strict_read_upgrades_the_slot_a_lenient_read_opened():
+    # Order must not decide how many copies are held. A lenient read first, then
+    # a strict one, must leave ONE entry that answers both -- otherwise the
+    # saving depends on which gate happens to run first.
+    _ast_cache.enable()
+    _ast_cache.parse_file(SAMPLE, errors="ignore")
+    strict = _ast_cache.parse_file(SAMPLE)
+    assert _ast_cache.parse_file(SAMPLE, errors="ignore") is strict
+    assert len(_ast_cache._TREES) == 1
 
 
 def test_a_syntax_error_is_reraised_every_time(tmp_path):

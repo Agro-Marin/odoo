@@ -268,7 +268,13 @@ def apply_to_text(
 ) -> tuple[str, int, list[str]]:
     """Stamp every component ``setup()`` in ``text``.
 
-    Returns ``(new text, sites stamped, lines that exceed PRINT_WIDTH)``. An
+    Returns ``(new text, SENTINEL-carrying lines written, lines that exceed
+    PRINT_WIDTH)``. The count is lines and not sites on purpose: ``revert_text``
+    reports the sentinel-carrying lines it removes, and the import carries the
+    sentinel too, so counting sites here made the two halves of a round trip
+    incomparable -- 217 stamped against 424 removed, for the same 207 files. The
+    obvious sanity check on a tool whose whole safety argument is "the inverse is
+    exact" could not be made. An
     over-width line is reported rather than silently written: prettier would
     wrap it, and a wrapped call breaks the sentinel-per-line invariant
     ``--revert`` depends on.
@@ -290,10 +296,21 @@ def apply_to_text(
             over.append(f"{path.as_posix()}:{index + 1} ({len(line)} cols)")
         lines.insert(index + 1, line)
 
+    imports = 0
     if PROBE_IMPORT not in text:
         lines = insert_import(lines)
+        imports = 1
+        # The IMPORT is a stamped line too, and it was the one line here whose
+        # width nobody checked. It is 89 columns against a budget of 88, in every
+        # file the tool touches, while `resolve_labels` goes to real trouble to
+        # keep the probe lines under. Reported rather than silently written, for
+        # the same reason the probes are: a line prettier reflows puts the
+        # sentinel somewhere `--revert` will not look.
+        line = f"{PROBE_IMPORT} {SENTINEL}"
+        if len(line) > PRINT_WIDTH:
+            over.append(f"{path.as_posix()}: the probe import ({len(line)} cols)")
 
-    return "\n".join(lines) + "\n", len(sites), over
+    return "\n".join(lines) + "\n", len(sites) + imports, over
 
 
 def revert_text(text: str) -> tuple[str, int]:
@@ -412,8 +429,20 @@ def main(argv: list[str] | None = None) -> int:
     print(f"{verb} {units} probe line(s) across {touched} file(s)")
     if args.apply:
         if over_all:
-            print(f"\nWARNING: {len(over_all)} line(s) exceed {PRINT_WIDTH} columns:")
-            print("\n".join(f"  {o}" for o in over_all))
+            # The import warning is the same fact once per file; collapse it so
+            # a real per-site finding is not buried under 200 copies of it.
+            imports_over = [o for o in over_all if o.endswith("cols)") and "import" in o]
+            sites_over = [o for o in over_all if o not in imports_over]
+            print(
+                f"\nWARNING: {len(sites_over) + bool(imports_over)} kind(s) of line "
+                f"exceed {PRINT_WIDTH} columns:"
+            )
+            if imports_over:
+                print(
+                    f"  the probe import, in all {len(imports_over)} file(s) that "
+                    f"gained one"
+                )
+            print("\n".join(f"  {o}" for o in sites_over))
         print(
             "\nRe-measure before committing:\n"
             "  npx eslint <touched files>   # must be CLEAN -- do NOT run --fix,\n"

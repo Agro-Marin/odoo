@@ -332,6 +332,24 @@ def main(argv: list[str] | None = None) -> int:
         print(f"no such log: {args.log}", file=sys.stderr)
         return EXIT_USAGE
 
+    # Validated HERE rather than left to `baseline_path`, which both later
+    # branches reach. It raised an uncaught `ValueError` with a traceback, and
+    # the README promises exit 2 for "no baseline or the parse cannot be
+    # trusted" -- a CLI whose usage error arrives as a stack trace is telling
+    # its caller the tool is broken rather than the invocation. The shape that
+    # produced it is the natural one: a run tagged `/loyalty,/sale_loyalty`
+    # covers two suites, and the baseline is per suite.
+    try:
+        baseline_path(args.suite)
+    except ValueError as exc:
+        print(
+            f"error: {exc}\n"
+            f"       a suite is ONE test tag, and each gets its own baseline: "
+            f"record a run covering several by naming them one at a time.",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+
     scan = scan_log(args.log)
     if args.update:
         if not scan.complete:

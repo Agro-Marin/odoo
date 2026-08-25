@@ -24,10 +24,31 @@ on:
     branches: ['19.0-marin', '19.0']
   pull_request:
     branches: ['*']
-    paths:
-      - 'tooling/**'
-      - 'pytest.ini'
-      - '.github/workflows/tooling_selftest.yml'
+    # NO PATH FILTER, and that is the fix rather than the omission.
+    #
+    # This filter used to read `tooling/**`, `pytest.ini` and this file. That is
+    # a claim that the suite only measures `tooling/`, and it is false: 35 of the
+    # 76 test files here measure the repository. `test_translation_catalog`
+    # checks a MEASURED block against `addons/*/i18n/*.pot`,
+    # `test_architecture_doc` reads `doc/architecture/`, `test_adr_coherence`
+    # reads `doc/adr/`, `test_web_machine_doc` reads `addons/web/machine_doc_v1/`,
+    # `test_baseline_enforcement` reads these workflows, and the surface gates
+    # read `addons/*/static/src`.
+    #
+    # It has already cost a red mainline. `598cf211cc2` regenerated
+    # `odoo/addons/base/i18n/base.pot` and nothing else. That path matches
+    # `architecture.yml`'s filter and matched NONE of the three above, so this
+    # lane did not run on the PR at all — and
+    # `test_translation_catalog::test_the_docstring_measurement_is_fresh` failed
+    # the moment it landed, on the post-merge `push:` trigger, after the
+    # merge-blocking checks had reported nothing.
+    #
+    # `architecture.yml` diagnosed exactly this class and abandoned enumeration
+    # for it: the list is a second, hand-maintained copy of every checker's
+    # scope and it rots silently. The difference here is that this suite's scope
+    # is the whole repository, so the honest filter is no filter. A few
+    # over-triggers are the price; `test_the_selftest_lane_has_no_path_filter`
+    # in `tooling/test_ci_lanes.py` pins it.
 
 permissions:
   contents: read

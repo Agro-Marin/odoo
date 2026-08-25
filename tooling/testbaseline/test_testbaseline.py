@@ -280,6 +280,20 @@ class BaselinePathTests(unittest.TestCase):
             with self.assertRaises(ValueError, msg=bad):
                 testbaseline.baseline_path(bad)
 
+    def test_the_cli_reports_a_bad_suite_name_instead_of_raising(self):
+        # `baseline_path` is reached from both the check and the update branch,
+        # and its ValueError used to escape main() as a traceback. The natural
+        # way to hit it is a real one: a run tagged `/loyalty,/sale_loyalty`
+        # covers two suites, and a baseline is per suite.
+        with TemporaryDirectory() as tmp:
+            log = Path(tmp) / "run.log"
+            log.write_text(f"{PREFIX} INFO db odoo.tests.result: 0 failed, 0 error(s) of 1 tests\n")
+            err = io.StringIO()
+            with redirect_stderr(err), redirect_stdout(io.StringIO()):
+                code = testbaseline.main(["/loyalty,/sale_loyalty", str(log)])
+            self.assertEqual(code, EXIT_USAGE)
+            self.assertIn("ONE test tag", err.getvalue())
+
 
 class RoundTripTests(unittest.TestCase):
     def test_a_saved_baseline_loads_back_identical(self):

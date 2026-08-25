@@ -987,7 +987,32 @@ def _authenticate(port: int, db: str) -> str:
     resp.raise_for_status()
     sid = resp.cookies.get("session_id")
     if not sid:
-        raise RuntimeError("Authentication failed: no session_id cookie")
+        # A missing cookie is the SYMPTOM, and it has more than one cause: the
+        # credentials above are hard-coded, but `/web/session/authenticate` also
+        # returns no cookie when the request raises server-side. The bare message
+        # named neither, and cost two runs guessing.
+        #
+        # The first message written here guessed too -- it said the database had
+        # different credentials. Printing the server's own error refuted that on
+        # the first run: `column res_users.odoobot_canned_response_id does not
+        # exist`, i.e. a scratch DB whose schema predates a module the code now
+        # expects. `db_for_modules` derives the name from the modules alone, so
+        # every session asking for the same modules lands on the same DB and
+        # inherits whatever state it was left in. Report what the server said and
+        # let the reader draw the conclusion.
+        detail = ""
+        try:
+            body = resp.json()
+            detail = body.get("error", {}).get("data", {}).get("message") or ""
+        except ValueError:
+            detail = resp.text[:200]
+        raise RuntimeError(
+            f"authentication failed against db {db!r} on port {port} as "
+            f"admin/admin{f': {detail}' if detail else ''}.\n"
+            f"  The database exists but the session could not be opened. A "
+            f"stale scratch DB is the usual cause -- `hoot --clean` drops it "
+            f"and rebuilds, or upgrade it if you need what is in it."
+        )
     return sid
 
 
