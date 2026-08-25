@@ -69,7 +69,6 @@ class AccountMove(models.Model):
         # Drop all non-numeric characters
         invoice_number = self.number2numeric(number)
 
-        # Calculate the Finnish check digit
         check_digit = self.get_finnish_check_digit(invoice_number)
 
         return invoice_number + check_digit
@@ -82,7 +81,6 @@ class AccountMove(models.Model):
         # Calculate the Finnish check digit
         invoice_number += self.get_finnish_check_digit(invoice_number)
 
-        # Calculate the RF check digits
         rf_check_digits = self.get_rf_check_digits(invoice_number)
 
         return "RF" + rf_check_digits + invoice_number
