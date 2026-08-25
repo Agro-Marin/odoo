@@ -22,7 +22,7 @@ def validate_qr_iban(qr_iban):
     # Check first if it's a valid IBAN.
     validate_iban(qr_iban)
 
-    # We sanitize first so that _check_qr_iban_range() can extract correct IID from IBAN to validate it.
+    # We sanitize first so that check_qr_iban_range() can extract correct IID from IBAN to validate it.
     sanitized_qr_iban = sanitize_account_number(qr_iban)
 
     if sanitized_qr_iban[:2] not in ["CH", "LI"]:
