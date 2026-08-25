@@ -74,27 +74,47 @@ def inotify_limit_diagnosis(exc: BaseException) -> str:
     )
 
 
-def inotify_watch_paths() -> list[str]:
-    from odoo.tools import config
-
-    roots = list(odoo.addons.__path__)
-    if "reload" in config["dev_mode"]:
-        return roots
-    paths = []
-    for root in roots:
-        root_path = Path(root)
-        if not root_path.is_dir():
-            continue
-        for addon in sorted(root_path.iterdir()):
-            for kind in ("src", "tests"):
-                tree = addon / "static" / kind
-                if tree.is_dir():
-                    paths.append(str(tree))
-    return paths
-
-
 class FSWatcherBase:
     _reload_triggered = False
+
+    @staticmethod
+    def watch_paths() -> list[str]:
+        """Directories to watch, for BOTH backends.
+
+        This belongs to the base class because the answer must not depend on
+        which optional library happens to be installed.  It used to: the inotify
+        backend narrowed the tree in assets-only mode while the watchdog backend
+        always scheduled the addons roots recursively, so the same
+        ``--dev=assets`` run watched a different set of files on two machines
+        that differed only in whether ``inotify`` was importable.
+
+        With ``reload`` in ``dev_mode`` the whole addons tree is in scope --
+        Python sources can be anywhere in it.  Otherwise only assets can trigger
+        anything, and ``handle_file`` acts on a path exactly when it has an asset
+        suffix and ``/static/`` in it, so each addon's ``static/`` tree is both
+        the necessary and the sufficient scope.
+
+        Watching ``static/`` whole, rather than enumerating ``static/src`` and
+        ``static/tests``, also closes a gap the narrower list had: everything
+        under ``static/lib`` is bundled and was watched by watchdog but not by
+        inotify, so editing a vendored library invalidated the bundles on one
+        backend and did nothing on the other.
+        """
+        from odoo.tools import config
+
+        roots = list(odoo.addons.__path__)
+        if "reload" in config["dev_mode"]:
+            return roots
+        paths = []
+        for root in roots:
+            root_path = Path(root)
+            if not root_path.is_dir():
+                continue
+            for addon in sorted(root_path.iterdir()):
+                tree = addon / "static"
+                if tree.is_dir():
+                    paths.append(str(tree))
+        return paths
 
     def handle_asset_file(self, path: str) -> None:
         from odoo import db as odoo_db
@@ -155,7 +175,7 @@ class FSWatcherBase:
 class FSWatcherWatchdog(FSWatcherBase):
     def __init__(self) -> None:
         self.observer = Observer()
-        paths = list(odoo.addons.__path__)
+        paths = self.watch_paths()
         _logger.info("Watching %d folder(s) for changes", len(paths))
         for path in paths:
             self.observer.schedule(self, path, recursive=True)
@@ -207,7 +227,7 @@ class FSWatcherInotify(FSWatcherBase):
         self._burst_active = False
         self.thread: threading.Thread | None = None
         inotify.adapters._LOGGER.setLevel(logging.ERROR)
-        paths = inotify_watch_paths()
+        paths = self.watch_paths()
         _logger.info("Watching %d folder(s) for changes", len(paths))
         self._build_watcher(paths)
 
