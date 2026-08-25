@@ -61,11 +61,10 @@
 @web/core/file_upload  odoo enterprise agromarin
 @web/core/formatters  odoo enterprise
 @web/core/hotkeys/hotkey_hook  odoo enterprise
-@web/core/l10n/dates  odoo enterprise agromarin
+@web/core/l10n/dates  odoo enterprise
 @web/core/l10n/localization  odoo enterprise
 @web/core/l10n/luxon  odoo enterprise agromarin
 @web/core/l10n/time  enterprise
-@web/core/l10n/translation  design-themes
 @web/core/l10n/utils  odoo enterprise
 @web/core/lib/chartjs  odoo enterprise agromarin
 @web/core/lib/fullcalendar  enterprise
@@ -76,10 +75,10 @@
 @web/core/parsers  odoo enterprise
 @web/core/position/position_hook  odoo
 @web/core/py_js/py  odoo enterprise agromarin
-@web/core/registry  odoo enterprise agromarin design-themes
+@web/core/registry  odoo enterprise agromarin
 @web/core/templates  odoo enterprise agromarin
 @web/core/transition  odoo enterprise
-@web/core/translation  odoo enterprise agromarin
+@web/core/translation  odoo enterprise agromarin design-themes
 @web/core/tree  odoo enterprise agromarin
 @web/core/user  odoo enterprise agromarin
 @web/core/utils/asset_log  odoo
@@ -171,8 +170,6 @@
 @web/fields/temporal/remaining_days/remaining_days_field  odoo enterprise
 @web/fields/translation_button  odoo
 @web/fields/translation_dialog  enterprise
-@web/legacy/js/core/dom  design-themes
-@web/legacy/js/public/public_widget  design-themes
 @web/libs/bootstrap  odoo enterprise
 @web/model/model  odoo enterprise agromarin
 @web/model/record  odoo enterprise
@@ -217,7 +214,7 @@
 @web/views/field_arch  odoo agromarin
 @web/views/form  odoo enterprise
 @web/views/graph  odoo enterprise
-@web/views/kanban  odoo enterprise agromarin
+@web/views/kanban  odoo enterprise
 @web/views/list  odoo enterprise
 @web/views/pivot  odoo enterprise
 @web/views/settings/fields/upgrade_dialog  odoo

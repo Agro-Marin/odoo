@@ -75,6 +75,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import _consumer_scopes
 from _repo_root import find_odoo_root
 
 ADR = "0022"
@@ -85,12 +86,7 @@ VIEWS = WEB_SRC / "views"
 CONTRACT = VIEWS / "arch_info.js"
 ANALYZER = Path(__file__).resolve().parent / "js_arch_info.mjs"
 
-CONSUMER_ROOTS = (
-    ("odoo", ROOT),
-    ("enterprise", ROOT.parent / "enterprise"),
-    ("agromarin", ROOT.parent / "agromarin"),
-    ("design-themes", ROOT.parent / "design-themes"),
-)
+CONSUMER_ROOTS = _consumer_scopes.CONSUMER_ROOTS
 
 CROSS_VIEW_READS = {
     "form": {

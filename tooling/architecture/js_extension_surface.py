@@ -140,6 +140,7 @@ from pathlib import Path
 from js_imports import strip_comments
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import _consumer_scopes
 import doc_measured
 from _repo_root import find_odoo_root
 
@@ -149,12 +150,7 @@ ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_extension_surface")
 WEB = ROOT / "addons" / "web"
 PINNED = Path(__file__).resolve().parent / "extension_surface_web.txt"
 
-CONSUMER_ROOTS = (
-    ("odoo", ROOT),
-    ("enterprise", ROOT.parent / "enterprise"),
-    ("agromarin", ROOT.parent / "agromarin"),
-    ("design-themes", ROOT.parent / "design-themes"),
-)
+CONSUMER_ROOTS = _consumer_scopes.CONSUMER_ROOTS
 
 REPO_ROOTS = CONSUMER_ROOTS[:1]
 
@@ -749,7 +745,7 @@ def main(argv: list[str] | None = None) -> int:
     print("=" * 64)
     print(f"consumer scopes present: {', '.join(present)}")
     if absent:
-        print(f"  absent, validated in their own CI: {', '.join(absent)}")
+        print(_consumer_scopes.absent_scopes_line("js_extension_surface", absent))
     print(
         f"measured {len(detailed)} override point(s) over {sum(totals.values())} site(s)"
     )

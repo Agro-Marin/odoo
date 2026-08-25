@@ -78,6 +78,7 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import _consumer_scopes
 from _repo_root import find_odoo_root
 
 ADR = "0022"
@@ -87,12 +88,7 @@ WEB = ROOT / "addons" / "web"
 CONTRACT = WEB / "static" / "src" / "views" / "view_config.js"
 PINNED = Path(__file__).resolve().parent / "env_config_surface_web.txt"
 
-CONSUMER_ROOTS = (
-    ("odoo", ROOT),
-    ("enterprise", ROOT.parent / "enterprise"),
-    ("agromarin", ROOT.parent / "agromarin"),
-    ("design-themes", ROOT.parent / "design-themes"),
-)
+CONSUMER_ROOTS = _consumer_scopes.CONSUMER_ROOTS
 
 UNANALYSABLE_BUDGET = 0
 

@@ -1,15 +1,14 @@
-# The `@mail/*` specifiers imported from outside the mail addon:
-# mail's public surface, as it is rather than as anyone designed it.
-# Each
-# entry names the consumer checkout(s) importing it — its provenance —
-# and the gate judges only the scopes present in the environment, so
-# a repo-alone CI checkout validates the `odoo` scope and the sibling
+# The `@mail/*` specifiers imported from outside the mail addon: mail's
+# public surface, as it is rather than as anyone designed it. Each entry
+# names the consumer checkout(s) importing it — its provenance — and the
+# gate judges only the scopes present in the environment, so a
+# repo-alone CI checkout validates the `odoo` scope and the sibling
 # repos' workflows validate theirs.
 #
-# Shrink-only, per scope. A specifier pinned for a scope that no
-# longer imports it fails the gate until the entry is shrunk, so
-# giving up surface is recorded; one imported from a scope it is not
-# pinned for fails as new exposure there.
+# Shrink-only, per scope. A specifier pinned for a scope that no longer
+# imports it fails the gate until the entry is shrunk, so giving up
+# surface is recorded; one imported from a scope it is not pinned for
+# fails as new exposure there.
 #
 # Every entry is deliberately unclassified beyond provenance — see the
 # module docstring on why most of this surface has no defensible tier
@@ -18,7 +17,7 @@
 @mail/chatter/web/web_chatter  odoo enterprise
 @mail/chatter/web_portal/chatter  odoo
 @mail/core/common/action_panel  odoo
-@mail/core/common/activity_model  odoo enterprise agromarin
+@mail/core/common/activity_model  odoo enterprise
 @mail/core/common/attachment_list  odoo enterprise
 @mail/core/common/attachment_model  odoo enterprise
 @mail/core/common/attachment_upload_service  odoo
@@ -42,7 +41,7 @@
 @mail/core/common/notification_model  odoo
 @mail/core/common/partner_compare  odoo
 @mail/core/common/plugin/plugin_sets  enterprise
-@mail/core/common/record  odoo enterprise agromarin
+@mail/core/common/record  odoo enterprise
 @mail/core/common/relative_time  enterprise
 @mail/core/common/res_partner_model  odoo enterprise
 @mail/core/common/res_users_model  odoo
@@ -61,9 +60,9 @@
 @mail/core/public_web/messaging_menu  odoo enterprise
 @mail/core/public_web/notification_item  odoo
 @mail/core/public_web/store_service_patch  odoo
-@mail/core/web/activity  odoo enterprise agromarin
+@mail/core/web/activity  odoo enterprise
 @mail/core/web/activity_button  odoo
-@mail/core/web/activity_list_popover_item  odoo enterprise agromarin
+@mail/core/web/activity_list_popover_item  odoo enterprise
 @mail/core/web/activity_menu  odoo enterprise
 @mail/core/web/follower  odoo
 @mail/core/web/message_patch  enterprise

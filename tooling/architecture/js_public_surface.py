@@ -7,6 +7,7 @@ from pathlib import Path
 from js_imports import imported_specifiers
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import _consumer_scopes
 from _repo_root import find_odoo_root
 
 ADR = "0020"
@@ -35,12 +36,7 @@ def specifier_prefix(addon: str = DEFAULT_ADDON) -> str:
 
 PINNED = Path(__file__).resolve().parent / f"public_surface_{DEFAULT_ADDON}.txt"
 
-CONSUMER_ROOTS = (
-    ("odoo", ROOT),
-    ("enterprise", ROOT.parent / "enterprise"),
-    ("agromarin", ROOT.parent / "agromarin"),
-    ("design-themes", ROOT.parent / "design-themes"),
-)
+CONSUMER_ROOTS = _consumer_scopes.CONSUMER_ROOTS
 # Imported by design-themes files that no bundle loads. This fork dropped
 # `@web/legacy/*` outright and moved translation out of `core/l10n/`, but
 # design-themes is vendored from upstream, where both still exist. The three
@@ -316,7 +312,7 @@ def main(argv: list[str] | None = None) -> int:
     print("=" * 64)
     print(f"consumer scopes present: {', '.join(present)}")
     if absent:
-        print(f"  absent, validated in their own CI: {', '.join(absent)}")
+        print(_consumer_scopes.absent_scopes_line("js_public_surface", absent))
     print(f"measured {len(measured)} specifier(s) imported from outside {addon}")
     deep = sum(1 for s in measured if s.count("/") >= 3)
     test_only = sum(1 for prod, test in by_scope.values() if prod == 0 and test)

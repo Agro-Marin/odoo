@@ -75,6 +75,7 @@ class TestCheckoutShape:
 
 class TestEveryToolAgrees:
     ROOT_ATTRS = {
+        ("architecture", "_consumer_scopes"): "ROOT",
         ("architecture", "doc_restated_counts"): "ROOT",
         ("architecture", "layer_check"): "ROOT",
         ("architecture", "js_layer_check"): "ROOT",

@@ -85,6 +85,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import _consumer_scopes
 import doc_measured
 from _repo_root import find_odoo_root
 
@@ -101,12 +102,7 @@ ANALYZER = Path(__file__).resolve().parent / "js_field_record.mjs"
 RECORD_CLASS = "RelationalRecord"
 RECORD_SOURCE = WEB_SRC / "model" / "relational_model" / "record.js"
 
-CONSUMER_ROOTS = (
-    ("odoo", ROOT),
-    ("enterprise", ROOT.parent / "enterprise"),
-    ("agromarin", ROOT.parent / "agromarin"),
-    ("design-themes", ROOT.parent / "design-themes"),
-)
+CONSUMER_ROOTS = _consumer_scopes.CONSUMER_ROOTS
 
 _ARRAY = r"export const {name} = \[(.*?)\];"
 

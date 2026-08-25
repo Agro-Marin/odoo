@@ -355,7 +355,7 @@ MultiRecordController.hasSelectedRecords  odoo
 MultiRecordController.modelOptions  odoo enterprise
 MultiRecordController.onDeleteSelectedRecords  odoo enterprise
 MultiRecordController.onSelectionChanged  enterprise
-MultiRecordController.setup  odoo enterprise agromarin
+MultiRecordController.setup  odoo enterprise
 MultiSelectionButtons.getMultiCreatePopoverProps  odoo
 MultiSelectionButtons.loadMultiCreateView  odoo
 MultiSelectionButtons.setup  odoo

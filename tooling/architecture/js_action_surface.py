@@ -66,6 +66,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import _consumer_scopes
 from _repo_root import find_odoo_root
 
 ADR = "0022"
@@ -76,12 +77,7 @@ CONTRACT = ROOT / "addons/web/static/src/webclient/actions/action_service_contra
 
 ACTIONS_SUBTREE = "addons/web/static/src/webclient/actions/"
 
-CONSUMER_ROOTS = (
-    ("odoo", ROOT),
-    ("enterprise", ROOT.parent / "enterprise"),
-    ("agromarin", ROOT.parent / "agromarin"),
-    ("design-themes", ROOT.parent / "design-themes"),
-)
+CONSUMER_ROOTS = _consumer_scopes.CONSUMER_ROOTS
 
 EXCLUDED_PARTS = frozenset({"node_modules", "lib", "__pycache__"})
 
