@@ -16,14 +16,16 @@ logger = logging.getLogger(__name__)
 
 #: Annotations naming a recordset. `/json/2` serialises one as its ids, so the
 #: documented return type is what the caller receives, not what Python returns.
-RPC_RECORDSET_ANNOTATIONS = frozenset({
-    "Self",
-    "typing.Self",
-    "BaseModel",
-    "Model",
-    "models.BaseModel",
-    "models.Model",
-})
+RPC_RECORDSET_ANNOTATIONS = frozenset(
+    {
+        "Self",
+        "typing.Self",
+        "BaseModel",
+        "Model",
+        "models.BaseModel",
+        "models.Model",
+    }
+)
 
 
 def normalize_rpc_return(annotation):
@@ -45,7 +47,7 @@ def is_public_method(model, name):
     """
     try:
         method = get_public_method(model, name)
-    except (AttributeError, AccessError):
+    except AttributeError, AccessError:
         return False
     return not hasattr(method, "__deprecated__")
 
@@ -125,7 +127,10 @@ def describe_method(model, method_name):
         # parse_signature's annotation_format.
         logger.warning(
             "api_doc: could not reflect %s.%s (%s): %s",
-            model._name, method_name, type(exc).__name__, exc,
+            model._name,
+            method_name,
+            type(exc).__name__,
+            exc,
         )
         described = {
             "signature": "(...)",
