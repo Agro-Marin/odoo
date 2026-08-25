@@ -24,4 +24,4 @@ class TestImportVendorBill(AccountTestInvoicingCommon):
         self.assertEqual(
             self.partner_a,
             retrieve_partner("CHE-107.787.577 IVA", "CHE-107.787.577 IVA"),
-        )  # note that base_vat forces the space
+        )  # base_vat forces the space
