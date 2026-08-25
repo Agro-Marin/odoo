@@ -1,0 +1,4 @@
+{
+  "count": 32,
+  "note": "Carried over unchanged from the Python literal. This gate reads the INSTALLED REGISTRY, so its count is a function of what is installed: at CI scope it measures 1, on a fuller install 32. That is why it is the one gate here invoked `exact=False` -- a lower reading is not an improvement to bank, it is a smaller install. Do not floor it at a CI-scope reading."
+}

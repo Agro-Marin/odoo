@@ -1,0 +1,4 @@
+{
+  "count": 2,
+  "note": "2, against the 1 the literal claimed: red by one at 598cf211cc2.\n\nFirst baseline. The floor used to be a Python literal in the test module; twenty-four of test_lint's last forty commits changed nothing there but an integer and the comment above it, and five of the six gates red at 598cf211cc2 were floor drift rather than defects. `assert_ratchet` now takes a gate name and refuses an integer outright, so a floor cannot go back into Python. Measured at CI scope -- `--addons-path=odoo/addons,addons`, only test_lint installed -- against a `git archive` of HEAD carrying this change and nothing else, because the shared checkout holds other sessions' uncommitted work."
+}

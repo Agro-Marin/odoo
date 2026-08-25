@@ -3,17 +3,28 @@ from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
-CURSOR_EXPRESSIONS = frozenset(
-    {
-        "self.env.cr",
-        "self.cr",
-        "self._cr",
-        "cr",
-        "env.cr",
-        "odoo.tools",
-        "tools",
-    }
-)
+#: Receivers whose `.execute()` is a database call. Spelled as a shape rather
+#: than as a list of seven exact strings: the list missed `request.env.cr` (9
+#: call sites), `model.env.cr` (7), a bare `cursor` (5) and every
+#: `with ... as cron_cr:`, which is an ordinary controller and cron idiom. It
+#: costs nothing today -- widening the rule adds 0 findings, and treating EVERY
+#: receiver as a cursor adds only 4 -- so this closes a latent hole, not an open
+#: one.
+_CURSOR_SUFFIXES = (".cr", "._cr", "_cr")
+_CURSOR_NAMES = frozenset({"cr", "_cr", "cursor"})
+#: `tools.SQL(...)` / `odoo.tools.SQL(...)` are not cursors but build the same
+#: strings, and are checked by the same rule.
+_SQL_BUILDERS = frozenset({"odoo.tools", "tools"})
+
+
+def is_cursor_expression(name: str) -> bool:
+    return (
+        name in _SQL_BUILDERS
+        or name in _CURSOR_NAMES
+        or name.endswith(_CURSOR_SUFFIXES)
+    )
+
+
 ATTRIBUTE_WHITELIST = ("_table", "name", "lang", "id", "get_lang.code")
 
 FUNCTION_WHITELIST = frozenset(
@@ -108,7 +119,7 @@ class SqlInjectionChecker:
                 "executemany",
                 "SQL",
             ):
-                if self._get_cursor_name(node.func) not in CURSOR_EXPRESSIONS:
+                if not is_cursor_expression(self._get_cursor_name(node.func)):
                     return False
             case ast.Name(id="SQL"):
                 pass

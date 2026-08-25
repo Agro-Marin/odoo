@@ -97,7 +97,17 @@ def _get_call_name(node: ast.Call) -> str:
 
 
 def _get_call_name_if_gettext(node: ast.expr) -> str:
-    """`_("…")` / `_lt("…")` / `self.env._("…")`, or "" for anything else."""
+    """`_("…")` / `_lt("…")` / `self.env._("…")`, or "" for anything else.
+
+    Looks through a `%` or `.format()` applied to the result: the translated
+    string is just as booked into the catalogue when the interpolation happens
+    outside the call, and `raise ValueError(_("…") % x)` was reading as clean.
+    """
+    match node:
+        case ast.Call(func=ast.Attribute(attr="format", value=receiver)):
+            return _get_call_name_if_gettext(receiver)
+        case ast.BinOp(op=ast.Mod(), left=left):
+            return _get_call_name_if_gettext(left)
     if isinstance(node, ast.Call) and _get_call_name(node) in ("_", "_lt"):
         return _get_call_name(node)
     return ""

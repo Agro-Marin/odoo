@@ -42,14 +42,14 @@ class XmlRecordLinter(LintCase):
     def test_xml_record_field_order(self):
         self._assert_clean(
             self.field_order_violations,
-            FIELD_ORDER_FLOOR,
+            "lint_xml_field_order",
             "record field order violation(s)",
         )
 
     def test_xml_element_attrib_order(self):
         self._assert_clean(
             self.attrib_order_violations,
-            ATTRIB_ORDER_FLOOR,
+            "lint_xml_attrib_order",
             "element attribute order violation(s)",
         )
 
@@ -124,7 +124,3 @@ class XmlRecordLinter(LintCase):
                     )
 
         return violations
-
-
-FIELD_ORDER_FLOOR = 789
-ATTRIB_ORDER_FLOOR = 2455

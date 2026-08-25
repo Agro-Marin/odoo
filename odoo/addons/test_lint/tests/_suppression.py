@@ -1,3 +1,10 @@
+"""Reading `# noqa` / `# pylint: disable=` directives out of Python source.
+
+Mechanism only. Which rules exist, what their short codes are and which of them
+refuse to be silenced is policy, and lives in `_rules`; every entry point here
+takes that policy as an argument rather than holding a second copy of it.
+"""
+
 import io
 import re
 import tokenize
@@ -14,22 +21,14 @@ _NOQA_RE = re.compile(
 )
 _PYLINT_DISABLE_RE = re.compile(r"#\s*pylint:\s*disable=([^\n#]+)", re.IGNORECASE)
 
-RULE_ALIASES: dict[str, frozenset[str]] = {
-    "sql-injection": frozenset({"sql-injection", "E8501"}),
-    "gettext-variable": frozenset({"gettext-variable", "E8502"}),
-    "gettext-placeholders": frozenset({"gettext-placeholders", "E8503"}),
-    "gettext-repr": frozenset({"gettext-repr", "E8504"}),
-    "missing-gettext": frozenset({"missing-gettext", "E8505"}),
-    "raise-unlink-override": frozenset({"raise-unlink-override", "E8506"}),
-    "n-plus-one-query": frozenset({"n-plus-one-query", "E8507"}),
-    "orm-import": frozenset({"orm-import", "E8508"}),
-    "onchange-domain": frozenset({"onchange-domain", "E8509"}),
-    "config-chainmap-patch": frozenset({"config-chainmap-patch", "E8510"}),
-    "gettext-developer-error": frozenset({"gettext-developer-error", "E8511"}),
-}
 
+class Untokenisable(Exception):
+    """The file's comments could not be read.
 
-NOQA_RATIONALE_RULE = "noqa-rationale"
+    Raised rather than swallowed: an empty comment map silently disarms every
+    `# noqa` in the file and makes `noqa-rationale` report nothing, which reads
+    exactly like a clean file.
+    """
 
 
 def comment_lines(source: str) -> dict[int, str]:
@@ -38,22 +37,21 @@ def comment_lines(source: str) -> dict[int, str]:
         for token in tokenize.generate_tokens(io.StringIO(source).readline):
             if token.type == tokenize.COMMENT:
                 comments[token.start[0]] = token.string
-    except tokenize.TokenError, IndentationError, SyntaxError, ValueError:
-        return {}
+    except (tokenize.TokenError, IndentationError, SyntaxError, ValueError) as exc:
+        raise Untokenisable(f"{type(exc).__name__}: {exc}") from exc
     return comments
-
-
-def _aliases(rule: str) -> set[str]:
-    return {alias.lower() for alias in RULE_ALIASES.get(rule, frozenset({rule}))}
 
 
 def _split_codes(codes: str) -> set[str]:
     return {code.strip().lower() for code in codes.split(",") if code.strip()}
 
 
-def comment_suppresses(comment: str, rule: str) -> bool:
+def comment_suppresses(comment: str, aliases: frozenset[str]) -> bool:
+    """Does `comment` silence a rule spelled by any of `aliases`?"""
+    lowered = {alias.lower() for alias in aliases}
+
     if match := _PYLINT_DISABLE_RE.search(comment):
-        if _split_codes(match.group(1)) & _aliases(rule):
+        if _split_codes(match.group(1)) & lowered:
             return True
 
     if match := _NOQA_RE.search(comment):
@@ -62,29 +60,39 @@ def comment_suppresses(comment: str, rule: str) -> bool:
         codes = match.group("codes")
         if not codes:
             return False
-        return bool(_split_codes(codes) & _aliases(rule))
+        return bool(_split_codes(codes) & lowered)
 
     return False
 
 
 class Suppressions:
-    __slots__ = ("comments",)
+    """The directives in one file, answered per (line, rule)."""
 
-    def __init__(self, source: str) -> None:
-        self.comments = comment_lines(source)
+    __slots__ = ("aliases", "comments", "unsuppressable")
+
+    def __init__(
+        self,
+        comments: dict[int, str],
+        aliases: dict[str, frozenset[str]],
+        unsuppressable: frozenset[str] = frozenset(),
+    ) -> None:
+        self.comments = comments
+        self.aliases = aliases
+        self.unsuppressable = unsuppressable
 
     @classmethod
-    def from_comments(cls, comments: dict[int, str]) -> Suppressions:
-        instance = cls.__new__(cls)
-        instance.comments = comments
-        return instance
+    def of(
+        cls,
+        source: str,
+        aliases: dict[str, frozenset[str]],
+        unsuppressable: frozenset[str] = frozenset(),
+    ) -> Suppressions:
+        return cls(comment_lines(source), aliases, unsuppressable)
 
     def suppresses(self, lineno: int, rule: str) -> bool:
-        if rule == NOQA_RATIONALE_RULE:
+        if rule in self.unsuppressable:
             return False
         comment = self.comments.get(lineno)
-        return comment is not None and comment_suppresses(comment, rule)
-
-
-def is_suppressed(source: str, lineno: int, rule: str) -> bool:
-    return Suppressions(source).suppresses(lineno, rule)
+        if comment is None:
+            return False
+        return comment_suppresses(comment, self.aliases.get(rule, frozenset({rule})))

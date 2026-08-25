@@ -39,7 +39,7 @@ class TestConflictMarkers(lint_case.LintCase):
 
         self.assert_ratchet(
             sorted(f"{path}:{line}" for path, line, _ in results),
-            0,
+            "lint_conflict_marker",
             "conflict marker(s) left in the tree",
             "Finish the merge.",
         )
@@ -60,7 +60,7 @@ class TestNulBytes(lint_case.LintCase):
 
         self.assert_ratchet(
             sorted(f"{path}:{line}" for path, line, _ in results),
-            0,
+            "lint_nul_byte",
             "source file line(s) holding a raw NUL byte, which makes git treat "
             "the whole file as binary and diff it as such",
             r"Write the escape \0 instead of the byte. It is the same string at "

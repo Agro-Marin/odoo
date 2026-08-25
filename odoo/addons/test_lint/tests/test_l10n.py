@@ -58,7 +58,7 @@ class L10nLinter(lint_case.LintCase):
 
         self.assert_ratchet(
             sorted(f"{path}:{node.lineno}" for path, node in rs),
-            0,
+            "lint_l10n_test_tags",
             "l10n test class(es) without the right post_install_l10n tagging",
             "Tag the class `post_install_l10n` (with `post_install`) or "
             "`external_l10n` (with `external`), never both and never neither.",

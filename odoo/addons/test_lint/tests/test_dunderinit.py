@@ -29,7 +29,7 @@ class TestDunderinit(lint_case.LintCase):
         self.assertTrue(modules_list, "the scan reached no modules at all")
         self.assert_ratchet(
             missing,
-            0,
+            "lint_module_without_init",
             "module(s) without an `__init__.py`",
             "Add one, or the module ships without its Python.",
         )

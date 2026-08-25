@@ -95,26 +95,83 @@ def core_module_roots() -> list[str]:
     return [path for path in _module_roots() if is_core_path(path)]
 
 
+@functools.cache
+def _ratchet():
+    """`tooling/ratchet/ratchet.py`, loaded off the checkout beside us.
+
+    Imported by path rather than by name: `tooling/` is not a package on
+    `sys.path` under `odoo-bin`, and putting it there for one import would put
+    every other tooling module there too.
+    """
+    import importlib.util
+    import sys
+
+    name = "_test_lint_ratchet"
+    path = Path(core_root()) / "tooling" / "ratchet" / "ratchet.py"
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:  # pragma: no cover - unreachable in-tree
+        raise RuntimeError(f"cannot load the ratchet from {path}")
+    module = importlib.util.module_from_spec(spec)
+    # Registered before execution: `ratchet.py` carries `from __future__ import
+    # annotations` and a dataclass whose field annotations name the class itself,
+    # and `dataclasses` resolves those through `sys.modules[cls.__module__]`.
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        del sys.modules[name]
+        raise
+    return module
+
+
+def baseline_floor(gate: str) -> int:
+    """The committed floor for `gate`, or 0 when no baseline names it.
+
+    Absence means zero on purpose. A gate nobody has had to grant debt to is a
+    gate at zero, and promoting one costs an explicit
+    `ratchet.py <gate> --count N --update --note '…'`, which shows up in review.
+    `ratchet.py --list` is then the whole of this module's debt, in one place.
+    """
+    baseline = _ratchet().Baseline.load(gate)
+    return baseline.count if baseline else 0
+
+
 @no_retry
 class LintCase(BaseCase):
     _module_roots = staticmethod(_module_roots)
     iter_module_files = staticmethod(iter_module_files)
 
     def assert_ratchet(
-        self, findings, floor: int, what: str, fix: str, *, exact: bool = True
+        self, findings, gate: str, what: str, fix: str, *, exact: bool = True
     ) -> None:
+        """Hold `findings` at the floor committed for `gate`.
+
+        `gate` is a ratchet baseline name, never a number. A floor written into
+        Python is a number that drifts silently against a tree nobody
+        re-measures, and this module spent twenty-four of its last forty commits
+        proving it: they changed nothing here but an integer and the comment
+        above it.
+        """
+        if not isinstance(gate, str):
+            raise TypeError(
+                f"assert_ratchet takes a ratchet gate name, not {gate!r}. A floor "
+                f"belongs in tooling/ratchet/baselines/, where `ratchet.py --list` "
+                f"can see it and `--update --note` can move it."
+            )
+        floor = baseline_floor(gate)
         found = list(findings)
         if len(found) > floor:
             self.fail(
-                f"{len(found)} {what}, floor is {floor}. {fix}\n"
+                f"{len(found)} {what}, floor is {floor} ({gate}). {fix}\n"
                 + "\n".join(f"  {item}" for item in sorted(map(str, found))[:200])
                 + (f"\n  ... and {len(found) - 200} more" if len(found) > 200 else "")
             )
         if exact and len(found) < floor:
             self.fail(
-                f"{len(found)} {what} but the committed floor is {floor}. The "
-                f"debt went down -- lower the floor to {len(found)} in this same "
-                f"change, so it cannot come back unnoticed."
+                f"{len(found)} {what} but the committed floor is {floor}. The debt "
+                f"went down -- bank it in this same change:\n"
+                f"    python tooling/ratchet/ratchet.py {gate} --count {len(found)} "
+                f"--update --note '<what moved and why>'"
             )
 
     @staticmethod

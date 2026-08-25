@@ -1,64 +1,16 @@
+"""Unit tests for the `unique-over-translated-column` checker.
+
+The whole-tree half of this gate is a `_rules.CHECKERS` entry now: it rode its
+own serial `ast.parse` of all 9390 core Python files, next to the parallel scan
+that had already parsed every one of them.
+"""
+
 import ast
-import logging
-from pathlib import Path
 from textwrap import dedent
 
 from odoo.tests.common import BaseCase, no_retry
 
 from . import _checker_translated_unique as checker
-from . import _py_scan, lint_case
-
-_logger = logging.getLogger(__name__)
-
-FIX = (
-    "A translated column is jsonb, so UNIQUE over it compares whole translation "
-    "documents and stops matching as soon as one row carries a language the "
-    "other does not. Declare name_uniq_index(...) from "
-    "odoo/addons/base/models/catalog_mixin.py instead -- it indexes the source "
-    "term. Pass nulls_distinct=True when converting an existing constraint, so "
-    "only the comparison changes."
-)
-
-
-class TestTranslatedUnique(lint_case.LintCase):
-    def test_no_unique_over_a_translated_column(self):
-        paths = [
-            path
-            for path in lint_case.module_file_paths()
-            if path.endswith(".py")
-            and lint_case.is_core_path(path)
-            and "__pycache__" not in path
-        ]
-        units = []
-        models = 0
-        rules = 0
-        for path in paths:
-            try:
-                tree = ast.parse(Path(path).read_bytes(), path)
-            except OSError, SyntaxError, ValueError:
-                continue
-            infos = checker.collect(tree)
-            if not infos:
-                continue
-            models += len(infos)
-            rules += sum(len(info.rules) for info in infos)
-            units.append((path, infos))
-
-        _logger.info(
-            "%s model classes across %s files, %s uniqueness rules considered",
-            models,
-            len(units),
-            rules,
-        )
-        self.assertGreater(models, 1000, "the scan reached almost no models")
-        self.assertGreater(rules, 100, "the scan found almost no constraints")
-
-        found = [
-            violation
-            for violation in checker.violations(units)
-            if not _py_scan.is_test_path(violation.path)
-        ]
-        self.assert_ratchet(found, 0, "UNIQUE rule(s) over a translated column", FIX)
 
 
 @no_retry

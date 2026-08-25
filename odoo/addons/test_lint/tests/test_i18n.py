@@ -108,7 +108,7 @@ class TestI18n(lint_case.LintCase):
         self.assertTrue(checked, "the scan reached no component templates at all")
         self.assert_ratchet(
             offenders,
-            0,
+            "lint_untranslatable_prop",
             "component prop(s) carrying untranslatable human-readable text",
             "Add the `.translate` suffix. If this is a false positive, please "
             "contact the i18n team.",

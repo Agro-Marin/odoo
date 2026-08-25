@@ -100,7 +100,7 @@ class TestJsTranslations(lint_case.LintCase):
 
         self.assert_ratchet(
             offenders,
-            0,
+            "lint_js_translation_call",
             "invalid translation call(s) in JS",
             "Use _t with a plain string; a template string cannot be extracted.",
         )

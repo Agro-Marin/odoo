@@ -60,7 +60,7 @@ class TestColorSchemeReads(lint_case.LintCase):
 
         self.assert_ratchet(
             offenders,
-            0,
+            "lint_color_scheme_cookie",
             "direct use(s) of the color_scheme cookie",
             "Read it through `colorScheme` from @web/core/color_scheme "
             "(`colorScheme.isDark`, `colorScheme.current`); to change it, save "

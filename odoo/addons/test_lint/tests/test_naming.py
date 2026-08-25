@@ -43,7 +43,7 @@ class TestNaming(LintCase):
         self.assertGreater(checked, 100, "the scan reached almost no public methods")
         self.assert_ratchet(
             offenders,
-            0,
+            "lint_rpc_reserved_parameter",
             "public method(s) taking an RPC-reserved parameter name",
             "Rename it: `ids` and `context` are consumed by the RPC layer "
             "before the method ever sees them.",

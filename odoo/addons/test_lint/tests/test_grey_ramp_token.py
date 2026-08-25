@@ -51,7 +51,7 @@ class TestGreyRampToken(lint_case.LintCase):
 
         self.assert_ratchet(
             offenders,
-            0,
+            "lint_bootstrap_grey_ramp",
             "reference(s) to Bootstrap's grey ramp",
             "It is wired to this palette in the backend bundles only, so this "
             "renders differently on the frontend. Use `--o-gray-*`.",

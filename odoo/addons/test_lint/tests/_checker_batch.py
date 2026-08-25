@@ -2,11 +2,25 @@ import ast
 from collections.abc import Iterator
 from dataclasses import dataclass
 
+# Judged against the tree, not guessed. `search_read` and `name_search` add 12
+# findings and lose none, and every one of the twelve is a `for x in <records>:`
+# with a query inside. What is deliberately NOT here:
+#
+#   read          42 findings, dominated by `file.read()` and `self.device.read()`
+#   read_group    0 -- the method is `_read_group` in 19.0
+#   _search       15, mostly loops over a handful of domains rather than records
+#
+# The loop set is `for`/`async for` for the same reason: treating `while` as a
+# loop adds 13 findings, and all of them are worklist or paging loops issuing one
+# BATCHED query per iteration (`Lot.search(name in candidates)`), not one per
+# record. Comprehensions add 4, every one a short-circuiting `any(...)`.
 _QUERY_METHODS = frozenset(
     {
         "search",
         "search_count",
         "search_fetch",
+        "search_read",
+        "name_search",
         "_read_group",
     }
 )

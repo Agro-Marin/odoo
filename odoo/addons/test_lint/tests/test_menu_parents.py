@@ -66,7 +66,7 @@ class TestMenuParents(lint_case.LintCase):
         )
         self.assert_ratchet(
             sorted(missing),
-            MISSING_PARENT_FLOOR,
+            "lint_menu_parent",
             "menuitem parent(s) naming a menu no data file defines",
             "Repoint it at a menu that exists: loading the file raises "
             "`External ID not found in the system` and fails the whole install.",
@@ -79,6 +79,3 @@ class TestMenuParents(lint_case.LintCase):
             self.defined,
             "the menu the l10n configuration entries hang off is missing",
         )
-
-
-MISSING_PARENT_FLOOR = 0

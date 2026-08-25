@@ -1,0 +1,4 @@
+{
+  "count": 2454,
+  "note": "base/views audit: dropping domain=\"[]\" from 362 group-by-only filters and normalising 66 optional=\"hidden\" values took one element into canonical attribute order. 2455 -> 2454."
+}

@@ -51,14 +51,14 @@ class ManifestLinter(LintCase):
 
         self.assert_ratchet(
             self.advisories,
-            0,
+            "lint_manifest_value",
             "manifest value(s) of the wrong type, or an icon/countries entry "
             "that does not hold up",
             "Correct the value, or drop the key.",
         )
         self.assert_ratchet(
             violations,
-            MANIFEST_FLOOR,
+            "lint_manifest_shape",
             "manifest(s) with unknown keys, non-canonical key order or "
             "redundant default values",
             "Run `_sort_manifests.py` from the repository root, then lower the floor.",
@@ -158,6 +158,3 @@ class ManifestLinter(LintCase):
                 self.advisories.append(
                     f"{module}: {value!r} in `countries` is not a two-letter code"
                 )
-
-
-MANIFEST_FLOOR = 623

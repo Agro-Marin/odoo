@@ -44,7 +44,7 @@ class PotLinter(lint_case.LintCase):
         self.assertTrue(checked, "the scan reached no .pot files at all")
         self.assert_ratchet(
             offenders,
-            0,
+            "lint_pot_duplicate_entry",
             "duplicate entry/entries in a .pot file",
             "Regenerate the .pot, or drop the repeated term.",
         )

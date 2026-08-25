@@ -122,9 +122,6 @@ def extract_docstring_params(doctree):
     return list(params), types, rtype
 
 
-DOCSTRING_FLOOR = 32
-
-
 @tagged("-at_install", "post_install")
 class TestDocstring(LintCase):
     @classmethod
@@ -211,7 +208,7 @@ class TestDocstring(LintCase):
         self.assertGreater(visited, 1000, "the scan reached almost no methods")
         self.assert_ratchet(
             offenders,
-            DOCSTRING_FLOOR,
+            "lint_docstring",
             "docstring(s) disagreeing with the signature they document",
             "Correct the docstring (or the annotation), then lower the floor.",
             exact=False,

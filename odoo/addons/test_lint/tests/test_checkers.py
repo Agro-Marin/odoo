@@ -16,15 +16,23 @@ from . import (
     _checker_unlink,
     _pretty_xml,
     _py_scan,
+    _rules,
     _suppression,
     lint_case,
 )
 
 
+def is_suppressed(source: str, lineno: int, rule: str) -> bool:
+    """`_suppression` holds no policy; this wires the real registry into it."""
+    return _suppression.Suppressions.of(
+        source, _rules.ALIASES, _rules.UNSUPPRESSABLE
+    ).suppresses(lineno, rule)
+
+
 @no_retry
 class TestSuppression(BaseCase):
     def test_bare_noqa_suppresses_everything(self):
-        self.assertTrue(_suppression.is_suppressed("x  # noqa", 1, "sql-injection"))
+        self.assertTrue(is_suppressed("x  # noqa", 1, "sql-injection"))
 
     def test_rationale_does_not_cancel_the_suppression(self):
         for line in (
@@ -34,13 +42,13 @@ class TestSuppression(BaseCase):
         ):
             with self.subTest(line=line):
                 self.assertTrue(
-                    _suppression.is_suppressed(line, 1, "sql-injection"),
+                    is_suppressed(line, 1, "sql-injection"),
                     "explaining a suppression must not undo it",
                 )
 
     def test_codes_scope_the_suppression(self):
         self.assertFalse(
-            _suppression.is_suppressed("x  # noqa: F401  unused", 1, "sql-injection"),
+            is_suppressed("x  # noqa: F401  unused", 1, "sql-injection"),
             "an unrelated code must not silence this rule",
         )
 
@@ -48,7 +56,7 @@ class TestSuppression(BaseCase):
         for code in ("E8507", "e8507", "n-plus-one-query"):
             with self.subTest(code=code):
                 self.assertTrue(
-                    _suppression.is_suppressed(
+                    is_suppressed(
                         f"x  # noqa: {code}  hoisting needs a schema change",
                         1,
                         "n-plus-one-query",
@@ -57,25 +65,21 @@ class TestSuppression(BaseCase):
 
     def test_a_rule_named_in_full_scopes_the_suppression_too(self):
         line = "x  # noqa: sql-injection  the table name comes from _table"
-        self.assertTrue(_suppression.is_suppressed(line, 1, "sql-injection"))
+        self.assertTrue(is_suppressed(line, 1, "sql-injection"))
         self.assertFalse(
-            _suppression.is_suppressed(line, 1, "n-plus-one-query"),
+            is_suppressed(line, 1, "n-plus-one-query"),
             "naming one rule must not waive the others on the line",
         )
 
     def test_an_unparseable_code_list_silences_nothing(self):
-        self.assertFalse(
-            _suppression.is_suppressed("x  # noqa: !!!  see above", 1, "sql-injection")
-        )
+        self.assertFalse(is_suppressed("x  # noqa: !!!  see above", 1, "sql-injection"))
 
     def test_case_does_not_decide_whether_a_suppression_works(self):
         line = "x  # NOQA: E8501  the table name comes from _table"
-        self.assertTrue(_suppression.is_suppressed(line, 1, "sql-injection"))
+        self.assertTrue(is_suppressed(line, 1, "sql-injection"))
         self.assertFalse(_violations(line))
         self.assertTrue(
-            _suppression.is_suppressed(
-                "x  # PYLINT: disable=sql-injection", 1, "sql-injection"
-            )
+            is_suppressed("x  # PYLINT: disable=sql-injection", 1, "sql-injection")
         )
 
     def test_a_directive_only_counts_where_python_sees_a_comment(self):
@@ -86,7 +90,7 @@ class TestSuppression(BaseCase):
         ):
             with self.subTest(source=source):
                 self.assertFalse(
-                    _suppression.is_suppressed(source, 1, "sql-injection"),
+                    is_suppressed(source, 1, "sql-injection"),
                     "a directive inside a string literal is not a directive",
                 )
 
@@ -94,16 +98,14 @@ class TestSuppression(BaseCase):
         for line in ("x  # noqawhatever", "x  # noqa-ish", "x  # NOQA_TODO"):
             with self.subTest(line=line):
                 self.assertFalse(
-                    _suppression.is_suppressed(line, 1, "sql-injection"),
+                    is_suppressed(line, 1, "sql-injection"),
                     "a word merely starting with noqa is not a bare suppression",
                 )
-        self.assertTrue(_suppression.is_suppressed("x  # noqa", 1, "sql-injection"))
+        self.assertTrue(is_suppressed("x  # noqa", 1, "sql-injection"))
 
     def test_a_directive_after_another_comment_still_counts(self):
         self.assertTrue(
-            _suppression.is_suppressed(
-                "x  # type: ignore  # noqa: E8501", 1, "sql-injection"
-            )
+            is_suppressed("x  # type: ignore  # noqa: E8501", 1, "sql-injection")
         )
 
 
@@ -139,7 +141,7 @@ class TestNoqaRationale(BaseCase):
         for line in ("x  # noqa: E8501", "x  # noqa: sql-injection", "x  # noqa"):
             with self.subTest(line=line):
                 self.assertTrue(
-                    _suppression.is_suppressed(line, 1, "sql-injection"),
+                    is_suppressed(line, 1, "sql-injection"),
                     "this line silences the rule",
                 )
                 self.assertTrue(
@@ -149,15 +151,11 @@ class TestNoqaRationale(BaseCase):
 
     def test_pylint_disable_is_still_honoured(self):
         self.assertTrue(
-            _suppression.is_suppressed(
-                "x  # pylint: disable=sql-injection", 1, "sql-injection"
-            )
+            is_suppressed("x  # pylint: disable=sql-injection", 1, "sql-injection")
         )
 
     def test_the_rationale_rule_cannot_silence_itself(self):
-        self.assertFalse(
-            _suppression.is_suppressed("x  # noqa", 1, _suppression.NOQA_RATIONALE_RULE)
-        )
+        self.assertFalse(is_suppressed("x  # noqa", 1, "noqa-rationale"))
 
 
 @no_retry
@@ -842,7 +840,11 @@ class TestSqlLint(BaseCase):
             cr.execute('select %s from thing' % name)
         """
         self.assertTrue(self._check(snippet))
-        scope = next(s for rule, _, s in _py_scan._CHECKERS if rule == "sql-injection")
+        scope = next(
+            checker.applies_to
+            for checker in _py_scan.CHECKERS
+            if checker.rule == "sql-injection"
+        )
         empty = ast.parse("")
         self.assertFalse(
             scope(_py_scan.Unit("a/tests/test_x.py", "", empty, [], True, True))
