@@ -550,7 +550,7 @@ class FleetVehicle(models.Model):
                 record.contract_state = ""
 
     def _get_analytic_name(self):
-        # This function is used in fleet_account and is overrided in l10n_be_hr_payroll_fleet
+        # Overridden in l10n_be_hr_payroll_fleet
         return self.license_plate or _("No plate")
 
     def _search_contract_renewal_due_soon(self, operator, value):
