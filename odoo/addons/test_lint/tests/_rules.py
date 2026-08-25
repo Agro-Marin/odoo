@@ -98,6 +98,28 @@ def statement_spans(nodes: list[ast.AST]) -> dict[int, int]:
     return spans
 
 
+def directive_lines(spans: dict[int, int], lineno: int) -> set[int]:
+    """Every line a directive waiving a finding at `lineno` may be written on.
+
+    Three placements, all of which a developer means and only the first of which
+    used to work:
+
+        self.env.cr.execute(f"S {t}")            # noqa -- on the finding itself
+        self.env.cr.execute(                     # noqa -- opening the statement
+            f"S {t}"
+        )                                        # noqa -- closing it
+
+    The second is not hypothetical: `geoengine/models/geo_domain.py:221` waives
+    `sql-injection` on the opening line of a wrapped `SQL(...)`, the finding is
+    reported against the nested call on 222, and the waiver did nothing at all.
+    """
+    lines = {lineno}
+    for start, end in spans.items():
+        if start <= lineno <= end:
+            lines.update(range(start, end + 1))
+    return lines
+
+
 def walk_with_parents(tree: ast.AST) -> list[ast.AST]:
     nodes: list[ast.AST] = []
     stack: list[ast.AST] = [tree]

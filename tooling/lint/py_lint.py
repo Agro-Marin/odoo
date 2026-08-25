@@ -168,6 +168,11 @@ def scan(roots: list[str]):
         suppresses = suppression.Suppressions(
             comments, rules.ALIASES, rules.UNSUPPRESSABLE
         )
+        # Same statement spans the gate uses, so a directive placed anywhere in
+        # the statement waives here too. Without this the tool and the gate
+        # disagree about what is suppressed, which is the one thing that makes
+        # the tool untrustworthy.
+        spans = rules.statement_spans(unit.nodes)
         for checker in rules.CHECKERS:
             if not checker.applies_to(unit):
                 continue
@@ -177,7 +182,11 @@ def scan(roots: list[str]):
                 continue
             for violation in violations:
                 name = checker.rule or violation.rule
-                if suppresses.suppresses(violation.lineno, name):
+                if suppresses.suppresses(
+                    violation.lineno,
+                    name,
+                    rules.directive_lines(spans, violation.lineno),
+                ):
                     continue
                 findings.append(
                     (name, path, violation.lineno, getattr(violation, "message", ""))

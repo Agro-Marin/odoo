@@ -89,11 +89,12 @@ class Suppressions:
     ) -> Suppressions:
         return cls(comment_lines(source), aliases, unsuppressable)
 
-    def suppresses(self, lineno: int, rule: str, through: int | None = None) -> bool:
+    def suppresses(self, lineno: int, rule: str, lines: set[int] | None = None) -> bool:
         """Is the rule waived for a finding anchored at `lineno`?
 
-        `through` is the last line of the statement that starts there, so a
-        directive written on the closing line of a wrapped call counts:
+        `lines` is every line a directive may be written on for this finding --
+        see `_rules.directive_lines`. It covers the statement the finding sits
+        in, so a directive written where a developer naturally puts one counts:
 
             self.env.cr.execute(
                 f"SELECT {t}"
@@ -108,7 +109,7 @@ class Suppressions:
         if rule in self.unsuppressable:
             return False
         aliases = self.aliases.get(rule, frozenset({rule}))
-        for line in range(lineno, max(through or lineno, lineno) + 1):
+        for line in sorted(lines or {lineno}):
             comment = self.comments.get(line)
             if comment is not None and comment_suppresses(comment, aliases):
                 return True

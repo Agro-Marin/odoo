@@ -21,6 +21,7 @@ from ._rules import (  # re-exported: the vocabulary of a scan
     Finding,
     Source,
     Unit,
+    directive_lines,
     is_test_path,
     statement_spans,
     walk_with_parents,
@@ -39,6 +40,7 @@ __all__ = [
     "Source",
     "Unit",
     "corpus",
+    "directive_lines",
     "findings",
     "is_test_path",
     "report",
@@ -133,7 +135,7 @@ def scan_one(path: str, in_module: bool) -> tuple[list[Row], list]:
         for violation in violations:
             name = checker.rule or violation.rule
             lineno = violation.lineno
-            if suppressions.suppresses(lineno, name, spans.get(lineno)):
+            if suppressions.suppresses(lineno, name, directive_lines(spans, lineno)):
                 continue
             message = (
                 getattr(violation, "message", "")

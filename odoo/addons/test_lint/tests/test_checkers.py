@@ -1369,10 +1369,26 @@ class TestSuppressionSpans(BaseCase):
         return _rules.statement_spans(_rules.walk_with_parents(ast.parse(source)))
 
     def _suppresses(self, source: str, lineno: int, rule: str) -> bool:
-        spans = self._spans(source)
+        lines = _rules.directive_lines(self._spans(source), lineno)
         return _suppression.Suppressions.of(
             source, _rules.ALIASES, _rules.UNSUPPRESSABLE
-        ).suppresses(lineno, rule, spans.get(lineno))
+        ).suppresses(lineno, rule, lines)
+
+    def test_a_directive_opening_a_wrapped_call_reaches_a_finding_inside_it(self):
+        """`geoengine/models/geo_domain.py:221` did exactly this, and it did nothing.
+
+        The waiver is on the line that OPENS a wrapped `SQL(...)`; the finding is
+        reported against the nested call on the line after. Of the three places a
+        developer writes a directive -- on the finding, opening the statement,
+        closing it -- only the first used to work.
+        """
+        source = dedent("""\
+            def f(self, op, column):
+                return SQL(  # pylint: disable=sql-injection
+                    "%s(%s)", SQL(op.value), column
+                )
+            """)
+        self.assertTrue(self._suppresses(source, 3, "sql-injection"))
 
     def test_a_directive_on_the_closing_line_of_a_wrapped_call_counts(self):
         source = dedent("""\
