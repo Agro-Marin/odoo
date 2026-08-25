@@ -17,7 +17,9 @@ the test that leaks rather than the innocent test downstream.  Add a name here
 when a new piece of process-global state joins the suite.
 """
 
+import functools
 import os
+import pathlib
 import random
 import threading
 
@@ -263,3 +265,52 @@ def durable_then_close(env):
     """
     env.cr.commit_count += 1
     env.cr.closed = True
+
+
+# ---------------------------------------------------------------------------
+# Shared source scan for the patch-target gates
+# ---------------------------------------------------------------------------
+
+#: Trees that may patch a core façade. Kept explicit so a new one is a decision.
+_SCANNED_TREES = ("tests/service", "odoo/addons", "addons")
+
+#: Gate modules quote the bad forms as examples, so they must not scan themselves.
+_GATE_MODULES = frozenset({"test_db_patch_targets.py", "test_facade_patch_targets.py"})
+
+#: Cheap precondition, strictly weaker than any detector either gate applies: a
+#: façade-aimed patch has to spell the façade's dotted prefix somewhere in the
+#: file. Filtering on it cannot change a verdict.
+_FACADE_NEEDLES = ("odoo.service", "odoo.api", "odoo.fields", "odoo.models")
+
+
+@functools.cache
+def patch_target_sources() -> tuple[tuple[pathlib.Path, str], ...]:
+    """Every candidate file, read ONCE per process and shared by both gates.
+
+    Two gates scan the same three trees — ``test_db_patch_targets`` for the
+    ``odoo.service.db`` package rule, ``test_facade_patch_targets`` for the
+    general re-export rule — and each of their tests used to walk and read those
+    trees for itself: 9 409 files, 64.2 MB per pass. Caching here means one pass
+    for all of them.
+    """
+    root = _repo_root()
+    out = []
+    for rel in _SCANNED_TREES:
+        tree = root / rel
+        if not tree.is_dir():
+            continue
+        for path in tree.rglob("*.py"):
+            if path.name in _GATE_MODULES:
+                continue
+            text = path.read_text(encoding="utf-8", errors="replace")
+            if any(needle in text for needle in _FACADE_NEEDLES):
+                out.append((path, text))
+    return tuple(out)
+
+
+@functools.cache
+def _repo_root() -> pathlib.Path:
+    for parent in pathlib.Path(__file__).resolve().parents:
+        if (parent / "odoo-bin").is_file():
+            return parent
+    raise RuntimeError("no odoo-bin marker above this conftest")

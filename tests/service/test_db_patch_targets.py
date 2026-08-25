@@ -27,6 +27,8 @@ import re
 
 import pytest
 
+from .conftest import patch_target_sources
+
 _HERE = pathlib.Path(__file__).resolve()
 
 
@@ -88,13 +90,6 @@ def _object_targets(text: str):
         yield from pattern.finditer(text)
 
 
-#: Trees that may patch this package. Kept explicit so a new one is a decision.
-SCANNED = (
-    ROOT / "tests" / "service",
-    ROOT / "odoo" / "addons",
-    ROOT / "addons",
-)
-
 #: Package-level names it is CORRECT to patch, because the production caller
 #: reads them off the package at call time rather than binding them.
 #: ``web/controllers/database.py`` does ``from odoo.service import db`` and then
@@ -106,34 +101,10 @@ PACKAGE_LEVEL_OK = frozenset(
 )
 
 
-#: Cheap precondition for BOTH detectors, and strictly weaker than either: a
-#: string target must spell ``odoo.service.db``, and an alias binding must spell
-#: ``odoo.service``. Filtering on it therefore cannot change a verdict — it only
-#: stops the scan regex-ing 64 MB to find the handful of files that can match.
-_MIGHT_MATCH = "odoo.service"
-
-
-@functools.cache
-def _sources() -> tuple[tuple[pathlib.Path, str], ...]:
-    """Every candidate file, read ONCE per process and shared by all tests.
-
-    Each of the three tests below used to walk and read the whole of
-    ``tests/service``, ``odoo/addons`` and ``addons`` for itself: 9 409 files,
-    64.2 MB, three times, of which 53 can possibly match. That was ~7.3 of the
-    service suite's ~14.8 CPU-seconds; caching plus the pre-filter returns about
-    5 of them.
-    """
-    out = []
-    for root in SCANNED:
-        if not root.is_dir():
-            continue
-        for path in root.rglob("*.py"):
-            if path.resolve() == _HERE:
-                continue  # this file quotes the bad forms as examples
-            text = path.read_text(encoding="utf-8", errors="replace")
-            if _MIGHT_MATCH in text:
-                out.append((path, text))
-    return tuple(out)
+#: The scan itself lives in ``conftest`` because the sibling façade gate needs
+#: the same three trees; each of the tests below used to walk and read them for
+#: itself (9 409 files, 64.2 MB, once per test).
+_sources = patch_target_sources
 
 
 @functools.cache
