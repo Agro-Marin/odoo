@@ -564,3 +564,176 @@ class TestDumpSqlScannerStreaming:
         its statement-start bookkeeping inside a literal."""
         text = "a\x0bb\x85c d\ne\n"
         assert list(db_mod._iter_physical_lines(text)) == ["a\x0bb\x85c d\n", "e\n"]
+
+
+# ---------------------------------------------------------------------------
+# The refusal message — the line number is the whole diagnosis
+# ---------------------------------------------------------------------------
+
+
+class TestTheReportedLineNumber:
+    """A refusal names a line, and that number is all an operator gets.
+
+    ``_assert_dump_sql_safe`` aborts the restore with ``(lineno, text)``; the
+    archive itself is attacker-supplied and may be enormous, so a wrong line
+    sends whoever is investigating to the wrong place in a file they cannot skim.
+
+    Nothing asserted it.  A mutation sweep over the scanner found five survivors
+    that are *only* line-number regressions — the attack is still refused, at the
+    wrong line — and each went unnoticed by 938 tests including the generative
+    fuzz, because the fuzz asserts the one-way property (psql executed => the
+    scanner rejected) and a refusal at any line satisfies it.
+
+    ``self.lineno`` is advanced by the main loop and by every ``_resume_*``
+    helper, so the cases below step through each lexical context that can carry a
+    newline before the offending command.
+    """
+
+    @staticmethod
+    def _expected_line(sql):
+        """Where ``\\!`` really is, counted independently of the scanner."""
+        return sql[: sql.index("\\!")].count("\n") + 1
+
+    @pytest.mark.parametrize(
+        ("label", "sql"),
+        [
+            ("first line", "\\! id\n"),
+            ("second line", "SELECT 1;\n\\! id\n"),
+            ("after a line comment", "SELECT 1; -- c\n\\! id\n"),
+            ("after a block comment", "SELECT 1; /* c */\n\\! id\n"),
+            ("after a multi-line block comment", "/* a\n   b\n   c */\n\\! id\n"),
+            ("after a string literal", "SELECT 'x';\n\\! id\n"),
+            ("after a multi-line string literal", "SELECT 'a\nb\nc';\n\\! id\n"),
+            ("after an escape string literal", "SELECT E'x';\n\\! id\n"),
+            ("after a dollar body", "SELECT $$b$$;\n\\! id\n"),
+            ("after a multi-line dollar body", "SELECT $$a\nb$$;\n\\! id\n"),
+            ("after a tagged dollar body", "SELECT $t$a\nb$t$;\n\\! id\n"),
+            ("after a quoted identifier", 'SELECT "col";\n\\! id\n'),
+            # The delimiter must close AT END OF LINE for these to bind. Each
+            # branch of the main loop ends in `continue`, and turning one into
+            # `pass` falls through to `i += 1`, skipping the character the resume
+            # helper stopped on. When that character is the newline, the line
+            # counter never advances and the refusal names the line before.
+            # A `;` between the delimiter and the newline absorbs the skip, which
+            # is why the four cases above do not catch it.
+            ("string literal closing at end of line", "SELECT 'x'\n\\! id\n"),
+            ("dollar body closing at end of line", "SELECT $$b$$\n\\! id\n"),
+            ("tagged dollar closing at end of line", "SELECT $t$b$t$\n\\! id\n"),
+            ("quoted identifier closing at end of line", 'SELECT "c"\n\\! id\n'),
+            ("block comment closing at end of line", "SELECT 1 /* c */\n\\! id\n"),
+            ("after a COPY block", "COPY t FROM stdin;\n1\n2\n\\.\n\\! id\n"),
+            ("deep in the file", "SELECT 1;\n" * 40 + "\\! id\n"),
+        ],
+    )
+    def test_the_refusal_names_the_line_the_command_is_on(self, db_mod, label, sql):
+        found = db_mod._find_disallowed_psql_meta_command(sql)
+        assert found is not None, f"{label}: the command was not flagged at all"
+        assert found[0] == self._expected_line(sql), (
+            f"{label}: refused at line {found[0]}, but the command is on line "
+            f"{self._expected_line(sql)}"
+        )
+
+
+class TestTheScannerAlwaysTerminates:
+    """A lexer over attacker-supplied input must not be able to spin.
+
+    The scan runs before a restore, on a file whose content the caller chose.  A
+    main loop that fails to advance ``i`` does not fail the restore — it hangs
+    the worker, and a mutation sweep found exactly that: one one-token change
+    turned the bounded loop unbounded, and the suite "noticed" only by never
+    finishing.
+
+    Run on a worker thread with a deadline so a regression FAILS here in seconds
+    rather than stalling the run.  ``pytest.ini``'s ``faulthandler_timeout``
+    would eventually name it, but naming it after five minutes is not the same as
+    failing.
+
+    **What this does and does not buy.**  Measured over the seven scanner
+    mutations that a sweep left alive, six now fail — including the one that used
+    to hang the whole file, which this class turns into a 30-second failure.  The
+    seventh (``if nl == -1`` in the meta-command branch) still hangs, because an
+    EARLIER test in this file happens to feed it a looping input and reaches it
+    first; a corpus here cannot help with that, and reordering the file to run
+    this class first would only work until the next test was added above it (and
+    not at all under a shuffled collection).  For that residue,
+    ``faulthandler_timeout`` naming the test is the guarantee.
+    """
+
+    #: Shapes that stress the advance: unterminated everything, empty contexts,
+    #: adjacent delimiters, and a backslash with nothing after it.
+    PATHOLOGICAL = [
+        "",
+        "\\",
+        "\\\n",
+        "SELECT 'unterminated",
+        "SELECT $$unterminated",
+        "SELECT $tag$unterminated",
+        "/* unterminated",
+        'SELECT "unterminated',
+        "SELECT E'unterminated",
+        "COPY t FROM stdin;\n1\n",  # no terminating \.
+        "--",
+        "-" * 5000,
+        "$" * 5000,
+        "\\" * 5000,
+        "'" * 5000,
+        '"' * 5000,
+        "$$" * 2500,
+        "/*" * 2500,
+        "\\restrict",
+        "\\restrict abc123",  # opened, never closed
+        # The ALLOWED meta-commands, alone and unpaired. These are the ones that
+        # reach the "skip to end of line" path, so a regression there loops on
+        # them and on nothing else: the corpus missed that until a mutation of
+        # `if nl == -1` hung on a bare `\.` while every other input returned.
+        "\\.",
+        "\\.\n",
+        "\\unrestrict abc123",
+        "\\unrestrict abc123\n",
+        "\\restrict abc123\n\\unrestrict abc123",
+        "SELECT 1;" + "\n" * 5000,
+    ]
+
+    @staticmethod
+    @pytest.fixture(scope="class")
+    def scanned(db_mod):
+        """Scan the corpus on a worker thread, with a deadline.
+
+        Every assertion in this class reads from here rather than calling the
+        scanner itself.  A test that scans on the MAIN thread defeats the point:
+        it hangs the run instead of failing, which is exactly the outcome the
+        class exists to convert into a failure.  (Verified — the first version of
+        this class had a non-vacuity check that did that, and a mutation of the
+        line-comment branch hung the whole file for 240s.)
+        """
+        import threading
+
+        # A list of (input, verdict), not a dict: the corpus deliberately holds
+        # near-duplicates and a dict would silently collapse them.
+        results = []
+
+        def run():
+            results.extend(
+                (sql, db_mod._find_disallowed_psql_meta_command(sql))
+                for sql in TestTheScannerAlwaysTerminates.PATHOLOGICAL
+            )
+
+        worker = threading.Thread(target=run, daemon=True)
+        worker.start()
+        worker.join(timeout=30)
+        return results if not worker.is_alive() else None
+
+    def test_every_pathological_input_returns(self, scanned):
+        assert scanned is not None, (
+            "the scanner did not finish the pathological corpus within 30s — its "
+            "main loop stopped advancing on some input, which on a real restore "
+            "hangs the worker on attacker-supplied content"
+        )
+        assert len(scanned) == len(self.PATHOLOGICAL)
+
+    def test_the_corpus_is_not_trivially_empty(self, scanned):
+        """Non-vacuity: at least some of these must reach real lexing."""
+        assert scanned is not None, "corpus did not finish; see the sibling test"
+        assert [sql for sql, found in scanned if found is not None], (
+            "no pathological input was flagged; the corpus is inert"
+        )
