@@ -11109,6 +11109,141 @@ msgid " Let's choose a Point Relais® as shipping address "
 msgstr ""
 
 #. module: base
+#: model:ir.actions.report,print_report_name:base.report_ir_model_overview
+msgid "'Model overview - %s' % object.model"
+msgstr ""
+
+#. module: base
+#: model:ir.actions.report,print_report_name:base.ir_module_reference_print
+msgid "'Technical guide - %s' % object.name"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "C"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Details"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Domain:"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Flags"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Groups:"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Idx"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Inherits:"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference_document
+msgid "Installed version"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Inverse field:"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Label"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "No"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference_document
+msgid "Objects"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "On delete:"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "R"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Relation:"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Rights"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Ro"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Rq"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Selection:"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Size:"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference_document
+msgid "Technical guide:"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Tr"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "U"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "W"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Yes"
+msgstr ""
+
+#. module: base
 #. odoo-python
 #: code:addons/base/models/ir_ui_view.py:0
 msgid "\"group_by\" value must be a string %(attribute)s=“%(value)s”"
@@ -11356,12 +11491,12 @@ msgid ", or your preferred text editor"
 msgstr ""
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference
+#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference_document
 msgid ", readonly"
 msgstr ""
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference
+#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference_document
 msgid ", required"
 msgstr ""
 
@@ -11394,19 +11529,9 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "- domain ="
-msgstr ""
-
-#. module: base
 #. odoo-python
 #: code:addons/base/models/ir_ui_view_name_manager.py:0
 msgid "- element “%(node)s” is shown in the view for groups: %(groups)s"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "- field ="
 msgstr ""
 
 #. module: base
@@ -11419,31 +11544,6 @@ msgstr ""
 #. odoo-python
 #: code:addons/base/models/ir_ui_view_name_manager.py:0
 msgid "- field “%(name)s” is accessible for groups: %(field_groups)s"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "- groups ="
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "- ondelete ="
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "- relation ="
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "- selection = ["
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "- size ="
 msgstr ""
 
 #. module: base
@@ -12240,78 +12340,13 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference
-msgid "<span>, </span>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference
-msgid "<span>Directory</span>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference
-msgid "<span>Module</span>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference
-msgid "<span>Name</span>"
-msgstr ""
-
-#. module: base
 #: model_terms:ir.ui.view,arch_db:base.server_action_history_wizard_view
 msgid "<span>No diff available</span>"
 msgstr ""
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference
-msgid "<span>Object:</span>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference
-msgid "<span>Version</span>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference
-msgid "<span>Web</span>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "<strong>Apps</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "<strong>Attribute</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "<strong>C</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference
-msgid "<strong>Dependencies:</strong>"
-msgstr ""
-
-#. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_res_company_kanban
 msgid "<strong>Email:</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "<strong>Group</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "<strong>Idx</strong>"
 msgstr ""
 
 #. module: base
@@ -12322,29 +12357,9 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "<strong>Inherited</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "<strong>Label</strong>"
-msgstr ""
-
-#. module: base
 #: model_terms:ir.ui.view,arch_db:base.res_users_identitycheck_view_form
 msgid ""
 "<strong>Let's first confirm it's you. Enter your current password:</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference
-msgid "<strong>Menu:</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "<strong>Name</strong>"
 msgstr ""
 
 #. module: base
@@ -12358,31 +12373,6 @@ msgid "<strong>Phone</strong>"
 msgstr ""
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "<strong>R</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference
-msgid "<strong>Reports:</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "<strong>Ro</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "<strong>Rq</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "<strong>Seq</strong>"
-msgstr ""
-
-#. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_users_form
 msgid "<strong>The contact linked to this user is still active</strong>"
 msgstr ""
@@ -12392,60 +12382,6 @@ msgstr ""
 msgid ""
 "<strong>This operation will permanently erase all data currently stored by\n"
 "                        the modules!</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "<strong>Tr</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "<strong>Type</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "<strong>U</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference
-msgid "<strong>View:</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "<strong>W</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "<strong>XML ID</strong>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid ""
-"<u>\n"
-"                                    <strong>Fields</strong>\n"
-"                                </u>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid ""
-"<u>\n"
-"                                    <strong>Security</strong>\n"
-"                                </u>"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid ""
-"<u>\n"
-"                                    <strong>Views</strong>\n"
-"                                </u>"
 msgstr ""
 
 #. module: base
@@ -16888,6 +16824,7 @@ msgid "ASCII characters are required for %(value)s in %(field)s"
 msgstr ""
 
 #. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
 #: model_terms:ir.ui.view,arch_db:base.view_model_search
 msgid "Abstract"
 msgstr ""
@@ -16895,16 +16832,6 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_model__abstract
 msgid "Abstract Model"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "Abstract: False"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "Abstract: True"
 msgstr ""
 
 #. module: base
@@ -19847,6 +19774,7 @@ msgstr ""
 #: model:ir.ui.menu,name:base.menu_apps
 #: model:ir.ui.menu,name:base.menu_management
 #: model_terms:ir.ui.view,arch_db:base.module_tree
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
 #: model_terms:ir.ui.view,arch_db:base.view_module_filter
 msgid "Apps"
 msgstr ""
@@ -19867,7 +19795,7 @@ msgid "Apps to Update"
 msgstr ""
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
 msgid "Apps:"
 msgstr ""
 
@@ -25929,6 +25857,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_module_module__dependencies_id
 #: model_terms:ir.ui.view,arch_db:base.ir_job_view_form
 #: model_terms:ir.ui.view,arch_db:base.module_form
+#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference_document
 msgid "Dependencies"
 msgstr ""
 
@@ -28471,6 +28400,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_cron__xml_id
 #: model:ir.model.fields,field_description:base.field_ir_module_category__xml_id
 #: model:ir.model.fields,field_description:base.field_ir_ui_view__xml_id
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
 #: model_terms:ir.ui.view,arch_db:base.view_client_action_form
 #: model_terms:ir.ui.view,arch_db:base.view_window_action_form
 msgid "External ID"
@@ -28887,6 +28817,7 @@ msgstr ""
 #: model:ir.model,name:base.model_ir_model_fields
 #: model:ir.model.fields,field_description:base.field_ir_model__field_id
 #: model:ir.ui.menu,name:base.menu_ir_model_fields
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
 #: model_terms:ir.ui.view,arch_db:base.view_model_fields_form
 #: model_terms:ir.ui.view,arch_db:base.view_model_fields_search
 #: model_terms:ir.ui.view,arch_db:base.view_model_fields_selection_form
@@ -30115,6 +30046,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_embedded_actions__group_ids
 #: model:ir.model.fields,field_description:base.field_ir_model_access__group_id
 #: model_terms:ir.ui.view,arch_db:base.ir_access_view_search
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
 #: model_terms:ir.ui.view,arch_db:base.view_groups_search
 #: model_terms:ir.ui.view,arch_db:base.view_rule_search
 msgid "Group"
@@ -32179,11 +32111,6 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_account_intrastat
 msgid "Intrastat Reports"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference
-msgid "Introspection report on objects"
 msgstr ""
 
 #. module: base
@@ -35220,6 +35147,7 @@ msgstr ""
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_module_module__menus_by_module
+#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference_document
 #: model_terms:ir.ui.view,arch_db:base.view_groups_form
 msgid "Menus"
 msgstr ""
@@ -36372,6 +36300,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__name
 #: model:ir.model.fields,field_description:base.field_res_users__name
 #: model_terms:ir.ui.view,arch_db:base.ir_profile_view_search
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference_document
 #: model_terms:ir.ui.view,arch_db:base.res_device_view_form
 #: model_terms:ir.ui.view,arch_db:base.res_device_view_kanban
 #: model_terms:ir.ui.view,arch_db:base.res_device_view_tree
@@ -36408,11 +36338,6 @@ msgstr ""
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.form_res_users_key_description
 msgid "Name your key"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "Name:"
 msgstr ""
 
 #. module: base
@@ -36929,11 +36854,6 @@ msgstr ""
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_window_action_form
 msgid "Object"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "Object:"
 msgstr ""
 
 #. module: base
@@ -40510,6 +40430,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_cron__priority
 #: model:ir.model.fields,field_description:base.field_ir_job__priority
 #: model:ir.model.fields,field_description:base.field_ir_mail_server__sequence
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
 msgid "Priority"
 msgstr ""
 
@@ -41987,6 +41908,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_module_module__reports_by_module
 #: model:ir.ui.menu,name:base.menu_ir_action_report
 #: model:ir.ui.menu,name:base.menu_reports
+#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference_document
 msgid "Reports"
 msgstr ""
 
@@ -43231,6 +43153,7 @@ msgstr ""
 
 #. module: base
 #: model:ir.ui.menu,name:base.menu_security
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
 #: model_terms:ir.ui.view,arch_db:base.view_users_form
 #: model_terms:ir.ui.view,arch_db:base.view_users_form_simple_modif
 msgid "Security"
@@ -47764,6 +47687,7 @@ msgid "Trainings, Conferences, Meetings, Exhibitions, Registrations"
 msgstr ""
 
 #. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
 #: model_terms:ir.ui.view,arch_db:base.view_model_search
 msgid "Transient"
 msgstr ""
@@ -47771,16 +47695,6 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_model__transient
 msgid "Transient Model"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "Transient: False"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "Transient: True"
 msgstr ""
 
 #. module: base
@@ -47959,6 +47873,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_model_fields__state
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__acc_type
 #: model_terms:ir.ui.view,arch_db:base.ir_logging_search_view
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
 #: model_terms:ir.ui.view,arch_db:base.view_attachment_search
 #: model_terms:ir.ui.view,arch_db:base.view_view_search
 msgid "Type"
@@ -47983,11 +47898,6 @@ msgstr ""
 #: model:ir.model.fields,help:base.field_ir_model_constraint__type
 msgid ""
 "Type of the constraint: `f` for a foreign key, `u` for other constraints."
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview
-msgid "Type:"
 msgstr ""
 
 #. module: base
@@ -49385,6 +49295,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_module_module__views_by_module
 #: model:ir.model.fields,field_description:base.field_res_groups__view_access
 #: model:ir.ui.menu,name:base.menu_action_ui_view
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference_document
 #: model_terms:ir.ui.view,arch_db:base.view_groups_form
 #: model_terms:ir.ui.view,arch_db:base.view_model_form
 #: model_terms:ir.ui.view,arch_db:base.view_view_form
@@ -49641,6 +49553,7 @@ msgstr ""
 #: model:ir.module.category,name:base.module_category_website_website
 #: model:ir.module.module,shortdesc:base.module_website
 #: model_terms:ir.ui.view,arch_db:base.contact
+#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference_document
 #: model_terms:ir.ui.view,arch_db:base.view_company_form
 #: model_terms:ir.ui.view,arch_db:base.view_partner_address_form
 #: model_terms:ir.ui.view,arch_db:base.view_partner_form

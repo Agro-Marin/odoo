@@ -9,6 +9,7 @@
         <field name="report_file">base.report_irmodeloverview</field>
         <field name="binding_model_id" ref="model_ir_model" />
         <field name="binding_type">report</field>
+        <field name="print_report_name">'Model overview - %s' % object.model</field>
     </record>
 
 </odoo>

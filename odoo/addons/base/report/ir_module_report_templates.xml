@@ -1,98 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <template id="report_irmodulereference_document">
+        <t t-call="web.internal_layout">
+            <div class="page">
+                <h2 name="document_title">Technical guide: <span t-field="o.name" /></h2>
+                <dl class="row mb-4">
+                    <dt class="col-3">Name</dt>
+                    <dd class="col-9"><span t-field="o.shortdesc" /></dd>
+                    <dt class="col-3">Installed version</dt>
+                    <dd class="col-9"><span t-field="o.db_version" /></dd>
+                    <dt class="col-3">Website</dt>
+                    <dd class="col-9"><span t-field="o.website" /></dd>
+                </dl>
+                <div t-field="o.description_html" />
+                <h3 name="reports" class="h5 mt-4">Reports</h3>
+                <div t-field="o.reports_by_module" />
+                <h3 name="menus" class="h5 mt-4">Menus</h3>
+                <div t-field="o.menus_by_module" />
+                <h3 name="views" class="h5 mt-4">Views</h3>
+                <div t-field="o.views_by_module" />
+                <h3 name="dependencies" class="h5 mt-4">Dependencies</h3>
+                <div t-foreach="o.dependencies_id" t-as="dependency">
+                    <span t-field="dependency.name" /> - <span t-field="dependency.module_id.state" />
+                </div>
+                <h3 name="objects" class="h5 mt-4">Objects</h3>
+                <table
+                    t-foreach="objects_by_module[o.name]"
+                    t-as="obj"
+                    class="table table-sm o_table_fixed mb-4">
+                    <thead>
+                        <tr>
+                            <th colspan="2">
+                                <span t-out="obj['model']" />
+                                <small class="text-muted"><span t-out="obj['name']" /></small>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="obj['fields']" t-as="field">
+                            <td class="w-25 text-break"><span t-out="field['name']" /></td>
+                            <td class="text-break"><span t-out="field['string']" />, <span t-out="field['type']" /><t t-if="field['required']">, required</t><t t-if="field['readonly']">, readonly</t>
+                                <div
+                                    t-if="field['help']"
+                                    class="text-muted"
+                                    t-out="field['help']" />
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </t>
+    </template>
+
     <template id="report_irmodulereference">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="o">
-                <t t-call="web.internal_layout">
-                    <div class="page">
-                        <h3 class="text-center">Introspection report on objects</h3>
-                        <table class="table table-bordered mt32">
-                            <thead>
-                                <tr>
-                                    <th class="text-center">
-                                        <span>Module</span>
-                                    </th>
-                                    <th class="text-center">
-                                        <span>Name</span>
-                                    </th>
-                                    <th class="text-center">
-                                        <span>Version</span>
-                                    </th>
-                                    <th class="text-center">
-                                        <span>Directory</span>
-                                    </th>
-                                    <th class="text-center">
-                                        <span>Web</span>
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr class="text-center">
-                                    <td>
-                                        <span t-field="o.name" />
-                                    </td>
-                                    <td>
-                                        <span t-field="o.shortdesc" />
-                                    </td>
-                                    <td>
-                                        <span t-field="o.db_version" />
-                                    </td>
-                                    <td>
-                                        <span t-field="o.name" />
-                                    </td>
-                                    <td>
-                                        <span t-field="o.website" />
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        <span t-field="o.description" />
-                        <div>
-                            <strong>Reports:</strong>
-                        </div>
-                        <span t-field="o.reports_by_module" />
-                        <div>
-                            <strong>Menu:</strong>
-                        </div>
-                        <span t-field="o.menus_by_module" />
-                        <div>
-                            <strong>View:</strong>
-                        </div>
-                        <span t-field="o.views_by_module" />
-                        <div>
-                            <strong>Dependencies:</strong>
-                        </div>
-                        <div t-foreach="o.dependencies_id" t-as="dependency_id">
-                            <span t-field="dependency_id.name" /> - <span t-field="dependency_id.module_id.state" />
-                        </div>
-
-                        <table
-                            t-foreach="findobj(o)"
-                            t-as="obj"
-                            class="table table-sm mt16 mb32">
-                            <tr>
-                                <th colspan="2">
-                                    <span>Object:</span>
-                                    <span t-esc="obj.model" />
-                                </th>
-                            </tr>
-                            <tr t-foreach="findfields(obj.model, o)" t-as="field">
-                                <td class="col-3">
-                                    <t t-esc="field[0]" />
-                                </td>
-                                <td>
-                                    <span t-esc="field[1].get('string','Unknown')" />
-                                    <span>, </span>
-                                    <span t-esc="field[1].get('type')" />
-                                    <span t-if="field[1].get('required')">, required</span>
-                                    <span t-if="field[1].get('readonly',False)">, readonly</span>
-                                    <div t-esc="field[1].get('help', '')" />
-                                </td>
-                            </tr>
-                        </table>
-                    </div>
-                </t>
+                <t t-call="base.report_irmodulereference_document" />
             </t>
         </t>
     </template>
