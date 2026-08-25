@@ -11,6 +11,7 @@ from odoo.exceptions import AccessDenied
 from odoo.modules.registry import Registry
 
 from ._db_helpers import rpc_db_exposed
+from ._dispatch import dispatch_table
 
 _logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ def exp_authenticate(
     db: str,
     login: str,
     password: str,
-    user_agent_env: dict | None,
+    user_agent_env: dict | None = None,
 ) -> int | bool:
     if not isinstance(db, str) or not db:
         return False
@@ -113,10 +114,7 @@ def exp_version() -> dict[str, Any]:
 
 
 def dispatch(method: str, params: list | tuple) -> Any:
-    handler = _DISPATCH.get(method)
-    if handler is None:
-        raise AttributeError(f"Method not found: {method}")
-    return handler(*params)
+    return dispatch_table(method, params, _DISPATCH)
 
 
 _DISPATCH: dict[str, Callable] = {
