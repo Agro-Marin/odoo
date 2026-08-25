@@ -21,6 +21,7 @@ Run with::
 """
 
 import errno
+import pathlib
 import shutil
 import time
 from unittest.mock import MagicMock, patch
@@ -475,3 +476,49 @@ class TestFSWatcherInotifyRewatch:
         ):
             obj.handle_asset_file("/x/only.js")
             assert len(inserts) == 1, "single edit was deferred to the idle tick"
+
+
+class TestBothBackendsWatchTheSameTree:
+    """What is watched must not depend on which optional library is installed.
+
+    It used to. ``FSWatcherWatchdog.__init__`` scheduled the addons roots
+    recursively without consulting ``dev_mode``, while the inotify backend
+    narrowed to ``static/src`` and ``static/tests`` when ``reload`` was absent.
+    So the same ``--dev=assets`` run watched a different set of files on two
+    machines that differed only in whether ``inotify`` was importable -- and
+    everything under ``static/lib``, which is bundled, was watched by one and
+    not the other.
+    """
+
+    def _paths(self, dev_mode):
+        import odoo.tools
+        from odoo.service._watcher import FSWatcherBase
+
+        with patch.dict(odoo.tools.config.options, {"dev_mode": dev_mode}):
+            return FSWatcherBase.watch_paths()
+
+    def test_reload_mode_watches_the_addons_roots(self):
+        import odoo.addons
+
+        assert self._paths(["reload"]) == list(odoo.addons.__path__)
+        assert self._paths(["reload", "assets"]) == list(odoo.addons.__path__)
+
+    def test_assets_only_mode_watches_whole_static_trees(self):
+        """``handle_file`` acts on a path exactly when it ends in an asset
+        suffix and has ``/static/`` in it, so ``static/`` whole is both the
+        necessary and the sufficient scope -- ``static/lib`` included."""
+        paths = self._paths(["assets"])
+        assert paths, "no addon exposes a static tree; the test proved nothing"
+        assert all(p.endswith("/static") for p in paths)
+
+    def test_both_backends_read_the_same_function(self):
+        """The property, asserted structurally: neither backend computes its own
+        tree."""
+        from odoo.service import _watcher as w
+
+        assert not hasattr(w, "inotify_watch_paths"), (
+            "the per-backend tree calculation is back"
+        )
+        source = pathlib.Path(w.__file__).read_text(encoding="utf-8")
+        assert source.count("self.watch_paths()") == 2
+        assert "odoo.addons.__path__" not in source.split("class FSWatcherWatchdog")[1]
