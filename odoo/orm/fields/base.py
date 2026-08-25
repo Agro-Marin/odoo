@@ -338,7 +338,30 @@ class Field[T](
             return
 
         if cls.type and cls._register_type:
-            cls._by_type__.setdefault(cls.type, cls)
+            # Not setdefault: a second class claiming a taken type would lose in
+            # silence, and the loser is not merely unused -- it vanishes from the
+            # `ttype` selection that `ir.model.fields` builds from this registry,
+            # and manual fields of that type get built from the winner instead.
+            # Opting out is spelled `_register_type = False` (see `Id`), so an
+            # accidental collision must not be indistinguishable from it.
+            taken = cls._by_type__.get(cls.type)
+            # Only an OWN declaration is a claim. A subclass that merely inherits
+            # its parent's `type` (Image from Binary, say) is not competing for
+            # the slot, and the parent must stay the registered class.
+            if (
+                taken is not None
+                and "type" in cls.__dict__
+                and not issubclass(cls, taken)
+            ):
+                raise TypeError(
+                    f"field type {cls.type!r} is already registered by "
+                    f"{taken.__module__}.{taken.__qualname__}; {cls.__module__}."
+                    f"{cls.__qualname__} cannot claim it too. Set "
+                    f"`_register_type = False` on the class that should not be "
+                    f"reachable through Field._by_type__."
+                )
+            if taken is None:
+                cls._by_type__[cls.type] = cls
 
         cls.related_attrs = []
         cls.description_attrs = []
