@@ -9,7 +9,7 @@ class SaleOrder(models.Model):
 
     def write(self, vals):
         # We compute the l10n_fi/SaleOrder.reference from itself the same way
-        # we compute the l10n_fi/AccountMove.invoice_payment_ref from its name.
+        # we compute the l10n_fi/AccountMove.payment_reference from its name.
         reference = vals.get("reference", False)
         if reference:
             vals["reference"] = self.compute_payment_reference_finnish(reference)
@@ -43,6 +43,5 @@ class SaleOrder(models.Model):
     def compute_payment_reference_finnish(self, number):
         # Drop all non-numeric characters
         so_number = self.number2numeric(number)
-        # Calculate the Finnish check digit
         check_digit = self.get_finnish_check_digit(so_number)
         return so_number + check_digit
