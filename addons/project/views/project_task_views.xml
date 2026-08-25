@@ -1316,7 +1316,7 @@
         <record id="project_task_action_from_partner" model="ir.actions.act_window">
             <field name="name">Partner's Tasks</field>
             <field name="res_model">project.task</field>
-            <field name="view_mode">list,kanban,form,calendar,pivot,graph,activity</field>
+            <field name="view_mode">calendar,form,kanban,list,pivot,graph,activity</field>
             <field name="search_view_id" ref="view_task_search_form"/>
             <field name="domain">[('has_template_ancestor', '=', False), ('has_project_template', '=', False)]</field>
             <field name="help" type="html">

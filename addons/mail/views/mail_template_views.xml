@@ -226,7 +226,7 @@
         <field name="name">Email Templates</field>
         <field name="res_model">mail.template</field>
         <field name="path">email-templates</field>
-        <field name="view_mode">form,list</field>
+        <field name="view_mode">list,form</field>
         <field name="view_id" ref="email_template_tree" />
         <field name="search_view_id" ref="view_email_template_search" />
         <field name="context">{'search_default_base_templates': 1}</field>

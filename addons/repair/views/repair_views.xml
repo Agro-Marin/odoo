@@ -320,7 +320,7 @@
             </field>
             <field name="res_model">repair.order</field>
             <field name="path">repair-orders-analysis</field>
-            <field name="view_mode">list,kanban,graph,pivot,form</field>
+            <field name="view_mode">graph,list,kanban,pivot,form</field>
             <field name="view_id" ref="view_repair_graph"/>
         </record>
 

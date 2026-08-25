@@ -826,7 +826,7 @@
                 ('activity_ids', '!=', False),
             ]</field>
             <field name="context">{'chat_icon': True, 'searchpanel_default_company_id': allowed_company_ids[0]}</field>
-            <field name="view_mode">activity,list,kanban,form,graph,pivot</field>
+            <field name="view_mode">list,activity,kanban,form,graph,pivot</field>
             <field name="view_ids"
                    eval="[(5, 0, 0),
                           (0, 0, {'view_mode': 'list', 'view_id': ref('hr_employee_list_activites_view')})]"/>

@@ -225,3 +225,152 @@ class OrphanLabelLinter(LintCase):
                 continue  # carries its own text; only the `for` is inert
             why = "absent" if target not in present else 'invisible="1"'
             yield f"{view.xml_id or view.id}: <label for={target!r}> ({why})"
+
+
+@tagged("post_install", "-at_install")
+class ActWindowViewOrderLinter(LintCase):
+    """An explicit `view_mode` must name the view the action actually opens on.
+
+    `_compute_views` emits the pinned views first -- `view_ids` sorted by
+    sequence, then `view_id` -- and only then the `view_mode` modes it has not
+    already covered. So `view_mode` is not the order; it degrades into a set the
+    moment an action pins anything, and the file can say `list,form` while the
+    action opens on a form. Nothing warns, and 22 declarations in this tree had
+    drifted that way.
+
+    Two consequences make it worth a gate rather than a comment. The order is
+    load-bearing in a way the syntax hides: *removing* a pinned row can change
+    which view opens, because with a `form` row in `view_ids` a `view_id` of type
+    `list` can no longer hold `list` first -- that is how
+    `base.action_res_users_view1`, which reads as redundant, turns out to be the
+    only thing keeping the Users menu off the form view. And an action that pins
+    nothing is not lying: it never claimed an order, so `view_mode`'s default is
+    not contradicted and there is nothing here to report.
+
+    Resolved from the tree rather than the registry on purpose: at test_lint's
+    scope only test_lint is installed, so a registry check would see almost
+    nothing. Validated against a 25-module registry -- every mismatch the
+    registry reported within this scope is reported here, plus eleven more in
+    modules that install did not include.
+    """
+
+    # A pin is written either as separate ir.actions.act_window.view records or
+    # inline as view_ids="[(5,0,0),(0,0,{'view_mode': ...})]". Both spellings are
+    # in use (91 actions and 64 actions respectively), and a checker that knew
+    # only the first missed a third of them.
+    _MODE_IN_EVAL = re.compile(r"['\"]view_mode['\"]\s*:\s*['\"](\w+)['\"]")
+
+    def test_view_mode_names_the_view_that_opens(self):
+        declared, pins, inline, view_id_ref, view_type, where = {}, {}, {}, {}, {}, {}
+        for manifest in self._manifests_in_scope():
+            for path in self._data_files(manifest):
+                tree = self._parse(path)
+                if tree is None:
+                    continue
+                self._collect(
+                    manifest.name,
+                    path,
+                    tree,
+                    declared,
+                    pins,
+                    inline,
+                    view_id_ref,
+                    view_type,
+                    where,
+                )
+
+        offenders = []
+        for xmlid, modes in declared.items():
+            pinned = inline.get(xmlid) or [m for _, m in sorted(pins.get(xmlid, []))]
+            if not pinned:
+                continue  # claims nothing beyond the mode list itself
+            effective = list(pinned)
+            missing = [m for m in modes if m not in set(pinned)]
+            pinned_type = view_type.get(view_id_ref.get(xmlid))
+            if pinned_type and pinned_type in missing:
+                missing.remove(pinned_type)
+                effective.append(pinned_type)
+            effective.extend(missing)
+            if effective and effective[0] != modes[0]:
+                path, line = where[xmlid]
+                offenders.append(
+                    f"{path}:{line} {xmlid}: view_mode says {modes[0]!r} opens first, "
+                    f"{effective[0]!r} does ({','.join(modes)} -> {','.join(effective)})"
+                )
+        self.assertTrue(declared, "the scan reached no act_window declarations")
+        if offenders:
+            self.fail(
+                f"{len(offenders)} act_window(s) whose view_mode does not name the "
+                f"view that opens:\n"
+                + "\n".join(f"  {o}" for o in sorted(offenders))
+                + "\n\nReorder view_mode to match. Doing so cannot change behaviour: "
+                "the pinned prefix is untouched and the remaining modes keep their "
+                "relative order, so the merge is a fixed point."
+            )
+
+    @staticmethod
+    def _manifests_in_scope():
+        from odoo.modules import Manifest
+
+        return list(Manifest.all_addon_manifests())
+
+    @staticmethod
+    def _data_files(manifest):
+        from pathlib import Path
+
+        for rel in manifest.get("data") or []:
+            if rel.endswith(".xml"):
+                path = Path(manifest.path) / rel
+                if path.exists():
+                    yield path
+
+    @staticmethod
+    def _parse(path):
+        try:
+            return etree.parse(str(path), _PARSER)
+        except etree.XMLSyntaxError:
+            return None
+
+    @classmethod
+    def _collect(
+        cls, module, path, tree, declared, pins, inline, view_id_ref, view_type, where
+    ):
+        def norm(ref):
+            return ref if "." in ref else f"{module}.{ref}"
+
+        for rec in tree.iter("record"):
+            model, rec_id = rec.get("model"), rec.get("id")
+            if not rec_id:
+                continue
+            xmlid = norm(rec_id)
+            if model == "ir.ui.view":
+                arch = rec.find("field[@name='arch']")
+                if arch is not None and len(arch):
+                    view_type[xmlid] = arch[0].tag
+            elif model == "ir.actions.act_window":
+                mode = rec.find("field[@name='view_mode']")
+                if mode is not None and (mode.text or "").strip():
+                    declared[xmlid] = [m for m in mode.text.strip().split(",") if m]
+                    where[xmlid] = (path, mode.sourceline)
+                ref = rec.find("field[@name='view_id']")
+                if ref is not None and ref.get("ref"):
+                    view_id_ref[xmlid] = norm(ref.get("ref"))
+                many = rec.find("field[@name='view_ids']")
+                if many is not None and many.get("eval"):
+                    found = cls._MODE_IN_EVAL.findall(many.get("eval"))
+                    if found:
+                        inline[xmlid] = found
+            elif model == "ir.actions.act_window.view":
+                action = rec.find("field[@name='act_window_id']")
+                mode = rec.find("field[@name='view_mode']")
+                seq = rec.find("field[@name='sequence']")
+                if action is None or not action.get("ref") or mode is None:
+                    continue
+                raw = (seq.get("eval") or (seq.text or "")) if seq is not None else "0"
+                try:
+                    order = int(str(raw).strip())
+                except ValueError:
+                    order = 0
+                pins.setdefault(norm(action.get("ref")), []).append(
+                    (order, (mode.text or "").strip())
+                )

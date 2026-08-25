@@ -62,7 +62,7 @@
     <record id="resource_role_action" model="ir.actions.act_window">
         <field name="name">Roles</field>
         <field name="res_model">resource.role</field>
-        <field name="view_mode">list,kanban,form</field>
+        <field name="view_mode">kanban,list,form</field>
         <field name="search_view_id" ref="resource_role_view_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">

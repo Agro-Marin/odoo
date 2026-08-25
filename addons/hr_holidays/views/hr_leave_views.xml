@@ -780,7 +780,7 @@
         <field name="name">My Time Off</field>
         <field name="res_model">hr.leave</field>
         <field name="path">my-time-off</field>
-        <field name="view_mode">list,form,kanban,activity</field>
+        <field name="view_mode">kanban,list,form,activity</field>
         <field name="search_view_id" ref="hr_leave_view_search_my"/>
         <field name="view_ids" eval="[(5, 0, 0),
                 (0, 0, {'view_mode': 'kanban', 'view_id': ref('hr_leave_view_kanban_my')})]"/>
@@ -930,7 +930,7 @@
     <record id="action_hr_available_holidays_report" model="ir.actions.act_window">
         <field name="name">Time Off by Employee</field>
         <field name="res_model">hr.leave</field>
-        <field name="view_mode">list,graph,pivot,calendar,form</field>
+        <field name="view_mode">pivot,list,graph,calendar,form</field>
         <field name="search_view_id" ref="hr_holidays.view_hr_holidays_filter"/>
         <field name="context">{'search_default_filter_date_from': 1, 'search_default_group_employee': 1,
             'search_default_group_type': 1, 'search_default_to_approve': 1, 'search_default_validated': 1}</field>

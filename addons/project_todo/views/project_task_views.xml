@@ -286,7 +286,7 @@
         <field name="res_model">project.task</field>
         <field name="path">to-do</field>
         <field name="domain">[('user_ids', 'in', [uid]), ('project_id', '=', False), ('parent_id', '=', False)]</field>
-        <field name="view_mode">kanban,form,list,calendar,activity</field>
+        <field name="view_mode">activity,calendar,form,kanban,list</field>
         <field name="search_view_id" ref="project_task_view_todo_search"/>
         <field name="context">{
             'search_default_open_tasks': 1,

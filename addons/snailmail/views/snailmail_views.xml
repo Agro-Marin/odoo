@@ -51,7 +51,7 @@
     <record model="ir.actions.act_window" id="action_mail_letters">
         <field name="name">Snailmail Letters</field>
         <field name="res_model">snailmail.letter</field>
-        <field name="view_mode">form,list</field>
+        <field name="view_mode">list,form</field>
         <field name="domain">[('state', '!=', 'draft')]</field>
         <field name="view_id" ref="snailmail_letter_list" />
     </record>
