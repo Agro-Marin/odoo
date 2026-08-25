@@ -3,7 +3,7 @@ from odoo import api, fields, models
 
 class AccountPaymentRegisterWithholdingLine(models.TransientModel):
     """
-    Transient version of the withholding lines; used on the account.register.payment model.
+    Transient version of the withholding lines; used on the account.payment.register model.
     """
 
     _name = "account.payment.register.withholding.line"
