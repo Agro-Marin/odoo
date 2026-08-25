@@ -353,9 +353,15 @@ class ThreadedServer(CommonServer):
         rc: int | None = None
         self._stop_after_init = stop
         try:
-            with Registry._lock:
-                self.start(stop=stop)
-                rc = preload_registries(preload)
+            # ``Registry._lock`` is NOT held across this.  It used to be, which
+            # made ``preload_registries`` behave differently here than under
+            # PreforkServer (``_prefork.run`` has never taken it) and forced
+            # ``_run_post_install_tests`` to release it by hand before running a
+            # suite that needs it from other threads.  The exclusion that
+            # actually matters still holds: ``preload_registries`` takes the lock
+            # around ``Registry.new`` itself.
+            self.start(stop=stop)
+            rc = preload_registries(preload)
 
             if stop:
                 if config["test_enable"]:

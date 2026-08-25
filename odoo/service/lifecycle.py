@@ -97,19 +97,21 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
             env = api.Environment(cr, api.SUPERUSER_ID, {})
             env["ir.qweb"]._pregenerate_assets_bundles()
 
-    lock = Registry._lock
-    held = 0
-    while getattr(lock, "_is_owned", bool)():
-        lock.release()
-        held += 1
-    try:
-        result = loader.run_suite(
-            post_install_suite,
-            global_report=registry._assertion_report,
-        )
-    finally:
-        for _ in range(held):
-            lock.acquire()
+    # No lock dance here.  The post-install suite drives HTTP cases from other
+    # threads, which need ``Registry._lock``, so it must not run under it -- and
+    # it no longer can: ``preload_registries`` takes the lock around
+    # ``Registry.new`` alone and has released it by the time this is called.
+    # This used to release the lock in an unbounded loop, counting releases to
+    # re-acquire them afterwards, because ``ThreadedServer.run`` held it across
+    # the whole preload.  That reached into another module's private lock, probed
+    # a second private API (``_is_owned``) with a silent fallback to ``bool`` --
+    # which answers False, "I do not hold it", so an activated fallback would
+    # have run the whole suite under a held lock -- and left the coupling
+    # invisible from the server that caused it.
+    result = loader.run_suite(
+        post_install_suite,
+        global_report=registry._assertion_report,
+    )
     registry._assertion_report.update(result)
     _logger.info(
         "%d post-tests in %.2fs, %s queries",
@@ -171,13 +173,19 @@ def preload_registries(dbnames: list[str] | None) -> int:
                 current_worker_thread().dbname = dbname
                 update_module = config["init"] or config["update"] or config["reinit"]
 
-                registry = Registry.new(
-                    dbname,
-                    update_module=update_module,
-                    install_modules=config["init"],
-                    upgrade_modules=config["update"],
-                    reinit_modules=config["reinit"],
-                )
+                # Explicit, and scoped to exactly the span that needs it.
+                # ``Registry.new`` is ``@locked`` already, so this adds no
+                # exclusion it does not have; what it adds is a lock scope that
+                # is visible where the work happens, and that ENDS before
+                # ``_run_post_install_tests`` below.
+                with Registry._lock:
+                    registry = Registry.new(
+                        dbname,
+                        update_module=update_module,
+                        install_modules=config["init"],
+                        upgrade_modules=config["update"],
+                        reinit_modules=config["reinit"],
+                    )
 
                 if config["test_enable"]:
                     _run_post_install_tests(registry, update_module)
