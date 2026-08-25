@@ -17,8 +17,8 @@
                 <separator/>
                 <filter string="Start Date" name="date_start_filter" date="date_start"/>
                 <group>
-                    <filter string="Work center" name="workcenter" domain="[]" context="{'group_by': 'workcenter_id'}"/>
-                    <filter string="Product" name="product" domain="[]" context="{'group_by': 'product_id'}"/>
+                    <filter string="Work center" name="workcenter" context="{'group_by': 'workcenter_id'}"/>
+                    <filter string="Product" name="product" context="{'group_by': 'product_id'}"/>
                 </group>
             </search>
         </field>
@@ -296,10 +296,10 @@
                 <filter string="Late" name="late" domain="[('is_late', '=', True)]"
                     help="Should have started already"/>
                 <group>
-                    <filter string="Work Center" name="work_center" domain="[]" context="{'group_by': 'workcenter_id'}"/>
-                    <filter string="Manufacturing Order" name="production" domain="[]" context="{'group_by': 'production_id'}"/>
-                    <filter string="Status" name="status" domain="[]" context="{'group_by': 'state'}"/>
-                    <filter string="Date" name="scheduled_month" domain="[]" context="{'group_by': 'date_start'}"/>
+                    <filter string="Work Center" name="work_center" context="{'group_by': 'workcenter_id'}"/>
+                    <filter string="Manufacturing Order" name="production" context="{'group_by': 'production_id'}"/>
+                    <filter string="Status" name="status" context="{'group_by': 'state'}"/>
+                    <filter string="Date" name="scheduled_month" context="{'group_by': 'date_start'}"/>
                 </group>
              </search>
         </field>

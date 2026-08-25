@@ -13,15 +13,15 @@
                 </control>
                 <field name="currency_id" column_invisible="True"/>
                 <field name="partner_id" readonly="state != 'draft'"/>
-                <field name="company_id" groups="base.group_multi_company" optional="hidden"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
                 <field name="protocol_number_part1" readonly="state != 'draft'"/>
                 <field name="protocol_number_part2" readonly="state != 'draft'"/>
                 <field name="issue_date" readonly="state != 'draft'"/>
                 <field name="start_date" readonly="state != 'draft'"/>
                 <field name="end_date" readonly="state != 'draft'"/>
                 <field name="threshold" readonly="state != 'draft'"/>
-                <field name="not_yet_invoiced" optional="hidden"/>
-                <field name="invoiced" optional="hidden"/>
+                <field name="not_yet_invoiced" optional="hide"/>
+                <field name="invoiced" optional="hide"/>
                 <field name="remaining"/>
                 <field name="state"/>
             </list>

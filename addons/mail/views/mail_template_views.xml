@@ -176,10 +176,10 @@
                 <field name="model_id" groups="base.group_no_one" />
                 <field name="user_id" optional="show" widget="many2one_avatar_user" />
                 <field name="description" />
-                <field name="subject" optional="hidden" />
-                <field name="email_from" optional="hidden" />
-                <field name="email_to" optional="hidden" />
-                <field name="partner_to" optional="hidden" />
+                <field name="subject" optional="hide" />
+                <field name="email_from" optional="hide" />
+                <field name="email_to" optional="hide" />
+                <field name="partner_to" optional="hide" />
             </list>
         </field>
     </record>
@@ -212,12 +212,10 @@
                     <filter
                         string="SMTP Server"
                         name="smtpserver"
-                        domain="[]"
                         context="{'group_by':'mail_server_id'}" />
                     <filter
                         string="Model"
                         name="group_by_model_id"
-                        domain="[]"
                         context="{'group_by':'model_id'}" />
                 </group>
             </search>

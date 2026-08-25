@@ -232,12 +232,12 @@
                     <field name="manager_id"/>
                 </xpath>
                 <xpath expr="//group[@name='groupby']" position="inside">
-                    <filter string="Project" name="groupby_project" domain="[]" context="{'group_by': 'project_id'}"/>
-                    <filter string="Parent Task" name="groupby_parent_task" domain="[]" context="{'group_by': 'parent_task_id'}"/>
-                    <filter string="Task" name="groupby_task" domain="[]" context="{'group_by': 'task_id'}"/>
-                    <filter string="Department" name="groupby_department" domain="[]" context="{'group_by': 'department_id'}"/>
-                    <filter string="Manager" name="groupby_manager" domain="[]" context="{'group_by': 'manager_id'}"/>
-                    <filter string="Employee" name="groupby_employee" domain="[]" context="{'group_by': 'employee_id'}"/>
+                    <filter string="Project" name="groupby_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="Parent Task" name="groupby_parent_task" context="{'group_by': 'parent_task_id'}"/>
+                    <filter string="Task" name="groupby_task" context="{'group_by': 'task_id'}"/>
+                    <filter string="Department" name="groupby_department" context="{'group_by': 'department_id'}"/>
+                    <filter string="Manager" name="groupby_manager" context="{'group_by': 'manager_id'}"/>
+                    <filter string="Employee" name="groupby_employee" context="{'group_by': 'employee_id'}"/>
                 </xpath>
             </field>
         </record>

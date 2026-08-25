@@ -2,19 +2,6 @@
 <odoo>
     <data>
 
-        <!-- Add 'serialization_field_id' in ir.model form view -->
-        <record model="ir.ui.view" id="model_form_view">
-            <field name="model">ir.model</field>
-            <field name="inherit_id" ref="base.view_model_form"/>
-            <field name="arch" type="xml">
-                <field name="related" position="before">
-                    <field name="serialization_field_id"
-                        domain="[('ttype','=','serialized'), ('model_id','=',parent.model)]"
-                        readonly="state == 'base'" options="{'no_create': True}"/>
-                </field>
-            </field>
-        </record>
-
         <!-- Add 'serialization_field_id' in ir.model.fields form view -->
         <record model="ir.ui.view" id="field_form_view">
             <field name="model">ir.model.fields</field>

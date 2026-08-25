@@ -111,13 +111,13 @@
                     <filter string="Payment Date" name="date" date="date"/>
                     <separator/>
                     <field name="company_id" groups="base.group_multi_company"/>
-                    <filter string="Partner" name="partner" domain="[]" context="{'group_by': 'partner_id'}"/>
-                    <filter string="Journal" name="journal" domain="[]" context="{'group_by': 'journal_id'}"/>
-                    <filter string="Payment Method Line" name="paymentmethodline" domain="[]" context="{'group_by': 'payment_method_line_id'}"/>
-                    <filter string="Status" name="state" domain="[]" context="{'group_by': 'state'}"/>
-                    <filter string="Payment Date" name="groupby_date" domain="[]" context="{'group_by': 'date'}"/>
-                    <filter string="Currency" name="currency" domain="[]" context="{'group_by': 'currency_id'}" groups="base.group_multi_currency"/>
-                    <filter string="Company" name="company" domain="[]" context="{'group_by': 'company_id'}" groups="base.group_multi_company"/>
+                    <filter string="Partner" name="partner" context="{'group_by': 'partner_id'}"/>
+                    <filter string="Journal" name="journal" context="{'group_by': 'journal_id'}"/>
+                    <filter string="Payment Method Line" name="paymentmethodline" context="{'group_by': 'payment_method_line_id'}"/>
+                    <filter string="Status" name="state" context="{'group_by': 'state'}"/>
+                    <filter string="Payment Date" name="groupby_date" context="{'group_by': 'date'}"/>
+                    <filter string="Currency" name="currency" context="{'group_by': 'currency_id'}" groups="base.group_multi_currency"/>
+                    <filter string="Company" name="company" context="{'group_by': 'company_id'}" groups="base.group_multi_company"/>
                     <separator/>
                     <filter invisible="1" string="My Activities" name="filter_activities_my"
                         domain="[('activity_user_id', '=', uid)]"/>

@@ -48,27 +48,22 @@
                     <filter
                         name="group_by_kind"
                         string="Kind"
-                        domain="[]"
                         context="{'group_by': 'kind'}" />
                     <filter
                         name="group_by_phase"
                         string="Boot Phase"
-                        domain="[]"
                         context="{'group_by': 'phase'}" />
                     <filter
                         name="group_by_url"
                         string="URL"
-                        domain="[]"
                         context="{'group_by': 'url'}" />
                     <filter
                         name="group_by_user"
                         string="User"
-                        domain="[]"
                         context="{'group_by': 'user_id'}" />
                     <filter
                         name="group_by_day"
                         string="Day"
-                        domain="[]"
                         context="{'group_by': 'recorded_at:day'}" />
                 </group>
             </search>

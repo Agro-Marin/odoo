@@ -155,8 +155,8 @@
                        decoration-warning="state == 'conflict'"
                 />
                 <field name="name" optional="hide"/>
-                <field name="code" optional="hidden"/>
-                <field name="external_code" optional="hidden"/>
+                <field name="code" optional="hide"/>
+                <field name="external_code" optional="hide"/>
             </list>
         </field>
     </record>

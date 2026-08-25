@@ -22,7 +22,7 @@
                 <field name="cashier"/>
             </xpath>
             <xpath expr="//filter[@name='user_id']" position="replace">
-                <filter string="Cashier" name="by_cashier" domain="[]" context="{'group_by': 'cashier'}"/>
+                <filter string="Cashier" name="by_cashier" context="{'group_by': 'cashier'}"/>
             </xpath>
         </field>
     </record>

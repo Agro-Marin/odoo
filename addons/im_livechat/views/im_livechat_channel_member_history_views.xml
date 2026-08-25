@@ -69,18 +69,18 @@
                     <filter name="filter_date_last_week" invisible="1" string="Date: Last week"
                         domain="[('create_date', '&gt;=', 'today -1w')]"/>
                     <group>
-                        <filter name="group_by_channel" string="Channel" domain="[]" context="{'group_by':'session_livechat_channel_id'}"/>
-                        <filter name="group_by_agent" string="Agent" domain="[]" context="{'group_by':'partner_id'}"/>
-                        <filter name="group_by_help_status" domain="[]" context="{'group_by': 'help_status'}"/>
-                        <filter name="group_by_rating_text" string="Rating" domain="[]" context="{'group_by':'rating_text'}"/>
-                        <filter name="group_by_country" string="Country" domain="[]" context="{'group_by':'session_country_id'}"/>
-                        <filter name="group_by_outcome" string="Status" domain="[]" context="{'group_by':'session_outcome'}"/>
-                        <filter name="group_by_expertise" string="Expertise" domain="[]" context="{'group_by':'agent_expertise_ids'}"/>
-                        <filter name="group_by_conversation_tag" string="Tags" domain="[]" context="{'group_by':'conversation_tag_ids'}"/>
+                        <filter name="group_by_channel" string="Channel" context="{'group_by':'session_livechat_channel_id'}"/>
+                        <filter name="group_by_agent" string="Agent" context="{'group_by':'partner_id'}"/>
+                        <filter name="group_by_help_status" context="{'group_by': 'help_status'}"/>
+                        <filter name="group_by_rating_text" string="Rating" context="{'group_by':'rating_text'}"/>
+                        <filter name="group_by_country" string="Country" context="{'group_by':'session_country_id'}"/>
+                        <filter name="group_by_outcome" string="Status" context="{'group_by':'session_outcome'}"/>
+                        <filter name="group_by_expertise" string="Expertise" context="{'group_by':'agent_expertise_ids'}"/>
+                        <filter name="group_by_conversation_tag" string="Tags" context="{'group_by':'conversation_tag_ids'}"/>
                         <separator orientation="vertical" />
-                        <filter name="group_by_start_hour" string="Hour of Day" domain="[]" context="{'group_by':'session_start_hour'}"/>
-                        <filter name="group_by_week_day" string="Day of Week" domain="[]" context="{'group_by':'session_week_day'}"/>
-                        <filter name="group_by_month" string="Date" domain="[]" context="{'group_by':'create_date:month'}" />
+                        <filter name="group_by_start_hour" string="Hour of Day" context="{'group_by':'session_start_hour'}"/>
+                        <filter name="group_by_week_day" string="Day of Week" context="{'group_by':'session_week_day'}"/>
+                        <filter name="group_by_month" string="Date" context="{'group_by':'create_date:month'}" />
                     </group>
                 </search>
             </field>

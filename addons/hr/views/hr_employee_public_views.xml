@@ -23,10 +23,10 @@
                     <separator/>
                     <filter name="archived" string="Archived" domain="[('active', '=', False)]"/>
                     <group>
-                        <filter name="group_manager" string="Manager" domain="[]" context="{'group_by':'parent_id'}"/>
-                        <filter name="group_department" string="Department" domain="[]" context="{'group_by':'department_id'}"/>
-                        <filter name="group_job" string="Job" domain="[]" context="{'group_by':'job_id'}"/>
-                        <filter name="group_company" string="Company" domain="[]" context="{'group_by':'company_id'}"/>
+                        <filter name="group_manager" string="Manager" context="{'group_by':'parent_id'}"/>
+                        <filter name="group_department" string="Department" context="{'group_by':'department_id'}"/>
+                        <filter name="group_job" string="Job" context="{'group_by':'job_id'}"/>
+                        <filter name="group_company" string="Company" context="{'group_by':'company_id'}"/>
                     </group>
                 </search>
              </field>

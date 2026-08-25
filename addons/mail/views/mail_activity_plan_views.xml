@@ -15,7 +15,6 @@
                 <filter
                     string="Model"
                     name="group_by_model"
-                    domain="[]"
                     context="{'group_by': 'res_model_id'}" />
             </search>
         </field>

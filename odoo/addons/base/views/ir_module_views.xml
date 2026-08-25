@@ -32,17 +32,14 @@
                     <filter
                         string="Author"
                         name="author"
-                        domain="[]"
                         context="{'group_by':'author'}" />
                     <filter
                         string="Category"
                         name="category"
-                        domain="[]"
                         context="{'group_by':'category_id'}" />
                     <filter
                         string="Status"
                         name="state"
-                        domain="[]"
                         context="{'group_by':'state'}" />
                 </group>
                 <searchpanel>
@@ -72,7 +69,7 @@
         <field name="model">ir.module.module</field>
         <field name="arch" type="xml">
             <list
-                create="false"
+                create="0"
                 string="Apps"
                 decoration-info="state == 'uninstalled'"
                 decoration-muted="state == 'uninstallable'">
@@ -107,7 +104,7 @@
         <field name="name">Apps Kanban</field>
         <field name="model">ir.module.module</field>
         <field name="arch" type="xml">
-            <kanban create="false" can_open="0" class="o_modules_kanban">
+            <kanban create="0" can_open="0" class="o_modules_kanban">
                 <field name="to_buy" />
                 <field name="name" />
                 <field name="state" />
@@ -139,7 +136,7 @@
                                 options="{'size': [50, 50]}"
                                 alt="Icon" />
                             <field
-                                t-if="record.icon_flag"
+                                t-if="record.icon_flag.raw_value"
                                 name="icon_flag"
                                 class="oe_module_flag" />
                         </aside>
@@ -161,7 +158,7 @@
                                     groups="base.group_system">
                                     Activate</button>
                                 <button
-                                    t-if="installed"
+                                    t-if="record.state.raw_value === 'installed'"
                                     class="d-flex align-items-center text-muted float-start">
                                     Installed</button>
                                 <a t-att-href="record.website.raw_value" target="_blank" invisible="website in (False, '')" class="btn btn-sm btn-secondary float-end o-hidden-ios" role="button">Learn More</a>
@@ -236,7 +233,6 @@
                         <h6 class="text-muted mt-2" invisible="not has_iap">Contains In-App
                             Purchases</h6>
                     </div>
-                    <div class="clearfix" />
                     <notebook groups="base.group_no_one">
                         <page string="Information" name="information">
                             <group>
@@ -282,11 +278,11 @@
                             string="Installed Features"
                             name="installed_features"
                             invisible="state != 'installed'">
-                            <group string="Created Menus" />
+                            <separator string="Created Menus" />
                             <field name="menus_by_module" />
-                            <group string="Created Views" />
+                            <separator string="Created Views" />
                             <field name="views_by_module" />
-                            <group string="Defined Reports" />
+                            <separator string="Defined Reports" />
                             <field name="reports_by_module" />
                         </page>
                     </notebook>

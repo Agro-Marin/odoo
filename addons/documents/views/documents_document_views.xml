@@ -53,17 +53,17 @@
                 <filter invisible="1" string="Future Activities" name="activities_upcoming_all"
                     domain="[('my_activity_date_deadline', '&gt;', 'today')]" />
                 <group>
-                    <filter string="Contact" name="filter_partner_id" domain="[]"
+                    <filter string="Contact" name="filter_partner_id"
                         context="{'group_by': 'partner_id'}" />
-                    <filter string="Owner" name="filter_owner_id" domain="[]"
+                    <filter string="Owner" name="filter_owner_id"
                         context="{'group_by': 'owner_id'}" />
-                    <filter string="Type" name="filter_type" domain="[]"
+                    <filter string="Type" name="filter_type"
                         context="{'group_by': 'type'}" />
-                    <filter string="Model" name="filter_res_model" domain="[]"
+                    <filter string="Model" name="filter_res_model"
                         context="{'group_by': 'res_model'}" />
-                    <filter string="Creation Date" name="filter_create_date" domain="[]"
+                    <filter string="Creation Date" name="filter_create_date"
                         context="{'group_by':'create_date'}" />
-                    <filter string="File Extension" name="filter_file_extension" domain="[]"
+                    <filter string="File Extension" name="filter_file_extension"
                         context="{'group_by': 'file_extension'}" />
                 </group>
                 <searchpanel class="o_documents_search_panel">

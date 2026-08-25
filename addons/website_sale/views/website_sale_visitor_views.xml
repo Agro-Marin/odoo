@@ -52,7 +52,7 @@
                 <filter string="Products" name="type_product" domain="[('product_id', '!=', False)]"/>
             </filter>
             <filter name="group_by_url" position="after">
-                <filter string="Product" name="group_by_product" domain="[]" context="{'group_by': 'product_id'}"/>
+                <filter string="Product" name="group_by_product" context="{'group_by': 'product_id'}"/>
             </filter>
         </field>
     </record>

@@ -27,11 +27,11 @@
                 <filter name="anonymous" string="Anonymous Traffic"
                     domain="[('user_id', '=', False)]" />
                 <group>
-                    <filter name="group_by_url" string="URL" domain="[]"
+                    <filter name="group_by_url" string="URL"
                         context="{'group_by': 'url'}" />
-                    <filter name="group_by_user" string="User" domain="[]"
+                    <filter name="group_by_user" string="User"
                         context="{'group_by': 'user_id'}" />
-                    <filter name="group_by_day" string="Day" domain="[]"
+                    <filter name="group_by_day" string="Day"
                         context="{'group_by': 'recorded_at:day'}" />
                 </group>
             </search>

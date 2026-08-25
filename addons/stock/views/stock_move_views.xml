@@ -40,29 +40,21 @@
                 <filter string="Date" name="today" date="date" help="Scheduled or processing date" />
                 <group>
                     <filter string="Product" name="by_product"
-                        domain="[]"
                         context="{'group_by': 'product_id'}" />
                     <filter string="Operation Type" name="groupby_picking_type_id"
-                        domain="[]"
                         context="{'group_by': 'picking_type_id'}" />
                     <filter string="Picking" name="groupby_picking_id"
-                        domain="[]"
                         context="{'group_by': 'picking_id'}" />
                     <filter string="Source Location" name="groupby_location_id"
-                        domain="[]"
                         context="{'group_by': 'location_id'}"
                         groups="stock.group_stock_multi_locations" />
-                    <filter string="Destination Location" name="groupby_dest_location_id"
-                        domain="[]" context="{'group_by': 'location_dest_id'}"
+                    <filter string="Destination Location" name="groupby_dest_location_id" context="{'group_by': 'location_dest_id'}"
                         groups="stock.group_stock_multi_locations" />
                     <filter string="Status" name="status"
-                        domain="[]"
                         context="{'group_by': 'state'}" />
                     <filter string="Creation Date" name="groupby_create_date"
-                        domain="[]"
                         context="{'group_by': 'create_date'}" groups="base.group_no_one" />
                     <filter string="Scheduled Date" name="groupby_date"
-                        domain="[]"
                         context="{'group_by': 'date'}" />
                 </group>
             </search>

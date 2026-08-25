@@ -41,22 +41,18 @@
                     <filter
                         string="State"
                         name="groupby_state"
-                        domain="[]"
                         context="{'group_by': 'state'}" />
                     <filter
                         string="Channel"
                         name="groupby_channel"
-                        domain="[]"
                         context="{'group_by': 'channel'}" />
                     <filter
                         string="Model"
                         name="groupby_model"
-                        domain="[]"
                         context="{'group_by': 'model_name'}" />
                     <filter
                         string="Created on"
                         name="groupby_create_date"
-                        domain="[]"
                         context="{'group_by': 'create_date'}" />
                 </group>
             </search>
@@ -72,7 +68,7 @@
                 decoration-info="state == 'started'"
                 decoration-danger="state == 'failed'"
                 decoration-muted="state == 'cancelled'"
-                create="false">
+                create="0">
                 <field name="id" />
                 <field name="name" optional="show" />
                 <field name="model_name" />
@@ -102,7 +98,7 @@
     <record id="ir_job_view_form" model="ir.ui.view">
         <field name="model">ir.job</field>
         <field name="arch" type="xml">
-            <form string="Background Job" create="false">
+            <form string="Background Job" create="0">
                 <header>
                     <button
                         name="action_run_now"

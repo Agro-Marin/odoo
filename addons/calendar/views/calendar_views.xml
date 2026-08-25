@@ -477,9 +477,9 @@
                 <separator/>
                 <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
                 <group>
-                    <filter string="Responsible" name="responsible" domain="[]" context="{'group_by': 'user_id'}"/>
+                    <filter string="Responsible" name="responsible" context="{'group_by': 'user_id'}"/>
                     <separator/>
-                    <filter string="Date" name="group_by_start" domain="[]" context="{'group_by': 'start'}"/>
+                    <filter string="Date" name="group_by_start" context="{'group_by': 'start'}"/>
                 </group>
             </search>
         </field>

@@ -12,7 +12,7 @@
                 <field name="company_ids" options="{'no_create': True}" widget="many2many_tags" groups="base.group_multi_company" placeholder="Visible to all"/>
                 <field name="spreadsheet_binary_data" groups="base.group_no_one" widget="binary_spreadsheet" filename="spreadsheet_file_name" string="Data" />
                 <field name="is_published" widget="boolean_toggle"/>
-                <field name="dashboard_group_id" optional="hidden"/>
+                <field name="dashboard_group_id" optional="hide"/>
             </list>
         </field>
     </record>

@@ -700,7 +700,6 @@ class IrActionsAct_Window(models.Model):
     embedded_action_ids = fields.One2many(
         "ir.embedded.actions", compute="_compute_embedded_action_ids"
     )
-    filter = fields.Boolean()
     cache = fields.Boolean(
         string="Data Caching",
         default=True,
@@ -799,7 +798,6 @@ class IrActionsAct_Window(models.Model):
             "cache",
             "mobile_view_mode",
             "domain",
-            "filter",
             "group_ids",
             "limit",
             "res_id",

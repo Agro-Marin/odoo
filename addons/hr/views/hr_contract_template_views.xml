@@ -59,9 +59,9 @@
                 <field name="contract_type_id" optional="show"/>
                 <field name="structure_type_id" optional="show"/>
                 <field name="resource_calendar_id" optional="show"/>
-                <field name="company_id" groups="base.group_multi_company" readonly="1" optional="hidden"/>
-                <field name="create_uid" optional="hidden"/>
-                <field name="create_date" optional="hidden"/>
+                <field name="company_id" groups="base.group_multi_company" readonly="1" optional="hide"/>
+                <field name="create_uid" optional="hide"/>
+                <field name="create_date" optional="hide"/>
             </list>
         </field>
     </record>

@@ -132,10 +132,10 @@
                 <field name="definition_id"/>
                 <field name="challenge_id"/>
                 <group>
-                    <filter name="group_by_user" string="User" domain="[]" context="{'group_by':'user_id'}"/>
-                    <filter name="group_by_definition" string="Goal Definition" domain="[]" context="{'group_by':'definition_id'}"/>
-                    <filter string="State" name="state" domain="[]" context="{'group_by':'state'}"/>
-                    <filter string="End Date" name="enddate" domain="[]" context="{'group_by':'end_date'}"/>
+                    <filter name="group_by_user" string="User" context="{'group_by':'user_id'}"/>
+                    <filter name="group_by_definition" string="Goal Definition" context="{'group_by':'definition_id'}"/>
+                    <filter string="State" name="state" context="{'group_by':'state'}"/>
+                    <filter string="End Date" name="enddate" context="{'group_by':'end_date'}"/>
                 </group>
             </search>
         </field>

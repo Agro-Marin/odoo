@@ -51,8 +51,8 @@
                 <field name="amount"/>
                 <field name="pos_order_id" />
                 <group>
-                    <filter name="group_by_payment_method" string="Payment Method" domain="[]"  context="{'group_by':'payment_method_id'}"/>
-                    <filter name="group_by_session" string="Session" domain="[]"  context="{'group_by':'session_id'}"/>
+                    <filter name="group_by_payment_method" string="Payment Method"  context="{'group_by':'payment_method_id'}"/>
+                    <filter name="group_by_session" string="Session"  context="{'group_by':'session_id'}"/>
                 </group>
             </search>
         </field>

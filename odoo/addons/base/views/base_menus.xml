@@ -5,12 +5,8 @@
         id="menu_administration"
         name="Settings"
         sequence="550"
-        groups="base.group_erp_manager"
+        groups="base.group_system,base.group_erp_manager"
         web_icon="base,static/description/settings.png">
-        <menuitem
-            id="menu_administration_shortcut"
-            name="Custom Shortcuts"
-            sequence="50" />
         <menuitem id="menu_users" name="Users &amp; Companies" sequence="1" />
         <menuitem
             id="menu_translation"
@@ -51,40 +47,34 @@
         web_icon="base,static/description/modules.png" />
 
     <menuitem
-        id="base.menu_tests"
+        id="menu_tests"
         name="Tests"
         sequence="1000"
         web_icon="base,static/description/exception.png" />
 
-    <record id="base.menu_administration" model="ir.ui.menu">
-        <field
-            name="group_ids"
-            eval="[Command.set([ref('group_system'), ref('group_erp_manager')])]" />
-    </record>
-
     <menuitem
         id="menu_action_res_users"
-        parent="base.menu_users"
+        parent="menu_users"
         action="action_res_users"
         sequence="0" />
 
     <menuitem
         id="menu_action_res_groups_privilege"
-        parent="base.menu_users"
+        parent="menu_users"
         action="action_res_groups_privilege"
         sequence="5"
         groups="base.group_no_one" />
 
     <menuitem
         id="menu_action_res_groups"
-        parent="base.menu_users"
+        parent="menu_users"
         action="action_res_groups"
         sequence="3"
         groups="base.group_no_one" />
 
     <menuitem
         id="menu_action_res_company_form"
-        parent="base.menu_users"
+        parent="menu_users"
         action="action_res_company_form" />
 
     <menuitem
@@ -105,26 +95,26 @@
 
     <menuitem
         id="menu_grant_menu_access"
-        parent="base.menu_user_interface"
+        parent="menu_user_interface"
         action="grant_menu_access"
         sequence="1" />
 
     <menuitem
         id="menu_action_ui_view"
-        parent="base.menu_user_interface"
+        parent="menu_user_interface"
         action="action_ui_view"
         sequence="2" />
 
     <menuitem
         id="menu_action_ui_view_custom"
-        parent="base.menu_user_interface"
+        parent="menu_user_interface"
         action="action_ui_view_custom"
         sequence="3" />
 
     <menuitem
         id="menu_ir_filters"
         name="User-defined Filters"
-        parent="base.menu_user_interface"
+        parent="menu_user_interface"
         action="actions_ir_filters_view"
         sequence="5" />
 
@@ -135,7 +125,7 @@
         sequence="5"
         groups="base.group_no_one" />
 
-    <menuitem id="menu_actions" name="Actions" parent="base.menu_custom" sequence="5" />
+    <menuitem id="menu_actions" name="Actions" parent="menu_custom" sequence="5" />
 
     <menuitem
         id="menu_ir_sequence_actions"
@@ -144,32 +134,32 @@
 
     <menuitem
         id="menu_ir_action_report"
-        parent="base.menu_actions"
+        parent="menu_actions"
         action="ir_action_report" />
 
     <menuitem
         id="menu_ir_action_window"
-        parent="base.menu_actions"
+        parent="menu_actions"
         action="ir_action_window" />
 
     <menuitem
         id="menu_ir_client_actions_report"
-        parent="base.menu_actions"
+        parent="menu_actions"
         action="ir_client_actions_report" />
 
     <menuitem
         id="menu_server_action"
-        parent="base.menu_actions"
+        parent="menu_actions"
         action="action_server_action" />
 
     <menuitem
         id="menu_ir_embedded_action"
-        parent="base.menu_actions"
+        parent="menu_actions"
         action="ir_embedded_action" />
 
     <menuitem
         id="menu_ir_actions_todo_form"
-        parent="base.menu_actions"
+        parent="menu_actions"
         action="act_ir_actions_todo_form" />
 
     <menuitem
@@ -184,62 +174,62 @@
 
     <menuitem
         id="menu_ir_model_fields"
-        parent="base.menu_database_structure"
+        parent="menu_database_structure"
         action="action_model_fields" />
 
     <menuitem
         id="menu_ir_model_fields_selection"
-        parent="base.menu_database_structure"
+        parent="menu_database_structure"
         action="action_model_fields_selection" />
 
     <menuitem
         id="menu_ir_model_constraint"
-        parent="base.menu_database_structure"
+        parent="menu_database_structure"
         action="action_model_constraint"
         groups="base.group_no_one" />
 
     <menuitem
         id="menu_ir_model_relation"
-        parent="base.menu_database_structure"
+        parent="menu_database_structure"
         action="action_model_relation"
         groups="base.group_no_one" />
 
     <menuitem
         id="menu_ir_logging"
-        parent="base.menu_database_structure"
+        parent="menu_database_structure"
         action="ir_logging_all_act" />
 
     <menuitem
         id="menu_ir_profile"
         name="Profiling"
-        parent="base.menu_database_structure"
+        parent="menu_database_structure"
         action="action_menu_ir_profile" />
 
     <menuitem
         id="menu_decimal_precision_form"
-        parent="base.menu_database_structure"
+        parent="menu_database_structure"
         action="action_decimal_precision_form" />
 
     <menuitem
         id="menu_action_asset"
-        parent="base.menu_database_structure"
+        parent="menu_database_structure"
         action="action_asset" />
 
     <menuitem
         id="menu_action_attachment"
-        parent="base.menu_database_structure"
+        parent="menu_database_structure"
         action="action_attachment" />
 
     <menuitem
         id="menu_sequences_identifiers"
         name="Sequences &amp; Identifiers"
-        parent="base.menu_custom"
+        parent="menu_custom"
         sequence="21"
         groups="base.group_no_one" />
 
     <menuitem
         id="menu_ir_model_data"
-        parent="base.menu_sequences_identifiers"
+        parent="menu_sequences_identifiers"
         action="action_model_data"
         groups="base.group_no_one" />
 
@@ -251,7 +241,7 @@
     <menuitem
         id="menu_reporting"
         name="Reporting"
-        parent="base.menu_custom"
+        parent="menu_custom"
         sequence="15"
         groups="base.group_no_one" />
 
@@ -267,24 +257,21 @@
         id="menu_reports"
         name="Reports"
         parent="menu_reporting"
-        action="reports_action"
+        action="ir_action_report"
         sequence="3"
         groups="base.group_no_one" />
 
-    <menuitem
-        id="menu_ir_access_act"
-        parent="base.menu_security"
-        action="ir_access_act" />
+    <menuitem id="menu_ir_access_act" parent="menu_security" action="ir_access_act" />
 
     <menuitem
         id="menu_action_rule"
-        parent="base.menu_security"
+        parent="menu_security"
         action="action_rule"
         sequence="3" />
 
     <menuitem
         id="menu_action_user_device"
-        parent="base.menu_security"
+        parent="menu_security"
         action="action_user_device"
         sequence="10" />
 
@@ -296,25 +283,25 @@
 
     <menuitem
         id="menu_ir_cron_act"
-        parent="base.menu_automation"
+        parent="menu_automation"
         action="ir_cron_act"
         sequence="2" />
 
     <menuitem
         id="menu_ir_cron_trigger"
-        parent="base.menu_automation"
+        parent="menu_automation"
         action="ir_cron_trigger_action"
         sequence="3" />
 
     <menuitem
         id="menu_ir_job_act"
-        parent="base.menu_automation"
+        parent="menu_automation"
         action="ir_job_act"
         sequence="4" />
 
     <menuitem
         id="menu_ir_job_channel_act"
-        parent="base.menu_automation"
+        parent="menu_automation"
         action="ir_job_channel_act"
         sequence="5" />
 
@@ -326,12 +313,6 @@
         parent="menu_apps"
         action="open_module_tree"
         sequence="5" />
-
-    <menuitem
-        id="menu_theme_store_section"
-        name="Theme Store"
-        parent="menu_apps"
-        sequence="15" />
 
     <menuitem
         id="menu_theme_store"

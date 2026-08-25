@@ -59,8 +59,8 @@
                 <filter string="Exhibitors" name="filter_is_exhibitor" domain="[('exhibitor_type', 'in', ['exhibitor', 'online'])]"/>
                 <filter string="Online" name="filter_is_exhibitor" domain="[('exhibitor_type', '=', 'online')]"/>
                 <group>
-                    <filter string="Event" name="group_by_event_id" domain="[]" context="{'group_by': 'event_id'}"/>
-                    <filter string="Level" name="group_by_sponsor_type_id" domain="[]" context="{'group_by': 'sponsor_type_id'}"/>
+                    <filter string="Event" name="group_by_event_id" context="{'group_by': 'event_id'}"/>
+                    <filter string="Level" name="group_by_sponsor_type_id" context="{'group_by': 'sponsor_type_id'}"/>
                 </group>
             </search>
         </field>

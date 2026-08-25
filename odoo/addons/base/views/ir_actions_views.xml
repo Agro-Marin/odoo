@@ -163,12 +163,10 @@
                     <filter
                         string="Report Type"
                         name="report_type"
-                        domain="[]"
                         context="{'group_by':'report_type'}" />
                     <filter
                         string="Report Model"
                         name="report_model"
-                        domain="[]"
                         context="{'group_by':'model'}" />
                 </group>
             </search>
@@ -256,7 +254,6 @@
                                     <field name="domain" />
                                     <field name="context" />
                                     <field name="limit" />
-                                    <field name="filter" />
                                 </group>
                             </group>
                             <group name="help" string="Help">
@@ -438,7 +435,7 @@
                         <button
                             type="object"
                             name="action_open_scheduled_action"
-                            invisible="not ir_cron_ids or context.key != 'server_action'"
+                            invisible="not ir_cron_ids or context.get('key') != 'server_action'"
                             context="{'key': 'ir_cron'}"
                             class="oe_stat_button"
                             icon="fa-refresh">
@@ -644,7 +641,6 @@
                             <page string="Code" invisible="state != 'code'">
                                 <field
                                     name="code"
-                                    invisible="state != 'code'"
                                     widget="code"
                                     options="{'mode': 'python'}"
                                     placeholder="Enter Python code here. Help about Python expression is available in the help tab of this document." />
@@ -768,17 +764,14 @@
                     <filter
                         string="Action Type"
                         name="action_type"
-                        domain="[]"
                         context="{'group_by':'state'}" />
                     <filter
                         string="Model"
                         name="model"
-                        domain="[]"
                         context="{'group_by':'model_id'}" />
                     <filter
                         string="Usage"
                         name="usage"
-                        domain="[]"
                         context="{'group_by':'usage'}" />
                 </group>
             </search>

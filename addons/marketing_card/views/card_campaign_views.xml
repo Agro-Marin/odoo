@@ -208,8 +208,8 @@
                 <field name="tag_ids"/>
                 <separator/>
                 <group>
-                    <filter string="Responsible" name="by_responsible" domain="[]" context="{'group_by': 'user_id'}"/>
-                    <filter string="Tags" name="by_tags" domain="[]" context="{'group_by': 'tag_ids'}"/>
+                    <filter string="Responsible" name="by_responsible" context="{'group_by': 'user_id'}"/>
+                    <filter string="Tags" name="by_tags" context="{'group_by': 'tag_ids'}"/>
                 </group>
             </search>
         </field>

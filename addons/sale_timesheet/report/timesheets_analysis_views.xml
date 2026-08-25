@@ -158,7 +158,7 @@
                 <field name="so_line" groups="sales_team.group_sale_salesman"/>
             </xpath>
             <xpath expr="//filter[@name='groupby_sale_order_item']" position="before">
-                <filter string="Sales Order" name="groupby_sale_order" domain="[]"
+                <filter string="Sales Order" name="groupby_sale_order"
                     context="{'group_by': 'order_id'}" groups="sales_team.group_sale_salesman"/>
             </xpath>
         </field>

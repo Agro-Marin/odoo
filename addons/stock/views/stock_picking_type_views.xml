@@ -12,10 +12,8 @@
                 <filter string="Archived" name="inactive" domain="[('active','=',False)]" />
                 <group>
                     <filter string="Type of Operation" name="groupby_code"
-                        domain="[]"
                         context="{'group_by': 'code'}" />
                     <filter string="Warehouse" name="groupby_warehouse_id"
-                        domain="[]"
                         context="{'group_by': 'warehouse_id'}" />
                 </group>
             </search>

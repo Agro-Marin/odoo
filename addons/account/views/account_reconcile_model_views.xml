@@ -10,7 +10,7 @@
                     <field name="sequence" widget="handle" />
                     <field name="name"/>
                     <field name="trigger"/>
-                    <field name="match_journal_ids" optional="hidden" widget="many2many_tags"/>
+                    <field name="match_journal_ids" optional="hide" widget="many2many_tags"/>
                 </list>
             </field>
         </record>

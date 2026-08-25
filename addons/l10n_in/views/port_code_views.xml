@@ -39,7 +39,7 @@
                 <field name="name" string="Port" filter_domain="['|',('name', 'ilike', self),('code', 'ilike', self)]"/>
                 <field name="state_id"/>
                 <group>
-                    <filter string="State" name="state" domain="[]" context="{'group_by': 'state_id'}"/>
+                    <filter string="State" name="state" context="{'group_by': 'state_id'}"/>
                 </group>
             </search>
         </field>

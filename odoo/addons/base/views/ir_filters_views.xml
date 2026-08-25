@@ -25,12 +25,10 @@
                     <filter
                         string="User"
                         name="user"
-                        domain="[]"
                         context="{'group_by':'user_ids'}" />
                     <filter
                         string="Model"
                         name="model"
-                        domain="[]"
                         context="{'group_by':'model_id'}" />
                 </group>
                 <field name="model_id" />

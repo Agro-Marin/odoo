@@ -40,17 +40,11 @@
                     <filter
                         string="Model"
                         name="object"
-                        domain="[]"
                         context="{'group_by':'model'}" />
-                    <filter
-                        string="Type"
-                        name="type"
-                        domain="[]"
-                        context="{'group_by':'type'}" />
+                    <filter string="Type" name="type" context="{'group_by':'type'}" />
                     <filter
                         string="Inherit"
                         name="inherit"
-                        domain="[]"
                         context="{'group_by':'inherit_id'}" />
                 </group>
             </search>

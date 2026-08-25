@@ -115,7 +115,7 @@
                     <field name="link_id"/>
                     <field name="country_id"/>
                     <group>
-                        <filter string="Link" name="groupby_link_id" domain="[]" context="{'group_by': 'link_id'}"/>
+                        <filter string="Link" name="groupby_link_id" context="{'group_by': 'link_id'}"/>
                         <filter string="Country" name="groupby_country_id" context="{'group_by': 'country_id'}"/>
                     </group>
                 </search>

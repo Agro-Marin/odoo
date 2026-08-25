@@ -54,7 +54,7 @@
             <field name="inherit_id" ref="crm.view_crm_case_opportunities_filter"/>
             <field name="arch" type="xml">
                 <filter name="stage" position="after">
-                    <filter string="Assigned Partner" name="assigned_partner" domain="[]" context="{'group_by':'partner_assigned_id'}"/>
+                    <filter string="Assigned Partner" name="assigned_partner" context="{'group_by':'partner_assigned_id'}"/>
                 </filter>
                 <filter name="unassigned" position="after">
                     <filter string="My Assigned Partners" name="my_assigned_partners" domain="[('partner_assigned_id.user_id', '=', uid)]"/>
@@ -82,7 +82,7 @@
             <field name="inherit_id" ref="crm.view_crm_case_leads_filter"/>
             <field name="arch" type="xml">
                 <filter name="company" position="after">
-                    <filter string="Assigned Partner" name="assigned_partner" domain="[]" context="{'group_by': 'partner_assigned_id'}"/>
+                    <filter string="Assigned Partner" name="assigned_partner" context="{'group_by': 'partner_assigned_id'}"/>
                 </filter>
                 <filter name="unassigned_leads" position="after">
                     <filter string="My Assigned Partners" name="my_assigned_partners" domain="[('partner_assigned_id.user_id', '=', uid)]"/>

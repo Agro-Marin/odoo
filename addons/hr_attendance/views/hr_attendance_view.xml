@@ -23,18 +23,18 @@
                 <field name="worked_hours" string="Worked Hours" widget="float_time"/>
                 <field name="overtime_hours" string="Worked Extra Hours" optional="show" widget="float_time"/>
                 <field name="validated_overtime_hours" string="Extra Hours" optional="show" widget="float_time"/>
-                <field name="overtime_status" optional="hidden" widget="badge" decoration-warning="overtime_status == 'to_approve'" decoration-success="overtime_status == 'approved'" decoration-danger="overtime_status == 'refused'"/>
-                <field name="in_mode" string="Input Mode (In)" optional="hidden"/>
-                <field name="out_mode" string="Input Mode (Out)" optional="hidden"/>
-                <field name="in_latitude" string="Latitude (In)" optional="hidden"/>
-                <field name="in_longitude" string="Longitude (In)" optional="hidden"/>
-                <field name="in_location" string="Longitude (In)" optional="hidden"/>
-                <field name="out_latitude" string="Latitude (Out)" optional="hidden"/>
-                <field name="out_longitude" string="Longitude (Out)" optional="hidden"/>
-                <field name="out_location" string="Location" optional="hidden"/>
-                <field name="create_uid" optional="hidden"/>
-                <field name="write_uid" optional="hidden"/>
-                <field name="write_date" optional="hidden"/>
+                <field name="overtime_status" optional="hide" widget="badge" decoration-warning="overtime_status == 'to_approve'" decoration-success="overtime_status == 'approved'" decoration-danger="overtime_status == 'refused'"/>
+                <field name="in_mode" string="Input Mode (In)" optional="hide"/>
+                <field name="out_mode" string="Input Mode (Out)" optional="hide"/>
+                <field name="in_latitude" string="Latitude (In)" optional="hide"/>
+                <field name="in_longitude" string="Longitude (In)" optional="hide"/>
+                <field name="in_location" string="Longitude (In)" optional="hide"/>
+                <field name="out_latitude" string="Latitude (Out)" optional="hide"/>
+                <field name="out_longitude" string="Longitude (Out)" optional="hide"/>
+                <field name="out_location" string="Location" optional="hide"/>
+                <field name="create_uid" optional="hide"/>
+                <field name="write_uid" optional="hide"/>
+                <field name="write_date" optional="hide"/>
                 <field name="color" column_invisible="1"/>
             </list>
         </field>

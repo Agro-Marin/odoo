@@ -234,20 +234,20 @@
                 <separator/>
                 <filter string="Archived" name="filter_inactive" domain="[('active', '=', False)]"/>
                 <group>
-                    <filter string="Partner" name="partner" domain="[]" context="{'group_by':'partner_id'}"/>
-                    <filter string="Event" name="group_event" domain="[]" context="{'group_by':'event_id'}"/>
+                    <filter string="Partner" name="partner" context="{'group_by':'partner_id'}"/>
+                    <filter string="Event" name="group_event" context="{'group_by':'event_id'}"/>
                     <filter string="Slot" name="group_by_event_slot_id" context="{'group_by': 'event_slot_id'}"/>
-                    <filter string="Ticket Type" name ="group_event_ticket_id" domain="[]" context="{'group_by': 'event_ticket_id'}"/>
-                    <filter string="Status" name="status" domain="[]" context="{'group_by':'state'}"/>
-                    <filter string="Registration Date" name="group_by_create_date_week" domain="[]" context="{'group_by': 'create_date:week'}"
+                    <filter string="Ticket Type" name ="group_event_ticket_id" context="{'group_by': 'event_ticket_id'}"/>
+                    <filter string="Status" name="status" context="{'group_by':'state'}"/>
+                    <filter string="Registration Date" name="group_by_create_date_week" context="{'group_by': 'create_date:week'}"
                             invisible="context.get('registration_view_hide_group_by_create_date_week')"/>
-                    <filter string="Registration Date" name="group_by_create_date_day" domain="[]" context="{'group_by': 'create_date:day'}"
+                    <filter string="Registration Date" name="group_by_create_date_day" context="{'group_by': 'create_date:day'}"
                             invisible="not context.get('registration_view_hide_group_by_create_date_week')"/>
-                    <filter string="Campaign" name="group_by_utm_campaign_id" domain="[]"
+                    <filter string="Campaign" name="group_by_utm_campaign_id"
                             context="{'group_by': 'utm_campaign_id'}"/>
-                    <filter string="Medium" name="group_by_utm_medium_id" domain="[]"
+                    <filter string="Medium" name="group_by_utm_medium_id"
                             context="{'group_by': 'utm_medium_id'}"/>
-                    <filter string="Source" name="group_by_utm_source_id" domain="[]"
+                    <filter string="Source" name="group_by_utm_source_id"
                             context="{'group_by': 'utm_source_id'}"/>
                     <filter string="Properties" name="group_by_registration_properties" context="{'group_by': 'registration_properties'}"/>
                </group>

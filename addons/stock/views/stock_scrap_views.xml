@@ -12,13 +12,13 @@
                 <field name="scrap_location_id" />
                 <field name="create_date" />
                 <group>
-                    <filter string="Product" name="product" domain="[]"
+                    <filter string="Product" name="product"
                         context="{'group_by':'product_id'}" />
-                    <filter string="Location" name="location" domain="[]"
+                    <filter string="Location" name="location"
                         context="{'group_by':'location_id'}" />
-                    <filter string="Scrap Location" name="scrap_location" domain="[]"
+                    <filter string="Scrap Location" name="scrap_location"
                         context="{'group_by':'scrap_location_id'}" />
-                    <filter string="Transfer" name="transfer" domain="[]"
+                    <filter string="Transfer" name="transfer"
                         context="{'group_by':'picking_id'}" />
                 </group>
             </search>

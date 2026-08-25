@@ -49,7 +49,7 @@
                            options="{'no_create': True}"
                            domain="tag_ids_domain"/>
                     <field name="use_in_tax_closing"
-                           optional="hidden"
+                           optional="hide"
                            invisible="repartition_type == 'base'"/>
                     <field name="company_id" column_invisible="True"/>
                     <field name="tag_ids_domain" column_invisible="True"/>
@@ -129,10 +129,10 @@
                     <filter name="active" string="Active" domain="[('active','=',True)]" help="Show active taxes"/>
                     <filter name="inactive" string="Inactive" domain="[('active','=',False)]" help="Show inactive taxes"/>
                     <group>
-                        <filter string="Company" name="company" domain="[]" context="{'group_by':'company_id'}" groups="base.group_multi_company"/>
-                        <filter string="Tax Type" name="taxapp" domain="[]" context="{'group_by':'type_tax_use'}"/>
-                        <filter string="Tax Scope" name="taxapp" domain="[]" context="{'group_by':'tax_scope'}"/>
-                        <filter string="Fiscal Position" name="groupfp" domain="[]" context="{'group_by': 'fiscal_position_ids'}"/>
+                        <filter string="Company" name="company" context="{'group_by':'company_id'}" groups="base.group_multi_company"/>
+                        <filter string="Tax Type" name="taxapp" context="{'group_by':'type_tax_use'}"/>
+                        <filter string="Tax Scope" name="taxapp" context="{'group_by':'tax_scope'}"/>
+                        <filter string="Fiscal Position" name="groupfp" context="{'group_by': 'fiscal_position_ids'}"/>
                     </group>
                 </search>
             </field>
@@ -255,7 +255,7 @@
                     <field name="name"/>
                     <field name="country_id"/>
                     <group>
-                        <filter string="Country" name="group_by_country" domain="[]" context="{'group_by': 'country_id'}"/>
+                        <filter string="Country" name="group_by_country" context="{'group_by': 'country_id'}"/>
                     </group>
                 </search>
             </field>

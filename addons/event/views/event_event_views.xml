@@ -335,7 +335,7 @@
                     See WEBSITE_RECORDS_VIEWS_ACCESS_RIGHTS.
                     -->
                     <filter string="Stage" name="stage_id" context="{'group_by': 'stage_id'}" groups="event.group_event_registration_desk"/>
-                    <filter string="Start Date" name="date_begin" domain="[]" context="{'group_by': 'date_begin'}"/>
+                    <filter string="Start Date" name="date_begin" context="{'group_by': 'date_begin'}"/>
                     <filter string="Venue" name="venue" context="{'group_by': 'address_id'}"/>
                 </group>
             </search>

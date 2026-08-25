@@ -54,7 +54,7 @@
                 <field name="requisition_id"/>
             </field>
             <filter name="representative" position="after">
-                <filter string="Agreement" name="requisition" domain="[]" context="{'group_by': 'requisition_id'}"/>
+                <filter string="Agreement" name="requisition" context="{'group_by': 'requisition_id'}"/>
             </filter>
         </field>
     </record>

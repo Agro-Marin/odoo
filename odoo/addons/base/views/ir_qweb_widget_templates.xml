@@ -1,25 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <template id="contact_name">
-        <div t-if="'name' in fields">
-            <t t-if="object.name">
-                <span itemprop="name" t-esc="name" />
-            </t>
-            <t t-if="not object.name and object.parent_name">
-                <span itemprop="name" t-esc="object.parent_name" />
-            </t>
-            <t
-                t-if="options.get('country_image') and 'country_id' in fields and object.country_id and object.country_id.image_url">
+        <div
+            t-if="('name' in fields) or (options.get('country_image') and 'country_id' in fields and object.country_id.image_url)">
+            <t t-if="'name' in fields">
+                <span t-if="object.name" itemprop="name" t-esc="name" />
                 <span
-                    t-field="object.country_id.image_url"
-                    t-options="{&quot;widget&quot;: &quot;image_url&quot;, &quot;class&quot;: &quot;country_flag&quot;}" />
+                    t-elif="object.parent_name"
+                    itemprop="name"
+                    t-esc="object.parent_name" />
             </t>
+            <span
+                t-if="options.get('country_image') and 'country_id' in fields and object.country_id.image_url"
+                t-field="object.country_id.image_url"
+                t-options="{'widget': 'image_url', 'class': 'country_flag'}" />
         </div>
     </template>
 
     <template id="contact">
         <address t-ignore="true" class="o_portal_address mb-0">
-            <div t-if="not (('name' in fields) or (address and 'address' in fields) or (city and 'city' in fields) or (mobile and 'mobile' in fields) or (website and 'website' in fields) or (email and 'email' in fields))" class="css_non_editable_mode_hidden"> --<span class="text-muted" t-esc="name" />-- </div>
+            <div t-if="not (('name' in fields) or (address and 'address' in fields) or (city and 'city' in fields) or (phone and 'phone' in fields) or (website and 'website' in fields) or (email and 'email' in fields))" class="css_non_editable_mode_hidden"> --<span class="text-muted" t-esc="name" />-- </div>
             <t t-if="object.country_id.name_position != 'after'">
                 <t t-call="base.contact_name" />
             </t>
@@ -79,20 +80,9 @@
                         title="Phone" />
                     <span class="o_force_ltr" itemprop="telephone" t-esc="phone" />
                 </div>
-                <div
-                    class="d-flex align-items-center gap-1"
-                    t-if="mobile and 'mobile' in fields">
-                    <i
-                        t-if="not options.get('no_marker') or options.get('phone_icons')"
-                        class="fa-solid fa-mobile-screen-button"
-                        role="img"
-                        aria-label="Mobile"
-                        title="Mobile" />
-                    <span class="o_force_ltr" itemprop="telephone" t-esc="mobile" />
-                </div>
-                <div
-                    t-if="not (phone and 'phone' in fields) and not (mobile and 'mobile' in fields)"
-                    itemprop="telephone" />
+                <!-- Safari on iOS needs a telephone itemprop even when there is no
+                    number to put in it; see test_value_to_html_without_phone. -->
+                <div t-if="not (phone and 'phone' in fields)" itemprop="telephone" />
                 <div
                     class="d-flex align-items-baseline gap-1"
                     t-if="website and 'website' in fields">

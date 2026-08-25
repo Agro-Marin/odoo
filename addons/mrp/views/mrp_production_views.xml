@@ -686,10 +686,10 @@
                     <filter string="Warnings" name="activities_exception"
                         domain="[('activity_exception_decoration', '!=', False)]"/>
                     <group>
-                        <filter string="Product" name="product" domain="[]" context="{'group_by': 'product_id'}"/>
-                        <filter string="Status" name="status" domain="[]" context="{'group_by': 'state'}"/>
-                        <filter string="Material Availability" name="groupby_reservation_state" domain="[]" context="{'group_by': 'reservation_state'}"/>
-                        <filter string="Date" name="date" domain="[]" context="{'group_by': 'date_start'}" help="Date by Month"/>
+                        <filter string="Product" name="product" context="{'group_by': 'product_id'}"/>
+                        <filter string="Status" name="status" context="{'group_by': 'state'}"/>
+                        <filter string="Material Availability" name="groupby_reservation_state" context="{'group_by': 'reservation_state'}"/>
+                        <filter string="Date" name="date" context="{'group_by': 'date_start'}" help="Date by Month"/>
                     </group>
                </search>
             </field>

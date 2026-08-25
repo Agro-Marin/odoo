@@ -25,14 +25,14 @@
                         string="Add to SO"
                         groups="sales_team.group_sale_salesman" />
                 </header>
-                <field name="partner_id" string="Customer" optional="hidden" />
+                <field name="partner_id" string="Customer" optional="hide" />
                 <field name="reference" widget="open_match_line" />
                 <field
                     name="display_name"
                     string="Product Description"
                     decoration-it="not product_id" />
                 <field name="product_uom_qty" string="Quantity" />
-                <field name="qty_invoiced" optional="hidden" />
+                <field name="qty_invoiced" optional="hide" />
                 <field name="qty_to_invoice" optional="show" />
                 <field name="product_uom_id" groups="uom.group_uom" />
                 <field name="product_uom_price" string="Price" />

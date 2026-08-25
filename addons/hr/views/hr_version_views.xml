@@ -92,13 +92,13 @@
                 <filter invisible="1" string="Future Activities" name="activities_upcoming_all"
                     domain="[('my_activity_date_deadline', '&gt;', context_today().strftime('%Y-%m-%d'))]"/>
 
-                <filter string="Employee" name="group_by_employee" domain="[]" context="{'group_by': 'employee_id'}"/>
+                <filter string="Employee" name="group_by_employee" context="{'group_by': 'employee_id'}"/>
                 <separator />
-                <filter string="Job Position" name="group_by_job" domain="[]" context="{'group_by': 'job_id'}"/>
-                <filter string="Department" name="group_by_department" domain="[]" context="{'group_by': 'department_id'}"/>
+                <filter string="Job Position" name="group_by_job" context="{'group_by': 'job_id'}"/>
+                <filter string="Department" name="group_by_department" context="{'group_by': 'department_id'}"/>
                 <separator />
-                <filter string="Working Schedule" name="group_by_resource_calendar_id" domain="[]" context="{'group_by': 'resource_calendar_id'}"/>
-                <filter string="Salary Structure Type" name="group_by_structure_type_id" domain="[]" context="{'group_by': 'structure_type_id'}"/>
+                <filter string="Working Schedule" name="group_by_resource_calendar_id" context="{'group_by': 'resource_calendar_id'}"/>
+                <filter string="Salary Structure Type" name="group_by_structure_type_id" context="{'group_by': 'structure_type_id'}"/>
             </search>
         </field>
     </record>

@@ -13,12 +13,10 @@
                     <filter
                         string="User"
                         name="groupby_user"
-                        domain="[]"
                         context="{'group_by':'user_id'}" />
                     <filter
                         string="Company"
                         name="groupby_company"
-                        domain="[]"
                         context="{'group_by':'company_id'}" />
                 </group>
             </search>
@@ -44,19 +42,21 @@
         <field name="model">ir.default</field>
         <field name="arch" type="xml">
             <form string="User-defined Defaults">
-            <sheet>
-                <group>
-                    <group name="field_value">
-                        <field name="field_id" options="{'no_create': True}" />
-                        <field name="json_value" />
-                        <field name="condition" />
+                <sheet>
+                    <group>
+                        <group name="field_value">
+                            <field name="field_id" options="{'no_create': True}" />
+                            <field name="json_value" />
+                            <field name="condition" />
+                        </group>
+                        <group name="user_company_details">
+                            <field name="user_id" />
+                            <field
+                                name="company_id"
+                                groups="base.group_multi_company" />
+                        </group>
                     </group>
-                    <group name="user_company_details">
-                        <field name="user_id" />
-                        <field name="company_id" groups="base.group_multi_company" />
-                    </group>
-                </group>
-            </sheet>
+                </sheet>
             </form>
         </field>
     </record>

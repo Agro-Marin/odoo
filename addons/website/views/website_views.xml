@@ -157,9 +157,9 @@
                     <field name="url"/>
                     <field name="website_id" groups="website.group_multi_website"/>
                     <group>
-                        <filter string="Name" name="group_by_name" domain="[]" context="{'group_by':'name'}"/>
-                        <filter string="Url" name="group_by_url" domain="[]" context="{'group_by':'url'}"/>
-                        <filter string="Website"  name="group_by_website_id" domain="[]" context="{'group_by':'website_id'}"/>
+                        <filter string="Name" name="group_by_name" context="{'group_by':'name'}"/>
+                        <filter string="Url" name="group_by_url" context="{'group_by':'url'}"/>
+                        <filter string="Website"  name="group_by_website_id" context="{'group_by':'website_id'}"/>
                     </group>
                 </search>
             </field>
@@ -297,8 +297,8 @@
                     <field name="name" filter_domain="['|', '|', ('summary', 'ilike', self), ('shortdesc', 'ilike', self), ('name', 'ilike', self)]" string="Theme"/>
                     <field name="category_id" filter_domain="['|', '|', ('summary', 'ilike', self), ('shortdesc', 'ilike', self), ('category_id', 'ilike', self)]" string="Category"/>
                     <group>
-                        <filter string="Author" name="author" domain="[]" context="{'group_by':'author'}"/>
-                        <filter string="Category" name="category" domain="[]" context="{'group_by':'category_id'}"/>
+                        <filter string="Author" name="author" context="{'group_by':'author'}"/>
+                        <filter string="Category" name="category" context="{'group_by':'category_id'}"/>
                     </group>
                 </search>
             </field>

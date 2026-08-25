@@ -16,7 +16,6 @@
                     <filter
                         string="Users"
                         name="filter_user_ids"
-                        domain="[]"
                         context="{'group_by': 'user_ids'}" />
                 </group>
             </search>

@@ -187,7 +187,7 @@
                         <field name="code" />
                         <field
                             name="country_id"
-                            options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}" />
+                            options="{'no_open': True, 'no_create': True}" />
                     </group>
                 </sheet>
             </form>

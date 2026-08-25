@@ -94,8 +94,8 @@
         <search>
             <field name="model" filter_domain="[('model','=', self)]" string="Model"/>
             <group colspan="4">
-                <filter string="Model" name="page_model" domain="[]" context="{'group_by':'model'}"/>
-                <filter string="Website" name="page_website_id" domain="[]" context="{'group_by':'website_id'}"/>
+                <filter string="Model" name="page_model" context="{'group_by':'model'}"/>
+                <filter string="Website" name="page_website_id" context="{'group_by':'website_id'}"/>
             </group>
         </search>
     </field>

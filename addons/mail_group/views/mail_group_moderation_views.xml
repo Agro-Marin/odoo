@@ -28,7 +28,7 @@
                 <filter string="Is Allowed"
                         name="status_allow" help="Allowed Emails"
                         domain="[('status', '=', 'allow')]"/>
-                <filter name="group_by_status" string="Status" domain="[]" context="{'group_by':'status'}"/>
+                <filter name="group_by_status" string="Status" context="{'group_by':'status'}"/>
             </search>
         </field>
     </record>

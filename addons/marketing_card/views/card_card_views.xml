@@ -8,8 +8,8 @@
                 <field name="create_date"/>
                 <field name="create_uid"/>
                 <field name="display_name"/>
-                <field name="res_model" optional="hidden"/>
-                <field name="campaign_id" optional="hidden"/>
+                <field name="res_model" optional="hide"/>
+                <field name="campaign_id" optional="hide"/>
                 <field name="share_status"/>
             </list>
         </field>

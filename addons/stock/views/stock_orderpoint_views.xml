@@ -30,18 +30,14 @@
                     domain="['|', ('snoozed_until', '=', False), ('snoozed_until', '&lt;=', 'today')]" />
                 <group>
                     <filter string="Warehouse" name="groupby_warehouse"
-                        domain="[]"
                         context="{'group_by': 'warehouse_id'}"
                         groups="stock.group_stock_multi_warehouses" />
                     <filter string="Location" name="groupby_location"
-                        domain="[]"
                         context="{'group_by': 'location_id'}"
                         groups="stock.group_stock_multi_locations" />
                     <filter string="Product" name="groupby_product"
-                        domain="[]"
                         context="{'group_by': 'product_id'}" />
                     <filter string="Category" name="groupby_category"
-                        domain="[]"
                         context="{'group_by': 'product_category_id'}" />
                 </group>
                 <searchpanel>
@@ -69,15 +65,12 @@
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter string="Warehouse" name="warehouse"
-                        domain="[]"
                         context="{'group_by': 'warehouse_id'}"
                         groups="stock.group_stock_multi_warehouses" />
                     <filter string="Location" name="location"
-                        domain="[]"
                         context="{'group_by': 'location_id'}"
                         groups="stock.group_stock_multi_locations" />
                     <filter string="Product" name="product"
-                        domain="[]"
                         context="{'group_by': 'product_id'}" />
                 </group>
             </search>
@@ -115,7 +108,7 @@
                     invisible="not id or not unwanted_replenish" />
                 <field name="route_id" widget="stock.forced_placeholder"
                     options="{'no_create': True, 'no_open': True, 'placeholder_field': 'route_id_placeholder'}"
-                    optional="hidden" decoration-muted="not route_id" />
+                    optional="hide" decoration-muted="not route_id" />
                 <button name="action_stock_replenishment_info" type="object" icon="fa-solid fa-circle-info"
                     title="Replenishment Information" invisible="not id or show_supply_warning" />
                 <button name="action_stock_replenishment_info" type="object"

@@ -15,19 +15,19 @@
                     <button name="action_match_lines" type="object" string="Match"
                         groups="purchase.group_purchase_user" class="btn btn-primary" />
                 </header>
-                <field name="partner_id" string="Vendor" optional="hidden" />
+                <field name="partner_id" string="Vendor" optional="hide" />
                 <field name="reference" widget="open_match_line" />
                 <field name="display_name" string="Product Description"
                     decoration-it="not product_id" />
                 <field name="product_uom_qty" string="Quantity" />
-                <field name="qty_transferred" optional="hidden" />
+                <field name="qty_transferred" optional="hide" />
                 <field name="qty_to_transfer" optional="show" />
                 <field name="product_uom_id" groups="uom.group_uom" />
-                <field name="lot_ids" widget="many2many_tags" optional="hidden" />
+                <field name="lot_ids" widget="many2many_tags" optional="hide" />
                 <field name="date_expected" optional="show" />
                 <field name="transferred_qty" sum="Total Received" string="Received" />
                 <field name="ordered_qty" sum="Total Ordered" string="Ordered" />
-                <field name="transfer_state" optional="hidden" />
+                <field name="transfer_state" optional="hide" />
             </list>
         </field>
     </record>

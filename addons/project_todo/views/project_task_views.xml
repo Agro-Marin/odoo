@@ -66,7 +66,7 @@
                 <field name="state" widget="todo_done_checkmark" nolabel="1" width="20px"/>
                 <field name="name"/>
                 <field name="user_ids" optional="show" required="1" widget="many2many_avatar_user"/>
-                <field name="priority" widget="priority" optional="hidden" width="70px"/>
+                <field name="priority" widget="priority" optional="hide" width="70px"/>
                 <field name="date_end" optional="show" widget="remaining_days"/>
                 <field name="activity_ids" optional="show" widget="list_activity"/>
                 <field name="tag_ids" optional="show" widget="many2many_tags" options="{'color_field': 'color', 'no_create_edit': True}"/>

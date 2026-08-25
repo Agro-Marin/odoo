@@ -16,11 +16,9 @@
                     domain="[('parent_dest_id', '=', False)]" />
                 <group>
                     <filter string='Location' name="location"
-                        domain="[]"
                         context="{'group_by' : 'location_id'}"
                         groups="stock.group_stock_multi_locations" />
                     <filter string='Package Type' name="package_type"
-                        domain="[]"
                         context="{'group_by' : 'package_type_id'}" />
                 </group>
             </search>

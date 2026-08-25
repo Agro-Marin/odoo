@@ -132,7 +132,7 @@
                         <field name="skill_id"/>
                         <field name="skill_level_id"/>
                         <field name="level_progress" widget="progressbar"/>
-                        <field name="skill_type_id" optional="hidden"/>
+                        <field name="skill_type_id" optional="hide"/>
                         <field name="valid_to" column_invisible="1"/>
                         <field name="is_certification" column_invisible="1"/>
                     </list>
@@ -196,7 +196,7 @@
                                 decoration-muted="valid_to and valid_to &lt; context_today().strftime('%Y-%m-%d')"
                                 decoration-danger="valid_to and valid_to &lt;= (context_today() + relativedelta(days=7)).strftime('%Y-%m-%d') and valid_to &gt; context_today().strftime('%Y-%m-%d')"
                                 decoration-warning="valid_to and valid_to &lt;= (context_today() + relativedelta(months=3)).strftime('%Y-%m-%d') and valid_to &gt; (context_today() + relativedelta(days=7)).strftime('%Y-%m-%d')">
-                                <field name="skill_type_id" optional="hidden"/>
+                                <field name="skill_type_id" optional="hide"/>
                                 <field name="skill_id"/>
                                 <field name="skill_level_id"/>
                                 <field name="level_progress" widget="progressbar"/>
@@ -466,7 +466,7 @@
                 <field name="skill_type_id" string="Skill Type"/>
                 <separator/>
                 <group>
-                        <filter string="Skill Type" name="group_skill_type_id" domain="[]" context="{'group_by':'skill_type_id'}"/>
+                        <filter string="Skill Type" name="group_skill_type_id" context="{'group_by':'skill_type_id'}"/>
                 </group>
             </search>
         </field>

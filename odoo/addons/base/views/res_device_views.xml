@@ -11,8 +11,8 @@
                 <field name="ip_address" />
                 <field name="first_activity" />
                 <field name="last_activity" />
-                <field name="country" optional="hidden" />
-                <field name="city" optional="hidden" />
+                <field name="country" optional="hide" />
+                <field name="city" optional="hide" />
                 <button
                     type="object"
                     name="revoke"

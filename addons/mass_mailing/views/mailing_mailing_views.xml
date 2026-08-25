@@ -21,10 +21,10 @@
                     <filter name="inactive" string="Archived" domain="[('active', '=', False)]"/>
                     <group>
                         <filter string="Status" name="group_state" context="{'group_by': 'state'}"/>
-                        <filter string="Sent By" name="sent_by" domain="[]" context="{'group_by': 'email_from'}"/>
-                        <filter string="Mailing List" name="group_by_contact_list_ids" domain="[]" context="{'group_by': 'contact_list_ids'}"/>
+                        <filter string="Sent By" name="sent_by" context="{'group_by': 'email_from'}"/>
+                        <filter string="Mailing List" name="group_by_contact_list_ids" context="{'group_by': 'contact_list_ids'}"/>
                         <separator/>
-                        <filter string="Sent Period" name="sent_date" domain="[]" context="{'group_by': 'sent_date'}"/>
+                        <filter string="Sent Period" name="sent_date" context="{'group_by': 'sent_date'}"/>
                     </group>
                 </search>
             </field>

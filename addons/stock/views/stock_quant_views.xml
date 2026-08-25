@@ -54,10 +54,8 @@
                     <filter string='Product Category' name="productcategorygroup"
                         context="{'group_by': 'product_categ_id'}" />
                     <filter string='Location' name="locationgroup"
-                        domain="[]"
                         context="{'group_by': 'location_id'}" />
                     <filter string='Storage Category' name="storagecategorygroup"
-                        domain="[]"
                         context="{'group_by': 'storage_category_id'}" />
                     <filter string='Owner' name="owner"
                         context="{'group_by': 'owner_id'}"
@@ -66,11 +64,9 @@
                         context="{'group_by': 'lot_id'}"
                         groups="stock.group_production_lot" />
                     <filter string='Package' name="package"
-                        domain="[]"
                         context="{'group_by': 'package_id'}"
                         groups="stock.group_tracking_lot" />
                     <filter string='Company' name="company"
-                        domain="[]"
                         context="{'group_by': 'company_id'}"
                         groups="base.group_multi_company" />
                 </group>
@@ -106,7 +102,7 @@
                     readonly="context.get('single_product', False) or id" force_save="1"
                     options="{'no_create': True}" widget="many2one" />
                 <field name="product_categ_id" optional="hide" />
-                <field name='company_id' groups="base.group_multi_company" optional="hidden" />
+                <field name='company_id' groups="base.group_multi_company" optional="hide" />
                 <field name="package_id" groups="stock.group_tracking_lot"
                     readonly="id" widget="package_m2o" context="{'show_src_package': 1}" />
                 <field name="lot_id" groups="stock.group_production_lot"
@@ -150,7 +146,7 @@
                 <field name="available_quantity" string="Available"
                     column_invisible="context.get('hide_available', False)" />
                 <field name="product_uom_id" groups="uom.group_uom" />
-                <field name="company_id" groups="base.group_multi_company" optional="hidden" />
+                <field name="company_id" groups="base.group_multi_company" optional="hide" />
             </list>
         </field>
     </record>
@@ -207,7 +203,7 @@
                     options="{'no_create': True}" />
                 <field name="cyclic_inventory_frequency"
                     column_invisible="context.get('hide_location', False)"
-                    options="{'no_create': True}" optional="hidden" />
+                    options="{'no_create': True}" optional="hide" />
                 <field name="product_id" readonly="context.get('single_product', False) or id"
                     force_save="1" options="{'no_create': True}" />
                 <field name="product_categ_id" optional="hide" />
@@ -221,7 +217,7 @@
                     context="{'show_src_package': 1}" readonly="id" />
                 <field name="owner_id" groups="stock.group_tracking_owner" readonly="id"
                     options="{'no_create': True}" />
-                <field name="last_count_date" optional='hidden' readonly='1' />
+                <field name="last_count_date" optional='hide' readonly='1' />
                 <field name="inventory_date"
                     decoration-info="inventory_date &lt;= context_today().strftime('%Y-%m-%d')"
                     decoration-bf="inventory_date &lt;= context_today().strftime('%Y-%m-%d')"

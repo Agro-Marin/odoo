@@ -61,26 +61,20 @@
                 <separator />
                 <group>
                     <filter name="partner" string="Partner"
-                        domain="[]"
                         context="{'group_by': 'partner_id'}" />
                     <filter name="journal" string="Journal"
-                        domain="[]"
                         context="{'group_by': 'journal_id'}" />
                     <filter name="status" string="Status"
-                        domain="[]"
                         context="{'group_by': 'state'}" />
                     <filter name="preferred_payment_method" string="Payment Method"
                         context="{'group_by': 'preferred_payment_method_line_id'}"
                         groups="account.group_account_invoice,account.group_account_readonly" />
                     <filter name="by_date" string="Date"
-                        domain="[]"
                         context="{'group_by': 'date'}"
                         help="Journal Entries by Date" />
                     <filter name="by_invoice_date" string="Invoice Date"
-                        domain="[]"
                         context="{'group_by': 'invoice_date'}" />
                     <filter name="by_company" string="Company"
-                        domain="[]"
                         context="{'group_by': 'company_id'}"
                         groups="base.group_multi_company" />
                 </group>
@@ -189,7 +183,6 @@
                         context="{'group_by': 'preferred_payment_method_line_id'}"
                         groups="account.group_account_invoice,account.group_account_readonly" />
                     <filter name="groupy_by_journal" string="Journal"
-                        domain="[]"
                         context="{'group_by': 'journal_id'}" />
                     <filter name="group_by_company" string="Company"
                         context="{'group_by': 'company_id'}"

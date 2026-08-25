@@ -600,12 +600,12 @@
                     />
                 </header>
                 <field name="employee_id" widget="many2one_avatar_employee" readonly="state in ['cancel', 'refuse', 'validate', 'validate1']" />
-                <field name="department_id" optional="hidden" readonly="state in ['cancel', 'refuse', 'validate', 'validate1']"/>
+                <field name="department_id" optional="hide" readonly="state in ['cancel', 'refuse', 'validate', 'validate1']"/>
                 <field name="holiday_status_id" class="fw-bold" readonly="state in ['cancel', 'refuse', 'validate', 'validate1']"/>
                 <field name="date_from" readonly="state in ['cancel', 'refuse', 'validate', 'validate1']"/>
                 <field name="date_to" readonly="state in ['cancel', 'refuse', 'validate', 'validate1']"/>
                 <field name="duration_display" string="Duration"/>
-                <field name="name" optional="hidden"/>
+                <field name="name" optional="hide"/>
                 <field name="state" widget="badge" decoration-warning="state in ('confirm','validate1')" decoration-success="state == 'validate'" decoration-danger="state == 'refuse'"/>
                 <field name="active_employee" column_invisible="True"/>
                 <field name="user_id" column_invisible="True"/>
@@ -619,7 +619,7 @@
                 <button string="Refuse" name="action_refuse" type="object"
                     icon="fa-times"
                     invisible="not can_refuse"/>
-                <field name="company_id" optional="hidden" groups="base.group_multi_company"/>
+                <field name="company_id" optional="hide" groups="base.group_multi_company"/>
                 <field name="activity_exception_decoration" widget="activity_exception"/>
             </list>
         </field>

@@ -58,7 +58,7 @@
                 <separator name="published_separator"/>
             </xpath>
             <xpath expr="//group" position="inside">
-                <filter string="Published" name="groupby_published" domain="[]" context="{'group_by': 'is_published'}"/>
+                <filter string="Published" name="groupby_published" context="{'group_by': 'is_published'}"/>
             </xpath>
         </field>
     </record>

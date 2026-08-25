@@ -86,9 +86,9 @@
             <field name="write_uid"/>
             <field name="blog_id"/>
             <group>
-                <filter string="Blog" name="group_by_blog" domain="[]" context="{'group_by': 'blog_id'}"/>
-                <filter string="Author" name="group_by_author" domain="[]" context="{'group_by': 'create_uid'}"/>
-                <filter string="Last Contributor" name="last_contributor" domain="[]" context="{'group_by': 'write_uid'}"/>
+                <filter string="Blog" name="group_by_blog" context="{'group_by': 'blog_id'}"/>
+                <filter string="Author" name="group_by_author" context="{'group_by': 'create_uid'}"/>
+                <filter string="Last Contributor" name="last_contributor" context="{'group_by': 'write_uid'}"/>
             </group>
         </search>
     </field>

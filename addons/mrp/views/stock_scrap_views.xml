@@ -39,7 +39,7 @@
                 <filter string="Done" name="filter_done" domain="[('state', '=', 'done')]"/>
             </xpath>
             <xpath expr="//filter[@name='transfer']" position="after">
-                <filter string="Manufacturing Order" name="production_id" domain="[]" context="{'group_by':'production_id'}"/>
+                <filter string="Manufacturing Order" name="production_id" context="{'group_by':'production_id'}"/>
             </xpath>
         </field>
     </record>

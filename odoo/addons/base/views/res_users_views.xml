@@ -54,7 +54,7 @@
         <field name="name">Change Password Users</field>
         <field name="model">change.password.user</field>
         <field name="arch" type="xml">
-            <list string="Users" editable="bottom" create="false" delete="false">
+            <list string="Users" editable="bottom" create="0" delete="0">
                 <field name="user_id" column_invisible="True" />
                 <field name="user_login" force_save="1" />
                 <field name="new_passwd" password="True" />
@@ -146,8 +146,7 @@
         <field name="model">res.users</field>
         <field name="arch" type="xml">
             <form string="Users" class="o_res_users_form_view_full">
-                <header>
-                </header>
+                <header />
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button
@@ -197,7 +196,7 @@
                         invisible="active" />
                     <div
                         class="alert alert-info text-center o_form_header"
-                        invisible="active and active_partner or not active and not active_partner or active and not active_partner"
+                        invisible="active or not active_partner"
                         role="alert">
                         <a class="close" data-bs-dismiss="alert" href="#">x</a>
                         <div>
@@ -806,7 +805,7 @@
         <field name="name">API Keys Listing</field>
         <field name="model">res.users.apikeys</field>
         <field name="arch" type="xml">
-            <list create="false" edit="false" delete="false" editable="bottom">
+            <list create="0" edit="0" delete="0" editable="bottom">
                 <field name="user_id" />
                 <field name="name" />
                 <field name="scope" />

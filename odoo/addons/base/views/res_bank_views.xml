@@ -63,7 +63,8 @@
                                     name="state"
                                     class="o_address_state"
                                     placeholder="State"
-                                    options="{&quot;no_open&quot;: True}" />
+                                    options="{'no_open': True, 'no_quick_create': True}"
+                                    context="{'country_id': country, 'default_country_id': country, 'zip': zip}" />
                                 <field
                                     name="zip"
                                     placeholder="ZIP"
@@ -72,7 +73,7 @@
                                     name="country"
                                     placeholder="Country"
                                     class="o_address_country"
-                                    options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}" />
+                                    options="{'no_open': True, 'no_create': True}" />
                             </div>
                         </group>
                         <group name="communication_details">

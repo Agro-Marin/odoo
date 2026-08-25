@@ -10,7 +10,7 @@
                 <field name="team_id" />
             </field>
             <xpath expr="//group/filter[@name='status']" position="after">
-                <filter string="Sales Team" name="sales_channel" domain="[]"
+                <filter string="Sales Team" name="sales_channel"
                     context="{'group_by':'team_id'}" />
             </xpath>
         </field>

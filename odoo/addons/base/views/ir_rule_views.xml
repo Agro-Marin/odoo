@@ -47,13 +47,10 @@
                     <filter
                         string="Model"
                         name="group_by_object"
-                        domain="[]"
                         context="{'group_by': 'model_id'}" />
-                    <separator />
                     <filter
                         string="Group"
                         name="group_by_group"
-                        domain="[]"
                         context="{'group_by': 'groups'}" />
                 </group>
             </search>

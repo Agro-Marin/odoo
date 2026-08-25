@@ -78,7 +78,6 @@
                     <filter
                         string="Company"
                         name="group_by_company_ids"
-                        domain="[]"
                         context="{'group_by': 'company_ids'}"
                         groups="base.group_multi_company" />
                 </group>

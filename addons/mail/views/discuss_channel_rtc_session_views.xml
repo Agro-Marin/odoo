@@ -10,7 +10,6 @@
                 <filter
                     name="group_by_channel"
                     string="Channel"
-                    domain="[]"
                     context="{'group_by':'channel_id'}" />
             </search>
         </field>

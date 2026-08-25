@@ -32,13 +32,13 @@
                 <filter name="filter_last_month" string="Last 30 Days"
                     domain="[('access_date', '&gt;=', (context_today() - relativedelta(days=30)).strftime('%Y-%m-%d'))]" />
                 <group>
-                    <filter name="group_document" string="Document" domain="[]"
+                    <filter name="group_document" string="Document"
                         context="{'group_by': 'document_id'}" />
-                    <filter name="group_partner" string="Person" domain="[]"
+                    <filter name="group_partner" string="Person"
                         context="{'group_by': 'partner_id'}" />
-                    <filter name="group_action" string="Action" domain="[]"
+                    <filter name="group_action" string="Action"
                         context="{'group_by': 'action'}" />
-                    <filter name="group_date" string="Date" domain="[]"
+                    <filter name="group_date" string="Date"
                         context="{'group_by': 'access_date'}" />
                 </group>
             </search>

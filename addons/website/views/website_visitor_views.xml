@@ -36,10 +36,10 @@
                 <filter string="Pages" name="type_page" domain="[('page_id', '!=', False)]"/>
                 <filter string="Urls &amp; Pages" name="type_url" domain="[('url', '!=', False)]"/>
                 <group>
-                    <filter string="Visitor" name="group_by_visitor" domain="[]" context="{'group_by': 'visitor_id'}"/>
-                    <filter string="Page" name="group_by_page" domain="[]" context="{'group_by': 'page_id'}"/>
-                    <filter string="Url" name="group_by_url" domain="[]" context="{'group_by': 'url'}"/>
-                    <filter string="Date" name="group_by_date" domain="[]" context="{'group_by': 'visit_datetime'}"/>
+                    <filter string="Visitor" name="group_by_visitor" context="{'group_by': 'visitor_id'}"/>
+                    <filter string="Page" name="group_by_page" context="{'group_by': 'page_id'}"/>
+                    <filter string="Url" name="group_by_url" context="{'group_by': 'url'}"/>
+                    <filter string="Date" name="group_by_date" context="{'group_by': 'visit_datetime'}"/>
                 </group>
             </search>
         </field>

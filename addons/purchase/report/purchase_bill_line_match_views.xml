@@ -16,12 +16,12 @@
                     <button name="action_add_to_po" type="object" string="Add to PO"
                         groups="purchase.group_purchase_user" />
                 </header>
-                <field name="partner_id" string="Vendor" optional="hidden" />
+                <field name="partner_id" string="Vendor" optional="hide" />
                 <field name="reference" widget="open_match_line" />
                 <field name="display_name" string="Product Description"
                     decoration-it="not product_id" />
                 <field name="product_uom_qty" string="Quantity" />
-                <field name="qty_invoiced" optional="hidden" />
+                <field name="qty_invoiced" optional="hide" />
                 <field name="qty_to_invoice" optional="show" />
                 <field name="product_uom_id" groups="uom.group_uom" />
                 <field name="product_uom_price" string="Price" />

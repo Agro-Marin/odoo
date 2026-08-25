@@ -15,10 +15,6 @@
                     </group>
                 </page>
             </xpath>
-
-            <xpath expr="//page[@name='base']/group/group/field[@name='translate']" position="after">
-                <field name="website_form_blacklisted"/>
-            </xpath>
         </field>
     </record>
 

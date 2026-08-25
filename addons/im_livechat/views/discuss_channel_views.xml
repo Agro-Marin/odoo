@@ -29,15 +29,15 @@
                     </filter>
                     <separator/>
                     <group>
-                        <filter name="group_by_channel" string="Channel" domain="[]" context="{'group_by':'livechat_channel_id'}"/>
-                        <filter name="group_by_agent" string="Agent" domain="[]" context="{'group_by':'livechat_agent_partner_ids'}"/>
-                        <filter name="group_by_agent_requesting_help" domain="[]" context="{'group_by': 'livechat_agent_requesting_help_history'}"/>
-                        <filter name="group_by_agent_providing_help" domain="[]" context="{'group_by': 'livechat_agent_providing_help_history'}"/>
-                        <filter name="group_by_rating" string="Rating" domain="[]" context="{'group_by':'rating_last_text'}"/>
-                        <filter name="group_by_country" string="Country" domain="[]" context="{'group_by':'country_id'}"/>
-                        <filter name="group_by_customer_partner" string="Customer" domain="[]" context="{'group_by':'livechat_customer_partner_ids'}"/>
+                        <filter name="group_by_channel" string="Channel" context="{'group_by':'livechat_channel_id'}"/>
+                        <filter name="group_by_agent" string="Agent" context="{'group_by':'livechat_agent_partner_ids'}"/>
+                        <filter name="group_by_agent_requesting_help" context="{'group_by': 'livechat_agent_requesting_help_history'}"/>
+                        <filter name="group_by_agent_providing_help" context="{'group_by': 'livechat_agent_providing_help_history'}"/>
+                        <filter name="group_by_rating" string="Rating" context="{'group_by':'rating_last_text'}"/>
+                        <filter name="group_by_country" string="Country" context="{'group_by':'country_id'}"/>
+                        <filter name="group_by_customer_partner" string="Customer" context="{'group_by':'livechat_customer_partner_ids'}"/>
                         <separator orientation="vertical"/>
-                        <filter name="group_by_month" string="Session Date" domain="[]" context="{'group_by':'create_date:month'}"/>
+                        <filter name="group_by_month" string="Session Date" context="{'group_by':'create_date:month'}"/>
                     </group>
                     <group>
                         <filter name="escalated" string="Escalated" domain="[('livechat_is_escalated', '=', True)]" invisible="1"/>
@@ -284,16 +284,16 @@
                     </filter>
                     <separator/>
                     <group>
-                        <filter name="group_by_channel" string="Channel" domain="[]" context="{'group_by':'livechat_channel_id'}"/>
-                        <filter name="group_by_agent" string="Agent" domain="[]" context="{'group_by':'livechat_agent_partner_ids'}"/>
-                        <filter name="group_by_country" string="Country" domain="[]" context="{'group_by':'country_id'}"/>
-                        <filter name="group_by_lang" string="Language" domain="[]" context="{'group_by':'livechat_lang_id'}"/>
-                        <filter name="group_by_expertise" string="Expertise" domain="[]" context="{'group_by':'livechat_expertise_ids'}"/>
-                        <filter name="group_by_tags" string="Tags" domain="[]" context="{'group_by':'livechat_conversation_tag_ids'}"/>
-                        <filter name="group_by_chatbot" string="Chatbot" domain="[]" context="{'group_by':'livechat_bot_partner_ids'}"/>
-                        <filter name="group_by_customer_partner" string="Customer" domain="[]" context="{'group_by':'livechat_customer_partner_ids'}"/>
+                        <filter name="group_by_channel" string="Channel" context="{'group_by':'livechat_channel_id'}"/>
+                        <filter name="group_by_agent" string="Agent" context="{'group_by':'livechat_agent_partner_ids'}"/>
+                        <filter name="group_by_country" string="Country" context="{'group_by':'country_id'}"/>
+                        <filter name="group_by_lang" string="Language" context="{'group_by':'livechat_lang_id'}"/>
+                        <filter name="group_by_expertise" string="Expertise" context="{'group_by':'livechat_expertise_ids'}"/>
+                        <filter name="group_by_tags" string="Tags" context="{'group_by':'livechat_conversation_tag_ids'}"/>
+                        <filter name="group_by_chatbot" string="Chatbot" context="{'group_by':'livechat_bot_partner_ids'}"/>
+                        <filter name="group_by_customer_partner" string="Customer" context="{'group_by':'livechat_customer_partner_ids'}"/>
                         <separator orientation="vertical"/>
-                        <filter name="group_by_month" string="Session Date" domain="[]" context="{'group_by':'create_date:month'}"/>
+                        <filter name="group_by_month" string="Session Date" context="{'group_by':'create_date:month'}"/>
                     </group>
                 </search>
             </field>

@@ -211,7 +211,6 @@
                     <filter
                         string="Status"
                         name="status"
-                        domain="[]"
                         context="{'group_by':'state'}" />
                     <filter
                         string="Author"
@@ -220,13 +219,11 @@
                     <filter
                         string="Thread"
                         name="thread"
-                        domain="[]"
                         context="{'group_by':'message_id'}" />
                     <filter
                         string="Date"
                         name="month"
                         help="Creation Date"
-                        domain="[]"
                         context="{'group_by':'date'}" />
                 </group>
             </search>
