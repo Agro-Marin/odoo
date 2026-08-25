@@ -24,7 +24,7 @@ def _get_client_secret(ICP_sudo, service):
           This method should never be callable from a method that return it in clear, it
           should only be used directly in a request.
 
-    :param ICP_sudo: the model ir.config_parameters in sudo
+    :param ICP_sudo: the model ir.config_parameter in sudo
     :param service: the service that we need the secret key
     :return: The ICP value
     :rtype: str
