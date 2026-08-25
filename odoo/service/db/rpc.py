@@ -5,6 +5,7 @@ from typing import Any, Literal
 import odoo.tools
 
 from .._db_helpers import check_db_management_enabled, check_super
+from .._dispatch import dispatch_table
 from .._env import env_int
 from .dump import exp_dump
 from .lifecycle import exp_create_database, exp_drop, exp_duplicate_database, exp_rename
@@ -74,18 +75,13 @@ def exp_migrate_databases(databases: list[str]) -> Literal[True]:
 
 
 def dispatch(method: str, params: list[Any]) -> Any:
-    handler = _DISPATCH.get(method)
-    if handler is None:
-        raise AttributeError(f"Method not found: {method}")
-    if method in _REQUIRES_MASTER_PASSWORD:
-        if not params:
-            raise TypeError(
-                f"{method} requires a master password as its first positional "
-                f"argument; got 0 arguments."
-            )
-        passwd, *params = params
-        check_super(passwd)
-    return handler(*params)
+    return dispatch_table(
+        method,
+        params,
+        _DISPATCH,
+        credentialed=_REQUIRES_MASTER_PASSWORD,
+        check_credential=check_super,
+    )
 
 
 _DISPATCH: dict[str, Callable] = {

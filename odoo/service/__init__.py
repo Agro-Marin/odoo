@@ -28,6 +28,7 @@ Module layout:
     _watcher.py     Filesystem watcher backends (autoreload)
     _worker.py      Prefork worker classes
     _cron.py        Shared cron LISTEN/NOTIFY plumbing (server + worker)
+    _dispatch.py    Shared argument validation for the RPC dispatch tables
     _metrics.py     Prometheus exposition served behind /web/metrics
     _helpers.py     Shared process-control helpers
     _db_helpers.py  Shared helpers for the db package
