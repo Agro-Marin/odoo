@@ -248,7 +248,7 @@ class BarcodeNomenclature(models.Model):
         failed parse, reported as an empty list rather than a raised exception:
         the argument is scanned input, so a malformed one is expected traffic.
 
-        :param barcode str: the URI as a string.
+        :param str barcode: the URI as a string.
         :rtype: list[dict]
         """
         parts = [part.strip() for part in barcode.split(":")]
