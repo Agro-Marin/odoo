@@ -8,7 +8,7 @@ _logger = logging.getLogger(__name__)
 
 
 class BaseImportModule(models.TransientModel):
-    """Import Module"""
+    """Wizard to upload and install a module from an uploaded zip archive."""
 
     _name = "base.import.module"
     _description = "Import Module"
