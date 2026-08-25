@@ -35,7 +35,11 @@ class DictBackend:
         seq = self._sequences[table]
         for row in rows:
             id_ = row["id"]
-            tbl[id_] = row
+            # Copy, as insert_rows does. Storing the caller's dict would let a
+            # later mutation of it change stored state with no write call --
+            # something no real cursor offers, and the kind of divergence a
+            # test double must not have.
+            tbl[id_] = dict(row)
             seq = max(seq, id_)
         self._sequences[table] = seq
 
@@ -74,7 +78,9 @@ class DictBackend:
             tbl.pop(id_, None)
 
     def get_row(self, table: str, id_: int) -> dict[str, Any] | None:
-        return self._tables.get(table, {}).get(id_)
+        # Copies out too: a returned row is a read, not a handle on the table.
+        row = self._tables.get(table, {}).get(id_)
+        return dict(row) if row is not None else None
 
     def get_rows(self, table: str, ids: list[int]) -> dict[int, dict[str, Any]]:
         tbl = self._tables.get(table, {})
@@ -82,7 +88,7 @@ class DictBackend:
         for id_ in ids:
             row = tbl.get(id_)
             if row is not None:
-                result[id_] = row
+                result[id_] = dict(row)
         return result
 
     def contains_ids(self, table: str, ids: list[int]) -> set[int]:
