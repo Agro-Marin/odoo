@@ -96,6 +96,7 @@ class HrOrgChartController(http.Controller):
         Possible values for 'subordinates_type':
             - 'indirect'
             - 'direct'
+            - None (default): all subordinates
         """
         employee = self._get_employee(employee_id, **kw)
         if not employee:  # to check
