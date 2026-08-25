@@ -1,3 +1,25 @@
+"""Constraints that read a field they do not declare — the `@api.constrains` twin.
+
+The same shape as `depends_audit`, one decorator over: `@api.constrains` names
+the fields whose change re-runs the check, and a constraint that reads a field it
+did not name is simply not re-run when that field changes. The failure is silent
+and one-directional — the record saves, and the invariant the constraint exists
+to hold is not held.
+
+Run under `odoo shell`, against the widest registry available, for the reason
+`depends_audit`'s docstring gives:
+
+    echo 'from tooling.constrains_audit import main; main(env)' \
+        | odoo-bin shell -c <conf> -d <db> --no-http
+
+    CONSTRAINS_TARGET=/addons/sale/ ...     # narrow it; default is /addons/
+
+Shares `depends_audit`'s reader and its resolution, which is why it is beside it
+and not a copy of it. It gates nothing, for the same reason: the answer depends
+on what is installed.
+"""
+
+
 import ast
 import inspect
 import logging

@@ -12,6 +12,23 @@ Two directories here deliberately gate nothing and say so in their own README:
 a question CI cannot ask from the scope it runs in, which is the reason each
 is a tool rather than a lane — not an omission to be closed by adding one.
 
+Two scripts at this root gate nothing for a different reason: their answer
+depends on **what is installed**, so a floor over one would measure the database
+rather than the tree. Both run under `odoo shell` and both want the widest
+registry available — the defect that occasioned `depends_audit` was invisible
+with only `mail` installed and surfaced on 191 modules.
+
+| Script | Asks |
+|---|---|
+| `depends_audit.py` | which `@api.depends` reads a field it did not declare, resolved through relations — root not watched at all, vs root watched and leaf not |
+| `constrains_audit.py` | the same question one decorator over, for `@api.constrains`: a constraint that reads an undeclared field is not re-run when it changes, silently |
+
+`depends_audit.py` is **not** a copy of `odoo/tools/depends_audit.py`, which is
+wired into the framework's own tests. That one walks bytecode and reports the
+attributes a compute reads; this one walks the AST and then resolves each read
+through the registry. Measured on one 90-module registry: 322 findings here
+against 30 there, sharing 18. Neither subsumes the other.
+
 ## One-time clone setup: install the git hooks
 
 ```sh
