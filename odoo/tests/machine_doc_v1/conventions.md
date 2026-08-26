@@ -29,6 +29,13 @@ classes individually silently stops covering new ones.
   (registry must be fully loaded for assets/routes).
 - `test_tags` is a plain set inherited through subclassing; `@tagged("-x")`
   removes. Position (`at_install`/`post_install`) is itself just a tag.
+- `@tagged` also works on a single test **method**, and is applied over the
+  class's tags by `BaseCase.__init__` — so `@tagged("post_install",
+  "-at_install")` on one method moves just that method. `tagged()` stores the
+  include and exclude halves separately for a method target
+  (`test_tags`/`test_tags_exclude`) and issues no at_install/post_install
+  warning there, because the resulting position is not knowable from the
+  function alone.
 - `test_sequence` (int attr) orders tests inside a suite.
 
 ## Public API surface
@@ -58,10 +65,19 @@ classes individually silently stops covering new ones.
   `release_stranded_test_cursors` (a module-level function, so it is testable
   without standing a suite up) — which must release the registry lock too, or
   every later HttpCase request stalls 20s and 500s, blamed on the wrong test.
-- Every environment failure in `browser.py` raises `InfrastructureUnavailable`,
-  not bare `SkipTest`: it subclasses SkipTest so the test still skips, but it is
+- Every environment failure raises `InfrastructureUnavailable`, not bare
+  `SkipTest`: it subclasses SkipTest so the test still skips, but it is
   counted apart, named in the summary line, and `ODOO_REQUIRE_INFRA=1` makes it
   an error. A host with no Chrome used to run zero tour assertions and exit 0.
+  This covers `browser.py` throughout and `HttpCase.setUpClass` in `http.py`,
+  which raises it when there is no HTTP server (`--no-http`, a port-bind
+  failure, a crashed `http_spawn`).
+- `@unittest.expectedFailure` is **refused**, not honoured: `run()` implements
+  `__unittest_skip__` but not `__unittest_expecting_failure__`, and
+  `OdooTestResult` has neither `addExpectedFailure` nor `addUnexpectedSuccess`.
+  A decorated method raises `TypeError` at class-definition time; a decorated
+  class is reported as an error when it runs. Assert the failure explicitly, or
+  skip with a reason.
 - `setUp` runs once per **attempt**, not once per test — `BaseCase.run` re-runs
   it on the same instance for every retry. Never derive an instance attribute
   from itself there (`self._logger = self._logger.getChild(...)` compounded),
