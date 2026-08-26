@@ -183,7 +183,7 @@ export const mailPopoutService = {
 
         /**
          * @param {any} id
-         * @param {{beforePopout?: () => void, afterPopout?: () => void}} hooks
+         * @param {{beforePopout?: () => void, afterPopoutClosed?: () => void}} hooks
          */
         function addHooks(id, hooks) {
             const popout = popouts.get(id);
