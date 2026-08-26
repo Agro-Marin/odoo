@@ -39,16 +39,16 @@ def get_expiration_seconds_v4(expiration):
             "timedelta. Got %s" % type(expiration)
         )
 
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
 
     if isinstance(expiration, int):
         seconds = expiration
 
     if isinstance(expiration, datetime.datetime):
         if expiration.tzinfo is None:
-            expiration = expiration.replace(tzinfo=datetime.timezone.utc)
+            expiration = expiration.replace(tzinfo=datetime.UTC)
 
-        expiration = expiration - now
+        expiration -= now
 
     if isinstance(expiration, datetime.timedelta):
         seconds = int(expiration.total_seconds())
@@ -65,7 +65,7 @@ def get_v4_now_dtstamps():
     :rtype: str, str
     :returns: Current timestamp, datestamp.
     """
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     timestamp = now.strftime("%Y%m%dT%H%M%SZ")
     datestamp = now.date().strftime("%Y%m%d")
     return timestamp, datestamp
@@ -109,18 +109,18 @@ def get_canonical_headers(headers):
 
 
 def generate_signed_url_v4(
-        credentials,
-        resource,
-        expiration,
-        api_access_endpoint=DEFAULT_ENDPOINT,
-        method="GET",
-        content_md5=None,
-        content_type=None,
-        response_type=None,
-        response_disposition=None,
-        generation=None,
-        headers=None,
-        query_parameters=None,
+    credentials,
+    resource,
+    expiration,
+    api_access_endpoint=DEFAULT_ENDPOINT,
+    method="GET",
+    content_md5=None,
+    content_type=None,
+    response_type=None,
+    response_disposition=None,
+    generation=None,
+    headers=None,
+    query_parameters=None,
 ):
     """Generate a V4 signed URL to provide query-string auth'n to a resource.
 
@@ -230,7 +230,7 @@ def generate_signed_url_v4(
 
     canonical_headers, ordered_headers = get_canonical_headers(headers)
     canonical_header_string = (
-            "\n".join(canonical_headers) + "\n"
+        "\n".join(canonical_headers) + "\n"
     )  # Yes, Virginia, the extra newline is part of the spec.
     signed_headers = ";".join([key for key, _ in ordered_headers])
 
@@ -254,7 +254,9 @@ def generate_signed_url_v4(
     if generation is not None:
         query_parameters["generation"] = generation
 
-    canonical_query_string = urllib.parse.urlencode(query_parameters, quote_via=urllib.parse.quote)
+    canonical_query_string = urllib.parse.urlencode(
+        query_parameters, quote_via=urllib.parse.quote
+    )
 
     lowercased_headers = dict(ordered_headers)
 
