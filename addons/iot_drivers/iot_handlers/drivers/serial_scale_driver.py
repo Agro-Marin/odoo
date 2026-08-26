@@ -111,7 +111,7 @@ class ScaleDriver(SerialDriver):
         :param connection: a connection to the device's serial port
         :type connection: pyserial.Serial
         :return: the raw response to a weight request
-        :rtype: str
+        :rtype: bytes
         """
 
         answer = []

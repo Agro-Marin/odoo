@@ -28,7 +28,7 @@ def _nmcli(args, sudo=False):
     :param args: Arguments to pass to nmcli
     :param sudo: Run the command with sudo privileges
     :return: Output of the command
-    :rtype: str
+    :rtype: str | None
     """
     command = ["nmcli", "-t", *args]
     if sudo:

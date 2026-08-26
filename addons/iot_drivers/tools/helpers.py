@@ -150,7 +150,7 @@ def check_image():
     """Check if the current image of IoT Box is up to date
 
     :return: dict containing major and minor versions of the latest image available
-    :rtype: dict
+    :rtype: dict or False
     """
     try:
         response = requests.get(
@@ -437,7 +437,7 @@ def get_handlers_files_to_load(handler_path):
     - Windows IoT load file without suffixes and _W
     :param handler_path: The path to the directory containing the files (either drivers or interfaces)
     :return: files corresponding to the current IoT system
-    :rtype list:
+    :rtype: list
     """
     if IS_RPI:
         return [x.name for x in Path(handler_path).glob(f"*[!{IOT_WINDOWS_CHAR}].*")]
