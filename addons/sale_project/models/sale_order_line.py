@@ -280,7 +280,6 @@ class SaleOrderLine(models.Model):
 
     def _timesheet_create_project_prepare_values(self):
         """Generate project values"""
-        # create the project or duplicate one
         return {
             "name": "%s - %s" % (self.order_id.client_order_ref, self.order_id.name)
             if self.order_id.client_order_ref
@@ -300,7 +299,6 @@ class SaleOrderLine(models.Model):
 
     def _timesheet_create_project(self):
         """Generate project for the given so line, and link it.
-        :param project: record of project.project in which the task should be created
         :return: record of the created project
         """
         self.ensure_one()
