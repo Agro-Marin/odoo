@@ -93,7 +93,7 @@ class AccountPaymentRegisterWithholdingLine(models.TransientModel):
 
     def _prepare_withholding_amls_create_values(self):
         """
-        Simply adds a check to ensure that we don't call this method on lines belonging to multiple payment register; as it
+        Adds a check to ensure that we don't call this method on lines belonging to multiple payment register; as it
         is not intended.
         """
         assert len(self.payment_register_id) == 1, self.env._(
