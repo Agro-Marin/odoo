@@ -1,5 +1,4 @@
 import base64
-import binascii
 import logging
 import math
 from datetime import date, datetime, time
@@ -16,28 +15,38 @@ from odoo.libs.filesystem import guess_mimetype
 from odoo.libs.numbers import float_utils
 from odoo.libs.text import nl2br
 from odoo.tools import (
-    float_is_zero,
+    NEGATIVE_SIGN_JOINER,
+    format_amount_parts,
     format_date,
     format_duration,
     posix_to_ldml,
 )
 from odoo.tools.mail import safe_attrs
 from odoo.tools.misc import babel_locale_parse, get_lang
-from odoo.tools.translate import LazyTranslate, _
+from odoo.tools.translate import _
 
-_lt = LazyTranslate(__name__)
 _logger = logging.getLogger(__name__)
 
-NEGATIVE_SIGN_JOINER = "-\N{ZERO WIDTH NO-BREAK SPACE}"
+TIMEDELTA_UNITS = (
+    ("year", 3600 * 24 * 365),
+    ("month", 3600 * 24 * 30),
+    ("week", 3600 * 24 * 7),
+    ("day", 3600 * 24),
+    ("hour", 3600),
+    ("minute", 60),
+    ("second", 1),
+)
+
+TIMEDELTA_SECONDS_BY_UNIT = dict(TIMEDELTA_UNITS)
+
+BARCODE_RENDER_OPTIONS = frozenset(
+    ("width", "height", "humanreadable", "quiet", "mask")
+)
 
 
 class IrQwebField(models.AbstractModel):
     _name = "ir.qweb.field"
     _description = "Qweb Field"
-
-    @api.model
-    def get_available_options(self) -> dict[str, dict[str, Any]]:
-        return {}
 
     @api.model
     def attributes(
@@ -48,11 +57,10 @@ class IrQwebField(models.AbstractModel):
         values: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         data = {}
-        field = record._fields[field_name]
-
         if not options.get("inherit_branding") and not options.get("translate"):
             return data
 
+        field = record._fields[field_name]
         data["data-oe-model"] = record._name
         data["data-oe-id"] = record.id
         data["data-oe-field"] = field.name
@@ -74,11 +82,18 @@ class IrQwebField(models.AbstractModel):
         return self.env["ir.qweb"]._get_template_cache_keys() + ["tz", "bin_size"]
 
     @api.model
+    def _record_options(
+        self, record: models.BaseModel, field_name: str, options: dict[str, Any]
+    ) -> dict[str, Any]:
+        return options
+
+    @api.model
     def record_to_html(
         self, record: models.BaseModel, field_name: str, options: dict[str, Any]
     ) -> str | Markup | bool:
         if not record:
             return False
+        options = self._record_options(record, field_name, options)
         env_context = self.env.context
         record_context = record.env.context
         context_delta = {
@@ -120,21 +135,6 @@ class IrQwebFieldInteger(models.AbstractModel):
     _inherit = ["ir.qweb.field"]
 
     @api.model
-    def get_available_options(self) -> dict[str, dict[str, Any]]:
-        options = super().get_available_options()
-        options.update(
-            format_decimalized_number={
-                "type": "boolean",
-                "string": _("Decimalized number"),
-            },
-            precision_digits={
-                "type": "integer",
-                "string": _("Precision Digits"),
-            },
-        )
-        return options
-
-    @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str:
         if options.get("format_decimalized_number"):
             return tools.misc.format_decimalized_number(
@@ -147,14 +147,6 @@ class IrQwebFieldFloat(models.AbstractModel):
     _name = "ir.qweb.field.float"
     _description = "Qweb Field Float"
     _inherit = ["ir.qweb.field"]
-
-    @api.model
-    def get_available_options(self) -> dict[str, dict[str, Any]]:
-        options = super().get_available_options()
-        options.update(
-            precision={"type": "integer", "string": _("Rounding precision")},
-        )
-        return options
 
     @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str:
@@ -184,30 +176,25 @@ class IrQwebFieldFloat(models.AbstractModel):
         return self._format_number(fmt, value)
 
     @api.model
-    def record_to_html(
+    def _record_options(
         self, record: models.BaseModel, field_name: str, options: dict[str, Any]
-    ) -> str | Markup | bool:
+    ) -> dict[str, Any]:
         field = record._fields[field_name]
+        defaults = {}
         if "precision" not in options and "decimal_precision" not in options:
-            _, precision = field.get_digits(record.env) or (None, None)
-            if precision is not None:
-                options = dict(options, precision=precision)
-        if "min_precision" not in options and hasattr(field, "get_min_display_digits"):
-            min_precision = field.get_min_display_digits(record.env)
-            options = dict(options, min_precision=min_precision)
-        return super().record_to_html(record, field_name, options)
+            digits = field.get_digits(record.env)
+            if digits:
+                defaults["precision"] = digits[1]
+        get_min_display_digits = getattr(field, "get_min_display_digits", None)
+        if "min_precision" not in options and get_min_display_digits is not None:
+            defaults["min_precision"] = get_min_display_digits(record.env)
+        return dict(options, **defaults) if defaults else options
 
 
 class IrQwebFieldDate(models.AbstractModel):
     _name = "ir.qweb.field.date"
     _description = "Qweb Field Date"
     _inherit = ["ir.qweb.field"]
-
-    @api.model
-    def get_available_options(self) -> dict[str, dict[str, Any]]:
-        options = super().get_available_options()
-        options.update(format={"type": "string", "string": _("Date format")})
-        return options
 
     @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str:
@@ -220,18 +207,6 @@ class IrQwebFieldDatetime(models.AbstractModel):
     _inherit = ["ir.qweb.field"]
 
     @api.model
-    def get_available_options(self) -> dict[str, dict[str, Any]]:
-        options = super().get_available_options()
-        options.update(
-            format={"type": "string", "string": _("Pattern to format")},
-            tz_name={"type": "char", "string": _("Optional timezone name")},
-            time_only={"type": "boolean", "string": _("Display only the time")},
-            hide_seconds={"type": "boolean", "string": _("Hide seconds")},
-            date_only={"type": "boolean", "string": _("Display only the date")},
-        )
-        return options
-
-    @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str:
         if not value:
             return ""
@@ -240,6 +215,10 @@ class IrQwebFieldDatetime(models.AbstractModel):
         locale = babel_locale_parse(lang.code)
         if isinstance(value, str):
             value = fields.Datetime.from_string(value)
+        elif isinstance(value, date) and not isinstance(value, datetime):
+            # widget="datetime" over a date field: midnight, rather than the
+            # bare AssertionError ``context_timestamp`` raises on a ``date``.
+            value = datetime.combine(value, time.min)
 
         record = self
         if options.get("tz_name"):
@@ -293,36 +272,27 @@ class IrQwebFieldSelection(models.AbstractModel):
     _inherit = ["ir.qweb.field"]
 
     @api.model
-    def get_available_options(self) -> dict[str, dict[str, Any]]:
-        options = super().get_available_options()
-        options.update(
-            selection={
-                "type": "json",
-                "string": _("Json"),
-                "description": _("By default the widget uses the field information"),
-                "required": True,
-            }
-        )
-        return options
-
-    @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str | Markup:
         if value is None or value is False:
             return ""
-        return escape(options["selection"].get(value, value) or "")
+        selection = options.get("selection")
+        if selection is None:
+            msg = (
+                "Missing 'selection' option for selection field rendering; "
+                "t-out with widget='selection' must supply the label map that "
+                "t-field reads off the field."
+            )
+            raise ValueError(msg)
+        return escape(selection.get(value, value) or "")
 
     @api.model
-    def record_to_html(
+    def _record_options(
         self, record: models.BaseModel, field_name: str, options: dict[str, Any]
-    ) -> str | Markup | bool:
-        if "selection" not in options:
-            options = dict(
-                options,
-                selection=dict(
-                    record._fields[field_name]._description_selection(self.env)
-                ),
-            )
-        return super().record_to_html(record, field_name, options)
+    ) -> dict[str, Any]:
+        if "selection" in options:
+            return options
+        field = record._fields[field_name]
+        return dict(options, selection=dict(field._description_selection(self.env)))
 
 
 class IrQwebFieldMany2one(models.AbstractModel):
@@ -389,9 +359,29 @@ class IrQwebFieldImage(models.AbstractModel):
 
     @api.model
     def _get_src_data_b64(self, value: Any, options: dict[str, Any]) -> str:
+        # A binary field hands over ``bytes``; ``t-out`` with widget="image"
+        # hands over whatever the expression evaluated to. Normalise once and
+        # STRICTLY -- this used to reach ``value.decode('ascii')`` at the very
+        # end and raise AttributeError there, past every guard, for a plain
+        # ``str``. Decoding leniently instead would be worse than the old
+        # crash: ``b64decode`` discards a stray non-base64 byte, so the payload
+        # would validate while the data URI built from the RAW value still
+        # carried it.
+        if isinstance(value, (bytes, bytearray, memoryview)):
+            source = bytes(value)
+        elif isinstance(value, str):
+            source = value
+        else:
+            msg = "Invalid image content"
+            raise ValueError(msg)
+
         try:
-            img_b64 = base64.b64decode(value)
-        except binascii.Error:
+            img_b64 = base64.b64decode(source)
+            value_b64 = source if isinstance(source, str) else source.decode("ascii")
+        except ValueError:
+            # binascii.Error and the "only ASCII characters" ValueError that
+            # b64decode raises for a str both land here; so does the
+            # UnicodeDecodeError from a bytes payload that is not ASCII.
             msg = "Invalid image content"
             raise ValueError(msg) from None
 
@@ -399,10 +389,24 @@ class IrQwebFieldImage(models.AbstractModel):
         if mimetype == "image/webp":
             return self.env["ir.qweb"]._get_converted_image_data_uri(value)
         elif mimetype != "image/svg+xml":
+            sniffed = mimetype
             try:
                 image = Image.open(BytesIO(img_b64))
                 image.verify()
-                mimetype = Image.MIME[image.format]
+                # ``Image.MIME`` is populated per plugin and stays sparse: a
+                # format Pillow can open is not necessarily one it has a MIME
+                # for, and the bare index raised KeyError past both handlers.
+                # Synthesise from the format name as a last resort -- `or
+                # sniffed` alone put a literal "None" in the data URI when the
+                # sniff came back empty too.
+                mimetype = (
+                    Image.MIME.get(image.format)
+                    or sniffed
+                    or (f"image/{image.format.lower()}" if image.format else None)
+                )
+                if not mimetype:
+                    msg = "Invalid image content"
+                    raise ValueError(msg)
             except OSError as exc:
                 msg = "Non-image binary fields can not be converted to HTML"
                 raise ValueError(msg) from exc
@@ -410,7 +414,7 @@ class IrQwebFieldImage(models.AbstractModel):
                 msg = "Invalid image content"
                 raise ValueError(msg) from exc
 
-        return f"data:{mimetype};base64,{value.decode('ascii')}"
+        return f"data:{mimetype};base64,{value_b64}"
 
     @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> Markup:
@@ -433,39 +437,6 @@ class IrQwebFieldMonetary(models.AbstractModel):
     _inherit = ["ir.qweb.field"]
 
     @api.model
-    def get_available_options(self) -> dict[str, dict[str, Any]]:
-        options = super().get_available_options()
-        options.update(
-            from_currency={
-                "type": "model",
-                "params": "res.currency",
-                "string": _("Original currency"),
-            },
-            display_currency={
-                "type": "model",
-                "params": "res.currency",
-                "string": _("Display currency"),
-                "required": "value_to_html",
-            },
-            date={
-                "type": "date",
-                "string": _("Date"),
-                "description": _(
-                    "Date used for the original currency (only used for t-esc). by default use the current date."
-                ),
-            },
-            company_id={
-                "type": "model",
-                "params": "res.company",
-                "string": _("Company"),
-                "description": _(
-                    "Company used for the original currency (only used for t-esc). By default use the user company"
-                ),
-            },
-        )
-        return options
-
-    @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> Markup:
         display_currency = options.get("display_currency")
         if not display_currency:
@@ -474,9 +445,6 @@ class IrQwebFieldMonetary(models.AbstractModel):
 
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise TypeError(_("The value send to monetary field is not a number."))
-
-        decimal_places = options.get("decimal_places", display_currency.decimal_places)
-        fmt = f"%.{decimal_places}f"
 
         if options.get("from_currency"):
             date = options.get("date") or fields.Date.today()
@@ -489,20 +457,14 @@ class IrQwebFieldMonetary(models.AbstractModel):
                 value, display_currency, company, date
             )
 
-        if float_is_zero(value, precision_digits=display_currency.decimal_places):
-            value = 0.0
-
         lang = self.user_lang()
-        formatted_amount = self._format_number(
-            fmt, display_currency.round(value), lang=lang
-        ).replace(" ", "\N{NO-BREAK SPACE}")
-
-        symbol = display_currency.symbol or ""
-        pre = post = ""
-        if display_currency.position == "before":
-            pre = f"{symbol}\N{NO-BREAK SPACE}"
-        else:
-            post = f"\N{NO-BREAK SPACE}{symbol}"
+        pre, formatted_amount, post = format_amount_parts(
+            self.env,
+            value,
+            display_currency,
+            lang_code=lang.code,
+            decimal_places=options.get("decimal_places"),
+        )
 
         if options.get("label_price") and lang.decimal_point in formatted_amount:
             sep = lang.decimal_point
@@ -517,43 +479,46 @@ class IrQwebFieldMonetary(models.AbstractModel):
         )
 
     @api.model
-    def record_to_html(
-        self, record: models.BaseModel, field_name: str, options: dict[str, Any]
-    ) -> str | Markup | bool:
-        options = dict(options)
+    def _currency_field_names(
+        self, record: models.BaseModel, field_name: str
+    ) -> list[str]:
+        # An ORDER, not a pick: the caller takes the first that actually HOLDS
+        # a currency. A monetary field's declared currency field can be empty
+        # on a given record, and the fallback scan exists for that case.
         field = record._fields[field_name]
+        declared = (
+            field.get_currency_field(record) if field.type == "monetary" else None
+        )
+        candidates = [
+            name
+            for name, candidate in record._fields.items()
+            if candidate.type == "many2one" and candidate.comodel_name == "res.currency"
+        ]
+        # The scan used to take candidates[0] -- whichever `_fields` happened to
+        # yield first, which on product.template is `currency_id` only by luck
+        # and is not a guarantee the field dict makes.
+        ranked = sorted(
+            candidates,
+            key=lambda name: (name not in ("currency_id", "company_currency_id"), name),
+        )
+        if declared:
+            ranked = [declared, *(name for name in ranked if name != declared)]
+        return ranked
 
-        if not options.get("display_currency") and field.type == "monetary":
-            currency_field_name = field.get_currency_field(record)
-            if currency_field_name:
-                options["display_currency"] = record[currency_field_name]
+    @api.model
+    def _record_options(
+        self, record: models.BaseModel, field_name: str, options: dict[str, Any]
+    ) -> dict[str, Any]:
+        options = dict(options)
         if not options.get("display_currency"):
-            currency_fields = [
-                k
-                for k, v in record._fields.items()
-                if v.type == "many2one" and v.comodel_name == "res.currency"
-            ]
-            if currency_fields:
-                options["display_currency"] = record[currency_fields[0]]
-        if "date" not in options:
-            options["date"] = record.env.context.get("date")
-        if "company_id" not in options:
-            options["company_id"] = record.env.context.get("company_id")
-
-        return super().record_to_html(record, field_name, options)
-
-
-TIMEDELTA_UNITS = (
-    ("year", _lt("year"), 3600 * 24 * 365),
-    ("month", _lt("month"), 3600 * 24 * 30),
-    ("week", _lt("week"), 3600 * 24 * 7),
-    ("day", _lt("day"), 3600 * 24),
-    ("hour", _lt("hour"), 3600),
-    ("minute", _lt("minute"), 60),
-    ("second", _lt("second"), 1),
-)
-
-TIMEDELTA_SECONDS_BY_UNIT = {unit: seconds for unit, _label, seconds in TIMEDELTA_UNITS}
+            for name in self._currency_field_names(record, field_name):
+                currency = record[name]
+                if currency:
+                    options["display_currency"] = currency
+                    break
+        options.setdefault("date", record.env.context.get("date"))
+        options.setdefault("company_id", record.env.context.get("company_id"))
+        return options
 
 
 class IrQwebFieldFloat_Time(models.AbstractModel):
@@ -575,9 +540,15 @@ class IrQwebFieldTime(models.AbstractModel):
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str:
         if value < 0:
             raise ValueError(_("The value (%s) passed should be positive", value))
-        hours, minutes = divmod(int(value * 60), 60)
-        if hours > 23:
+        if value >= 24:
             raise ValueError(_("The hour must be between 0 and 23"))
+        # Round rather than truncate -- truncating rendered 22 of the day's
+        # 1440 whole minutes one minute early, because `minutes / 60.0 * 60`
+        # lands just below the integer. Clamp instead of raising on the way
+        # back up: 23:59:31 rounds to 1440 minutes, and a value that used to
+        # render must not start raising out of a template.
+        minutes_total = min(round(value * 60), 24 * 60 - 1)
+        hours, minutes = divmod(minutes_total, 60)
         t = time(hour=hours, minute=minutes)
 
         locale = babel_locale_parse(self.user_lang().code)
@@ -592,70 +563,30 @@ class IrQwebFieldDuration(models.AbstractModel):
     _inherit = ["ir.qweb.field"]
 
     @api.model
-    def get_available_options(self) -> dict[str, dict[str, Any]]:
-        options = super().get_available_options()
-        unit = [(value, str(label)) for value, label, ratio in TIMEDELTA_UNITS]
-        options.update(
-            digital={"type": "boolean", "string": _("Digital formatting")},
-            unit={
-                "type": "selection",
-                "params": unit,
-                "string": _("Date unit"),
-                "description": _("Date unit used for comparison and formatting"),
-                "default_value": "second",
-                "required": True,
-            },
-            round={
-                "type": "selection",
-                "params": unit,
-                "string": _("Rounding unit"),
-                "description": _(
-                    "Date unit used for the rounding. The value must be smaller than 'hour' if you use the digital formatting."
-                ),
-                "default_value": "second",
-            },
-            format={
-                "type": "selection",
-                "params": [
-                    ("long", _("Long")),
-                    ("short", _("Short")),
-                    ("narrow", _("Narrow")),
-                ],
-                "string": _("Format"),
-                "description": _(
-                    "Formatting: long, short, narrow (not used for digital)"
-                ),
-                "default_value": "long",
-            },
-            add_direction={
-                "type": "boolean",
-                "string": _("Add direction"),
-                "description": _("Add directional information (not used for digital)"),
-            },
-        )
-        return options
-
-    @api.model
-    def _format_timedelta_section(
+    def _format_timedelta(
         self,
         seconds: float,
-        granularity: int,
-        add_direction: Any,
+        add_direction: bool,
         fmt: str,
         locale: Any,
     ) -> str:
-        kwargs = {
-            "granularity": granularity,
-            "add_direction": add_direction,
-            "format": fmt,
-            "threshold": 1,
-        }
+        kwargs = {"add_direction": add_direction, "format": fmt, "threshold": 1}
         try:
             return babel.dates.format_timedelta(seconds, locale=locale, **kwargs)
         except KeyError:
-            return babel.dates.format_timedelta(
-                seconds, locale=babel_locale_parse("en_US"), **kwargs
-            )
+            # Only the relative ("add_direction") patterns can be missing, and
+            # only for the narrow/short widths: 57 (locale, width, unit) triples
+            # across 28 CLDR locales lack a "future"/"past" entry, and every one
+            # of them has the long width. Widen before giving up on the
+            # language -- falling straight back to en_US, as this used to,
+            # renders "in 1 hour" inside an otherwise Hungarian page.
+            kwargs["format"] = "long"
+            try:
+                return babel.dates.format_timedelta(seconds, locale=locale, **kwargs)
+            except KeyError:
+                return babel.dates.format_timedelta(
+                    seconds, locale=babel_locale_parse("en_US"), **kwargs
+                )
 
     @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str:
@@ -668,35 +599,42 @@ class IrQwebFieldDuration(models.AbstractModel):
         if options.get("digital") and round_to > 3600:
             round_to = 3600
 
-        r = round((value * factor) / round_to) * round_to
-
-        sections = []
-        sign = ""
-        if value < 0:
-            r = -r
-            sign = "-"
+        seconds = round((value * factor) / round_to) * round_to
+        sign = "-" if seconds < 0 else ""
+        remainder = abs(seconds)
 
         if options.get("digital"):
-            for _unit, _label, secs_per_unit in TIMEDELTA_UNITS:
+            sections = []
+            for _unit, secs_per_unit in TIMEDELTA_UNITS:
                 if secs_per_unit > 3600:
                     continue
-                v, r = divmod(r, secs_per_unit)
-                if not v and (secs_per_unit > factor or secs_per_unit < round_to):
+                count, remainder = divmod(remainder, secs_per_unit)
+                if not count and (secs_per_unit > factor or secs_per_unit < round_to):
                     continue
-                sections.append("%02.0f" % round(v))
+                sections.append("%02d" % count)
             return sign + ":".join(sections)
 
-        for _unit, _label, secs_per_unit in TIMEDELTA_UNITS:
-            v, r = divmod(r, secs_per_unit)
-            if not v:
-                continue
-            section = self._format_timedelta_section(
-                v * secs_per_unit,
-                round_to,
-                options.get("add_direction"),
-                options.get("format", "long"),
-                locale,
+        fmt = options.get("format", "long")
+
+        if options.get("add_direction"):
+            # A direction cannot be composed with a section list. CLDR inflects
+            # the unit noun in the relative form -- fr "1 heure" -> "dans 1
+            # heure", pl "1 godzina" -> "za 1 godzinę" -- so the directed phrase
+            # is not the plain one plus an affix, and only babel can mint it.
+            # Directing each section instead produced "in 1h in 30m", which the
+            # website_event_track countdown badges shipped.
+            return (
+                ""
+                if not seconds
+                else self._format_timedelta(seconds, True, fmt, locale)
             )
+
+        sections = []
+        for _unit, secs_per_unit in TIMEDELTA_UNITS:
+            count, remainder = divmod(remainder, secs_per_unit)
+            if not count:
+                continue
+            section = self._format_timedelta(count * secs_per_unit, False, fmt, locale)
             if section:
                 sections.append(section)
 
@@ -709,20 +647,6 @@ class IrQwebFieldRelative(models.AbstractModel):
     _name = "ir.qweb.field.relative"
     _description = "Qweb Field Relative"
     _inherit = ["ir.qweb.field"]
-
-    @api.model
-    def get_available_options(self) -> dict[str, dict[str, Any]]:
-        options = super().get_available_options()
-        options.update(
-            now={
-                "type": "datetime",
-                "string": _("Reference date"),
-                "description": _(
-                    "Date to compare with the field value, by default use the current date."
-                ),
-            }
-        )
-        return options
 
     @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str:
@@ -742,14 +666,14 @@ class IrQwebFieldRelative(models.AbstractModel):
         )
 
     @api.model
-    def record_to_html(
+    def _record_options(
         self, record: models.BaseModel, field_name: str, options: dict[str, Any]
-    ) -> str | Markup | bool:
-        if "now" not in options:
-            field = record._fields[field_name]
-            now = field.now() if field.type == "datetime" else fields.Datetime.now()
-            options = dict(options, now=now)
-        return super().record_to_html(record, field_name, options)
+    ) -> dict[str, Any]:
+        if "now" in options:
+            return options
+        field = record._fields[field_name]
+        now = field.now() if field.type == "datetime" else fields.Datetime.now()
+        return dict(options, now=now)
 
 
 class IrQwebFieldBarcode(models.AbstractModel):
@@ -758,56 +682,27 @@ class IrQwebFieldBarcode(models.AbstractModel):
     _inherit = ["ir.qweb.field"]
 
     @api.model
-    def get_available_options(self) -> dict[str, dict[str, Any]]:
-        options = super().get_available_options()
-        options.update(
-            symbology={
-                "type": "string",
-                "string": _("Barcode symbology"),
-                "description": _("Barcode type, eg: UPCA, EAN13, Code128"),
-                "default_value": "Code128",
-            },
-            width={
-                "type": "integer",
-                "string": _("Width"),
-                "default_value": 600,
-            },
-            height={
-                "type": "integer",
-                "string": _("Height"),
-                "default_value": 100,
-            },
-            humanreadable={
-                "type": "integer",
-                "string": _("Human Readable"),
-                "default_value": 0,
-            },
-            quiet={"type": "integer", "string": "Quiet", "default_value": 1},
-            mask={"type": "string", "string": "Mask", "default_value": ""},
-        )
-        return options
-
-    @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str | Markup:
         if not value:
             return ""
+        # A barcode is a string of symbols, but the field behind it is often an
+        # integer (an EAN, a serial). ``isascii``/``prepare_barcode`` both want
+        # ``str``; coerce here rather than raising AttributeError on the field.
+        value = value if isinstance(value, str) else str(value)
         if not value.isascii():
             return nl2br(value)
         barcode_symbology = options.get("symbology", "Code128")
         barcode = self.env["ir.actions.report"].prepare_barcode(
             barcode_symbology,
             value,
-            **{
-                k: v
-                for k, v in options.items()
-                if k in ["width", "height", "humanreadable", "quiet", "mask"]
-            },
+            **{k: v for k, v in options.items() if k in BARCODE_RENDER_OPTIONS},
         )
 
         img_element = html.Element("img")
         for k, v in options.items():
-            if k.startswith("img_") and k.removeprefix("img_") in safe_attrs:
-                img_element.set(k.removeprefix("img_"), v)
+            attribute = k.removeprefix("img_")
+            if k.startswith("img_") and attribute in safe_attrs:
+                img_element.set(attribute, v if isinstance(v, str) else str(v))
         if not img_element.get("alt"):
             img_element.set("alt", _("Barcode %s", value))
         img_element.set(
@@ -820,75 +715,6 @@ class IrQwebFieldContact(models.AbstractModel):
     _name = "ir.qweb.field.contact"
     _description = "Qweb Field Contact"
     _inherit = ["ir.qweb.field.many2one"]
-
-    @api.model
-    def get_available_options(self) -> dict[str, dict[str, Any]]:
-        options = super().get_available_options()
-        contact_fields = [
-            {"field_name": "name", "label": _("Name"), "default": True},
-            {"field_name": "address", "label": _("Address"), "default": True},
-            {"field_name": "phone", "label": _("Phone"), "default": True},
-            {"field_name": "email", "label": _("Email"), "default": True},
-            {"field_name": "vat", "label": _("VAT")},
-        ]
-        separator_params = {
-            "type": "selection",
-            "selection": [
-                [" ", _("Space")],
-                [",", _("Comma")],
-                ["-", _("Dash")],
-                ["|", _("Vertical bar")],
-                ["/", _("Slash")],
-            ],
-            "placeholder": _("Linebreak"),
-        }
-        options.update(
-            fields={
-                "type": "array",
-                "params": {"type": "selection", "params": contact_fields},
-                "string": _("Displayed fields"),
-                "description": _("List of contact fields to display in the widget"),
-                "default_value": [
-                    param.get("field_name")
-                    for param in contact_fields
-                    if param.get("default")
-                ],
-            },
-            separator={
-                "type": "selection",
-                "params": separator_params,
-                "string": _("Address separator"),
-                "description": _(
-                    "Separator use to split the address from the display_name."
-                ),
-                "default_value": False,
-            },
-            no_marker={
-                "type": "boolean",
-                "string": _("Hide badges"),
-                "description": _("Don't display the font awesome marker"),
-            },
-            no_tag_br={
-                "type": "boolean",
-                "string": _("Use comma"),
-                "description": _(
-                    "Use comma instead of the <br> tag to display the address"
-                ),
-            },
-            phone_icons={
-                "type": "boolean",
-                "string": _("Display phone icons"),
-                "description": _("Display the phone icons even if no_marker is True"),
-            },
-            country_image={
-                "type": "boolean",
-                "string": _("Display country image"),
-                "description": _(
-                    "Display the country image if the field is present on the record"
-                ),
-            },
-        )
-        return options
 
     @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str | Markup:

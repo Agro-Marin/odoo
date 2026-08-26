@@ -305,12 +305,12 @@ class TestDurationExport(TestBasicExport):
 
     def test_negative(self):
         converter = self.get_converter("float", "duration")
-        self.assertEqual(converter(-4), "- 4 seconds")
+        self.assertEqual(converter(-4), "-4 seconds")
 
     def test_negative_with_round(self):
         converter = self.get_converter("float", "duration")
         result = converter(-4.678, {"unit": "year", "round": "hour"}, {"lang": "fr_FR"})
-        self.assertEqual(result, "- 4 ans 8 mois 1 semaine 11 heures")
+        self.assertEqual(result, "-4 ans 8 mois 1 semaine 11 heures")
 
     def test_basic(self):
         converter = self.get_converter("float", "duration")

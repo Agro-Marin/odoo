@@ -1,26 +1,9 @@
 from lxml import etree
 from markupsafe import Markup
 
-from odoo import _, api, models
+from odoo import api, models
 
 from odoo.addons.website.tools import add_form_signature
-
-
-class IrQwebFieldContact(models.AbstractModel):
-    _inherit = "ir.qweb.field.contact"
-
-    @api.model
-    def get_available_options(self):
-        options = super().get_available_options()
-        options.update(
-            website_description={
-                "type": "boolean",
-                "string": _("Display the website description"),
-            },
-            UserBio={"type": "boolean", "string": _("Display the biography")},
-            badges={"type": "boolean", "string": _("Display the badges")},
-        )
-        return options
 
 
 class IrQwebFieldHtml(models.AbstractModel):

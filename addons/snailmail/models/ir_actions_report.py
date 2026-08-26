@@ -4,7 +4,7 @@ from odoo import models
 class IrActionsReport(models.Model):
     _inherit = 'ir.actions.report'
 
-    def _get_attachments(self, records):
+    def _get_attachments(self, records, filenames=None):
         # Force a re-render rather than reuse: a snailmail render is a different
         # document from the stored one, because get_paperformat below forces
         # euro/A4 for it.
@@ -18,7 +18,7 @@ class IrActionsReport(models.Model):
         # ir.attachment search per record.
         if self.env.context.get('snailmail_layout'):
             return {}
-        return super()._get_attachments(records)
+        return super()._get_attachments(records, filenames)
 
     def get_paperformat(self):
         # force the right format (euro/A4) when sending letters, only if we are not using the l10n_DE layout

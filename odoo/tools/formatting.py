@@ -7,7 +7,7 @@ import babel.dates
 from odoo.libs.datetime import timezone as get_timezone
 from odoo.libs.datetime import utc
 from odoo.libs.locale import format_number, posix_to_ldml
-from odoo.libs.numbers import float_round
+from odoo.libs.numbers import float_is_zero, float_round
 
 from .locale_utils import babel_locale_parse, get_lang
 
@@ -15,6 +15,7 @@ if typing.TYPE_CHECKING:
     from odoo.api import Environment
 
 NON_BREAKING_SPACE = "\N{NO-BREAK SPACE}"
+NEGATIVE_SIGN_JOINER = "-\N{ZERO WIDTH NO-BREAK SPACE}"
 
 DEFAULT_SERVER_DATE_FORMAT = "%Y-%m-%d"
 DEFAULT_SERVER_TIME_FORMAT = "%H:%M:%S"
@@ -260,6 +261,51 @@ def format_decimalized_amount(amount: float, currency: typing.Any = None) -> str
     return f"{formated_amount} {currency.symbol or ''}"
 
 
+def format_amount_parts(
+    env: Environment,
+    amount: float,
+    currency: typing.Any,
+    lang_code: str | None = None,
+    trailing_zeroes: bool = True,
+    decimal_places: int | None = None,
+) -> tuple[str, str, str]:
+    lang = get_lang(env, lang_code)
+
+    if decimal_places is None:
+        decimal_places = currency.decimal_places
+        rounded = currency.round(amount)
+    else:
+        rounded = float_round(amount, precision_digits=decimal_places)
+
+    # An amount that rounds away to nothing keeps the sign bit, and "%.2f"
+    # renders -0.0 as "-0.00". `format_amount` has always emitted that; the
+    # qweb monetary converter carried its own float_is_zero guard against it,
+    # which is the only reason it never showed. Guard once, here, at the
+    # precision actually being rendered -- at 4 places -0.0040 is a real value
+    # and must keep its sign.
+    if float_is_zero(rounded, precision_digits=decimal_places):
+        rounded = 0.0
+
+    formatted_amount = (
+        format_number(f"%.{decimal_places}f", rounded, lang, grouping=True)
+        .replace(" ", NON_BREAKING_SPACE)
+        .replace("-", NEGATIVE_SIGN_JOINER)
+    )
+
+    if not trailing_zeroes and decimal_places:
+        decimal_point = re.escape(lang.decimal_point)
+        formatted_amount = re.sub(rf"({decimal_point}\d*?)0+$", r"\1", formatted_amount)
+        formatted_amount = re.sub(rf"{decimal_point}$", "", formatted_amount)
+
+    pre = post = ""
+    if currency.position == "before":
+        pre = f"{currency.symbol or ''}{NON_BREAKING_SPACE}"
+    else:
+        post = f"{NON_BREAKING_SPACE}{currency.symbol or ''}"
+
+    return pre, formatted_amount, post
+
+
 def format_amount(
     env: Environment,
     amount: float,
@@ -267,26 +313,9 @@ def format_amount(
     lang_code: str | None = None,
     trailing_zeroes: bool = True,
 ) -> str:
-    fmt = f"%.{currency.decimal_places}f"
-    lang = get_lang(env, lang_code)
-
-    formatted_amount = (
-        format_number(fmt, currency.round(amount), lang, grouping=True)
-        .replace(" ", "\N{NO-BREAK SPACE}")
-        .replace("-", "-\N{ZERO WIDTH NO-BREAK SPACE}")
+    pre, formatted_amount, post = format_amount_parts(
+        env, amount, currency, lang_code, trailing_zeroes
     )
-
-    if not trailing_zeroes and currency.decimal_places:
-        decimal_point = re.escape(lang.decimal_point)
-        formatted_amount = re.sub(rf"({decimal_point}\d*?)0+$", r"\1", formatted_amount)
-        formatted_amount = re.sub(rf"{decimal_point}$", "", formatted_amount)
-
-    pre = post = ""
-    if currency.position == "before":
-        pre = f"{currency.symbol or ''}\N{NO-BREAK SPACE}"
-    else:
-        post = f"\N{NO-BREAK SPACE}{currency.symbol or ''}"
-
     return f"{pre}{formatted_amount}{post}"
 
 

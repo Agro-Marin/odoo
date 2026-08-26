@@ -145,7 +145,7 @@ before anything else (see **Process boot**) and patches third-party modules only
 
 ### `tools/` has a third role: it is the façade for part of `libs/`
 
-`tools/__init__.py` re-exports **22 of its 102 `__all__` symbols straight from
+`tools/__init__.py` re-exports **22 of its 104 `__all__` symbols straight from
 `odoo.libs`** — `SQL`, `float_round`, `float_compare`, `classproperty`, `lazy`,
 `parse_version`, `SetDefinitions`, `pg_varchar`, `make_index_name` and 13 more.
 Sanctioned: `libs_facade_check.py` polices *how* `libs` is imported, and a
@@ -158,7 +158,7 @@ split exists to express.
 
 **22 understates the exposure, because it counts one file's import statements.**
 Following each exported symbol one hop further — into the `tools` submodule that
-supplies it — **59 of the 102 come from `odoo.libs`**, the other 43 arriving
+supplies it — **59 of the 104 come from `odoo.libs`**, the other 45 arriving
 from `tools`' own modules: 22 imported by `tools/__init__.py` itself and 37
 through submodules that re-export from `libs` in turn. So the erasure covers
 more than half the façade, not a fifth of it, and no reading of
