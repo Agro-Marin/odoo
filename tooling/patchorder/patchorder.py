@@ -19,7 +19,6 @@ _DESCRIPTION = "Cross-repo staleness sweep for mail's double-patch allowlist."
 ALLOWLIST_REL = "addons/mail/static/tests/core/patch_order_audit.test.js"
 SIBLING_ROOTS = ("design-themes", "enterprise", "agromarin")
 
-# A pair needs two patch sites to have a `super` chain worth ordering.
 MIN_SITES = 2
 
 _PATCH_CALL = re.compile(r"(?<![.\w])patch\(\s*")
@@ -33,11 +32,6 @@ _ENTRY = re.compile(r'^\s*"([^"]+ :: [^"]+)",\s*$', re.MULTILINE)
 
 
 def read_allowlist(path: Path) -> list[str]:
-    """The pairs the audit consciously permits, read from the test itself.
-
-    Read rather than restated: a second copy here would be the very thing this
-    tool exists to detect drifting.
-    """
     text = path.read_text(encoding="utf-8")
     start = text.find("const KNOWN_DOUBLE_PATCHES = new Set([")
     if start < 0:
@@ -56,7 +50,6 @@ def read_allowlist(path: Path) -> list[str]:
 
 
 def _balanced(src: str, start: int) -> tuple[str | None, int]:
-    """Text and end index of the bracketed region beginning at src[start]."""
     pairs = {"{": "}", "[": "]", "(": ")"}
     open_ch = src[start]
     close_ch = pairs[open_ch]
@@ -91,7 +84,6 @@ def _balanced(src: str, start: int) -> tuple[str | None, int]:
 
 
 def top_level_keys(obj_src: str) -> set[str]:
-    """Keys declared directly in an object literal, skipping nested bodies."""
     body = obj_src[1:-1]
     keys: list[str] = []
     line: list[str] = []
@@ -147,14 +139,6 @@ def addon_of(path: Path) -> str:
 
 
 def build_index(roots) -> tuple[dict[str, set[str]], dict[str, set[str]], list]:
-    """`"Target :: method"` -> addons, -> files, plus unresolved call sites.
-
-    Resolves BOTH spellings. `patch(X.prototype, { … })` is the obvious one;
-    `const p = { … }; patch(X.prototype, p)` is what most of `addons/mail`
-    actually writes, and a call-site-only regex misses every one of them --
-    the same blind spot `CLAUDE.md` records for the SQL `IN` gate, where a
-    query assembled into a variable is invisible to the check.
-    """
     index: dict[str, set[str]] = defaultdict(set)
     sites: dict[str, set[str]] = defaultdict(set)
     unresolved: list[tuple[str, str, str]] = []
@@ -221,7 +205,6 @@ def default_roots(odoo_root: Path) -> list[Path]:
 
 
 def sweep(allowlist, sites):
-    """Allowlist entries with too few patch sites to be a double patch."""
     return [
         (pair, sorted(sites.get(pair, ())))
         for pair in allowlist
@@ -251,9 +234,6 @@ def main() -> int:
     allowlist = read_allowlist(odoo_root / ALLOWLIST_REL)
     index, sites, unresolved = build_index(roots)
 
-    # AN EMPTY INDEX IS NOT A CLEAN SWEEP. With no patch sites found, every
-    # entry reads as stale and `--check` would report the allowlist as entirely
-    # dead -- a scan that looked at nothing, presented as a finding.
     if not sites:
         raise SystemExit(
             f"patchorder: scanned {len(roots)} root(s) and found no `patch()` "
@@ -264,12 +244,6 @@ def main() -> int:
     stale = sweep(allowlist, sites)
     scanned = [str(r) for r in roots]
 
-    # A PARTIAL SCOPE CANNOT DECIDE STALENESS, and saying so is the whole point.
-    # Run over `addons` alone this reports `Thread.prototype :: open` as stale:
-    # its second patcher is enterprise's `knowledge`, which was never scanned.
-    # Handing that list to someone under the heading "prune these" is the same
-    # false confidence as the advisory this tool replaced -- one root short
-    # instead of one bundle short.
     seen = {r.resolve() for r in roots}
     unscanned = [r for r in default_roots(odoo_root) if r.resolve() not in seen]
 

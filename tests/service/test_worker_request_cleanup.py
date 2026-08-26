@@ -1,18 +1,3 @@
-"""A prefork worker must close the accepted socket even when the handler raises.
-
-``socketserver.BaseServer.process_request`` is ``finish_request(...)`` followed
-by ``shutdown_request(...)`` with **no** ``try/finally``, so any exception out of
-the handler skips the close and leaks the accepted socket for the remainder of
-the worker's life.  ``WorkerHTTP.process_request`` suppressed ``BrokenPipeError``
-around that call — i.e. it treated as routine precisely the exception that
-leaks — so a client that hangs up mid-response leaked an fd each time.  Enough of
-them and ``accept()`` starts raising ``EMFILE``, which ``process_work`` re-raises,
-which kills the worker; the master then respawns it into the same condition.
-
-These tests drive ``WorkerHTTP.process_request`` against a stub server, so they
-need no listening socket, no fork and no database.
-"""
-
 import contextlib
 import socket
 from unittest.mock import MagicMock
@@ -23,8 +8,6 @@ from odoo.service._worker import WorkerHTTP
 
 
 class _StubServer:
-    """The two socketserver hooks WorkerHTTP.process_request uses."""
-
     def __init__(self, raise_on_finish=None):
         self._raise_on_finish = raise_on_finish
         self.socket = None
@@ -41,7 +24,6 @@ class _StubServer:
 
 @pytest.fixture
 def worker():
-    """A WorkerHTTP with just enough state for process_request."""
     w = WorkerHTTP.__new__(WorkerHTTP)
     w.sock_timeout = 5
     w.request_count = 0
@@ -49,11 +31,6 @@ def worker():
 
 
 def _socketpair():
-    """A connected AF_INET pair.
-
-    Not ``socket.socketpair()``: that is AF_UNIX, and ``process_request`` sets
-    ``TCP_NODELAY``, which AF_UNIX rejects with ``OSError(ENOTSUP)``.
-    """
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         listener.bind(("127.0.0.1", 0))
@@ -74,8 +51,6 @@ def test_accepted_socket_is_always_closed(worker, failure):
     client, peer = _socketpair()
     try:
         worker.server = _StubServer(raise_on_finish=failure)
-        # An unexpected error must still propagate (pinned separately below);
-        # what this test asserts is that it is cleaned up on the way out.
         with contextlib.suppress(ValueError):
             worker.process_request(client, ("127.0.0.1", 1234))
         assert worker.server.shutdown_calls == [client], "socket was not released"
@@ -87,18 +62,16 @@ def test_accepted_socket_is_always_closed(worker, failure):
 
 
 def test_broken_pipe_is_still_swallowed(worker):
-    """Unchanged behaviour: a client hanging up is routine, not a worker error."""
     client, peer = _socketpair()
     try:
         worker.server = _StubServer(raise_on_finish=BrokenPipeError())
-        worker.process_request(client, ("127.0.0.1", 1234))  # must not raise
+        worker.process_request(client, ("127.0.0.1", 1234))
         assert worker.request_count == 1
     finally:
         peer.close()
 
 
 def test_unexpected_errors_still_propagate(worker):
-    """Cleanup must not turn a real bug into a silent one."""
     client, peer = _socketpair()
     try:
         worker.server = _StubServer(raise_on_finish=ValueError("boom"))
@@ -109,7 +82,6 @@ def test_unexpected_errors_still_propagate(worker):
 
 
 def test_request_count_advances_only_on_a_completed_request(worker):
-    """`request_count` drives limit_request recycling."""
     client, peer = _socketpair()
     try:
         worker.server = _StubServer()
@@ -120,7 +92,6 @@ def test_request_count_advances_only_on_a_completed_request(worker):
 
 
 def test_socket_options_are_applied_before_handling(worker):
-    """The pre-handler setup must survive the try/finally restructure."""
     client, peer = _socketpair()
     try:
         worker.server = _StubServer()

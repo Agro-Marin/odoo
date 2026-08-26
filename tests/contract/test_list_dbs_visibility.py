@@ -1,30 +1,3 @@
-"""What ``list_dbs`` actually exposes, against a real ``pg_database``.
-
-``list_dbs`` answers the unauthenticated ``list`` verb (``/jsonrpc``,
-``/xmlrpc/2/db``, and the database-manager wizard), so its ``WHERE`` clause is
-the boundary between "databases this instance serves" and "every database on the
-cluster".  It carries four filters, and each one is a decision:
-
-* ``datdba = (SELECT usesysid FROM pg_user WHERE usename = current_user)`` —
-  ownership.  On a shared cluster this is the only thing keeping another
-  tenant's database names off an anonymous RPC response.
-* ``NOT datistemplate`` and ``datallowconn`` — a template or a
-  connections-disabled database can never be served, so offering it is a lie
-  that ends in a failed connect.
-* ``datname != ALL(%s)`` — ``postgres`` and the configured ``db_template``.
-
-The DB-free suite covers only the branches that return BEFORE this query: the
-``AccessDenied`` raise and the ``db_name``/``dbfilter`` shortcut.  The query
-itself was reached by no test at any tier, and it cannot be tested by a mock —
-a stubbed cursor returns whatever the stub was told to return, which is the
-belief under test.  So it is measured here against a real cluster.
-
-Assertions are CONTAINMENT, never an exact list: this suite runs against a
-developer's cluster where other sessions hold scratch databases the connecting
-role also owns, and an exact-match test would fail for reasons that have nothing
-to do with the filter.
-"""
-
 import subprocess
 import uuid
 
@@ -45,7 +18,6 @@ def _psql(sql: str, dbname: str = "postgres") -> str:
 
 
 def _drop(name: str) -> None:
-    """Drop a database that may be a template and may refuse connections."""
     subprocess.run(
         [
             "psql",
@@ -79,17 +51,6 @@ def _drop(name: str) -> None:
 
 @pytest.fixture(scope="module")
 def cluster(odoo_config):
-    """Four databases covering every arm of the ``WHERE`` clause.
-
-    ``foreign`` needs a second role, which needs CREATEROLE or superuser.
-    Where that is not available the name is ``None`` and the one test that
-    uses it skips — rather than skipping the whole class, which would lose
-    the three filters that need no special privilege.
-    """
-    # The autouse skip fixture is function-scoped, so it cannot save a
-    # MODULE-scoped fixture from running first: without this, an absent
-    # PostgreSQL turns seven clean skips into seven errors out of `createdb`.
-    # ``conftest.scratch_db`` guards itself the same way, for the same reason.
     if not pg_reachable():
         pytest.skip("no reachable PostgreSQL")
     tag = uuid.uuid4().hex[:10]
@@ -143,13 +104,6 @@ def cluster(odoo_config):
 
 @pytest.fixture
 def listed(cluster):
-    """``list_dbs(force=True)`` against a config that reaches the query.
-
-    ``force`` bypasses the ``list_db`` gate — the point here is the SQL, and
-    the gate is covered DB-free.  ``dbfilter``/``db_name`` must both be empty
-    or the function returns before the query it exists to test; the
-    session-scoped ``odoo_config`` parses an empty argv, so they are.
-    """
     from odoo.service.db import list_dbs
     from odoo.tools import config
 
@@ -163,25 +117,15 @@ def listed(cluster):
 @requires_pg
 class TestListDbsVisibility:
     def test_a_database_this_role_owns_is_listed(self, cluster, listed):
-        """Guard the guard: if nothing of ours is listed, every exclusion below
-        would hold vacuously."""
         assert cluster["plain"] in listed, listed[:20]
 
     def test_a_template_is_not_listed(self, cluster, listed):
-        """``datistemplate`` — offering one produces a database that cannot be
-        served, and ``CREATE DATABASE ... TEMPLATE`` fails while anything is
-        connected to it."""
         assert cluster["template"] not in listed
 
     def test_a_database_that_refuses_connections_is_not_listed(self, cluster, listed):
         assert cluster["noconn"] not in listed
 
     def test_a_database_owned_by_another_role_is_not_listed(self, cluster, listed):
-        """The ownership filter, which is the tenant boundary on a shared cluster.
-
-        Without it, an unauthenticated ``list`` enumerates every database on the
-        host, whoever owns it.
-        """
         if cluster["foreign"] is None:
             pytest.skip("no privilege to create a second role")
         assert cluster["foreign"] in _psql(
@@ -193,13 +137,9 @@ class TestListDbsVisibility:
         assert "postgres" not in listed
 
     def test_the_configured_template_is_not_listed(self, listed):
-        """``db_template`` is excluded by name as well as by ``datistemplate``,
-        because a deployment may point it at an ordinary database it clones."""
         from odoo.tools import config
 
         assert config["db_template"] not in listed
 
     def test_the_result_is_sorted(self, listed):
-        """``ORDER BY datname``.  The database manager renders this list as-is,
-        so an unordered result reshuffles the UI between scrapes."""
         assert listed == sorted(listed)

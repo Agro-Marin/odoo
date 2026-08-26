@@ -1,12 +1,3 @@
-"""Self-test for doc_measured.py — the helper that stops a gate's own docstring
-from drifting away from the numbers it quotes.
-
-A checker whose failure mode is silence needs its silence tested, which is the
-standing rule in this directory (``test_every_gate_refuses_an_empty_tree.py``).
-Here the equivalents are: a module with no block must raise rather than compare
-equal to nothing, and a block with no parseable pair must do the same.
-"""
-
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory

@@ -1,34 +1,4 @@
 #!/usr/bin/env python3
-"""Expected-failure baselines for odoo-bin integration suites.
-
-Answers, without a control run, the question that costs this workspace the most
-test time: *is this red mine, or was it already red?*
-
-The alternative in use until now was prose — the "Known defects" table in the
-workspace `CLAUDE.md`. Three of its properties were measured on 2026-08-22 and
-each one is a design constraint here, not a preference:
-
-1. It rots within the hour. Its `/base` row claimed 11 red of 3284; a run of its
-   own repro at `ca4ee2ddd79` reported 3 of 3284, because `d669e70361c` had
-   fixed five of them one hour after the row was written. That table lives at
-   the workspace root, which is not a git repository, so no commit can retire an
-   entry atomically — the rot is mechanical, not a discipline failure.
-2. Counting failures by grepping for ERROR invents them. PostgreSQL error text
-   is embedded verbatim in log records of *passing* tests, so a bad-COPY test
-   that passes contributes a line reading `ERROR: descriptor 'toordinal' ...`.
-   On one `/base` log, `ERROR` matched 14 lines and the truth was 3. Hence
-   `RECORD` below anchors on the full structured prefix, and `evaluate` refuses
-   to return a verdict when its own tally disagrees with the server's.
-3. Comparing counts hides swaps. `quality_control` was "2 failed of 38" when the
-   prose was written and is "2 failed of 41" today — but one name left the set
-   and a different one joined it. A count comparison reads "both known" and
-   ships the regression, which is worse than having no record at all.
-
-Scope: this reads a log an operator already produced. It does not run tests, own
-a workflow, or gate CI — a red suite is still red. What it removes is the second
-run whose only purpose was to find out whether the first one's red was new.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -46,11 +16,6 @@ EXIT_OK = 0
 EXIT_DRIFT = 1
 EXIT_USAGE = 2
 
-# `OdooTestResult.logError` emits "<flavour>: <getDescription(test)>" at ERROR
-# level through the *test module's* own logger, behind odoo's standard log
-# prefix. Matching the whole prefix is the point: a bare /ERROR/ also matches
-# PostgreSQL's error text, which arrives as an unprefixed continuation line
-# inside a record belonging to a test that passed.
 RECORD = re.compile(
     r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d+ \d+ (?P<level>[A-Z]+) uid:\S* \S+ "
     r"(?P<logger>[\w.]+): (?P<flavour>FAIL|ERROR): (?P<desc>.+?)\s*$"
@@ -62,24 +27,11 @@ STARTING = re.compile(
 SUMMARY = re.compile(
     r"(?P<failed>\d+) failed, (?P<errors>\d+) error\(s\) of (?P<total>\d+) tests"
 )
-# odoo.addons.<module>.tests.<file> — the addon that owns the test.
 ADDON = re.compile(r"^odoo\.addons\.(?P<module>[^.]+)\.tests\.")
-# A subtest's description is "Subtest <Class>.<method> (k=<repr>, ...)"
-# (`_SubTest._subDescription`), so any param whose repr carries its address
-# would give the same subtest a new id on every run. Fold those to one token.
 ADDRESS = re.compile(r"0x[0-9a-fA-F]{4,}")
 
 
 def qualify(logger: str, description: str) -> str:
-    """Return "<addon>/<Class>.<method>".
-
-    `getDescription` yields `Class.method` with no module, and names collide
-    across addons — `TestCommon.test_default` exists many times over. The test
-    module's logger is the only thing in the record that disambiguates them.
-
-    Memory addresses inside a subtest's parameter reprs are folded to `0xADDR`,
-    so a subtest does not acquire a new identity on every run.
-    """
     match = ADDON.match(logger)
     owner = match["module"] if match else logger
     return f"{owner}/{ADDRESS.sub('0xADDR', description)}"
@@ -87,8 +39,6 @@ def qualify(logger: str, description: str) -> str:
 
 @dataclass(frozen=True)
 class Scan:
-    """What one odoo-bin log says happened."""
-
     failures: dict[str, str] = field(default_factory=dict)
     started: frozenset[str] = frozenset()
     reported_failed: int | None = None
@@ -96,11 +46,6 @@ class Scan:
 
     @property
     def total(self) -> int:
-        """Tests run — the server's own tally, which outranks counting starts.
-
-        A retried test logs `Starting` twice and a set collapses the pair, and
-        `Starting post tests` is a phase banner rather than a test.
-        """
         return (
             self.started_count if self.reported_total is None else self.reported_total
         )
@@ -111,35 +56,14 @@ class Scan:
 
     @property
     def complete(self) -> bool:
-        """Whether the run reached the end.
-
-        `_threaded.py` logs `N failed, M error(s) of T tests` unconditionally
-        once `--test-enable` stops the server — at ERROR, WARNING or INFO
-        depending on the outcome, but always. Its absence means the run was
-        killed or the log was cut, which is the shape a server dying mid-run
-        takes: every expected failure then reads as newly-passing.
-        """
         return self.reported_failed is not None
 
     @property
     def sound(self) -> bool:
-        """Whether this parse agrees with the server's own failure count."""
         return self.complete and self.reported_failed == len(self.failures)
 
 
 def disambiguate(key: str, seen: Mapping[str, str]) -> str:
-    """Return `key`, suffixed if this name has already failed in this run.
-
-    One test can fail more than once under one name: a method carrying several
-    `assertQueryCount` blocks logs a FAIL record per failing block, with the
-    same `Class.method` and the same subtest params. Keying a plain dict on the
-    name would collapse the pair, which loses two things at once -- the parse
-    tally stops matching the server's summary, so `sound` refuses a verdict and
-    the suite cannot be baselined at all; and if one of the two blocks were
-    later fixed, the surviving name would still read as "expected" and the
-    improvement would go unreported. Both are the failure this tool exists to
-    prevent, so each occurrence keeps its own key.
-    """
     if key not in seen:
         return key
     n = 2
@@ -213,7 +137,6 @@ def canonical_suite(suite: str) -> str:
 
 
 def baseline_path(suite: str) -> Path:
-    """Map a test tag to its baseline file. `/base` becomes `base.json`."""
     slug = suite.strip("/")
     if not slug or "/" in slug or "\\" in slug or slug.startswith("."):
         raise ValueError(f"invalid suite name: {suite!r}")
@@ -332,13 +255,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"no such log: {args.log}", file=sys.stderr)
         return EXIT_USAGE
 
-    # Validated HERE rather than left to `baseline_path`, which both later
-    # branches reach. It raised an uncaught `ValueError` with a traceback, and
-    # the README promises exit 2 for "no baseline or the parse cannot be
-    # trusted" -- a CLI whose usage error arrives as a stack trace is telling
-    # its caller the tool is broken rather than the invocation. The shape that
-    # produced it is the natural one: a run tagged `/loyalty,/sale_loyalty`
-    # covers two suites, and the baseline is per suite.
     try:
         baseline_path(args.suite)
     except ValueError as exc:

@@ -1,41 +1,4 @@
 #!/usr/bin/env python3
-"""Gate a package README's module index against the package.
-
-Several packages in the framework core document themselves with a per-module
-table — `odoo/db/`, `odoo/http/` and `odoo/upgrade_code/` under "Module map",
-`odoo/_monkeypatches/` under "Patch Index"; `PACKAGE_INDEXES` below is the
-authoritative list.  They are the best documentation in the tree, and they were
-the *least* protected: `subsystem_map_check.py` gates `module.md`'s
-top-level map, `doc_link_gate.py` proves a referenced file exists, and neither
-looks inside a package README.  A module added to `odoo/db/` appears in no
-index until someone remembers, and `db/README.md` explicitly invites additions
-("Add the check here when you add an invariant above") — an instruction with no
-enforcement behind it.
-
-The rule is symmetric:
-
-1. **Every module named by the index must exist.**
-2. **Every module in the package must be named by the index** — `__init__.py`
-   excepted, which may be listed (``db/`` does) but is never required.
-
-**The section scoping is the load-bearing part**, not an implementation detail.
-These READMEs contain *other* tables that also name ``.py`` files, and some of
-those files are deliberately gone: `_monkeypatches/README.md` has a **Recently
-Removed** table listing `urllib3.py`, `lxml.py`, `xlrd.py`, `zeep.py`,
-`pytz.py`, `xlwt.py` — every one correctly absent from the tree — and a
-**Removal Criteria** table naming modules that still exist. A checker that
-simply scanned the file for backticked module names would report six failures
-against a document that is exactly right. So each index declares the heading
-that introduces it, and only rows under that heading (up to the next heading of
-the same or higher level) count as the inventory.
-
-Usage::
-
-    python tooling/architecture/package_index_check.py            # report
-    python tooling/architecture/package_index_check.py --check    # CI: exit 1
-    python tooling/architecture/package_index_check.py --json     # machine-readable
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -212,7 +175,7 @@ def render(report: Report) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--check", action="store_true", help="exit 1 when an index has drifted"
     )

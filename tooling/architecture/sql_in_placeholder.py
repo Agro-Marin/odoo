@@ -1,61 +1,4 @@
 #!/usr/bin/env python3
-"""``IN %s`` bound to a value, which psycopg3 cannot execute (ADR-0055).
-
-psycopg2 adapted a Python tuple into the literal ``(1, 2, 3)`` before the
-statement left the client, so ``WHERE id IN %s`` had a parenthesised list to
-read by the time the server saw it. psycopg3 -- the only driver this fork uses
--- binds server-side: the placeholder reaches PostgreSQL as ``$N``, and
-``IN $N`` is not valid SQL for ANY value type. Measured on this fork's cursor:
-
-    cr.execute("... id IN %(x)s", {"x": (1, 2)})   SyntaxError near "$1"
-    cr.execute("... id IN %(x)s", {"x": [1, 2]})   SyntaxError near "$1"
-    execute_query(SQL("... id IN %(x)s", x=(1, 2)))            runs
-    execute_query(SQL("... id IN %(x)s", x=[1, 2]))            SyntaxError
-
-THE SPELLING IS NOT WRONG, THE CALLER IS. ``odoo.libs.sql.builder.SQL`` gives a
-tuple argument its own branch: it expands into ``(%s, %s, ...)`` with one bound
-parameter per element, and ``(NULL)`` when empty. So ``IN %s`` through ``SQL()``
-with a tuple is CORRECT, and over a hundred sites in this tree depend on it. The
-same text handed to ``cr.execute`` has no builder in front of it and is broken.
-That is why this gate reads the call, not the string: a grep for ``IN %s``
-answers with correct code roughly two times in three.
-
-WHAT IT COUNTS. Two shapes, both decidable at the call site:
-
-* A query literal passed DIRECTLY to ``cr.execute`` and friends. Nothing
-  expands the placeholder there, so every ``IN %s`` in it is broken.
-* An ``SQL(...)`` whose matching argument is provably NOT a tuple: a list
-  display, a comprehension, ``list()``, ``sorted()``, ``.mapped()`` or a
-  ``.ids`` attribute, each of which reaches the builder's generic branch and
-  becomes one array parameter.
-
-WHAT IT CANNOT SEE, stated plainly because the limit is real. A query assembled
-into a VARIABLE and executed elsewhere is invisible to it, and that is the shape
-of both bugs that prompted this gate: ``l10n_ec`` appended ``AND <col> in %(x)s``
-to a where-string that ``account``'s sequence mixin executed two files away, and
-``marin``'s year-over-year wizard built its conditions in a list before handing
-the join to ``cr.execute``. Deciding those needs real dataflow. Flagging every
-literal that is not inside an ``SQL()`` instead was tried and is WRONG: core's
-own ``ir_ui_view._get_filter_xmlid_query`` returns the query text from one method
-and builds it with ``SQL(query, res_ids=tuple(...))`` in another, which is
-correct and would be reported. A gate whose findings include correct code is
-read as broken and ignored, so this one reports less and means it. Those two
-shapes are held by their tests instead.
-
-WHAT IT DOES NOT COUNT, and must not. An ``SQL(...)`` argument it cannot resolve
--- a bare name, a parameter, an attribute -- is left alone. All forty-nine such
-sites were read by hand when this gate was written and every one was a tuple.
-Nor a literal that Python's own ``%`` operator formats before it is ever a
-query: ``calendar_recurrence``'s CHECK constraint interpolates two tuples into
-``weekday IN %s AND byday IN %s`` at class-definition time, producing SQL
-literals, not placeholders.
-
-Nor ``= ANY(%s)``, which is the other correct spelling and wants a LIST -- the
-exact inverse container. Nor ``IN (SELECT ...)`` or ``IN %s`` filled with a
-composed ``SQL`` object such as ``query.subselect()``: those are SQL text
-spliced before the statement is sent, not bound values.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -80,29 +23,10 @@ DEFAULT_ADDON = "core"
 
 ALL_ADDONS = "addons"
 
-#: Sibling checkouts, resolved beside the odoo one. Absent from a single-repo CI
-#: run by construction, so asking for one there SKIPS rather than reporting zero
-#: -- a count ratchet reads zero as an improvement it cannot verify.
 SIBLING_SCOPES = ("enterprise", "agromarin")
 
-#: Scopes `--addon` accepts. A tree absent from here is measured by nothing.
 GOVERNED_ADDONS = (DEFAULT_ADDON, ALL_ADDONS, *SIBLING_SCOPES)
 
-#: A literal is only SQL if it carries a keyword spelled in UPPERCASE.
-#:
-#: Case is the discriminator, and it is the right one for this tree. The regex
-#: below matches the English word "in", and prose that also carries a lowercase
-#: "from" or "select" is far commoner than SQL: three of the first findings were
-#: `"...amounting in %(amount)s from %(company_name)s"`, `"...%s/%s in %ss"` and
-#: `"...is present in view but is in select multi."`. Requiring a clause keyword
-#: case-insensitively admits all three. Requiring one UPPERCASE rejects them,
-#: and still accepts the two shapes that matter: a whole statement, and a bare
-#: WHERE-clause FRAGMENT such as l10n_ec's `AND <col> in %(x)s`, appended to a
-#: query built elsewhere -- which carries no SELECT and no FROM, so a
-#: statement-shaped test would miss the very bug this gate was written for.
-#:
-#: `IN` is excluded from the set on purpose: it is the token being judged, so
-#: counting it would make every match qualify itself.
 SQL_KEYWORD = re.compile(
     r"\b(SELECT|INSERT|UPDATE|DELETE|WITH|FROM|WHERE|SET|VALUES|JOIN|HAVING"
     r"|GROUP BY|ORDER BY|AND|OR|ON|EXTRACT|COALESCE|DISTINCT|LIMIT|UNION|USING)\b"
@@ -110,7 +34,6 @@ SQL_KEYWORD = re.compile(
 
 IN_PLACEHOLDER = re.compile(r"\b(?:NOT\s+IN|IN)\s+%(?:\((\w+)\))?s", re.IGNORECASE | re.DOTALL)
 
-#: Calls whose first argument is a query string with no builder in front of it.
 RAW_EXECUTORS = frozenset(
     {"execute", "executemany", "execute_query", "execute_query_dict"}
 )
@@ -148,7 +71,6 @@ def iter_source_files(src: Path | None = None) -> list[Path]:
 
 
 def _string_of(node: ast.AST) -> str | None:
-    """The static text of a string expression, as far as it can be known."""
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value
     if isinstance(node, ast.JoinedStr):
@@ -163,13 +85,6 @@ def _string_of(node: ast.AST) -> str | None:
 
 
 def _is_not_a_tuple(node: ast.AST) -> bool:
-    """Whether an argument is PROVABLY a non-tuple sequence.
-
-    Deliberately one-sided. Everything it cannot see through -- names,
-    parameters, attributes other than ``.ids`` -- answers False and is left
-    alone; see the module docstring on why an unresolvable argument must not be
-    counted.
-    """
     if isinstance(node, (ast.List, ast.ListComp, ast.SetComp, ast.GeneratorExp)):
         return True
     if isinstance(node, ast.Attribute) and node.attr == "ids":
@@ -184,7 +99,6 @@ def _is_not_a_tuple(node: ast.AST) -> bool:
 
 
 def _builder_argument(call: ast.Call, text: str, match: re.Match) -> ast.AST | None:
-    """The argument that will fill this placeholder in an ``SQL(...)`` call."""
     name = match.group(1)
     if name:
         for kw in call.keywords:
@@ -218,9 +132,6 @@ def measure(
             continue
         display = _sources.display(path, ROOT)
 
-        # Every string literal that is the first argument of an SQL(...) call:
-        # those are judged per placeholder below, and every OTHER SQL literal in
-        # the file is judged by the fact that no builder holds it.
         builder_literals: set[int] = set()
         for call in (n for n in ast.walk(tree) if isinstance(n, ast.Call)):
             func = call.func

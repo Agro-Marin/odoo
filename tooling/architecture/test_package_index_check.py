@@ -268,19 +268,6 @@ class LiveRepositoryTest(unittest.TestCase):
         self.assertEqual(overlap, set(), f"both gated and excused: {sorted(overlap)}")
 
     def test_section_scoping_is_load_bearing(self):
-        """Reading the whole README would list names that are not modules.
-
-        The claim is that ``extract_section`` earns its place: the Patch Index
-        names only real modules, while the file as a whole also names ones that
-        were retired or are merely discussed.
-
-        It used to pin the exact out-of-section set, which made it a snapshot of
-        a *retirement log* -- the table that records each deleted patch and why.
-        Deleting a patch is exactly when someone adds a row to it, so the gate
-        fired on the commit that did the right thing: ``site``, ``smtplib`` and
-        ``stdnum`` were removed in 2026-08 and their rows broke this test.
-        Membership was never the claim; that the two reads differ is.
-        """
         pkg = pic.CORE_ROOT / "_monkeypatches"
         text = (pkg / "README.md").read_text(encoding="utf-8")
         actual = pic.actual_modules(pkg)

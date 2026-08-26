@@ -1,31 +1,4 @@
 #!/usr/bin/env python3
-"""Derive ``compilerOptions.paths``'s addon-alias block from the addon layout.
-
-Every addon ``X`` that ships ``static/src/`` publishes ``@X/*``. That was always
-the rule -- ``tsconfig.json`` says so in prose -- but the block was maintained by
-hand, so it drifted: 599 addons on disk ship ``static/src`` against 238 entries,
-and the gate only notices the gap when some JS actually imports one of the missing
-aliases. It went red on ``@website_mail`` and ``@website_profile`` that way. A list
-that is derived by definition and edited by hand will keep rotting; this derives it.
-
-**Scope tolerance is the whole design.** CI checks ``odoo`` out alone, a developer
-has ``enterprise/``, ``agromarin/`` and ``design-themes/`` beside it, and the same
-file has to be correct in both. So, on the same principle the sibling
-``architecture.yml`` lanes use, this tool *grows* what it can see and refuses to
-shrink what it cannot:
-
-* an addon on disk with no entry                              -> added
-* an entry whose checkout is absent here                      -> kept, untouched
-* an entry whose checkout IS present but whose addon is gone  -> removed
-* an entry that is not an addon alias (``@odoo/hoot`` -> a file) -> outside the
-  markers entirely, so never seen
-
-Run from the repo root::
-
-    python tooling/typecheck/tsconfig_paths.py --check     # what CI asks
-    python tooling/typecheck/tsconfig_paths.py --update    # rewrite the block
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -60,7 +33,6 @@ CHECKOUTS = (
 
 
 def addons_on_disk() -> dict[str, str]:
-    """``{addon: target}`` for every addon shipping ``static/src``; first checkout wins."""
     found: dict[str, str] = {}
     for base, prefix in CHECKOUTS:
         if not base.is_dir():
@@ -76,7 +48,6 @@ def present_prefixes() -> set[str]:
 
 
 def _split(text: str) -> tuple[str, str, str]:
-    """``(before, block, after)`` around the derived region, whole lines."""
     try:
         start = text.index(BEGIN)
         stop = text.index(END)
@@ -106,7 +77,7 @@ def desired_entries(existing: dict[str, str]) -> dict[str, str]:
     for alias, target in existing.items():
         addon = alias.removeprefix("@").removesuffix("/*")
         if _checkout_prefix(target) not in present:
-            kept[alias] = target  # another checkout's alias: not ours to judge
+            kept[alias] = target
         elif addon in on_disk:
             kept[alias] = on_disk[addon]
     for addon, target in on_disk.items():
@@ -122,7 +93,7 @@ def render(entries: dict[str, str]) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="fail if it drifted")
     parser.add_argument("--update", action="store_true", help="rewrite the block")
     args = parser.parse_args(argv)

@@ -1,49 +1,3 @@
-"""Placeholders in raw SQL that psycopg 3 cannot bind.
-
-Two shapes, one cause. `SQL("x IN %s", (1, 2))` rewrites the placeholder into
-`x IN (%s, %s)` before the driver sees it, and psycopg 2 interpolated parameters
-client-side, so both of these looked correct for as long as either was true.
-psycopg 3 binds server-side and this fork uses `SQL()` or nothing:
-
-*`IN %s` in a query string.* The statement leaves as `x IN $1`, which is not
-valid SQL. Postgres answers `syntax error at or near "$1"` every single time it
-runs -- there is no input that makes it work.
-
-*A tuple passed as a parameter.* `= ANY(%s)` binds an array; psycopg 3 adapts a
-tuple to a composite instead, so the value arrives as `(2,3,4)` and Postgres
-answers `malformed array literal`. The query text is blameless here, which is
-why the two halves are one gate: a rule that reads only the SQL sees half the
-class, and the half it misses is the half that took mailing lists down.
-
-The fix is `= ANY(%s)` over a **list**. Operator and parameter change together.
-
-**A contract, not a ratchet.** The tree measures zero and there is no reading of
-a non-zero value that is acceptable: each one is a statement that cannot execute,
-found by whoever runs that code path rather than by anyone reading it.
-
-**Cross-repo.** Both defects this gate was written from lived outside the
-community tree -- a cash-basis report in `enterprise` and a comparison wizard in
-`agromarin`, the second with thirteen occurrences in one method. Community CI
-checks out this repo alone; the siblings pass ``--roots`` to cover their own, the
-way ``naming_vocabulary`` and ``mail_hook_keyword_check`` already do.
-
-**What it cannot see.** A query assembled across methods, or parameters built in
-one method and executed in another. `l10n_cl`'s clause was appended to a string
-that another module executed, and `agromarin`'s parameters were appended to a
-list two calls away from the cursor. Following either needs cross-file dataflow;
-the literal and the call site are what a single file offers, and between them
-they reach every occurrence that is written in one place. Keeping a statement
-and its execution together is the practice that makes the rest reachable.
-
-Usage::
-
-  python tooling/architecture/sql_placeholder.py             # report
-  python tooling/architecture/sql_placeholder.py --check     # CI
-  python tooling/architecture/sql_placeholder.py --count
-  python tooling/architecture/sql_placeholder.py --json
-  python tooling/architecture/sql_placeholder.py --roots ../enterprise
-"""
-
 import argparse
 import ast
 import json
@@ -61,13 +15,8 @@ ROOT = find_odoo_root(Path(__file__).resolve(), tool="sql_placeholder")
 
 SCAN_ROOTS = ("addons", "odoo", "tools", "tooling")
 
-# Uppercase `IN` only: "generated in %s seconds" is prose, and a rule that
-# cannot tell a sentence from a statement is one nobody keeps.
 IN_PLACEHOLDER = re.compile(r"\bIN\s+%(?:\(\w+\))?s")
 
-# Enough of a statement to be sure this is SQL. `AND` earns its place: a clause
-# appended to a query built elsewhere carries no other keyword, and that is how
-# both defects that reached production were spelled.
 SQL_KEYWORD = re.compile(
     r"\b(SELECT|UPDATE|DELETE|INSERT|WHERE|FROM|JOIN|SET|AND|OR)\b"
 )
@@ -95,13 +44,6 @@ def _rel(path: Path) -> str:
 
 
 def _is_test(path: Path) -> bool:
-    """A test is a fixture and may take whatever shape it needs.
-
-    `test_db_cursor` passes tuples on purpose -- it is the suite that pins what
-    the driver does with one -- and this gate's own tests spell out the defect
-    verbatim. Reading either would make the contract unsatisfiable by anything
-    except deleting the tests that describe it.
-    """
     return any(part == "tests" or part.startswith("test_") for part in path.parts)
 
 
@@ -122,21 +64,6 @@ def _python_files(roots: list[Path]) -> list[Path]:
 
 
 def _exempt_literals(tree: ast.Module) -> set[tuple[int, int]]:
-    """Literals the `IN` rule must not read.
-
-    ``SQL()`` arguments, because that spelling rewrites the placeholder; the left
-    operand of ``%``, where Python writes the values into the statement text
-    before Postgres sees it -- a CHECK constraint listing what it allows, not a
-    bind; and docstrings, which are prose about code rather than code.
-
-    The docstring case is not hypothetical and not confined to this directory.
-    ``sql_in_placeholder.py`` opens by quoting ``WHERE id IN %s`` to explain the
-    shape it hunts, and this gate reported its sibling's own explanation as a
-    defect -- red in CI, on a line no statement will ever execute. Every
-    ``ast.Constant`` string was in scope, and a module docstring is one. The
-    documented anti-pattern has to be *spellable* in the tree that forbids it,
-    or the rule cannot be written down anywhere the rule can see.
-    """
     exempt: set[tuple[int, int]] = set()
     for node in ast.walk(tree):
         if isinstance(
@@ -176,13 +103,6 @@ def _is_cursor_execute(node: ast.Call) -> bool:
 
 
 def _tuple_values(params: ast.AST) -> list[ast.AST]:
-    """Tuple-valued *elements* of a parameter container.
-
-    The container itself is not a finding: ``cr.execute(sql, (a, b))`` and
-    ``cr.execute(sql, tuple(values))`` both pass a sequence of parameters, which
-    is the calling convention. What cannot work is one parameter that is itself a
-    tuple, since no placeholder binds one.
-    """
     if isinstance(params, ast.Tuple | ast.List):
         elements = params.elts
     elif isinstance(params, ast.Dict):
@@ -241,7 +161,7 @@ def measure(roots: list[Path]) -> tuple[list[Finding], int]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--check", action="store_true", help="CI mode: exit 1 on any finding"
     )
@@ -255,11 +175,6 @@ def main(argv: list[str] | None = None) -> int:
         roots += [Path(r).resolve() for r in args.roots]
     findings, execute_sites = measure(roots)
 
-    # Refuse a tree that yielded nothing rather than report a clean zero: an
-    # empty scan and a tree with no bad placeholder print the same 0, and only
-    # one of them means anything. This fork talks to Postgres directly in
-    # hundreds of places, so "no cursor.execute anywhere" is a broken scan by
-    # construction.
     if not execute_sites:
         raise SystemExit(
             f"sql_placeholder: no cursor.execute call found under "

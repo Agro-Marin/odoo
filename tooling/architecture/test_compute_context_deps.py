@@ -1,19 +1,3 @@
-"""Tests for the ``@api.depends_context`` gate.
-
-Stdlib + pytest only, like every other gate test here — no Odoo import, no
-database. Run with::
-
-    pytest tooling/architecture/test_compute_context_deps.py
-
-The negative cases are the ones that matter. The gate is syntactic, so it has no
-way to know whether a field is stored or whether the method is really a compute;
-what keeps it useful is that it stays quiet on a compute that *declares* the key,
-on the ``depends_context`` spelled alongside a plain ``depends``, and on a method
-that never touches ``env`` at all. It also has to keep seeing the shape the real
-bug had: ``self.env.user.partner_id.id`` buried in a query parameter dict, three
-frames deep in an f-string-free SQL call.
-"""
-
 import textwrap
 from pathlib import Path
 
@@ -31,38 +15,26 @@ def _func(src: str):
     )
 
 
-# --- read_keys -------------------------------------------------------------
-
-
 @pytest.mark.parametrize(
     ("body", "expected"),
     [
         ("self.env.user", {"uid"}),
         ("self.env.uid", {"uid"}),
         ("record.env.user.partner_id.id", {"uid"}),
-        # the shape the six mail fields had: inside a query parameter dict
         ('cr.execute(q, {"pid": self.env.user.partner_id.id})', {"uid"}),
         ('self.env["mail.guest"]._get_guest_from_context()', {"guest"}),
-        # env.company is deliberately out of scope
         ("self.env.company", set()),
         ("self.env.companies", set()),
-        # neither a user nor a guest read
         ('self.env["res.partner"].search([])', set()),
         ("self.user_id.name", set()),
-        # a local named env still counts: the receiver is not always `self`
         ("env.user.partner_id", {"uid"}),
-        # --- lang -------------------------------------------------------
         ("get_lang(self.env).code", {"lang"}),
         ("get_lang(self.env).week_start", {"lang"}),
         ("format_date(self.env, self.date)", {"lang"}),
         ("format_amount(self.env, 1.0, self.currency_id)", {"lang"}),
         ("format_list(self.env, [1, 2])", {"lang"}),
-        # format_datetime resolves the language too; its tz read is a
-        # separate key this gate does not measure yet
         ("format_datetime(self.env, self.date)", {"lang"}),
-        # the labels are translated, so building a lookup off them is a read
         ('dict(self._fields["state"]._description_selection(self.env))', {"lang"}),
-        # ... but the keys are the same string in every language
         (
             'list(dict(self._fields["state"]._description_selection(self.env)))',
             set(),
@@ -71,7 +43,6 @@ def _func(src: str):
             'dict(self._fields["state"]._description_selection(self.env)).keys()',
             set(),
         ),
-        # a formatter that takes no env cannot resolve a language
         ("format_duration(self.duration)", set()),
     ],
 )
@@ -83,18 +54,13 @@ def test_read_keys(body, expected):
     assert read_keys(node) == expected
 
 
-# --- declared_keys ---------------------------------------------------------
-
-
 @pytest.mark.parametrize(
     ("decorators", "expected"),
     [
         (['@api.depends_context("uid")'], {"uid"}),
         (["@api.depends_context('uid', 'company')"], {"uid", "company"}),
-        # alongside a value dependency, in either order
         (['@api.depends("x")', '@api.depends_context("uid")'], {"uid"}),
         (['@api.depends_context("uid")', '@api.depends("x")'], {"uid"}),
-        # a bare depends declares no context
         (['@api.depends("x")'], set()),
         (["@api.model"], set()),
         ([], set()),
@@ -103,9 +69,6 @@ def test_read_keys(body, expected):
 def test_declared_keys(decorators, expected):
     src = "\n".join([*decorators, "def _compute_x(self):", "    return self.env.user"])
     assert declared_keys(_func(src)) == expected
-
-
-# --- measure ---------------------------------------------------------------
 
 
 def _write(tmp_path: Path, name: str, src: str) -> Path:
@@ -188,8 +151,6 @@ def test_measure_only_looks_at_compute_methods(tmp_path):
 
 
 def test_measure_skips_tests(tmp_path):
-    # a clean model file so the scan is non-empty: the gate refuses an empty one,
-    # and this case is about what it ignores, not about that refusal.
     _write(
         tmp_path,
         "clean.py",
@@ -213,7 +174,6 @@ def test_measure_skips_tests(tmp_path):
 
 
 def test_measure_refuses_an_empty_tree(tmp_path):
-    """An exact ratchet cannot tell 0-from-nothing-scanned from 0-fixed."""
     (tmp_path / "empty").mkdir()
     with pytest.raises(RuntimeError, match="refusing to report a count"):
         measure([tmp_path / "empty"])

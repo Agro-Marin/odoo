@@ -1,73 +1,4 @@
 #!/usr/bin/env python3
-"""Declared-shape gate for ``env.config`` — web's ambient per-action bag.
-
-``env.config`` is installed by ``View``'s ``useSubEnv`` and reachable from every
-component beneath it. Every view, every control-panel item and a good deal of
-``enterprise`` reads keys out of it by name. Nothing declared what those keys
-were.
-
-WHY THE OTHER GATES CANNOT SEE IT
----------------------------------
-
-* ``js_public_surface`` pins the module specifiers other addons import.
-  ``env.config`` is not imported; it is inherited through the component tree.
-* ``js_extension_surface`` pins ``(class, member)`` points reached by ``extends``
-  or ``patch()``. A bag key is neither.
-* ``tsc`` types ``OdooEnv`` as ``{ …, [key: string]: any }``, so every key
-  typechecks, including one that is never set.
-
-The measured consequence, before this gate: **five** writers in ``web`` alone
-(``getDefaultConfig``, ``View.loadView``'s ``Object.assign`` onto the live
-sub-env object, ``action_info_builders`` ×2, ``action_service``,
-``blank_component``), and three keys that ``web`` never writes at all —
-``enterprise/mrp_mps`` stores its pager ``offset``/``limit`` in web's bag, and
-``enterprise/web_studio`` calls ``onNodeClicked`` from eleven sites, one of them
-interpolated into generated QWeb source where no static check in this repo can
-follow it.
-
-WHAT IS CHECKED
----------------
-
-1. **Every key any present scope reaches is declared** — in
-   ``VIEW_CONFIG_SURFACE`` (web's own) or ``VIEW_CONFIG_FOREIGN_SURFACE``
-   (recorded squatters), both in ``@web/views/view_config``. Hard zero, and the
-   half that matters in CI: ``web``'s own reaches are checked with no sibling
-   checkout present.
-
-2. **Per-scope provenance is pinned, shrink-only in both directions**, exactly
-   as ``js_extension_surface`` pins its points. A key newly reached from a scope
-   is new exposure; a key no longer reached from a scope it is pinned for is
-   surface given up, and is recorded rather than silently lost.
-
-READING SITES
--------------
-
-``env.config.key``, ``env.config?.key``, ``const {a, b} = env.config``, and one
-level of aliasing (``const config = this.env.config`` then ``config.key``).
-
-The alias form is why this is not a one-line grep. Two files fork-wide use it,
-and dropping them loses real keys — ``actionType`` is reached only that way. It
-is also where a naive scan goes *wrong* rather than merely incomplete:
-``config`` is one of the most reused identifiers in this tree
-(``model.config``, a Chart.js config, a Bootstrap config), so an alias harvest
-that ignores rebinding invents keys. A file that rebinds the alias name from any
-other source is therefore refused and counted in ``unanalysable``, whose total
-is pinned below so the blind spot cannot grow unnoticed.
-
-The first draft of this gate also matched ``{parent_res_model, parent_action_id}
-= env.config.embeddedActions[0]`` as a destructure of the bag, because the
-pattern was not anchored to end at ``env.config``. It invented two snake_case
-keys that no config has ever carried. The anchor is load-bearing, and
-``test_js_env_config_surface.py`` pins it.
-
-USAGE
------
-
-  python js_env_config_surface.py            # gate
-  python js_env_config_surface.py --json
-  python js_env_config_surface.py --update   # needs every consumer checkout
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -248,7 +179,7 @@ def undeclared(provenance, owned: set[str], foreign: set[str]) -> dict[str, list
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--check",
         action="store_true",

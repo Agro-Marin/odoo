@@ -1,74 +1,4 @@
 #!/usr/bin/env python3
-"""doc_symbol_gate.py — strict-zero CI gate for documented symbols that don't exist.
-
-The sibling ``doc_link_gate.py`` catches a document naming a **file** that is not
-there. This gate catches the next rung down: a document naming an **export** that
-is not there.
-
-The instance it was written for. ``addons/web/machine_doc_v1/STATE_MANAGEMENT.md``
-listed, twice — in its *Canonical primitives* table and again in its decision
-tree — a ``derived(() => …)`` imported from ``@web/core/utils/reactive``. That
-module exports ``SignalStore``, ``effect`` and ``disposableEffect``, and no
-``derived`` symbol existed anywhere in the fork. The import the document
-prescribed fails at module-load with a native "no such export", which is exactly
-the failure the same page warns about two paragraphs later for ``Reactive``.
-
-Nothing caught it, and nothing could:
-
-* ``doc_link_gate`` resolves ``.md`` paths, and every path on the page was fine.
-* ``js_public_surface`` / ``js_extension_surface`` pin what *code* imports. No
-  code imported it — the only caller the primitive ever had was prose.
-* ``tsc`` compiles ``.js``. Markdown is not in the program.
-
-The cost is paid by whoever trusts the page. ``machine_doc_v*`` exists so an
-agent reads the map instead of the tree, and ``odoo/CLAUDE.md`` instructs exactly
-that ("check for ``machine_doc_v*/`` first and read it before doing anything
-else"). A map that prescribes a crash is worse than no map.
-
-WHAT IS CHECKED
----------------
-
-Every claim in a scanned document that pairs a **symbol** with a **module
-specifier** this checkout can resolve. Three shapes carry the pairing:
-
-1. the table idiom — ``` `effect(cb, deps)` (from `@web/core/utils/reactive`) ```
-2. a real import, inline or fenced — ``import { X, Y } from "@web/…"``
-3. the decision-tree idiom, unbackticked inside an ASCII box drawing::
-
-       └─ derived(() => …) from @web/core/utils/reactive
-
-A specifier resolves through the **addon layout**, not ``tsconfig.json``: every
-addon ``X`` publishes ``@X/*`` as ``addons/X/static/src/*``. That is the same
-derivation ``js_extension_surface.py`` settled on, and for the same reason —
-``tsconfig.json`` omits aliases, so resolving through it silently skips claims
-rather than checking them.
-
-Unresolvable specifiers are **skipped, not failed**: ``@odoo/owl`` is a vendored
-lib, and a sibling repo's ``@sale/*`` is not on disk in a CI checkout of this
-fork alone. This gate's job is the claims it *can* adjudicate; ``doc_link_gate``
-owns missing files.
-
-A module that re-exports with ``export * from`` is skipped for the same reason —
-its export set is not decidable without walking the graph, and a false accusation
-against a document is worse than a missed one.
-
-STRICT ZERO, NOT A RATCHET
---------------------------
-
-The tree is at zero once the ``derived`` entries are corrected, and a documented
-symbol either exists or does not — there is no partial credit to ratchet toward.
-Deliberate counter-examples (a page naming a symbol precisely to say it is
-absent) are enumerated in ``DELIBERATE_ABSENCES`` with their reason, so the one
-legitimate shape cannot be used as a blanket excuse.
-
-USAGE
------
-
-  python doc_symbol_gate.py                # gate (CI): exit 1 on any violation
-  python doc_symbol_gate.py --report-only  # list violations, always exit 0
-  python doc_symbol_gate.py --json         # machine-readable
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -214,7 +144,7 @@ def scan(files: list[Path] | None = None) -> list[Violation]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--report-only", action="store_true", help="list and exit 0")
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     args = parser.parse_args(argv)

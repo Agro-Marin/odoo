@@ -1,20 +1,3 @@
-"""``_dispatch``: the one argument-validation policy the RPC tables share.
-
-The defect this replaces was measurable over the wire.  ``/xmlrpc/2/common`` is
-``auth="none"``, and ``common.dispatch`` splatted its params into the handler
-without checking anything, so an anonymous caller who miscounted arguments was
-handed the internal handler's name and signature by CPython::
-
-    login("db", "admin")  -> Fault: TypeError: exp_login() missing 1 required
-                                    positional argument: 'password'
-
-``db.dispatch`` checked only the master-password argument and then splatted the
-rest.  Two tables behind one door (``odoo/http/helpers.py``), two policies.
-
-These tests pin what the caller is told: the RPC method name, never the
-``exp_*`` function behind it.
-"""
-
 import pytest
 
 from odoo.service import common
@@ -45,9 +28,6 @@ class TestPositionalBounds:
         assert positional_bounds(_nullary) == (0, 0, ())
 
     def test_a_wrapped_handler_keeps_its_signature(self):
-        """Every ``db`` verb behind ``@check_db_management_enabled`` would
-        otherwise introspect as ``(*args, **kwargs)`` and skip the check
-        entirely.  The decorator uses ``functools.wraps``, so it does not."""
         assert positional_bounds(rpc.exp_change_admin_password) == (
             1,
             1,
@@ -80,14 +60,7 @@ class TestArityIsCheckedBeforeTheSplat:
 
 
 class TestLegacyAuthenticateArity:
-    """``exp_authenticate`` normalises ``user_agent_env=None`` to ``{}`` in its
-    own body, yet demanded the argument positionally -- so a three-argument
-    legacy client got a ``TypeError`` instead of the default it was written to
-    rely on."""
-
     def test_three_argument_authenticate_is_accepted(self):
-        # An unexposed empty db name short-circuits to False before any I/O;
-        # what matters is that arity no longer refuses the call.
         assert common.dispatch("authenticate", ["", "user", "pw"]) is False
 
     def test_four_argument_authenticate_still_works(self):
@@ -132,12 +105,6 @@ class TestBothTablesShareOnePolicy:
 
 
 def test_a_type_checking_only_annotation_does_not_break_introspection():
-    """PEP 649 defers annotation evaluation, so a handler annotated with a name
-    that only exists under ``TYPE_CHECKING`` -- the style this fork prescribes,
-    and the style `service/security.py` now uses -- would raise ``NameError``
-    if the bounds lookup evaluated annotations.  It reads kinds and defaults
-    only."""
-
     def handler(session: OnlyUnderTypeChecking, flag: bool = False):  # noqa: F821
         return session
 

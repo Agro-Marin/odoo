@@ -1,34 +1,4 @@
 #!/usr/bin/env python3
-"""Every name imported from a façade module must exist in it.
-
-``odoo/tools`` re-exports on purpose: ``odoo.tools.misc`` is imported by
-hundreds of files and forwards names that live in ``odoo.libs``. That makes it a
-contract with no enforcement -- ``__all__`` states one surface, the module
-exposes another, and an addon importing a name that is in neither fails at
-*module import time*, which means at install, in one addon, on whoever installs
-it next.
-
-That is not hypothetical. An AST sweep of the four repositories found exactly
-one such import, and nothing in CI could see it:
-
-    enterprise/l10n_au_hr_payroll_api/models/l10n_au_superstream.py
-        from odoo.tools.misc import groupby, itemgetter   # misc has no itemgetter
-
-This gate resolves every ``from <facade> import name`` statically -- no import
-of the addon, so an addon with unrelated breakage elsewhere is still checked --
-and reports two things:
-
-* **missing** -- the name is imported and does not exist. This fails the gate.
-* **undeclared** -- the name exists and is absent from ``__all__``. Reported,
-  never failed: the façades deliberately forward more than they declare, and
-  turning that into an error would be a large mechanical change dressed up as a
-  bug report. The count is printed so the drift stays visible.
-
-Run over sibling repositories with ``--roots``, the way
-``naming_vocabulary.py`` does, since a sibling's CI checks out this repo beside
-itself (``.github/workflows/architecture.yml``, "Architecture Boundaries").
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -45,7 +15,6 @@ ADR = "0004"
 
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="facade_surface_check")
 
-#: The modules whose surface is a contract with the rest of the codebase.
 FACADES: tuple[str, ...] = (
     "odoo.tools",
     "odoo.tools.misc",
@@ -58,7 +27,6 @@ FACADES: tuple[str, ...] = (
     "odoo.tools.json",
 )
 
-#: Below this, the scan found nothing and must say so rather than pass.
 _MIN_SCANNED = 100
 
 SKIP_DIRS = frozenset(
@@ -81,7 +49,6 @@ class Report:
     missing: tuple[Finding, ...] = ()
     undeclared: tuple[Finding, ...] = ()
 
-    #: Set when the scan found nothing to measure.
     vacuous: str = ""
 
     @property
@@ -101,13 +68,6 @@ def _module_path(dotted: str) -> Path | None:
 
 
 def _submodule_names(dotted: str) -> set[str]:
-    """Submodules of a package façade.
-
-    ``from odoo.tools import date_utils`` binds a *module*, which never appears
-    in the package's ``__init__`` and is a perfectly ordinary import. Treating
-    those as missing was this gate's first false-positive class -- 91 of them,
-    all legal.
-    """
     package = REPO_ROOT / Path(*dotted.split(".")) / "__init__.py"
     if not package.is_file():
         return set()
@@ -120,12 +80,6 @@ def _submodule_names(dotted: str) -> set[str]:
 
 
 def _bound_names(tree: ast.Module) -> tuple[set[str], set[str]]:
-    """The names a module binds at top level, and its ``__all__``.
-
-    Read statically. Importing the façade would drag in the whole ORM, and a
-    gate that needs a working runtime to check a contract is a gate that stops
-    working exactly when the contract is broken.
-    """
     bound: set[str] = set()
     declared: set[str] = set()
     for node in tree.body:
@@ -151,8 +105,6 @@ def _bound_names(tree: ast.Module) -> tuple[set[str], set[str]]:
         elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
             bound.add(node.target.id)
         elif isinstance(node, (ast.If, ast.Try)):
-            # `if TYPE_CHECKING:` and `try: import x except ImportError:` both
-            # bind names a caller can legitimately import.
             for inner in ast.walk(node):
                 if isinstance(inner, ast.ImportFrom):
                     bound.update(
@@ -202,7 +154,6 @@ def check(roots: tuple[Path, ...] = (REPO_ROOT,)) -> Report:
                 if surface is None:
                     continue
                 bound, declared = surface
-                # The façade module checking itself proves nothing.
                 if (node.module or "").replace(".", "/") in str(path):
                     continue
                 for alias in node.names:
@@ -216,9 +167,6 @@ def check(roots: tuple[Path, ...] = (REPO_ROOT,)) -> Report:
                     elif declared and alias.name not in declared:
                         undeclared.append(finding)
 
-    # A gate that measured nothing reports a clean zero, which is
-    # indistinguishable from a gate that measured everything and found nothing.
-    # Refuse instead: an emptied tree is a broken probe, not a passing repo.
     vacuous = ""
     if not surfaces:
         vacuous = "no façade module was found; the checkout is not intact"
@@ -267,7 +215,7 @@ def _render(report: Report) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="CI mode: exit 1 on drift")
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     parser.add_argument(

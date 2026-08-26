@@ -1,25 +1,3 @@
-"""A failed HTTP bind must reach the logger, not only stderr.
-
-``ThreadedWSGIServerReloadable`` inherits werkzeug's constructor, which reports
-a bind failure (EADDRINUSE, EACCES, an interface that does not resolve) by
-``print``-ing to ``sys.stderr`` and calling ``sys.exit(1)`` -- see
-``werkzeug.serving.BaseWSGIServer.__init__``.  Nothing of that reaches a logger.
-
-Under ``--logfile`` (every non-interactive deployment, and every CI invocation)
-that print goes to the terminal or to ``/dev/null`` while the log itself ends
-with an ordinary "Initialization done, shutting down".  A server that never
-bound its port is then indistinguishable from a clean run, with only the exit
-status to tell them apart -- a failure mode that cost three diagnostic runs
-during the audit that added this test.
-
-``http_spawn`` must therefore restate the failure at CRITICAL and let the
-``SystemExit`` propagate unchanged, so the process still exits non-zero.
-
-Run with::
-
-    python -m pytest tests/service/test_http_bind_failure.py -v
-"""
-
 import logging
 from unittest.mock import MagicMock, patch
 
@@ -29,12 +7,6 @@ from odoo.service import _threaded
 
 
 def failing_bind():
-    """``ThreadedWSGIServerReloadable`` raising ``SystemExit(1)``, as werkzeug does.
-
-    werkzeug's ``BaseWSGIServer.__init__`` reports a bind failure by ``print``-ing
-    to stderr and calling ``sys.exit(1)``; this is the only way to reach
-    ``http_spawn``'s handler.  Spelled out five times before, once per test.
-    """
     return patch.object(
         _threaded, "ThreadedWSGIServerReloadable", side_effect=SystemExit(1)
     )
@@ -42,7 +14,6 @@ def failing_bind():
 
 @pytest.fixture
 def server():
-    """A ``ThreadedServer`` with the interface/port fields ``http_spawn`` reads."""
     srv = _threaded.ThreadedServer.__new__(_threaded.ThreadedServer)
     srv.logger = logging.getLogger("odoo.service.server.ThreadedServer")
     srv.interface = "0.0.0.0"
@@ -66,7 +37,6 @@ class TestBindFailureIsLogged:
         assert "Failed to bind" in critical[0].getMessage()
 
     def test_the_message_names_the_address(self, server, caplog):
-        """An operator reading only the log must learn *which* address failed."""
         server.interface, server.port = "127.0.0.1", 8899
         with (
             failing_bind(),
@@ -82,7 +52,6 @@ class TestBindFailureIsLogged:
         assert "8899" in message
 
     def test_the_exit_still_propagates(self, server):
-        """Logging must not swallow the failure: the process still exits 1."""
         with failing_bind():
             with pytest.raises(SystemExit) as excinfo:
                 server.http_spawn()

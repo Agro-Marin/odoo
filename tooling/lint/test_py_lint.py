@@ -1,16 +1,3 @@
-"""`py_lint.py` must answer what the in-odoo gate answers.
-
-The tool exists so the sibling repositories can be measured at all, and the only
-property that makes it worth having is that it runs the SAME checkers under the
-SAME rules. Two things can drift: the corpus exclusions (a second copy of a
-tuple) and the addon/framework split, which decides whether the facade rule
-applies. Both are pinned here.
-
-The addon/framework split is not hypothetical: getting it wrong reported 23
-`orm-import` findings against the gate's 0, because the ORM's own modules import
-`odoo.orm` and are entitled to.
-"""
-
 import ast
 import textwrap
 from pathlib import Path
@@ -24,11 +11,6 @@ PY_SCAN = REPO / "odoo" / "addons" / "test_lint" / "tests" / "_py_scan.py"
 
 
 def _tuple_named(source: bytes, name: str) -> tuple[str, ...]:
-    """The value of a module-level tuple assignment, read without importing.
-
-    `_py_scan` imports `lint_case`, which imports odoo; this suite is DB-free and
-    stays that way.
-    """
     tree = ast.parse(source)
     for node in tree.body:
         if isinstance(node, ast.Assign) and any(
@@ -39,7 +21,6 @@ def _tuple_named(source: bytes, name: str) -> tuple[str, ...]:
 
 
 def test_the_corpus_exclusions_match_the_gates():
-    """A path the gate skips and the tool scans is a finding CI cannot reproduce."""
     gate = set(_tuple_named(PY_SCAN.read_bytes(), "_NOT_OURS"))
     tool = set(py_lint.NOT_OURS)
     assert gate <= tool, f"the tool scans what the gate skips: {sorted(gate - tool)}"
@@ -66,7 +47,6 @@ def test_a_framework_file_is_not_in_an_addon(tmp_path):
 def test_the_facade_rule_reaches_addon_code_and_not_the_framework(
     tmp_path, monkeypatch
 ):
-    """The split above, end to end through the real checker."""
     repo = tmp_path / "repo"
     (repo / "odoo" / "orm").mkdir(parents=True)
     (repo / "odoo-bin").write_text("#!/usr/bin/env python3\n")
@@ -78,10 +58,6 @@ def test_the_facade_rule_reaches_addon_code_and_not_the_framework(
     (addon / "__manifest__.py").write_text("{}")
     (addon / "models.py").write_text("from odoo.orm.fields import Field\n")
 
-    # Scanned through a RELATIVE root: `is_test_path` splits the whole path, and
-    # pytest's own `tmp_path` is named `test_...`, which would make every file
-    # look like a test and silence every rule scoped to non-test code. The suite
-    # found that itself on the first run.
     monkeypatch.chdir(tmp_path)
     findings = py_lint.scan(["repo"])
     assert {path for rule, path, *_ in findings if rule == "orm-import"} == {
@@ -120,13 +96,6 @@ def test_an_unparseable_file_is_reported_rather_than_skipped(tmp_path, monkeypat
 
 
 def test_a_gate_name_round_trips_through_the_baseline_glob():
-    """`--check` discovers a scope's rules by globbing its baselines.
-
-    A rule driven to zero would otherwise stop being evaluated the moment it
-    reported nothing, leaving its floor unchecked while the debt crept back.
-    The glob has to invert `gate_name` exactly, including for a scope whose own
-    name carries a hyphen.
-    """
     for scope in ("agromarin", "enterprise", "design-themes"):
         for rule in ("sql-injection", "n-plus-one-query", "noqa-rationale"):
             gate = py_lint.gate_name(rule, scope)
@@ -149,8 +118,6 @@ def test_check_passes_at_the_floor_and_fails_above_it(tmp_path, monkeypatch):
         )
         == 1
     )
-    # Under no-increase an improvement is not a failure; the floor is lowered by
-    # hand from a workspace that holds every checkout.
     assert py_lint.check(at_floor[:1], "probe", "no-increase") == 0
     assert py_lint.check(at_floor[:1], "probe", "exact") == 1
 

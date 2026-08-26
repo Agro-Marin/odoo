@@ -1,92 +1,4 @@
 #!/usr/bin/env python3
-"""pool_surface_check.py — drift-zero gate on the Layer -> runtime ``pool`` seam.
-
-The sibling of ``env_surface_check.py``, for the channel that argument missed.
-
-``env_surface_check`` exists because ``layer_check`` reasons about imports, and
-Layers 1 and 2 do not reach the runtime by importing it — they reach it through
-``self.env``. Exactly the same is true of ``self.pool``: it **is** the
-``Registry`` (``orm/models/metaclass.py``: ``pool: Registry | None``, imported
-from ``..runtime``), so every ``model.pool.<member>`` is a Layer-N -> Layer-3
-access that produces no import edge and moves no existing gate.
-
-Measured — the same inversion ``env_surface_check`` was built to expose, on a
-wider surface:
-
-    Layer 1  (fields, domain, _recordset, decorators)  30 accesses,  9 members
-    Layer 2  (models, helpers, registration)           28 accesses, 15 members
-    components                                          0 accesses  (its purity
-                                                        claim, again confirmed)
-
-Layer 1 — the layer declared *furthest below* the runtime — reaches the Registry
-more often than Layer 2 and owns 5 of the 8 ``pool[<model>]`` subscripts, though
-Layer 2 reaches more distinct members.
-
-**These numbers are restated prose and will rot.** They are pinned against a
-live run by ``test_architecture_doc.TestRuntimeSurfaceFigures``, which exists
-because this docstring and ``ARCHITECTURE.md`` once agreed with each other and
-with nothing else. The Layer-2 figures above already moved once, when the scope
-stopped being ``orm/models`` alone — see ``_orm_layer_scope``.
-
-WHAT IS ENFORCED
-----------------
-
-1. **No unsanctioned private access.** ``pool.<_name>`` from Layer 0/1/2 is a
-   violation unless pinned in :data:`KNOWN_VIOLATIONS`.
-
-2. **Every referenced member must exist on ``Registry``.** ``pool: typing.Any``
-   in ``mixins/_model_stubs.py`` is overridden by ``MetaModel.pool: Registry |
-   None``, so mypy does check plain attribute reads today — but it cannot see
-   which *layer* performed them, and it cannot see the lifecycle window below.
-
-3. **``components/`` must not touch ``pool`` at all** — the runtime half of the
-   purity claim ``orm-components-are-pure-python`` makes about imports.
-
-WHY A PRIVATE REACH CAN BE WORSE THAN IT LOOKS
-----------------------------------------------
-
-This gate's first pinned violation is worth keeping as the worked example, now
-that it is paid off. ``Registry._relation_reflections`` was not merely private:
-it was created inside ``Registry.init_models``' ``try:`` and ``del``-eted in its
-``finally:``, so it existed **only for the duration of that call**, and
-``orm/fields/relational/many2many.py`` mutated it from Layer 1 -- which worked
-solely because ``update_db`` runs inside that window via
-``model._auto_init()``. Nothing declared the ordering, and nothing would have
-caught a violation except an ``AttributeError`` during module installation.
-
-Three siblings (``_post_init_queue``, ``_foreign_keys``, ``_is_install``)
-shared the lifecycle; two were already reached through public methods
-(``post_init``, ``add_foreign_key``), which is what this entry's remediation
-note asked for.
-
-Fixed 2026-08-09, and more thoroughly than the note proposed: all four became
-one ``InitModelsPhase`` behind ``Registry.init_phase``, which raises a named
-``RuntimeError`` outside the window rather than an ``AttributeError`` naming a
-private attribute, and Layer 1 calls ``pool.add_relation_reflection(...)``. The
-pin is what made that a scheduled fix against a written remediation instead of
-a rediscovery.
-
-WHAT IS NOT ENFORCED
---------------------
-
-The *public* pool surface is reported, not ratcheted — same rationale as
-``env_surface_check``: Layer 1 consulting ``pool.field_inverses`` is the design
-working, and a gate that fired on a 10th public member would punish ordinary
-work. Private reach, name validity and the ``components`` zero are the
-invariants; width is a metric.
-
-USAGE
------
-
-  python tooling/architecture/pool_surface_check.py            # report
-  python tooling/architecture/pool_surface_check.py --check    # CI: exit 1
-  python tooling/architecture/pool_surface_check.py --json
-
-exit 0 — no new violations
-exit 1 — a new private reach, a member that does not exist, or components touching pool
-exit 2 — usage error
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -294,13 +206,6 @@ def check(files: list[tuple[Path, str]] | None = None) -> Report:
                 report.unknown_members.append(reach)
             if reach.is_private:
                 (report.known if _is_known(rel, attr) else report.new).append(reach)
-    # Refuse a scan that reached nothing rather than report the seam intact.
-    # `registry_members()` skips a missing REGISTRY_SOURCES file and
-    # `iter_scope_files()` yields nothing for an emptied tree, so an empty
-    # checkout printed "Registry surface intact. ✓" and exited 0 -- the exact
-    # failure `test_every_gate_refuses_an_empty_tree` exists to catch, which
-    # never saw it because the probe died on an import before reaching here.
-    # Layer 1 alone holds hundreds of reaches; zero has never held.
     if files is None and not report.reaches:
         raise SystemExit(
             "pool_surface_check: no Registry reach found in any scoped file — "
@@ -346,7 +251,7 @@ def _print_report(report: Report) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="CI mode: exit 1 on drift")
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     args = parser.parse_args(argv)

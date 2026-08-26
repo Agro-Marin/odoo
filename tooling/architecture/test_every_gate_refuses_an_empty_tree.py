@@ -44,20 +44,9 @@ GATES = {
     "field_hook_naming": ["--count"],
     "field_hook_purity": ["--count"],
     "naming_vocabulary": ["--count"],
-    # And for the order-line quantity gate: 0 writes of `product_uom_qty` is
-    # what a tree that spells every ordered quantity `product_qty` looks like,
-    # so an emptied one must refuse. Its guard is on finding no Python at all.
     "order_line_qty": ["--count"],
-    # And for the catalogue gate: 0 unresolvable strings is what a tree whose
-    # every `_()` was exported looks like, so an emptied one must refuse. Its
-    # own guard is on finding no `.pot` at all rather than on the count.
     "translation_catalog": ["--count"],
-    # And for the depends_context gate: 0 undeclared context reads is what a
-    # tree that declared every key looks like, so an empty scan must refuse.
     "compute_context_deps": ["--count"],
-    # The Python core gates. They resolve inputs from `odoo/` packages rather
-    # than the JS trees, so EMPTY_TREES creates those too — present-and-empty,
-    # the harder of the two shapes.
     "env_surface_check": ["--check"],
     "env_model_surface_check": ["--check"],
     "model_member_surface_check": ["--check"],
@@ -107,27 +96,11 @@ EMPTY_TREES = (
 
 
 def _checkout(tmp_path, *, litter=False):
-    """A checkout whose gates are real and whose source trees are empty."""
-    # Skip __pycache__: it is 139 of this directory's 238 inodes and every one
-    # is copied twice per gate. At 35 gates that is ~16k inodes a run, retained
-    # for three runs by pytest's tmp_path policy, and it has exhausted /tmp's
-    # inode table on this box. The subprocess recompiles what it imports.
     shutil.copytree(
         HERE,
         tmp_path / "tooling" / "architecture",
         ignore=shutil.ignore_patterns("__pycache__"),
     )
-    # THE PROBE MUST REACH THE GATE'S LOGIC. Copying `tooling/architecture` alone
-    # left `tooling/_repo_root.py` out of the tmp checkout, and 33 of the 37 gates
-    # here import it -- so they died with ModuleNotFoundError before reading a
-    # line of the emptied tree, exited non-zero, and satisfied an assertion that
-    # only reads the exit code. The suite whose docstring warns that "a probe that
-    # does not actually empty the inputs is the same fault it is hunting" was
-    # running that fault one layer up, and it hid three gates that really do
-    # report a clean zero on an empty tree.
-    #
-    # `find_odoo_root` locates the checkout by the `odoo-bin` marker, so the probe
-    # needs that too or every gate refuses on the marker instead of on its inputs.
     shutil.copy2(HERE.parent / "_repo_root.py", tmp_path / "tooling")
     (tmp_path / "odoo-bin").write_text("#!/usr/bin/env python3\n")
     for rel in EMPTY_TREES:
@@ -162,16 +135,6 @@ def test_every_gate_here_is_either_probed_or_excused():
     )
 
 
-#: Gates that raise instead of refusing when their inputs are absent. Every one
-#: still exits non-zero, so none of them reports success over an empty tree --
-#: the property this file was written for holds. What they do not do is SAY why,
-#: and a traceback is what a broken gate looks like too, which is the whole point
-#: of the discriminator below.
-#:
-#: Pinned rather than fixed in one sweep, and the list may only shrink. The fix
-#: for one of these is a guard at the top of `measure`/`check` in the shape the
-#: other fifty already use: name the tree, say the scan reached nothing, and note
-#: that finding nothing is not the same as finding nothing wrong.
 CRASHES_INSTEAD_OF_REFUSING = frozenset(
     {
         "doc_restated_counts",
@@ -189,26 +152,6 @@ CRASHES_INSTEAD_OF_REFUSING = frozenset(
 
 
 def _assert_refuses(gate, done, what):
-    """Non-zero is necessary and not sufficient: it must be a REFUSAL.
-
-    A crash exits non-zero too, so a broken gate satisfies the exit code alone.
-    A traceback in stderr is the discriminator: a gate that refuses does so
-    deliberately and says why, in a sentence.
-
-    WHAT THIS DOES AND DOES NOT CATCH, measured rather than assumed.
-    `bf536372a5d` removed a helper that `field_hook_naming` and
-    `field_hook_purity` still called; both died with `AttributeError: module
-    'naming_vocabulary' has no attribute '_display'` on any real tree, and
-    neither had a test. Re-introducing that break and re-running this sweep:
-    **55 passed**. It does not catch it, because the empty-tree guard raises
-    first and never reaches the broken line — a gate can be wholly unable to run
-    and still refuse an empty tree correctly.
-
-    So this is a tripwire for a gate that crashes on ITS OWN startup or scan
-    setup, not a substitute for a test of the gate. What did catch that one was
-    writing `test_field_hook_naming`; what would have caught it in CI is the
-    ratchet step, which runs the gate over the real tree.
-    """
     assert done.returncode != 0, (
         f"{gate} exited 0 on {what}; a gate that finds no inputs must refuse, "
         f"not report success.\n{done.stdout}{done.stderr}"
@@ -235,11 +178,6 @@ def test_gate_refuses_a_tree_holding_only_non_source(gate, tmp_path):
 
 
 def test_the_crashing_list_shrinks_and_never_grows(tmp_path):
-    """Both directions, so a gate cannot quietly join the list or stay on it.
-
-    A gate that starts crashing is a regression; one that stops should be
-    removed, or the pin implies a defect that is no longer there.
-    """
     still_crashing = set()
     for gate in sorted(CRASHES_INSTEAD_OF_REFUSING):
         done = _run(_checkout(tmp_path / gate), gate)

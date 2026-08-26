@@ -303,14 +303,6 @@ class TestThePolyglotPreambleStillExecutes:
 
 
 class TestRestartWithoutSuites:
-    """`--restart` is read on the way into a run, but a run is not required.
-
-    It returned 0 here having stopped nothing, so `hoot --restart` on its own
-    left the warm server up and the next invocation quietly tested the sources
-    as they were at ITS boot -- the failure mode the no-file-watcher banner
-    warns about, reached by a command that looks like the cure for it.
-    """
-
     @staticmethod
     def _spy(cli, monkeypatch):
         calls = []
@@ -347,11 +339,6 @@ class TestRestartWithoutSuites:
 
 
 class TestADeadServerIsNotAFailingSuite:
-    """`hoot` runs against a warm server it does not own the lifetime of. When
-    that server dies mid-run -- measured cause on this box: the per-user inotify
-    instance cap -- every test still to configure its MockServer fails on a
-    fetch, and the run reports as an ordinary wall of failures. It must not."""
-
     def _report(self, cli, **kwargs):
         result = cli.H.RunResult(ok=False, suites=["@web/ui"], **kwargs)
         buf = io.StringIO()
@@ -393,10 +380,6 @@ class TestADeadServerIsNotAFailingSuite:
 
 
 class TestTheDeadServerCheckAsksAboutIdentity:
-    """Warmth is not the question. A concurrent `hoot` reboots a server that
-    died, so by the time this run finishes there is *a* warm server on that db --
-    just not the one whose absence produced the failures."""
-
     def _run(self, cli, monkeypatch, before_pid, after_state):
         state = {"pid": before_pid, "port": 8085, "db": "hoot_web"}
         monkeypatch.setattr(
@@ -412,7 +395,6 @@ class TestTheDeadServerCheckAsksAboutIdentity:
         return cli._run_once(["s"], state, args)
 
     def test_a_replacement_server_does_not_make_the_run_valid(self, cli, monkeypatch):
-        # died, then rebooted by someone else: warm, different pid
         r = self._run(cli, monkeypatch, 111, {"pid": 222, "db": "hoot_web"})
         assert r.server_died is True
 

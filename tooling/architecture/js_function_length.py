@@ -33,14 +33,6 @@ MAX_LINES = 80
 GENERATED = frozenset({"emoji_data.js"})
 
 RULE = "max-lines-per-function"
-# skipComments is True on purpose: this gate is a complexity proxy, and counting
-# JSDoc as complexity makes documenting a function cost ratchet budget. That is
-# not hypothetical -- the floor moved 148 -> 139 under `skipComments: False` when
-# c22e34ded2f stripped prose tree-wide, "nine functions crossed back under 80
-# without one statement changing" (that ratchet note). Three more sat over the
-# limit on their JSDoc alone, useListOptionalFields at 69 code lines counted as
-# 82. Blank lines still count: they are a formatting choice, not documentation,
-# so skipping them would only blur the reading without removing an incentive.
 RULE_CONFIG = {
     RULE: [
         "warn",
@@ -75,25 +67,6 @@ _MIXIN_FACTORY_RE = re.compile(r"=>\s*class\s+extends\b")
 
 
 def _drop_mixin_factories(found: list[LongFunction], root: Path) -> list[LongFunction]:
-    """Remove `(Base) => class extends Base { … }` wrappers from the offenders.
-
-    A mixin factory is a function only in the grammatical sense: its body is a
-    class, and the complexity lives in that class's METHODS, which eslint already
-    reports separately -- so counting the wrapper too charges the floor twice for
-    one piece of code. `SearchSplitDomainMixin` was the clearest case: a mixin
-    holding exactly one method, listed at 142 lines for the body and again at 139
-    for `splitAndAddDomain`, three lines apart.
-
-    Worse than double-counting, the wrapper was UNPAYABLE. `SearchQueryMixin` is
-    292 lines over twelve methods, not one of them over the budget: the only way
-    to take it off the list was to shatter it into four ~73-line mixins -- more
-    files, no less complexity, floor down by one. A gate that pays for that is
-    steering the tree the wrong way.
-
-    This used to relabel these entries "Mixin class body" and keep counting them,
-    which named the shape without acting on it. Five of the six in `web` were the
-    SearchModel mixins.
-    """
     cache: dict[str, list[str]] = {}
     kept: list[LongFunction] = []
     for item in found:

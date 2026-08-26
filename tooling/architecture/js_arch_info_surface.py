@@ -1,70 +1,4 @@
 #!/usr/bin/env python3
-"""Gate on ``archInfo`` — the object every view type passes between its parts.
-
-An ``ArchParser`` turns view XML into an ``archInfo`` object; the view's model,
-controller, renderer and compiler then read keys out of it by name. It is the
-widest undeclared seam in the view layer, and one slice of it has **no static
-protection at all**.
-
-THE SLICE WITH NO PROTECTION
-----------------------------
-
-``view_compiler.js`` does not read ``archInfo.fieldNodes``. It emits the text::
-
-    `__comp__.props.archInfo.fieldNodes[${toStringExpression(fieldId)}]`
-
-into a template it registers with OWL. Until OWL compiles that template the key
-exists only inside a string, so ``tsc`` sees a string, ESLint sees a string, and
-every import-, member-, layer- and surface-based gate in this directory sees a
-string.
-
-Measured on this tree — renaming ``fieldNodes`` in ``list_arch_parser.js``
-alone, every consumer untouched::
-
-    tsc -p tsconfig.json            2106 errors -> 2106 errors  (zero new)
-    pytest tooling/architecture     identical failure set to pristine HEAD
-    hoot @web/views/list/list_view  577 passed  -> 509 failed
-
-WHAT IS CHECKED
----------------
-
-1. **Template scope, hard zero.** Every ``archInfo.KEY`` appearing inside a
-   string or template literal that also names ``__comp__`` — anywhere in the
-   fork's production JS — must be declared in ``@web/views/arch_info``, as
-   web's own (``ARCH_INFO_TEMPLATE_SURFACE``) or as another addon's
-   (``ARCH_INFO_TEMPLATE_FOREIGN_SURFACE``).
-
-2. **Per-view agreement, hard zero.** For each view type under
-   ``views/<type>/``, every ``archInfo.KEY`` read in that directory must be a
-   key that directory's ``*_arch_parser.js`` emits. This is what catches the
-   rename above: ``views/list/`` keeps reading ``fieldNodes`` while its parser
-   has stopped producing it.
-
-   Legitimate cross-view reads are enumerated in ``CROSS_VIEW_READS`` with their
-   reason — a file reading the archInfo of a *different* view type, which is
-   real (``form_utils`` parses an x2many comodel's list arch) and not something
-   the per-directory rule can express.
-
-WHY A PARSER
-------------
-
-``js_arch_info.mjs`` uses espree. Three regexes were tried first and each was
-confidently wrong in the same direction — reporting keys as "produced by
-nobody", which is precisely this gate's finding shape:
-
-* ``return {...}`` only missed every parser that builds ``const archInfo =
-  {...}`` and returns the variable — pivot, graph and calendar, nine keys.
-* ``key:`` only missed **shorthand** properties, so ``form_arch_parser.js``,
-  whose whole return is shorthand, reported *zero* emitted keys.
-
-USAGE
------
-
-  python js_arch_info_surface.py            # report
-  python js_arch_info_surface.py --check    # gate
-  python js_arch_info_surface.py --json
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -188,7 +122,7 @@ def measure() -> dict:
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="exit 1 on a finding")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)

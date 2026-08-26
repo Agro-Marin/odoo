@@ -13,18 +13,10 @@ ADR_DIR = lc.ROOT / "doc" / "adr"
 
 UNRECORDED_GATES: frozenset[str] = frozenset(
     {
-        # Landed with the mail work, each argued for in its own commit message
-        # rather than in a record. Listed here so the omission is visible and
-        # owed, which is what this list is for -- not so it stops being owed.
         "compute_context_deps.py",
         "mail_hook_keyword_check.py",
         "sql_placeholder.py",
         "translation_catalog.py",
-        # Counts a coding-guidelines rule (Appendix A), on ADR-0033's argument
-        # one rule over. 0033 is scoped to §2.4's abolished verbs, so citing it
-        # here would widen a record rather than write one. Owed if a third gate
-        # of this shape lands -- that is the point at which the general decision
-        # is worth stating once.
         "order_line_qty.py",
     }
 )

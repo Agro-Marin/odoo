@@ -182,11 +182,6 @@ def check(files: list[Path] | None = None) -> Report:
             for p in sorted(tree.rglob("*.py"))
             if "__pycache__" not in p.parts
         ]
-    # Refuse a scan that reached no file rather than report the façade clean.
-    # `SCANNED_TREES` is filtered by `is_dir()`, so an emptied or mis-rooted
-    # checkout yielded no files and printed a ✓ -- indistinguishable from a tree
-    # where every addon imports areas correctly. Only the no-argument form is
-    # guarded: the self-test legitimately passes one probe file.
     if not files:
         raise SystemExit(
             "libs_facade_check: no Python sources under "

@@ -1,26 +1,3 @@
-"""Default-deny gate over module names carrying "edi".
-
-ADR-0048: the word names three unrelated things in this tree -- fiscal clearance,
-partner interchange, document import -- and only the middle one is interchange.
-The word cost three wrong conclusions in one afternoon, including a refactor
-proposal that would have made fifteen modules, `purchase` among them, depend on an
-EDI-document queue they do not use.
-
-Gated at module level because that is where the vocabulary propagates: a module's
-models and fields inherit its prefix, and a module name is the identifier other
-repositories write down. Model and field names are deliberately not gated -- the
-194 `l10n_mx_edi_*` fields carry the prefix and nothing else, and their own names
-are accurate.
-
-`l10n_*` is exempt by rule: those names are Odoo ecosystem identifiers, and
-ADR-0048 records why renaming `l10n_mx_edi` was considered and rejected.
-
-Usage:
-    edi_vocabulary.py --check          # the gate; non-zero on an unlisted module
-    edi_vocabulary.py --list           # what is pinned, and why each one is allowed
-    edi_vocabulary.py --prune          # drop entries whose module no longer exists
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -36,11 +13,8 @@ ADR = "0048"
 ROOT = find_odoo_root(Path(__file__).resolve())
 ALLOWLIST = Path(__file__).with_name("edi_vocabulary_allowlist.json")
 
-#: Inside the odoo checkout. Always present, so `--check` never silently passes
-#: for want of a tree -- which is the failure ADR-0044 is about.
 CHECKOUT_ROOTS = ("addons", "odoo/addons")
 
-#: Beside it. Present in a workspace, absent in CI, which checks odoo out alone.
 SIBLING_ROOTS = ("enterprise", "agromarin", "design-themes")
 
 
@@ -53,7 +27,6 @@ def scan_roots() -> list[Path]:
 
 
 def module_names() -> dict[str, str]:
-    """Every module reachable from here, mapped to the root it was found under."""
     found: dict[str, str] = {}
     for root in scan_roots():
         for manifest in root.glob("*/__manifest__.py"):
@@ -62,12 +35,6 @@ def module_names() -> dict[str, str]:
 
 
 def carries_edi(name: str) -> bool:
-    """True when 'edi' is a name *component*.
-
-    Component, not substring: `html_editor`, `social_media` and
-    `spreadsheet_edition` all contain the letters and none of them are about
-    documents. Ten modules in this workspace are excluded by this alone.
-    """
     return "edi" in name.split("_")
 
 
@@ -119,9 +86,6 @@ def main() -> int:
         return 0
 
     if args.prune:
-        # CI checks `odoo` out alone (CLAUDE.md §4), so a prune there would see no
-        # `agromarin` and drop its entries as "vanished". Pruning needs the full
-        # workspace; the check does not.
         if not in_workspace(ROOT):
             print(
                 "refusing to prune: the sibling repos are not checked out beside "

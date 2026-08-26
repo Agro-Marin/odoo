@@ -1,21 +1,3 @@
-"""The round trip, pinned. This tool rewrites 207 files in place.
-
-`stamp.py`'s whole safety argument is one sentence in its docstring: "every line
-it inserts carries the `SENTINEL` trailing comment, and `--revert` removes lines
-carrying that comment and nothing else, so a stamped tree returns byte-identical
-to its pre-stamp state." Nothing checked it.
-
-It holds today — measured 2026-08-25 on an isolated worktree: 207 files stamped,
-reverted, `git status` clean. It is also exactly the kind of invariant a later
-edit to `SETUP_RE`, `insert_import` or `resolve_labels` breaks silently, on a
-tool whose failure mode is a corrupted working tree that `--revert` can no
-longer undo.
-
-The tests below work on text, not on the checkout: `apply_to_text` and
-`revert_text` are the pair the invariant is about, and a temporary tree keeps the
-round trip honest without a full JS corpus.
-"""
-
 from __future__ import annotations
 
 import sys
@@ -86,10 +68,6 @@ def test_the_round_trip_is_byte_identical(tmp_path, source):
 
 
 def test_apply_and_revert_count_the_same_unit(tmp_path):
-    # They did not: `apply` returned len(sites) and `revert` the sentinel lines
-    # it removed, which includes the import. Over the real tree that read as
-    # "stamped 217" against "removed 424" for the same 207 files, and the
-    # obvious check on an exact inverse could not be made.
     path = tmp_path / "web" / "static" / "src" / "thing.js"
     stamped, written, _over = _stamp(TWO_CLASSES, path)
     _reverted, removed = stamp.revert_text(stamped)
@@ -100,8 +78,6 @@ def test_apply_and_revert_count_the_same_unit(tmp_path):
 def test_revert_removes_only_sentinel_lines(tmp_path):
     path = tmp_path / "web" / "static" / "src" / "thing.js"
     stamped, _written, _over = _stamp(COMPONENT, path)
-    # A line that merely mentions the probe module, without the sentinel, is
-    # somebody's own code and must survive.
     poisoned = stamped.replace(
         "    onClick() {",
         f'    // see {stamp.PROBE_MODULE}\n    onClick() {{',
@@ -112,11 +88,6 @@ def test_revert_removes_only_sentinel_lines(tmp_path):
 
 
 def test_every_written_line_carries_the_sentinel(tmp_path):
-    """The property `--revert` depends on, asserted directly.
-
-    A stamped line that lost its sentinel would be unremovable, and the only
-    symptom is a tree that will not come back.
-    """
     path = tmp_path / "web" / "static" / "src" / "thing.js"
     stamped, written, _over = _stamp(TWO_CLASSES, path)
     added = [
@@ -151,8 +122,6 @@ def test_a_hand_instrumented_file_is_left_alone(tmp_path):
 def test_stamping_twice_does_not_double_the_import(tmp_path):
     path = tmp_path / "web" / "static" / "src" / "thing.js"
     once, _w1, _o1 = _stamp(COMPONENT, path)
-    # The second pass sees its own probe and refuses the file outright, which is
-    # what `is_hand_instrumented` is for; either way the import must not double.
     twice, _w2, _o2 = _stamp(once, path)
     assert twice.count(stamp.PROBE_IMPORT) == 1
     reverted, _removed = stamp.revert_text(twice)
@@ -160,14 +129,6 @@ def test_stamping_twice_does_not_double_the_import(tmp_path):
 
 
 def test_every_over_width_line_is_reported(tmp_path):
-    """An unreported over-width line is the failure mode, not the width itself.
-
-    Prettier reflows a line past `PRINT_WIDTH`, and a reflowed call puts the
-    sentinel on a different line from the statement head -- which leaves
-    `--revert` deleting one line of a three-line statement. `resolve_labels`
-    keeps the probe lines under; the IMPORT is 89 columns and was checked by
-    nothing, in every file the tool touches.
-    """
     path = tmp_path / "web" / "static" / "src" / "thing.js"
     stamped, _written, over = _stamp(COMPONENT, path)
     wide = [
@@ -182,8 +143,6 @@ def test_every_over_width_line_is_reported(tmp_path):
 
 
 def test_the_probe_call_itself_stays_within_the_budget(tmp_path):
-    # The half `resolve_labels` controls: it drops a label to the bare class
-    # name, or qualifies it back, to keep every CALL line inside the budget.
     path = tmp_path / "web" / "static" / "src" / "thing.js"
     stamped, _written, _over = _stamp(COMPONENT, path)
     for line in stamped.splitlines():

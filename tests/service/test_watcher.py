@@ -1,25 +1,3 @@
-"""Pure-pytest tests for ``odoo.service._watcher`` — the ``--dev`` autoreloader.
-
-Two distinct jobs, both silent when broken:
-
-* ``handle_file`` restarts the server when a watched ``.py`` changes;
-* ``handle_asset_file`` writes the assets signalling row so every process
-  invalidates its bundle caches on the next request.
-
-Failure in either is invisible by construction — under ``--dev=assets`` the
-server keeps serving the PREVIOUS bundle rather than erroring, so a green test
-run proves nothing about an edit.  That is why the inotify class below drives a
-real kernel watch instead of a mock.
-
-Moved out of ``test_server.py``: the subject is ``_watcher``, and that file had
-grown to 60 classes across 11 modules.  The same reasoning already moved
-``TestAdminGates`` into ``test_db.py``.
-
-Run with::
-
-    python -m pytest tests/service/test_watcher.py -v
-"""
-
 import errno
 import pathlib
 import shutil
@@ -36,28 +14,16 @@ from .conftest import fake_pg_cursor
 
 @pytest.fixture(scope="module")
 def srv():
-    """The module under test.
-
-    Named ``srv`` because these classes were written against the
-    ``odoo.service.server`` façade, which re-exports every name used here from
-    ``_watcher`` — the same objects, so the tests are unchanged by the move.
-    """
     return _watcher
 
 
 class TestFSWatcherBase:
-    """``FSWatcherBase.handle_file(path)``: validates Python syntax, triggers reload."""
-
     @pytest.fixture
     def watcher(self, srv):
         return srv.FSWatcherBase()
 
     @pytest.fixture(autouse=True)
     def _reload_enabled(self):
-        """``handle_file`` returns None before any of its own logic unless
-        ``reload`` is in ``dev_mode``, so without this every test below passes
-        vacuously — including the negative ones.
-        """
         import odoo.tools
 
         with odoo.tools.config.patch(dev_mode=["reload"]):
@@ -66,9 +32,6 @@ class TestFSWatcherBase:
     def test_valid_py_triggers_restart(self, watcher, tmp_path):
         py = tmp_path / "good.py"
         py.write_text("x = 1 + 1\n")
-        # ``handle_file`` and ``_trigger_restart`` lazy-import
-        # ``server_phoenix`` and ``restart`` from ``odoo.service.lifecycle``
-        # (the single source of truth), so the patch must target that module.
         with (
             patch("odoo.service.lifecycle.server_phoenix", False),
             patch("odoo.service.lifecycle.restart") as mock_restart,
@@ -78,16 +41,6 @@ class TestFSWatcherBase:
         assert result is True
 
     def test_second_change_does_not_trigger_a_second_restart(self, watcher, tmp_path):
-        """One reload per watcher, latched in the base class.
-
-        ``lifecycle.server_phoenix`` is the authoritative "already reloading"
-        flag, but ``restart()`` only SENDS the signal — the flag is set later,
-        by the SIGHUP handler on the main thread.  A burst of saves (an IDE
-        writing several files, a ``git checkout``) therefore raced that window.
-        ``FSWatcherInotify`` happened to be safe because its loop ends on the
-        ``True`` return; ``FSWatcherWatchdog.dispatch`` discards the return
-        value, so it kept firing.  The latch makes both correct by construction.
-        """
         a, b = tmp_path / "a.py", tmp_path / "b.py"
         a.write_text("x = 1\n")
         b.write_text("y = 2\n")
@@ -110,7 +63,6 @@ class TestFSWatcherBase:
         assert result is None
 
     def test_missing_file_suppresses_restart(self, watcher, tmp_path):
-        """OSError (e.g. file deleted between discovery and read) must not crash."""
         with patch("odoo.service.lifecycle.restart") as mock_restart:
             result = watcher.handle_file(str(tmp_path / "ghost.py"))
         mock_restart.assert_not_called()
@@ -125,7 +77,6 @@ class TestFSWatcherBase:
         assert result is None
 
     def test_hidden_tilde_py_file_is_ignored(self, watcher, tmp_path):
-        """Files whose names start with ``.~`` are editor swap files; skip them."""
         hidden = tmp_path / ".~mymodule.py"
         hidden.write_text("pass\n")
         with patch("odoo.service.lifecycle.restart") as mock_restart:
@@ -134,7 +85,6 @@ class TestFSWatcherBase:
         assert result is None
 
     def test_server_phoenix_skips_restart(self, watcher, tmp_path):
-        """When a reload is already in progress, do not trigger a second restart."""
         py = tmp_path / "ok.py"
         py.write_text("pass\n")
         with (
@@ -146,24 +96,7 @@ class TestFSWatcherBase:
         assert result is None
 
 
-# ---------------------------------------------------------------------------
-# FSWatcherBase.handle_asset_file() — the invalidation itself
-# ---------------------------------------------------------------------------
-
-
 class TestFSWatcherAssetInvalidation:
-    """``handle_asset_file`` writes the assets signalling row for every served
-    database, so ``Registry.check_signaling`` invalidates the bundle caches on
-    the next request in every process.
-
-    The burst-coalescing tests further down patch this method out to count
-    calls, so the body itself — which databases it reaches, and what happens
-    when one of them is unreachable — ran in no test.  Failure here is silent
-    by construction: the server keeps serving the *previous* bundle rather than
-    erroring, which is exactly what makes a green test run prove nothing about
-    an edit under ``--dev=assets``.
-    """
-
     @pytest.fixture
     def invalidate(self, srv):
         def _run(*, registries=(), configured=(), failing=()):
@@ -197,14 +130,10 @@ class TestFSWatcherAssetInvalidation:
         return _run
 
     def test_signals_loaded_and_configured_databases(self, invalidate):
-        """Both sources matter: a registry may be loaded without being listed in
-        ``db_name``, and a configured database may not have been loaded yet."""
         statements = invalidate(registries=["loaded"], configured=["configured"])
         assert {db for db, _ in statements} == {"loaded", "configured"}
 
     def test_each_database_is_signalled_once(self, invalidate):
-        """A database present in both sources must not be signalled twice — the
-        insert is a round-trip on the watcher thread, and this runs per file."""
         statements = invalidate(registries=["shared"], configured=["shared"])
         assert len(statements) == 1
 
@@ -213,50 +142,17 @@ class TestFSWatcherAssetInvalidation:
         assert "orm_signaling_assets" in statements[0][1]
 
     def test_an_unreachable_database_does_not_stop_the_others(self, invalidate):
-        """A stopped or dropped database is ordinary in development.  If it
-        aborted the loop, every database ordered after it would keep serving a
-        stale bundle for the rest of the process's life, with nothing but a log
-        line to say so.
-        """
         statements = invalidate(
             registries=["alpha", "broken", "omega"], failing=["broken"]
         )
         assert {db for db, _ in statements} == {"alpha", "omega"}
 
     def test_a_total_outage_is_swallowed_not_raised(self, invalidate):
-        """This runs on the watcher thread; an escaping exception kills the
-        watcher and silently ends reloading for the rest of the session."""
         assert invalidate(registries=["a", "b"], failing=["a", "b"]) == []
 
 
-# ---------------------------------------------------------------------------
-# FSWatcherInotify — re-watching a subtree the kernel moved or recreated
-# ---------------------------------------------------------------------------
-
-
-# ``_watcher`` is already imported at the top of this file, so the module global
-# says this directly.  The ``__import__(..., fromlist=[...])`` spelling that stood
-# here re-imported the module inside a decorator argument, which is both obscure
-# and evaluated at collection — the pattern ``contract``/``process`` conftests
-# each argue against at length.  It is cheap here (an import, not a connect), so
-# this is a readability fix rather than the performance one they made.
 @pytest.mark.skipif(_watcher.inotify is None, reason="inotify backend not installed")
 class TestFSWatcherInotifyRewatch:
-    """A subtree moved in whole must be watched down to its leaves.
-
-    ``_BaseTree.event_gen`` already re-watches the directory named by an
-    ``IN_CREATE`` / ``IN_MOVED_TO`` event, so directories that appear one level
-    at a time are covered. A *rename* is different: the kernel reports one
-    event for the subtree root, and every directory nested inside it arrives
-    already-populated and unwatched. Odoo then walked that subtree for its
-    files but never watched it, so the walk saw each file exactly once and
-    every later edit below the first level was invisible.
-
-    That is the shape a branch switch produces, and it is silent: under
-    ``--dev=assets`` the server keeps serving the previous bundle rather than
-    reporting an error, so a green test run proves nothing about the edit.
-    """
-
     @pytest.fixture
     def watcher(self, tmp_path):
         from odoo.service import _watcher as w
@@ -265,25 +161,14 @@ class TestFSWatcherInotifyRewatch:
         root.mkdir()
         seen = []
         obj = w.FSWatcherInotify.__new__(w.FSWatcherInotify)
-        # The burst state (lock, flags, timer slot) lives on FSWatcherBase now
-        # that both backends coalesce; __new__ skips it, so set it up the way
-        # __init__ would rather than hand-rolling the attributes.
         w.FSWatcherBase.__init__(obj)
         obj.started = False
         obj.thread = None
-        # Production builder, so the test covers what __init__ actually sets up
-        # (notably the overflow watch-descriptor mapping) rather than a copy.
         try:
             obj._build_watcher([str(root)], block_duration_s=0.05)
         except OSError as exc:
             if exc.errno != errno.ENOSPC:
                 raise
-            # A per-USER cap, not a property of this checkout: every concurrent
-            # server, test run and editor holds inotify instances from the same
-            # pool. Erroring here reported a defect in the watcher whenever the
-            # box was merely busy, and did it behind "No space left on device",
-            # which is why the class read as flaky. Skip on the one errno that
-            # means "the OS would not give us the resource", never on any other.
             pytest.skip(str(exc))
         obj.handle_file = lambda path: seen.append(path) and None
         obj.start()
@@ -291,7 +176,6 @@ class TestFSWatcherInotifyRewatch:
             yield obj, seen, root
         finally:
             obj.started = False
-            # Unblock event_gen so the loop can observe ``started`` and exit.
             (root / "_wake").write_text("x")
             if obj.thread is not None:
                 obj.thread.join(timeout=5)
@@ -307,8 +191,6 @@ class TestFSWatcherInotifyRewatch:
 
     @staticmethod
     def _staging_tree(tmp_path):
-        """A populated nested tree built outside the watched root, so that
-        moving it in produces a single ``IN_MOVED_TO`` for its top directory."""
         staging = tmp_path / "staging"
         (staging / "utils" / "dnd").mkdir(parents=True)
         (staging / "top.js").write_text("export const T = 1;\n")
@@ -334,8 +216,6 @@ class TestFSWatcherInotifyRewatch:
     def test_edit_below_the_first_level_of_a_moved_subtree_is_seen(
         self, watcher, tmp_path
     ):
-        """The regression proper: the walk reports each file once, so only a
-        watch on the nested directory can report a *later* edit."""
         _obj, seen, root = watcher
         staging = self._staging_tree(tmp_path)
         moved = root / "moved_subtree"
@@ -351,12 +231,6 @@ class TestFSWatcherInotifyRewatch:
         )
 
     def test_directory_recreated_at_a_reaped_path_is_rearmed(self, watcher, tmp_path):
-        """A branch switch and back: the kernel reaps the watch when the
-        directory goes away, but ``IN_MOVED_FROM`` / ``IN_IGNORED`` are outside
-        the effective mask, so the library keeps listing the path and
-        ``add_watch`` then arms nothing. Left alone the directory is unwatched
-        for the rest of the process's life."""
-
         obj, seen, root = watcher
         sub = root / "toggled"
         sub.mkdir()
@@ -367,12 +241,6 @@ class TestFSWatcherInotifyRewatch:
         shutil.rmtree(sub)
         sub.mkdir()
 
-        # Barrier: both this file and the mkdir above are events on the *root*
-        # watch, and inotify delivers a watch's events in order, so seeing it
-        # proves the recreation has already been processed. Without this the
-        # run loop can still be walking the new directory when the target file
-        # lands, and the walk reports it -- passing the test for the wrong
-        # reason, whether or not the watch was ever re-armed.
         barrier = root / "_barrier.js"
         barrier.write_text("export const B = 1;\n")
         assert self._wait_for(lambda: str(barrier) in seen), "run loop never caught up"
@@ -385,11 +253,6 @@ class TestFSWatcherInotifyRewatch:
         )
 
     def test_overflow_watch_descriptor_is_mapped(self, watcher):
-        """Without this the overflow event is unreachable: it carries
-        ``wd == -1``, the library looks that up in its reverse map, misses, and
-        drops the event -- so a queue that discarded 13616 of 30000 events (the
-        measured figure at ``max_queued_events`` 16384) looks exactly like a
-        quiet tree."""
         from odoo.service import _watcher as w
 
         obj, _seen, _root = watcher
@@ -399,11 +262,6 @@ class TestFSWatcherInotifyRewatch:
         )
 
     def test_run_resyncs_on_overflow_and_re_raises_other_terminal_events(self):
-        """The library ends the generator on any terminal event. Overflow is
-        recoverable -- the queue drains and delivery resumes -- so ``run`` has
-        to resync and re-enter; leaving the thread dead would strand a live
-        server with a watcher that reports nothing, which is the failure this
-        whole class exists to prevent."""
         from odoo.service import _watcher as w
 
         def _watcher_raising(type_name):
@@ -415,14 +273,14 @@ class TestFSWatcherInotifyRewatch:
             return _W()
 
         obj = w.FSWatcherInotify.__new__(w.FSWatcherInotify)
-        w.FSWatcherBase.__init__(obj)  # burst state; see the fixture above
+        w.FSWatcherBase.__init__(obj)
         obj.started = True
         obj.watcher = _watcher_raising("IN_Q_OVERFLOW")
         calls = []
 
         def _resync():
             calls.append(1)
-            obj.started = False  # let the loop exit once recovery is observed
+            obj.started = False
 
         obj._resync = _resync
         obj.run()
@@ -434,10 +292,6 @@ class TestFSWatcherInotifyRewatch:
             obj.run()
 
     def test_asset_burst_signals_twice_not_once_per_file(self, watcher):
-        """One round-trip per file per database (measured 1.64 ms) caps this
-        thread near 610 events/s, which is what lets the kernel queue overrun
-        during a branch switch. Leading edge keeps a single edit as prompt as
-        before; the rest of the burst collapses into one trailing signal."""
         obj, _seen, _root = watcher
         from odoo.service._watcher import FSWatcherBase
 
@@ -456,9 +310,6 @@ class TestFSWatcherInotifyRewatch:
             assert len(inserts) == 2, "idle with nothing pending still signalled"
 
     def test_edit_after_the_leading_edge_is_still_signalled(self, watcher):
-        """The property the whole coalescing hinges on: a file changed *after*
-        the leading insert must still produce one. Dropping it would recreate
-        the stale-bundle failure this class exists to prevent."""
         obj, _seen, _root = watcher
         from odoo.service._watcher import FSWatcherBase
 
@@ -470,14 +321,12 @@ class TestFSWatcherInotifyRewatch:
         ):
             obj.handle_asset_file("/x/first.js")
             assert len(inserts) == 1
-            obj.handle_asset_file("/x/second.js")  # arrives after the insert
+            obj.handle_asset_file("/x/second.js")
             assert len(inserts) == 1, "should be pending, not immediate"
             obj._end_burst()
             assert len(inserts) == 2, "the later edit was never signalled"
 
     def test_a_single_edit_still_signals_immediately(self, watcher):
-        """No latency regression for the edit/run loop: the first change in a
-        quiet period must not wait for the idle tick."""
         obj, _seen, _root = watcher
         from odoo.service._watcher import FSWatcherBase
 
@@ -492,17 +341,6 @@ class TestFSWatcherInotifyRewatch:
 
 
 class TestBothBackendsWatchTheSameTree:
-    """What is watched must not depend on which optional library is installed.
-
-    It used to. ``FSWatcherWatchdog.__init__`` scheduled the addons roots
-    recursively without consulting ``dev_mode``, while the inotify backend
-    narrowed to ``static/src`` and ``static/tests`` when ``reload`` was absent.
-    So the same ``--dev=assets`` run watched a different set of files on two
-    machines that differed only in whether ``inotify`` was importable -- and
-    everything under ``static/lib``, which is bundled, was watched by one and
-    not the other.
-    """
-
     def _paths(self, dev_mode):
         import odoo.tools
         from odoo.service._watcher import FSWatcherBase
@@ -517,16 +355,11 @@ class TestBothBackendsWatchTheSameTree:
         assert self._paths(["reload", "assets"]) == list(odoo.addons.__path__)
 
     def test_assets_only_mode_watches_whole_static_trees(self):
-        """``handle_file`` acts on a path exactly when it ends in an asset
-        suffix and has ``/static/`` in it, so ``static/`` whole is both the
-        necessary and the sufficient scope -- ``static/lib`` included."""
         paths = self._paths(["assets"])
         assert paths, "no addon exposes a static tree; the test proved nothing"
         assert all(p.endswith("/static") for p in paths)
 
     def test_both_backends_read_the_same_function(self):
-        """The property, asserted structurally: neither backend computes its own
-        tree."""
         from odoo.service import _watcher as w
 
         assert not hasattr(w, "inotify_watch_paths"), (
@@ -538,16 +371,6 @@ class TestBothBackendsWatchTheSameTree:
 
 
 class TestBothBackendsCoalesceAssetBursts:
-    """Burst coalescing used to exist only in the inotify backend.
-
-    ``FSWatcherWatchdog`` inherited the uncoalesced ``handle_asset_file``, which
-    opens a cursor and runs one ``INSERT INTO orm_signaling_assets`` per file per
-    database. A compile touching N files with D databases open therefore cost
-    N x D transactions under watchdog and roughly D per burst under inotify --
-    measured at 60 against 6 for 20 files and three databases. Which one a
-    developer paid depended on which optional library was installed.
-    """
-
     DBS = ("db1", "db2", "db3")
 
     def _count_transactions(self, cls, files, monkeypatch):
@@ -581,8 +404,6 @@ class TestBothBackendsCoalesceAssetBursts:
 
         obj = cls.__new__(cls)
         w.FSWatcherBase.__init__(obj)
-        # The timer is the watchdog backend's trailing edge; drive it by hand so
-        # the test measures coalescing, not scheduler latency.
         obj._needs_burst_timer = False
         for i in range(files):
             obj.handle_asset_file(f"/addon/static/src/f{i}.js")
@@ -597,13 +418,10 @@ class TestBothBackendsCoalesceAssetBursts:
 
         cls = getattr(w, backend)
         count = self._count_transactions(cls, 20, monkeypatch)
-        # leading edge + trailing flush, once per database
         assert count == 2 * len(self.DBS)
         assert count < 20 * len(self.DBS)
 
     def test_the_watchdog_backend_arms_a_timer_for_its_trailing_edge(self):
-        """It is called back per event by the observer and has no end-of-pass
-        boundary, so the trailing flush has to come from somewhere."""
         from odoo.service import _watcher as w
 
         assert w.FSWatcherWatchdog._needs_burst_timer is True
@@ -628,31 +446,8 @@ class TestBothBackendsCoalesceAssetBursts:
         assert len(flushed) == 2, "the timer never emitted the trailing flush"
 
 
-# ---------------------------------------------------------------------------
-# The wiring each backend depends on — recursion, daemon-ness, the run loop
-# ---------------------------------------------------------------------------
-
-
 class TestWatcherWiring:
-    """Four one-token settings that decide whether the watcher works at all.
-
-    None of them changes an observable RESULT in a test that mocks the backend,
-    so all four survived a mutation sweep over ``_watcher`` — and every one is
-    silent when wrong, which is the failure mode this whole file exists for:
-    under ``--dev`` a broken watcher does not error, it simply stops noticing
-    edits (and, for assets, keeps serving the previous bundle).
-    """
-
     def test_the_watchdog_observer_schedules_recursively(self, srv):
-        """``recursive=False`` would watch each addons ROOT and nothing below it
-        — i.e. no module's source would be watched at all.
-
-        Runs without the ``watchdog`` package installed: ``Observer()`` is the
-        only thing ``__init__`` takes from it, and ``create=True`` supplies the
-        name.  That matters — ``requirements-dev.txt`` pins ``watchdog`` for
-        ``sys_platform != 'linux'`` only, so a skip here would mean the test
-        never ran on any of this fork's CI lanes.
-        """
         scheduled = []
 
         class _Observer:
@@ -666,8 +461,6 @@ class TestWatcherWiring:
         assert all(recursive for _, recursive in scheduled), scheduled
 
     def test_the_inotify_thread_is_a_daemon(self, srv):
-        """A non-daemon watcher thread keeps the interpreter alive after the
-        server has stopped, so a reload never completes its exit."""
         watcher = object.__new__(srv.FSWatcherInotify)
         watcher.started = False
         watcher.thread = None
@@ -687,9 +480,6 @@ class TestWatcherWiring:
         assert made and made[0].daemon is True
 
     def test_start_arms_the_loop_and_stop_disarms_it(self, srv):
-        """``run()`` is ``while self.started``; if ``start`` did not set it the
-        thread would exit immediately, and if ``stop`` did not clear it the join
-        below would never return."""
         watcher = object.__new__(srv.FSWatcherInotify)
         srv.FSWatcherBase.__init__(watcher)
         watcher.started = False
@@ -706,10 +496,6 @@ class TestWatcherWiring:
         assert watcher.thread is None
 
     def test_the_event_loop_does_not_ask_for_none_events(self, srv):
-        """``yield_nones=True`` makes ``event_gen`` emit ``None`` between real
-        events, and the loop unpacks every item into four names — so the first
-        idle tick raises ``TypeError`` inside the watcher thread and reloading
-        stops for the rest of the session."""
         watcher = object.__new__(srv.FSWatcherInotify)
         srv.FSWatcherBase.__init__(watcher)
         watcher.started = True
@@ -717,7 +503,7 @@ class TestWatcherWiring:
 
         def event_gen(**kwargs):
             seen.update(kwargs)
-            watcher.started = False  # one pass, then leave the loop
+            watcher.started = False
             return iter(())
 
         watcher.watcher = MagicMock(event_gen=event_gen)
@@ -727,16 +513,6 @@ class TestWatcherWiring:
 
 
 class TestInotifyWatchDirectory:
-    """``_watch_directory``: add, and if the kernel already holds a watch for
-    that path, purge the stale one and add again.
-
-    ``add_watch`` returning a descriptor means the watch was armed and there is
-    nothing more to do.  Returning ``None`` means the adapter already holds an
-    entry for that path — which, for a directory that was deleted and recreated,
-    is a stale descriptor watching nothing.  That is when the purge-and-retry
-    runs.  Both halves of the decision survived mutation.
-    """
-
     @staticmethod
     def _watcher(srv, add_results):
         w = object.__new__(srv.FSWatcherInotify)
@@ -747,29 +523,21 @@ class TestInotifyWatchDirectory:
         return w, tree
 
     def test_a_fresh_directory_is_watched_once(self, srv, tmp_path):
-        """A descriptor came back: armed, nothing to purge."""
         w, tree = self._watcher(srv, [7])
         w._watch_directory(tmp_path)
         assert tree.add_watch.call_count == 1
         tree.remove_watch.assert_not_called()
 
     def test_a_stale_descriptor_is_purged_and_re_added(self, srv, tmp_path):
-        """``None`` means the adapter thinks it is already watching this path.
-        For a recreated directory that is a stale entry watching nothing, so the
-        watch is purged and armed again — without which every edit below a
-        directory that was replaced goes unseen."""
         w, tree = self._watcher(srv, [None, 7])
         w._watch_directory(tmp_path)
         tree.remove_watch.assert_called_once()
         assert tree.add_watch.call_count == 2
 
     def test_a_failure_to_watch_is_logged_and_swallowed(self, srv, tmp_path, caplog):
-        """This runs on the watcher thread, from inside the event loop: an
-        escaping exception ends reloading for the whole session.  An inotify
-        limit is the ordinary cause and it must not be fatal."""
         import logging
 
         w, _tree = self._watcher(srv, [OSError("ENOSPC: inotify limit reached")])
         with caplog.at_level(logging.WARNING, logger="odoo.service._watcher"):
-            w._watch_directory(tmp_path)  # must not raise
+            w._watch_directory(tmp_path)
         assert any(r.levelno >= logging.WARNING for r in caplog.records)

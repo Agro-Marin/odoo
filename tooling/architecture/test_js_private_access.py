@@ -233,13 +233,6 @@ def test_real_web_tree_is_scanned():
     assert found, "expected the pinned debt to still be measurable"
     assert public > 0
     writes = [a for a in found if a.write]
-    # Bounded, not non-empty. The docstring's whole argument is that the write
-    # half should be driven to zero first, so asserting a write still exists
-    # here would forbid the outcome the gate exists to reach -- and it did, on
-    # the commit that reached it. That the scanner can SEE a write is pinned
-    # against synthetic fixtures instead (test_cross_module_write_is_counted_as_a_write
-    # and its two neighbours), which is where a detection test belongs: it does
-    # not depend on the tree still being broken.
     assert len(writes) <= len(found) / 4, "writes must never dominate the budget"
 
 
@@ -375,15 +368,7 @@ def test_module_docstring_measured_block_is_fresh():
     )
 
 
-# --- the cross-tree scope -------------------------------------------------
-#
-# `measure` cannot see these by construction: it resolves a member's owner from
-# the tree it is pointed at, so aimed at a consuming addon it finds no owner and
-# reports nothing. These tests drive `measure_cross_tree`, which indexes both.
-
-
 def _addon_tree(root, addons):
-    """Build `<root>/addons/<name>/static/src/...` for each addon given."""
     for addon, files in addons.items():
         src = root / "addons" / addon / "static" / "src"
         for rel, body in files.items():
@@ -429,8 +414,6 @@ def test_a_write_is_flagged_as_a_write(tmp_path):
 
 
 def test_a_member_the_addon_declares_is_its_own(tmp_path):
-    # No type inference is attempted, so declaring the name anywhere in the
-    # addon is taken as ownership. That is the whole precision budget.
     _addon_tree(
         tmp_path,
         {
@@ -475,8 +458,6 @@ def test_every_pin_carries_a_reason():
 
 
 def test_a_pin_that_matches_nothing_is_stale():
-    # A pin whose access disappeared is an exemption nobody is using, and it
-    # would silently excuse the name if it came back somewhere else.
     found = jpa.measure_cross_tree()
     live = {(a.addon, a.member) for a in found}
     web_declared = jpa.addon_private_names(jpa.WEB_SRC)

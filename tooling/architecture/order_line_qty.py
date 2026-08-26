@@ -1,58 +1,3 @@
-"""Writes of ``product_uom_qty`` on a sale or purchase order line.
-
-``product_qty`` and ``product_uom_qty`` swapped meanings in this fork, and both
-names survived (`doc/coding_guidelines.rst` Appendix A). ``product_qty`` is the
-ordered quantity **in the line's own unit** and is the writable one;
-``product_uom_qty`` is that quantity converted to the product's **reference**
-unit, computed, stored and ``readonly``.
-
-Writing ``product_uom_qty`` does not raise. It does one of two wrong things::
-
-    create({..., "product_uom_qty": 10})   value discarded, product_qty
-                                            falls back to its default of 1
-    line.write({"product_uom_qty": 3})     value lands in the column while
-                                            product_qty keeps its old value
-
-The first is why a test that says it orders ten passes while ordering one — the
-default absorbs it, and nothing downstream can tell the difference. The second
-leaves the record self-contradictory: 1 in the line's unit, 3 in the reference
-unit, for a product whose two units are the same, until some dependency
-recomputes and one of the numbers changes under whoever is reading it.
-
-Both were live across the mrp ring. ``sale_mrp_margin`` sold three boxes of ten
-and delivered one; ``sale_mrp_renting``'s four failures were seven ``write``
-calls desynchronising one rental line; ``sale_stock_margin``'s helper made every
-line quantity 1, which is the whole of the eight failures `CLAUDE.md` §4
-attributed to "the order layer". Model code had it too: ``sale_mrp`` and
-``purchase_mrp`` fed the reference-unit number to a conversion that declares its
-input to be in ``product_uom_id``.
-
-**What is counted.** Any ``product_uom_qty`` key written into a dict that is
-recognisably an order line — a ``create``/``write`` on ``sale.order.line`` or
-``purchase.order.line``, a dict carrying ``order_id``, a dict under a
-``line_ids``/``order_line`` command — and any assignment to
-``<an order-line expression>.product_uom_qty``. ``stock.move.product_uom_qty`` is a
-real, writable field and is not counted; most matches in mrp's own tests are
-moves, which is why the target has to be recognised rather than the name alone.
-
-**A value of 1 is counted too**, though it happens to be inert: the default
-absorbs it, so the record comes out right by luck. A rule with "unless the value
-is 1" in it is not a rule anyone can apply, and the line still says the wrong
-thing about which field holds the ordered quantity.
-
-**Why a ratchet and not a raise.** Refusing the write outright is where this
-should end — that is what every other rename in Appendix A does, and a silent
-half-write is exactly the failure mode the raise exists to prevent. It cannot
-land yet: the workspace carries hundreds of these, most in modules whose suites
-would have to be re-run and re-read one by one. So the count is floored first,
-so no new one lands, and the floor is driven down per module until the raise
-costs nothing.
-
-Scope note: like ``naming_vocabulary.py`` this measures the ``odoo`` checkout by
-default, because that is what CI checks out. ``--roots`` measures a sibling repo;
-those have no baseline of their own (`CLAUDE.md` §9.4).
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -68,11 +13,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from _repo_root import find_odoo_root
 
-#: The argument is ADR-0033's, one rule over: a load-bearing naming rule with
-#: a backlog too large to block on is counted and ratcheted instead. That
-#: record is scoped to guidelines §2.4's abolished verbs, and this enforces
-#: Appendix A, so it is not cited -- the omission is pinned in
-#: test_gate_adr_coverage.UNRECORDED_GATES, which is where it stays visible.
 ADR = "unrecorded"
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="order_line_qty")
@@ -80,30 +20,18 @@ ROOT = find_odoo_root(Path(__file__).resolve(), tool="order_line_qty")
 FIELD = "product_uom_qty"
 CANONICAL = "product_qty"
 
-#: models whose ``create``/``write`` makes any ``product_uom_qty`` key an offence
 LINE_MODELS = frozenset({"sale.order.line", "purchase.order.line"})
 
-#: one2many commands whose payload dicts are order lines
 LINE_COMMANDS = frozenset({"line_ids", "order_line"})
 
-#: a key that identifies a bare dict as an order line rather than a stock move
 LINE_MARKER = "order_id"
 
-#: the attribute an order-line expression ends in (``order.line_ids``)
 LINE_ATTRS = frozenset({"line_ids", "order_line"})
 
-#: names a bare order-line variable goes by (``sol``, ``sol_2``, ``so_line``)
 LINE_NAMES = re.compile(r"^(sol|so_line|po_line|sale_line|purchase_line)\d*(_\w+)?$")
 
 
 def _is_order_line_expr(node: ast.AST) -> bool:
-    """Does this expression evaluate to order lines rather than stock moves?
-
-    Deliberately narrow. Matching a substring anywhere in the source — which is
-    what the first draft did — makes ``sol`` match ``console`` and ``resolve``,
-    and a gate that over-counts is one people learn to argue with rather than
-    fix.
-    """
     if isinstance(node, ast.Attribute):
         return node.attr in LINE_ATTRS or _is_order_line_expr(node.value)
     if isinstance(node, ast.Name):
@@ -111,7 +39,6 @@ def _is_order_line_expr(node: ast.AST) -> bool:
     if isinstance(node, ast.Subscript):
         return _is_order_line_expr(node.value)
     if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-        # `order.line_ids.filtered(...)` is still order lines
         return node.func.attr in ("filtered", "sorted", "browse") and (
             _is_order_line_expr(node.func.value)
         )
@@ -145,7 +72,6 @@ def _value_for(node: ast.Dict, name: str) -> str:
 
 
 def _payload_dicts(call: ast.Call):
-    """The dicts a ``create``/``write`` call is given, one or many."""
     for arg in call.args:
         if isinstance(arg, ast.Dict):
             yield arg
@@ -156,7 +82,6 @@ def _payload_dicts(call: ast.Call):
 
 
 def _subscript_model(node: ast.AST) -> str | None:
-    """``env["sale.order.line"]`` -> ``sale.order.line``."""
     if isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant):
         value = node.slice.value
         if isinstance(value, str):
@@ -231,8 +156,6 @@ def measure(roots: list[Path] | None = None) -> list[Write]:
                 rel = str(path)
             _scan(path, rel, found)
     if not scanned:
-        # A count of zero over a tree with no Python in it is the same number a
-        # clean tree reports, and the ratchet cannot tell them apart. Refuse.
         raise RuntimeError(
             "no Python source under "
             + ", ".join(str(root) for root in roots)

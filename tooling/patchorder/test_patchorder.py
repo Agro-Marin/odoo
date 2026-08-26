@@ -21,7 +21,6 @@ def _js(tmp_path, addon, rel, body):
     return f
 
 
-
 def test_reads_the_real_allowlist_and_it_is_not_empty():
     entries = po.read_allowlist(ODOO_ROOT / po.ALLOWLIST_REL)
     assert len(entries) > 50, (
@@ -44,7 +43,6 @@ def test_refuses_an_empty_allowlist(tmp_path):
     f.write_text("const KNOWN_DOUBLE_PATCHES = new Set([\n]);\n")
     with pytest.raises(SystemExit, match="zero"):
         po.read_allowlist(f)
-
 
 
 def test_indexes_the_inline_object_spelling(tmp_path):
@@ -112,9 +110,6 @@ def test_reports_a_factory_call_as_unresolved_not_as_absent(tmp_path):
     assert len(unresolved) == 1
 
 
-# --- the sweep itself ------------------------------------------------------
-
-
 def test_one_site_is_stale_and_two_is_not(tmp_path):
     _js(tmp_path, "a", "one.js", "patch(Solo.prototype, {\n    setup() {},\n});\n")
     _js(tmp_path, "a", "dup1.js", "patch(Pair.prototype, {\n    setup() {},\n});\n")
@@ -132,9 +127,6 @@ def test_an_entry_nothing_patches_is_stale_with_no_sites(tmp_path):
     ]
 
 
-# --- refusals --------------------------------------------------------------
-
-
 def test_refuses_to_report_stale_when_the_scan_found_nothing(tmp_path):
     (tmp_path / "empty").mkdir()
     proc = subprocess.run(
@@ -147,9 +139,6 @@ def test_refuses_to_report_stale_when_the_scan_found_nothing(tmp_path):
     assert "found no `patch()` call at all" in proc.stderr
 
 
-# --- against the live tree -------------------------------------------------
-
-
 def test_the_live_scan_is_not_vacuous():
     roots = po.default_roots(ODOO_ROOT)
     assert roots, "no addons root resolved from this checkout"
@@ -158,8 +147,6 @@ def test_the_live_scan_is_not_vacuous():
 
     allowlist = po.read_allowlist(ODOO_ROOT / po.ALLOWLIST_REL)
     resolved = sum(1 for p in allowlist if len(sites.get(p, ())) >= po.MIN_SITES)
-    # Not "zero stale" -- that would make this a gate, which it deliberately is
-    # not. A collapse in this ratio means the scanner stopped seeing a spelling.
     assert resolved / len(allowlist) > 0.8, (
         f"only {resolved}/{len(allowlist)} allowlist entries resolve to >= "
         f"{po.MIN_SITES} sites; a drop this size is the scanner losing a "
@@ -178,9 +165,6 @@ def _cli(*args):
 
 
 def test_a_partial_scope_labels_findings_as_candidates_not_stale():
-    """`addons` alone cannot see enterprise, so entries whose second patcher
-    lives there look identical to genuinely dead ones. Presenting that list as
-    'prune these' is the false confidence this tool exists to remove."""
     proc = _cli("addons")
     assert "SCOPE INCOMPLETE" in proc.stdout
     assert "CANDIDATE" in proc.stdout
@@ -202,10 +186,6 @@ def test_check_decides_on_the_full_workspace():
 
 
 def test_help_does_not_depend_on_the_module_docstring():
-    """`tooling/README.md` promises `--help` on every tool here, and docstrings
-    in this tree are removed deliberately -- so anything reading `__doc__` at
-    run time is a crash waiting for that pass. It crashed exactly once this
-    way, on `argparse(description=__doc__.splitlines()[0])`."""
     proc = _cli("--help")
     assert proc.returncode == 0, proc.stderr
     assert "usage:" in proc.stdout

@@ -96,12 +96,6 @@ class TestAnalyzer:
         assert out["reads"] == ["fieldNodes"] and out["templateReads"] == []
 
     def test_a_table_driven_loop_emits_the_keys_it_spells_out(self, tmp_path):
-        """`graph_arch_parser` went table-driven and the walk stopped seeing it.
-
-        Four keys it produced were reported as produced by nobody -- the
-        finding shape the module docstring says three regexes were each
-        confidently wrong about, reached again through the computed key.
-        """
         out = _analyse(
             tmp_path,
             "function p(node, archInfo) {"
@@ -112,7 +106,6 @@ class TestAnalyzer:
         assert {"disableLinking", "stacked"} <= set(out["emits"])
 
     def test_the_loop_shape_does_not_invent_the_attribute_half(self, tmp_path):
-        """Only the bound half is a key. `disable_linking` is the XML attribute."""
         out = _analyse(
             tmp_path,
             "function p(node, archInfo) {"
@@ -122,7 +115,6 @@ class TestAnalyzer:
         assert "disable_linking" not in out["emits"]
 
     def test_a_loop_over_non_literals_emits_nothing(self, tmp_path):
-        """The shape is decidable only because the names are in the source."""
         out = _analyse(
             tmp_path,
             "function p(archInfo, pairs) {"
@@ -133,7 +125,6 @@ class TestAnalyzer:
     def test_a_computed_key_from_an_unrelated_binding_is_still_refused(
         self, tmp_path
     ):
-        """The binding must be the loop's own, not any identifier."""
         out = _analyse(
             tmp_path,
             "function p(archInfo, other) {"

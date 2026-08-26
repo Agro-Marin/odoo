@@ -1,14 +1,3 @@
-"""Pure-pytest tests for ``odoo.service._metrics``.
-
-Covers the Prometheus exposition without a live server, database or scrape:
-gauge collection against stand-in server objects, exposition-format validity,
-label escaping, and the never-raise contract.
-
-Run with::
-
-    python -m pytest tests/service/test_metrics.py -v
-"""
-
 import os
 import re
 from unittest.mock import MagicMock, patch
@@ -18,7 +7,6 @@ import pytest
 
 @pytest.fixture(scope="module")
 def mod():
-    """Return ``odoo.service._metrics``, imported once per session."""
     import odoo.service._metrics as m
 
     return m
@@ -26,15 +14,6 @@ def mod():
 
 @pytest.fixture
 def pooled_db():
-    """Return ``odoo.db``, skipping if it cannot report pool health yet.
-
-    The pool half of the exposition reads :func:`odoo.db.pool_health`.  Skipping
-    rather than faking it with ``create=True``: a mock conjured onto a module
-    that does not export the function would assert the renderer works against an
-    interface this checkout does not have, and pass while the real thing was
-    missing.  ``render_prometheus`` already degrades to an empty pool section in
-    that case, which the never-raise test covers without needing the attribute.
-    """
     from odoo import db
 
     if not hasattr(db, "pool_health"):
@@ -49,7 +28,6 @@ SAMPLE = re.compile(
 
 
 def parse_exposition(text: str) -> tuple[dict[str, str], list[str]]:
-    """Return ``(declared_types, errors)`` for a Prometheus text payload."""
     declared: dict[str, str] = {}
     sampled: set[str] = set()
     errors: list[str] = []
@@ -73,9 +51,6 @@ def parse_exposition(text: str) -> tuple[dict[str, str], list[str]]:
             continue
         name, labels = match.group(1), match.group(2)
         sampled.add(name)
-        # ``_count`` belongs with ``_bucket``/``_sum``: a histogram declares one
-        # TYPE and emits all three suffixes under it, so omitting it here would
-        # report a perfectly valid ``_count`` sample as having no TYPE.
         base = name.removesuffix("_bucket").removesuffix("_sum").removesuffix("_count")
         if name not in declared and base not in declared:
             errors.append(f"{lineno}: sample {name} has no TYPE")
@@ -88,10 +63,7 @@ def parse_exposition(text: str) -> tuple[dict[str, str], list[str]]:
 
 
 class TestServiceMetrics:
-    """``service_metrics`` reads the live server without ever being the failure."""
-
     def test_no_server_yet_reports_flavor_none(self, mod):
-        """A scrape before ``lifecycle.start()`` must answer, not raise."""
         from odoo.service import lifecycle
 
         with patch.object(lifecycle, "server", None):
@@ -111,7 +83,7 @@ class TestServiceMetrics:
         server.population = 4
         server.generation = 17
         server.long_polling_pid = 999
-        server.pid = os.getpid()  # this process IS the master
+        server.pid = os.getpid()
 
         with patch.object(lifecycle, "server", server):
             out = mod.service_metrics()
@@ -122,11 +94,6 @@ class TestServiceMetrics:
         assert out["long_polling_alive"] is True
 
     def test_forked_worker_omits_the_master_only_gauges(self, mod):
-        """A prefork worker inherits the master's PreforkServer through
-        ``os.fork()``; every fleet counter on it is frozen at the instant of the
-        fork.  The worker must publish none of them rather than publish a stale
-        view that disagrees with every other worker.
-        """
         from odoo.service import lifecycle
 
         server = MagicMock()
@@ -137,7 +104,7 @@ class TestServiceMetrics:
         server.population = 4
         server.generation = 17
         server.long_polling_pid = 999
-        server.pid = os.getpid() + 1  # a child: master pid inherited at fork
+        server.pid = os.getpid() + 1
 
         with patch.object(lifecycle, "server", server):
             out = mod.service_metrics()
@@ -172,11 +139,6 @@ class TestServiceMetrics:
         server.httpd.max_http_threads = 31
         server.limits_reached_threads = set()
 
-        # ``monkeypatch``, not a hand-rolled try/finally: ``current_thread().type``
-        # is process-global state this test does not own, and conftest's
-        # ``_no_global_state_leak`` message asks for exactly this spelling so that
-        # ``patch`` owns the teardown.  The guard now watches ``.type`` too, so a
-        # blanket restore would be the one thing it cannot see.
         monkeypatch.setattr(threading.current_thread(), "type", "http", raising=False)
         with patch.object(lifecycle, "server", server):
             out = mod.service_metrics()
@@ -188,8 +150,6 @@ class TestServiceMetrics:
 
 
 class TestPrometheusExposition:
-    """The rendered payload must satisfy the text exposition format."""
-
     def test_default_render_is_well_formed(self, mod):
         declared, errors = parse_exposition(mod.render_prometheus())
         assert not errors, errors
@@ -230,7 +190,6 @@ class TestPrometheusExposition:
         )
 
     def test_database_names_are_escaped_in_labels(self, mod, pooled_db):
-        """A label value is attacker-influenced: database names are user-chosen."""
         health = {
             "read_write": {
                 "pool": {"borrows": 1},
@@ -244,16 +203,6 @@ class TestPrometheusExposition:
         assert r'database="we\"ird\\name"' in text
 
     def test_non_numeric_per_database_stats_are_dropped(self, mod, pooled_db):
-        """``pool_health`` forwards whatever the driver reports, and
-        ``psycopg_pool`` mixes strings and booleans in with the numbers.
-
-        A Prometheus sample value must be a number: emitting ``prod`` or
-        ``True`` makes the whole scrape unparseable, so one new key in a
-        dependency's stats dict would take the endpoint down rather than add a
-        useless series.  Booleans need naming separately from "not a number" —
-        ``bool`` is a subclass of ``int``, so an ``isinstance(value, int)``
-        check alone lets ``True`` through.
-        """
         health = {
             "read_write": {
                 "pool": {"borrows": 1},
@@ -291,7 +240,7 @@ class TestPrometheusExposition:
         server.population = 0
         server.generation = 0
         server.long_polling_pid = None
-        server.pid = os.getpid()  # this process IS the master
+        server.pid = os.getpid()
 
         with patch.object(lifecycle, "server", server):
             text = mod.render_prometheus()
@@ -300,13 +249,6 @@ class TestPrometheusExposition:
         assert not errors, errors
 
     def test_every_series_carries_the_serving_pid(self, mod, pooled_db):
-        """Under prefork a scrape lands on whichever worker won ``accept(2)``.
-
-        Each worker owns its own pools and counters, so without a ``pid`` label
-        one series name would carry a different worker's numbers on every
-        scrape — and a monotonic counter that jumps backwards reads to
-        Prometheus as a process restart.
-        """
         health = {"read_write": {"pool": {"borrows": 3}, "per_database": {}}}
         with patch.object(pooled_db, "pool_health", return_value=health):
             text = mod.render_prometheus()
@@ -319,7 +261,6 @@ class TestPrometheusExposition:
         assert not unlabelled, unlabelled
 
     def test_render_survives_a_failing_subsystem(self, mod, pooled_db):
-        """A scrape that raises is a monitoring outage stacked on the incident."""
         with (
             patch.object(
                 pooled_db, "pool_health", side_effect=RuntimeError("pool is gone")
@@ -327,28 +268,12 @@ class TestPrometheusExposition:
             patch.object(mod, "service_metrics", side_effect=RuntimeError("no server")),
         ):
             text = mod.render_prometheus()
-        # Match the SAMPLE, not the substring.  ``assert "odoo_up 1" in text``
-        # stood here and was satisfied by the HELP COMMENT — whose text begins
-        # "1 when the metrics endpoint is serving." — so it passed unchanged
-        # when the renderer reported ``odoo_up 0``, i.e. exactly the outcome
-        # this test exists to rule out.  ``test_booleans_render_as_one_and_zero``
-        # forty lines up already spells it the right way.
         assert f'odoo_up{{pid="{os.getpid()}"}} 1' in text
         _, errors = parse_exposition(text)
         assert not errors, errors
 
 
 class TestBorrowWaitHistogramFamily:
-    """``odoo_pool_borrow_wait_seconds`` is one histogram family, not three.
-
-    It used to be published as three independent families -- ``_sum`` and
-    ``_bucket`` as counters, ``_max`` as a gauge -- with no ``_count`` sample
-    and no ``# TYPE ... histogram`` line anywhere in the scrape.
-    ``histogram_quantile()`` still worked off the ``le`` buckets, so the gap
-    stayed invisible; what a client could not do was read the family AS a
-    histogram, which is what its name promises.
-    """
-
     HEALTH = {
         "pool": {
             "borrows": 8,
@@ -395,9 +320,6 @@ class TestBorrowWaitHistogramFamily:
         assert inf[0].endswith(" 8")
 
     def test_the_mean_wait_is_now_computable(self, mod):
-        """`_sum / _count` is the whole point of a histogram family; without a
-        ``_count`` sample the mean had to be reconstructed from an unrelated
-        counter."""
         text = self._render(mod)
         values = {}
         for line in text.splitlines():
@@ -408,9 +330,6 @@ class TestBorrowWaitHistogramFamily:
         assert values["_sum"] / values["_count"] == pytest.approx(0.0525)
 
     def test_max_stays_its_own_gauge_declared_before_the_histogram(self, mod):
-        """``_max`` is not a histogram suffix, so it keeps its own family -- and
-        must be declared before the histogram's samples start, or its TYPE line
-        would land in the middle of them."""
         text = self._render(mod)
         assert "# TYPE odoo_pool_borrow_wait_seconds_max gauge" in text
         assert text.index(

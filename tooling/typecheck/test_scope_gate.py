@@ -62,24 +62,15 @@ class ModuleOfTests(unittest.TestCase):
         self.assertIsNone(module_of(f"{WEB_SRC}ui/dialog/dialog.scss"))
 
     def test_file_excluded_from_the_program_is_out_of_scope(self):
-        # A service worker is checked by tsconfig.serviceworker.*.json against
-        # lib.webworker, so tsconfig.json excludes it and this gate must not
-        # claim it. Silence from a compiler that never ran is not cleanliness —
-        # and while such a file is still excepted it is subtracted from
-        # `unchecked` too, so it would count toward coverage forever.
         self.assertIn(
             "addons/web/static/src/service_worker.js", scope_gate.excluded_from_program()
         )
         self.assertIsNone(module_of("addons/web/static/src/service_worker.js"))
-        # its window-side namesake is not excluded and stays gated
         self.assertEqual(
             module_of("addons/web/static/src/webclient/service_worker_service.js"), "web"
         )
 
     def test_only_literal_exclusions_narrow_the_scope(self):
-        # The glob entries name directories the scope never reaches; honouring
-        # them here would need a second globber and a second reading of the
-        # tsconfig, which is what this function exists to avoid.
         self.assertFalse(any("*" in e for e in scope_gate.excluded_from_program()))
 
 
@@ -413,9 +404,6 @@ class CliTests(unittest.TestCase):
         return code, out.getvalue(), errbuf.getvalue()
 
     def test_prune_repoints_a_renamed_exception(self):
-        # The exemption was granted for the file's CONTENT, which moved with it.
-        # Dropping the entry would lock a file someone deliberately exempted;
-        # repointing keeps the intent the rename lost.
         self.touch(f"{WEB_SRC}moved/thing.js")
         log = self.write_log(err(f"{WEB_SRC}moved/thing.js"))
         scope_gate.write_exceptions("g", "web", [f"{WEB_SRC}old/thing.js"])
@@ -428,8 +416,6 @@ class CliTests(unittest.TestCase):
         )
 
     def test_prune_refuses_an_ambiguous_rename(self):
-        # Two files share the basename, so any repoint is a guess -- and a guess
-        # exempts the wrong file while leaving the intended one locked.
         self.touch(f"{WEB_SRC}a/thing.js")
         self.touch(f"{WEB_SRC}b/thing.js")
         log = self.write_log("")
@@ -465,9 +451,6 @@ class CliTests(unittest.TestCase):
         self.assertEqual(scope_gate.read_exceptions("g", "web"), [])
 
     def test_prune_never_exempts_a_regression(self):
-        # The whole reason --prune exists. --update rewrites the list to EVERY
-        # erroring file, so the only sanctioned way to repair one stale path was
-        # to exempt every regression alongside it.
         self.touch(f"{WEB_SRC}regressed.js")
         self.touch(f"{WEB_SRC}exempt.js")
         log = self.write_log(
@@ -476,8 +459,6 @@ class CliTests(unittest.TestCase):
         scope_gate.write_exceptions(
             "g", "web", [f"{WEB_SRC}exempt.js", f"{WEB_SRC}vanished.js"]
         )
-        # The plain gate refuses to run against a module with no list at all,
-        # and this fixture's SCOPED_MODULES carries `mail` as well as `web`.
         scope_gate.write_exceptions("g", "mail", [])
 
         self._run(["g", "--log", log, "--prune"])

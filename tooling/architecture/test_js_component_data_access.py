@@ -27,8 +27,6 @@ class TestDetection:
         assert {s.key for s in sites} == {"a/a.js  orm"}
 
     def test_each_data_service_in_one_file_is_its_own_site(self, tmp_path):
-        # `record_autocomplete` takes two, and migrating one is progress the
-        # pin has to be able to record.
         _write(tmp_path, "a/a.js", 'useService("orm"); useService("name");')
         sites, _ = gate.measure(tmp_path)
         assert {s.key for s in sites} == {"a/a.js  orm", "a/a.js  name"}
@@ -39,8 +37,6 @@ class TestDetection:
         assert {s.key for s in sites} == {"a/a.js  rpc"}
 
     def test_a_client_side_service_is_not_a_site(self, tmp_path):
-        # The rationale is about a component that cannot render where its
-        # service is absent. Opening a dialog does not make it one.
         _write(
             tmp_path,
             "a/a.js",
@@ -50,8 +46,6 @@ class TestDetection:
         assert sites == set()
 
     def test_a_method_called_rpc_on_something_else_is_not_a_site(self, tmp_path):
-        # `this.orm.rpc(...)` is already counted through the service; matching
-        # it again here would double-count, and `foo.rpc()` is not the import.
         _write(tmp_path, "a/a.js", "this.orm.rpc('/x'); other.rpc();")
         sites, _ = gate.measure(tmp_path)
         assert sites == set()

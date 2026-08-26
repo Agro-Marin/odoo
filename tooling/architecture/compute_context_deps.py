@@ -1,110 +1,4 @@
 #!/usr/bin/env python3
-"""Computes that read the acting user must say so — `@api.depends_context`.
-
-A non-stored compute's cache is keyed by the context values its field declares
-in ``depends_context``. Declare none and there is exactly **one** cache entry for
-the whole transaction, so a compute that resolves ``self.env.user`` hands the
-first reader's answer to every user after it. Nothing catches that: the ORM has
-no way to know the method looked at ``env``, and a test transaction has one uid,
-so a single-user test passes either way.
-
-It is not a hypothetical. Six fields shipped it in `mail` and `sms`
-simultaneously — ``message_is_follower``, ``message_needaction`` and its counter,
-``message_has_error`` and its counter, ``message_has_sms_error`` — three of them
-resolving ``self.env.user.partner_id.id`` straight into the WHERE clause of a
-hand-written query. `discuss.channel._broadcast()` loops the partners it
-broadcasts to, switching user each iteration, and the channel's store defaults
-include ``message_needaction_counter``: creating a group chat therefore sent
-every member but one the *first* member's unread badge count. Measured, with A
-holding one unread message and B none::
-
-    _broadcast(A then B) -> counters on the bus: [1, 1]
-    _broadcast(B then A) -> counters on the bus: [0, 0]
-
-Declaring the key fixed it and cost nothing — 0 query delta across 68 pinned
-assertions — because a test transaction has one uid, which is the same reason no
-test could have caught it.
-
-**Syntactic, on purpose.** The accurate check needs the registry: whether the
-method is a compute at all, and whether its field is stored. But `test_lint.yml`
-installs only `test_lint` and its dependencies, so `mail` is not in that
-registry, and the one place this bug class has actually shipped would be
-invisible to a registry-based gate. Matching on ``_compute_*`` methods over the
-source tree sees every addon whether it is installed or not, at the cost of
-false positives — which is what a ratchet is for.
-
-Three keys, each with a demonstrated failure behind it:
-
-===================================  ===============
-read in the body                     key it needs
-===================================  ===============
-``env.user`` / ``env.uid``           ``uid``
-``_get_guest_from_context``          ``guest``
-``get_lang``, the ``format_*``       ``lang``
-helpers that take an ``env``, and
-``_description_selection``
-===================================  ===============
-
-``lang`` was added after a compute shipped the defect in a file where the gate
-could not see it. ``mrp.workcenter.kanban_dashboard_graph`` reaches ``get_lang``
-twice through its week-range helper -- once for the locale of the labels and
-once for ``week_start``, which decides the bucket *boundaries* -- and declared
-nothing. Two readers in one transaction::
-
-    en first -> en ['9 - 15 Aug',   'This Week',     '23 - 29 Aug', ...]
-             -> fr ['9 - 15 Aug',   'This Week',     '23 - 29 Aug', ...]
-    fr first -> fr ['10 - 16 aout', 'Cette semaine', '24 - 30 aout', ...]
-             -> en ['10 - 16 aout', 'Cette semaine', '24 - 30 aout', ...]
-
-The ``env.user`` read that would have caught it sits one call deep inside
-``get_lang``, and this check is deliberately syntactic, so the file scored zero.
-Naming the helpers rather than following them into ``odoo.tools`` keeps it that
-way.
-
-Worth saying why a compute needs the key at all when translated *fields* already
-carry ``lang`` in theirs: for a computed field ``Field.get_depends`` reads
-``depends_context`` from the compute methods alone. A *related* field inherits
-its chain's keys; **a compute inherits nothing** from the fields it reads. So a
-compute that resolves the language, or reads a translated field, holds one cache
-entry for the whole transaction unless it says so.
-
-``_description_selection`` reduced to its keys is not a language read -- the keys
-are the same string in every language -- so ``list(dict(...))`` and
-``dict(...).keys()`` are excluded. Measured, that is 2 of the 12 occurrences
-under a ``_compute_``; the other 10 build a label lookup and are real.
-
-``format_datetime`` additionally resolves ``env.user.tz``. A ``tz`` gate is the
-next move on this list and a separate one: different key, different argument
-about which computes may legitimately read it.
-
-``env.company`` is deliberately **not** measured. It reads the same way
-syntactically and does not mean the same thing: a compute resolving
-``env.company`` is usually picking a default that is then stored, where the
-per-user cache key is not the question. Measured at 96 findings against 94 for
-``uid``, it would have doubled the floor with a signal of a different kind. A
-`company` gate is a separate move on a separate baseline.
-
-Precision on ``uid`` is high -- a sample of the findings holds
-``_compute_move_ids`` branching on ``env.user.has_group``,
-``_compute_order_count`` returning 0 "for users outside group", and
-``_compute_invoice_default_user`` falling back on the current user. Each is the
-same defect as the six mail fields, just not yet caught leaking.
-
-A stored compute reading the acting user is a *worse* bug than an undeclared
-context key — the answer is persisted for whoever wrote last — so it is reported
-here too rather than excused; syntax cannot tell the two apart anyway.
-
-Tests are out of scope: a fixture reading ``env.user`` inside a helper it happens
-to have named ``_compute_x`` is not the failure this is about.
-
-Usage::
-
-  python tooling/architecture/compute_context_deps.py            # report
-  python tooling/architecture/compute_context_deps.py --count    # for the ratchet
-  python tooling/architecture/compute_context_deps.py --json
-  python tooling/architecture/compute_context_deps.py --key uid  # one key only
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -124,11 +18,9 @@ ADR = "unrecorded"
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="compute_context_deps")
 SCAN_ROOTS = ("odoo", "addons")
 
-#: context key -> the attribute reads that require it.
 ENV_READS = {
     "uid": ("user", "uid"),
 }
-#: context key -> the call names that require it.
 CALL_READS = {
     "guest": ("_get_guest_from_context",),
     "lang": (
@@ -141,9 +33,6 @@ CALL_READS = {
     ),
 }
 
-#: ``_description_selection`` reduced to its keys is not a language read.  The
-#: labels are translated; the keys are the same string in every language, and
-#: ``list(dict(...))`` / ``dict(...).keys()`` is how a compute asks for the keys.
 KEY_ONLY_WRAPPERS = ("list", "keys", "tuple", "set", "sorted")
 
 
@@ -168,7 +57,6 @@ def _python_files(roots: list[Path]) -> list[Path]:
 
 
 def declared_keys(node: ast.FunctionDef) -> set[str]:
-    """Context keys the method's own ``@api.depends_context`` decorators name."""
     keys: set[str] = set()
     for decorator in node.decorator_list:
         if not isinstance(decorator, ast.Call):
@@ -192,7 +80,6 @@ def _parents(node: ast.FunctionDef) -> dict[ast.AST, ast.AST]:
 
 
 def _reads_labels(call: ast.Call, parents: dict[ast.AST, ast.AST]) -> bool:
-    """True unless the selection is immediately reduced to its keys."""
     wrapper = parents.get(call)
     if not (isinstance(wrapper, ast.Call) and _called_name(wrapper) == "dict"):
         return True
@@ -208,14 +95,10 @@ def _called_name(call: ast.Call) -> str:
 
 
 def read_keys(node: ast.FunctionDef) -> set[str]:
-    """Context keys the method's body implies it depends on."""
     keys: set[str] = set()
     parents = _parents(node)
     for sub in ast.walk(node):
         if isinstance(sub, ast.Attribute):
-            # `<anything>.env.<attr>`: the receiver is `self` in a compute, but
-            # matching on `.env.` rather than on `self` also catches the
-            # `record.env.user` spelling a per-record loop tends to use.
             value = sub.value
             reads_env = (isinstance(value, ast.Attribute) and value.attr == "env") or (
                 isinstance(value, ast.Name) and value.id == "env"
@@ -238,12 +121,6 @@ def read_keys(node: ast.FunctionDef) -> set[str]:
 
 
 def measure(roots: list[Path] | None = None) -> list[Violation]:
-    """Every ``_compute_*`` method reading context it does not declare.
-
-    Raises ``RuntimeError`` rather than returning an empty list when there is
-    nothing to scan: the count feeds an exact ratchet, so 0 from an empty scan
-    reads exactly like a tree that declared every key.
-    """
     roots = roots or [ROOT / r for r in SCAN_ROOTS]
     files = _python_files(roots)
     if not files:
@@ -257,7 +134,7 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
         except SyntaxError, UnicodeDecodeError:
-            continue  # not ours to parse; ruff owns syntax
+            continue
         for node in ast.walk(tree):
             if not isinstance(node, ast.FunctionDef):
                 continue

@@ -1,35 +1,3 @@
-"""Computes that read a field they do not declare, resolved through relations.
-
-Run under `odoo shell`, against the WIDEST registry available — the finding this
-tool was packaged for (`c6799a29775`, `mail.tracking.duration.mixin`) was
-invisible with only `mail` installed, because the mixin has no concrete consumer
-there and nothing reached the compute. It surfaced on 191 modules.
-
-    echo 'from tooling.depends_audit import main; main(env)' \
-        | odoo-bin shell -c <conf> -d <db> --no-http
-
-    DEPENDS_TARGET=/addons/sale/ ...        # narrow it; default is /addons/
-
-Findings come in two tiers, which is the whole point of the resolution:
-
-    A  root not watched at all   the compute reads `x.y` and declares neither
-    B  root watched, leaf not    it declares `x` and reads `x.y`
-
-NOT THE SAME QUESTION AS `odoo/tools/depends_audit.py`, which is wired into the
-framework's own tests. That one walks BYTECODE and reports the attributes a
-compute reads; this one walks the AST and then RESOLVES each read through the
-registry, so it can tell a declared root from a declared leaf and can follow a
-path across comodels. Measured on one registry (90 modules, loyalty and its
-dependencies): 322 findings here against 30 there, sharing 18 — twelve that only
-the bytecode walk sees, and some three hundred that only this one does. Neither
-subsumes the other; a `depends` question worth asking gets asked of both.
-
-IT DOES NOT GATE ANYTHING, and cannot: the answer depends on what is installed,
-so a floor over it would measure the database rather than the tree. It is an
-investigative tool, like `tooling/testbaseline` and `tooling/patchorder`.
-"""
-
-
 import ast
 import inspect
 import os
@@ -227,18 +195,6 @@ def _read_is_safe(env, model, read, effective, seen=None):
         return False
     seen = seen if seen is not None else set()
     prefix = ".".join(parts[:-1])
-    # KEYED ON THE FIELD, NOT ON THE PATH THAT REACHED IT. The cycle this guard
-    # exists to stop lives in the (model, field) dependency graph, but the key
-    # used to carry `prefix` too -- and `prefix` GROWS on every recursion, since
-    # each level appends through `_join`. So a field revisited one hop deeper got
-    # a fresh key, the guard never fired, and the walk ran until the interpreter
-    # stopped it. `RecursionError: maximum recursion depth exceeded`, on a
-    # registry no larger than loyalty and its dependencies.
-    #
-    # Kept as an on-stack marker rather than a visited set: a field legitimately
-    # reached twice down two different branches is not a cycle, and answering
-    # False for the second one would invent a finding. It is removed on the way
-    # back out.
     key = (owner._name, parts[-1])
     if key in seen:
         return False

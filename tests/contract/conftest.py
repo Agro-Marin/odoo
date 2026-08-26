@@ -1,12 +1,3 @@
-"""Fixtures for the real-dependency contract suite (see ``__init__``-less
-package docstring in ``test_pg_connect_contract.py``).
-
-Everything here skips rather than fails when the dependency is absent, so the
-suite is safe to run in a container without PostgreSQL — but it must NOT be
-silently skipped in CI, or it stops being evidence.  ``test_dependencies_are_
-present`` in ``test_pg_connect_contract.py`` is the canary for that.
-"""
-
 import os
 import subprocess
 import uuid
@@ -15,11 +6,6 @@ import pytest
 
 from .._pg import dependency_plugin, pg_dump_path, pg_reachable, psql_path
 
-# Plain markers, NOT ``skipif`` conditions.  A ``skipif`` argument is evaluated
-# when the decorator runs — i.e. at import, during collection — which made a
-# mere ``--collect-only`` pay a real connect attempt (10.57 s with PostgreSQL
-# unreachable; see ``tests/_pg``).  The autouse fixture below resolves each
-# marker at SETUP instead, so a collected-but-unrun suite probes nothing.
 requires_pg = pytest.mark.requires_pg
 requires_psql = pytest.mark.requires_psql
 requires_pg_dump = pytest.mark.requires_pg_dump
@@ -35,12 +21,6 @@ pytest_configure, _skip_without_dependencies = dependency_plugin(REQUIREMENTS)
 
 @pytest.fixture(scope="session", autouse=True)
 def odoo_config():
-    """Initialise ``odoo.tools.config`` once.
-
-    ``odoo.db.db_connect`` reads connection settings from it.  Parsed with an
-    empty argv so the suite uses the environment's own PG defaults (peer auth as
-    the OS user) rather than any particular workspace config file.
-    """
     from odoo.tools import config
 
     config.parse_config([], setup_logging=False)
@@ -49,12 +29,6 @@ def odoo_config():
 
 @pytest.fixture(scope="session")
 def scratch_db():
-    """A disposable database, dropped at the end of the session.
-
-    Created from ``template0`` so it carries nothing that could mask a contract
-    difference, and named uniquely so a parallel run or a leftover from a
-    crashed session cannot collide.
-    """
     if not pg_reachable():
         pytest.skip("no reachable PostgreSQL")
     name = f"odoo_contract_{uuid.uuid4().hex[:12]}"
@@ -71,15 +45,6 @@ def scratch_db():
 
 @pytest.fixture
 def run_psql(scratch_db):
-    """Run ``psql -f <file>`` against the scratch DB the way ``restore_db`` does.
-
-    Same flags as the real restore path (``-X -q -v ON_ERROR_STOP=1 -f``),
-    because a differential test that used different flags would be measuring a
-    different program than the one shipped — including ``-X``, without which a
-    host ``psqlrc`` could flip ``ON_ERROR_STOP`` in both the fixture and
-    production identically and hide the very defect the suite exists to catch.
-    """
-
     def _run(sql_path):
         return subprocess.run(
             [

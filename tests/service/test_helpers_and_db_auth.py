@@ -1,26 +1,3 @@
-"""Pure-pytest tests for ``odoo.service._helpers``, and the one db-allowlist
-property its own suite does not pin.
-
-Moved from ``odoo/addons/base/tests/test_server.py`` and
-``odoo/addons/base/tests/test_db_service_drop.py``. Both were framework test
-cases that touched no database and no registry, so they only ran behind a
-``createdb`` plus a full ``base`` install to check a soft-limit comparison and
-an allowlist.
-
-Most of what came over has since been covered, better, by ``test_db.py``'s
-``TestDispatchTableInvariants`` and ``TestExpDropGate`` — the dispatch/master-
-password invariants and ``exp_drop``'s refusal are theirs, and re-pinning them
-here would be exactly the duplication this move set out to remove. What is left
-is what neither suite had:
-
-* the four boundary cases of ``over_memory_soft_limit`` itself. ``test_server``
-  drives it only through ``Worker.check_limits``, with ``memory_info`` stubbed,
-  so the helper's own zero-means-disabled short circuit is never the subject.
-* that the INTERNAL ``_drop_database`` does not consult the allowlist. Every
-  other test asserts the gate fires; this one asserts the ungated path stays
-  ungated, which is what the server's own cleanup depends on.
-"""
-
 import unittest
 from types import SimpleNamespace
 from unittest import mock

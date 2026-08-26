@@ -157,15 +157,9 @@ def test_the_real_tree_still_measures():
         ("_get_allowed_models", "tail"),
         ("_get_supported_account_types", "tail"),
         ("_get_company_address_field_names", "tail"),
-        # ``fields`` carries its own pair of figures and is excluded from this
-        # one in BOTH directions -- counting a converted head-first name as a
-        # ``views`` tail would report the rule broken by a name that keeps it.
         ("_get_fields_inheriting_views", None),
         ("_get_fields_readable", None),
-        # An ``ids`` tail names a FIELD; the field-hook rule owns that spelling
-        # and head-first must never be read as licence to rewrite it.
         ("_get_partner_ids", None),
-        # No head noun in either position.
         ("_compute_xml_id", None),
         ("_sync_path_reservations", None),
     ],
@@ -189,21 +183,14 @@ def test_collection_head_census_counts_both_orders():
 @pytest.mark.parametrize(
     ("src", "expected"),
     [
-        # The plain shape: the decorator's positional constants, in order.
         (
             "@api.constrains('order', 'field_id')\ndef _check_order(self): pass",
             ["order", "field_id"],
         ),
-        # A bare name rather than an attribute -- ``from odoo.api import constrains``.
         ("@constrains('date')\ndef _check_date(self): pass", ["date"]),
-        # An undecorated method, and a decorator that is not a call, read as empty
-        # rather than raising: ``@api.model`` sits on plenty of these.
         ("def _check_date(self): pass", []),
         ("@api.model\ndef _check_date(self): pass", []),
-        # A field list built at runtime is not a constant, so it is not counted --
-        # the same blind spot ``@api.depends(lambda self: ...)`` has.
         ("@api.constrains(*FIELDS)\ndef _check_date(self): pass", []),
-        # ``@api.onchange`` must not be picked up by the constrains reader.
         ("@api.onchange('partner_id')\ndef _onchange_partner_id(self): pass", []),
     ],
 )
@@ -219,13 +206,6 @@ def test_constrains_fields_reads_the_decorator(src, expected):
 
 
 def test_constrains_census_sizes_the_family_it_exempts():
-    """§2.4 exempts ``@api.constrains`` from the field-hook rule, and this is why.
-
-    A constraint is named for the condition it enforces, so most single-field
-    hooks are NOT ``_check_<field>`` -- and that is the rule working, not debt.
-    A regression to a near-total here would mean the reader stopped resolving
-    the decorator, which is the only way the exemption could go unmeasured.
-    """
     from naming_vocabulary import census
 
     c = census()

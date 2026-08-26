@@ -1,11 +1,3 @@
-"""Every public import facade declares and honours `__all__`.
-
-Moved from `odoo/addons/base/tests/test_public_surfaces.py`. It subclassed the framework test
-case but touched no database and no registry, so it only ran behind a
-`createdb` plus a full `base` install. It does need a real `import odoo.*`,
-which is why it is here rather than in a Tier-1 suite.
-"""
-
 import ast
 import importlib
 import unittest

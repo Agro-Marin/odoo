@@ -1,36 +1,3 @@
-"""Duplicated JavaScript, counted byte-exactly.
-
-Eighteen gates guard this tree's JS -- layering, cycles, import resolution,
-function length, private access, service shape, forced renders, public surface,
-face boundaries, mixin coupling, export coherence -- and not one of them looks
-for a block that exists twice. A copied block passes every one of them, because
-each is structurally identical to a block that belongs where it is.
-
-What this counts is **duplicated significant lines between two files**: the
-total length of the maximal runs that appear, byte for byte after normalisation,
-in more than one file. It is a debt figure to drive down, not a steady state.
-
-Byte-exact on purpose. A normalised-window hash -- the obvious implementation --
-scores a *prefix* relationship as duplication, and that overstates the case in a
-way that produces wrong findings. Measured on
-``calendar_year_renderer.js`` against ``calendar_common_renderer.js``: a window
-detector reported 89 duplicated lines across five methods, and byte-level
-extraction showed only one method (9 lines) was actually a duplicate. The other
-four were prefixes -- the year renderer's body was the head of the common one's,
-which is a better argument for extracting and a different number. This gate
-reports the number it can defend.
-
-Normalisation is deliberately shallow: blank lines and comment-only lines are
-dropped and runs of whitespace are collapsed, so reindenting a block does not
-hide it, but renaming a variable does. That is the right trade for a ratchet --
-it under-reports rather than crying wolf, and an under-report is a floor that
-still only moves down.
-
-    python tooling/architecture/js_duplication.py --top 20
-    python tooling/architecture/js_duplication.py --count \\
-        | xargs python tooling/ratchet/ratchet.py jsduplication --count
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -52,13 +19,8 @@ ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_duplication")
 GOVERNED_ADDONS = ("web",)
 DEFAULT_ADDON = "web"
 
-#: A run shorter than this is idiom, not duplication: an import block, a
-#: three-line guard, a `return { ... }` header. Nine is the shortest run in
-#: this tree that survived a manual read as "should have been shared".
 MIN_RUN = 9
 
-#: Machine-written files. `emoji_data.js` is 543 KB of generated table and would
-#: dominate any duplication figure with data that no refactor can share.
 GENERATED = frozenset({"emoji_data.js"})
 
 
@@ -68,8 +30,6 @@ def addon_src(addon: str = DEFAULT_ADDON) -> Path:
 
 @dataclass(frozen=True)
 class Run:
-    """One maximal byte-exact duplicated run between two files."""
-
     lines: int
     left: str
     left_start: int
@@ -80,7 +40,6 @@ class Run:
 
 
 def significant(path: Path) -> list[tuple[int, str]]:
-    """(1-based line number, normalised text) for every significant line."""
     out = []
     for number, raw in enumerate(
         path.read_text(encoding="utf-8", errors="ignore").split("\n"), start=1
@@ -101,12 +60,6 @@ def js_files(src: Path) -> list[Path]:
 
 
 def maximal_runs(a: list[tuple[int, str]], b: list[tuple[int, str]]) -> list[Run]:
-    """Every maximal run of >= MIN_RUN identical significant lines in a and b.
-
-    Anchored on the first MIN_RUN-line window, then extended forwards, so a long
-    shared block is reported once at its real length instead of as N overlapping
-    windows.
-    """
     index: dict[str, list[int]] = defaultdict(list)
     for i in range(len(b) - MIN_RUN + 1):
         key = hashlib.sha1(
@@ -155,14 +108,6 @@ def window_hashes(lines: list[tuple[int, str]]) -> set[str]:
 def candidate_pairs(
     files: list[Path], lines: dict[Path, list[tuple[int, str]]]
 ) -> set[tuple[Path, Path]]:
-    """File pairs sharing at least one window, so the quadratic comparison only
-    runs where a run is possible at all.
-
-    Without this the gate is O(files^2) real comparisons -- 773 files is 298k
-    pairs and 78s. Indexing windows first leaves a few hundred pairs and turns
-    the gate into a few seconds, which is the difference between something CI
-    runs on every PR and something nobody enables.
-    """
     by_hash: dict[str, list[Path]] = defaultdict(list)
     for path in files:
         for h in window_hashes(lines[path]):

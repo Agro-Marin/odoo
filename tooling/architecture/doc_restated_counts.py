@@ -20,8 +20,6 @@ from _repo_root import find_odoo_root
 
 ADR = "0041"
 
-# This gate walks the corpus eight times over (see _ast_cache); it is the one
-# caller for which retaining parsed trees pays.
 _ast_cache.enable()
 
 ROOT = find_odoo_root(Path(__file__).resolve())
@@ -53,7 +51,6 @@ def _rounded(values: tuple[int, ...]) -> tuple[str, ...]:
 
 
 def _tenths(values: tuple[int, ...]) -> tuple[str, ...]:
-    """Render tenths-of-a-percent held as an int: 218 -> "21.8"."""
     return tuple(f"{v // 10}.{v % 10}" for v in values)
 
 
@@ -90,14 +87,6 @@ def _suite_methods(module: str) -> int:
 
 
 def public_surface_specifiers() -> tuple[int, ...]:
-    """The specifiers `public_surface_web.txt` pins, comments and blanks aside.
-
-    R6 restates this in prose, and it drifted: the pin gained two entries in
-    `adfb8afce15` and the register still said 219. It was checked -- by a bespoke
-    assertion in `test_architecture_doc.py` -- but nothing *wrote* it, which is
-    the difference this registry exists to make (ADR-0041). `--update` writes it
-    now, and the filter lives here rather than in the test.
-    """
     return (
         sum(
             1
@@ -122,15 +111,6 @@ def metadata_call_sites() -> tuple[int, ...]:
 
 
 def dispatch_names() -> tuple[int, ...]:
-    """Method names assembled at runtime and reached through ``getattr``.
-
-    §2.4's *a name assembled at runtime is a schema* rests on how concentrated
-    these are in ``odoo/addons/base``, so both halves of the comparison are
-    measured: (base, whole repository). A literal-prefixed f-string or ``%``/``+``
-    on a string literal is the shape; a bare variable is not, because nothing
-    about it pins a *name*.
-    """
-
     def count(root: Path) -> int:
         total = 0
         for path in naming_vocabulary._python_files([root]):
@@ -194,14 +174,6 @@ def field_param_typing() -> tuple[int, ...]:
 
 
 def field_hook_exemptions() -> tuple[int, ...]:
-    """Hooks `field_hook_naming`'s dedication test still exempts.
-
-    The test    exists so a shared utility used as one field's ``default=`` is not demanded
-    to rename itself after that field, and it is now spent per definition rather
-    than per name -- see §2.4, which states this live count beside the frozen
-    reading from before that repair. Measured by running the gate twice, once
-    with the test disabled.
-    """
     import dataclasses
 
     reported = {dataclasses.astuple(v) for v in field_hook_naming.measure()}
@@ -215,16 +187,6 @@ def field_hook_exemptions() -> tuple[int, ...]:
 
 
 def duck_typed_hooks() -> tuple[int, ...]:
-    """Implementations of the three framework hooks bound by name alone.
-
-    ``_get_report_values``, then ``res.config.settings``'s ``get_values`` and
-    ``set_values``. No interface declares any of them: the framework calls the
-    name on a model it resolved at runtime, so the count of implementations is
-    the size of a contract that has no declaration site. Scoped to this
-    repository (ADR-0033) -- CI checks ``odoo`` out alone, so a figure that
-    counted the sibling checkouts would read one number here and another there.
-    A floor, therefore, not a total.
-    """
     counts = []
     for name in ("_get_report_values", "get_values", "set_values"):
         pattern = re.compile(rf"^\s*def {name}\(", re.MULTILINE)
@@ -251,14 +213,6 @@ ARCHITECTURE = ROOT / "doc" / "architecture" / "ARCHITECTURE.md"
 
 
 def constraint_name_spellings() -> tuple[int, ...]:
-    """How the tree spells a uniqueness constraint's tail: ``_uniq`` vs ``_unique``.
-
-    §2.9.8 tells a new constraint to name its columns and keep the predicate in
-    the tail, and then has to say WHICH predicate spelling, because both are
-    live. The attribute is the PostgreSQL identifier (``TableObject.full_name``
-    is ``{table}_{attr}``), so this counts declarations rather than call sites --
-    there are none.
-    """
     uniq = unique = 0
     for path in naming_vocabulary._python_files(
         [ROOT / r for r in naming_vocabulary.SCAN_ROOTS]
@@ -295,14 +249,6 @@ def constraint_name_spellings() -> tuple[int, ...]:
 
 
 def constraint_po_references() -> tuple[int, ...]:
-    """``base`` catalogues naming ``ir.model``'s uniqueness constraint.
-
-    §2.9.8's point is that a constraint rename silently orphans its message's
-    translations, because they are keyed by the record's external id. The size
-    of that sweep is the figure, so it is measured from the catalogues rather
-    than stated. The ``.pot`` template counts: it carries the same reference and
-    a sweep that misses it puts the stale one back on the next export.
-    """
     reference = "constraint_ir_model_model_uniq"
     i18n = ROOT / "odoo" / "addons" / "base" / "i18n"
     catalogues = [*i18n.glob("*.po"), *i18n.glob("*.pot")]
@@ -315,29 +261,12 @@ def constraint_po_references() -> tuple[int, ...]:
 
 
 def field_record_widgets() -> tuple[int, ...]:
-    """Field widgets taking a live ``RelationalRecord`` prop, **this repo only**.
-
-    Read out of the gate's own ``MEASURED`` block rather than by calling
-    ``js_field_record_surface.measure()``, which shells out to node and espree.
-    Every other figure here is pure Python, and ``tooling`` is in ``pytest.ini``'s
-    ``testpaths`` -- so measuring this one directly would make a Tier 1 run fail
-    on a checkout with no ``node_modules``, in a suite that has nothing to do
-    with JS. The block is not a second copy: ``doc_measured.py`` regenerates it
-    from a live run and ``test_doc_measured.py`` fails when it goes stale, so the
-    chain is tree -> block -> prose with a gate on each hop.
-
-    The repo-scoped half deliberately. The gate's docstring records that this
-    figure was once pinned at 155 from a full workspace against the 111 CI saw:
-    ``_named_roots`` drops an absent checkout silently, so a workspace reading is
-    whatever happened to be on disk, and it fails in the build and nowhere else.
-    """
     source = ROOT / "tooling" / "architecture" / "js_field_record_surface.py"
     block = doc_measured.extract(source.read_text(encoding="utf-8"))
     return (block["own_members"], block["widgets"])
 
 
 def _migration_staging_rule() -> tuple[re.Pattern[str], tuple[str, ...]]:
-    """``(VERSION_RE, stage prefixes)``, read out of ``modules/migration.py``."""
     source = (ROOT / "odoo" / "modules" / "migration.py").read_text(encoding="utf-8")
     found: dict[str, ast.expr] = {}
     for node in ast.walk(ast.parse(source)):
@@ -368,23 +297,6 @@ def _migration_staging_rule() -> tuple[re.Pattern[str], tuple[str, ...]]:
 
 
 def migration_scripts() -> tuple[int, ...]:
-    """Staged migration scripts the loader would collect, in **this repo's** two
-    addon trees, as (``migrations/``, ``upgrades/``, unstaged).
-
-    Selected the way ``modules/migration.py::_scripts_by_version`` selects: a
-    non-recursive ``*.py`` glob inside each directory whose name ``VERSION_RE``
-    matches, ``tests`` excluded. A plain ``find`` over ``*/migrations/*`` answers
-    a larger number by sweeping nested directories the loader never reads.
-
-    The third value is the one that matters and it must stay 0: a script no
-    stage claims is globbed, collected, then dropped without a word.
-
-    ``VERSION_RE`` and ``MIGRATION_STAGES`` are read out of ``migration.py`` by
-    AST rather than imported: that module pulls ``odoo.upgrade``,
-    ``odoo.tools.misc`` and the rest of the framework behind it, which this
-    script cannot afford under ``pytest.ini``'s import stubs. Reading them is
-    still one source of truth; retyping the regex here would be two.
-    """
     version_re, stages = _migration_staging_rule()
     counts = {"migrations": 0, "upgrades": 0}
     unstaged = 0
@@ -445,11 +357,6 @@ FIGURES: tuple[Figure, ...] = (
         _grouped,
     ),
     Figure(
-        # The gate-description table was the last ungated prose in the
-        # directory, and this figure is why the rule now covers it: `mail`'s
-        # suite lost 174 test methods to `e4df7f5569b` alone -- twenty-one
-        # round-numbered hardening files deleted at once -- and the sentence
-        # arguing why the gate is needed still said 866.
         "field_record_widgets",
         GATES,
         re.compile(
@@ -460,10 +367,6 @@ FIGURES: tuple[Figure, ...] = (
         _plain,
     ),
     Figure(
-        # Only the live count. The 342 beside it is ADR-0051's opening
-        # measurement and is frozen there: the argument for the gate rests on
-        # the size of what it found, which no run reproduces now that the debt
-        # is drained to 22.
         "hook_purity_gates",
         GATES,
         re.compile(r"hook\s+at\s+all\s+—\s+\*\*(\d[\d,]*)\*\*\s+are\s+also\s+called"),
@@ -916,8 +819,6 @@ FIGURES: tuple[Figure, ...] = (
     Figure(
         "inverse_spellings",
         GUIDELINES,
-        # The sentence also carries ADR-0049's reading (202 against 37), which is
-        # frozen at the decision and must not be rewritten; only the live pair is.
         re.compile(r"(\d[\d,]*)\s+against\s+(\d[\d,]*)\s+now\s+that\s+the\s+count"),
         field_hook_naming.inverse_spellings,
         _grouped,
@@ -926,9 +827,6 @@ FIGURES: tuple[Figure, ...] = (
         "dispatch_names",
         GUIDELINES,
         re.compile(
-            # `(\d[\d,]*)` would swallow the comma that follows the second
-            # number in this sentence; grouped thousands are spelled out. `\s+`
-            # rather than `\n` so rewrapping the paragraph cannot unpin it.
             r"``odoo/addons/base``\s+carries\s+(\d+(?:,\d{3})*)\s+of\s+this\s+"
             r"repository's\s+(\d+(?:,\d{3})*)"
         ),
@@ -948,9 +846,6 @@ FIGURES: tuple[Figure, ...] = (
     Figure(
         "field_hook_exemptions",
         GUIDELINES,
-        # The frozen reading two paragraphs up (25 / 15, at 24880109a03) is
-        # deliberately NOT matched: changing the test is what made it
-        # un-rederivable. Only the live count is written.
         re.compile(r"\*\*(\d[\d,]*)\*\*\s+hook\s+is\s+exempt\s+today"),
         field_hook_exemptions,
         _grouped,

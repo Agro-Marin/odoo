@@ -1,27 +1,4 @@
 #!/usr/bin/env python3
-"""``self._something()`` whose definition is nowhere in the checkout (ADR-0058).
-
-A call to a private method that no class in this tree defines is one of three
-things: a typo, a method deleted from under its caller, or a reach into a base
-that lives outside the repository. The first two are defects that only fail when
-the branch runs -- which for an error path can be never -- and the third is
-legitimate and finite.
-
-So the third is enumerated rather than guessed. :data:`EXTERNAL` names the
-attributes reached on a receiver whose class this scan cannot see: a stdlib or
-third-party base, or a namedtuple. **An entry there is a claim that the receiver
-is external, so check the call site before adding one** -- "I could not find it"
-is the finding, not the excuse for silencing it.
-
-SCOPE IS ``odoo/`` AND ``addons/`` TOGETHER, and unlike its sibling counters this
-one does NOT exclude test files: 7 of the floored 25 findings sit under `tests/`
-(`addons/sale_mrp/tests/test_sale_mrp_flow.py`, `odoo/tests/suite.py`, …). A test
-calling a method that no longer exists is the same defect as production code
-doing it, and arguably worse, because the test then cannot fail for the reason it
-was written.
-"""
-
-
 from __future__ import annotations
 
 import argparse
@@ -41,23 +18,18 @@ ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_unresolved_calls")
 
 SCOPES = (ROOT / "odoo", ROOT / "addons")
 
-# Attributes reached on an object this scan cannot see the class of: a stdlib or
-# third-party base, or a namedtuple. Each is a call the gate would otherwise report
-# forever, because the definition is real and simply lives outside the checkout.
-# An entry here is a claim that the receiver is external -- check the call site
-# before adding one, since "I could not find it" is the finding, not the excuse.
 EXTERNAL: frozenset[str] = frozenset(
     {
-        "_add_object",  # pypdf writer, subclassed in tools/pdf
-        "_ansi_style",  # werkzeug.serving
-        "_asdict",  # namedtuple
-        "_build_localename",  # locale
-        "_create_stdlib_context",  # ssl
-        "_current_frames",  # sys
-        "_exit",  # os
-        "_formatMessage",  # unittest.TestCase
-        "_getframe",  # sys
-        "_load_region",  # phonenumbers
+        "_add_object",
+        "_ansi_style",
+        "_asdict",
+        "_build_localename",
+        "_create_stdlib_context",
+        "_current_frames",
+        "_exit",
+        "_formatMessage",
+        "_getframe",
+        "_load_region",
     }
 )
 
@@ -83,13 +55,6 @@ def iter_source_files(scopes: tuple[Path, ...] = SCOPES) -> list[Path]:
 
 
 def measure(scopes: tuple[Path, ...] = SCOPES) -> list[UnresolvedCall]:
-    """Every `x._name(...)` whose `_name` this checkout defines nowhere.
-
-    A name counts as defined by a `def`/`class` anywhere in scope, by an attribute
-    assignment (`obj._name = ...`, which is how a slot or a patched-in callable is
-    bound), or by appearing as a string literal (`__slots__`, `getattr`). Those three
-    are what separate a vanished method from a live one reached indirectly.
-    """
     files = iter_source_files(scopes)
     if not files:
         raise RuntimeError(

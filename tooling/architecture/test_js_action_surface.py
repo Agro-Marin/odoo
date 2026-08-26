@@ -1,13 +1,3 @@
-"""Probes for the action-service surface gate.
-
-`test_every_gate_refuses_an_empty_tree` proves this gate says something when it
-is pointed at nothing. These prove it says the *right* thing when pointed at a
-breach — and, just as importantly, that it stays quiet where a naive version of
-it invented findings. The regression in the third test is not hypothetical: the
-gate's first run over the real tree reported eight undeclared members, and all
-eight were Controller members it had attributed to the service.
-"""
-
 import js_action_surface as jas
 import pytest
 
@@ -22,10 +12,6 @@ export const ACTION_MANAGER_SURFACE = [
 """
 
 
-# The real `odoo` scope carries an `addons/` level and the sibling repos do not,
-# and ACTIONS_SUBTREE is spelled against the former. The fixture mirrors that
-# rather than inventing a flat layout, so what the tests assert is what the gate
-# sees in the tree it actually runs on.
 ODOO_PREFIX = "addons/web/static/src"
 SIBLING_PREFIX = "web/static/src"
 
@@ -78,9 +64,6 @@ def test_an_undeclared_reach_through_a_useService_binding_is_caught(tree):
 
 
 def test_a_controller_bound_off_the_service_is_not_the_service(tree):
-    # THE regression this gate shipped with, and the reason for the `(?!\\s*\\.)`
-    # anchor: an unanchored receiver bound `currentController` as if it were the
-    # manager, and every Controller member read through it became a finding.
     tree(
         "some/consumer.js",
         "const currentController = env.services.action.currentController;\n"
@@ -140,8 +123,6 @@ def test_an_absent_sibling_scope_is_skipped_not_failed(tree):
         surface=SURFACE,
         recorded=frozenset(),
     )
-    # CI checks this repo out alone; a missing sibling must not read as clean
-    # coverage of it, so the scope list is what the report names.
     assert findings == []
     assert scanned == 1
     assert scopes == ["odoo"]

@@ -1,35 +1,3 @@
-"""What each consumer checkout reaches inside `@web`, pinned per scope (ADR-0020).
-
-`web` publishes no API. Everything under `static/src` is importable as
-`@web/<path>`, so "the public surface" is not something the addon declares -- it
-is whatever the other checkouts happen to import, and it only ever grows unless
-something records it.
-
-The pin records, per specifier, WHICH consumer scopes reach it::
-
-    @web/core/registry            odoo enterprise agromarin
-    @web/core/translation         odoo enterprise agromarin design-themes
-
-SHRINK-ONLY, AND PER SCOPE, WHICH IS THE WHOLE DESIGN. A run judges only the
-scopes it can see, so this repo's own CI -- which checks it out alone -- validates
-the `odoo` scope and leaves the rest of the pin untouched. A sibling's lane
-re-runs the gate with this checkout beside it and judges its own scope. Growth in
-a scope fails there; SHRINKING the pin needs the full workspace, which is why
-``--update`` refuses anything less.
-
-THE FAILURE MODE IS A SCOPE NOTHING RUNS. Until 2026-08-25 this printed "absent,
-validated in their own CI" over every absent scope unconditionally, which was
-false for `design-themes` -- it had no CI at all -- and its rows had drifted by
-five entries that could not fail anywhere. :mod:`_consumer_scopes` holds the
-per-gate table of which lane actually covers which scope, and the line now says
-either which workflow, or that none does.
-
-`--addon mail` pins the same shape for `@mail`, floored separately: a surface is
-per provider, and one number over both would let growth in one hide a shrink in
-the other.
-"""
-
-
 import argparse
 import json
 import sys
@@ -69,17 +37,6 @@ def specifier_prefix(addon: str = DEFAULT_ADDON) -> str:
 PINNED = Path(__file__).resolve().parent / f"public_surface_{DEFAULT_ADDON}.txt"
 
 CONSUMER_ROOTS = _consumer_scopes.CONSUMER_ROOTS
-# Imported by design-themes files that no bundle loads. This fork dropped
-# `@web/legacy/*` outright and moved translation out of `core/l10n/`, but
-# design-themes is vendored from upstream, where both still exist. The three
-# importers -- theme_common's `old_snippets/` and theme_test_custo -- are
-# declared in no `assets` manifest key and named by no `ir.asset` row (checked
-# against marin190 on 2026-08-22, with theme_common installed), so they are
-# dead files rather than a broken bundle. Accounted here rather than fixed:
-# the drift belongs to the vendored repo, not to this one.
-#: Specifiers imported from outside `web` that resolved to no file. The gate
-#: only ever shrinks this set -- an entry that starts resolving is reported as a
-#: failure -- so empty is its finished state, not a missing one.
 KNOWN_UNRESOLVED: frozenset[str] = frozenset()
 
 

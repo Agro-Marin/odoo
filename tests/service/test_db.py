@@ -1,25 +1,3 @@
-"""Pure-pytest tests for ``odoo.service.db``.
-
-Covers the database service layer without a live database or Odoo module
-loading.
-
-Two classes DO spawn real subprocesses — ``TestDumpStderrDrainIsBounded`` and
-``TestDumpStallSigkillEscalation``.  Both assert that a wedged ``pg_dump``
-cannot hang the server forever, and neither property survives a mock: the first
-needs a grandchild that inherits the stderr pipe and never closes it, the second
-needs a child that really ignores ``SIGTERM``.  A stubbed ``Popen`` returns
-whatever the stub was told to return, which is the belief under test.
-
-They stay here rather than moving to ``tests/process`` because that suite runs
-under ``service_suites.yml``, which is still ``continue-on-error`` — moving them
-would drop two denial-of-service guards from a blocking gate to an advisory one.
-They cost ~2s of the suite's ~7s; revisit if that stops being worth it.
-
-Run with::
-
-    python -m pytest tests/service/test_db.py -v
-"""
-
 import contextlib
 import io
 import os
@@ -42,9 +20,6 @@ from .conftest import fake_pg_connection, fake_pg_cursor
 
 @pytest.fixture(scope="module")
 def db_mod():
-    """Import ``odoo.service.db`` once per session."""
-    # Loaded so `odoo.db.schema` is bound for the monkeypatch in
-    # test_create_empty_database_*; `odoo.service.db` does not import it.
     import odoo.db.schema  # noqa: F401  see comment above
     import odoo.service.db as mod
 
@@ -52,30 +27,11 @@ def db_mod():
 
 
 class _MockConfig(dict):
-    """Test stand-in for ``odoo.tools.config``.
-
-    ``odoo.tools.config`` is a dict-AND-object hybrid: callers use both
-    ``config["list_db"]`` and ``config.filestore(name)``.  A plain dict
-    sufficed for the management decorator (which only needs ``["list_db"]``)
-    but ``restore_db`` and friends call ``.filestore(...)``.  Subclassing
-    ``dict`` keeps the existing dict semantics while exposing ``filestore``
-    as an actual method.  Returns paths under ``/nonexistent/`` so any
-    ``Path(...).exists()`` check returns False — which is what every
-    pre-flight in these tests wants.
-    """
-
     def filestore(self, name: str) -> str:
         return f"/nonexistent/filestore/{name}"
 
 
 class _FlippingListDb(_MockConfig):
-    """``config`` whose ``list_db`` is ``True`` once, then ``False``.
-
-    Simulates the flag being turned off — by an operator or a config reload —
-    between the ``@check_db_management_enabled`` gate and the rollback that runs
-    much later, which is the window the internal-drop rule exists to close.
-    """
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.reads = 0
@@ -89,7 +45,6 @@ class _FlippingListDb(_MockConfig):
 
 @pytest.fixture
 def bypass_db_mgmt(db_mod):
-    """Patch ``odoo.tools.config`` so the management-enabled decorator passes."""
     import odoo.tools
 
     with patch.object(odoo.tools, "config", _MockConfig({"list_db": True})):
@@ -98,7 +53,6 @@ def bypass_db_mgmt(db_mod):
 
 @pytest.fixture
 def zip_dump():
-    """A minimal, valid zip file containing ``dump.sql`` and no filestore."""
     with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
         with zipfile.ZipFile(f, "w", compression=zipfile.ZIP_DEFLATED) as zf:
             zf.writestr("dump.sql", "-- empty sql dump\n")
@@ -108,8 +62,6 @@ def zip_dump():
 
 
 class TestRestoreDbPreFlight:
-    """``restore_db`` rejects a pre-existing database before touching anything."""
-
     def test_raises_when_db_already_exists(self, db_mod, bypass_db_mgmt):
         with (
             patch.object(
@@ -125,15 +77,7 @@ class TestRestoreDbPreFlight:
 
 
 class TestRestoreDbSubprocessFailure:
-    """When the pg command fails, the real stderr must surface and the empty
-    database must be cleaned up."""
-
     def _make_patches(self, db_mod, pg_stderr: str):
-        """Return a dict of pre-configured patches for a failing pg run.
-
-        The cleanup path calls the internal ``_drop_database`` helper
-        (bypasses the ``list_db`` gate) rather than ``exp_drop``.
-        """
         return {
             "exp_db_exist": patch.object(
                 db_mod.restore, "exp_db_exist", return_value=False
@@ -176,8 +120,6 @@ class TestRestoreDbSubprocessFailure:
     def test_pg_stderr_not_swallowed_into_generic_message(
         self, db_mod, bypass_db_mgmt, zip_dump
     ):
-        """Regression: before the fix, RuntimeError only said 'Couldn't restore database'
-        with no pg detail, making silent failures impossible to diagnose."""
         pg_msg = 'ERROR: column "foo" of relation "bar" does not exist'
         patches = self._make_patches(db_mod, pg_msg)
 
@@ -193,8 +135,6 @@ class TestRestoreDbSubprocessFailure:
         assert pg_msg in str(exc_info.value)
 
     def test_stderr_captured_not_devnull(self, db_mod, bypass_db_mgmt, zip_dump):
-        """Regression: before the fix, stderr=subprocess.STDOUT + stdout=DEVNULL
-        discarded all pg output. Verify subprocess.run is called with stderr=PIPE."""
         patches = self._make_patches(db_mod, "any error")
 
         with (
@@ -217,12 +157,6 @@ class TestRestoreDbSubprocessFailure:
     def test_restore_creates_target_from_bare_template(
         self, db_mod, bypass_db_mgmt, zip_dump
     ):
-        """The restore target must be created from template0 with unaccent
-        forced indexable — NOT from the configured db_template.  A dump is
-        self-contained: any object a populated template pre-creates (e.g.
-        orm_signaling_*) collides with the dump's own copy and aborts the
-        replay under ON_ERROR_STOP; and pg_dump cannot carry the IMMUTABLE
-        marking of unaccent, which the dump's expression indexes may need."""
         patches = self._make_patches(db_mod, "any error")
 
         with (
@@ -240,9 +174,6 @@ class TestRestoreDbSubprocessFailure:
 
 
 class TestRestoreDbCleanupOnAnyFailure:
-    """The empty database is dropped even when the failure is not from the pg
-    tool — e.g. the zip is unreadable or the registry load fails."""
-
     def test_empty_db_dropped_when_zip_is_invalid(self, db_mod, bypass_db_mgmt):
         with tempfile.NamedTemporaryFile(suffix=".zip") as f:
             f.write(b"not a zip file at all")
@@ -254,12 +185,6 @@ class TestRestoreDbCleanupOnAnyFailure:
                 patch.object(db_mod.restore, "_create_empty_database"),
                 patch.object(db_mod.lifecycle, "_drop_database") as mock_drop,
             ):
-                # Not merely "something raised": a non-zip is treated as a
-                # custom-format dump, so the failure must come back as the
-                # wrapped RuntimeError carrying pg_restore's own diagnosis.
-                # A bare ``pytest.raises(Exception)`` here was satisfied by any
-                # AttributeError a refactor might introduce — verified by
-                # injecting one, which left this test green.
                 with pytest.raises(RuntimeError, match="Couldn't restore database"):
                     db_mod.restore_db("newdb", invalid_zip)
 
@@ -288,11 +213,6 @@ class TestRestoreDbCleanupOnAnyFailure:
 
 
 class TestRestoreDbWallClockTimeout:
-    """``restore_db`` bounds the psql/pg_restore subprocess with a wall-clock
-    timeout, mirroring ``dump_db``.  A stall must surface as a typed
-    ``RuntimeError`` and the half-restored database must be dropped — not
-    block the worker until the master watchdog SIGKILLs it."""
-
     def test_timeout_raises_runtimeerror_and_drops_db(
         self, db_mod, bypass_db_mgmt, zip_dump
     ):
@@ -330,15 +250,6 @@ class TestRestoreDbWallClockTimeout:
 
 
 class TestDumpDbNameValidation:
-    """``dump_db`` validates the database name *before* building the pg_dump
-    argv.  Without it, a flag-shaped name (``--version``, ``-x``) is parsed by
-    pg_dump as an option rather than a database — argument injection.  The
-    custom format path has no ``db_connect`` ahead of it to reject the name,
-    so the guard must live in ``dump_db`` itself.
-
-    (``dump`` is the non-zip format's real name — the one the web database
-    manager and ``BACKUP_FORMATS`` use; it maps to ``pg_dump --format=c``.)"""
-
     @pytest.mark.parametrize("bad_name", ["--version", "-x", "bad name", ".hidden"])
     def test_rejects_flag_shaped_name_before_subprocess(
         self, db_mod, bypass_db_mgmt, bad_name
@@ -371,9 +282,6 @@ class TestDumpDbNameValidation:
 
 
 class TestDbNameValidation:
-    """Database name validation is enforced at the service layer, not only the
-    HTTP controller, so direct RPC callers are also protected."""
-
     @pytest.mark.parametrize(
         "bad_name",
         [
@@ -415,41 +323,20 @@ class TestDbNameValidation:
         with pytest.raises(ValueError, match="Invalid database name"):
             db_mod._duplicate_database("source_db", bad_name)
 
-    # ``DBNAME_PATTERN`` itself is exercised by ``TestDbnamePattern`` below —
-    # this class is about the ENTRY POINTS that consult it.  A near-duplicate
-    # spot-check lived here, 1200 lines from the real one and with an
-    # overlapping-but-different name list, so a pattern change had two places to
-    # be reconciled and neither said it was the authority.
-
 
 class TestRestoreDbTypeCheck:
-    """restore_db rejects non-str db argument via TypeError, not assert.
-
-    assert is a no-op under ``python -O`` (optimized mode); production
-    deployments commonly use -O, making the original assert useless.
-    """
-
     @pytest.mark.parametrize("bad_arg", [42, None, b"bytes", 2.5, ["list"]])
     def test_raises_type_error(self, db_mod, bypass_db_mgmt, bad_arg):
         with pytest.raises(TypeError, match="db must be a str"):
             db_mod.restore_db(bad_arg, "/dev/null")
 
     def test_str_passes_type_check(self, db_mod, bypass_db_mgmt):
-        """A str argument must get past the type check (fail on DB existence)."""
         with patch.object(db_mod.restore, "exp_db_exist", return_value=True):
             with pytest.raises(RuntimeError, match="already exists"):
                 db_mod.restore_db("valid_str", "/dev/null")
 
 
 class _FakePgDumpPopen:
-    """Minimal ``Popen`` stand-in for the streaming pg_dump runner.
-
-    ``_run_pg_dump_streaming`` copies ``stdout`` to the destination, drains
-    ``stderr`` on a sibling thread, then ``wait()``s — so a fake only needs
-    readable pipes, a return code, and the signal methods the stall timer may
-    reach for.
-    """
-
     def __init__(self, returncode: int = 0, stderr: bytes = b"", stdout: bytes = b""):
         self.returncode = returncode
         self.stdout = io.BytesIO(stdout)
@@ -468,17 +355,6 @@ class _FakePgDumpPopen:
 
 
 class TestDumpDbZipStderr:
-    """dump_db zip format captures pg_dump stderr so failures are diagnosable.
-
-    Previously stderr=subprocess.STDOUT + stdout=DEVNULL discarded all pg_dump
-    diagnostic output; CalledProcessError carried no useful message.
-
-    Driven through ``Popen`` rather than ``subprocess.run``: the zip path streams
-    pg_dump's stdout into the archive member instead of staging an uncompressed
-    ``dump.sql``.  The property under test is unchanged — a pg_dump failure must
-    still surface carrying pg_dump's own stderr text.
-    """
-
     def _patches(self, db_mod, returncode: int, stderr: bytes) -> list:
         mock_db, _mock_cr = fake_pg_connection()
         return [
@@ -513,7 +389,6 @@ class TestDumpDbZipStderr:
         assert 'role "odoo" does not exist' in str(exc_info.value)
 
     def test_subprocess_called_with_stderr_pipe(self, db_mod, bypass_db_mgmt):
-        """Regression: verify stderr=PIPE is used, not stderr=STDOUT piped to DEVNULL."""
         with ExitStack() as stack:
             for p in self._patches(db_mod, returncode=1, stderr=b"err")[:-1]:
                 stack.enter_context(p)
@@ -533,11 +408,6 @@ class TestDumpDbZipStderr:
     def test_zip_pg_dump_no_longer_writes_an_uncompressed_dump_to_disk(
         self, db_mod, bypass_db_mgmt
     ):
-        """No ``--file=`` argument: the SQL goes to stdout, into the deflater.
-
-        Staging it on disk first is what made a backup cost temp space
-        proportional to the database rather than to the compressed archive.
-        """
         with ExitStack() as stack:
             for p in self._patches(db_mod, returncode=0, stderr=b"")[:-1]:
                 stack.enter_context(p)
@@ -553,22 +423,6 @@ class TestDumpDbZipStderr:
 
 
 class TestDumpDbZipLargeSqlMember:
-    """A ``dump.sql`` past the ZIP64 threshold must still produce an archive.
-
-    Streaming into a member through ``ZipFile.open(..., "w")`` commits the local
-    header before any data is read, so — unlike ``ZipFile.write()``, which stats
-    its source first — zipfile cannot promote the member to ZIP64 on its own:
-    ``_open_to_write`` decides from ``force_zip64`` alone, the declared
-    ``file_size`` still being 0.  Without the flag the dump therefore dies at
-    member close with "File size too large, try using force_zip64" — but only
-    once the database outgrows 4 GiB, and only after the whole dump has already
-    run.  ``allowZip64`` on the archive covers the central directory, not this.
-
-    ``ZIP64_LIMIT`` is shrunk rather than dumping 4 GiB of fake SQL:
-    ``_ZipWriteFile.close`` reads it as a module global, so a tiny limit drives
-    exactly the branch a genuinely oversized dump reaches.
-    """
-
     def _patches(self, db_mod, stdout: bytes, zip64_limit: int) -> list:
         mock_db, _mock_cr = fake_pg_connection()
         return [
@@ -597,7 +451,6 @@ class TestDumpDbZipLargeSqlMember:
             assert zf.read("dump.sql") == sql
 
     def test_sql_member_under_the_limit_is_unaffected(self, db_mod, bypass_db_mgmt):
-        """The flag must not disturb the ordinary, comfortably-small case."""
         sql = b"-- small dump\n"
         with ExitStack() as stack:
             for p in self._patches(db_mod, sql, zip64_limit=zipfile.ZIP64_LIMIT):
@@ -609,11 +462,6 @@ class TestDumpDbZipLargeSqlMember:
 
 
 class TestDumpDbZipManifestBeforeFilestore:
-    """The zip dump writes the manifest (which opens a DB cursor) BEFORE the
-    filestore ``copytree``, so an unreachable/bogus DB fails fast instead of
-    after a potentially multi-GB copy.
-    """
-
     def test_unreachable_db_fails_before_filestore_copy(self, db_mod, tmp_path):
         import psycopg
 
@@ -653,15 +501,6 @@ class TestDumpDbZipManifestBeforeFilestore:
 
 
 class TestDumpDbWallClockTimeout:
-    """The blocking dump paths bound pg_dump with a wall-clock timeout.
-
-    Before the fix only the streaming (CLI-only) custom-format path was
-    bounded; the common web-backup path (zip, ``stream=None``) used a plain
-    ``subprocess.run`` with no timeout, so a hung pg_dump blocked the worker
-    indefinitely.  All blocking paths now pass ``timeout=`` and translate
-    ``TimeoutExpired`` into a typed ``RuntimeError``.
-    """
-
     def _patches(self, db_mod, run_side_effect) -> list:
         mock_db, _mock_cr = fake_pg_connection()
         return [
@@ -675,17 +514,6 @@ class TestDumpDbWallClockTimeout:
         ]
 
     def test_zip_path_arms_the_wall_clock_stall_timer(self, db_mod, bypass_db_mgmt):
-        """The zip path is bounded — now by the streaming runner's stall timer.
-
-        It used to be a ``subprocess.run(timeout=)`` on a blocking pg_dump
-        writing ``--file=dump.sql``.  Streaming the SQL into the archive replaced
-        that with :func:`_run_pg_dump_streaming`'s ``threading.Timer``, which
-        SIGTERMs (then SIGKILLs) a stalled pg_dump.  What must not regress is
-        that the ceiling is still ``_pg_dump_total_timeout()``, so assert the
-        armed interval rather than the mechanism's shape.  The timer's own
-        SIGTERM/SIGKILL escalation is covered against real subprocesses by
-        ``TestPgDumpStall*``.
-        """
         armed = []
 
         class _SpyTimer(threading.Timer):
@@ -709,12 +537,9 @@ class TestDumpDbWallClockTimeout:
         )
 
     def test_zip_path_timeout_raises_runtime_error(self, db_mod, bypass_db_mgmt):
-        """A stalled-and-killed pg_dump on the zip path is a typed RuntimeError."""
         proc = _FakePgDumpPopen(returncode=-15, stderr=b"")
 
         class _FiringTimer(threading.Timer):
-            """Fire the stall callback synchronously, as a real stall would."""
-
             def start(self):
                 self.function()
 
@@ -747,21 +572,7 @@ class TestDumpDbWallClockTimeout:
 
 
 class TestDumpWaitTimeoutGuard:
-    """A malformed ``ODOO_PG_DUMP_WAIT_TIMEOUT`` must not break a dump.
-
-    The post-EOF wait inside ``_run_pg_dump_streaming``'s ``finally`` block
-    once parsed this env var with a bare ``float()`` — a malformed value
-    raised ``ValueError`` from the finally, crashing a *successful* dump and
-    masking the real error of a *failed* one.  It is now parsed through the
-    shared ``service._env.env_float`` guard.
-    """
-
     def test_malformed_wait_timeout_does_not_crash_streaming_dump(self, db_mod):
-        """A successful streaming dump must survive a malformed wait-timeout env.
-
-        Exercises the real ``_run_pg_dump_streaming`` finally block with a
-        trivial subprocess (no DB, no pg_dump needed).
-        """
         cmd = [
             sys.executable,
             "-c",
@@ -773,13 +584,6 @@ class TestDumpWaitTimeoutGuard:
         assert out.getvalue() == b"dump-bytes"
 
     def test_malformed_wait_timeout_does_not_mask_copy_error(self, db_mod):
-        """A real copy error must propagate, not be replaced by the parse error.
-
-        When the destination stream raises mid-copy, that ``RuntimeError`` is
-        what the caller needs to see; the ``finally`` must not overwrite it
-        with a ``ValueError`` from parsing the (malformed) wait-timeout env var.
-        """
-
         class _ExplodingStream:
             def write(self, _data: bytes) -> int:
                 raise RuntimeError("disk-full-during-copy")
@@ -793,20 +597,6 @@ class TestDumpWaitTimeoutGuard:
 
 
 class TestDumpStreamingClosesItsPipes:
-    """``_run_pg_dump_streaming`` must close BOTH pipes it opened.
-
-    Only ``proc.stdout`` was closed; ``Popen`` closes neither by itself, so the
-    stderr pipe was left to the garbage collector.  On the SUCCESS path
-    refcounting hides that (``proc`` dies with the frame), which is why the fd
-    count never grew and the only symptom was a ``ResourceWarning`` per dump.
-
-    On the FAILURE path it does not hide it: the raised exception's traceback
-    pins this frame — and ``proc`` with it — for as long as the caller holds the
-    exception, which is what the HTTP error path and ``_logger.exception`` do.
-    Measured on this GIL build before the fix: 10 failed streaming dumps whose
-    errors were still referenced retained 10 pipe fds.
-    """
-
     def test_no_resource_warning_and_both_pipes_closed(self, db_mod):
         cmd = [
             sys.executable,
@@ -836,14 +626,6 @@ class TestDumpStreamingClosesItsPipes:
         assert not leaked, f"unclosed file(s): {[str(w.message) for w in leaked]}"
 
     def test_failed_dump_does_not_retain_fds_while_error_is_held(self, db_mod):
-        """The failure path is where the leak is actually observable.
-
-        The traceback of the raised error keeps this frame — and the ``Popen``
-        — alive for as long as the caller references the exception, so
-        refcounting does NOT reclaim the pipe.  This is the real regression
-        guard; the success-path test above only catches the ResourceWarning.
-        """
-
         class _ExplodingStream:
             def write(self, _data: bytes) -> int:
                 raise RuntimeError("disk-full-during-copy")
@@ -875,23 +657,10 @@ class TestDumpStreamingClosesItsPipes:
 
 
 class TestDumpStderrDrainIsBounded:
-    """A grandchild holding the stderr pipe must not hang the dump forever.
-
-    The stderr drain thread was joined with NO timeout.  pg_dump's stderr can be
-    inherited by a process that outlives it (a wrapper script, a sudo/ssh hop in
-    a remote-dump setup), so the drain never sees EOF and the ``finally`` blocked
-    indefinitely — silently defeating the wall-clock ceiling this whole function
-    is built around, *after* the stall timer had already done its job.
-    """
-
     def test_orphan_holding_stderr_does_not_block_the_dump(
         self, db_mod, monkeypatch, tmp_path
     ):
         monkeypatch.setattr(db_mod.dump, "_STDERR_DRAIN_JOIN_S", 1.0)
-        # The grandchild is orphaned to init by design -- that is the condition
-        # under test -- so it cannot be reaped by the dump.  It records its pid
-        # for the test to kill instead; left to time out on its own it outlives
-        # the run and overlaps the next one.
         pidfile = tmp_path / "grandchild.pid"
         grandchild = (
             f"import os, time; open({str(pidfile)!r}, 'w').write(str(os.getpid()));"
@@ -929,16 +698,6 @@ class TestDumpStderrDrainIsBounded:
 
 
 class TestDumpStallSigkillEscalation:
-    """A stalled pg_dump that IGNORES SIGTERM must still be SIGKILLed.
-
-    The stall ``Timer`` used to send only SIGTERM; the SIGKILL escalation lived
-    in the ``finally`` block, reachable only AFTER ``copyfileobj`` returns (i.e.
-    after stdout EOFs).  A child wedged with stdout held open never EOFs on a
-    SIGTERM it ignores, so the copy — and the escalation — blocked forever,
-    degrading the documented hard wall-clock ceiling to a best-effort signal.
-    ``_kill_on_stall`` now escalates to SIGKILL itself after a grace period.
-    """
-
     def test_sigterm_ignoring_dump_is_sigkilled_and_does_not_hang(
         self, db_mod, monkeypatch
     ):
@@ -973,12 +732,6 @@ class TestDumpStallSigkillEscalation:
 
 
 class TestDumpDbDumpFormat:
-    """dump_db dump format detects pg_dump failure in both stream paths.
-
-    Previously the stream=True path ignored proc.returncode entirely, and the
-    stream=None path returned a raw proc.stdout pipe with no error detection.
-    """
-
     def _make_mock_proc(self, stderr: bytes, returncode: int) -> MagicMock:
         proc = MagicMock()
         proc.stdout = io.BytesIO(b"partial output")
@@ -1034,7 +787,6 @@ class TestDumpDbDumpFormat:
                 db_mod.dump_db("testdb", None, "dump")
 
     def test_no_stream_path_returns_seekable_tempfile(self, db_mod, bypass_db_mgmt):
-        """Regression: the old code returned proc.stdout (a pipe), not a seekable file."""
         with (
             patch("odoo.service.db.dump.find_pg_tool", return_value="/usr/bin/pg_dump"),
             patch("odoo.service.db.dump.exec_pg_environ", return_value={}),
@@ -1052,16 +804,7 @@ class TestDumpDbDumpFormat:
 
 
 class TestCheckFaketimeMode:
-    """``_check_faketime_mode`` injects a clock-shifting ``public.now()`` SQL
-    function — test-only infrastructure that must never fire in production.
-
-    Regression: gated ONLY on the ``ODOO_FAKETIME_TEST_MODE`` env var. An
-    accidental export in a systemd unit would have silently corrupted every
-    timestamp in the DB. The fix requires BOTH the env var AND ``test_enable``.
-    """
-
     def test_noop_when_env_var_absent(self, db_mod):
-        """Without the env var, the function must not touch the DB at all."""
         import os
 
         import odoo.tools
@@ -1076,7 +819,6 @@ class TestCheckFaketimeMode:
         mock_connect.assert_not_called()
 
     def test_noop_when_test_enable_off_with_env_var(self, db_mod, caplog):
-        """Env var set but --test-enable off → refuse, log a warning, no DB write."""
         import odoo.tools
 
         with (
@@ -1093,7 +835,6 @@ class TestCheckFaketimeMode:
         assert any("Refusing to install faketime" in m for m in caplog.messages)
 
     def test_noop_when_db_not_in_config(self, db_mod):
-        """Env var + test_enable, but db not listed: no DB write."""
         import odoo.tools
 
         with (
@@ -1108,7 +849,6 @@ class TestCheckFaketimeMode:
         mock_connect.assert_not_called()
 
     def test_active_when_all_gates_pass(self, db_mod):
-        """Env var + test_enable + db listed: the DB write path is taken."""
         import datetime
 
         import odoo.tools
@@ -1132,17 +872,7 @@ class TestCheckFaketimeMode:
 
 
 class TestCreateEmptyDatabaseTOCTOU:
-    """``_create_empty_database`` must let PG be the source of truth for existence.
-
-    Regression: the prior ``SELECT datname ... / CREATE DATABASE`` pair was
-    racy — two concurrent callers could both pass the check and one got a
-    raw ``psycopg.errors.DuplicateDatabase`` instead of the canonical
-    ``DatabaseExists``. The fix removes the pre-flight query and translates
-    PG's 42P04 error directly.
-    """
-
     def test_duplicate_database_translates_to_databaseexists(self, db_mod):
-        """A PG DuplicateDatabase error must surface as DatabaseExists."""
         import psycopg
 
         import odoo.tools
@@ -1161,16 +891,6 @@ class TestCreateEmptyDatabaseTOCTOU:
                 db_mod._create_empty_database("x")
 
     def test_creation_is_the_first_statement_issued(self, db_mod):
-        """``CREATE DATABASE`` *is* the existence check, so nothing may run
-        before it.
-
-        Replaces a source-text assertion that ``"FROM pg_database"`` did not
-        appear.  That only recognised the one spelling the original bug used —
-        a pre-flight written against ``pg_catalog.pg_database``, or as a
-        ``datname`` lookup through any other relation, reintroduces exactly the
-        same race and would have gone unnoticed.  Observing the statement
-        stream catches a pre-flight query however it is written.
-        """
         import odoo.tools
 
         executed = []
@@ -1198,25 +918,8 @@ class TestCreateEmptyDatabaseTOCTOU:
 
 
 class TestRestoreDbZipSlip:
-    """``restore_db`` must refuse to process an archive member that escapes
-    the extraction directory, even if the stdlib's ``extractall`` mangles
-    the filename to stay in-bounds.
-
-    Regression: the defense previously relied entirely on Python 3.6+
-    behavior stripping ``..`` components. An explicit post-extract check
-    pins the invariant to THIS file, not the stdlib version.
-
-    A companion test asserted ``"is_relative_to"`` appeared in
-    ``inspect.getsource(restore_db)``.  It was removed: deleting the guard
-    already fails all four cases below, so it detected nothing they did not,
-    while extracting the loop into a helper — the same refactor this module
-    applied to ``_rollback_new_database`` — failed it with the behaviour
-    unchanged.
-    """
-
     @pytest.fixture
     def malicious_zip(self):
-        """Factory: a zip whose second member has an attacker-chosen name."""
         made = []
 
         def _make(escaping_name: str) -> str:
@@ -1244,11 +947,6 @@ class TestRestoreDbZipSlip:
     def test_escaping_member_is_refused_behaviorally(
         self, db_mod, bypass_db_mgmt, malicious_zip, escaping_name
     ):
-        """A real archive member that escapes the extraction dir must raise —
-        not merely have a matching string in the source.  Reaches the actual
-        namelist() check; ``_create_empty_database`` is stubbed so the guard
-        is exercised before any DB/psql work, and ``_drop_database`` records
-        that the half-built DB is rolled back."""
         with (
             patch.object(db_mod.restore, "exp_db_exist", return_value=False),
             patch.object(db_mod.restore, "_create_empty_database"),
@@ -1262,15 +960,6 @@ class TestRestoreDbZipSlip:
 
 
 class TestExpRestoreBase64Decoder:
-    """``exp_restore`` decodes a base64 body in fixed chunks, tolerating
-    whitespace at any offset (76-col line wraps, leading/trailing blanks).
-
-    Regression: chunk boundaries landing mid-4-char group on a wrapped body
-    used to corrupt or crash the decode.  These tests capture the bytes written
-    to the temp file (via a stubbed ``restore_db``) and assert an exact
-    round-trip — the decoder is the only logic under test, so no DB is needed.
-    """
-
     @staticmethod
     def _decode_via_exp_restore(db_mod, b64_text: str) -> bytes:
         captured = {}
@@ -1291,8 +980,6 @@ class TestExpRestoreBase64Decoder:
         assert self._decode_via_exp_restore(db_mod, b64) == payload
 
     def test_wrapped_and_padded_whitespace_round_trips(self, db_mod, bypass_db_mgmt):
-        """Whitespace injected mid-stream (incl. across the 8192-char chunk
-        boundary) and around the body must not corrupt the decoded bytes."""
         import base64
 
         payload = bytes((i * 13) % 256 for i in range(10000))
@@ -1303,22 +990,7 @@ class TestExpRestoreBase64Decoder:
 
 
 class TestExpDumpMemory:
-    """``exp_dump`` must not materialise the raw dump + encoded output + str
-    simultaneously — a 4 GB DB used to peak at ~16 GB before returning.
-
-    Regression: switched from ``b64encode(t.read())`` to a chunk loop.
-    """
-
     def test_dump_is_streamed_in_bounded_reads(self, db_mod, bypass_db_mgmt):
-        """No single read may pull the whole dump into memory.
-
-        Observes the reads the function actually issues.  The previous version
-        walked the AST for a ``read`` call with no argument; ``t.read(-1)``
-        slurps the entire file just the same and has an argument, so the
-        regression could return in the one spelling the check could not see —
-        verified against this test.
-        """
-
         def read_sizes_for(dump_bytes):
             sizes = []
             real_tempfile = tempfile.TemporaryFile
@@ -1362,7 +1034,6 @@ class TestExpDumpMemory:
         )
 
     def test_dump_output_matches_b64encode_of_raw(self, db_mod, bypass_db_mgmt):
-        """Correctness: chunked encode must produce the same bytes as the single-call form."""
         import base64
 
         payload = b"hello world " * 1000
@@ -1379,7 +1050,6 @@ class TestExpDumpMemory:
         assert encoded == base64.b64encode(payload).decode("ascii")
 
     def test_dump_accepts_backup_format_kwarg(self, db_mod, bypass_db_mgmt):
-        """The parameter was renamed from ``format`` (builtin) to ``backup_format``."""
         with (
             patch.object(db_mod.listing, "list_dbs", return_value=["testdb"]),
             patch.object(db_mod.dump, "dump_db"),
@@ -1388,9 +1058,6 @@ class TestExpDumpMemory:
 
 
 class TestCheckDbExposed:
-    """The shared gate raises ``AccessDenied`` for a db outside ``list_dbs(True)``
-    and logs a warning naming it; it is a guard (returns None), not a predicate."""
-
     def test_raises_access_denied_for_unlisted_db(self, db_mod):
         import odoo.exceptions
 
@@ -1414,8 +1081,6 @@ class TestCheckDbExposed:
         assert any("secret_db" in m for m in caplog.messages)
 
     def test_consults_list_dbs_with_force(self, db_mod):
-        """Uses ``list_dbs(True)`` so the allowlist is enforced even when
-        ``list_db`` is toggled off — the gate can't be bypassed that way."""
         with patch.object(
             db_mod.listing, "list_dbs", return_value=["exposed"]
         ) as mock_list:
@@ -1424,17 +1089,6 @@ class TestCheckDbExposed:
 
 
 class TestListDbsConfiguredNamesAreAnAssertion:
-    """``-d`` is an operator assertion, not a check that the database exists.
-
-    With ``db_name`` set and no ``dbfilter``, ``list_dbs`` returns the configured
-    names verbatim and never touches ``pg_database`` -- the fast path exists so a
-    pinned deployment needs no connection to ``postgres`` to answer at all. The
-    consequence is that ``check_db_exposed`` admits a name whose database was
-    dropped. That is inherited upstream behaviour and deliberate; these tests
-    pin the contract so the next reader does not have to re-derive which gate is
-    loose and which is not.
-    """
-
     def test_configured_names_are_returned_without_consulting_the_catalogue(
         self, db_mod
     ):
@@ -1473,14 +1127,11 @@ class TestListDbsConfiguredNamesAreAnAssertion:
             patch.object(odoo.db, "db_connect") as connect,
         ):
             assert db_mod.check_db_exposed("definitely_not_a_db_xyz") is None
-            # ...and a real database that is NOT in -d is still refused.
             with pytest.raises(odoo.exceptions.AccessDenied):
                 db_mod.check_db_exposed("some_other_real_db")
         connect.assert_not_called()
 
     def test_rpc_db_exist_does_not_inherit_that_looseness(self, db_mod):
-        """It ends at ``exp_db_exist``, which opens a connection, so a dead name
-        answers False even though it passes the membership test."""
         import odoo.tools
 
         with (
@@ -1501,8 +1152,6 @@ class TestListDbsConfiguredNamesAreAnAssertion:
 
 
 class TestExpDumpAllowlistGate:
-    """``exp_dump`` refuses a source outside the allowlist before dumping."""
-
     def test_rejects_db_outside_allowlist(self, db_mod, bypass_db_mgmt):
         import odoo.exceptions
 
@@ -1532,9 +1181,6 @@ class TestExpDumpAllowlistGate:
 
 
 class TestExpMigrateDatabasesAllowlistGate:
-    """``exp_migrate_databases`` rejects the WHOLE call if any db is unexposed,
-    before migrating any of them (no partial run)."""
-
     def test_rejects_when_any_db_outside_allowlist(self, db_mod, bypass_db_mgmt):
         import odoo.exceptions
 
@@ -1566,10 +1212,6 @@ class TestExpMigrateDatabasesAllowlistGate:
 
 
 class TestExpRenameAllowlistGate:
-    """``exp_rename`` gates ``old_name`` (source) through the allowlist and
-    delegates to the ungated ``_rename_database``; ``new_name`` (target) is
-    create-like and not checked."""
-
     def test_rejects_old_name_outside_allowlist(self, db_mod, bypass_db_mgmt):
         import odoo.exceptions
 
@@ -1603,8 +1245,6 @@ class TestExpRenameAllowlistGate:
         mock_inner.assert_called_once_with("exposed", "brand_new_target")
 
     def test_internal_helper_does_not_consult_allowlist(self, db_mod):
-        """``_rename_database`` must never call ``list_dbs`` — the CLI/rollback
-        path depends on renaming a source that need not be exposed."""
         with patch.object(db_mod.listing, "list_dbs") as mock_list:
             with pytest.raises(ValueError):
                 db_mod._rename_database("any_unexposed", "bad name")
@@ -1612,10 +1252,6 @@ class TestExpRenameAllowlistGate:
 
 
 class TestExpDuplicateAllowlistGate:
-    """``exp_duplicate_database`` gates ``db_original_name`` (source) and
-    delegates to the ungated ``_duplicate_database``; ``db_name`` (target) is
-    create-like and not checked."""
-
     def test_rejects_source_outside_allowlist(self, db_mod, bypass_db_mgmt):
         import odoo.exceptions
 
@@ -1651,7 +1287,6 @@ class TestExpDuplicateAllowlistGate:
         mock_inner.assert_called_once()
 
     def test_internal_helper_does_not_consult_allowlist(self, db_mod):
-        """``_duplicate_database`` must never call ``list_dbs``."""
         with patch.object(db_mod.listing, "list_dbs") as mock_list:
             with pytest.raises(ValueError):
                 db_mod._duplicate_database("any_unexposed", "bad name")
@@ -1659,30 +1294,9 @@ class TestExpDuplicateAllowlistGate:
 
 
 class TestRestoreDbCleanupHelper:
-    """``restore_db`` rollback path must use ``_drop_database`` directly,
-    bypassing the ``@check_db_management_enabled`` decorator that guards
-    ``exp_drop``.
-
-    Regression: a runtime toggle of ``list_db`` between the initial
-    check and cleanup would orphan the empty database.
-    """
-
     def test_rollback_survives_list_db_being_turned_off_mid_restore(
         self, db_mod, zip_dump
     ):
-        """The regression, driven rather than read.
-
-        ``list_db`` reads ``True`` at ``restore_db``'s gate and ``False``
-        everywhere after — an operator flipping the flag, or a config reload,
-        during a long restore.  A rollback routed through ``exp_drop`` re-enters
-        ``@check_db_management_enabled``, raises ``AccessDenied`` inside the
-        cleanup, and leaves the half-built database behind forever.
-
-        Replaces a pair of ``inspect.getsource`` scans for the literal
-        ``exp_drop(`` at the start of a line.  Those missed any call not written
-        flush against the indent — ``rc = exp_drop(name)``, a wrapper, an alias —
-        and said nothing about whether the rollback actually completes.
-        """
         config = _FlippingListDb({"list_db": True})
         import odoo.tools
 
@@ -1706,8 +1320,6 @@ class TestRestoreDbCleanupHelper:
         )
 
     def test_rollback_does_not_re_enter_the_rpc_verb(self, db_mod, zip_dump):
-        """``exp_drop`` is the gated RPC entry point; the internal rollback must
-        not call it even when the gate would currently pass."""
         with (
             patch.object(db_mod.restore, "exp_db_exist", return_value=False),
             patch.object(db_mod.restore, "_create_empty_database"),
@@ -1731,27 +1343,8 @@ class TestRestoreDbCleanupHelper:
 
 
 class TestDropDatabaseRetry:
-    """``_drop_database`` retries DROP on ``ObjectInUse``.
-
-    Regression: a new HTTP request or cron tick can open a connection between
-    ``pg_terminate_backend`` and ``DROP DATABASE``. Before the fix, PG's
-    ``ObjectInUse`` (sqlstate 55006) surfaced immediately as RuntimeError
-    with no retry. The fix re-runs terminate + drop up to 3 times.
-    """
-
     @pytest.fixture
     def drop_env(self, db_mod, tmp_path):
-        """Shared setup: patches list_dbs, Registry, db_connect, filestore.
-
-        ``fetchone=(1,)`` answers ``_drop_database``'s existence probe
-        (``SELECT 1 FROM pg_database WHERE datname = %s``) with "yes, it is
-        there" — the premise of every test below, all of which are about what
-        happens while dropping a database that EXISTS.  It used to be supplied
-        by accident: a bare ``MagicMock().fetchone()`` returns a truthy mock, so
-        the probe passed without anyone saying so, and the same accident is what
-        let a stray pre-flight ``SELECT`` elsewhere in this module read as
-        "database already exists".
-        """
         fake_db, fake_cr = fake_pg_connection(fetchone=(1,))
 
         with ExitStack() as stack:
@@ -1781,7 +1374,6 @@ class TestDropDatabaseRetry:
             yield fake_cr
 
     def test_successful_drop_on_first_try(self, db_mod, drop_env):
-        """Happy path: drop succeeds on the first try."""
         result = db_mod._drop_database("x")
 
         assert result is True
@@ -1791,20 +1383,6 @@ class TestDropDatabaseRetry:
         assert len(drop_calls) == 1
 
     def test_absent_database_returns_false_without_dropping(self, db_mod, drop_env):
-        """An existence probe that finds nothing means ``False``, not a DROP.
-
-        This is the branch ``exp_drop``'s whole contract rests on:
-        ``TestExpDropGate.test_false_now_means_only_that_the_database_was_absent``
-        pins that ``False`` has exactly ONE meaning, but it patches
-        ``_drop_database`` wholesale, so nothing checked that the helper actually
-        produces ``False`` for an absent name — or that it stops there instead of
-        issuing DDL against a database it just failed to find.
-
-        Verified by mutation: deleting ``if owner_row is None: return False``
-        left the entire suite green.  It was invisible for the same reason the
-        rest of this fixture's premise was — a bare ``MagicMock().fetchone()`` is
-        truthy, so "the database exists" was the only case any test could reach.
-        """
         drop_env.fetchone.return_value = None
 
         result = db_mod._drop_database("gone")
@@ -1815,7 +1393,6 @@ class TestDropDatabaseRetry:
         ], "issued DROP DATABASE against a database the probe said was absent"
 
     def test_retries_on_object_in_use_then_succeeds(self, db_mod, drop_env):
-        """If the first DROP hits ObjectInUse, retry succeeds."""
         import psycopg
 
         call_log: list[str] = []
@@ -1837,7 +1414,6 @@ class TestDropDatabaseRetry:
         assert len(terminates) == 2
 
     def test_raises_after_max_retries(self, db_mod, drop_env):
-        """If all retries hit ObjectInUse, a RuntimeError surfaces."""
         import psycopg
 
         def execute_side_effect(sql, *args, **kwargs):
@@ -1851,19 +1427,6 @@ class TestDropDatabaseRetry:
 
 
 class TestDbnamePattern:
-    """``DBNAME_PATTERN`` permits any alphanumeric-prefixed, dot/underscore/dash
-    name — including single-character names, which PostgreSQL itself accepts.
-
-    Regression: the previous ``+`` quantifier required ≥2 chars, rejecting
-    valid names. The fix uses ``*`` to match zero-or-more additional chars.
-
-    The SOLE authority on the pattern itself.  ``TestDbNameValidation`` used to
-    carry a second spot-check with its own name list; the two had to be kept in
-    step by hand and neither claimed precedence.  Names from both lists are
-    merged here — every entry-point test now asserts only on the refusal it
-    produces, not on the regex.
-    """
-
     @pytest.mark.parametrize(
         "name",
         [
@@ -1895,8 +1458,6 @@ class TestDbnamePattern:
 
 
 class TestListDbIncompatibleDocstring:
-    """The docstring had a stray leading quote that leaked into generated docs."""
-
     def test_docstring_has_no_stray_quote(self, db_mod):
         doc = db_mod.list_db_incompatible.__doc__
         assert doc is not None
@@ -1906,20 +1467,9 @@ class TestListDbIncompatibleDocstring:
 
 
 class TestValidateDbNameLengthBoundary:
-    """``DBNAME_MAX_LENGTH`` is a CEILING, not a forbidden value.
-
-    PostgreSQL stores ``datname`` as a 63-byte ``name``, silently truncating
-    anything longer — which is the whole reason this guard exists.  So 63 must
-    be ACCEPTED and 64 refused, and the guard is ``len(name) > MAX``.
-
-    Found by mutation: flipping that to ``>=`` — which rejects every name of
-    exactly the legal maximum — left the whole suite green.  The only length
-    test used ``"a" * 70``, so it could not see either side of the boundary.
-    """
-
     def test_exactly_the_maximum_is_accepted(self, db_mod):
         name = "a" * db_mod.DBNAME_MAX_LENGTH
-        db_mod.validate_db_name(name)  # must not raise
+        db_mod.validate_db_name(name)
 
     def test_one_over_the_maximum_is_refused(self, db_mod):
         name = "a" * (db_mod.DBNAME_MAX_LENGTH + 1)
@@ -1927,29 +1477,11 @@ class TestValidateDbNameLengthBoundary:
             db_mod.validate_db_name(name)
 
     def test_the_length_check_runs_before_the_regex(self, db_mod):
-        """An over-long name is rejected for its LENGTH even when its shape is
-        also invalid — the length test is O(1) and deliberately first, so a
-        degenerate input is not walked by the regex."""
         with pytest.raises(ValueError, match="63 characters"):
             db_mod.validate_db_name("-" * 5000)
 
 
 class TestRpcDbExposedGate:
-    """``rpc_db_exposed`` is the shared gate every RPC verb consults before
-    ``Registry(db)`` builds a registry and a pool for an unauthenticated caller.
-
-    Its argument is typed ``object`` precisely because it comes off the wire, so
-    the non-``str``/empty guard is load-bearing.  Nothing tested the gate
-    DIRECTLY: ``common.exp_authenticate`` and ``model.dispatch`` each carry their
-    own copy of the same check, so the callers' tests pass whatever this
-    function does — ``TestExpAuthenticateArgumentTypes`` says as much about its
-    own ``db`` case ("an EQUIVALENT mutation ... it fails if BOTH are removed").
-
-    Confirmed by mutation: turning ``or`` into ``and`` on the guard, and making
-    it ``return True`` for a non-string, both left the suite green.  These pin
-    the gate itself, so the two layers can no longer only be tested together.
-    """
-
     @pytest.fixture
     def gate(self):
         from odoo.service._db_helpers import rpc_db_exposed
@@ -1990,16 +1522,6 @@ class TestRpcDbExposedGate:
 
 
 class TestAdminGates:
-    """``check_super`` and ``check_db_management_enabled`` — the two gates every
-    destructive database verb passes through.
-
-    Both live in ``odoo/service/_db_helpers.py`` and are re-exported by
-    ``odoo.service.db``.  These tests were filed in ``test_server.py``, which is
-    where their only coverage sat: removing them there dropped ``_db_helpers``
-    from 98% to 87%, and nobody looking for the tests of two admin-auth gates
-    would have grepped a file about the HTTP server.
-    """
-
     def test_correct_master_password_passes(self, db_mod):
         import odoo.tools
 
@@ -2007,10 +1529,6 @@ class TestAdminGates:
             odoo.tools.config, "verify_admin_password", return_value=True
         ) as verify:
             assert db_mod.check_super("correct") is True
-        # The gate must hand the verifier the password it was GIVEN.  Both tests
-        # here stub the verifier, so without this the ARGUMENT is unobserved and
-        # `verify_admin_password(passwd)` -> `verify_admin_password("")` passes
-        # the whole suite (verified by mutation).
         verify.assert_called_once_with("correct")
 
     def test_wrong_master_password_is_refused(self, db_mod):
@@ -2025,8 +1543,6 @@ class TestAdminGates:
         verify.assert_called_once_with("wrong")
 
     def test_empty_master_password_is_refused(self, db_mod):
-        """Short-circuited before the comparison, so an unset ``admin_passwd``
-        cannot be matched by sending an empty string."""
         from odoo.exceptions import AccessDenied
 
         with pytest.raises(AccessDenied):
@@ -2040,8 +1556,6 @@ class TestAdminGates:
         def _op():
             return "ok"
 
-        # Patching __getitem__ on an instance doesn't work for special methods —
-        # Python looks them up on the class.  Replace the object with a plain dict.
         with patch.object(odoo.tools, "config", {"list_db": False}):
             with pytest.raises(AccessDenied):
                 _op()
@@ -2057,11 +1571,6 @@ class TestAdminGates:
             assert _op() == "ok"
 
     def test_the_gate_sits_on_the_rpc_verbs_not_on_the_manifest_reader(self, db_mod):
-        """``dump_db_manifest`` is a pure read against a cursor the caller
-        already holds, and it is exported from ``odoo.service.db``.  Gating it
-        made ``list_db = False`` refuse a read that discloses nothing new, while
-        adding nothing: its one in-tree caller is inside ``dump_db``, which is
-        gated itself.  The gate belongs on the RPC entry points."""
         import odoo.tools
 
         cr = MagicMock()
@@ -2074,7 +1583,6 @@ class TestAdminGates:
         assert manifest["db_name"] == "somedb"
         assert manifest["pg_version"] == "18.0"
 
-        # ...while the two RPC verbs that reach a cluster still refuse.
         from odoo.exceptions import AccessDenied
 
         for gated in (db_mod.dump_db, db_mod.exp_dump):
@@ -2084,12 +1592,6 @@ class TestAdminGates:
 
 
 class TestAdminPasswordComplexity:
-    """The master admin password authorises every destructive DB-level
-    operation. Rejecting trivial passwords (<8 chars) reduces the effective
-    attack surface from "brute-force short passwords" to "brute-force >=8-char
-    passwords"; not a full policy, but a meaningful floor.
-    """
-
     def test_rejects_short_password(self, db_mod):
         with pytest.raises(ValueError, match="at least 8 characters"):
             db_mod.exp_change_admin_password("short")
@@ -2103,7 +1605,6 @@ class TestAdminPasswordComplexity:
             db_mod.exp_change_admin_password(12345678)
 
     def test_accepts_8_char_password(self, db_mod):
-        """Boundary: exactly 8 chars must be accepted."""
         with (
             patch(
                 "odoo.service.db.rpc.odoo.tools.config.set_admin_password"
@@ -2117,22 +1618,6 @@ class TestAdminPasswordComplexity:
 
 
 class TestAdminPasswordPersistFailureRollsBack:
-    """A failed ``config.save`` must not leave the process holding a password
-    that is not on disk.
-
-    ``exp_change_admin_password`` sets the in-memory hash FIRST and persists
-    second, so if the write fails — read-only filesystem, full disk, a
-    permission change — the running server would go on accepting the new master
-    password while the config file still holds the old one.  Every destructive
-    database verb authorises against that hash, so the two would disagree until
-    the next restart, at which point the new password silently stops working.
-
-    The rollback that prevents it was covered by nothing: the whole
-    ``except Exception`` arm, both of its branches, was unreached (measured with
-    a line-coverage probe over the suite).  The sibling class above drives only
-    the success path.
-    """
-
     @staticmethod
     def _config(existing_hash):
         cfg = _MockConfig({"list_db": True})
@@ -2159,13 +1644,6 @@ class TestAdminPasswordPersistFailureRollsBack:
         )
 
     def test_an_absent_password_is_removed_again(self, db_mod):
-        """``admin_passwd`` unset before the call must be unset after it.
-
-        Restoring ``None`` by assignment would leave the key present with a
-        ``None`` value, which ``verify_admin_password`` reads differently from
-        an absent key — hence the ``pop`` branch, which is the arm a single
-        happy-path test would never reach.
-        """
         import odoo.tools
 
         cfg = self._config(None)
@@ -2175,9 +1653,6 @@ class TestAdminPasswordPersistFailureRollsBack:
         assert "admin_passwd" not in cfg.options, f"key left behind: {cfg.options!r}"
 
     def test_the_failure_is_logged_not_swallowed(self, db_mod, caplog):
-        """The exception propagates, and an operator gets a record naming the
-        cause — a silent revert would look to the caller like a password change
-        that simply did not take."""
         import logging
 
         import odoo.tools
@@ -2194,8 +1669,6 @@ class TestAdminPasswordPersistFailureRollsBack:
         )
 
     def test_a_successful_save_keeps_the_new_password(self, db_mod):
-        """Guard the guard: if ``save`` never succeeded, the rollback tests
-        above would hold for the wrong reason."""
         import odoo.tools
 
         cfg = self._config("hashed:old-password")
@@ -2207,11 +1680,6 @@ class TestAdminPasswordPersistFailureRollsBack:
 
 
 class TestExpRenameValidation:
-    """exp_rename validates new_name against DBNAME_PATTERN at the service
-    layer (not just the HTTP controller), so direct RPC callers are also
-    protected against names like ``../etc/passwd`` or shell metachars.
-    """
-
     def test_rejects_invalid_new_name(self, db_mod):
         with pytest.raises(ValueError, match="Invalid database name"):
             db_mod._rename_database("old_name", "has spaces")
@@ -2226,13 +1694,6 @@ class TestExpRenameValidation:
 
 
 class TestPublicApiDocstrings:
-    """Every public ``exp_*`` RPC entry point must have a docstring.
-
-    The fork's coding standard requires docstrings on public methods.
-    This test makes the requirement self-enforcing: future ``exp_*``
-    additions without a docstring will fail CI.
-    """
-
     def test_all_exp_functions_have_docstrings(self, db_mod):
         missing = []
         for name in dir(db_mod):
@@ -2250,22 +1711,7 @@ class TestPublicApiDocstrings:
 
 
 class TestDispatchInvariants:
-    """Pin the structural invariants of the unified ``_DISPATCH`` table.
-
-    Replaces the old ``_DISPATCH_PUBLIC`` / ``_DISPATCH_ADMIN`` disjointness
-    test: with one dict, no key can be in both "public" and "admin" — that
-    bug class is now structurally impossible.  What remains to verify:
-
-    1. Every method that requires the master password actually exists in
-       the dispatch table (typo in ``_REQUIRES_MASTER_PASSWORD`` would
-       silently disable auth for a method that exists, or enable it for
-       a non-existent method).
-    2. The dispatch table contains every documented exp_* RPC method we
-       intend to expose (catches "added handler, forgot dispatch entry").
-    """
-
     def test_master_password_set_is_subset_of_dispatch(self, db_mod):
-        """A method in ``_REQUIRES_MASTER_PASSWORD`` must exist in ``_DISPATCH``."""
         missing = db_mod.rpc._REQUIRES_MASTER_PASSWORD - set(db_mod.rpc._DISPATCH)
         assert not missing, (
             f"_REQUIRES_MASTER_PASSWORD references non-existent dispatch keys: "
@@ -2274,11 +1720,6 @@ class TestDispatchInvariants:
         )
 
     def test_known_admin_methods_require_master_password(self, db_mod):
-        """The destructive/admin methods must be in ``_REQUIRES_MASTER_PASSWORD``.
-
-        Pin the admin allowlist explicitly so a future PR that adds a new
-        ``exp_*`` to ``_DISPATCH`` without thinking about auth fails this test.
-        """
         must_require_auth = {
             "create_database",
             "duplicate_database",
@@ -2295,20 +1736,6 @@ class TestDispatchInvariants:
         )
 
     def test_public_methods_not_password_gated(self, db_mod):
-        """Public dispatch endpoints MUST be callable without master password.
-
-        ``list_countries`` reads bundled XML and is invoked by the
-        unauthenticated database-creation wizard; ``db_exist``, ``list``,
-        ``list_lang``, and ``server_version`` are similarly public. Listing
-        any of them in ``_REQUIRES_MASTER_PASSWORD`` causes:
-
-        * ``ValueError`` from ``passwd, *params = []`` when the client sends
-          no leading password (the wizard's normal flow), or
-        * ``AccessDenied`` when the client sends any non-master password.
-
-        Either failure is a regression from the documented contract that the
-        wizard's pre-DB pages reach these endpoints without credentials.
-        """
         public_methods = frozenset(
             {
                 "db_exist",
@@ -2327,12 +1754,6 @@ class TestDispatchInvariants:
         )
 
     def test_dispatch_list_countries_no_password(self, db_mod):
-        """End-to-end: dispatch('list_countries', []) must not require a password.
-
-        Regression test for a bug where ``list_countries`` was placed in
-        ``_REQUIRES_MASTER_PASSWORD``; calling it via XML-RPC with empty
-        params raised ``ValueError: not enough values to unpack``.
-        """
         mock_handler = MagicMock(return_value=[["MX", "Mexico"]])
         with (
             patch.object(db_mod.rpc, "check_super") as mock_check,
@@ -2344,12 +1765,6 @@ class TestDispatchInvariants:
         assert result == [["MX", "Mexico"]]
 
     def test_no_legacy_dual_dict_remains(self, db_mod):
-        """The old ``_DISPATCH_PUBLIC`` / ``_DISPATCH_ADMIN`` symbols are gone.
-
-        Regression-prevention: a future maintainer re-adding the dual dict
-        (perhaps copy-pasting from upstream Odoo) would defeat the
-        structural-disjointness guarantee of the new single-dict design.
-        """
         assert not hasattr(db_mod, "_DISPATCH_PUBLIC"), (
             "_DISPATCH_PUBLIC has been replaced by single _DISPATCH + _REQUIRES_MASTER_PASSWORD"
         )
@@ -2358,7 +1773,6 @@ class TestDispatchInvariants:
         )
 
     def test_dispatch_calls_check_super_for_admin_method(self, db_mod):
-        """End-to-end: dispatching an admin method must invoke ``check_super``."""
         with (
             patch.object(db_mod.rpc, "check_super") as mock_check,
             patch.object(db_mod.rpc, "exp_drop") as mock_drop,
@@ -2369,14 +1783,6 @@ class TestDispatchInvariants:
         mock_drop.assert_called_once_with("mydb")
 
     def test_dispatch_skips_check_super_for_public_method(self, db_mod):
-        """Public methods must NOT call check_super (no leading password arg).
-
-        Patches the handler in ``_DISPATCH`` itself — patching
-        ``db_mod.exp_db_exist`` alone does not change what's already
-        registered in the dispatch table.  Without this patch, the test
-        falls through to a real ``db_connect`` and times out (~30s) on
-        a missing database.
-        """
         mock_handler = MagicMock(return_value=True)
         with (
             patch.object(db_mod.rpc, "check_super") as mock_check,
@@ -2395,9 +1801,6 @@ class TestDispatchInvariants:
         }
     )
 
-    # How to invoke each gated handler with an UNEXPOSED database name.  The
-    # gated name is always ``hidden_db``; the remaining arguments are whatever
-    # the signature needs to reach the gate.
     _UNEXPOSED_CALL = {
         "drop": ("hidden_db",),
         "dump": ("hidden_db", "zip"),
@@ -2407,21 +1810,6 @@ class TestDispatchInvariants:
     }
 
     def test_db_name_handlers_gate_through_check_db_exposed(self, db_mod):
-        """Every master-password handler acting on an EXISTING DB by name must
-        gate it through ``check_db_exposed`` — ONE gate, one reaction.
-
-        The inline ``list_dbs(True)`` form used to be accepted here as well,
-        because ``exp_drop`` returned ``False`` instead of raising.  It no
-        longer does, so the alternative is no longer permitted: allowing two
-        spellings of one rule is how the two drift apart, and they had — the
-        same unexposed name produced ``Access Denied`` from ``exp_dump`` and
-        ``Database %r was not found`` from ``exp_drop``.
-
-        Derived from ``_REQUIRES_MASTER_PASSWORD`` minus ``_ALLOWLIST_EXEMPT``,
-        NOT a hardcoded list — so a future ``exp_*`` added to the master-password
-        set without a gate (and without an explicit, justified exemption) fails
-        this test by default. That is the actual forget-proofing.
-        """
         from odoo.exceptions import AccessDenied
 
         gated = db_mod.rpc._REQUIRES_MASTER_PASSWORD - self._ALLOWLIST_EXEMPT
@@ -2457,24 +1845,8 @@ class TestDispatchInvariants:
 
 
 class TestExpDuplicateRollback:
-    """``exp_duplicate_database`` must drop the newly-created database when
-    the filestore copy (or any post-CREATE step) fails.
-
-    Regression: previously the post-CREATE work ran without a try/except.  A
-    ``shutil.copytree`` failure (disk full, permission, source vanished mid-
-    copy) left a perfectly valid PG database whose ``ir.attachment`` rows
-    pointed at a filestore that was never created — a silent data
-    inconsistency that's only noticed when a user opens an attachment.
-    """
-
     @pytest.fixture
     def duplicate_env(self, db_mod, tmp_path):
-        """Patches around exp_duplicate_database so we can inject failures.
-
-        Does NOT depend on ``bypass_db_mgmt`` (which replaces ``config`` with a
-        bare dict that lacks ``filestore``).  Instead, leaves the real config
-        in place and patches ``filestore`` on it.
-        """
         from contextlib import ExitStack
 
         fake_db, fake_cr = fake_pg_connection()
@@ -2505,9 +1877,6 @@ class TestExpDuplicateRollback:
         stack.close()
 
     def test_drops_db_when_filestore_copy_fails(self, db_mod, duplicate_env):
-        """A ``shutil.copytree`` failure must trigger ``_drop_database``."""
-        # A Registry, not a connection — but its ``cursor()`` is entered the same
-        # way, so the shared helper describes it too.
         fake_registry = MagicMock()
         fake_registry.cursor.return_value = fake_pg_cursor()
 
@@ -2534,7 +1903,6 @@ class TestExpDuplicateRollback:
             mock_drop.assert_called_once_with("newdb")
 
     def test_drops_db_when_registry_init_fails(self, db_mod, duplicate_env):
-        """``Registry.new`` failure (any reason) must trigger rollback."""
         with duplicate_env["stack"]:
             with (
                 patch.object(
@@ -2550,9 +1918,6 @@ class TestExpDuplicateRollback:
             mock_drop.assert_called_once_with("newdb")
 
     def test_drop_failure_does_not_mask_original_error(self, db_mod, duplicate_env):
-        """If the rollback itself fails, the ORIGINAL exception must propagate
-        (the rollback failure is suppressed).  The user/operator needs to know
-        what went wrong before they can fix the orphan database."""
         with duplicate_env["stack"]:
             with (
                 patch.object(
@@ -2571,21 +1936,8 @@ class TestExpDuplicateRollback:
 
 
 class TestExpRenameRollback:
-    """``exp_rename`` must roll back the SQL rename if the filestore move fails.
-
-    Regression: the half-done state ("DB at new_name, filestore at old_name")
-    silently serves attachments to the wrong database after a future rename.
-    The fix issues an ALTER DATABASE RENAME back to the old name; if THAT
-    also fails, both errors are surfaced for manual intervention.
-    """
-
     @pytest.fixture
     def rename_env(self, db_mod, tmp_path):
-        """Setup with a real source filestore and patched DB layer.
-
-        Self-contained: doesn't depend on ``bypass_db_mgmt`` (which replaces
-        the config object with a bare dict).
-        """
         from contextlib import ExitStack
 
         fake_db, fake_cr = fake_pg_connection()
@@ -2619,8 +1971,6 @@ class TestExpRenameRollback:
         stack.close()
 
     def test_rolls_back_db_rename_when_filestore_move_fails(self, db_mod, rename_env):
-        """A failed ``shutil.move`` must trigger an ALTER DATABASE RENAME back
-        to the old name."""
         with rename_env["stack"]:
             with patch(
                 "odoo.service.db.lifecycle.shutil.move",
@@ -2640,8 +1990,6 @@ class TestExpRenameRollback:
         )
 
     def test_double_failure_surfaces_both_errors(self, db_mod, rename_env):
-        """If both filestore move AND the DB rename-back fail, the operator
-        needs both error messages to recover manually."""
         rename_call_count = 0
 
         def execute_side_effect(sql, *args, **kwargs):
@@ -2663,13 +2011,6 @@ class TestExpRenameRollback:
 
 
 class TestDropDatabaseRetryBudget:
-    """The retry budget covers the realistic worst-case for a busy DB.
-
-    Regression: a 3-attempt / 0.6s budget consistently failed under load.
-    The new budget (5 attempts / 6.2s cumulative) gives a connection holder
-    enough time to receive ``pg_terminate_backend``, unwind, and release.
-    """
-
     def test_retry_count_is_at_least_5(self, db_mod):
         assert db_mod.lifecycle._DROP_DATABASE_MAX_RETRIES >= 5, (
             "Lowering the retry count below 5 reintroduces the 'connection "
@@ -2677,7 +2018,6 @@ class TestDropDatabaseRetryBudget:
         )
 
     def test_backoff_is_exponential(self, db_mod):
-        """Each attempt waits longer than the previous one."""
         base = db_mod.lifecycle._DROP_DATABASE_BACKOFF_BASE
         delays = [
             base * (2 ** (n - 1))
@@ -2692,14 +2032,6 @@ class TestDropDatabaseRetryBudget:
 
 
 class TestExpListNoRedundantCheck:
-    """``exp_list`` must rely on ``list_dbs()`` for the ``list_db`` gate.
-
-    Regression-prevention: the prior body re-implemented the same gate as
-    ``list_dbs()``.  A future change to ``list_dbs`` (e.g. adding a context
-    where it should NOT raise) would silently be subverted by the
-    redundant pre-check that ``exp_list`` did itself.
-    """
-
     def test_passthrough_when_list_db_enabled(self, db_mod):
         with patch.object(
             db_mod.listing, "list_dbs", return_value=["a", "b"]
@@ -2715,21 +2047,12 @@ class TestExpListNoRedundantCheck:
                 db_mod.exp_list()
 
     def test_document_kwarg_accepted_for_backcompat(self, db_mod):
-        """Old XML-RPC clients pass document=True; must not TypeError."""
         with patch.object(db_mod.listing, "list_dbs", return_value=[]):
             assert db_mod.exp_list() == []
             assert db_mod.exp_list(document=True) == []
 
 
 class TestDropConnLogging:
-    """``_drop_conn`` logs at debug level when ``pg_terminate_backend`` fails.
-
-    Regression: the prior bare ``suppress(Exception)`` made permission errors
-    invisible — operators investigating "DROP DATABASE keeps hitting
-    ObjectInUse" had no way to discover that their PG role lacked
-    ``pg_signal_backend`` membership.
-    """
-
     def test_failure_is_logged_at_debug(self, db_mod, caplog):
         import logging
 
@@ -2756,22 +2079,12 @@ class TestDropConnLogging:
         )
 
     def test_failure_does_not_propagate(self, db_mod):
-        """Exceptions are still swallowed — termination is best-effort."""
         fake_cr = MagicMock()
         fake_cr.execute.side_effect = RuntimeError("anything")
         db_mod.lifecycle._drop_conn(fake_cr, "any_db")
 
 
 class TestRestoreDbOnErrorStop:
-    """``psql -f`` exits 0 even when a statement fails, so without
-    ``-v ON_ERROR_STOP=1`` a truncated/corrupt dump restores a partially
-    populated database and ``r.returncode != 0`` never trips — a silent
-    partial restore reported as success.  Pin the flag on the psql call.
-
-    (Empirically: ``psql -q -f bad.sql`` exits 0 while
-    ``psql -q -v ON_ERROR_STOP=1 -f bad.sql`` exits 3 on a failing statement.)
-    """
-
     def test_psql_invocation_passes_on_error_stop(
         self, db_mod, bypass_db_mgmt, zip_dump
     ):
@@ -2797,12 +2110,6 @@ class TestRestoreDbOnErrorStop:
 
 
 class TestRestoreDbNameValidation:
-    """``restore_db`` must enforce the same name shape/length as the other
-    name-accepting entry points, before creating anything.  Otherwise a 64+
-    char name reaches ``CREATE DATABASE`` where PostgreSQL silently truncates
-    it to 63 bytes — the footgun ``DBNAME_MAX_LENGTH`` exists to prevent.
-    """
-
     def test_rejects_overlong_name_before_any_side_effect(self, db_mod, bypass_db_mgmt):
         with (
             patch.object(db_mod.restore, "exp_db_exist") as mock_exist,
@@ -2824,8 +2131,6 @@ class TestRestoreDbNameValidation:
         mock_create.assert_not_called()
 
     def test_valid_name_passes_validation(self, db_mod, bypass_db_mgmt):
-        """A well-formed name must NOT be rejected by the new check — the
-        guard must reach the existing-DB pre-flight (which we stub to True)."""
         with (
             patch.object(db_mod.restore, "exp_db_exist", return_value=True),
             patch.object(db_mod.restore, "_create_empty_database"),
@@ -2835,13 +2140,6 @@ class TestRestoreDbNameValidation:
 
 
 class TestRetryTerminateThenDdl:
-    """The terminate-then-act retry loop shared by drop / duplicate / rename.
-
-    Replaces three copy-pasted loops; pinned directly so the contract
-    (retry only on ObjectInUse, propagate everything else, exhaust to
-    RuntimeError carrying the last error) is enforced in one place.
-    """
-
     def test_returns_on_first_success(self, db_mod):
         cr = MagicMock()
         run = MagicMock()
@@ -2893,12 +2191,6 @@ class TestRetryTerminateThenDdl:
         sleep.assert_not_called()
 
     def test_no_sleep_after_final_attempt(self, db_mod):
-        """On exhaustion the loop runs MAX attempts but sleeps only between them.
-
-        The backoff after the final attempt is dead time — the loop is about to
-        exit and raise, so the longest interval would only delay the error for
-        no retry.
-        """
         import psycopg
 
         cr = MagicMock()
@@ -2914,10 +2206,6 @@ class TestRetryTerminateThenDdl:
 
 
 class TestRestoreArchiveExpansionBound:
-    """``ZipFile.extractall`` has no size ceiling and the archive is uploaded by
-    the caller.  ``tempfile`` commonly resolves to a tmpfs, so an unbounded
-    expansion consumes RAM rather than disk."""
-
     def _bomb(self, tmp_path, mb):
         path = tmp_path / "bomb.zip"
         blob = b"A" * (1024 * 1024)
@@ -2941,10 +2229,6 @@ class TestRestoreArchiveExpansionBound:
         )
 
     def test_extraction_stops_at_the_budget(self, db_mod, tmp_path):
-        # 24 MB against an 8 MB budget: enough to overshoot three times over,
-        # where the previous 200 MB spent 0.42s building a bomb whose extra
-        # 176 MB changed no outcome.  Confirmed still fatal to the mutation the
-        # test exists for (removing the budget check).
         path = self._bomb(tmp_path, 24)
         dest = tmp_path / "out"
         dest.mkdir()
@@ -2955,8 +2239,6 @@ class TestRestoreArchiveExpansionBound:
                 )
 
     def test_counts_bytes_produced_not_the_declared_header_size(self, db_mod, tmp_path):
-        """A member whose header under-reports its size must buy nothing: the
-        budget is spent against the bytes actually written."""
         path = self._bomb(tmp_path, 40)
         with zipfile.ZipFile(path, "a") as z:
             z.getinfo("dump.sql").file_size = 1
@@ -2969,9 +2251,6 @@ class TestRestoreArchiveExpansionBound:
                 )
 
     def test_nested_members_land_intact_within_budget(self, db_mod, tmp_path):
-        """The bounded extractor replaces ``extractall``, so it must still create
-        parent directories — a real backup's filestore members are nested
-        (``filestore/27/27c0...``) and carry no explicit directory entries."""
         path = tmp_path / "ok.zip"
         with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
             z.writestr("dump.sql", "SELECT 1;\n")
@@ -2992,10 +2271,6 @@ class TestRestoreArchiveExpansionBound:
 
 
 class TestDatabaseIdentifierPercent:
-    """``database_identifier`` feeds a ``SQL`` template whose ``code`` is
-    ``%``-formatted, so a literal ``%`` (legal in a PG identifier, reachable via
-    ``db_template``) must be doubled or ``SQL.__init__`` raises ``TypeError``."""
-
     def test_percent_in_identifier_does_not_raise(self, db_mod):
         cr = MagicMock()
         cr.connection = None
@@ -3004,41 +2279,8 @@ class TestDatabaseIdentifierPercent:
 
 
 class TestDatabaseDdlSetsAutocommitFirst:
-    """Every verb that issues database-level DDL must set ``autocommit`` BEFORE it.
-
-    psycopg opens a transaction implicitly on the first statement, and PostgreSQL
-    refuses ``CREATE DATABASE`` and ``DROP DATABASE`` inside one
-    (``tests/contract/test_autocommit_ddl.py`` pins that against the real server;
-    ``ALTER DATABASE ... RENAME`` is allowed, so that one flag is consistency
-    rather than necessity).  ``odoo/service/db/lifecycle.py`` therefore assigns
-    ``cr.connection.autocommit = True`` at five places, and all five were
-    unpinned: flipping any of them to ``False`` left the whole suite green.
-
-    ORDER is the property, not just the value.  Setting the flag after the first
-    statement is exactly as broken as not setting it, and an assertion on the
-    final value cannot tell the two apart — so these record the sequence.
-
-    Four of the five sites are pinned here; flipping any of them to ``False``
-    fails a test.  The fifth is deliberately not: it is on ``_drop_database``'s
-    existence PROBE, which issues only ``SELECT 1 FROM pg_database``, and a
-    ``SELECT`` inside a transaction is perfectly legal.  Nothing observable
-    depends on that assignment, so asserting it would pin a line rather than a
-    behaviour — the same reason ``_rename_database``'s flag is described below as
-    consistency rather than necessity.  Stated explicitly so the gap reads as a
-    decision instead of an oversight.
-    """
-
     @staticmethod
     def _recorder():
-        """``db_connect`` stand-in giving each call its OWN recording connection.
-
-        Per connection, not per call site: ``_drop_database`` opens two — a probe
-        and the one that issues the ``DROP`` — and each has to set the flag for
-        itself, because ``autocommit`` is a property of the connection.  A shared
-        recorder would let the probe's assignment satisfy the assertion for the
-        drop, which is how the first version of this test missed two of the five
-        sites it was written for.
-        """
         connections = []
 
         def db_connect(_name, **_kwargs):
@@ -3064,16 +2306,10 @@ class TestDatabaseDdlSetsAutocommitFirst:
 
         return db_connect, connections
 
-    #: Statements PostgreSQL refuses inside a transaction block, plus the rename
-    #: that it allows but which is written the same way. Scoped deliberately:
-    #: ``_create_empty_database`` also opens a connection to the NEW database to
-    #: run ``CREATE EXTENSION``, which is transaction-safe and correctly does not
-    #: set the flag — a blanket "every connection" rule would reject it.
     _DATABASE_DDL = ("CREATE DATABASE", "DROP DATABASE", "ALTER DATABASE")
 
     @classmethod
     def _assert_every_statement_follows_autocommit(cls, connections, verb):
-        """On every connection that issued DATABASE-LEVEL DDL, the flag came first."""
         issuing = [
             e
             for e in connections
@@ -3124,7 +2360,6 @@ class TestDatabaseDdlSetsAutocommitFirst:
         )
 
     def test_duplicate_database(self, db_mod, bypass_db_mgmt):
-        """``CREATE DATABASE ... TEMPLATE`` — the same refusal as a plain create."""
         import odoo.tools
 
         db_connect, connections = self._recorder()
@@ -3144,12 +2379,6 @@ class TestDatabaseDdlSetsAutocommitFirst:
             patch.object(db_mod.lifecycle, "_assert_filestore_dest_free"),
             patch.object(db_mod.lifecycle.shutil, "copytree"),
         ):
-            # The duplication continues well past the CREATE — filestore copy,
-            # uuid reset, optional neutralisation — and mocking that whole
-            # pipeline would make this test about the pipeline. The subject is
-            # the ordering on the connection that issues the DDL, which is
-            # already recorded by the time anything downstream fails; the
-            # assertion below refuses to pass unless that DDL really ran.
             with contextlib.suppress(Exception):
                 db_mod._duplicate_database("src", "dst")
         self._assert_every_statement_follows_autocommit(
@@ -3157,8 +2386,6 @@ class TestDatabaseDdlSetsAutocommitFirst:
         )
 
     def test_drop_database(self, db_mod, bypass_db_mgmt):
-        """Two connections — the existence probe and the one issuing the DROP —
-        and each has to set the flag for itself."""
         db_connect, connections = self._recorder()
         with (
             patch("odoo.service.db.lifecycle.odoo.db.db_connect", db_connect),
@@ -3177,9 +2404,6 @@ class TestDatabaseDdlSetsAutocommitFirst:
         self._assert_every_statement_follows_autocommit(connections, "_drop_database")
 
     def test_rename_database(self, db_mod, bypass_db_mgmt):
-        """Allowed in a transaction today, so this pins consistency rather than
-        necessity — but a rename that silently stopped setting it would drift
-        away from its siblings unnoticed."""
         db_connect, connections = self._recorder()
         with (
             patch("odoo.service.db.lifecycle.odoo.db.db_connect", db_connect),
@@ -3195,12 +2419,6 @@ class TestDatabaseDdlSetsAutocommitFirst:
 
 class TestCreateEmptyDatabaseHardening:
     def _mock_pg(self, db_mod, *, create_raises=None):
-        """Patch ``odoo.db.db_connect`` and return (patch_cm, connect_mock, cr).
-
-        ``_create_empty_database`` opens the maintenance cursor via
-        ``closing(db.cursor())`` — which yields ``db.cursor()`` directly — so the
-        cursor mock is the ``cursor.return_value`` itself (not an ``__enter__``).
-        """
         import odoo.db
 
         cr = MagicMock()
@@ -3215,21 +2433,6 @@ class TestCreateEmptyDatabaseHardening:
     def test_the_new_database_is_created_from_the_template_not_vice_versa(
         self, db_mod, bypass_db_mgmt, template
     ):
-        """``CREATE DATABASE <new> ... TEMPLATE <template>`` — in that order.
-
-        Both quoted identifiers go through ``database_identifier``, and every
-        other test here stubs it with a CONSTANT ``return_value``, so which
-        argument lands in which slot is unobserved: swapping them
-        (``database_identifier(cr, name)`` -> ``...(cr, chosen_template)``) left
-        the whole 887-test suite green.  Keying the stub on its argument, and
-        recording the order, is what pins it.
-
-        Parametrized over both templates on purpose: ``_create_empty_database``
-        branches on ``chosen_template == "template0"`` and spells the identifier
-        pair out separately in each arm, so a test that drives only one arm
-        leaves the other unpinned — which is how the first version of this test
-        missed the very mutation it was written for.
-        """
         import odoo.tools
 
         seen: list[str] = []
@@ -3260,8 +2463,6 @@ class TestCreateEmptyDatabaseHardening:
         )
 
     def test_rejects_malformed_db_template(self, db_mod, bypass_db_mgmt):
-        """A ``%``-bearing (malformed) template fails fast with a clear
-        ``ValueError`` rather than a cryptic error deep in CREATE DATABASE."""
         cm, _conn, _cr = self._mock_pg(db_mod)
         with cm:
             with pytest.raises(ValueError, match="Invalid database name"):
@@ -3270,9 +2471,6 @@ class TestCreateEmptyDatabaseHardening:
     def test_setup_if_exists_false_skips_setup_on_collision(
         self, db_mod, bypass_db_mgmt
     ):
-        """On a name collision with ``setup_if_exists=False`` (strict
-        create/restore), ``DatabaseExists`` is raised WITHOUT connecting to the
-        pre-existing DB to run extensions/GRANT on it."""
         import psycopg
 
         from odoo.tools import SQL
@@ -3294,16 +2492,6 @@ class TestCreateEmptyDatabaseHardening:
 
 
 class TestRpcDbExistGate:
-    """``db_exist`` is reachable unauthenticated (``/jsonrpc``, ``/xmlrpc/2/db``).
-
-    Ungated it is a per-name existence oracle over every database owned by the
-    PG role — the enumeration ``list_db = False`` and ``common.exp_authenticate``
-    deny — and, because ``exp_db_exist`` connects, a way to make an
-    unauthenticated caller open a pooled connection to a database this instance
-    does not serve.  ``_rpc_db_exist`` filters BEFORE connecting; the bare
-    ``exp_db_exist`` stays ungated for trusted in-process callers.
-    """
-
     def _cfg(self, **over):
         cfg = _MockConfig({"list_db": True, "db_template": "template1"})
         cfg.update(over)
@@ -3314,15 +2502,6 @@ class TestRpcDbExistGate:
         assert db_mod.rpc._DISPATCH["db_exist"] is not db_mod.exp_db_exist
 
     def test_list_db_false_answers_false_for_everything(self, db_mod):
-        """``list_db = False`` turns off DB management; ``db_exist`` must not
-        stay a working oracle while ``list`` raises AccessDenied.
-
-        It answers ``False`` rather than raising ``AccessDenied``: this verb is
-        declared to return a bool and is reachable unauthenticated, so raising
-        would break every caller on precisely the configuration being hardened —
-        and an exception that distinguishes "management disabled" from "no such
-        database" leaks strictly more than a flat ``False``.
-        """
         import odoo.tools
 
         with (
@@ -3358,8 +2537,6 @@ class TestRpcDbExistGate:
 
     @pytest.mark.parametrize("name", ["postgres", "template0", "template1"])
     def test_system_and_template_dbs_are_never_disclosed(self, db_mod, name):
-        """``SYSTEM_DBS`` and the creation template are never servable (the same
-        floor ``http.helpers.db_filter`` applies), so never disclosed."""
         import odoo.tools
 
         with (
@@ -3385,32 +2562,8 @@ class TestRpcDbExistGate:
 
 
 class TestListDbIncompatiblePoolSideEffects:
-    """``list_db_incompatible`` must leave pools as it found them.
-
-    It is an INSPECTION helper called on every render of the database manager /
-    selector (``web.controllers.database._render_template``), both ``auth="none"``.
-    It used to ``close_db`` every database it looked at, in a ``finally`` inside
-    the loop, so one unauthenticated request evicted the pool of every database on
-    the instance — including healthy, actively-served ones.  Upstream only closed
-    the databases it found incompatible.
-
-    Measured before the fix on a live server: one GET of ``/web/database/selector``
-    produced one ``Closed 1 pool(s) for <db>`` per database (3 requests -> 3
-    evictions), and the next cursor on an evicted database cost ~5.2 ms against
-    ~0.24 ms warm.  In-flight work was never at risk (a checked-out connection
-    survives its pool's close, and registries are untouched), so the whole cost was
-    reconnect latency — which is exactly what these tests pin away.
-    """
-
     @pytest.fixture
     def probe(self, db_mod):
-        """Drive ``list_db_incompatible`` with mocked pool + version lookups.
-
-        Returns a factory taking ``{db: is_compatible}`` and ``preexisting``
-        (databases that already had a pool), and yielding the databases the call
-        closed.
-        """
-
         def _run(compat: dict, preexisting: set):
             import odoo
 
@@ -3449,7 +2602,6 @@ class TestListDbIncompatiblePoolSideEffects:
         return _run
 
     def test_compatible_preexisting_pool_survives(self, probe):
-        """The regression: a served database keeps the pool it already had."""
         incompatible, closed = probe({"live": "19.0.1.0"}, preexisting={"live"})
         assert incompatible == []
         assert closed == [], (
@@ -3458,13 +2610,11 @@ class TestListDbIncompatiblePoolSideEffects:
         )
 
     def test_compatible_pool_we_opened_is_closed(self, probe):
-        """A pool this call created is still cleaned up — no leak."""
         incompatible, closed = probe({"idle": "19.0.1.0"}, preexisting=set())
         assert incompatible == []
         assert closed == ["idle"]
 
     def test_incompatible_is_always_closed(self, probe):
-        """Upstream's rule survives: an incompatible database is not kept pooled."""
         incompatible, closed = probe({"old": "18.0.1.0"}, preexisting={"old"})
         assert incompatible == ["old"]
         assert closed == ["old"]
@@ -3479,18 +2629,6 @@ class TestListDbIncompatiblePoolSideEffects:
 
 
 class TestRetryOnObjectInUse:
-    """``CREATE DATABASE ... TEMPLATE t`` needs zero sessions on ``t``.
-
-    Upstream's default template (``template0``) is ``datallowconn = false``, so
-    nothing can be connected and the race never fires.  ``--db-template`` is a
-    supported upstream option though, and a populated template is connectable —
-    this workspace's ``tpl_p314o19marin`` is ``datallowconn = true``.  Verified
-    against the live cluster: one idle ``psql`` session on it made
-    ``_create_empty_database`` raise a bare ``psycopg.errors.ObjectInUse``
-    ("source database ... is being accessed by other users"), unretried and
-    untranslated, failing every database creation including the boot path.
-    """
-
     def test_retries_then_succeeds(self, db_mod):
         import psycopg
 
@@ -3546,7 +2684,6 @@ class TestRetryOnObjectInUse:
         assert len(before) == 3
 
     def test_terminate_variant_still_evicts_each_attempt(self, db_mod):
-        """``_retry_terminate_then_ddl`` keeps its per-attempt ``_drop_conn``."""
         import psycopg
 
         calls = []
@@ -3569,7 +2706,6 @@ class TestRetryOnObjectInUse:
 
 class TestCreateEmptyDatabaseTemplateContention:
     def test_create_retries_object_in_use(self, db_mod, bypass_db_mgmt):
-        """A transiently busy template is retried, not surfaced raw."""
         import psycopg
 
         attempts = []
@@ -3604,11 +2740,6 @@ class TestCreateEmptyDatabaseTemplateContention:
         assert len(attempts) == 3, "CREATE DATABASE was not retried on ObjectInUse"
 
     def test_create_does_not_terminate_template_sessions(self, db_mod, bypass_db_mgmt):
-        """Unlike DROP/RENAME/DUPLICATE, CREATE must not evict the blocker.
-
-        The blocker is a third party's session on a template this call only
-        READS — very likely the operator maintaining it.
-        """
         import odoo
 
         conn, _cr = fake_pg_connection()
@@ -3631,16 +2762,6 @@ class TestCreateEmptyDatabaseTemplateContention:
 
 
 class TestZipDumpDoesNotStageFilestore:
-    """The zip backup must stream, not assemble itself in ``TMPDIR`` first.
-
-    The previous implementation ``copytree``'d the entire filestore into a
-    ``TemporaryDirectory`` alongside an uncompressed ``dump.sql`` and only then
-    zipped that tree.  ``TMPDIR`` is commonly a tmpfs (16 GiB on this workspace),
-    so the staging copy was charged to RAM: measured, a 201 MiB filestore drove
-    ``/tmp`` up 204 MiB, against 3 MiB with ``with_filestore=False`` — which
-    isolates the copytree as the cause.
-    """
-
     @pytest.fixture
     def live_filestore(self, tmp_path):
         fs = tmp_path / "filestore" / "db"
@@ -3697,8 +2818,6 @@ class TestZipDumpDoesNotStageFilestore:
             assert set(z.namelist()) == {"manifest.json", "dump.sql"}
 
     def test_sql_precedes_filestore_in_the_archive(self, db_mod, live_filestore):
-        """SQL first, filestore after — so the inconsistency window leaves an
-        unreferenced file rather than a row whose file is missing."""
         buf = io.BytesIO()
         self._dump(db_mod, live_filestore, buf)
         buf.seek(0)
@@ -3711,7 +2830,6 @@ class TestZipDumpDoesNotStageFilestore:
     def test_symlink_escaping_the_filestore_is_skipped(
         self, db_mod, live_filestore, tmp_path
     ):
-        """A stray link must not pull host files into a backup."""
         secret = tmp_path / "secret.txt"
         secret.write_text("do not back me up")
         (live_filestore / "aa" / "escape").symlink_to(secret)
@@ -3755,12 +2873,6 @@ class TestZipDumpDoesNotStageFilestore:
 
 
 class TestPublicReadVerbsAreMemoized:
-    """``list_countries`` / ``list_lang`` are reachable with no authentication
-    and no master password (verified over ``/jsonrpc``), and answer with a
-    constant of the installation.  Re-parsing the shipped data on every
-    anonymous call was pure waste — 1.17 ms per ``list_countries``.
-    """
-
     def test_countries_xml_parsed_once(self, db_mod):
         db_mod.listing._scan_countries.cache_clear()
         try:
@@ -3775,7 +2887,6 @@ class TestPublicReadVerbsAreMemoized:
             db_mod.listing._scan_countries.cache_clear()
 
     def test_countries_result_is_not_shared_across_calls(self, db_mod):
-        """Callers get a fresh mutable list; the cache cannot be corrupted."""
         db_mod.listing._scan_countries.cache_clear()
         try:
             first = db_mod.exp_list_countries()
@@ -3788,7 +2899,6 @@ class TestPublicReadVerbsAreMemoized:
             db_mod.listing._scan_countries.cache_clear()
 
     def test_countries_shape_is_list_of_lists(self, db_mod):
-        """The RPC contract is ``[[code, name], ...]``, not tuples."""
         result = db_mod.exp_list_countries()
         assert isinstance(result, list)
         assert all(isinstance(row, list) and len(row) == 2 for row in result)
@@ -3821,12 +2931,6 @@ class TestPublicReadVerbsAreMemoized:
             locale_utils._scan_languages.cache_clear()
 
     def test_language_read_failure_is_not_cached(self):
-        """A transient read failure must not become the process's permanent answer.
-
-        ``functools.cache`` memoizes return values, so a fallback returned from
-        INSIDE the cached function would pin itself forever.  The cached parse
-        therefore raises and the wrapper owns the fallback.
-        """
         from odoo.tools import locale_utils
 
         locale_utils._scan_languages.cache_clear()
@@ -3844,17 +2948,6 @@ class TestPublicReadVerbsAreMemoized:
 
 
 class TestExpDropGate:
-    """``exp_drop`` refuses an unexposed database the way its siblings do.
-
-    It returned ``False`` instead of raising, which made the return value carry
-    two meanings — "not exposed" and "no such database" — and the web caller
-    (``web.controllers.database.drop``) collapsed both into
-    ``Database %r was not found``.  An operator dropping a database they could
-    see was told it did not exist, while ``exp_dump`` answered Access Denied for
-    that same name.  Returning ``False`` bought no secrecy: ``drop`` is
-    master-password gated, and a caller holding it can enumerate via ``list``.
-    """
-
     def _patched(self, db_mod, exposed, dropped=True):
         import odoo
 
@@ -3885,7 +2978,6 @@ class TestExpDropGate:
         drop.assert_not_called()
 
     def test_false_now_means_only_that_the_database_was_absent(self, db_mod):
-        """The disambiguation the change buys: one meaning per return value."""
         with ExitStack() as stack:
             for p in self._patched(db_mod, ["gone"], dropped=False):
                 stack.enter_context(p)
@@ -3898,7 +2990,6 @@ class TestExpDropGate:
             assert db_mod.exp_drop("live") is True
 
     def test_gate_matches_its_siblings_exactly(self, db_mod):
-        """Same allowlist, same reaction — the drift this closes."""
         from odoo.exceptions import AccessDenied
 
         with ExitStack() as stack:
@@ -3914,15 +3005,6 @@ class TestExpDropGate:
 
 
 class TestUnpackBudgetAcceptsFileObjects:
-    """``_unpack_budget`` sizes both a path and an open file object.
-
-    ``odoo db load <url>`` streams a download into a ``SpooledTemporaryFile``
-    and passes the object (not a path) to ``restore_db``; ``zipfile`` accepts
-    it, but the expansion-budget sizing used ``Path(dump_file).stat()`` and
-    raised ``TypeError`` on a file object, so the URL restore created the empty
-    DB and then always failed and rolled it back.
-    """
-
     def test_path_sizing_unchanged(self, db_mod, zip_dump):
         expected = pathlib.Path(zip_dump).stat().st_size
         assert db_mod.restore._source_size(zip_dump) == expected
@@ -3932,7 +3014,6 @@ class TestUnpackBudgetAcceptsFileObjects:
 
         buf = _io.BytesIO(b"0123456789")
         assert db_mod.restore._source_size(buf) == 10
-        # position is restored so the following zipfile read starts at 0
         assert buf.tell() == 0
 
     def test_spooled_temporary_file_position_is_preserved(self, db_mod):
@@ -3943,7 +3024,6 @@ class TestUnpackBudgetAcceptsFileObjects:
         assert sp.tell() == 7
 
     def test_unpack_budget_does_not_raise_on_a_file_object(self, db_mod):
-        """The exact failure B1 reproduced: previously a TypeError here."""
         sp = tempfile.SpooledTemporaryFile(max_size=1024)  # noqa: SIM115  as above
         sp.write(b"x" * 2048)
         sp.seek(0)

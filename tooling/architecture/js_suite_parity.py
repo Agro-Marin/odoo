@@ -17,10 +17,6 @@ EXEMPT_TEST_DIRS = frozenset({"_framework", "helpers", "mock_server", "tours"})
 
 EXEMPT_SRC_DIRS = frozenset({"scss", "@types"})
 
-# Empty on purpose. `boot` was the last entry: it had no suite at all until
-# f88df6f20ff gave it one, and this gate is drift-zero in BOTH directions, so
-# a layer that becomes covered has to leave the list or the pin starts
-# tolerating a gap that has closed.
 KNOWN_UNCOVERED_LAYERS: frozenset[str] = frozenset()
 
 KNOWN_ORPHAN_TEST_DIRS = frozenset(

@@ -14,7 +14,6 @@ def _kinds(tmp_path, body):
 
 
 def test_a_stock_move_is_not_an_order_line(tmp_path):
-    """The field is real and writable on `stock.move` — most matches are moves."""
     assert not _measure(
         tmp_path,
         'env["stock.move"].create({"product_id": p.id, "product_uom_qty": 5})\n',
@@ -54,7 +53,6 @@ def test_a_dict_under_line_ids_is_counted(tmp_path):
 
 
 def test_a_bare_dict_naming_order_id_is_counted(tmp_path):
-    """No model in sight, but `order_id` is not a field of `stock.move`'s vals."""
     assert _kinds(
         tmp_path,
         'Line.create({"order_id": order.id, "product_uom_qty": 7})\n',
@@ -62,7 +60,6 @@ def test_a_bare_dict_naming_order_id_is_counted(tmp_path):
 
 
 def test_a_create_of_one_is_counted(tmp_path):
-    """Inert — the default absorbs it — and still the wrong field."""
     assert _kinds(
         tmp_path,
         'env["sale.order.line"].create({"product_uom_qty": 1})\n',
@@ -89,7 +86,6 @@ def test_reading_the_field_is_not_a_write(tmp_path):
 
 
 def test_one_line_is_reported_once(tmp_path):
-    """A dict can match both the model rule and the `line_ids` rule."""
     assert (
         len(
             _measure(
@@ -108,13 +104,11 @@ def test_a_file_that_does_not_parse_is_skipped(tmp_path):
 
 
 def test_a_missing_root_is_refused(tmp_path):
-    """A typo in --roots must not read as a clean tree."""
     with pytest.raises(RuntimeError, match="no such directory"):
         olq.measure([tmp_path / "nope"])
 
 
 def test_the_tree_measures_above_its_floor_shape():
-    """The real tree parses and yields findings — the gate is not vacuous."""
     found = olq.measure()
     assert found, "the gate found nothing at all, which no longer matches the tree"
     assert all(w.path.endswith(".py") for w in found)
@@ -132,7 +126,6 @@ def test_a_filtered_order_line_set_is_still_order_lines(tmp_path):
 
 
 def test_a_tree_with_no_python_is_refused(tmp_path):
-    """Zero over an empty tree is the number a clean tree reports."""
     (tmp_path / "addons").mkdir()
     with pytest.raises(RuntimeError, match="refusing to report a count"):
         olq.measure([tmp_path / "addons"])

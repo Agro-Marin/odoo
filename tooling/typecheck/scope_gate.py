@@ -57,31 +57,8 @@ DEFAULT_EASE = 0.5
 
 
 def excluded_from_program() -> frozenset[str]:
-    """The literal paths ``tsconfig.json`` keeps out of the DOM program.
-
-    A file the main program never compiles is not this gate's to lock. It has
-    either moved to another lane — the service workers are checked by
-    ``tsconfig.serviceworker.*.json`` against ``lib.webworker``, because DOM and
-    WebWorker cannot share a program — or to nothing at all. Either way an
-    exception entry for it asserts nothing, and without this it would keep
-    asserting nothing forever: an excluded path that is already excepted is
-    subtracted from ``unchecked`` (see ``evaluate``), so it goes on counting
-    toward coverage while no compiler looks at it. That is the ``l10n*`` hole in
-    the other direction, and it is how ``web/static/src/service_worker.js``
-    behaved the moment it left the program.
-
-    Read from the tsconfig rather than restated here, for the reason
-    ``is_hidden`` matches tsc's own dotfile rule instead of carrying a list:
-    a second source of truth for what the program contains drifts from the
-    first. Only literal entries are honoured — the globs (``addons/l10n_*``,
-    ``**/lib/…``) name directories this gate's scope never reaches.
-    """
     tsconfig = ROOT / "tsconfig.json"
     if not tsconfig.is_file():
-        # No tsconfig, nothing excluded. Reached only by the self-tests, which
-        # point ROOT at a temp tree; a real checkout always has one, and a
-        # missing one is the caller's problem to notice, not this gate's to
-        # guess at.
         return frozenset()
     text = re.sub(r"//.*", "", tsconfig.read_text(encoding="utf8"))
     return frozenset(
@@ -622,9 +599,6 @@ def run(argv: list[str] | None = None) -> int:
                     continue
                 if entry in mv.stale:
                     candidates = by_base.get(entry.rsplit("/", 1)[-1], [])
-                    # Exactly one, or not at all. Two files sharing a basename
-                    # is a guess, and a guess here silently exempts the wrong
-                    # file while leaving the intended one locked.
                     if len(candidates) == 1:
                         print(f"  repoint: {entry} -> {candidates[0]}")
                         kept.append(candidates[0])

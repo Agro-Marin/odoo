@@ -1,84 +1,3 @@
-"""Gate the *keywords* the mail framework passes to hooks its addons override.
-
-``mail`` is not an application, it is a framework: ``mixin.mail.thread`` and
-``mixin.mail.activity`` are injected into business models across every repo, and
-their ``_notify_*`` / ``_message_*`` / ``_track_*`` / ``_mail_*`` methods are
-extension points that dozens of addons override. Adding a parameter to one of
-those signatures is therefore a cross-repo change, and the compiler that would
-have caught it does not exist in Python.
-
-**The gap it closes.** On 2026-08-17 ``28ed9db3341`` added a ``tracking_values``
-keyword to ``mixin.mail.thread._notify_by_email_prepare_rendering_context`` and
-passed it from ``_notify_by_email_prepare``. Six modules override that hook --
-``project``, ``crm``, ``account``, ``account_peppol``, ``base_order`` and
-``enterprise/hr_appraisal`` -- and none of their signatures moved, so every
-notified create in them raised::
-
-    TypeError: ProjectTask._notify_by_email_prepare_rendering_context()
-               got an unexpected keyword argument 'tracking_values'
-
-One run of the dependent ring measured ``1 failed, 129 errors of 1654`` before the
-fix and ``57 failed, 0 errors of 2085`` after (``e4bb93b8ee4``) -- 431 more tests
-merely *reached*, because the TypeErrors were aborting whole classes. And it
-merged green: ``/mail,/test_mail`` cannot see it, because neither module overrides
-the hook -- ``mail`` declares it once and calls it once, and ``test_mail`` only
-calls it from tests. That is the whole point -- **a framework's own suite cannot
-reach the implementations of its extension points.** Run against that commit this
-gate names all five community overrides; against the fixed tree it reports zero.
-
-**What is checked.** For every hook ``mail`` defines under ``addons/mail/models``
-and calls *by keyword* from its own code, every declaration of that hook must be
-able to accept those keywords -- the 131 overrides outside ``mail`` and the
-redeclarations inside it alike, since ``discuss.channel`` overrides the mixin from
-within the framework directory and a stale signature there raises exactly the same
-TypeError. A declaration that spells ``**kwargs`` absorbs anything and is not a
-finding.
-
-**What is deliberately not checked, and what is simply not covered.**
-
-*Positional parameters, at all.* This is the deliberate one. ``_track_subtype``'s
-base spells its parameter ``initial_values`` and all 29 overrides across the four
-repos spell it ``init_values`` -- every call site passes it positionally, so the
-name is private to the override and the divergence is harmless. A rule that
-compared parameter *names* would report 37 findings in the community tree alone,
-every one of them noise, which is how a gate gets switched off. Only keywords the
-framework actually passes are counted.
-
-The cost of that choice is real and is not covered: **a base that gains a
-*required positional* parameter breaks every override, and this gate is blind to
-it.** Nothing here would have caught that variant of ``28ed9db3341``.
-
-*The reverse direction.* An override that forwards a keyword to ``super()`` which
-the base has since dropped raises the same TypeError from the other side. Also
-uncovered; it needs the call-site analysis this gate does not do.
-
-*Same-named methods on unrelated models.* The base must be defined in
-``addons/mail/models`` and the keyword must be one ``mail`` itself passes. A
-``_message_foo`` invented by two addons that never talk to each other is not a
-contract and is not measured.
-
-*Tests.* An override in a ``tests/`` directory is a fixture, free to take whatever
-shape its test needs.
-
-**A contract, not a ratchet.** The tree measures zero and there is no reading of
-this number under which a non-zero value is acceptable: a keyword an override
-cannot accept is a ``TypeError`` waiting for the right record to be saved. It has
-no baseline for the same reason ``layer_check``'s contracts have none.
-
-**Cross-repo.** Overrides live in ``enterprise/`` and ``agromarin/`` too --
-``hr_appraisal`` was the sixth. Community CI checks out this repo alone and so
-measures the community overrides; the siblings pass ``--roots`` to cover their
-own, the way ``naming_vocabulary`` and ``js_public_surface`` already do.
-
-Usage::
-
-  python tooling/architecture/mail_hook_keyword_check.py             # report
-  python tooling/architecture/mail_hook_keyword_check.py --check     # CI
-  python tooling/architecture/mail_hook_keyword_check.py --count
-  python tooling/architecture/mail_hook_keyword_check.py --json
-  python tooling/architecture/mail_hook_keyword_check.py --roots ../enterprise
-"""
-
 import argparse
 import ast
 import json
@@ -94,20 +13,12 @@ ADR = "unrecorded"
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="mail_hook_keyword_check")
 
-# Where the framework declares the hooks. `mail/models` only: the wizard and the
-# controllers call them, they do not define the contract.
 FRAMEWORK_DIR = Path("addons/mail/models")
 
-# Where the framework calls them. Wider than FRAMEWORK_DIR because a keyword
-# passed from a controller binds an override just as hard as one passed from a
-# model.
 FRAMEWORK_CALLER_DIR = Path("addons/mail")
 
 HOOK_PREFIXES = ("_notify", "_message", "_mail_", "_track")
 
-# Both addon trees. `odoo/addons` cannot legally depend on `mail` and so holds
-# no override today, but scoping a gate to where the offenders happen to be is
-# how the next one gets missed.
 SCAN_ROOTS = ("addons", "odoo/addons")
 
 
@@ -146,11 +57,6 @@ def _params(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
 
 
 def _methods(tree: ast.AST):
-    """Yield ``(FunctionDef, ...)`` for methods of classes only.
-
-    Module-level functions are not overrides of anything and a ``_message_*``
-    helper at module scope would otherwise be read as one.
-    """
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef):
             for fn in node.body:
@@ -164,12 +70,6 @@ def measure(
     framework_dir: Path | None = None,
     caller_dir: Path | None = None,
 ) -> list[Finding]:
-    """Findings over ``roots``, judged against the hooks ``framework_dir`` declares.
-
-    The two directories are parameters rather than constants so the self-test can
-    build a whole synthetic framework-plus-overrides tree; nothing in production
-    passes them.
-    """
     roots = roots or [ROOT / r for r in SCAN_ROOTS]
     framework_dir = framework_dir or ROOT / FRAMEWORK_DIR
     caller_dir = caller_dir or ROOT / FRAMEWORK_CALLER_DIR
@@ -181,12 +81,6 @@ def measure(
         except SyntaxError:
             continue
 
-    # Union rather than first-wins: `mail` declares two of these names twice --
-    # `discuss.channel` redeclares `_message_post_after_hook` (spelling the
-    # second parameter `msg_vals`, against the mixin's `msg_values`) and
-    # `_message_update_content`. Both are overrides of the mixin living inside
-    # the framework directory, so taking whichever file sorts first would make
-    # the accepted keyword set depend on a filename.
     base_hooks: dict[str, set[str]] = defaultdict(set)
     overrides: dict[str, list[tuple[Path, int, set[str], bool]]] = defaultdict(list)
     for path, tree in trees.items():
@@ -196,21 +90,10 @@ def measure(
                 continue
             if in_framework:
                 base_hooks[fn.name] |= _params(fn)
-            # In-framework declarations are checked too, not only outside ones.
-            # `discuss.channel` overrides `_message_post_after_hook` and
-            # `_message_update_content` from inside `addons/mail/models`, so
-            # classifying every file there as "the base" made the two hooks most
-            # likely to be redeclared the two this gate could never fire on. The
-            # declaration that introduces a keyword carries it and so cannot flag
-            # itself; a sibling that lacks it can.
             overrides[fn.name].append(
                 (path, fn.lineno, _params(fn), fn.args.kwarg is not None)
             )
 
-    # Refuse a tree that yielded nothing rather than report a clean zero: an
-    # empty scan and a tree whose every override is correct print the same 0,
-    # and only one of them means anything. `mail` has carried these hooks since
-    # the module existed, so "none found" is a broken scan by construction.
     if not base_hooks:
         raise SystemExit(
             f"mail_hook_keyword_check: no hooks found under {_rel(framework_dir)} — "
@@ -231,9 +114,6 @@ def measure(
                     kw.arg for kw in node.keywords if kw.arg
                 )
 
-    # Same refusal one level down: a `FRAMEWORK_CALLER_DIR` that resolves to
-    # nothing leaves every `used` set empty, which skips every hook and prints a
-    # clean zero. The keyword pass is the gate's whole input — measure it.
     if not any(keywords.values()):
         raise SystemExit(
             f"mail_hook_keyword_check: {_rel(caller_dir)} passes no keyword to any "
@@ -242,8 +122,6 @@ def measure(
 
     findings: list[Finding] = []
     for hook, declared in base_hooks.items():
-        # Only keywords the framework passes AND the base declares: a caller may
-        # legitimately forward something the base absorbs in **kwargs.
         used = keywords.get(hook, set()) & declared
         if not used:
             continue
@@ -257,7 +135,7 @@ def measure(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--check", action="store_true", help="CI mode: exit 1 on any finding"
     )

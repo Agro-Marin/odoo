@@ -24,8 +24,6 @@ class TestFaceDetection:
         assert gate.has_face("foo", tmp_path) is False
 
     def test_the_live_faces_are_the_ones_the_boundary_gate_would_find(self):
-        # Same pairing `js_face_boundary.faced_directories` globs for, so the
-        # two gates cannot disagree about what a face is.
         import js_face_boundary as boundary
 
         faced = boundary.faced_directories()
@@ -58,8 +56,6 @@ class TestReach:
         assert reached == {"dropdown"}
 
     def test_webs_own_modules_are_not_outside_consumers(self, tmp_path):
-        # The rule is about the boundary. `web` importing its own component is
-        # not an entry to constrain.
         root = self._consumer(
             tmp_path,
             "addons/web/static/src/views/v.js",

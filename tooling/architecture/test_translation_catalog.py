@@ -1,10 +1,3 @@
-"""`translation_catalog` must find the drift it exists for, and only that.
-
-Stdlib + pytest only, like the gate. Run with:
-
-    pytest tooling/architecture/test_translation_catalog.py
-"""
-
 import pathlib
 import sys
 
@@ -16,7 +9,6 @@ import translation_catalog as tcat
 
 
 def _module(root, name, *, pot, sources):
-    """A module dir shipping ``pot`` (raw text) and ``sources`` (path -> text)."""
     module_dir = root / "addons" / name
     (module_dir / "i18n").mkdir(parents=True)
     (module_dir / "i18n" / f"{name}.pot").write_text(pot, encoding="utf-8")
@@ -44,7 +36,6 @@ def test_a_string_the_catalogue_carries_is_resolved(tmp_path):
 
 
 def test_a_reflowed_literal_is_reported(tmp_path):
-    """The mail_alias case: same words, different wrapping, no msgid."""
     roots = _module(
         tmp_path,
         "alpha",
@@ -62,7 +53,6 @@ def test_a_reflowed_literal_is_reported(tmp_path):
 
 
 def test_a_multiline_msgid_is_read_back_verbatim(tmp_path):
-    """Continuation lines join with no separator; the source must match exactly."""
     roots = _module(
         tmp_path,
         "alpha",
@@ -89,7 +79,6 @@ def test_gettext_on_an_environment_counts_too(tmp_path):
 
 
 def test_non_constant_arguments_are_out_of_scope(tmp_path):
-    """No exporter can extract them, so this gate has nothing to say about them."""
     roots = _module(
         tmp_path,
         "alpha",
@@ -117,7 +106,6 @@ def test_tests_are_excluded(tmp_path):
 
 
 def test_a_module_without_a_catalogue_is_skipped_not_counted(tmp_path):
-    """This measures drift, not coverage: no `.pot` means nothing to disagree with."""
     roots = _module(tmp_path, "alpha", pot=_pot("known"), sources={})
     bare = tmp_path / "addons" / "beta"
     (bare / "models").mkdir(parents=True)
@@ -128,8 +116,6 @@ def test_a_module_without_a_catalogue_is_skipped_not_counted(tmp_path):
 
 
 def test_an_empty_tree_is_refused(tmp_path):
-    """A gate that reports a clean zero on a tree it never read is the bug class
-    `test_every_gate_refuses_an_empty_tree` exists for."""
     (tmp_path / "addons").mkdir()
     (tmp_path / "odoo" / "addons").mkdir(parents=True)
     with pytest.raises(RuntimeError, match="refusing to report a clean zero"):
@@ -154,8 +140,6 @@ def _po(root, module, lang, pairs):
 
 
 def test_read_translations_joins_continuation_lines():
-    """The msgstr matters here, not just the msgid: an untranslated near neighbour
-    is free to displace and a translated one is not."""
     import tempfile
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -182,7 +166,7 @@ def test_a_rewording_reports_what_it_strands(tmp_path):
     old = "Rendering supports only qweb and inline_template; got %(engine)s."
     _po(tmp_path, "alpha", "fr", {old: "Le rendu ne supporte que…"})
     _po(tmp_path, "alpha", "de", {old: "Rendering unterstützt nur…"})
-    _po(tmp_path, "alpha", "it", {old: ""})  # present but untranslated
+    _po(tmp_path, "alpha", "it", {old: ""})
 
     found, _stats = tcat.measure(roots)
     assert len(found) == 1

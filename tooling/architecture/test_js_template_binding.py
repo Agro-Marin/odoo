@@ -1,21 +1,3 @@
-"""Probes for the template-binding gate.
-
-The first draft of this gate reported a clean tree while being blind to the exact
-defect it was written for, twice over, and both blind spots are tests here:
-
-* it scanned tag by tag, and a tag-level regex bounds itself on `>` -- which
-  `t-on-click="() => this.foo()"` contains, so every arrow-function handler fell
-  outside the match. That is the commonest place a template calls a method.
-* it could not parse QWeb's Python-style `and`/`or`, and skipped 280 templates
-  for it rather than 13.
-
-The other half of the suite is about the gate NOT firing. Every resolution step
-in it over-approximates membership on purpose, because for a gate that reports a
-MISSING name an over-approximation is a false negative and an
-under-approximation is a false positive -- and a scanner that cries wolf gets
-switched off.
-"""
-
 import js_template_binding as jtb
 import pytest
 
@@ -53,7 +35,6 @@ def component(name, template, body=""):
 
 
 def test_a_missing_method_on_an_arrow_handler_is_caught(tree):
-    # The historical defect, in the shape it actually had.
     tree("a.js", component("Bar", "web.Bar"))
     tree(
         "a.xml",
@@ -91,7 +72,6 @@ def test_qweb_boolean_operators_do_not_make_a_template_unparsable(tree):
 
 
 def test_call_syntax_inside_a_string_is_not_a_call(tree):
-    # `url(` in a style expression is CSS, and a regex form reported it.
     tree("a.js", component("Bar", "web.Bar"))
     tree(
         "a.xml",
@@ -103,8 +83,6 @@ def test_call_syntax_inside_a_string_is_not_a_call(tree):
 
 
 def test_an_optionally_called_name_is_not_required(tree):
-    # `foo?.()` is the author tolerating absence, as
-    # website.DynamicSnippetOption does with `!!showCoverImage?.()`.
     tree("a.js", component("Bar", "web.Bar"))
     tree(
         "a.xml",
@@ -147,9 +125,6 @@ def test_a_mixin_installed_with_object_assign_counts(tree):
 
 
 def test_a_mixin_installed_through_a_bespoke_installer_counts(tree):
-    # `installListRendererMixin`'s shape: defineProperties, with the descriptors
-    # DERIVED from the parameter rather than being the parameter. Requiring the
-    # parameter to reach the call reported all four of its members missing.
     tree("m.js", "export const stylingMixin = { getColumnClass() {} };\n")
     tree(
         "a.js",
@@ -186,8 +161,6 @@ def test_a_patched_method_counts(tree):
 
 
 def test_a_template_owned_by_two_components_is_skipped_and_counted(tree):
-    # A `t-call`ed fragment evaluates in the CALLER's scope, so it has no single
-    # owner and asking the question of it would invent findings.
     tree("a.js", component("One", "web.Shared") + component("Two", "web.Shared"))
     tree(
         "a.xml",

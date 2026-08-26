@@ -1,25 +1,8 @@
-"""The "Module layout" block of ``odoo.service.__doc__`` is checked by nothing.
-
-It went stale exactly the way an unchecked list does: ``db.py`` became the
-``db/`` package (ADR-0014) and the docstring kept describing it as one module,
-while ``_metrics.py`` -- real surface, imported by
-``addons/web/controllers/home.py`` to serve ``/web/metrics`` -- was never added
-at all.  A reader who trusts the block goes looking for a file that is not
-there and misses one that is.
-
-This gate is the reason the block can be trusted from here on: it is derived
-from the tree on every run, so the next module added to the package fails a
-test instead of quietly widening the gap.
-"""
-
 import pathlib
 import re
 
 import odoo.service
 
-#: ``    name.py         description`` or ``    db/             description``.
-#: Nested entries (the ``db/`` submodules) are indented deeper and are matched
-#: separately, so a top-level entry is exactly four spaces in.
 _ENTRY = re.compile(r"^ {4}(\w+\.py|\w+/)\s+\S", re.MULTILINE)
 _NESTED = re.compile(r"^ {8}(\w+\.py)\s+\S", re.MULTILINE)
 

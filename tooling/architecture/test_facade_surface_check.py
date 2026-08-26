@@ -1,14 +1,3 @@
-"""The façade-surface gate.
-
-Written against the break it exists for: three imports across `enterprise` name
-something `odoo.tools` does not export, and every one of them is an
-`ImportError` at addon-install time that no CI lane could see.
-
-    l10n_au_hr_payroll_api  from odoo.tools.misc import groupby, itemgetter
-    l10n_nl_reports         from odoo.tools import zeep
-    l10n_se_sie_import      from odoo.tools import ..., mimetypes, ...
-"""
-
 import ast
 import textwrap
 
@@ -43,7 +32,6 @@ class TestBoundNames:
         assert {"X", "Y", "f", "C"} <= bound
 
     def test_names_bound_under_TYPE_CHECKING_count(self):
-        """`if TYPE_CHECKING:` still binds a name a caller may import."""
         bound, _ = _surface(
             """
             if typing.TYPE_CHECKING:
@@ -80,11 +68,6 @@ class TestBoundNames:
 
 class TestSubmoduleNames:
     def test_a_package_facade_exposes_its_submodules(self):
-        """`from odoo.tools import date_utils` imports a *module*.
-
-        It appears in no `__init__`, and reading it as missing was this gate's
-        first false-positive class -- 91 of them, all legal.
-        """
         names = gate._submodule_names("odoo.tools")
         assert {"date_utils", "safe_eval", "misc", "query"} <= names
         assert "pdf" in names, "a package submodule counts too"
@@ -102,14 +85,12 @@ class TestCheck:
         assert report.ok
 
     def test_an_empty_scan_refuses_rather_than_passing(self, tmp_path):
-        """0 findings from 0 files is not a pass."""
         (tmp_path / "empty").mkdir()
         report = gate.check((tmp_path / "empty",))
         assert not report.ok
         assert "scanned" in report.vacuous
 
     def test_undeclared_names_are_reported_and_do_not_fail(self):
-        """The façades forward more than they declare, on purpose."""
         report = gate.check()
         assert report.undeclared, "misc alone forwards dozens beyond __all__"
         assert report.ok
@@ -126,7 +107,6 @@ class TestCheck:
         addon = tmp_path / "addon"
         addon.mkdir()
         (addon / "models.py").write_text(f"from {facade} import {name}\n")
-        # Enough files that the vacuity guard does not fire first.
         for i in range(gate._MIN_SCANNED):
             (addon / f"pad_{i}.py").write_text("x = 1\n")
         report = gate.check((addon,))

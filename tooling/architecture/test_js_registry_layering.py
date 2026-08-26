@@ -46,12 +46,6 @@ def test_an_upward_service_edge_is_an_inversion(monkeypatch, tmp_path):
 
 
 def test_a_declared_dependency_is_an_edge(monkeypatch, tmp_path):
-    """The declarative form counts the same as the three call-site forms.
-
-    A service naming its dependencies in `dependencies: [...]` couples to them
-    exactly as much as one reaching for `useService`, and this gate read only
-    the latter until three long-standing `core -> ui` edges turned up invisible.
-    """
     new, known = _tree(
         monkeypatch,
         tmp_path,
@@ -67,7 +61,6 @@ def test_a_declared_dependency_is_an_edge(monkeypatch, tmp_path):
 
 
 def test_a_declared_dependency_names_every_entry(monkeypatch, tmp_path):
-    """One array, several services -- each is its own edge, all on that line."""
     new, _known = _tree(
         monkeypatch,
         tmp_path,

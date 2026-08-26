@@ -1,47 +1,4 @@
 #!/usr/bin/env python3
-"""Gate the *descriptive* half of the architecture docs against the tree.
-
-``layer_check.py`` enforces the architecture's **contracts** (who may import
-whom).  Nothing enforced its **map** — the "Subsystem map" tree that tells a
-reader which packages exist and what lives in them.  ``doc_link_gate.py`` proves
-a referenced ``.md`` file *exists*; it says nothing about whether a described
-package still matches its directory.  So the map is the one part of the
-architecture documentation that can rot silently, and it did: it depicted
-``db/connectivity``, ``db/resilience``, ``http/core`` and ``http/features`` as
-subdirectories, none of which exist, and the invented ``core`` node masked the
-real, undocumented ``http/core.py``.
-
-This checker closes that loop.  It parses the map and enforces two rules:
-
-**1. No fictional paths.**  Every path-shaped name in the map must exist in the
-tree.  A logical grouping that is not a directory must say so by writing itself
-``[in brackets]``; the checker then treats it as a label rather than a path, and
-attributes the names after it to the enclosing package.
-
-**2. An enumeration that starts must finish.**  The map does not have to list a
-package's contents — ``libs/`` (138 files) is deliberately summarised in one
-line.  But a package whose children the map *does* enumerate must be enumerated
-*exhaustively*, per kind: name one module and every module must be named; name
-one subpackage and every subpackage must be named.  Naming only ``assets/``
-under ``tools/`` is what let ``babel_extractors/`` and ``pdf/`` go unmentioned.
-
-Splitting the rule by kind is what keeps it proportionate.  ``tools/`` lists
-subpackages only, so the gate demands its three subpackages and not its 35
-modules; ``db/`` lists modules only, so it demands all 17 and does not care that
-it has no subpackages.  A blanket "list everything" rule would force 138 lines
-of ``libs/`` into a map whose value is that it fits on a screen.
-
-Exempt everywhere: ``__init__.py`` (the package itself), ``__pycache__``,
-``tests/`` (test suites are documented by ``doc/coding_guidelines.rst`` §6, not
-by the subsystem map), and non-Python files.
-
-Usage::
-
-    python tooling/architecture/subsystem_map_check.py            # report
-    python tooling/architecture/subsystem_map_check.py --check    # CI: exit 1
-    python tooling/architecture/subsystem_map_check.py --json     # machine-readable
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -323,7 +280,7 @@ def render(report: Report) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--check", action="store_true", help="exit 1 when the map has drifted"
     )

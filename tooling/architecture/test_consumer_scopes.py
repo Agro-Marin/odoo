@@ -1,13 +1,3 @@
-"""`VALIDATED_BY` is a claim about other repositories' CI. Keep it true.
-
-The table has to be DECLARED — CI checks this repository out alone and cannot
-read a sibling's workflow — and a declared claim about someone else's build is
-exactly the kind that rots unnoticed. So it is re-derived from the sibling
-checkouts whenever they are present, which is every developer workspace and no
-CI run. The tests that need a sibling skip without one rather than passing over
-an absent tree, which is the same rule the gates themselves follow.
-"""
-
 from __future__ import annotations
 
 import re
@@ -20,7 +10,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import _consumer_scopes as cs
 
-#: `python odoo/tooling/architecture/<gate>.py` as the sibling workflows spell it.
 _RUNS = re.compile(r"tooling/architecture/(\w+)\.py")
 
 
@@ -37,8 +26,6 @@ def _scopes_other_than_odoo() -> list[str]:
 
 
 def test_every_governed_gate_declares_a_row():
-    # A gate that prints the absent-scope line must appear in VALIDATED_BY, or
-    # `absent_scopes_line` silently reports every scope as unjudged.
     here = Path(__file__).resolve().parent
     printers = {
         p.stem
@@ -74,12 +61,6 @@ def test_the_declared_lanes_really_run_the_gate(gate):
 
 @pytest.mark.parametrize("gate", sorted(cs.VALIDATED_BY))
 def test_no_lane_is_missing_from_the_table(gate):
-    """The other direction: a sibling that started running a gate must be listed.
-
-    Without this the table can only over-claim in one direction and under-claim
-    silently in the other, and an under-claim is what makes a real lane look
-    like a hole nobody need bother closing.
-    """
     for scope in _scopes_other_than_odoo():
         workflow = _sibling_workflow(scope)
         if workflow is None:
@@ -109,13 +90,6 @@ def test_the_unjudged_list_is_exactly_what_no_lane_covers():
 
 
 def test_the_absent_line_never_claims_coverage_it_cannot_show():
-    """The rendering rule, on synthetic input rather than on today's table.
-
-    Pointing this at a live scope made it a test of `VALIDATED_BY`'s current
-    contents: it named `design-themes` as the unjudged one and broke the moment
-    that repo got a lane — which is the outcome the whole exercise wanted. The
-    behaviour under test is the split, so the input is a scope no table has.
-    """
     unjudged = cs.absent_scopes_line("js_public_surface", ["no-such-consumer"])
     assert "NO lane" in unjudged
     assert "validated in their own CI" not in unjudged
@@ -131,10 +105,6 @@ def test_the_absent_line_never_claims_coverage_it_cannot_show():
 
 
 def test_no_scope_is_pinned_without_a_lane_today():
-    # The live half, kept separate from the rendering rule above so a failure
-    # says which of the two it is. Empty is the goal, not the assumption:
-    # UNJUDGED_SCOPES is where a new consumer gets declared, and a scope that is
-    # in neither that set nor any gate's table would be silently uncovered.
     judged = {scope for lanes in cs.VALIDATED_BY.values() for scope in lanes}
     uncovered = {
         name
@@ -150,8 +120,6 @@ def test_no_scope_is_pinned_without_a_lane_today():
 
 
 def test_the_roots_are_shared_not_copied():
-    # Six gates carried this tuple verbatim. The point of the module is that
-    # they stop.
     here = Path(__file__).resolve().parent
     copies = [
         p.name

@@ -63,8 +63,6 @@ class QualifyTests(unittest.TestCase):
         )
 
     def test_a_memory_address_in_a_subtest_param_is_folded(self):
-        # _SubTest._subDescription interpolates repr() of every param, so an
-        # object without a stable repr would rename the subtest every run.
         first = qualify(
             "odoo.addons.base.tests.test_x",
             "Subtest TestCustomFields.test_related_field (rec=<obj at 0x7f9c1a2b3c40>)",
@@ -100,9 +98,6 @@ class ScanLogTests(unittest.TestCase):
         self.assertEqual(scan.failures, {"base/TestMenuMisc.test_multi_copy": "FAIL"})
 
     def test_postgres_error_text_inside_a_passing_test_is_not_a_failure(self):
-        # The shape that made the prose table claim two failures that never
-        # existed: psycopg's message is an unprefixed continuation line inside a
-        # record belonging to a test that passes.
         text = (
             start("base", "TestConcurrentDdl.test_alter")
             + record("ERROR", "odoo.db.cursor", 'bad COPY: COPY "t" ("x") FROM STDIN')
@@ -120,10 +115,6 @@ class ScanLogTests(unittest.TestCase):
         self.assertEqual(scan.failures["l10n_ch/TestSwissQR.test_iban"], "ERROR")
 
     def test_one_name_failing_twice_keeps_both_occurrences(self):
-        # test_mail_full's TestRatingPerformance.test_rating_last_value_perfs
-        # carries two assertQueryCount blocks and logs a FAIL for each, with
-        # identical subtest params. Collapsing them made `sound` read 4 against
-        # the server's 6 and the suite could not be baselined at all.
         text = (
             failure("test_mail_full", "Subtest TestRating.test_perfs (login='e')")
             + failure("test_mail_full", "Subtest TestRating.test_perfs (login='e')")
@@ -155,7 +146,6 @@ class ScanLogTests(unittest.TestCase):
         self.assertEqual(self.scan(text).started_count, 0)
 
     def test_total_prefers_the_servers_own_tally_over_counted_starts(self):
-        # A retried test logs Starting twice and a set collapses the pair.
         text = (
             start("qc", "TestA.test_b")
             + start("qc", "TestA.test_b")
@@ -169,8 +159,6 @@ class ScanLogTests(unittest.TestCase):
         self.assertEqual(self.scan(start("qc", "TestA.test_b")).total, 1)
 
     def test_a_log_without_a_summary_is_incomplete(self):
-        # The shape a server dying mid-run takes. Without this, every expected
-        # failure reads as newly-passing and invites banking a green baseline.
         scan = self.scan(failure("qc", "TestA.test_b"))
         self.assertFalse(scan.complete)
         self.assertFalse(scan.sound)
@@ -219,8 +207,6 @@ class EvaluateTests(unittest.TestCase):
         self.assertEqual(verdict.fixed, ())
 
     def test_an_equal_count_with_a_swapped_name_is_not_green(self):
-        # The measured quality_control case: 2 failed before, 2 failed after,
-        # one name replaced. A count comparison calls this "both known".
         swapped = {
             "quality_control/TestQualityCheck.test_removal": "FAIL",
             "quality_control/TestSpreadsheet.test_create": "FAIL",
@@ -281,10 +267,6 @@ class BaselinePathTests(unittest.TestCase):
                 testbaseline.baseline_path(bad)
 
     def test_the_cli_reports_a_bad_suite_name_instead_of_raising(self):
-        # `baseline_path` is reached from both the check and the update branch,
-        # and its ValueError used to escape main() as a traceback. The natural
-        # way to hit it is a real one: a run tagged `/loyalty,/sale_loyalty`
-        # covers two suites, and a baseline is per suite.
         with TemporaryDirectory() as tmp:
             log = Path(tmp) / "run.log"
             log.write_text(f"{PREFIX} INFO db odoo.tests.result: 0 failed, 0 error(s) of 1 tests\n")

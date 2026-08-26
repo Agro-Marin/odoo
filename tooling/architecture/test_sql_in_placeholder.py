@@ -13,13 +13,6 @@ def _write(tmp: Path, name: str, body: str) -> Path:
 
 
 class TestMeasure(unittest.TestCase):
-    """Every case here was measured against a real cursor before being pinned.
-
-    The gate reads zero across all four scopes, which is only worth something if
-    it can still see -- so each shape it is supposed to catch is asserted here,
-    and so is each shape it must leave alone.
-    """
-
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = Path(self._tmp.name)
@@ -28,7 +21,6 @@ class TestMeasure(unittest.TestCase):
     def _measure(self, body: str):
         return sip.measure([_write(self.tmp, "a.py", body)])
 
-    # --- what it must catch -------------------------------------------------
 
     def test_a_query_handed_straight_to_execute_is_reported(self):
         found = self._measure(
@@ -67,16 +59,13 @@ class TestMeasure(unittest.TestCase):
         self.assertEqual([f.kind for f in found], ["sequence"])
 
     def test_a_positional_placeholder_maps_to_its_own_argument(self):
-        """The second `%s` is the one bound to the list, not the first."""
         found = self._measure(
             'SQL("SELECT id FROM tbl WHERE a IN %s AND b IN %s", (1, 2), [3, 4])'
         )
         self.assertEqual(len(found), 1)
 
-    # --- what it must leave alone -------------------------------------------
 
     def test_the_builder_given_a_tuple_is_correct(self):
-        """The builder expands a tuple into `(%s, %s)`; this is the idiom."""
         self.assertEqual(
             self._measure(
                 'SQL("SELECT id FROM tbl WHERE id IN %(ids)s", ids=tuple(records.ids))'
@@ -99,7 +88,6 @@ class TestMeasure(unittest.TestCase):
         )
 
     def test_an_unresolvable_argument_is_left_alone(self):
-        """A bare name is not evidence; see the docstring on why."""
         self.assertEqual(
             self._measure('SQL("SELECT id FROM tbl WHERE id IN %(ids)s", ids=ids)'),
             [],
@@ -112,7 +100,6 @@ class TestMeasure(unittest.TestCase):
         )
 
     def test_prose_carrying_the_english_word_in_is_not_a_query(self):
-        """Three real messages that a case-insensitive keyword test admitted."""
         for message in (
             '_("Here is your Receipt for %(pos)s amounting in %(amount)s from %(co)s")',
             '_logger.warning("rate limit: %s/%s in %ss from %s", a, b, c, d)',
@@ -122,7 +109,6 @@ class TestMeasure(unittest.TestCase):
                 self.assertEqual(self._measure(message), [])
 
     def test_a_literal_python_formats_before_it_is_a_query_is_not_a_placeholder(self):
-        """calendar_recurrence's CHECK builds SQL literals, not placeholders."""
         self.assertEqual(
             self._measure(
                 'models.Constraint("CHECK (weekday IN %s AND byday IN %s)" % (a, b))'
@@ -131,7 +117,6 @@ class TestMeasure(unittest.TestCase):
         )
 
     def test_a_query_text_returned_for_a_builder_elsewhere_is_left_alone(self):
-        """Core's own shape: the text in one method, `SQL()` in another."""
         self.assertEqual(
             self._measure(
                 'def q():\n'

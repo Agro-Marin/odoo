@@ -1,53 +1,4 @@
 #!/usr/bin/env python3
-"""A ``search_count`` whose answer is only ever a yes or a no (ADR-0057).
-
-``search_count(domain)`` scans every matching row and returns how many there
-are. When the caller then asks only whether that number is nonzero -- ``if``,
-``not``, ``bool()``, a comparison against 0 -- the count is discarded and the
-scan bought nothing. ``search_count(domain, limit=1)`` answers the same question
-and stops at the first row.
-
-The cost is proportional to the table, so it is invisible on a development
-database and grows without bound on a real one. Measured on this fork against
-``ir.model.fields`` at 8,001 rows, best of twenty with the cache invalidated
-between runs::
-
-    search_count([])            0.248 ms
-    search_count([], limit=1)   0.053 ms     4.7x
-
-That ratio is not the point -- the shape of the curve is. One is O(rows) and the
-other is O(1), so the same call on a production ``account.move.line`` costs
-whatever that table has grown to.
-
-WHAT IT COUNTS. A ``search_count`` call passing no ``limit`` whose result reaches
-exactly one of: the test of an ``if`` or a conditional expression, ``not``,
-``bool()``, or a comparison against the literal ``0``. Each of those is decided
-by the same node that produced the count, so the judgement is local and the
-rewrite is one keyword.
-
-``and``, ``or`` and ``not`` are walked THROUGH rather than stopped at, because
-they pass a value on rather than consuming one. In::
-
-    if combo_item and Template.sudo().search_count(domain):
-
-the count reaches an ``if`` and nothing else, so its number is as discarded as it
-would be without the ``and``. ADR-0057 excluded this shape when it was written,
-on the ground that the value escapes -- and it does, but only when the
-EXPRESSION escapes. Assign the same thing to a name and the walk stops at the
-assignment, which is the case that record was really describing.
-
-WHAT IT DOES NOT COUNT, and must not. A count whose enclosing expression is
-consumed for anything but its truth: ``vals = a and self.search_count(domain)``
-hands the number on, and ``limit=1`` would make it a 1. Nor a count already
-passing a ``limit``, which is the fixed form. Nor ``search_count`` used for its
-number, however small the table is expected to be -- the gate judges the use,
-not the guess.
-
-Tests are out of scope, as they are for the other Python gates here: the cost
-this measures is what a server pays serving a request, and a floor that mixed
-that with a fixture of four rows would move for reasons nobody could read.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -108,7 +59,6 @@ def iter_source_files(src: Path | None = None) -> list[Path]:
 
 
 def _truth_use(call: ast.Call, parent: ast.AST | None) -> str | None:
-    """How the parent consumes the count, when it consumes only its truth."""
     if isinstance(parent, (ast.If, ast.IfExp)) and parent.test is call:
         return "if"
     if isinstance(parent, ast.UnaryOp) and isinstance(parent.op, ast.Not):
@@ -129,14 +79,6 @@ def _truth_use(call: ast.Call, parent: ast.AST | None) -> str | None:
 
 
 def _consumer(call: ast.Call, parents: dict[int, ast.AST]) -> str | None:
-    """Walk up until something either uses the number or only its truth.
-
-    `and`/`or`/`not` do not consume a value, they pass one on: in
-    ``if combo_item and Template.search_count(domain):`` the count reaches an
-    ``if`` and nothing else, so the number is as discarded as it would be
-    without the ``and``. Assign that same expression to a name and it is not --
-    which is why this walks rather than looking at the immediate parent alone.
-    """
     node: ast.AST = call
     while True:
         parent = parents.get(id(node))

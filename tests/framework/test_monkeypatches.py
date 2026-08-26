@@ -1,11 +1,3 @@
-"""`odoo._monkeypatches`: applied, idempotent, and order-independent.
-
-Moved from `odoo/addons/base/tests/test_monkeypatches.py`. It subclassed the framework test
-case but touched no database and no registry, so it only ran behind a
-`createdb` plus a full `base` install. It does need a real `import odoo.*`,
-which is why it is here rather than in a Tier-1 suite.
-"""
-
 import ast as ast_module
 import copy
 import importlib
@@ -44,16 +36,6 @@ class TestMonkeypatchContract(unittest.TestCase):
                 )
 
     def test_every_patch_imports_the_module_it_is_named_for(self):
-        """The file name is the wiring, so it has to name a module we touch.
-
-        `patch_init()` derives the hook set from file names and nothing else
-        declares what a file patches, so a file named for an unrelated module
-        still runs -- hooked on *that* module's import -- and the README index
-        inherits the lie. `site.py` was that file: it patched `odoo`,
-        `encodings.aliases`, `codecs` and `babel.core`, and nothing named
-        `site`. An import of the target counts wherever it appears, including
-        inside `patch_module()` (`num2words.py` imports lazily on purpose).
-        """
         for name in _patch_submodules():
             with self.subTest(patch=name):
                 source = pathlib.Path(
@@ -75,18 +57,6 @@ class TestMonkeypatchContract(unittest.TestCase):
 
 class TestPatchesSurviveEitherImportOrder(unittest.TestCase):
     def test_importing_every_submodule_leaves_every_patch_applied(self):
-        """Importing a patch submodule must apply its patch, not disable it.
-
-        A patch submodule imports its target at module level, so importing the
-        submodule first re-enters `patch_module()` while the submodule is still
-        initializing.  That call used to return silently and the patch was
-        dropped for the life of the process -- unlogged, and absent from the
-        applied set, so nothing downstream could tell.
-
-        This very walk is what triggered it: it disabled 9 of 14 patches, `csv`
-        among them, which is why `test_translate_csv_dialect_is_registered`
-        below is the second half of this regression.
-        """
         for name in _patch_submodules():
             importlib.import_module(f"odoo._monkeypatches.{name}")
 
@@ -146,7 +116,6 @@ class TestLoaderCapabilitiesSurvivePatching(unittest.TestCase):
 
 class TestCsvPatch(unittest.TestCase):
     def test_field_size_limit_admits_an_inline_image(self):
-        """128KiB is the stdlib default; the reader raises rather than truncate."""
         import csv
 
         self.assertGreaterEqual(csv.field_size_limit(), 500 * 1024 * 1024)
@@ -179,11 +148,6 @@ class TestAstLiteralEvalLimit(unittest.TestCase):
 
     @mute_logger("odoo._monkeypatches.ast")
     def test_the_env_var_is_resolved_once_and_validated(self):
-        """Read per call it cost ~9% of literal_eval, and logged once per call.
-
-        Muted because three of the cases below are meant to log an ERROR; an
-        ERROR line in a green run trains people to skim past them.
-        """
         from odoo._monkeypatches.ast import DEFAULT_BUFFER_SIZE, buffer_size_from_env
 
         for raw, expected in (
@@ -236,18 +200,6 @@ class TestEmailHeaderFolding(unittest.TestCase):
         return [line for line in rendered.splitlines() if line.startswith((" ", "\t"))]
 
     def test_identification_headers_are_never_folded(self):
-        """Folding is legal and reversible; this is defensive interop.
-
-        A folded header re-parses to the same value, so nothing is *corrupted*
-        -- what the patch buys is that naive consumers matching msg-ids as
-        strings, and archived `original_email.eml` blobs, see one line.
-        `In-Reply-To`, `References` and `Resent-Message-ID` all fold under the
-        stock policy; `Message-Id` does not (stdlib gives it an unfoldable
-        header class), so that member is vacuous and kept for the contract.
-
-        `Resent-Message-ID` is here because the set used to spell it
-        `resent-msg-id`, which is not a header name and so matched nothing.
-        """
         references = " ".join(f"<msg-{i}.odoo@example.com>" for i in range(8))
         for header in ("Message-Id", "In-Reply-To", "References", "Resent-Message-ID"):
             with self.subTest(header=header):
@@ -282,14 +234,12 @@ class TestExcelSheetNames(unittest.TestCase):
         self.assertEqual(self._sanitize("a[b]c:d*e?f/g\\h"), "abcdefgh")
 
     def test_edge_apostrophes_are_dropped(self):
-        """xlsxwriter rejects them outright; the sanitizer used to pass them through."""
         self.assertEqual(self._sanitize("'quoted'"), "quoted")
 
     def test_names_are_cut_to_the_excel_limit(self):
         self.assertEqual(len(self._sanitize("n" * 60)), 31)
 
     def test_truncation_does_not_manufacture_a_duplicate(self):
-        """Truncating is what creates the clash, so the sanitizer has to break it."""
         first = self._sanitize("Journal Items 2026 - Ledger A")
         second = self._sanitize("Journal Items 2026 - Ledger B", [first])
         self.assertNotEqual(first.lower(), second.lower())
@@ -326,12 +276,6 @@ class TestMimeTypePins(unittest.TestCase):
     )
 
     def test_the_six_extensions_resolve_to_the_web_types(self):
-        """Vacuous on its own, and kept anyway: it states the contract.
-
-        CPython 3.14's hardcoded table already agrees on all six, so this
-        passes with `mimetypes.py` deleted. The test below is the one that
-        measures the patch.
-        """
         import mimetypes
 
         for extension, expected in self.PINS:
@@ -339,14 +283,6 @@ class TestMimeTypePins(unittest.TestCase):
                 self.assertEqual(mimetypes.guess_type(f"f{extension}")[0], expected)
 
     def test_the_pins_survive_a_host_mapping_that_disagrees(self):
-        """This is the patch's whole job, and the only non-vacuous form of it.
-
-        `mimetypes.init()` rebuilds the database from `knownfiles` -- a distro
-        `/etc/mime.types`, or the Windows registry -- and whatever it reads
-        overrides CPython's defaults *and* silently discards every earlier
-        `add_type`. Serving `.js` as `text/plain` is a broken web client, so
-        the pin has to outlive the rebuild rather than race it.
-        """
         import mimetypes
         import pathlib
         import tempfile
@@ -364,7 +300,6 @@ class TestMimeTypePins(unittest.TestCase):
                 self.assertEqual(mimetypes.guess_type(f"f{extension}")[0], expected)
 
     def test_the_host_file_really_would_have_won(self):
-        """Guards the test above: without the wrapper, `init()` wins."""
         import mimetypes
         import pathlib
         import tempfile
@@ -389,14 +324,6 @@ class TestMimeTypePins(unittest.TestCase):
 
 class TestCharsetLabels(unittest.TestCase):
     def test_separatorless_hebrew_variants_resolve(self):
-        """Only the spellings `encodings.aliases` misses prove anything here.
-
-        The table already carries `iso_8859_8_e` and `iso_8859_8_i`, so CPython
-        resolves every hyphenated or underscored spelling unaided and an
-        assertion about one would pass with the patch deleted.  The
-        `assertNotIn` is what keeps this test from going vacuous if a future
-        CPython adds them.
-        """
         import codecs
         import encodings.aliases
 
@@ -411,7 +338,6 @@ class TestCharsetLabels(unittest.TestCase):
                 self.assertEqual(codecs.lookup(label).name, "iso8859-8")
 
     def test_the_spellings_cpython_already_handles_are_not_the_patch(self):
-        """Guards the test above: these resolve with or without us."""
         import encodings.aliases
 
         for label in ("iso_8859_8_e", "iso_8859_8_i"):
@@ -434,8 +360,6 @@ class TestCharsetLabels(unittest.TestCase):
 
 class TestBabelLocaleAlias(unittest.TestCase):
     def test_bare_nb_has_a_territory(self):
-        """Request.best_lang maps a territory-less tag through LOCALE_ALIASES and
-        turns the KeyError into "no language preference at all"."""
         import babel.core
 
         self.assertEqual(babel.core.LOCALE_ALIASES["nb"], "nb_NO")
@@ -451,11 +375,6 @@ class TestWerkzeugJsonModule(unittest.TestCase):
         self.assertIs(Response.json_module, scriptsafe)
 
     def test_multidict_deepcopy_still_tracks_the_memo(self):
-        """A regression pin, vacuous by design: werkzeug 3.x gets this right.
-
-        It fails only if someone re-adds the wrapper that dropped `memo`, which
-        is what turned this into a RecursionError.
-        """
         from werkzeug.datastructures import MultiDict
 
         multidict = MultiDict()
@@ -465,15 +384,6 @@ class TestWerkzeugJsonModule(unittest.TestCase):
 
 
 class TestBulgarianIsRegistered(unittest.TestCase):
-    """The patch's job is the registration; the language is tested in Tier 1.
-
-    `odoo/libs/locale/tests/test_cardinals_bg.py` carries the grammar oracle
-    and the invariant sweeps, DB-free and on every PR. What can only be
-    asserted here is that the patch actually put the converter in num2words'
-    registry, and that the fallback `res_currency.amount_to_text` depends on
-    still works through the library's own entry point.
-    """
-
     def test_num2words_dispatches_bg_to_our_converter(self):
         import num2words
 
@@ -482,7 +392,6 @@ class TestBulgarianIsRegistered(unittest.TestCase):
         self.assertIsInstance(num2words.CONVERTER_CLASSES.get("bg"), BulgarianNumerals)
 
     def test_the_library_entry_point_reaches_it(self):
-        """res_currency calls num2words(n, lang=...), not the class."""
         from num2words import num2words
 
         self.assertEqual(num2words(111, lang="bg"), "сто и единадесет")
@@ -495,14 +404,6 @@ class TestBulgarianIsRegistered(unittest.TestCase):
 
 
 class TestFreezegunFacade(unittest.TestCase):
-    """`odoo.tests.common` replaces `freezegun.freeze_time` process-wide.
-
-    `from freezegun import freeze_time` therefore resolves to the wrapper in any
-    module imported after `odoo.tests.common`, and to the real one otherwise --
-    so a signature the wrapper does not accept is a `TypeError` that depends on
-    import order. It used to drop three of freezegun's arguments.
-    """
-
     def test_the_module_attribute_is_the_facade(self):
         import freezegun
 
@@ -526,14 +427,6 @@ class TestFreezegunFacade(unittest.TestCase):
         )
 
     def test_a_dropped_argument_reaches_freezegun(self):
-        """`ignore` is the one that was measured: passing it used to raise
-        `TypeError: freeze_time.__init__() got an unexpected keyword argument`.
-
-        Asserted on the freezer the facade built, not on a clock reading:
-        freezegun resolves `ignore` against the whole call stack, and a test
-        method is always reached through `unittest`, so any stack-based probe
-        from in here reports the ignored answer whatever is passed.
-        """
         from odoo.tests.common import freeze_time
 
         frozen = freeze_time("2020-01-01", ignore=["some.module"])

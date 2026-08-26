@@ -74,10 +74,6 @@ def _imported_modules(source: Path) -> set[str]:
     return names
 
 
-#: Number words the architecture documents spell out, so an assertion can
-#: re-derive the figure rather than trust it. Shared by every test here that
-#: compares a written-out count against a measured one -- it was a local dict
-#: inside one test until a second test needed it.
 _UNITS = [
     "zero",
     "one",
@@ -100,9 +96,6 @@ _UNITS = [
     "eighteen",
     "nineteen",
 ]
-#: Index 0 and 1 are unreachable -- `_number_word` only indexes this for values
-#: of twenty and above -- and are placeholders rather than "" so a slip that
-#: does reach them produces a visible word instead of a hyphen.
 _TENS = [
     "_",
     "_",
@@ -124,18 +117,9 @@ def _number_word(value: int) -> str:
     return _TENS[tens] if not unit else f"{_TENS[tens]}-{_UNITS[unit]}"
 
 
-#: Generated rather than written out, and to 99 rather than to the current
-#: total. The hand-written version ran to thirty-three and three separate local
-#: copies of it drifted out of range within one session as gates were added --
-#: each failing with a bare ``KeyError`` that reads like a broken test rather
-#: than a grown tree, which is what adding one more row would set up again.
 NUMBER_WORDS = {_number_word(value): value for value in range(4, 100)}
 
 
-#: Ordinals, derived by the same rule, for the same reason: the hand-written map
-#: this replaced ran to thirty-fourth and had to be extended by hand every time a
-#: gate landed. "thirtieth" is not `_number_word(30) + "th"`, but the exception
-#: list is three entries long and the tens rule is one line.
 _ORDINAL_UNITS = {
     "one": "first",
     "two": "second",
@@ -156,11 +140,6 @@ def _ordinal_word(value: int) -> str:
     return f"{head}-{ordinal}" if head else ordinal
 
 
-#: The same map, value -> word, for the assertions that go the other way: they
-#: measure a count and then look for its written form on the page. Derived
-#: rather than written twice -- three separate local copies of this drifted out
-#: of range within one session as gates were added, each failing with a bare
-#: ``KeyError`` that read like a broken test rather than a grown tree.
 NUMBER_WORD_BY_VALUE = {value: word for word, value in NUMBER_WORDS.items()}
 
 
@@ -689,22 +668,6 @@ class TestToolsReachesTheRuntime(unittest.TestCase):
 
 
 class TestToolsIsTheFacadeForLibs(unittest.TestCase):
-    """Both façade figures must re-derive: the direct one and the real one.
-
-    The page said **23** where ``tools/__init__.py`` imports **22** names from
-    ``odoo.libs``, and stopped there — so the sentence measured one file's
-    import statements and read as if it measured the façade. Following each
-    exported name one hop into the submodule that supplies it gives **58**,
-    more than half of ``__all__``, which is the figure the section's argument
-    actually rests on.
-
-    Resolved by import rather than by ``__module__``: ``html_escape`` is a
-    re-exported ``markupsafe`` alias and ``single_email_re`` a compiled
-    pattern, so a live-attribute sweep answers 57 and looks authoritative doing
-    it. It is also why this test parses instead of importing — which it could
-    not do here anyway, the boundary job installing pytest and nothing else.
-    """
-
     TOOLS = ROOT / "odoo" / "tools"
 
     @staticmethod
@@ -778,8 +741,6 @@ class TestToolsIsTheFacadeForLibs(unittest.TestCase):
             len(self.exported) // 2,
             "the section claims more than half the façade; it no longer is",
         )
-        # The two the run-time sweep misattributes must still be in the set,
-        # or the paragraph explaining the 57 is explaining nothing.
         self.assertLessEqual({"html_escape", "single_email_re"}, from_libs)
 
 
@@ -1156,10 +1117,6 @@ class TestReferencedArtifacts(unittest.TestCase):
             self.skipTest("no sibling checkout beside this one")
 
     def test_ratchet_baselines_match_documented_gates(self) -> None:
-        # [\w-]+, not \w+: NUMBER_WORDS spans 4..99 and every count above twenty
-        # is hyphenated, so the bare \w+ stopped matching the moment a
-        # twenty-first baseline landed -- and reported it as "the ratchet gate
-        # list is no longer stated", which points at the page rather than here.
         match = re.search(
             r"turns ([\w-]+) tool\s+counts into one-way contracts: "
             r"\*\*([^*]+)\*\*",
@@ -1863,15 +1820,6 @@ class TestGateInventoryIsWiredShut(unittest.TestCase):
         self.assertEqual(reraised, steps)
 
     def test_the_step_count_tracks_the_workflow(self) -> None:
-        """Steps, not checkers -- the page used to conflate them and drifted.
-
-        It said twenty-nine "checkers CI runs as their own step" against a
-        workflow that had grown to sixty-seven steps over forty-nine checkers,
-        and matched neither reading. The two differ only because a gate
-        governing several scopes gets a step per scope, so both are asserted
-        here: a step that stopped invoking exactly one checker would make the
-        sentence meaningless in a way a bare count cannot report.
-        """
         words = NUMBER_WORD_BY_VALUE
         per_step = [
             set(re.findall(r"tooling/architecture/([\w.]+)\.py", body))
@@ -1899,13 +1847,6 @@ class TestGateInventoryIsWiredShut(unittest.TestCase):
         )
 
     def test_the_tokenizer_consumer_count_is_derived(self) -> None:
-        """`js_imports.py` is parsed by more modules than the gate table lists.
-
-        The page said nine, which is no reading of the tree: eight of the
-        forty-nine parse with it, and three more that are not steps of their own
-        do too. Counting the table alone is the plausible wrong answer, so it is
-        asserted beside the real one.
-        """
         words = NUMBER_WORD_BY_VALUE
         tooling = ROOT / "tooling" / "architecture"
         consumers = {
@@ -1945,11 +1886,6 @@ class TestGateInventoryIsWiredShut(unittest.TestCase):
         self.assertNotIn("Not yet wired", DOC)
 
     def test_the_outside_checker_is_counted_from_the_inside_ones(self) -> None:
-        """``cross_repo_coherence.py`` is "an Nth checker" — N must track the table.
-
-        Ordinals, through ``_ordinal_word``: the map this used to keep locally
-        stopped at thirty-fourth and needed a hand-written row per new gate.
-        """
         expected = _ordinal_word(len(self._workflow_gates()) + 1)
         self.assertIn(f"is a {expected} checker and the only one outside CI", DOC_FLAT)
 
@@ -2149,20 +2085,6 @@ class TestPinnedCyclesAndRemovals(unittest.TestCase):
         self.assertIn("**The ORM has none.**", DOC_FLAT)
 
     def test_the_removed_table_is_why_scoping_is_needed(self) -> None:
-        """Both halves of the page's reason for scoping are real.
-
-        ``gates.md`` explains that ``package_index_check`` reads one *section*
-        rather than the whole README, because *Recently Removed* names ``.py``
-        files that an unscoped scan would misreport. That reason holds only if
-        the table really contains both kinds of row: one naming a file that is
-        gone, one retiring a patch from a file that is still there.
-
-        Asserted as those two properties. It used to pin ``len(rows) == 8``,
-        ``len(gone) == 6``, the six names, and a sentence restating them -- so it
-        failed on the commit that removed ``site``, ``smtplib`` and ``stdnum``,
-        which is to say on the commit that did the right thing and wrote down
-        why. Adding a row to a retirement log is not a regression.
-        """
         readme = ROOT / "odoo" / "_monkeypatches" / "README.md"
         section = readme.read_text(encoding="utf-8").split("## Recently Removed", 1)[1]
         section = section.split("\n## ", 1)[0]
@@ -2962,9 +2884,6 @@ class TestLifecycleSketches(unittest.TestCase):
 
 class TestContractNamesResolveEverywhere(unittest.TestCase):
     def test_every_kebab_case_citation_is_a_real_contract(self) -> None:
-        # Both gates' contracts. The page cites either — `gates.md` names
-        # `components-below-entity`, which is `js_layer_check`'s — and resolving
-        # only the Python half made a real citation look invented.
         known = {c.name for c in layer_check.CONTRACTS} | {
             c.name for c in js_layer_check.CONTRACTS
         }

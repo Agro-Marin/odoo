@@ -1,32 +1,4 @@
 #!/usr/bin/env python3
-"""Self-test for ``mail_hook_keyword_check.py``.
-
-The gate exists because a keyword added to a mail hook breaks overrides in other
-repos silently. Its own failure modes are the mirror image, and each case below
-pins one:
-
-* **Missing the regression it was built from.** ``TestTheRegressionItWasBuiltFor``
-  reconstructs ``28ed9db3341``'s exact shape — a base that grows a keyword, a
-  caller that passes it, an override that did not move — and requires a finding.
-  Without it the gate is a decorative zero.
-* **Flagging a positional rename.** ``_track_subtype(self, initial_values)`` is
-  overridden 26 times in this tree and renamed in a good half of them, harmlessly,
-  because every call site passes it positionally. A gate that reports those gets
-  switched off, so the parameter must be *used as a keyword* to count.
-* **Reading ``**kwargs`` as a missing parameter.** An override that absorbs
-  everything cannot raise, and pinning it would push people to write
-  ``**kwargs`` for the gate rather than for the code.
-* **Colliding on a name.** A ``_message_foo`` an addon invents for itself is not a
-  mail hook; the base must be declared under the framework directory.
-* **Counting a test fixture.** Overrides under ``tests/`` are free.
-* **Reporting a clean zero from a scan that found nothing** — the bug class
-  ``test_every_gate_refuses_an_empty_tree`` sweeps, pinned here at both levels
-  the refusal guards it: no hooks, and no keywords.
-
-Run directly (``python tooling/architecture/test_mail_hook_keyword_check.py``) or
-under pytest.
-"""
-
 from __future__ import annotations
 
 import sys
@@ -40,8 +12,6 @@ import mail_hook_keyword_check as mhk
 
 
 class Tree:
-    """A synthetic checkout: a framework directory plus override addons."""
-
     def __init__(self, stack: TemporaryDirectory):
         self.root = Path(stack.name)
         self.framework = self.root / "mail" / "models"
@@ -66,7 +36,6 @@ class HookCase(unittest.TestCase):
         self.tree = Tree(self._stack)
 
     def hooks(self, **kwargs):
-        """Declare the framework base and a caller that passes ``kwargs``."""
         self.tree.write(
             "mail/models/mixin_mail_thread.py",
             "class MixinMailThread:\n"
@@ -83,8 +52,6 @@ class HookCase(unittest.TestCase):
 
 
 class TestTheRegressionItWasBuiltFor(HookCase):
-    """``28ed9db3341``, reconstructed."""
-
     def test_an_override_left_behind_is_reported(self):
         self.hooks()
         self.tree.write(
@@ -117,7 +84,6 @@ class TestTheRegressionItWasBuiltFor(HookCase):
 
 class TestWhatIsDeliberatelyNotFlagged(HookCase):
     def test_a_positionally_passed_parameter_may_be_renamed(self):
-        """The 26 ``_track_subtype`` overrides are why this gate is usable."""
         self.tree.write(
             "mail/models/mixin_mail_thread.py",
             "class MixinMailThread:\n"
@@ -193,19 +159,8 @@ class TestWhatIsDeliberatelyNotFlagged(HookCase):
 
 
 class TestABaseDeclaredTwice(HookCase):
-    """`mail` redeclares two hooks inside its own directory.
-
-    `discuss.channel` overrides `_message_post_after_hook` and
-    `_message_update_content` from within `addons/mail/models`, so both names
-    carry two signatures there. Whichever file sorts first must decide neither
-    what the hook accepts nor who gets checked.
-    """
-
     def setUp(self):
         super().setUp()
-        # The declaring file absorbs, as `mixin.mail.thread` does for
-        # `_message_update_content`; the keyword reaches the union from the
-        # SECOND file, which sorts later.
         self.tree.write(
             "mail/models/a_mixin.py",
             "class MixinMailThread:\n"
@@ -232,7 +187,6 @@ class TestABaseDeclaredTwice(HookCase):
         self.assertEqual(self.tree.measure(), [])
 
     def test_that_keyword_still_binds_an_override_that_lacks_it(self):
-        """Proves the union actually reached the later file."""
         self.tree.write(
             "hr/models/employee.py",
             "class HrEmployee:\n"
@@ -245,14 +199,6 @@ class TestABaseDeclaredTwice(HookCase):
 
 
 class TestDeclarationsInsideTheFrameworkAreCheckedToo(HookCase):
-    """The hole the first version shipped with.
-
-    Classifying every file under `addons/mail/models` as "the base" meant the two
-    hooks most likely to be redeclared -- the two `discuss.channel` overrides --
-    were the two this gate could never fire on, while a stale signature there
-    raises exactly the TypeError it exists to prevent.
-    """
-
     def test_a_stale_redeclaration_inside_mail_is_reported(self):
         self.hooks()
         self.tree.write(
@@ -278,7 +224,6 @@ class TestItRefusesRatherThanReportZero(HookCase):
         self.assertIn("no hooks found", str(caught.exception))
 
     def test_hooks_that_are_never_called_by_keyword_refuse(self):
-        """A caller directory resolving to nothing zeroes every ``used`` set."""
         self.tree.write(
             "mail/models/mixin_mail_thread.py",
             "class MixinMailThread:\n"
@@ -291,13 +236,10 @@ class TestItRefusesRatherThanReportZero(HookCase):
 
 
 class TestTheRealTree(unittest.TestCase):
-    """The contract itself: zero, everywhere, including the siblings."""
-
     def test_the_community_tree_is_clean(self):
         self.assertEqual([str(f) for f in mhk.measure()], [])
 
     def test_the_scan_reaches_the_real_mail_hooks(self):
-        """Guard against the whole suite passing on a mis-resolved ROOT."""
         self.assertTrue((mhk.ROOT / mhk.FRAMEWORK_DIR).is_dir())
 
 

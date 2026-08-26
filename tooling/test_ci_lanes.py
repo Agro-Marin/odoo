@@ -1,20 +1,3 @@
-"""The CI lanes that run this directory, checked against what it actually reads.
-
-A workflow's `paths:` filter is a claim about scope, and a wrong one fails
-open: the lane reports nothing on the pull request and the breakage lands, to
-be discovered by the post-merge `push:` trigger after the merge-blocking checks
-have already gone green.
-
-`architecture.yml` learnt this and says so in its own header — it replaced a
-per-package enumeration with `odoo/**` + `addons/**` because "the list is a
-second, hand-maintained copy of every checker's scope, and it silently rots as
-packages are added", and `test_ci_path_filter_covers_every_scanned_tree`
-(tooling/architecture/test_architecture_doc.py) pins that one.
-
-`tooling_selftest.yml` had the same shape and the same fault, unpinned. This is
-its half of the pair.
-"""
-
 from __future__ import annotations
 
 import re
@@ -37,13 +20,10 @@ def _pull_request_block(workflow: Path) -> str:
     text = workflow.read_text(encoding="utf-8")
     after = text.split("pull_request:", 1)
     assert len(after) == 2, f"{workflow.name} has no pull_request trigger"
-    # The trigger block ends at the next top-level key.
     return re.split(r"^\w", after[1], maxsplit=1, flags=re.MULTILINE)[0]
 
 
 def test_the_selftest_lane_runs_the_whole_directory():
-    # Everything below is about WHEN the lane runs; this pins THAT it runs, so
-    # a rename of the pytest target cannot make the rest vacuous.
     assert "pytest tooling/" in SELFTEST.read_text(encoding="utf-8")
 
 
@@ -64,13 +44,6 @@ def test_the_selftest_lane_has_no_path_filter():
 
 
 def test_the_suite_really_does_read_outside_tooling():
-    """The reason the filter has to go, asserted rather than narrated.
-
-    Without this, the test above is a style rule. With it, removing the filter
-    is a consequence of what the suite measures — and if some future refactor
-    genuinely confines these tests to `tooling/`, this fails first and says the
-    filter may come back.
-    """
     import translation_catalog
 
     pots = [pot for _module, _dir, pot in translation_catalog.iter_modules()]
@@ -88,9 +61,6 @@ def test_the_suite_really_does_read_outside_tooling():
 
 @pytest.mark.parametrize("workflow", ["architecture.yml", "tooling_selftest.yml"])
 def test_the_mainline_trigger_is_never_filtered(workflow):
-    # Both lanes re-verify the protected branches in full on push. A filter
-    # there would let a direct commit or a merge skew past the gate entirely,
-    # which is the failure the pull_request filter only delays.
     text = (WORKFLOWS / workflow).read_text(encoding="utf-8")
     push_block = text.split("push:", 1)[1].split("pull_request:", 1)[0]
     assert "paths:" not in push_block, (

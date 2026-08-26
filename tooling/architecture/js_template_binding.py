@@ -1,65 +1,4 @@
 #!/usr/bin/env python3
-"""Every name an OWL template calls exists on the component that owns it.
-
-WHY NO OTHER GATE SEES THIS
----------------------------
-
-* `tsc` and `eslint` do not read `.xml`. A template is a string to both.
-* `xml_reference_coherence` (ADR-0032) resolves view-arch `widget="…"` against
-  the JS registries -- a different question about different files.
-* `js_public_surface` and `js_extension_surface` reason about imports and
-  overridden members. A template calling `this.foo()` is neither.
-
-The cost of that blindness, measured: `d5adb17d52a` converted
-`web.embeddedActionsDropdown` from a bare `<t t-name>` that two components
-`t-call`ed into a real component. The argument was right -- a `t-call` evaluates
-in the CALLING component's scope, so seven methods had to exist on both classes,
-declared nowhere. But one of the seven was still needed by
-`EmbeddedActionsBar`'s own template and went with the rest. Every click on an
-embedded action threw `TypeError: v1.onEmbeddedActionClick is not a function`,
-which Owl answers by destroying the root component -- the whole client, on the
-feature's primary affordance. It survived **48 commits** and was fixed in
-`34cdbb9cf09`.
-
-WHY THIS IS PARSED AND NOT MATCHED
-----------------------------------
-
-A regex draft of this check was written first and thrown away. It reported 24
-findings over `addons/` and every one examined was a false positive, from three
-sources a pattern cannot fix:
-
-1. **Call syntax inside string literals** -- CSS `url(`, `var(`, `rgba(`,
-   `translateY(` inside a `t-att-style` expression.
-2. **Mixin installation** -- `ListRenderer` gets `getColumnClass`,
-   `isNumericColumn`, `onClickSortColumn` and `getSortableIconClass` from
-   `installListRendererMixin(listStylingMixin, …)`.
-3. **Class names keyed globally** -- `Many2One.openRecord` exists; a same-named
-   class in another file had overwritten the entry.
-
-So both halves go through espree: (1) disappears because a parsed expression
-knows a string from a callee, (2) and (3) are resolved by the analyzer reading
-`Object.assign(X.prototype, …)`, `patch()`, bespoke installers, and by keying
-classes on `(file, name)`.
-
-WHAT IS AND IS NOT CHECKED
---------------------------
-
-Checked: a template that resolves to exactly ONE component (by `static
-template`), does not `t-inherit`, and whose expressions all parse.
-
-Not checked, and counted in the report so the blind spot cannot grow quietly:
-templates owned by no component or by several (a `t-call`ed fragment evaluates
-in the caller's scope and has no single owner), inheriting templates, and
-expressions espree refuses.
-
-USAGE
------
-
-  python js_template_binding.py            # report
-  python js_template_binding.py --check    # exit 1 on a finding
-  python js_template_binding.py --json
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -80,7 +19,6 @@ ANALYZER = Path(__file__).with_suffix(".mjs")
 
 EXCLUDED_PARTS = frozenset({"node_modules", "lib", "__pycache__"})
 
-# Names QWeb resolves itself, or that the compiled template provides.
 QWEB_PROVIDED = frozenset(
     {
         "env",
@@ -159,7 +97,6 @@ def run_analyzer(js: list[Path], xml: list[Path]) -> dict:
 
 
 def resolve(analysis: dict) -> tuple[dict[str, tuple[str, str, frozenset[str]]], dict]:
-    """Build template name -> (file, class, members), plus what was skipped."""
     by_file: dict[str, dict] = {}
     for module in analysis["modules"]:
         if module.get("parseError"):
@@ -188,14 +125,11 @@ def resolve(analysis: dict) -> tuple[dict[str, tuple[str, str, frozenset[str]]],
                 elif entry.get("ref") in objects:
                     found |= set(objects[entry["ref"]])
                 elif entry.get("ref"):
-                    # A mixin imported from elsewhere: resolve by the local name
-                    # in the module that defines it.
                     for other in by_file.values():
                         for on, keys in other["objects"]:
                             if on == entry["ref"]:
                                 found |= set(keys)
             if cls["super"]:
-                # Same file first, then any module declaring that class name.
                 found |= members_of(path, cls["super"], seen | {key})
                 if not found:
                     for other_path, other in by_file.items():
@@ -227,9 +161,6 @@ def resolve(analysis: dict) -> tuple[dict[str, tuple[str, str, frozenset[str]]],
             continue
         path, name = entries[0]
         resolved[tpl] = (path, name, frozenset(members_of(path, name)))
-    # `patch()` applied to a class by imported name lands in the patching
-    # module; fold those in by class name, which is safe because it can only
-    # ADD members and this gate only ever reports a missing one.
     extra: dict[str, set[str]] = {}
     for module in analysis["modules"]:
         objects = dict(module.get("objects", []))

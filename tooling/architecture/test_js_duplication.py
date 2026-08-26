@@ -1,10 +1,3 @@
-"""What `js_duplication` must and must not call a duplicate.
-
-The gate's whole claim over a window-hash detector is that it distinguishes a
-duplicate from a prefix (ADR-0045). These pin that claim, and the two decisions
-that make the number defensible: the run floor, and how far normalisation goes.
-"""
-
 from __future__ import annotations
 
 import sys
@@ -16,7 +9,6 @@ import js_duplication as jd
 
 
 def lines(text: str) -> list[tuple[int, str]]:
-    """Significant lines of a snippet, as `significant()` would yield them."""
     out = []
     for number, raw in enumerate(text.strip("\n").split("\n"), start=1):
         stripped = raw.strip()
@@ -59,11 +51,6 @@ def test_identical_bodies_are_one_run_of_their_real_length():
 
 
 def test_a_prefix_is_reported_at_the_length_it_actually_shares():
-    """The calendar case: one body is the head of the other.
-
-    A window-hash detector sums every matching window and reports far more than
-    the shared prefix. This must report the prefix, at its length, once.
-    """
     short = lines(BODY)
     long = lines(BODY.rstrip() + EXTRA)
     runs = jd.maximal_runs(short, long)
@@ -93,7 +80,6 @@ def test_runs_below_the_floor_are_not_reported():
 
 
 def test_reindenting_does_not_hide_a_duplicate():
-    """Normalisation collapses whitespace, so a moved block stays visible."""
     a = lines(BODY)
     b = lines("\n".join("        " + ln for ln in BODY.strip("\n").split("\n")))
     runs = jd.maximal_runs(a, b)
@@ -101,7 +87,6 @@ def test_reindenting_does_not_hide_a_duplicate():
 
 
 def test_renaming_does_hide_a_duplicate_and_that_is_the_documented_trade():
-    """Pinned so the limitation is a decision, not a surprise (ADR-0045)."""
     a = lines(BODY)
     b = lines(BODY.replace("classes", "cls"))
     assert jd.maximal_runs(a, b) == []
@@ -126,12 +111,6 @@ def test_the_gate_measures_a_real_tree_and_reports_a_number():
 
 
 def test_candidate_pairs_lose_nothing_the_full_comparison_would_find():
-    """The pruning is an optimisation, so it must not change the answer.
-
-    Verified on the real tree against a sample of pairs the index rejected: a
-    pair sharing no window cannot contain a run of MIN_RUN identical lines, by
-    construction, and this pins that reasoning against the implementation.
-    """
     files = jd.js_files(jd.addon_src())[:60]
     lines_by_file = {p: jd.significant(p) for p in files}
     pairs = jd.candidate_pairs(files, lines_by_file)

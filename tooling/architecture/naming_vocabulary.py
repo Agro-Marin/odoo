@@ -25,9 +25,6 @@ SKIP_DIRS = frozenset(
     {".git", "node_modules", "__pycache__", ".mypy_cache", "static", "lib", "vendored"}
 )
 
-#: ``_domain`` is deliberately absent: a domain feeds ``search()`` and a field's
-#: ``domain=``, never ``create()``/``write()``, so it is not a payload. Domains
-#: are their own family (ADR-0050) and are handled by ``classify`` below.
 PAYLOAD_SUFFIXES = (
     "_vals",
     "_values",
@@ -93,8 +90,6 @@ def classify(name: str) -> tuple[str, str] | None:
         return None
     canonical, payload_only = entry
     if name.endswith("_domain"):
-        # A domain is neither read nor payload (ADR-0050): the abolished verb is
-        # still abolished, but the target is the domain family, not _prepare_.
         return verb, "_domain_"
     if payload_only and not name.endswith(PAYLOAD_SUFFIXES):
         return None
@@ -102,15 +97,6 @@ def classify(name: str) -> tuple[str, str] | None:
 
 
 def infix_abolished_verb(name: str) -> str | None:
-    """An abolished verb sitting where ``classify`` cannot see it, or None.
-
-    ``classify`` reads the FIRST token, so a noun-first namespace hides the verb
-    it precedes: ``_import_retrieve_customer`` reads as the verb ``import`` and
-    scores clean. The shape is a candidate rather than a violation -- the token
-    may belong to a field name (``_search_account_lookup_id``) or to a noun
-    (``_compute_show_fetch_in_einvoices_button``) -- which is why §2.4 censuses
-    it and the ratchet does not count it.
-    """
     if classify(name) is not None:
         return None
     tokens = name.lstrip("_").split("_")
@@ -125,28 +111,12 @@ def infix_abolished_verb(name: str) -> str | None:
     return None
 
 
-#: The prefixes a field hook may carry. A method can hold TWO bindings -- five in
-#: ``odoo/addons/base`` are an ``inverse=`` target that also carries
-#: ``@api.onchange`` for the same field -- and then only one prefix can be spelled.
-#: The rule is that the hook is named for its FIELD, so any of these satisfies it;
-#: the prefix records which of the two roles the author chose to name.
 HOOK_ATTRS = ("onchange", "inverse", "compute", "default", "search", "domain")
 
 
-#: §2.4's *object leads its qualifier*, measured on the family that was converted
-#: to it. A method answering "which fields" is ``_get_fields_<qualifier>``; the
-#: mirrored spelling is what the rule abolished, so the second count is the one
-#: that must stay at zero.
 _FIELDS_HEAD_FIRST = re.compile(r"_?get_fields_[a-z0-9_]+")
 _FIELDS_TAIL_FIRST = re.compile(r"_?get_[a-z0-9_]+_fields")
 
-#: The rule above is general and only ``fields`` was converted. These are the
-#: other head nouns a reader meets in the same position, and the pair is counted
-#: over them to size what the conversion has not reached. It is a SEARCH and not
-#: a verdict, exactly as ``PAYLOAD_SUFFIXES`` is: a head that never appears here
-#: is measured by nothing, and a hit still has to be read. ``ids`` and the
-#: payload suffixes are deliberately absent -- ``_get_partner_ids`` names a
-#: FIELD, and the field-hook rule owns that spelling.
 _COLLECTION_HEADS = (
     "names",
     "types",
@@ -168,9 +138,6 @@ _COLLECTION_HEADS = (
     "attachments",
     "urls",
 )
-#: The head may be a compound -- ``model_names``, ``view_types`` -- so the tokens
-#: before it are optional, and they are matched a WHOLE token at a time:
-#: ``[a-z0-9_]*`` would read ``_get_surnames_x`` as the head ``names``.
 _HEADS_HEAD_FIRST = tuple(
     re.compile(rf"_?get_(?:[a-z0-9]+_)*{head}_[a-z0-9_]+") for head in _COLLECTION_HEADS
 )
@@ -180,13 +147,6 @@ _HEADS_TAIL_FIRST = tuple(
 
 
 def collection_head_order(name: str) -> str | None:
-    """``"head"``, ``"tail"`` or None for ``name`` against _COLLECTION_HEADS.
-
-    ``fields`` is excluded in both directions: it has its own pair of figures,
-    and a converted ``_get_fields_inheriting_views`` answers *which fields*, so
-    counting its ``views`` tail would report the rule broken by a name keeping
-    it.
-    """
     if any(rx.fullmatch(name) for rx in _HEADS_HEAD_FIRST):
         return "head"
     if _FIELDS_HEAD_FIRST.fullmatch(name):
@@ -196,38 +156,17 @@ def collection_head_order(name: str) -> str | None:
     return None
 
 
-#: §2.4's *``_find_`` is three operations wearing one verb*. The split is by what
-#: the body does, because the verb does not say: an ORM read is the Read family,
-#: a find-or-create WRITES and must not be renamed to ``_get_``, and the rest are
-#: in-memory scans and derivations that the verb flatters.
 _ORM_READ_CALLS = frozenset(
     {"search", "search_read", "search_count", "search_fetch", "browse", "read_group"}
 )
-#: The Payload row's four abolished spellings. ``classify`` reports one only when
-#: the name also ends in a payload suffix, so the gap between these two counts is
-#: what §2.4 states as the enforcement's reach.
-#: §2.4's *wearing a dispatch prefix does not make a name a key*. ``_render``
-#: builds its target from ``ir.actions.report.report_type``, whose Selection is
-#: closed, so the keys are these three while the prefix is worn by many more.
 _RENDER_DISPATCH_PREFIX = "_render_qweb_"
 _RENDER_DISPATCH_KEYS = ("_render_qweb_html", "_render_qweb_pdf", "_render_qweb_text")
 
 _ASSEMBLE_VERBS = frozenset({"build", "make", "compose", "construct"})
 _FIND_OR_CREATE = re.compile(r"find_or_create(_|$)")
 _GET_OR_CREATE = re.compile(r"get_or_create(_|$)")
-#: §2.4's *a canonical verb can be wrong too*. A payload builder hands a mapping
-#: to the ORM; it does not call the ORM itself, so a ``_prepare_*`` whose own body
-#: writes is a candidate for the wrong family rather than the wrong spelling.
 _ORM_WRITE_CALLS = frozenset({"create", "write", "unlink"})
-#: §2.4's *an error is built here and raised there*. A method whose last statement
-#: is a bare ``raise`` never returns, and the tree annotates none of them
-#: ``NoReturn``; one that raises only sometimes is a validator and belongs to the
-#: ``_check_`` row instead. The pair separates the two without reading a name.
 _NORETURN = "NoReturn"
-#: §2.4's *the converter idiom names two representations*. The strict shape only:
-#: one token, ``_to_``, one token. ``_str_to_date`` matches and
-#: ``_should_invite_members_to_join_call`` does not, which is the point -- the
-#: second is a verb-first name whose ``to`` is a preposition.
 _CONVERTER_IDIOM = re.compile(r"_?(?P<src>[a-z0-9]+)_to_(?P<dst>[a-z0-9]+)")
 
 
@@ -241,7 +180,6 @@ def _performs_orm_read(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 
 
 def _always_raises(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-    """Whether ``node``'s body ends in a bare ``raise``, docstring ignored."""
     body = [
         n
         for n in node.body
@@ -264,14 +202,6 @@ def _performs_orm_write(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 
 
 def _bool_annotated(tree: ast.Module) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
-    """Functions annotated ``-> bool``, at module level or on a model class.
-
-    §2.4's predicate row used to be written as a signature test. It is not one:
-    ``write`` and ``unlink`` return ``True`` by ORM convention, and a converter
-    such as ``_coerce_bool`` returns a converted value -- neither is an answer to
-    a question about a subject. The split below is what makes that measurable.
-    """
-
     def _is_bool(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
         return isinstance(node.returns, ast.Name) and node.returns.id == "bool"
 
@@ -291,14 +221,6 @@ def _bool_annotated(tree: ast.Module) -> list[ast.FunctionDef | ast.AsyncFunctio
 
 
 def is_ondelete_hook(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-    """Whether ``@api.ondelete`` decorates this method.
-
-    A third decorator-bound family, after ``@api.constrains`` and
-    ``@api.onchange``. It binds to no field at all -- the ORM calls it during
-    ``unlink()`` -- so neither ``field_hook_naming.py`` nor the prefix table
-    reaches it, and its first token is ``unlink``, which is reserved rather than
-    abolished, so ``classify`` passes it too.
-    """
     for decorator in node.decorator_list:
         func = decorator.func if isinstance(decorator, ast.Call) else decorator
         name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
@@ -322,25 +244,10 @@ def _decorator_fields(
 
 
 def onchange_fields(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
-    """The field names ``@api.onchange`` binds this method to, in order.
-
-    An onchange hook names its fields from a DECORATOR argument, where the other
-    five attributes name their method from inside the field declaration. That is
-    why ``field_hook_naming.py`` -- which reads declarations -- cannot see this
-    family at all, and why §2.4 censuses it here instead.
-    """
     return _decorator_fields(node, "onchange")
 
 
 def constrains_fields(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
-    """The field names ``@api.constrains`` binds this method to, in order.
-
-    Read the same way as ``onchange_fields`` and counted for the opposite
-    reason. §2.4 asks an onchange hook to be named for its field; it asks a
-    constraint to be named for the CONDITION it enforces, because a constrains
-    argument is a trigger and not a subject. The census exists to keep the
-    field-hook rule from being extended here by analogy.
-    """
     return _decorator_fields(node, "constrains")
 
 
@@ -363,10 +270,6 @@ def is_model_class(node: ast.ClassDef) -> bool:
     )
 
 
-#: §2.4's fourth binding: a method name written inside a server action's ``code``
-#: field. That field stores **Python source in a database column**, so a shipped
-#: data file is greppable and a database is not -- and the method is typically
-#: PRIVATE, which is why the public/RPC test does not reach it.
 _SERVER_ACTION_CODE = re.compile(
     r'<field[^>]*name="code"[^>]*>(.*?)</field>', re.DOTALL
 )
@@ -376,13 +279,6 @@ _PRIVATE_CALL = re.compile(r"\.\s*(_[a-z][a-z0-9_]*)\s*\(")
 def stored_code_references(
     roots: tuple[Path, ...] | None = None,
 ) -> tuple[int, int, int]:
-    """``(files, code blocks, distinct private names)`` reached from stored code.
-
-    Counted over the shipped data files, which is the half a grep can see. The
-    other half -- server actions typed into the UI, which live only in a
-    customer's ``ir_act_server`` rows -- is unenumerable by construction, so
-    every figure here is a floor on a population whose true size nobody knows.
-    """
     scan = list(roots) if roots else [ROOT / r for r in SCAN_ROOTS]
     names: set[str] = set()
     files: set[Path] = set()
@@ -420,18 +316,12 @@ def _python_files(roots: list[Path]) -> list[Path]:
     return found
 
 
-#: Verbs §2.4 makes canonical. Together with ``ABOLISHED`` — which maps every
-#: abolished spelling onto the canonical it loses to — these ARE the semantic
-#: families the section prints, so the census below is derived from the rule
-#: rather than from a second list that could drift away from it.
 CANONICAL_VERBS = frozenset({"prepare", "get", "check", "update", "add", "remove"})
 
-#: §2.4's *provisional* EXEC rule: verbs naming the act of running.
 EXEC_VERBS = frozenset({"do", "run", "perform", "execute", "process", "handle"})
 
 
 def family_of(verb: str) -> str | None:
-    """The semantic family ``verb`` belongs to, or None if it carries no rule."""
     entry = ABOLISHED.get(verb)
     if entry is not None:
         return entry[0]
@@ -440,15 +330,6 @@ def family_of(verb: str) -> str | None:
 
 @dataclass(frozen=True)
 class Census:
-    """The figures §2.4 states about the tree, measured in one pass.
-
-    Every field is restated in ``doc/coding_guidelines.rst`` §2.4 and checked by
-    ``tooling/architecture/doc_restated_counts.py``; none is a literal in prose.
-    The population is the same one the ratchet counts -- methods declared
-    directly on a model class, non-test, in this repository only -- so the
-    section's sizing and its enforcement cannot disagree about scope.
-    """
-
     methods: int
     get: int
     get_payload: int
@@ -514,11 +395,6 @@ class Census:
 
 
 def _body_fingerprint(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str | None:
-    """Structure of ``node``'s body, docstring stripped; None if it says nothing.
-
-    ``ast.dump`` rather than the source segment so that indentation, comments and
-    line wrapping cannot make two identical bodies look different.
-    """
     body = node.body
     if (
         body
@@ -536,7 +412,6 @@ def _body_fingerprint(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str | Non
 
 @functools.cache
 def census(roots: tuple[Path, ...] | None = None) -> Census:
-    """Measure every figure §2.4 restates. Cached -- the walk is seconds long."""
     scan = list(roots) if roots else [ROOT / r for r in SCAN_ROOTS]
     files = _python_files(scan)
     if not files:
@@ -571,13 +446,6 @@ def census(roots: tuple[Path, ...] | None = None) -> Census:
             tree = _ast_cache.parse_file(path)
         except SyntaxError, UnicodeDecodeError:
             continue
-        # The directory test alone is a filename standing in for a scope, and it
-        # matches `odoo/orm/models/mixins/`. §2.4's carve-out is about PACKAGES:
-        # odoo/db, odoo/http, odoo/tools and odoo/orm internals speak SQL and
-        # Python data-structure vocabulary wherever their files sit, so
-        # `ensure_one` and `_fetch_query` are not ungoverned helpers -- the
-        # vocabulary does not reach them at all. Requiring `addons` keeps the
-        # count to the population the rule actually governs.
         parts = set(path.parts)
         if {"models", "wizard", "wizards"} & parts and "addons" in parts:
             module_level_helpers += sum(

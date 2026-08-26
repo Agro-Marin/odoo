@@ -1,38 +1,3 @@
-"""Zero-count HOOT assertions naming a CSS class no markup declares.
-
-`expect(".o_thing").toHaveCount(0)` is only a test while `.o_thing` is
-something the tree can render. Once the class is renamed or removed, the
-selector matches nothing for a reason that has nothing to do with the
-behaviour under test, and the assertion passes forever -- including when the
-behaviour it guarded regresses.
-
-This is not hypothetical, and it is not one incident:
-
-* `marketing_automation`'s "Remove activity" test sat broken behind a stale
-  `.fa-trash` selector left by the FontAwesome 4->7 upgrade (83cf923c4d7), which
-  rewrote the markup to `fa-trash-can` and not the selector strings. That is
-  what `enterprise/.github/workflows/integration_tests.yml` was written for.
-* `industry_fsm_sale`'s catalog test broke the same way in the *other*
-  direction -- `4af1869b2c3` renamed the icon in `product`'s template, five
-  months before anyone ran the suite that asserted on it.
-* `timesheet_grid` asserted `.btn_timer_line.fa-stop-danger` is absent. No
-  markup has ever carried `fa-stop-danger`; the button renders `fa-stop` and
-  `btn-danger` separately, so the assertion could not fail.
-
-The first two are a *rename* reaching a selector; only running the suite finds
-those. The third is a class that never existed anywhere, which is decidable
-statically -- and that is what this gate decides.
-
-A class is "declared" if it appears as a word anywhere outside a test: a
-template, a component, a stylesheet, a view record. That is deliberately
-generous. The point is not to prove a selector matches at runtime -- a static
-scan cannot -- but to catch the assertion whose class the tree has no idea
-about, which is the shape all three incidents above share.
-
-Composed classes (`o_field_${type}`, `o_kanban_color_${n}`) are exempted by
-their declared prefix, so a class the tree builds at runtime is not reported.
-"""
-
 import argparse
 import json
 import re
@@ -49,23 +14,14 @@ ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_vacuous_assertions")
 
 SCANNED_SUFFIXES = (".js", ".xml", ".scss", ".css")
 
-# `expect("<selector>").toHaveCount(0` -- the assertion that a selector matches
-# nothing, which is the only one a missing class makes vacuous. A positive count
-# fails loudly when the class disappears, so it needs no gate.
 ZERO_COUNT = re.compile(
     r"""expect\(\s*[`"']([^`"'\n]{3,200})[`"']\s*\)\s*\.toHaveCount\(\s*0\b"""
 )
-# Class tokens inside a CSS selector, e.g. `.o_x`, `div.o_y:eq(1)`.
 SELECTOR_CLASS = re.compile(r"\.([a-zA-Z_][\w-]*)")
 WORD = re.compile(r"[\w-]+")
 
-# Only project-owned namespaces. Bootstrap and FontAwesome ship classes this
-# tree never spells out, so demanding a local declaration for them would report
-# noise rather than drift.
 OWNED_PREFIXES = ("o_", "o-", "oi-", "fa-")
 
-# How much of a composing prefix has to survive past the namespace before it
-# counts as one. `o_field_` composes; `o_` is just the namespace.
 MIN_COMPOSED_SEGMENT = 4
 
 
@@ -85,7 +41,6 @@ def is_test(path: Path) -> bool:
 
 
 def collect(roots: list[Path]) -> tuple[set[str], list[tuple[Path, str]]]:
-    """Return (words declared outside tests, [(test file, its source)])."""
     declared: set[str] = set()
     tests: list[tuple[Path, str]] = []
     for root in roots:
@@ -107,17 +62,6 @@ def collect(roots: list[Path]) -> tuple[set[str], list[tuple[Path, str]]]:
 
 
 def is_composed(css_class: str, declared: set[str]) -> bool:
-    """Whether the tree builds this class from a declared prefix at runtime.
-
-    `o_field_daterange` is never written down: `getFieldClass` concatenates
-    `o_field_` with the widget name. The prefix *is* written down, so a declared
-    token that the class starts with and that ends in a separator exempts it.
-
-    The prefix has to be specific past the namespace. `o_` is a token in this
-    tree (it falls out of any `` `o_${x}` `` template literal), and accepting it
-    exempted every `o_*` class there is -- the gate read 0 against a tree with
-    real findings until this said otherwise.
-    """
     for namespace in OWNED_PREFIXES:
         if not css_class.startswith(namespace):
             continue
@@ -134,11 +78,6 @@ def is_composed(css_class: str, declared: set[str]) -> bool:
 def measure(roots: list[Path]) -> list[Finding]:
     declared, tests = collect(roots)
     if not tests:
-        # Fail closed. A count of 0 from a scan that reached no test file is
-        # indistinguishable from a clean tree, and banking it as a floor is the
-        # decorative-gate failure mode tooling/typecheck/README.md argues
-        # against -- the same one that let this gate read 0 while the tree held
-        # 24 findings, for a different reason, during its own development.
         raise RuntimeError(
             "no *.test.js under "
             + ", ".join(str(r) for r in roots)
@@ -152,10 +91,6 @@ def measure(roots: list[Path]) -> list[Finding]:
             else str(path)
         )
         matches = list(ZERO_COUNT.finditer(text))
-        # A test may declare its own fixture markup (`o_test_action`, an arch
-        # string in the file). Those classes are absent from the tree by design,
-        # so count how often each appears here outside the zero-count selectors:
-        # anything left over is the test declaring it.
         asserted = "".join(m.group(1) for m in matches)
         for match in matches:
             selector = match.group(1)
