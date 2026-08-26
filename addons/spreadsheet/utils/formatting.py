@@ -23,8 +23,7 @@ strftime_to_spreadsheet_dateformat_table = {
 
 
 def strftime_format_to_spreadsheet_time_format(strf_format):
-    """Convert a strftime format to a spreadsheet time format.
-    """
+    """Join the recognized time tokens with the source separator, appending " a" for a 12-hour format."""
 
     twelve_hour_system = False
     parts = []
@@ -43,8 +42,7 @@ def strftime_format_to_spreadsheet_time_format(strf_format):
 
 
 def strftime_format_to_spreadsheet_date_format(strf_format):
-    """Convert a strftime format to a spreadsheet date format.
-    """
+    """Join the recognized date tokens with the separator found in the source format."""
     parts = []
     for part in re.finditer(r"(%.)", strf_format):
         symbol = part.group(1)
