@@ -23,6 +23,21 @@ class IdentificationFieldsNoFoldPolicy(email.policy.EmailPolicy):
 
 
 def patch_module() -> None:
+    """Stop the stdlib from folding headers that must not be folded.
+
+    `email.policy.SMTP` wraps every header at 78 columns. For the RFC 5322
+    identification headers that is destructive: a folded `Message-Id` or
+    `References` no longer matches the value the recipient echoes back, which
+    breaks mail threading. Those are emitted unfolded.
+
+    User-facing headers (`To`, `Cc`, `Subject`, ...) still fold, but at 998
+    characters -- the line-length ceiling RFC 5322 actually imposes -- rather
+    than at 78. Everything else keeps the stdlib's behaviour by falling through
+    to `super()._fold`.
+
+    Replacing the policy is idempotent: a second call sees its own class and
+    returns, so the two clones are never rebuilt from an already-patched base.
+    """
     if isinstance(email.policy.SMTP, IdentificationFieldsNoFoldPolicy):
         return
 

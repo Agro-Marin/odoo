@@ -100,22 +100,25 @@ it is deferred, waiting for its target's import — not failed.
 ## Adding a New Patch
 
 1. Create `<target_module>.py` in this directory
-2. Add a docstring explaining the patch
-3. Implement `patch_module()` function
+2. Implement `patch_module()`, and put the explanation in **its** docstring —
+   not at module level. Say why the patch exists and what would let it go
+3. Add a row to the Patch Index above, and a *Removal Criteria* entry
 4. The patch will be auto-detected and applied
 
+The docstring goes on the function, not on the module. That is where every
+patch here already carries its rationale, and where a reader lands from a
+traceback:
+
 ```python
-"""
-Brief description of what this patch fixes.
-
-More details about why this patch is needed and when it can be removed.
-"""
-
 import target_module
 
 
-def patch_module():
-    # Apply your patches here
+def patch_module() -> None:
+    """One line on what this patch fixes.
+
+    Why it is needed, what upstream does instead, and the condition under
+    which it can be deleted.
+    """
     target_module.some_function = patched_function
 ```
 

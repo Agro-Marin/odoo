@@ -46,4 +46,17 @@ def make_literal_eval(buffer_size: int) -> Callable[[str | bytes | ast.AST], obj
 
 
 def patch_module() -> None:
+    """Bound what `ast.literal_eval` will even look at.
+
+    `literal_eval` parses before it evaluates, so a hostile expression costs
+    parse time and memory proportional to its length even though nothing in it
+    can execute. Odoo feeds it data that crosses a trust boundary -- module
+    manifests, stored domains, `ir.filters` -- so the input gets a ceiling:
+    100KiB by default, `ODOO_LIMIT_LITEVAL_BUFFER` to override.
+
+    The limit is resolved once here rather than per call, and lives in the
+    returned function's closure rather than in a parameter, so the patched
+    function keeps the stdlib's one-argument signature and no caller can raise
+    its own ceiling.
+    """
     ast.literal_eval = make_literal_eval(buffer_size_from_env())
