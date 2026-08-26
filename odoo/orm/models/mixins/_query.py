@@ -97,6 +97,10 @@ class _QueryMixin(_ModelStubs):
         and three kinds of user, only group membership ever changed it.
         `ir.model.fields` and `ir.model.access` both clear the `stable` cache,
         which covers this one.
+
+        Its counterpart `_is_field_groupable` is built the same way but lives in
+        `read_group/sql.py`, because composing a GROUP BY term is that unit's
+        job and reaching for it from here is what made the two units cyclic.
         """
         try:
             query = self._as_query(ordered=False)
@@ -106,19 +110,6 @@ class _QueryMixin(_ModelStubs):
         except ValueError, AccessError, NotImplementedError:
             return False
         return bool(term)
-
-    @api.model
-    @ormcache("field_name", "self.env.su", "self.env.user._get_group_ids()")
-    def _is_field_groupable(self, field_name: str) -> bool:
-        """Whether this user may group by `field_name`. See `_is_field_sortable`."""
-        field = self._fields[field_name]
-        groupby = field_name if not field.is_temporal else f"{field_name}:month"
-        try:
-            query = self._as_query(ordered=False)
-            self._read_group_groupby(self._table, groupby, query)
-        except ValueError, AccessError, NotImplementedError:
-            return False
-        return True
 
     def _order_field_to_sql(
         self,

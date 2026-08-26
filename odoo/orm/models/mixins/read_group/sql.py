@@ -1,8 +1,9 @@
 import typing
 
-from odoo.exceptions import UserError
-from odoo.tools import SQL, Query
+from odoo.exceptions import AccessError, UserError
+from odoo.tools import SQL, Query, ormcache
 
+from .... import decorators as api
 from ....constants import (
     READ_GROUP_AGGREGATE,
     READ_GROUP_ALL_TIME_GRANULARITY,
@@ -108,6 +109,31 @@ class _ReadGroupSQLMixin(_ModelStubs):
 
         sql_field = self._field_to_sql(self._table, fname, query)
         return READ_GROUP_AGGREGATE[func](self._table, sql_field)
+
+    @api.model
+    @ormcache("field_name", "self.env.su", "self.env.user._get_group_ids()")
+    def _is_field_groupable(self, field_name: str) -> bool:
+        """Whether this user may group by `field_name`.
+
+        Built exactly like `_query._is_field_sortable`, and cached for the same
+        reason: answering it means composing the GROUP BY term, which for a
+        related or delegated field walks the relation and builds a JOIN, and
+        `fields_get` asks for every field it describes.
+
+        It lives here rather than beside its counterpart because composing that
+        term is `_read_group_groupby`'s job, and this unit already depends on
+        `_query` for `_field_to_sql`. Asking the other way round -- which is
+        where this method used to sit -- made `_query` and `read_group/sql`
+        mutually dependent, the one cycle in BaseModel's unit graph.
+        """
+        field = self._fields[field_name]
+        groupby = field_name if not field.is_temporal else f"{field_name}:month"
+        try:
+            query = self._as_query(ordered=False)
+            self._read_group_groupby(self._table, groupby, query)
+        except ValueError, AccessError, NotImplementedError:
+            return False
+        return True
 
     def _read_group_groupby(self, alias: str, groupby_spec: str, query: Query) -> SQL:
         fname, seq_fnames, granularity = parse_read_group_spec(groupby_spec)
