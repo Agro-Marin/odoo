@@ -205,7 +205,6 @@ def test_uninstall(args: argparse.Namespace) -> None:
 
 
 def test_standalone(args: argparse.Namespace) -> None:
-    _check_faketime_mode(args.database)
     registry = Registry(args.database)
     for module_name in registry._init_modules:
         odoo.tests.loader.get_test_modules(module_name)
@@ -333,6 +332,11 @@ if __name__ == "__main__":
         if os.environ.get("ODOO_PROFILE_PRELOAD_SQL"):
             collectors.append("sql")
         prof = profiler.Profiler(db=args.database, collectors=collectors)
+    # Hoisted out of test_standalone: cycle and uninstall install and drop
+    # modules against the same database, so a faketime mismatch is just as wrong
+    # for them. One check ahead of the dispatch covers all three subcommands.
+    _check_faketime_mode(args.database)
+
     try:
         with prof:
             args.func(args)
