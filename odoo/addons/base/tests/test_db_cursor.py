@@ -73,6 +73,49 @@ def _callees(func):
     return set(func.__code__.co_names)
 
 
+def _calls(func):
+    """Names invoked as plain calls in `func`, read off its AST.
+
+    `_callees` reads `co_names`, which cannot tell a call from an attribute
+    read; where the question is "does this call retrying()", the AST is what
+    answers it.
+    """
+    import ast
+    import textwrap
+
+    tree = ast.parse(textwrap.dedent(inspect.getsource(func)))
+    return {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+
+
+def _own_methods(model_cls):
+    """`{method name: names it references}` for the model's own methods."""
+    methods = {}
+    for name in dir(model_cls):
+        if not name.startswith("_") and name != "method_direct_trigger":
+            continue
+        attr = inspect.getattr_static(model_cls, name, None)
+        func = getattr(attr, "__func__", attr)
+        if inspect.isfunction(func):
+            methods[name] = _callees(func)
+    return methods
+
+
+def _reachable(start, methods):
+    """Every method reachable from `start` through `methods`."""
+    seen, todo = set(), [start]
+    while todo:
+        name = todo.pop()
+        for called in methods.get(name, ()):
+            if called in methods and called not in seen:
+                seen.add(called)
+                todo.append(called)
+    return seen
+
+
 def registry():
     return Registry(common.get_db_name())
 
@@ -3982,33 +4025,47 @@ class TestEvaluatedCodeKeepsItsDatabaseErrorClass(common.TransactionCase):
 
 
 class TestCronsRecoverLikeRequests(BaseCase):
-    def test_the_callback_goes_through_retrying(self):
-        import ast
-        import textwrap
+    ACTION = "_run_server_action"
 
+    def test_the_callback_goes_through_retrying(self):
         cls = registry()["ir.cron"]
-        tree = ast.parse(textwrap.dedent(inspect.getsource(cls._run_callback)))
-        called = {
-            n.func.id
-            for n in ast.walk(tree)
-            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
-        }
         self.assertIn(
             "retrying",
-            called,
+            _calls(cls._run_callback),
             "without it a deadlock, a serialization failure or a stale cached "
             "plan counts against the cron's deactivation budget",
         )
-        self.assertIn(
-            "_run_job_within_budget",
-            _callees(cls._run_job.__func__),
-            "the run loop must go through the budgeted runner",
-        )
+
+    def test_the_run_loop_reaches_the_wrapped_runner(self):
+        methods = _own_methods(registry()["ir.cron"])
         self.assertIn(
             "_run_callback",
-            _callees(cls._run_job_within_budget.__func__),
-            "the budgeted runner must go through the wrapped runner, not call "
-            "the server action directly",
+            _reachable("_run_job", methods),
+            "the run loop must reach the wrapped runner",
+        )
+        self.assertIn(
+            "_run_job_within_budget",
+            methods["_run_job"],
+            "the run loop must go through the budgeted runner",
+        )
+
+    def test_nothing_reaches_the_action_except_the_wrapped_runner(self):
+        """The other half, and the half that actually protects the budget.
+
+        Reaching `_run_callback` is worth nothing if some other path invokes the
+        job's action beside it: that path would run outside `retrying()` and
+        charge every recoverable error to the cron again. So the action must
+        have exactly one caller.
+        """
+        methods = _own_methods(registry()["ir.cron"])
+        callers = {name for name, calls in methods.items() if self.ACTION in calls} - {
+            self.ACTION
+        }
+        self.assertEqual(
+            callers,
+            {"_run_callback"},
+            f"{self.ACTION} must be invoked only from the runner wrapped in "
+            f"retrying(); these call it too",
         )
 
     def _drive_callback(self, callback):
@@ -4018,7 +4075,7 @@ class TestCronsRecoverLikeRequests(BaseCase):
             cron = env["ir.cron"].search([], limit=1)
             self.assertTrue(cron, "base installs crons; one is needed to drive")
             cls = type(cron)
-            with patch.object(cls, "_run_server_action", callback):
+            with patch.object(cls, self.ACTION, callback):
                 cls._run_callback(
                     cron,
                     {"cron_name": "probe", "ir_actions_server_id": 0},

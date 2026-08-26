@@ -12,6 +12,7 @@ from . import (
     _checker_noqa_rationale,
     _checker_onchange,
     _checker_orm_import,
+    _checker_shadowed_def,
     _checker_sql,
     _checker_unlink,
     _pretty_xml,
@@ -1426,3 +1427,138 @@ class TestSuppressionSpans(BaseCase):
             """)
         self.assertEqual(self._spans(source).get(1, 1), 1)
         self.assertFalse(self._suppresses(source, 1, "sql-injection"))
+
+
+@no_retry
+class TestShadowedDefinitionLint(BaseCase):
+    """A method defined twice in a class body: the first one never runs."""
+
+    def _check(self, snippet):
+        return [
+            v.message
+            for v in _checker_shadowed_def.check(ast.parse(dedent(snippet).strip()))
+        ]
+
+    def test_a_plain_second_definition_is_flagged(self):
+        self.assertTrue(
+            self._check("""
+        class A:
+            def f(self):
+                pass
+
+            def f(self):
+                pass
+        """)
+        )
+
+    def test_the_message_names_the_definition_that_died(self):
+        [message] = self._check("""
+        class A:
+            def f(self):
+                pass
+
+            def f(self):
+                pass
+        """)
+        self.assertIn("A.f", message)
+        self.assertIn("line 2", message)
+
+    def test_a_decorator_does_not_make_it_legitimate(self):
+        self.assertTrue(
+            self._check("""
+        class A:
+            @api.model
+            def f(self):
+                pass
+
+            @api.model
+            def f(self):
+                pass
+        """),
+            "two @api.model methods of the same name still shadow one another",
+        )
+
+    def test_an_overload_stack_is_not_a_finding(self):
+        self.assertFalse(
+            self._check("""
+        class A:
+            @typing.overload
+            def f(self, x: int) -> int: ...
+
+            @typing.overload
+            def f(self, x: str) -> str: ...
+
+            def f(self, x):
+                return x
+        """)
+        )
+
+    def test_a_property_group_is_not_a_finding(self):
+        self.assertFalse(
+            self._check("""
+        class A:
+            @property
+            def f(self):
+                pass
+
+            @f.setter
+            def f(self, value):
+                pass
+
+            @f.deleter
+            def f(self):
+                pass
+        """)
+        )
+
+    def test_a_single_dispatch_group_is_not_a_finding(self):
+        self.assertFalse(
+            self._check("""
+        class A:
+            @singledispatchmethod
+            def f(self, value):
+                pass
+
+            @f.register
+            def _(self, value: int):
+                pass
+        """)
+        )
+
+    def test_definitions_in_different_branches_are_alternatives(self):
+        self.assertFalse(
+            self._check("""
+        class A:
+            if typing.TYPE_CHECKING:
+                def f(self) -> int: ...
+            else:
+                def f(self):
+                    return 1
+        """),
+            "only one of the two ever reaches the class body",
+        )
+
+    def test_a_nested_class_has_its_own_namespace(self):
+        self.assertFalse(
+            self._check("""
+        class A:
+            def f(self):
+                pass
+
+            class B:
+                def f(self):
+                    pass
+        """)
+        )
+
+    def test_async_definitions_count_too(self):
+        self.assertTrue(
+            self._check("""
+        class A:
+            async def f(self):
+                pass
+
+            async def f(self):
+                pass
+        """)
+        )

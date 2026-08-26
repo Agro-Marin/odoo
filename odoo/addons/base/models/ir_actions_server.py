@@ -1316,7 +1316,7 @@ class IrActionsServer(models.Model):
         except ValueError, TypeError:
             raise UserError(
                 _(
-                    "The value %(value)r configured on action '%(action)s' is not a "
+                    "The value '%(value)s' configured on action '%(action)s' is not a "
                     "valid number for field '%(field)s'.",
                     value=self.value,
                     action=self.name,

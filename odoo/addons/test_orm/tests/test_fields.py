@@ -2489,6 +2489,68 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
             active_parent + child_of_active + child_of_inactive,
         )
 
+    def test_52b_x2many_cache_survives_unarchiving(self):
+        """A field context must not narrow the query that fills an x2many cache.
+
+        ``active_test`` is applied when the value leaves the cache, off an
+        ``active`` the ORM keeps fresh -- not when the ids go in. A field
+        spelling ``context={'active_test': True}`` used to push the filter into
+        the SELECT, so a corecord archived when the cache was filled was absent
+        from the cached ids, and nothing invalidates a stored x2many when a
+        corecord's ``active`` flips: unarchiving never put it back for the rest
+        of the transaction. Reads under-reported, and any write computed from
+        them silently did nothing.
+        """
+        Model = self.env["test_orm.model_active_field"]
+        parent = Model.create({"name": "Parent"})
+        child = Model.create({"name": "Child", "parent_id": parent.id})
+
+        for fname in ("children_ids", "all_children_ids", "active_children_ids"):
+            with self.subTest(field=fname):
+                child.active = False
+                self.env.flush_all()
+                self.env.invalidate_all()
+
+                parent[fname]  # fill the cache while the child is archived
+                child.active = True
+                self.env.flush_all()
+
+                self.assertEqual(
+                    parent[fname],
+                    child,
+                    f"{fname} did not see the unarchived child without an "
+                    f"explicit invalidation",
+                )
+
+    def test_52c_x2many_field_context_still_forces_active_test(self):
+        """Dropping the key from the *query* must not drop the declaration.
+
+        ``active_children_ids`` means "live only, whatever the caller asks
+        for"; ``all_children_ids`` means the opposite; the bare
+        ``children_ids`` follows the caller. That contract is what other
+        modules rely on, and it is applied on the way out of the cache.
+        """
+        Model = self.env["test_orm.model_active_field"]
+        parent = Model.create({"name": "Parent"})
+        live = Model.create({"name": "Live", "parent_id": parent.id})
+        dead = Model.create({"name": "Dead", "parent_id": parent.id, "active": False})
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        self.assertEqual(parent.children_ids, live)
+        self.assertEqual(parent.active_children_ids, live)
+        self.assertEqual(parent.all_children_ids, live + dead)
+
+        blind = parent.with_context(active_test=False)
+        self.assertEqual(blind.children_ids, live + dead)
+        self.assertEqual(
+            blind.active_children_ids,
+            live,
+            "a field pinning active_test=True must stay live-only under a "
+            "caller that switched active_test off",
+        )
+        self.assertEqual(blind.all_children_ids, live + dead)
+
     def test_53_boolean_query(self):
         Model = self.env["test_orm.model_active_field"]
 

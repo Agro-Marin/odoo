@@ -14,6 +14,18 @@ class Test_Access_RightSome_Obj(models.Model):
     )
     forbidden2 = fields.Integer(groups="test_access_rights.test_group")
     forbidden3 = fields.Integer(groups=fields.NO_ACCESS)
+    write_gated = fields.Integer(write_groups="test_access_rights.test_group")
+    write_gated_never = fields.Integer(write_groups=fields.NO_ACCESS)
+    write_gated_on_stored = fields.Integer(
+        write_groups=lambda records: (
+            not records.ids
+            or records.env.user.has_group("test_access_rights.test_group")
+        ),
+    )
+    read_and_write_gated = fields.Integer(
+        groups="test_access_rights.test_group",
+        write_groups="base.group_system",
+    )
 
 
 class Test_Access_RightContainer(models.Model):

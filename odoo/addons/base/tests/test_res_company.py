@@ -1,13 +1,76 @@
 from unittest.mock import patch
 
+from psycopg import IntegrityError
+
 from odoo.exceptions import ValidationError
 from odoo.fields import Command
 from odoo.tests.common import TransactionCase, tagged
+from odoo.tools import mute_logger
 
 from odoo.addons.base.models.res_company import ResCompany
 
 
 class TestCompany(TransactionCase):
+    def test_code_builds_complete_name(self):
+        company = self.env["res.company"].create(
+            {"name": "Test Company", "code": "TEST"}
+        )
+        self.assertEqual(company.complete_name, "TEST - Test Company")
+        company.code = False
+        self.assertEqual(company.complete_name, "Test Company")
+
+    def test_display_name_prefers_code(self):
+        company = self.env["res.company"].create(
+            {"name": "Test Company", "code": "TEST"}
+        )
+        self.assertEqual(company.display_name, "TEST")
+        company.code = False
+        self.assertEqual(company.display_name, "Test Company")
+
+    def test_display_name_searches_code_and_name(self):
+        company = self.env["res.company"].create(
+            {"name": "Test Company", "code": "TEST"}
+        )
+        self.assertIn(company.id, [c[0] for c in company.name_search("Test Company")])
+        self.assertIn(company.id, [c[0] for c in company.name_search("TEST")])
+
+    def test_code_is_normalised(self):
+        company = self.env["res.company"].create(
+            {"name": "Test Company", "code": "  ab "}
+        )
+        self.assertEqual(company.code, "AB")
+        company.write({"code": " cd"})
+        self.assertEqual(company.code, "CD")
+        company.write({"code": "   "})
+        self.assertFalse(company.code)
+
+    def test_sanitize_vals_does_not_mutate_caller_dict(self):
+        create_vals = {"name": "Audit Caller", "code": "  ac "}
+        create_vals_copy = dict(create_vals)
+        company = self.env["res.company"].create(create_vals)
+        self.assertEqual(create_vals, create_vals_copy)
+        self.assertEqual(company.code, "AC")
+
+        write_vals = {"code": " dd "}
+        write_vals_copy = dict(write_vals)
+        company.write(write_vals)
+        self.assertEqual(write_vals, write_vals_copy)
+        self.assertEqual(company.code, "DD")
+
+    def test_code_may_be_unset_on_several_companies(self):
+        first = self.env["res.company"].create({"name": "No Code One"})
+        second = self.env["res.company"].create({"name": "No Code Two"})
+        (first + second).flush_recordset()
+        self.assertFalse(first.code)
+        self.assertFalse(second.code)
+        self.assertEqual(first.display_name, "No Code One")
+
+    def test_code_is_unique(self):
+        self.env["res.company"].create({"name": "First", "code": "DUP"})
+        with self.assertRaises(IntegrityError), mute_logger("odoo.sql_db"):
+            with self.env.cr.savepoint():
+                self.env["res.company"].create({"name": "Second", "code": "dup"})
+
     def test_check_active(self):
         company = self.env["res.company"].create({"name": "foo"})
         user = self.env["res.users"].create(

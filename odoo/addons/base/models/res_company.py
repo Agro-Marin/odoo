@@ -20,6 +20,7 @@ class ResCompany(models.Model):
     _name = "res.company"
     _description = "Companies"
     _order = "sequence, name"
+    _rec_names_search = ["code", "name"]
     _inherit = ["mixin.format.address", "mixin.format.vat.label"]
     _parent_store = True
 
@@ -42,6 +43,20 @@ class ResCompany(models.Model):
         required=True,
         store=True,
         readonly=False,
+    )
+    code = fields.Char(
+        string="Short Code",
+        size=6,
+        help=(
+            "Short, untranslated handle for the company, shown wherever the "
+            "company is referenced instead of its full legal name. Companies "
+            "without one are referenced by name."
+        ),
+    )
+    complete_name = fields.Char(
+        string="Complete Name",
+        compute="_compute_complete_name",
+        store=True,
     )
     active = fields.Boolean(default=True)
     sequence = fields.Integer(
@@ -217,6 +232,10 @@ class ResCompany(models.Model):
         "unique (name)",
         "The company name must be unique!",
     )
+    _code_uniq = models.Constraint(
+        "unique (code)",
+        "The company short code must be unique!",
+    )
 
     @api.constrains("parent_id")
     def _check_parent_id(self) -> None:
@@ -272,8 +291,15 @@ class ResCompany(models.Model):
                             )
                         )
 
+    def _sanitize_vals(self, vals: dict[str, Any]) -> dict[str, Any]:
+        if "code" not in vals:
+            return vals
+        code = (vals["code"] or "").strip().upper()
+        return {**vals, "code": code or False}
+
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        vals_list = [self._sanitize_vals(vals) for vals in vals_list]
 
         no_partner_vals_list = [
             vals
@@ -331,6 +357,7 @@ class ResCompany(models.Model):
         return companies
 
     def write(self, vals: dict[str, Any]) -> bool:
+        vals = self._sanitize_vals(vals)
         if "parent_id" in vals and any(
             c.parent_id.id != vals["parent_id"] for c in self
         ):
@@ -563,6 +590,18 @@ class ResCompany(models.Model):
             if f.get("name") in delegated_fnames:
                 f.set("readonly", "parent_id != False")
         return arch, view
+
+    @api.depends("code", "name")
+    def _compute_complete_name(self) -> None:
+        for company in self:
+            company.complete_name = " - ".join(
+                part for part in (company.code, company.name) if part
+            )
+
+    @api.depends("code", "name")
+    def _compute_display_name(self) -> None:
+        for company in self:
+            company.display_name = company.code or company.name
 
     @api.model
     def _search_display_name(self, operator: str, value: str) -> Domain:

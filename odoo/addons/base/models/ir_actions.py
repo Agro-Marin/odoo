@@ -30,6 +30,46 @@ def _eval_dict_or_default(
     return result if isinstance(result, dict) else default
 
 
+def _eval_list_or_default(
+    expr: str | None, eval_ctx: dict[str, Any], default: Any
+) -> Any:
+    try:
+        result = safe_eval(expr or "[]", eval_ctx)
+    except Exception:
+        return default
+    return result if isinstance(result, list) else default
+
+
+def eval_action_domain(domain: str | None, env, **names: Any) -> list:
+    """An action's stored ``domain``, read the way ``eval_action_context`` reads a context.
+
+    The same argument, one field over: a stored domain is an expression, not a
+    literal. ``hr.mail_activity_plan_action``'s names ``allowed_company_ids``, so
+    ``ast.literal_eval`` raises on it -- which is why its caller had resorted to
+    ``str.replace("allowed_company_ids", str(ids))`` before literal-eval'ing, a
+    substitution that only ever works for the one name the caller thought of.
+
+    ``names`` supplies what the caller knows and its own context does not, and
+    wins over ``env.context`` -- so a caller can hand in the fallback it used to
+    substitute rather than lose the whole domain when the name is absent.
+
+    The scale is the same as the context case: **111 of the 330** stored
+    ``act_window`` domains in ``addons/`` name something rather than being a
+    literal (``project`` 19, ``mrp`` 8, ``stock`` 6), so a third of them raise
+    under ``ast.literal_eval``. Re-derive by literal-eval'ing every
+    ``<field name="domain">`` under an ``ir.actions.act_window`` record in
+    ``addons/**/*.xml`` and counting the failures.
+
+    Four call sites still literal-eval a stored domain bare
+    (``account_journal_dashboard``, ``hr_holidays``, ``im_livechat``, ``mrp``,
+    plus ``account_followup`` and ``web_studio`` in enterprise). Each happens to
+    read an action whose domain IS a literal today -- checked, not assumed -- so
+    they are one action-configuration change from failing rather than currently
+    broken. Converting them is a separate sweep.
+    """
+    return _eval_list_or_default(domain, {**env.context, **names}, [])
+
+
 def eval_action_context(context: str | None, env, **names: Any) -> dict:
     return _eval_dict_or_default(context, {**env.context, **names}, {})
 

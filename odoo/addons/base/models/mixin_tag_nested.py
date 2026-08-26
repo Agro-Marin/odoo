@@ -1,11 +1,7 @@
-import re
-
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
-
-_CODE_SEPARATORS = re.compile(r"[^A-Z0-9]+")
 
 
 class MixinTagNested(models.AbstractModel):

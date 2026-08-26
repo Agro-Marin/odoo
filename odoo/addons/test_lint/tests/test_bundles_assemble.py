@@ -2,7 +2,10 @@ import logging
 
 from odoo.modules import Manifest
 from odoo.tests import tagged
-from odoo.tools.assets.esm_graph import find_escaping_relative_imports
+from odoo.tools.assets.esm_graph import (
+    find_escaping_relative_imports,
+    lex_module,
+)
 
 from . import lint_case
 
@@ -76,6 +79,90 @@ class TestBundlesAssemble(lint_case.LintCase):
             checked,
             len(declared),
         )
+
+    # `web/static/src/libs/*` are third-party wrappers a bundle must list
+    # explicitly: nothing pulls them in transitively, and a bare specifier that
+    # names a module the bundle does not carry resolves to `undefined` rather
+    # than failing to load, so the fault only surfaces at the first call site.
+    LIB_SPECIFIERS = (
+        "@web/libs/bootstrap",
+        "@web/libs/popper_compat",
+    )
+
+    # Bundles that import a lib wrapper without carrying it because they are
+    # only ever loaded onto a document that already carries one. Exempted by
+    # name so the gate stands aside knowingly rather than being blind.
+    LIB_INHERITING_BUNDLES = {
+        # Loaded on the same frontend document as `web.assets_frontend`.
+        "web.assets_frontend_minimal",
+        # Loaded into the editable iframe, over `web.assets_frontend`.
+        "website.assets_inside_builder_iframe",
+        # Declares `web.assets_unit_tests_setup` in `import_map_includes`.
+        "web.assets_unit_tests",
+    }
+
+    def test_every_bundled_module_carries_the_libs_it_imports(self):
+        """A bare specifier for a bundled third-party lib must be in the bundle.
+
+        `9251982dca8` retired Bootstrap's JS from the backend. Three builder
+        modules kept importing `@web/libs/bootstrap` from bundles that do not
+        carry it; the import silently yielded `undefined` and every use threw
+        `TypeError: ... reading 'getInstance'`, breaking snippet removal in the
+        website builder. Neither existing gate saw it: one checks that the
+        target *file* exists, the other checks *relative* imports only -- and
+        tells you to spell the import bare, which is the spelling it stops
+        checking.
+        """
+        failures = []
+        with self.superuser_env() as env:
+            bundles = self.served_bundle_names(env)
+            self.assertTrue(bundles, "no bundles found -- the scan reached nothing")
+
+            qweb = env["ir.qweb"]
+            checked = 0
+            for bundle in bundles:
+                if bundle in self.LIB_INHERITING_BUNDLES:
+                    continue
+                try:
+                    asset_bundle = qweb._get_asset_bundle(bundle, css=False, js=True)
+                    modules = list(asset_bundle.native_modules)
+                except Exception as exc:
+                    failures.append(f"  {bundle}: {type(exc).__name__}: {exc}")
+                    continue
+                if not modules:
+                    continue
+                checked += 1
+                carried = {module.module_path for module in modules}
+                failures.extend(
+                    f"  {bundle}: {module.module_path} imports {spec!r}, "
+                    f"which the bundle does not carry"
+                    for module in modules
+                    for spec in sorted(self._bare_specifiers(module))
+                    if spec in self.LIB_SPECIFIERS and spec not in carried
+                )
+
+        self.assertFalse(
+            failures,
+            f"{len(failures)} bundled module(s) import a third-party lib their "
+            f"bundle does not carry. The specifier resolves to `undefined` at "
+            f"runtime, so this surfaces as a TypeError at the first call site, "
+            f"not as a load error. Either add the lib to the bundle, drop the "
+            f"import, or -- if the module drives elements in another document "
+            f"-- reach for that document's own copy "
+            f"(`@html_builder/core/bootstrap_realm`):\n" + "\n".join(failures),
+        )
+        _logger.info("%s bundle(s) carry every lib they import", checked)
+
+    @staticmethod
+    def _bare_specifiers(module) -> set:
+        """Every non-relative specifier `module` imports."""
+        src = module.raw_content or ""
+        lexed = lex_module(src)
+        if lexed is None:
+            return set()
+        specs = {imp["n"] for imp in lexed["imports"] if imp.get("n")}
+        specs.update(lexed.get("starFrom") or ())
+        return {s for s in specs if s and not s.startswith((".", "/"))}
 
     def test_pregenerated_js_bundles_can_be_built(self):
         """Every bundle whose JS `_pregenerate_assets_bundles` builds must build.

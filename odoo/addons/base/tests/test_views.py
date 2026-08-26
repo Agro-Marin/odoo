@@ -7923,6 +7923,44 @@ class TestSelfHandledArchMigration(ViewCase):
         self.assertNotIn(view, self.View._migrate_self_handled_arch())
         self.assertIn('data-bs-toggle="dropdown"', view.arch)
 
+    def test_an_alert_dismiss_moves_to_the_service_that_reads_it(self):
+        """In a backend view, `data-bs-dismiss` is a button nothing listens to.
+
+        `libs/bootstrap.js` -- the only reader of the `data-bs-` data-api -- is
+        in `web.assets_frontend`; the `dismiss_alert` service, which listens for
+        `[data-dismiss-alert]`, is in `web._assets_core`. `base.view_users_form`
+        ships exactly such a close link.
+        """
+        view = self._make_view(
+            """<form>
+                <div class="alert"><a class="close" data-bs-dismiss="alert">x</a></div>
+            </form>"""
+        )
+        self.assertIn(view, self.View._migrate_self_handled_arch())
+        self.assertIn('data-dismiss-alert="1"', view.arch)
+        self.assertNotIn("data-bs-dismiss", view.arch)
+
+    def test_the_migration_rewrites_the_source_arch_not_a_translation(self):
+        """The write goes through `arch_db` under `lang=None`.
+
+        Writing `arch` while a non-English language is active stores the
+        migration as a *translation* of the arch and leaves the source term
+        untouched -- so the view keeps shipping `data-bs-toggle` to every
+        reader in another language, and to the language-less contexts the
+        framework itself reads views in.
+        """
+        self.env["res.lang"]._activate_lang("fr_FR")
+        view = self._make_view("""<form><a data-bs-toggle="dropdown">m</a></form>""")
+        self.env["ir.ui.view"].with_context(lang="fr_FR")._migrate_self_handled_arch()
+
+        source = view.with_context(lang=None).arch
+        self.assertIn(
+            'data-self-handled="dropdown"',
+            source,
+            "the source arch itself must carry the migration",
+        )
+        self.assertNotIn("data-bs-toggle", source)
+
 
 class TestShadowedMigrationBehaviour(ViewCase):
     def _view_with_an_unsaved_edit(self):

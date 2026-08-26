@@ -21,6 +21,7 @@ from . import (
     _checker_noqa_rationale,
     _checker_onchange,
     _checker_orm_import,
+    _checker_shadowed_def,
     _checker_sql,
     _checker_unlink,
 )
@@ -221,6 +222,12 @@ RULES: tuple[Rule, ...] = (
         "module catalogue",
     ),
     Rule(
+        "shadowed-definition",
+        "E8513",
+        "define the member once: Python keeps the last definition, so the earlier "
+        "one is dead code that still reads as live",
+    ),
+    Rule(
         "unique-over-translated-column",
         "E8512",
         "a translated column is jsonb, so UNIQUE over it compares whole "
@@ -289,6 +296,10 @@ def _config_patch(unit: Unit) -> Iterable[object]:
     return _checker_config_patch.check(unit.tree, unit.nodes)
 
 
+def _shadowed_def(unit: Unit) -> Iterable[object]:
+    return _checker_shadowed_def.check(unit.tree, unit.nodes)
+
+
 def _anywhere(unit: Unit) -> bool:
     return True
 
@@ -343,6 +354,7 @@ CHECKERS: tuple[Checker, ...] = (
     Checker(_orm_import, _in_an_addon_outside_tests, frozenset({"orm-import"})),
     Checker(_onchange, _in_an_addon, frozenset({"onchange-domain"})),
     Checker(_config_patch, _anywhere, frozenset({"config-chainmap-patch"})),
+    Checker(_shadowed_def, _anywhere, frozenset({"shadowed-definition"})),
 )
 
 #: Rules produced by something other than a `Checker` over a single `Unit`:
