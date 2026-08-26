@@ -122,11 +122,17 @@ class ChromeBrowser:
         else:
             self.screencaster = NoScreencast()
 
+        # Record *that* a handler was installed, not just what it was:
+        # signal.SIG_DFL is an IntEnum of value 0, so the old
+        # "if self.sigxcpu_handler:" restore in stop() was dead whenever
+        # nothing had previously installed one -- the usual case -- and the
+        # handler survived every browser test, bound to a dead ChromeBrowser.
+        self._sigxcpu_installed = False
+        self.sigxcpu_handler = None
         if os.name == "posix":
             self.sigxcpu_handler = signal.getsignal(signal.SIGXCPU)
             signal.signal(signal.SIGXCPU, self.signal_handler)
-        else:
-            self.sigxcpu_handler = None
+            self._sigxcpu_installed = True
 
         self._request_id = itertools.count()
         self._result = Future()
@@ -134,13 +140,16 @@ class ChromeBrowser:
         self.had_failure = False
         self._responses = {}
         self._frames = {}
-        self.chrome, self.devtools_port = self._chrome_start(
-            user_data_dir=self.user_data_dir,
-            touch_enabled=test_case.touch_enabled,
-            headless=headless,
-            debug=debug,
-        )
+        # _chrome_start belongs inside the guard: it raises whenever Chrome is
+        # missing or fails to come up, and outside the try that left the
+        # SIGXCPU handler installed and the profile directory behind.
         try:
+            self.chrome, self.devtools_port = self._chrome_start(
+                user_data_dir=self.user_data_dir,
+                touch_enabled=test_case.touch_enabled,
+                headless=headless,
+                debug=debug,
+            )
             self._connect()
         except BaseException:
             self.stop()
@@ -252,6 +261,23 @@ class ChromeBrowser:
             with contextlib.suppress(AttributeError, OSError):
                 self.ws.close()
 
+        # hasattr: _chrome_start may have raised before assigning it, and stop()
+        # now runs on that path too.
+        if hasattr(self, "chrome"):
+            self._terminate_chrome()
+
+        self._logger.info('Removing chrome user profile "%s"', self.user_data_dir)
+        shutil.rmtree(self.user_data_dir, ignore_errors=True)
+
+        if self._sigxcpu_installed:
+            # signal.signal only works on the main thread, and a teardown from
+            # anywhere else must not mask the exception that got us here.
+            # getsignal returns None for a handler not set from Python, which
+            # signal.signal will not take back; SIG_DFL is the honest restore.
+            with contextlib.suppress(ValueError, TypeError):
+                signal.signal(signal.SIGXCPU, self.sigxcpu_handler or signal.SIG_DFL)
+
+    def _terminate_chrome(self) -> None:
         self._logger.info("Terminating chrome headless with pid %s", self.chrome.pid)
         try:
             main = psutil.Process(self.chrome.pid)
@@ -270,12 +296,6 @@ class ChromeBrowser:
             for p in alive:
                 p.kill()
             psutil.wait_procs(alive, 1)
-
-        self._logger.info('Removing chrome user profile "%s"', self.user_data_dir)
-        shutil.rmtree(self.user_data_dir, ignore_errors=True)
-
-        if self.sigxcpu_handler:
-            signal.signal(signal.SIGXCPU, self.sigxcpu_handler)
 
     @property
     def executable(self):
