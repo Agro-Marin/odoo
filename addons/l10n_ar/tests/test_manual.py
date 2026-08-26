@@ -486,7 +486,6 @@ class TestArManual(common.TestAr):
         # Verify this is considered a refund invoice with special ARCA code
         self.assertTrue(credit_note._l10n_ar_is_refund_invoice())
 
-        # Test the _l10n_ar_get_invoice_totals_for_report method
         self._assert_tax_totals_summary(
             credit_note._l10n_ar_get_invoice_totals_for_report(),
             {
