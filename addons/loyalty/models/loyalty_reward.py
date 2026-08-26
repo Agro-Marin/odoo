@@ -480,7 +480,6 @@ class LoyaltyReward(models.Model):
             raise ValidationError(_('A reward product can\'t be of type "combo".'))
 
     def _create_missing_discount_line_products(self):
-        # Make sure we create the product that will be used for our discounts
         rewards = self.filtered(lambda r: not r.discount_line_product_id)
         products = self.env["product.product"].create(
             rewards._get_discount_product_values()

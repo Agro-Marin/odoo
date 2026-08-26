@@ -14,9 +14,9 @@ class ResPartner(models.Model):
     def _compute_count_active_cards(self):
         """Count each partner's usable cards, those of its children included.
 
-        Not invalidated by anything: the count is a search, so it has no
-        `@api.depends` to declare. A card created or spent in the same transaction
-        is only reflected after `invalidate_recordset(['loyalty_card_count'])`.
+        Not declarable with `@api.depends` -- the count is a search. `loyalty.card`
+        invalidates it instead, on create, unlink, and any write touching
+        `_PARTNER_COUNT_FIELDS`.
         """
         loyalty_groups = self.env["loyalty.card"]._read_group(
             domain=[
