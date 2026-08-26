@@ -161,6 +161,7 @@ class BaseCursor:
         raise NotImplementedError
 
     def dictfetchmany(self, size: int) -> list[dict[str, Any]]:
+        """Fetch up to `size` rows; unlike `fetchmany`, `size <= 0` returns no rows."""
         res: list[dict[str, Any]] = []
         while size > 0 and (row := self.dictfetchone()) is not None:
             res.append(row)
@@ -253,6 +254,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         return _rows_to_dicts(self._col_names(), rows)
 
     def dictfetchmany(self, size: int) -> list[dict[str, Any]]:
+        """Fetch up to `size` rows; unlike `fetchmany`, `size <= 0` returns no rows."""
         if size <= 0:
             return []
         rows = self._obj.fetchmany(size)
@@ -273,6 +275,9 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         return self._obj.fetchall()
 
     def fetchmany(self, size: int = 0) -> list[tuple[Any, ...]]:
+        """Fetch up to `size` rows; `size <= 0` means "use `self.arraysize`" (psycopg
+        sentinel), unlike `dictfetchmany`, where it means "no rows".
+        """
         return self._obj.fetchmany(size)
 
     @property
@@ -551,8 +556,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                         _logger.warning("Failed to roll back on cursor close")
                     else:
                         _logger.exception(
-                            "Failed to roll back on cursor close; discarding "
-                            "connection"
+                            "Failed to roll back on cursor close; discarding connection"
                         )
             self._obj.close()
         finally:
