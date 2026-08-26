@@ -7,7 +7,7 @@ from string import digits
 from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
-from odoo import _, api, fields, models, tools
+from odoo import api, fields, models, tools
 from odoo.exceptions import AccessError, RedirectWarning, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.datetime import localize_standard, timezone
@@ -380,9 +380,6 @@ class HrEmployee(models.Model):
         "Work Permit Expiration Date", groups="hr.group_hr_user", tracking=True
     )
     has_work_permit = fields.Binary(string="Work Permit", groups="hr.group_hr_user")
-    work_permit_scheduled_activity = fields.Boolean(
-        default=False, groups="hr.group_hr_user"
-    )
     work_permit_name = fields.Char(
         "work_permit_name",
         compute="_compute_work_permit_name",
@@ -566,6 +563,11 @@ class HrEmployee(models.Model):
     message_has_error_counter = fields.Integer(groups="hr.group_hr_user")
     message_attachment_count = fields.Integer(groups="hr.group_hr_user")
 
+    # A 9-digit draw over a badge space this sparse collides with vanishing
+    # probability; the budget exists so a pathological database fails loudly
+    # rather than looping.
+    _BARCODE_DRAW_ATTEMPTS = 32
+
     _barcode_uniq = models.Constraint(
         "unique (barcode)",
         "The Badge ID must be unique, this one is already assigned to another employee.",
@@ -575,32 +577,52 @@ class HrEmployee(models.Model):
         "A user cannot be linked to multiple employees in the same company.",
     )
 
+    @api.model
+    def _is_version_delegate_field(self, fname):
+        """Is ``fname`` an ``_inherits`` delegate of hr.version on this model?
+
+        ``create``, ``new`` and ``write`` each split incoming values along this
+        line; two of them used to test ``inherited`` alone, which happens to be
+        equivalent only because hr.version is the sole delegate. Stating the
+        target model once keeps that from being an accident.
+        """
+        field = self._fields.get(fname)
+        return bool(
+            field and field.inherited and field.related_field.model_name == "hr.version"
+        )
+
+    @api.model
+    def _split_version_vals(self, vals):
+        """Return ``(employee_vals, version_vals)``, leaving ``vals`` untouched."""
+        employee_vals, version_vals = {}, {}
+        for fname, value in vals.items():
+            target = (
+                version_vals
+                if self._is_version_delegate_field(fname)
+                else employee_vals
+            )
+            target[fname] = value
+        return employee_vals, version_vals
+
     def _prepare_create_values(self, vals_list):
         result = super()._prepare_create_values(vals_list)
         new_vals_list = []
         Version = self.env["hr.version"]
-        version_fields = [
+        writable_version_fields = {
             fname
             for fname, field in Version._fields.items()
             if Version._has_field_access(field, "write")
-        ]
+        }
         for vals in result:
-            employee_vals = {}
-            version_vals = {}
-            for fname, value in vals.items():
-                employee_field = self._fields.get(fname)
-                if not (
-                    employee_field
-                    and employee_field.inherited
-                    and employee_field.related_field.model_name == "hr.version"
-                ):
-                    employee_vals[fname] = value
-                else:
-                    version_vals[fname] = value
+            employee_vals, version_vals = self._split_version_vals(vals)
             new_vals_list.append(
                 {
                     **employee_vals,
-                    **{k: v for k, v in version_vals.items() if k in version_fields},
+                    **{
+                        k: v
+                        for k, v in version_vals.items()
+                        if k in writable_version_fields
+                    },
                 }
             )
         return new_vals_list
@@ -732,9 +754,10 @@ class HrEmployee(models.Model):
     def _create(self, data_list):
         versions = [vals["stored"].pop("version_id", None) for vals in data_list]
         result = super()._create(data_list)
-        for employee, version_id, vals in zip(
-            result, versions, data_list, strict=False
-        ):
+        # 1:1 by construction (``versions`` was built from ``data_list`` and
+        # ``result`` is super()'s answer for it): assert it rather than letting a
+        # mismatch silently truncate the loop.
+        for employee, version_id, vals in zip(result, versions, data_list, strict=True):
             version = self.env["hr.version"].browse(version_id)
             version.employee_id = employee.id
             inherited = (vals.get("inherited") or {}).get("hr.version", {})
@@ -911,7 +934,9 @@ class HrEmployee(models.Model):
         self.ensure_one()
         if not self.env.su and not self.env.user.has_group("hr.group_hr_user"):
             raise AccessError(
-                _("Only HR users can access first version date on an employee.")
+                self.env._(
+                    "Only HR users can access first version date on an employee."
+                )
             )
 
         def remove_gap(versions):
@@ -998,7 +1023,11 @@ class HrEmployee(models.Model):
                 employee.current_version_id = new_current_version
 
     def _cron_update_current_version_id(self):
-        self.search([])._compute_current_version_id()
+        # ``search([])`` is active-only, so archived employees' stored
+        # ``current_version_id`` was never refreshed -- and hr.employee.public
+        # JOINs on that column, so their public row showed a stale version
+        # forever.
+        self.with_context(active_test=False).search([])._compute_current_version_id()
 
     def _search_version_id(self, operator, value):
         if operator in ("any", "any!"):
@@ -1030,17 +1059,81 @@ class HrEmployee(models.Model):
             else self.version_ids[0]
         )
 
-    def create_version(self, values):
-        self.ensure_one()
+    @staticmethod
+    def _to_version_date(value):
+        if isinstance(value, str):
+            return fields.Date.to_date(value)
+        if isinstance(value, datetime):
+            return value.date()
+        return value
 
-        date = values.get("date_version", False)
+    def _get_new_version_dates(self, values):
+        """``create_version``'s date normalisation and its one hard precondition.
+
+        Returns ``(date, contract_date_start, contract_date_end, date_from,
+        date_to)`` -- the last two being the contract the employee is already in
+        at ``date``, which the caller needs to decide whether to propagate.
+        """
+        date = self._to_version_date(values.get("date_version", False))
         if not date:
             raise ValueError("date_version is required")
 
-        if isinstance(date, str):
-            date = fields.Date.to_date(date)
-        elif isinstance(date, datetime):
-            date = date.date()
+        date_from, date_to = self.sudo()._get_contract_dates(date)
+        contract_date_start = self._to_version_date(
+            values.get("contract_date_start", date_from)
+        )
+        contract_date_end = self._to_version_date(
+            values.get("contract_date_end", date_to)
+        )
+
+        # A contract end without a start is invalid (hr_version enforces
+        # check_contract_start_date_defined at the DB level). Reject it here with
+        # a clear message instead of letting it surface as an opaque
+        # CheckViolation deep in the create/sync below -- this happens when a
+        # caller passes ``contract_date_end`` for a ``date`` at which the employee
+        # is not in contract (so ``date_from`` is False).
+        if contract_date_end and not contract_date_start:
+            raise UserError(
+                self.env._("A contract end date requires a contract start date.")
+            )
+        return date, contract_date_start, contract_date_end, date_from, date_to
+
+    def _update_sibling_contract_end(
+        self, employee_id, date_from, date_to, contract_date_start, contract_date_end
+    ):
+        """Propagate a changed end date to the versions sharing that SAME contract.
+
+        Guarding on ``date_from`` matters: when the employee is not in contract at
+        the target date it is False, and without the guard the search below
+        matches *every* non-contract version (contract_date_start = False) and
+        stamps an end date onto versions that have no start -- which then trips
+        the hr_version_check_contract_start_date_defined constraint.
+        """
+        if not (
+            date_from
+            and contract_date_start == date_from
+            and contract_date_end != date_to
+        ):
+            return
+        versions_sudo_to_sync = (
+            self.env["hr.version"]
+            .with_context(sync_contract_dates=True)
+            .sudo()
+            .search(
+                [
+                    ("employee_id", "=", employee_id),
+                    ("contract_date_start", "=", date_from),
+                ]
+            )
+        )
+        if versions_sudo_to_sync:
+            versions_sudo_to_sync.write({"contract_date_end": contract_date_end})
+
+    def create_version(self, values):
+        self.ensure_one()
+        date, contract_date_start, contract_date_end, date_from, date_to = (
+            self._get_new_version_dates(values)
+        )
 
         version_to_copy = self._get_version(date)
         if not version_to_copy:
@@ -1050,55 +1143,10 @@ class HrEmployee(models.Model):
         if version_to_copy.date_version == date:
             return version_to_copy
 
-        date_from, date_to = self.sudo()._get_contract_dates(date)
-        contract_date_start = values.get("contract_date_start", date_from)
-        contract_date_end = values.get("contract_date_end", date_to)
         employee_id = values.get("employee_id", self.id)
-
-        if isinstance(contract_date_start, str):
-            contract_date_start = fields.Date.to_date(contract_date_start)
-        if isinstance(contract_date_end, str):
-            contract_date_end = fields.Date.to_date(contract_date_end)
-
-        # A contract end without a start is invalid (hr_version enforces
-        # check_contract_start_date_defined at the DB level). Reject it here with
-        # a clear message instead of letting it surface as an opaque
-        # CheckViolation deep in the create/sync below — this happens when a
-        # caller passes ``contract_date_end`` for a ``date`` at which the employee
-        # is not in contract (so ``date_from`` is False).
-        if contract_date_end and not contract_date_start:
-            raise UserError(
-                self.env._("A contract end date requires a contract start date.")
-            )
-
-        # Only propagate a changed end date to sibling versions that share the
-        # SAME contract. When the employee is not in contract at ``date``,
-        # ``date_from`` is False; guarding on it prevents the search below from
-        # matching *every* non-contract version (contract_date_start = False) and
-        # stamping an end date onto versions that have no start (which then trips
-        # the hr_version_check_contract_start_date_defined constraint).
-        if (
-            date_from
-            and contract_date_start == date_from
-            and contract_date_end != date_to
-        ):
-            versions_sudo_to_sync = (
-                self.env["hr.version"]
-                .with_context(sync_contract_dates=True)
-                .sudo()
-                .search(
-                    [
-                        ("employee_id", "=", employee_id),
-                        ("contract_date_start", "=", date_from),
-                    ]
-                )
-            )
-            if versions_sudo_to_sync:
-                versions_sudo_to_sync.write(
-                    {
-                        "contract_date_end": contract_date_end,
-                    }
-                )
+        self._update_sibling_contract_end(
+            employee_id, date_from, date_to, contract_date_start, contract_date_end
+        )
         self.check_access("write")
         version_to_copy.check_access("write")
         # to be sure even if the user has no access to certain fields, we can still copy the verison without any issues.
@@ -1222,36 +1270,28 @@ class HrEmployee(models.Model):
             date_start, date_end, domain
         )
         contracts_by_employee = defaultdict(lambda: self.env["hr.version"])
-        # NOTE: the ``use_latest_version=False`` path is currently unimplemented
-        # (the whole body is gated on ``use_latest_version``): it returns an empty
-        # result. No production caller passes ``use_latest_version=False`` today,
-        # and the intended "version effective at the contract start" semantics are
-        # under-specified/contradictory in the existing tests (see
-        # test_hr_contract_versions), so implementing it needs product
-        # clarification before it can be done correctly.
-        for employee_id in contract_versions_by_employee:
-            for contract_versions in contract_versions_by_employee[
-                employee_id
-            ].values():
-                date_effective = date_end if use_latest_version else date_start
-                if use_latest_version:
-                    if date_effective:
-                        correct_versions = contract_versions.filtered(
-                            lambda v, date_effective=date_effective: (
-                                v.date_version <= date_effective
-                            )
-                        )
-                        contracts_by_employee[employee_id] |= (
-                            correct_versions[-1]
-                            if correct_versions
-                            else contract_versions[0]
-                        )
-                    else:
-                        contracts_by_employee[employee_id] |= (
-                            contract_versions[-1]
-                            if use_latest_version
-                            else contract_versions[0]
-                        )
+        # NOTE: the ``use_latest_version=False`` path is unimplemented and returns
+        # an empty result -- pinned as such by test_hr_contract_versions, which
+        # asserts the empty dict rather than a value. No production caller passes
+        # it, and the intended "version effective at the contract start"
+        # semantics are under-specified, so implementing it needs product
+        # clarification. Returning early states that here instead of leaving it
+        # to be inferred from two conditionals nobody reaches.
+        if not use_latest_version:
+            return contracts_by_employee
+        for employee_id, versions_by_contract in contract_versions_by_employee.items():
+            for contract_versions in versions_by_contract.values():
+                if not date_end:
+                    contracts_by_employee[employee_id] |= contract_versions[-1]
+                    continue
+                effective_versions = contract_versions.filtered(
+                    lambda v, date_end=date_end: v.date_version <= date_end
+                )
+                contracts_by_employee[employee_id] |= (
+                    effective_versions[-1]
+                    if effective_versions
+                    else contract_versions[0]
+                )
         return contracts_by_employee
 
     def _get_contract_versions(self, date_start=None, date_end=None, domain=None):
@@ -1317,11 +1357,13 @@ class HrEmployee(models.Model):
         (False, False) if the employee is not in contract at that date.
         """
         self.ensure_one()
+        contains = self.env["hr.version"]._period_contains
         for date_from, date_to in self._get_all_contract_dates():
-            if date_from <= date and (date_to is False or date_to >= date):
+            if contains(date_from, date_to, date):
                 return date_from, date_to
         return False, False
 
+    @api.depends("version_ids")
     def _compute_versions_count(self):
         version_count_per_employee = dict(
             self.env["hr.version"]._read_group(
@@ -1336,17 +1378,43 @@ class HrEmployee(models.Model):
     def _search_newly_hired(self, operator, value):
         if operator not in ("in", "not in"):
             return NotImplemented
+        # Answer with a domain on the underlying column instead of resolving
+        # every newly-hired employee and inlining their ids: that put the whole
+        # set into an IN list and made the cost of the filter proportional to the
+        # headcount. The negative branch must also admit rows where the field is
+        # NULL -- the compute calls those "not newly hired", and a bare
+        # ``<= threshold`` would drop them (SQL NULL comparisons are never true).
         new_hire_field = self._get_new_hire_field()
-        new_hires = (
-            self.env["hr.employee"]
-            .sudo()
-            .search([(new_hire_field, ">", fields.Datetime.now() - timedelta(days=90))])
+        threshold = fields.Datetime.now() - timedelta(days=90)
+        if operator == "in":
+            return Domain(new_hire_field, ">", threshold)
+        return Domain(new_hire_field, "<=", threshold) | Domain(
+            new_hire_field, "=", False
         )
-        return [("id", operator, new_hires.ids)]
+
+    @api.model
+    def _get_valid_employee_for_user(self):
+        """The employee of the current user, preferring their active company.
+
+        Single source of truth for hr.version and hr.employee.public, which each
+        carried a verbatim copy.
+        """
+        user = self.env.user
+        # retrieve the employee of the current active company for the user
+        employee = user.employee_id
+        if not employee:
+            # search for all employees as superadmin to not get blocked by multi-company rules
+            user_employees = self.sudo().search([("user_id", "=", user.id)])
+            # the default company employee is most likely the correct one, but fallback to the first if not available
+            employee = (
+                user_employees.filtered(lambda r: r.company_id == user.company_id)
+                or user_employees[:1]
+            )
+        return employee
 
     def _create_work_contacts(self):
         if any(employee.work_contact_id for employee in self):
-            raise UserError(_("Some employee already have a work contact"))
+            raise UserError(self.env._("Some employee already have a work contact"))
         work_contacts = self.env["res.partner"].create(
             [
                 {
@@ -1359,7 +1427,7 @@ class HrEmployee(models.Model):
                 for employee in self
             ]
         )
-        for employee, work_contact in zip(self, work_contacts, strict=False):
+        for employee, work_contact in zip(self, work_contacts, strict=True):
             employee.work_contact_id = work_contact
 
     @api.depends("parent_id")
@@ -1399,39 +1467,39 @@ class HrEmployee(models.Model):
 
     @api.model
     def _get_employee_working_now(self):
-        """Sudo needed to get resource_calendar_id as its normally only accessible by hr_users on version model
-        (accessible on employee by inherits)."""
+        """Ids of the employees their own schedule says are working in the next hour.
+
+        sudo: ``resource_calendar_id`` is a hr.version delegate and so
+        hr_user-only; only the calendar is read from it.
+
+        One pass groups by (timezone, calendar) instead of a ``filtered()`` per
+        calendar nested in a loop per timezone, and every group is measured
+        against ONE instant -- ``fields.Datetime.now()`` used to be re-read
+        inside the inner loop, so groups were compared against different "now"s.
+        """
+        start_dt = fields.Datetime.now().replace(tzinfo=UTC)
+        stop_dt = start_dt + timedelta(hours=1)
+        employees_by_schedule = defaultdict(lambda: self.env["hr.employee"])
+        for employee in self.sudo():
+            employees_by_schedule[
+                (employee.tz or "UTC", employee.resource_calendar_id)
+            ] += employee
         working_now = []
-        # We loop over all the employee tz and the resource calendar_id to detect working hours in batch.
-        all_employee_tz = set(self.mapped("tz"))
-        for tz in all_employee_tz:
-            employee_ids = self.filtered(lambda e, tz=tz: e.tz == tz)
-            resource_calendar_ids = employee_ids.sudo().mapped("resource_calendar_id")
-            for calendar_id in resource_calendar_ids:
-                res_employee_ids = employee_ids.sudo().filtered(
-                    lambda e, calendar_id=calendar_id: (
-                        e.resource_calendar_id.id == calendar_id.id
-                    )
-                )
-                start_dt = fields.Datetime.now()
-                stop_dt = start_dt + timedelta(hours=1)
-                from_datetime = start_dt.replace(tzinfo=UTC).astimezone(
-                    timezone(tz or "UTC")
-                )
-                to_datetime = stop_dt.replace(tzinfo=UTC).astimezone(
-                    timezone(tz or "UTC")
-                )
-                # Getting work interval of the first is working. Functions called on resource_calendar_id
-                # are waiting for singleton
-                work_interval = res_employee_ids[
-                    0
-                ].resource_calendar_id._work_intervals_batch(
-                    from_datetime, to_datetime
-                )[False]
-                # Employee that is not supposed to work have empty items.
-                if len(work_interval._items) > 0:
-                    # The employees should be working now according to their work schedule
-                    working_now += res_employee_ids.ids
+        for (tz, calendar), employees in employees_by_schedule.items():
+            if not calendar:
+                # Fully flexible: no calendar, no attendance lines.
+                # ``_work_intervals_batch`` RAISES on an empty calendar rather
+                # than answering empty -- the loop this replaced never reached
+                # that case because ``mapped("resource_calendar_id")`` drops the
+                # empty value, so such employees were simply never reported as
+                # working. Same outcome, stated instead of implied.
+                continue
+            zone = timezone(tz)
+            work_intervals = calendar._work_intervals_batch(
+                start_dt.astimezone(zone), stop_dt.astimezone(zone)
+            )[False]
+            if work_intervals._items:
+                working_now += employees.ids
         return working_now
 
     @api.depends("user_id.im_status", "active")
@@ -1553,7 +1621,7 @@ class HrEmployee(models.Model):
     def action_related_contacts(self):
         related_partners = self._get_related_partners()
         action = {
-            "name": _("Related Contacts"),
+            "name": self.env._("Related Contacts"),
             "type": "ir.actions.act_window",
             "res_model": "res.partner",
             "view_mode": "form",
@@ -1569,9 +1637,9 @@ class HrEmployee(models.Model):
     def action_create_user(self):
         self.ensure_one()
         if self.user_id:
-            raise ValidationError(_("This employee already has an user."))
+            raise ValidationError(self.env._("This employee already has an user."))
         return {
-            "name": _("Create User"),
+            "name": self.env._("Create User"),
             "type": "ir.actions.act_window",
             "res_model": "res.users",
             "view_mode": "form",
@@ -1590,31 +1658,36 @@ class HrEmployee(models.Model):
 
     def action_create_users_confirmation(self):
         raise RedirectWarning(
-            message=_(
+            message=self.env._(
                 "You're about to invite new users. %s users will be created with the default user template's rights. "
                 "Adding new users may increase your subscription cost. Do you wish to continue?",
                 len(self.ids),
             ),
             action=self.env.ref("hr.action_hr_employee_create_users").id,
-            button_text=_("Confirm"),
+            button_text=self.env._("Confirm"),
             additional_context={
                 "selected_ids": self.ids,
             },
         )
 
-    def action_create_users(self):
-        def _get_user_creation_notification_action(message, message_type, next_action):
-            return {
-                "type": "ir.actions.client",
-                "tag": "display_notification",
-                "params": {
-                    "title": self.env._("User Creation Notification"),
-                    "type": message_type,
-                    "message": message,
-                    "next": next_action,
-                },
-            }
+    def _get_user_creation_notification(self, message, message_type, next_action):
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": self.env._("User Creation Notification"),
+                "type": message_type,
+                "message": message,
+                "next": next_action,
+            },
+        }
 
+    def _classify_for_user_creation(self):
+        """Split ``self`` into what can become a user and what cannot.
+
+        Returns ``(create_vals, blocked)``, ``blocked`` mapping a reason to the
+        employee names it holds.
+        """
         employee_emails = [
             normalized_email
             for employee in self
@@ -1629,46 +1702,53 @@ class HrEmployee(models.Model):
                     ("login", "in", employee_emails),
                 ]
             )
-        # Hoist the set of conflicting emails out of the per-employee loop below
-        # (membership test instead of re-``mapped()`` on every iteration).
-        conflicting_emails = set(conflicting_users.mapped("email_normalized"))
-        old_users = []
-        new_users = []
-        users_without_emails = []
-        users_with_invalid_emails = []
-        users_with_existing_email = []
+        # Both columns the search matched must land in the set: on
+        # ``email_normalized`` alone, a user whose *login* is this work email
+        # under a different address slipped through to a raw UniqueViolation.
+        taken_addresses = set(conflicting_users.mapped("email_normalized")) | set(
+            conflicting_users.mapped("login")
+        )
+        create_vals = []
+        blocked = defaultdict(list)
         for employee in self:
             if employee.user_id:
-                old_users.append(employee.name)
+                blocked["has_user"].append(employee.name)
                 continue
             if not employee.work_email:
-                users_without_emails.append(employee.name)
+                blocked["no_email"].append(employee.name)
                 continue
-            if not tools.email_normalize(employee.work_email):
-                users_with_invalid_emails.append(employee.name)
+            # Normalised once and reused: this was computed three times per
+            # employee, twice through ``tools.email_normalize`` and once through
+            # the module-level import of the same function.
+            login = email_normalize(employee.work_email)
+            if not login:
+                blocked["invalid_email"].append(employee.name)
                 continue
-            if email_normalize(employee.work_email) in conflicting_emails:
-                users_with_existing_email.append(employee.name)
+            if login in taken_addresses:
+                blocked["address_taken"].append(employee.name)
                 continue
-            new_users.append(
+            create_vals.append(
                 {
                     "create_employee_id": employee.id,
                     "name": employee.name,
                     "phone": employee.work_phone,
-                    "login": tools.email_normalize(employee.work_email),
+                    "login": login,
                     "partner_id": employee.work_contact_id.id,
                 }
             )
+        return create_vals, blocked
+
+    def action_create_users(self):
+        create_vals, blocked = self._classify_for_user_creation()
 
         next_action = {"type": "ir.actions.act_window_close"}
-        if new_users:
-            self.env["res.users"].create(new_users)
-            message = _(
-                "Users %s creation successful",
-                ", ".join([user["name"] for user in new_users]),
-            )
-            next_action = _get_user_creation_notification_action(
-                message,
+        if create_vals:
+            self.env["res.users"].create(create_vals)
+            next_action = self._get_user_creation_notification(
+                self.env._(
+                    "Users %s creation successful",
+                    ", ".join(vals["name"] for vals in create_vals),
+                ),
                 "success",
                 {
                     "type": "ir.actions.client",
@@ -1677,48 +1757,54 @@ class HrEmployee(models.Model):
                 },
             )
 
-        if old_users:
-            message = _(
-                "User already exists for Those Employees %s", ", ".join(old_users)
-            )
-            next_action = _get_user_creation_notification_action(
-                message, "warning", next_action
-            )
-
-        if users_without_emails:
-            message = _(
-                "You need to set the work email address for %s",
-                ", ".join(users_without_emails),
-            )
-            next_action = _get_user_creation_notification_action(
-                message, "danger", next_action
-            )
-
-        if users_with_invalid_emails:
-            message = _(
-                "You need to set a valid work email address for %s",
-                ", ".join(users_with_invalid_emails),
-            )
-            next_action = _get_user_creation_notification_action(
-                message, "danger", next_action
-            )
-
-        if users_with_existing_email:
-            message = _(
-                "User already exists with the same email for Employees %s",
-                ", ".join(users_with_existing_email),
-            )
-            next_action = _get_user_creation_notification_action(
-                message, "warning", next_action
-            )
-
+        # Each notification wraps the previous one, so this replaces four
+        # near-identical ``if bucket:`` blocks with the same chain, in the same
+        # order.
+        for names, message_type, message in (
+            (
+                blocked["has_user"],
+                "warning",
+                self.env._(
+                    "User already exists for Those Employees %s",
+                    ", ".join(blocked["has_user"]),
+                ),
+            ),
+            (
+                blocked["no_email"],
+                "danger",
+                self.env._(
+                    "You need to set the work email address for %s",
+                    ", ".join(blocked["no_email"]),
+                ),
+            ),
+            (
+                blocked["invalid_email"],
+                "danger",
+                self.env._(
+                    "You need to set a valid work email address for %s",
+                    ", ".join(blocked["invalid_email"]),
+                ),
+            ),
+            (
+                blocked["address_taken"],
+                "warning",
+                self.env._(
+                    "User already exists with the same email for Employees %s",
+                    ", ".join(blocked["address_taken"]),
+                ),
+            ),
+        ):
+            if names:
+                next_action = self._get_user_creation_notification(
+                    message, message_type, next_action
+                )
         return next_action
 
     def _compute_display_name(self):
         if self.browse().has_access("read"):
             return super()._compute_display_name()
         for employee_private, employee_public in zip(
-            self, self.env["hr.employee.public"].browse(self.ids), strict=False
+            self, self.env["hr.employee.public"].browse(self.ids), strict=True
         ):
             employee_private.display_name = employee_public.display_name
         return None
@@ -1796,7 +1882,7 @@ class HrEmployee(models.Model):
         private_fields = [fname for fname in field_names if fname not in public_fields]
         if private_fields:
             raise AccessError(
-                _(
+                self.env._(
                     "The fields “%s”, which you are trying to read, are not available for employee public profiles.",
                     ",".join(private_fields),
                 )
@@ -1818,56 +1904,101 @@ class HrEmployee(models.Model):
         employees_contract_expiring = self.env["hr.employee"]
         employees_work_permit_expiring = self.env["hr.employee"]
 
-        # Anchor the whole run on a single "today" so every per-company window is
-        # computed against the same date.
+        # Anchor the whole run on a single "today" so every window is computed
+        # against the same date, and group the companies by notice period: the
+        # window is a function of the period, not of the company, so a cluster
+        # that shares one setting costs one query instead of one per company.
         today = fields.Date.today()
+        companies_by_contract_period = defaultdict(lambda: self.env["res.company"])
+        companies_by_permit_period = defaultdict(lambda: self.env["res.company"])
         for company in companies:
+            companies_by_contract_period[company.contract_expiration_notice_period] += (
+                company
+            )
+            companies_by_permit_period[
+                company.work_permit_expiration_notice_period
+            ] += company
+
+        # A WINDOW, not an exact day. Matching ``= today + notice_period`` meant a
+        # day the cron did not run -- server down, cron disabled, a database
+        # restored from a backup, an upgrade window -- lost that expiry's
+        # notification for good, because the next run's date no longer matched.
+        # The window is safe precisely because ``_schedule_expiry_activity`` is
+        # idempotent: it notifies on the first run inside the window and does
+        # nothing on every later one.
+        for notice_period, period_companies in companies_by_contract_period.items():
             employees_contract_expiring += self.env["hr.employee"].search(
                 [
-                    ("company_id", "=", company.id),
+                    ("company_id", "in", period_companies.ids),
                     ("contract_date_start", "!=", False),
                     ("contract_date_start", "<", today),
+                    ("contract_date_end", ">=", today),
                     (
                         "contract_date_end",
-                        "=",
-                        today
-                        + relativedelta(days=company.contract_expiration_notice_period),
+                        "<=",
+                        today + relativedelta(days=notice_period),
                     ),
                 ]
             )
-
+        for notice_period, period_companies in companies_by_permit_period.items():
             employees_work_permit_expiring += self.env["hr.employee"].search(
                 [
-                    ("company_id", "=", company.id),
-                    ("work_permit_expiration_date", "!=", False),
+                    ("company_id", "in", period_companies.ids),
+                    ("work_permit_expiration_date", ">=", today),
                     (
                         "work_permit_expiration_date",
-                        "=",
-                        today
-                        + relativedelta(
-                            days=company.work_permit_expiration_notice_period
-                        ),
+                        "<=",
+                        today + relativedelta(days=notice_period),
                     ),
                 ]
             )
 
         for employee in employees_contract_expiring:
-            employee.with_context(mail_activity_quick_update=True).activity_schedule(
-                "mail.mail_activity_data_todo",
+            employee._schedule_expiry_activity(
                 employee.contract_date_end,
-                _("The contract of %s is about to expire.", employee.name),
-                user_id=employee.hr_responsible_id.id or self.env.uid,
+                self.env._("The contract of %s is about to expire.", employee.name),
             )
 
         for employee in employees_work_permit_expiring:
-            employee.with_context(mail_activity_quick_update=True).activity_schedule(
-                "mail.mail_activity_data_todo",
+            employee._schedule_expiry_activity(
                 employee.work_permit_expiration_date,
-                _("The work permit of %s is about to expire.", employee.name),
-                user_id=employee.hr_responsible_id.id or self.env.uid,
+                self.env._("The work permit of %s is about to expire.", employee.name),
             )
 
         return True
+
+    def _schedule_expiry_activity(self, date_deadline, summary):
+        """Schedule an expiry reminder, at most once per (employee, deadline, summary).
+
+        The cron runs daily and matches on an exact date, but nothing stopped it
+        from running twice in the same day (a manual trigger, an ir.cron retry,
+        a second worker, a ``--stop-after-init`` boot): every run appended
+        another identical activity. Idempotence is asserted here rather than
+        through a per-reason boolean flag on the employee, so both reasons are
+        guarded by one mechanism.
+        """
+        self.ensure_one()
+        already_scheduled = (
+            self.env["mail.activity"]
+            .sudo()
+            .search_count(
+                [
+                    ("res_model", "=", self._name),
+                    ("res_id", "=", self.id),
+                    ("date_deadline", "=", date_deadline),
+                    ("summary", "=", summary),
+                ],
+                limit=1,
+            )
+        )
+        if already_scheduled:
+            return
+        self.with_context(mail_activity_quick_update=True).activity_schedule(
+            "mail.mail_activity_data_todo",
+            date_deadline,
+            summary,
+            user_id=self.hr_responsible_id.id or self.env.uid,
+        )
 
     @api.model
     def get_view(self, view_id=None, view_type="form", **options):
@@ -1882,12 +2013,12 @@ class HrEmployee(models.Model):
         # returning public employee data would cause a traceback when building
         # the private employee xml view
         raise RedirectWarning(
-            message=_(
+            message=self.env._(
                 """You are not allowed to access "Employee" (hr.employee) records.
 We can redirect you to the public employee list."""
             ),
             action=self.env.ref("hr.hr_employee_public_action").id,
-            button_text=_("Employees profile"),
+            button_text=self.env._("Employees profile"),
         )
 
     @api.model
@@ -1986,7 +2117,9 @@ We can redirect you to the public employee list."""
     def _verify_pin(self):
         for employee in self:
             if employee.pin and not employee.pin.isdigit():
-                raise ValidationError(_("The PIN must be a sequence of digits."))
+                raise ValidationError(
+                    self.env._("The PIN must be a sequence of digits.")
+                )
 
     @api.constrains("barcode")
     def _verify_barcode(self):
@@ -1997,7 +2130,7 @@ We can redirect you to the public employee list."""
                     and len(employee.barcode) <= 18
                 ):
                     raise ValidationError(
-                        _(
+                        self.env._(
                             "The Badge ID must be alphanumeric without any accents and no longer than 18 characters."
                         )
                     )
@@ -2013,22 +2146,35 @@ We can redirect you to the public employee list."""
         if self.resource_calendar_id and not self.tz:
             self.tz = self.resource_calendar_id.tz
 
-    def _remove_work_contact_id(self, user, employee_company):
+    def _remove_work_contact_id(self, user, employee_company=None):
         """Remove work_contact_id for previous employee if the user is assigned to a new employee"""
-        employee_company = employee_company or self.company_id.id
+        if not user:
+            return
+        # ``self`` is the recordset being written and may hold several
+        # employees across several companies, so the target companies are
+        # collected instead of read as a singleton (``self.company_id.id``
+        # raised "Expected singleton" on any multi-company write). ``create``
+        # calls this on the empty recordset, hence the env.company fallback --
+        # without it the comparison below was against False and the stale work
+        # contact was never cleared.
+        if employee_company:
+            companies = {employee_company}
+        else:
+            companies = set(self.mapped("company_id").ids) or {self.env.company.id}
         # For employees with a user_id, the constraint (user can't be linked to multiple employees) is triggered
         old_partner_employee_ids = user.partner_id.employee_ids.filtered(
-            lambda e: (
-                not e.user_id and e.company_id.id == employee_company and e != self
-            )
+            lambda e: not e.user_id and e.company_id.id in companies and e not in self
         )
         old_partner_employee_ids.work_contact_id = None
 
     def _sync_user(self, user, employee_has_image=False):
-        vals = {
-            "work_contact_id": user.partner_id.id if user else self.work_contact_id.id,
-            "user_id": user.id,
-        }
+        vals = {"user_id": user.id}
+        if user:
+            vals["work_contact_id"] = user.partner_id.id
+        # else: keep whatever work contact each employee already has. Reading
+        # ``self.work_contact_id`` here to write it back was a no-op on a
+        # singleton and raised "Expected singleton" for any multi-record write
+        # (``employees.write({"user_id": False})``).
         if not employee_has_image:
             vals["image_1920"] = user.image_1920
         if user.tz:
@@ -2052,12 +2198,7 @@ We can redirect you to the public employee list."""
     def new(self, values=None, origin=None, ref=None):
         if not values:
             values = {}
-        new_vals = values.copy()
-        version_vals = {
-            val: new_vals.pop(val)
-            for val in values
-            if val in self._fields and self._fields[val].inherited
-        }
+        new_vals, version_vals = self._split_version_vals(values)
 
         employee = super().new(new_vals, origin, ref)
         version_vals["employee_id"] = employee
@@ -2092,11 +2233,11 @@ We can redirect you to the public employee list."""
         index_per_employee = {}
         employees = self.env["hr.employee"]
         for company, company_vals_list in vals_per_company.items():
-            idxs, company_vals_list = zip(*company_vals_list, strict=False)
+            idxs, company_vals_list = zip(*company_vals_list, strict=True)
             new_employees = super(HrEmployee, self.with_company(company)).create(
                 company_vals_list
             )
-            index_per_employee.update(dict(zip(new_employees, idxs, strict=False)))
+            index_per_employee.update(dict(zip(new_employees, idxs, strict=True)))
             employees |= new_employees
         # As we do a custom batch by company, we must reorder the records to respect the original order.
         employees = employees.sorted(key=lambda employee: index_per_employee[employee])
@@ -2106,11 +2247,11 @@ We can redirect you to the public employee list."""
         ).sudo()._create_work_contacts()
         if self.env.context.get("salary_simulation"):
             return employees
-        for employee_sudo in employees.sudo():
-            # creating 'svg/xml' attachments requires specific rights
-            if not employee_sudo.image_1920 and self.env["ir.ui.view"].sudo(
-                False
-            ).has_access("write"):
+        # creating 'svg/xml' attachments requires specific rights -- one check
+        # for the batch, not one per employee
+        may_write_views = self.env["ir.ui.view"].sudo(False).has_access("write")
+        if may_write_views:
+            for employee_sudo in employees.sudo().filtered(lambda e: not e.image_1920):
                 employee_sudo.image_1920 = employee_sudo._prepare_avatar_svg()
                 employee_sudo.work_contact_id.image_1920 = employee_sudo.image_1920
         employee_departments = employees.department_id
@@ -2128,7 +2269,7 @@ We can redirect you to the public employee list."""
             )
             onboarding_notes_bodies[employee.id] = (
                 Markup(
-                    _(
+                    self.env._(
                         '<b>Congratulations!</b> May I recommend you to setup an <a href="%s">onboarding plan?</a>',
                     )
                 )
@@ -2141,15 +2282,15 @@ We can redirect you to the public employee list."""
     def write(self, vals):
         if "work_contact_id" in vals:
             self.message_unsubscribe(self.work_contact_id.ids)
+        user_to_sync = None
         if "user_id" in vals:
-            # Update the profile pictures with user, except if provided
-            user = self.env["res.users"].browse(vals["user_id"])
-            vals.update(
-                self._sync_user(user, (bool(all(emp.image_1920 for emp in self))))
-            )
-            self._remove_work_contact_id(user, vals.get("company_id"))
-        if "work_permit_expiration_date" in vals:
-            vals["work_permit_scheduled_activity"] = False
+            user_to_sync = self.env["res.users"].browse(vals["user_id"])
+            # Avatar decided per employee below: ``_sync_user``'s single flag was
+            # ``all(emp.image_1920 for emp in self)``, so one imageless employee
+            # wiped every other image in the batch (reachable from
+            # hr.view_employee_tree, which is multi_edit and exposes user_id).
+            vals.update(self._sync_user(user_to_sync, employee_has_image=True))
+            self._remove_work_contact_id(user_to_sync, vals.get("company_id"))
         if vals.get("tz"):
             users_to_update = self.env["res.users"]
             for employee in self:
@@ -2162,41 +2303,37 @@ We can redirect you to the public employee list."""
             if users_to_update:
                 users_to_update.write({"tz": vals["tz"]})
         if vals.get("department_id") or vals.get("user_id"):
-            department_id = (
-                vals["department_id"]
-                if vals.get("department_id")
-                else self[:1].department_id.id
-            )
             # When added to a department or changing user, subscribe to the channels auto-subscribed by department
-            self.env["discuss.channel"].sudo().search(
-                [("subscription_department_ids", "in", department_id)]
-            )._subscribe_users_automatically()
+            # Every written employee's department counts: the fallback used to
+            # read ``self[:1].department_id``, so a batch spanning departments
+            # subscribed only the first one's channels.
+            department_ids = (
+                [vals["department_id"]]
+                if vals.get("department_id")
+                else self.department_id.ids
+            )
+            if department_ids:
+                self.env["discuss.channel"].sudo().search(
+                    [("subscription_department_ids", "in", department_ids)]
+                )._subscribe_users_automatically()
         if vals.get("departure_description"):
             for employee in self:
                 employee.message_post(
-                    body=_(
+                    body=self.env._(
                         "Additional Information: \n %(description)s",
                         description=vals.get("departure_description"),
                     )
                 )
         # Only one write call for all the fields from hr.version
-        new_vals = vals.copy()
-        version_vals = {
-            val: new_vals.pop(val)
-            for val in vals
-            if val in self._fields and self._fields[val].inherited
-        }
+        new_vals, version_vals = self._split_version_vals(vals)
         res = super().write(new_vals)
         if "work_contact_id" in vals:
-            account_ids = self.bank_account_ids.ids
-            if account_ids:
-                bank_accounts = self.env["res.partner.bank"].sudo().browse(account_ids)
-                for bank_account in bank_accounts:
-                    if vals["work_contact_id"] != bank_account.partner_id.id:
-                        if bank_account.allow_out_payment:
-                            bank_account.allow_out_payment = False
-                        if vals["work_contact_id"]:
-                            bank_account.partner_id = vals["work_contact_id"]
+            self._repoint_bank_accounts(vals["work_contact_id"])
+        if user_to_sync and user_to_sync.image_1920:
+            # Seed only the employees with no image; never clear one.
+            employees_without_image = self.filtered(lambda e: not e.image_1920)
+            if employees_without_image:
+                employees_without_image.image_1920 = user_to_sync.image_1920
         if version_vals:
             version_vals["last_modified_date"] = fields.Datetime.now()
             version_vals["last_modified_uid"] = self.env.uid
@@ -2208,22 +2345,51 @@ We can redirect you to the public employee list."""
                     % employee.version_id.display_name
                 )
         if res and "resource_calendar_id" in vals:
-            resources_per_calendar_id = defaultdict(
-                lambda: self.env["resource.resource"]
-            )
-            for employee in self:
-                if employee.version_id == employee.current_version_id:
-                    resources_per_calendar_id[employee.resource_calendar_id.id] += (
-                        employee.resource_id
-                    )
-            for calendar_id, resources in resources_per_calendar_id.items():
-                resources.write({"calendar_id": calendar_id})
+            self._propagate_calendar_to_resources()
         return res
+
+    def _repoint_bank_accounts(self, work_contact_id):
+        """Move the employee's bank accounts onto their new work contact.
+
+        Trust is dropped on the way: an account that changes owner must be
+        re-approved, never carried over. Batched by target so a set of employees
+        costs two writes rather than two per account.
+        """
+        accounts_sudo = (
+            self.env["res.partner.bank"].sudo().browse(self.bank_account_ids.ids)
+        )
+        to_move = accounts_sudo.filtered(
+            lambda account: account.partner_id.id != work_contact_id
+        )
+        if not to_move:
+            return
+        trusted = to_move.filtered("allow_out_payment")
+        if trusted:
+            trusted.allow_out_payment = False
+        if work_contact_id:
+            to_move.partner_id = work_contact_id
+
+    def _propagate_calendar_to_resources(self):
+        """Push a written working schedule onto resource.resource.
+
+        Only for employees whose written version IS the current one: a schedule
+        set on a past or future version must not move the resource's calendar,
+        which has no notion of versions.
+        """
+        resources_per_calendar_id = defaultdict(lambda: self.env["resource.resource"])
+        for employee in self:
+            if employee.version_id == employee.current_version_id:
+                resources_per_calendar_id[employee.resource_calendar_id.id] += (
+                    employee.resource_id
+                )
+        for calendar_id, resources in resources_per_calendar_id.items():
+            resources.write({"calendar_id": calendar_id})
 
     def unlink(self):
         resources = self.mapped("resource_id")
-        super().unlink()
-        return resources.unlink()
+        result = super().unlink()
+        resources.unlink()
+        return result
 
     def _get_employee_m2o_to_empty_on_archived_employees(self):
         return ["parent_id", "coach_id"]
@@ -2276,7 +2442,7 @@ We can redirect you to the public employee list."""
             ):
                 return {
                     "type": "ir.actions.act_window",
-                    "name": _("Register Departure"),
+                    "name": self.env._("Register Departure"),
                     "res_model": "hr.departure.wizard",
                     "view_mode": "form",
                     "target": "new",
@@ -2290,8 +2456,8 @@ We can redirect you to the public employee list."""
         if self._origin:
             return {
                 "warning": {
-                    "title": _("Warning"),
-                    "message": _(
+                    "title": self.env._("Warning"),
+                    "message": self.env._(
                         "To avoid multi company issues (losing the access to your previous contracts, leaves, ...), you should create another employee in the new company instead."
                     ),
                 }
@@ -2311,8 +2477,32 @@ We can redirect you to the public employee list."""
     # ---------------------------------------------------------
 
     def generate_random_barcode(self):
+        # ``_barcode_uniq`` is a DB-level UNIQUE, so a collision used to surface
+        # as a UniqueViolation rather than another draw. Probe each candidate
+        # against that same unique index -- one index lookup, not a full read of
+        # every badge in the table -- and remember what this call has already
+        # handed out.
+        # sudo + active_test=False: the constraint spans every employee, so a
+        # badge taken by one this user cannot see is still taken.
+        Employee = self.env["hr.employee"].sudo().with_context(active_test=False)
+        minted = set()
         for employee in self:
-            employee.barcode = "041" + "".join(choice(digits) for i in range(9))
+            for _attempt in range(self._BARCODE_DRAW_ATTEMPTS):
+                barcode = "041" + "".join(choice(digits) for _ in range(9))
+                if barcode in minted:
+                    continue
+                if not Employee.search_count([("barcode", "=", barcode)], limit=1):
+                    break
+            else:
+                raise UserError(
+                    self.env._(
+                        "Could not generate a unique Badge ID after %(attempts)s"
+                        " attempts. Please set one manually.",
+                        attempts=self._BARCODE_DRAW_ATTEMPTS,
+                    )
+                )
+            minted.add(barcode)
+            employee.barcode = barcode
 
     def _get_tz(self):
         self.ensure_one()
@@ -2330,25 +2520,38 @@ We can redirect you to the public employee list."""
         return {emp.id: emp._get_tz() for emp in self}
 
     def _get_calendar_tz_batch(self, dt=None):
-        """Return a mapping { employee id : employee's effective schedule's (at dt) timezone }"""
+        """Return a mapping { employee id : employee's effective schedule's (at dt) timezone }
+
+        ``dt`` is an instant; a naive value is read as UTC (hr_attendance's
+        ``_get_day_start_and_day`` passes one). Which version -- hence which
+        schedule -- is in force depends on the employee's OWN calendar date, so
+        the instant must be *converted* into their zone with ``astimezone``.
+        A bare ``dt.replace(tzinfo=...)`` cannot do that: it relabels the wall
+        clock and leaves ``.date()`` equal to ``dt.date()`` for every zone, which
+        silently made this whole per-timezone grouping a no-op and picked the
+        UTC-date version for everyone.
+        """
         employees_by_id = self.grouped("id")
-        if not dt:
-            calendars = self._get_calendars()
+
+        def timezones_at(employees, date_at=None):
             return {
                 emp_id: calendar.sudo().tz or employees_by_id[emp_id].tz
-                for emp_id, calendar in calendars.items()
+                for emp_id, calendar in employees._get_calendars(date_at).items()
             }
 
-        employees_by_tz = self.grouped(lambda emp: emp._get_tz())
+        if not dt:
+            return timezones_at(self)
 
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
         employee_timezones = {}
-        for tz in employees_by_tz:
-            date_at = dt.replace(tzinfo=timezone(tz)).date()
-            calendars = self._get_calendars(date_at)
-            employee_timezones |= {
-                emp_id: cal.sudo().tz or employees_by_id[emp_id].tz
-                for emp_id, cal in calendars.items()
-            }
+        # Resolve each group against ITS OWN local date, and only for its own
+        # employees: the previous code passed the whole recordset on every
+        # iteration, so each pass recomputed and overwrote every employee.
+        for tz, employees in self.grouped(lambda emp: emp._get_tz()).items():
+            employee_timezones |= timezones_at(
+                employees, dt.astimezone(timezone(tz)).date()
+            )
         return employee_timezones
 
     def _get_calendars(self, date_from=None):
@@ -2384,7 +2587,12 @@ We can redirect you to the public employee list."""
         return localize_standard(naive, tz) if tz else naive
 
     def _get_version_periods(self, start, stop, field=None, check_contract=False):
-        if field and field not in self:
+        # ``field`` is read off hr.version below, so it must be validated
+        # against hr.version -- not against ``self`` (hr.employee). A field that
+        # exists only on the employee (``barcode``, ``pin``, ...) passed the old
+        # guard and then died on a raw KeyError, which is exactly the case this
+        # message was written for.
+        if field and field not in self.env["hr.version"]._fields:
             raise UserError(
                 self.env._(
                     "This field %(field_name)s doesn't exist on this model (hr.version).",
@@ -2461,6 +2669,7 @@ We can redirect you to the public employee list."""
         )
 
     def _get_unusual_days(self, date_from, date_to=None):
+        self.ensure_one()
         date_from_date = datetime.strptime(date_from, "%Y-%m-%d %H:%M:%S").date()
         # ``date_to`` is optional; fall back to a single-day window so neither the
         # per-version branch nor the no-version branch feeds ``None`` into
@@ -2508,59 +2717,73 @@ We can redirect you to the public employee list."""
             )
         return unusual_days
 
+    def _get_employee_tz(self):
+        self.ensure_one()
+        return timezone(self.tz) if self.tz else None
+
+    def _get_fallback_calendar(self):
+        self.ensure_one()
+        return self.resource_calendar_id or self.company_id.resource_calendar_id
+
+    def _iter_version_windows(self, start, stop, tz=None):
+        """Yield ``(version, window_start, window_stop, calendar)`` per in-contract version.
+
+        Each window is that version's effective span clamped to ``[start, stop]``.
+        Three callers -- ``_employee_attendance_intervals``,
+        ``_get_expected_attendances`` and ``_get_calendar_attendances`` -- each
+        rebuilt this arithmetic, with slightly different bounds that were
+        impossible to compare while they sat apart.
+        """
+        self.ensure_one()
+        versions = self.sudo()._get_versions_with_contract_overlap_with_period(
+            start.date(), stop.date()
+        )
+        for version in versions:
+            window_start = self._combine_tz(version.date_start, time.min, tz)
+            # Open-ended version: bound by the period end rather than building a
+            # ``date.max`` datetime, which overflows in ``_combine_tz`` (tzinfo
+            # attachment) for UTC-negative timezones.
+            window_stop = (
+                self._combine_tz(version.date_end, time.max, tz)
+                if version.date_end
+                else stop
+            )
+            calendar = (
+                version.resource_calendar_id or version.company_id.resource_calendar_id
+            )
+            yield version, max(start, window_start), min(stop, window_stop), calendar
+
     def _employee_attendance_intervals(self, start, stop, lunch=False):
         self.ensure_one()
         if not lunch:
             return self._get_expected_attendances(start, stop)
-        else:
-            valid_versions = (
-                self.sudo()._get_versions_with_contract_overlap_with_period(
-                    start.date(), stop.date()
-                )
-            )
-            if not valid_versions:
-                calendar = (
-                    self.resource_calendar_id or self.company_id.resource_calendar_id
-                )
-                return calendar._attendance_intervals_batch(
-                    start, stop, self.resource_id, lunch=True
-                )[self.resource_id.id]
-            employee_tz = timezone(self.tz) if self.tz else None
-            duration_data = Intervals()
-            for version in valid_versions:
-                version_start = self._combine_tz(
-                    version.date_start, time.min, employee_tz
-                )
-                # Open-ended version: bound by the period end (``stop``) rather
-                # than building a ``date.max`` datetime, which overflows in
-                # ``_combine_tz`` (tzinfo attachment) for UTC-negative timezones.
-                version_end = (
-                    self._combine_tz(version.date_end, time.max, employee_tz)
-                    if version.date_end
-                    else stop
-                )
-                calendar = (
-                    version.resource_calendar_id
-                    or version.company_id.resource_calendar_id
-                )
-                lunch_intervals = calendar._attendance_intervals_batch(
-                    max(start, version_start),
-                    min(stop, version_end),
-                    resources=self.resource_id,
-                    lunch=True,
-                )[self.resource_id.id]
-                duration_data |= lunch_intervals
-            return duration_data
+        employee_tz = self._get_employee_tz()
+        windows = list(self._iter_version_windows(start, stop, employee_tz))
+        if not windows:
+            return self._get_fallback_calendar()._attendance_intervals_batch(
+                start, stop, self.resource_id, lunch=True
+            )[self.resource_id.id]
+        duration_data = Intervals()
+        for _version, window_start, window_stop, calendar in windows:
+            duration_data |= calendar._attendance_intervals_batch(
+                window_start,
+                window_stop,
+                resources=self.resource_id,
+                lunch=True,
+            )[self.resource_id.id]
+        return duration_data
 
     def _get_expected_attendances(self, date_from, date_to):
         self.ensure_one()
-        valid_versions = self.sudo()._get_versions_with_contract_overlap_with_period(
-            date_from.date(), date_to.date()
-        )
-        employee_tz = timezone(self.tz) if self.tz else None
-        if not valid_versions:
-            calendar = self.resource_calendar_id or self.company_id.resource_calendar_id
-            return calendar._work_intervals_batch(
+        employee_tz = self._get_employee_tz()
+        windows = list(self._iter_version_windows(date_from, date_to, employee_tz))
+        if not windows:
+            # NOTE: this branch does NOT carry the ``time_type = leave`` clause
+            # the per-version branch below passes, so the two paths subtract
+            # different sets of resource.calendar.leaves. Preserved as shipped --
+            # reconciling them changes computed attendance and wants product
+            # input -- but they are not the same computation.
+            return self._get_fallback_calendar()._work_intervals_batch(
                 date_from,
                 date_to,
                 tz=employee_tz,
@@ -2569,31 +2792,24 @@ We can redirect you to the public employee list."""
                 domain=[("company_id", "in", [False, self.company_id.id])],
             )[self.resource_id.id]
         duration_data = Intervals()
-        version_prev = self._combine_tz(
-            valid_versions[0].date_start, time.min, employee_tz
-        )
-        for version in valid_versions:
-            version_start = self._combine_tz(version.date_start, time.min, employee_tz)
-            contract_start = self._combine_tz(
-                version.contract_date_start, time.min, employee_tz
-            )
-            # Open-ended version: bound by the period end (``date_to``) rather
-            # than building a ``date.max`` datetime, which overflows in
-            # ``_combine_tz`` (tzinfo attachment) for UTC-negative timezones.
-            version_end = (
-                self._combine_tz(version.date_end, time.max, employee_tz)
-                if version.date_end
-                else date_to
-            )
-            calendar = (
-                version.resource_calendar_id or version.company_id.resource_calendar_id
-            )
-            start_date = (
-                version_start if version_prev < version_start else contract_start
-            )
-            version_intervals = calendar._work_intervals_batch(
-                max(date_from, start_date),
-                min(date_to, version_end),
+        for index, (version, window_start, window_stop, calendar) in enumerate(windows):
+            if index == 0:
+                # The earliest version in the period reaches back to its CONTRACT
+                # start, so a contract that began before its first version's
+                # effective date is not left uncovered. This used to be spelled
+                # as ``version_start if version_prev < version_start else
+                # contract_start`` with a ``version_prev`` that was assigned once
+                # and never advanced -- so it read as "compare with the previous
+                # version" while it only ever meant "is this the first one".
+                window_start = max(
+                    date_from,
+                    self._combine_tz(
+                        version.contract_date_start, time.min, employee_tz
+                    ),
+                )
+            duration_data |= calendar._work_intervals_batch(
+                window_start,
+                window_stop,
                 tz=employee_tz,
                 resources=self.resource_id,
                 compute_leaves=True,
@@ -2602,43 +2818,32 @@ We can redirect you to the public employee list."""
                     ("time_type", "=", "leave"),
                 ],
             )[self.resource_id.id]
-            duration_data |= version_intervals
         return duration_data
 
     def _get_calendar_attendances(self, date_from, date_to):
         self.ensure_one()
-        valid_versions = self.sudo()._get_versions_with_contract_overlap_with_period(
-            date_from.date(), date_to.date()
-        )
-        employee_tz = timezone(self.tz) if self.tz else None
-        if not valid_versions:
-            calendar = self.resource_calendar_id or self.company_id.resource_calendar_id
-            return calendar.with_context(
-                employee_timezone=employee_tz
-            ).get_work_duration_data(
-                date_from,
-                date_to,
-                domain=[("company_id", "in", [False, self.company_id.id])],
+        employee_tz = self._get_employee_tz()
+        windows = list(self._iter_version_windows(date_from, date_to, employee_tz))
+        if not windows:
+            return (
+                self._get_fallback_calendar()
+                .with_context(employee_timezone=employee_tz)
+                .get_work_duration_data(
+                    date_from,
+                    date_to,
+                    domain=[("company_id", "in", [False, self.company_id.id])],
+                )
             )
         duration_data = {"days": 0, "hours": 0}
-        for version in valid_versions:
-            version_start = self._combine_tz(version.date_start, time.min, employee_tz)
-            # Open-ended version: bound by the period end (``date_to``) rather
-            # than building a ``date.max`` datetime, which overflows in
-            # ``_combine_tz`` (tzinfo attachment) for UTC-negative timezones.
-            version_end = (
-                self._combine_tz(version.date_end, time.max, employee_tz)
-                if version.date_end
-                else date_to
-            )
-            calendar = (
-                version.resource_calendar_id or version.company_id.resource_calendar_id
-            )
+        for version, window_start, window_stop, calendar in windows:
+            # NOTE: scoped to the VERSION's company, unlike the no-version branch
+            # above and unlike _get_expected_attendances, which both use the
+            # employee's. Preserved as shipped.
             version_duration_data = calendar.with_context(
                 employee_timezone=employee_tz
             ).get_work_duration_data(
-                max(date_from, version_start),
-                min(date_to, version_end),
+                window_start,
+                window_stop,
                 domain=[("company_id", "in", [False, version.company_id.id])],
             )
             duration_data["days"] += version_duration_data["days"]
@@ -2649,7 +2854,7 @@ We can redirect you to the public employee list."""
     def get_import_templates(self):
         return [
             {
-                "label": _("Import Template for Employees"),
+                "label": self.env._("Import Template for Employees"),
                 "template": "/hr/static/xls/hr_employee.xls",
             }
         ]

@@ -7,6 +7,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.fields import Domain
 from odoo.tools import babel_locale_parse, get_lang
 
 _logger = logging.getLogger(__name__)
@@ -34,12 +35,23 @@ class HrVersion(models.Model):
         address = self.env.company.partner_id.address_get(["default"])
         return address["default"] if address else False
 
+    @api.model
+    def _get_default_structure_type(self, country_id):
+        """The country's default salary-structure type, else the countryless one.
+
+        sudo: hr.payroll.structure.type is readable by hr.group_hr_manager only,
+        while an HR *officer* creating an employee must still get a default.
+        ``structure_type_id`` is itself manager-only, so nothing is disclosed.
+        ``_compute_structure_type_id`` used to run this same lookup WITHOUT sudo
+        and therefore left the field unset for an officer.
+        """
+        StructureType = self.env["hr.payroll.structure.type"].sudo()
+        return StructureType.search(
+            [("country_id", "=", country_id)], limit=1
+        ) or StructureType.search([("country_id", "=", False)], limit=1)
+
     def _default_structure_type_id(self):
-        return self.env["hr.payroll.structure.type"].sudo().search(
-            [("country_id", "=", self.env.company.country_id.id)], limit=1
-        ) or self.env["hr.payroll.structure.type"].sudo().search(
-            [("country_id", "=", False)], limit=1
-        )
+        return self._get_default_structure_type(self.env.company.country_id.id)
 
     company_id = fields.Many2one(
         "res.company",
@@ -193,11 +205,13 @@ class HrVersion(models.Model):
         search="_search_date_end",
     )
     is_current = fields.Boolean(
-        compute="_compute_is_current", groups="hr.group_hr_manager"
+        compute="_compute_date_state", groups="hr.group_hr_manager"
     )
-    is_past = fields.Boolean(compute="_compute_is_past", groups="hr.group_hr_manager")
+    is_past = fields.Boolean(
+        compute="_compute_date_state", groups="hr.group_hr_manager"
+    )
     is_future = fields.Boolean(
-        compute="_compute_is_future", groups="hr.group_hr_manager"
+        compute="_compute_date_state", groups="hr.group_hr_manager"
     )
     is_in_contract = fields.Boolean(
         compute="_compute_is_in_contract", groups="hr.group_hr_manager"
@@ -320,11 +334,23 @@ class HrVersion(models.Model):
     def _periods_overlap(start_a, end_a, start_b, end_b):
         """Return True if the two date intervals overlap.
 
-        A falsy end date is treated as open-ended (``date.max``).
+        A falsy end date is treated as open-ended (``date.max``). This is the
+        module's ONE interval rule; ``_is_overlapping_period`` and
+        ``_period_contains`` are the two ways of asking it.
         """
         end_a = end_a or date.max
         end_b = end_b or date.max
         return start_a <= end_b and start_b <= end_a
+
+    @staticmethod
+    def _period_contains(start, end, day):
+        """Return True if ``day`` falls inside ``[start, end]``, a falsy end being open.
+
+        Containment is overlap with a single-day interval. Named so callers do not
+        spell out the bound check by hand -- hr.employee._get_contract_dates did,
+        which was a third spelling of the same rule.
+        """
+        return HrVersion._periods_overlap(start, end, day, day)
 
     @api.constrains("employee_id", "contract_date_start", "contract_date_end")
     def _check_dates(self):
@@ -423,34 +449,39 @@ class HrVersion(models.Model):
                     % employee_id.name
                 )
 
-    def write(self, vals):
-        # Employee Versions Validation
-        if "employee_id" in vals:
-            if self.filtered(
-                lambda v: (
-                    v.employee_id
-                    and v.employee_id.version_ids <= self
-                    and vals["employee_id"] != v.employee_id.id
-                )
-            ):
-                raise ValidationError(
-                    self.env._(
-                        "Cannot unassign all the active versions of an employee."
-                    )
-                )
-        if "active" in vals and not vals["active"]:
-            if self.filtered(
-                lambda v: v.employee_id and v.employee_id.version_ids <= self
-            ):
-                raise ValidationError(
-                    self.env._("Cannot archive all the active versions of an employee.")
-                )
+    def _check_employee_keeps_a_version(self, vals):
+        """An employee must never be left with no active version of their own.
 
-        if self.env.context.get("sync_contract_dates") or (
-            "contract_date_start" not in vals and "contract_date_end" not in vals
+        Both shapes that would do it: reassigning every version they have to
+        somebody else, and archiving every version they have.
+        """
+        if "employee_id" in vals and self.filtered(
+            lambda v: (
+                v.employee_id
+                and v.employee_id.version_ids <= self
+                and vals["employee_id"] != v.employee_id.id
+            )
         ):
-            return super().write(vals)
+            raise ValidationError(
+                self.env._("Cannot unassign all the active versions of an employee.")
+            )
+        if (
+            "active" in vals
+            and not vals["active"]
+            and self.filtered(
+                lambda v: v.employee_id and v.employee_id.version_ids <= self
+            )
+        ):
+            raise ValidationError(
+                self.env._("Cannot archive all the active versions of an employee.")
+            )
 
+    def _check_one_contract_per_write(self):
+        """A contract-date write may only span versions of ONE contract.
+
+        Otherwise a single ``write`` would stamp one contract's dates onto
+        another's versions.
+        """
         for versions_by_employee in self.grouped("employee_id").values():
             if len(versions_by_employee.grouped("contract_date_start").keys()) > 1:
                 raise ValidationError(
@@ -459,13 +490,36 @@ class HrVersion(models.Model):
                     )
                 )
 
+    def _get_contract_dates_to_sync(self, vals, first_version):
+        """The contract bounds to propagate: those in ``vals``, else the current ones."""
+        dates_vals = {}
+        for fname in ("contract_date_start", "contract_date_end"):
+            dates_vals[fname] = (
+                fields.Date.to_date(vals.get(fname))
+                if fname in vals
+                else first_version[fname]
+            )
+        return dates_vals
+
+    def write(self, vals):
+        self._check_employee_keeps_a_version(vals)
+
+        if self.env.context.get("sync_contract_dates") or (
+            "contract_date_start" not in vals and "contract_date_end" not in vals
+        ):
+            return super().write(vals)
+
+        self._check_one_contract_per_write()
+
         multiple_versions = self
         if vals.get("contract_date_start"):
+            # An employee with a single version has no siblings to reconcile, so
+            # its date_version simply follows the contract start.
             unique_versions = multiple_versions.filtered(
                 lambda v: len(v.employee_id.version_ids) == 1
             )
             multiple_versions -= unique_versions
-            if len(unique_versions):
+            if unique_versions:
                 unique_versions.with_context(sync_contract_dates=True).write(
                     {**vals, "date_version": vals["contract_date_start"]}
                 )
@@ -480,38 +534,22 @@ class HrVersion(models.Model):
             and f_name != "contract_date_end"
         }
         for employee, versions in multiple_versions.grouped("employee_id").items():
-            dates_vals = {}
             first_version = next(iter(versions), versions)
-
-            if "contract_date_start" in vals:
-                dates_vals["contract_date_start"] = fields.Date.to_date(
-                    vals.get("contract_date_start")
-                )
-            else:
-                dates_vals["contract_date_start"] = first_version.contract_date_start
-            if "contract_date_end" in vals:
-                dates_vals["contract_date_end"] = fields.Date.to_date(
-                    vals.get("contract_date_end")
-                )
-            else:
-                dates_vals["contract_date_end"] = first_version.contract_date_end
-
-            if first_version.contract_date_start:
-                versions_to_sync = employee._get_contract_versions(
-                    date_start=first_version.contract_date_start,
-                    date_end=first_version.contract_date_end,
-                )
-                all_versions_to_sync = self.env["hr.version"]
-                for contract_versions in versions_to_sync.values():
-                    all_versions_to_sync |= next(iter(contract_versions.values()))
-
-                if all_versions_to_sync:
-                    all_versions_to_sync.with_context(sync_contract_dates=True).write(
-                        dates_vals
-                    )
-
-            else:
+            dates_vals = self._get_contract_dates_to_sync(vals, first_version)
+            if not first_version.contract_date_start:
                 versions.with_context(sync_contract_dates=True).write(dates_vals)
+                continue
+            versions_to_sync = employee._get_contract_versions(
+                date_start=first_version.contract_date_start,
+                date_end=first_version.contract_date_end,
+            )
+            all_versions_to_sync = self.env["hr.version"]
+            for contract_versions in versions_to_sync.values():
+                all_versions_to_sync |= next(iter(contract_versions.values()))
+            if all_versions_to_sync:
+                all_versions_to_sync.with_context(sync_contract_dates=True).write(
+                    dates_vals
+                )
 
         return super(HrVersion, multiple_versions).write(new_vals)
 
@@ -554,23 +592,13 @@ class HrVersion(models.Model):
             )
 
     @api.depends("date_start", "date_end")
-    def _compute_is_current(self):
+    def _compute_date_state(self):
         today = fields.Date.today()
         for version in self:
             version.is_current = version.date_start <= today and (
                 not version.date_end or version.date_end >= today
             )
-
-    @api.depends("date_start", "date_end")
-    def _compute_is_past(self):
-        today = fields.Date.today()
-        for version in self:
             version.is_past = bool(version.date_end and version.date_end < today)
-
-    @api.depends("date_start", "date_end")
-    def _compute_is_future(self):
-        today = fields.Date.today()
-        for version in self:
             version.is_future = version.date_start > today
 
     @api.depends("date_start", "date_end", "contract_date_start")
@@ -590,17 +618,18 @@ class HrVersion(models.Model):
         Return True if the employee is at least in contract one day during the period given
         :param date date_from: the start of the period
         :param date date_to: the stop of the period
+
+        An open-ended period is supported: a missing bound extends to
+        -inf/+inf. Guarding on date_from/date_to (as an earlier version did) made
+        those fallbacks dead and wrongly returned False for an open-ended query.
+        Delegates to ``_periods_overlap`` so the module has ONE interval-overlap
+        rule rather than two spellings of it.
         """
         if not self.contract_date_start:
             return False
-        # An open-ended period is supported: a missing bound extends to
-        # -inf/+inf (date.min/date.max). Guarding on date_from/date_to here (as
-        # before) made those fallbacks dead and wrongly returned False for an
-        # open-ended query period.
-        period_start = date_from or date.min
-        period_end = date_to or date.max
-        contract_end = self.date_end or date.max
-        return period_start <= contract_end and self.date_start <= period_end
+        return self._periods_overlap(
+            self.date_start, self.date_end, date_from or date.min, date_to
+        )
 
     def _is_fully_flexible(self):
         """return True if the version has a fully flexible working calendar"""
@@ -679,24 +708,10 @@ class HrVersion(models.Model):
         # without any calendar, the employee has a fully flexible schedule and is supposedly working on an hourly wage
         return wage
 
-    def _get_valid_employee_for_user(self):
-        user = self.env.user
-        # retrieve the employee of the current active company for the user
-        employee = user.employee_id
-        if not employee:
-            # search for all employees as superadmin to not get blocked by multi-company rules
-            user_employees = user.employee_id.sudo().search([("user_id", "=", user.id)])
-            # the default company employee is most likely the correct one, but fallback to the first if not available
-            employee = (
-                user_employees.filtered(lambda r: r.company_id == user.company_id)
-                or user_employees[:1]
-            )
-        return employee
-
     @api.depends_context("uid", "company")
     @api.depends("department_id")
     def _compute_member_of_department(self):
-        user_employee = self._get_valid_employee_for_user()
+        user_employee = self.env["hr.employee"]._get_valid_employee_for_user()
         active_department = user_employee.department_id
         if not active_department:
             self.member_of_department = False
@@ -713,35 +728,32 @@ class HrVersion(models.Model):
         if operator != "in":
             return NotImplemented
 
-        user_employee = self._get_valid_employee_for_user()
+        user_employee = self.env["hr.employee"]._get_valid_employee_for_user()
         if not user_employee.department_id:
-            return [("id", "in", user_employee.ids)]
+            # ``_compute_member_of_department`` answers False for everyone in
+            # this case, so match nothing. The previous
+            # ``[("id", "in", user_employee.ids)]`` was copied from
+            # hr.employee.public -- where the SQL view makes ``id`` the employee
+            # id -- and here compared hr.employee ids against hr.version ids,
+            # returning arbitrary versions (contract templates included).
+            return Domain.FALSE
         return [("department_id", "child_of", user_employee.department_id.ids)]
 
     @api.depends("company_id", "company_id.country_id")
     def _compute_structure_type_id(self):
-
         default_structure_by_country = {}
-
-        def _default_structure_type_id(country_id):
-            default_structure = default_structure_by_country.get(country_id)
-            if default_structure is None:
-                default_structure = default_structure_by_country[country_id] = self.env[
-                    "hr.payroll.structure.type"
-                ].search([("country_id", "=", country_id)], limit=1) or self.env[
-                    "hr.payroll.structure.type"
-                ].search([("country_id", "=", False)], limit=1)
-            return default_structure
-
         for version in self:
             if not version.structure_type_id or (
                 version.structure_type_id.country_id
                 and version.structure_type_id.country_id
                 != version.company_id.country_id
             ):
-                version.structure_type_id = _default_structure_type_id(
-                    version.company_id.country_id.id
-                )
+                country_id = version.company_id.country_id.id
+                if country_id not in default_structure_by_country:
+                    default_structure_by_country[country_id] = (
+                        self._get_default_structure_type(country_id)
+                    )
+                version.structure_type_id = default_structure_by_country[country_id]
 
     @api.depends(
         "contract_date_start",
@@ -830,6 +842,7 @@ class HrVersion(models.Model):
         )
 
     def _get_tz(self):
+        self.ensure_one()
         if self.resource_calendar_id and self.resource_calendar_id.tz:
             return self.resource_calendar_id.tz
         else:

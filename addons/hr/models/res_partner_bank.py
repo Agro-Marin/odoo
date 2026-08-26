@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.fields import Domain
 
 
 class ResPartnerBank(models.Model):
@@ -56,10 +57,39 @@ class ResPartnerBank(models.Model):
                 bank.employee_salary_amount = 0
 
     def _search_employee_id(self, operator, value):
-        matching_employees = (
-            self.env["hr.employee"].sudo().search([("id", operator, value)])
-        )
-        return [("id", "in", matching_employees.bank_account_ids.ids)]
+        if operator not in ("in", "not in"):
+            return NotImplemented
+        # Two things the previous implementation got wrong, and one trap in
+        # fixing it.
+        #
+        # 1. It searched ``hr.employee`` for ``id in value``, so the absent case
+        #    (``employee_id = False`` -> ``("in", [False])``) matched no employee
+        #    and returned NO accounts, where every non-employee account was
+        #    wanted.
+        # 2. It mapped matches through ``employee.bank_account_ids`` -- a
+        #    different m2m from the ``work_contact_id`` o2m the compute reads --
+        #    so an account sitting on an employee's work contact but absent from
+        #    that m2m had ``employee_id`` set and was still never returned.
+        #
+        # The trap: this must NOT become a domain over
+        # ``partner_id.employee_ids``. That field is hr.group_hr_user-only, so
+        # the traversal raises AccessError for an ordinary internal user, while
+        # ``employee_id`` itself carries no group and the compute resolves under
+        # sudo. Resolve here under sudo too, through work_contact_id, scoped to
+        # ``env.companies`` exactly as the compute is.
+        Employee = self.env["hr.employee"].sudo()
+        in_companies = Domain("company_id", "in", self.env.companies.ids)
+        wanted_ids = [record_id for record_id in value if record_id]
+        matched = Domain.FALSE
+        if wanted_ids:
+            partners = Employee.search(
+                in_companies & Domain("id", "in", wanted_ids)
+            ).work_contact_id
+            matched |= Domain("partner_id", "in", partners.ids)
+        if any(not record_id for record_id in value):
+            employee_partners = Employee.search(in_companies).work_contact_id
+            matched |= Domain("partner_id", "not in", employee_partners.ids)
+        return matched if operator == "in" else ~matched
 
     def action_open_allocation_wizard(self):
         self.ensure_one()

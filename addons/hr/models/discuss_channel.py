@@ -1,4 +1,4 @@
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
 
@@ -21,7 +21,7 @@ class DiscussChannel(models.Model):
         )
         if failing_channels:
             raise ValidationError(
-                _(
+                self.env._(
                     "For %(channels)s, channel_type should be 'channel' to have the department auto-subscription.",
                     channels=", ".join([ch.name for ch in failing_channels]),
                 )

@@ -1,4 +1,4 @@
-from odoo import _, models, tools
+from odoo import models, tools
 
 from odoo.addons.mail.tools.alias_error import AliasError
 
@@ -15,7 +15,8 @@ class Base(models.AbstractModel):
                 # ``ilike False`` would be meaningless (and risk matching an
                 # arbitrary row), so reject it outright.
                 return AliasError(
-                    "error_hr_employee_restricted", _("restricted to employees")
+                    "error_hr_employee_restricted",
+                    self.env._("restricted to employees"),
                 )
             employee = self.env["hr.employee"].search(
                 [("work_email", "ilike", email_address)], limit=1
@@ -26,7 +27,8 @@ class Base(models.AbstractModel):
                 )
             if not employee:
                 return AliasError(
-                    "error_hr_employee_restricted", _("restricted to employees")
+                    "error_hr_employee_restricted",
+                    self.env._("restricted to employees"),
                 )
             return False
         return super()._alias_get_error(message, message_dict, alias)

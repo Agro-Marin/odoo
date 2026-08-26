@@ -28,8 +28,11 @@ class MailActivitySchedule(models.TransientModel):
 
     @api.depends("res_model")
     def _compute_plan_department_filterable(self):
+        Plan = self.env["mail.activity.plan"]
         for wizard in self:
-            wizard.plan_department_filterable = wizard.res_model == "hr.employee"
+            wizard.plan_department_filterable = Plan._is_department_assignable(
+                wizard.res_model
+            )
 
     @api.depends("res_model_id", "res_ids")
     def _compute_department_id(self):

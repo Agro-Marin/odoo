@@ -17,3 +17,4 @@ from . import test_hr_contract_versions
 from . import test_flexible_resource_calendar
 from . import test_multiple_bank_accounts
 from . import test_hr_audit_fixes
+from . import test_hr_audit_round3

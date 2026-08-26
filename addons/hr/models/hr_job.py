@@ -48,10 +48,6 @@ class HrJob(models.Model):
         help="The Recruiter will be the default value for all Applicants in this job \
             position. The Recruiter is automatically added to all meetings with the Applicant.",
     )
-    # TODO (master): remove the field `allowed_user_ids`.
-    allowed_user_ids = fields.Many2many(
-        "res.users", compute="_compute_allowed_user_ids", readonly=True
-    )
     department_id = fields.Many2one(
         "hr.department",
         string="Department",
@@ -98,28 +94,6 @@ class HrJob(models.Model):
             job.no_of_employee = result.get(job.id, 0)
             job.expected_employees = result.get(job.id, 0) + job.no_of_recruitment
 
-    @api.depends("company_id")
-    def _compute_allowed_user_ids(self):
-        company_ids = self.mapped("company_id.id")
-        domain = [("share", "=", False)]
-        if company_ids:
-            domain += [("company_ids", "in", company_ids)]
-
-        users_by_company = dict(
-            self.env["res.users"]._read_group(
-                domain=domain,
-                groupby=["company_id"],
-                aggregates=["id:recordset"],
-            ),
-        )
-
-        all_users = self.env["res.users"]
-        for users in users_by_company.values():
-            all_users |= users
-
-        for job in self:
-            job.allowed_user_ids = users_by_company.get(job.company_id, all_users)
-
     @api.model_create_multi
     def create(self, vals_list):
         """We don't want the current user to be follower of all created job"""
@@ -131,7 +105,7 @@ class HrJob(models.Model):
         vals_list = super().copy_data(default=default)
         return [
             dict(vals, name=self.env._("%s (copy)", job.name))
-            for job, vals in zip(self, vals_list, strict=False)
+            for job, vals in zip(self, vals_list, strict=True)
         ]
 
     def copy_translations(self, new, excluded=()):

@@ -1,7 +1,6 @@
-
 from markupsafe import Markup
 
-from odoo import SUPERUSER_ID, _, api, fields, models
+from odoo import SUPERUSER_ID, api, fields, models
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.tools.misc import clean_context
@@ -200,15 +199,17 @@ class ResUsers(models.Model):
     is_system = fields.Boolean(compute="_compute_is_system")
     is_hr_user = fields.Boolean(compute="_compute_is_hr_user")
 
+    # NOTE: both of these describe the CURRENT user, not the record. They exist
+    # so a view can branch on the reader's rights, and they answer the same value
+    # for every record in the set -- do not read them off another user expecting
+    # that user's rights.
     @api.depends_context("uid")
     def _compute_is_system(self):
         self.is_system = self.env.user._is_system()
 
     @api.depends_context("uid")
     def _compute_is_hr_user(self):
-        is_hr_user = self.env.user.has_group("hr.group_hr_user")
-        for user in self:
-            user.is_hr_user = is_hr_user
+        self.is_hr_user = self.env.user.has_group("hr.group_hr_user")
 
     @api.depends("employee_ids")
     def _compute_employee_count(self):
@@ -290,12 +291,70 @@ class ResUsers(models.Model):
     def _get_personal_info_partner_ids_to_notify(self, employee):
         if employee.version_id.hr_responsible_id:
             return (
-                _(
+                self.env._(
                     "You are receiving this message because you are the HR Responsible of this employee."
                 ),
                 employee.version_id.hr_responsible_id.partner_id.ids,
             )
         return ("", [])
+
+    def _notify_hr_of_personal_info_change(self, changed_field_names, employee_domain):
+        """Tell each employee's HR responsible which of their fields just moved."""
+        employees = self.env["hr.employee"].sudo().search(employee_domain)
+        if not employees:
+            return
+        get_field = self.env["ir.model.fields"]._get
+        field_names = Markup().join(
+            [
+                Markup("<li>%s</li>") % get_field("res.users", fname).field_description
+                for fname in changed_field_names
+            ]
+        )
+        # The MODIFIER is the acting user, not the employee whose record moved:
+        # this used to name ``employee.name``, which reads correctly only in the
+        # self-service case and credits the wrong person whenever an HR officer
+        # edits somebody else's record.
+        modified_by = self.env.user.name
+        for employee in employees:
+            reason_message, partner_ids = self._get_personal_info_partner_ids_to_notify(
+                employee
+            )
+            if not partner_ids:
+                continue
+            employee.message_notify(
+                body=Markup("<p>%s</p><p>%s</p><ul>%s</ul><p><em>%s</em></p>")
+                % (
+                    self.env._("Personal information update."),
+                    self.env._("The following fields were modified by %s", modified_by),
+                    field_names,
+                    reason_message,
+                ),
+                partner_ids=partner_ids,
+            )
+
+    def _update_employees_from_user_vals(self, vals, employee_domain):
+        """Push the user fields that mirror onto hr.employee (``name``, ``email``…)."""
+        employee_values = {
+            fname: vals[fname]
+            for fname in self._get_employee_fields_to_sync()
+            if fname in vals
+        }
+        if not employee_values:
+            return
+        if "email" in employee_values:
+            employee_values["work_email"] = employee_values.pop("email")
+        Employee = self.env["hr.employee"].sudo()
+        if "image_1920" not in vals:
+            Employee.search(employee_domain).write(employee_values)
+            return
+        # Employees that already have a custom photo must keep it: only the
+        # non-image values reach them, never their image.
+        Employee.search([*employee_domain, ("image_1920", "=", False)]).write(
+            employee_values
+        )
+        Employee.search([*employee_domain, ("image_1920", "!=", False)]).write(
+            {k: v for k, v in employee_values.items() if k != "image_1920"}
+        )
 
     def write(self, vals):
         """
@@ -303,27 +362,26 @@ class ResUsers(models.Model):
         and check access rights if employees are not allowed to update
         their own data (otherwise sudo is applied for self data).
         """
-        hr_fields = {
-            field_name: field
+        hr_fields = [
+            field_name
             for field_name, field in self._fields.items()
             if field.related_field
             and field.related_field.model_name == "hr.employee"
             and field_name in vals
-        }
-
+        ]
         employee_domain = [
             *self.env["hr.employee"]._check_company_domain(self.env.company),
             ("user_id", "in", self.ids),
         ]
 
-        # Capture the pre-write values of the hr-related fields so that, after
-        # the write, we can notify HR only about the fields that actually changed
-        # (writing a field with its current value must not trigger a notification).
-        # Read via sudo: these related fields may be group-restricted
-        # (e.g. private_*), and a self-service user writing their own record
-        # must not hit an AccessError just so we can detect a value change.
+        # Capture the pre-write values so that only the fields that ACTUALLY
+        # changed are reported (writing a field with its current value must not
+        # notify). Read via sudo: these related fields may be group-restricted
+        # (private_*), and a self-service user must not hit an AccessError just so
+        # a change can be detected.
+        self_sudo = self.sudo()
         old_hr_values = {
-            field_name: {user.id: user.sudo()[field_name] for user in self}
+            field_name: {user.id: user[field_name] for user in self_sudo}
             for field_name in hr_fields
         }
 
@@ -333,67 +391,13 @@ class ResUsers(models.Model):
             field_name
             for field_name in hr_fields
             if any(
-                old_hr_values[field_name][user.id] != user.sudo()[field_name]
-                for user in self
+                old_hr_values[field_name][user.id] != user[field_name]
+                for user in self_sudo
             )
         ]
         if changed_hr_fields:
-            employees = self.env["hr.employee"].sudo().search(employee_domain)
-            get_field = self.env["ir.model.fields"]._get
-            field_names = Markup().join(
-                [
-                    Markup("<li>%s</li>")
-                    % get_field("res.users", fname).field_description
-                    for fname in changed_hr_fields
-                ]
-            )
-            for employee in employees:
-                reason_message, partner_ids = (
-                    self._get_personal_info_partner_ids_to_notify(employee)
-                )
-                if partner_ids:
-                    employee.message_notify(
-                        body=Markup("<p>%s</p><p>%s</p><ul>%s</ul><p><em>%s</em></p>")
-                        % (
-                            _("Personal information update."),
-                            _(
-                                "The following fields were modified by %s",
-                                employee.name,
-                            ),
-                            field_names,
-                            reason_message,
-                        ),
-                        partner_ids=partner_ids,
-                    )
-
-        employee_values = {}
-        for fname in [f for f in self._get_employee_fields_to_sync() if f in vals]:
-            employee_values[fname] = vals[fname]
-
-        if employee_values:
-            if "email" in employee_values:
-                employee_values["work_email"] = employee_values.pop("email")
-            if "image_1920" in vals:
-                without_image = (
-                    self.env["hr.employee"]
-                    .sudo()
-                    .search(employee_domain + [("image_1920", "=", False)])
-                )
-                with_image = (
-                    self.env["hr.employee"]
-                    .sudo()
-                    .search(employee_domain + [("image_1920", "!=", False)])
-                )
-                without_image.write(employee_values)
-                # Employees that already have a custom photo must keep it: only
-                # sync the non-image values to them, never overwrite their image.
-                with_image.write(
-                    {k: v for k, v in employee_values.items() if k != "image_1920"}
-                )
-            else:
-                employees = self.env["hr.employee"].sudo().search(employee_domain)
-                if employees:
-                    employees.write(employee_values)
+            self._notify_hr_of_personal_info_change(changed_hr_fields, employee_domain)
+        self._update_employees_from_user_vals(vals, employee_domain)
         return result
 
     @api.model
@@ -452,7 +456,7 @@ class ResUsers(models.Model):
         self.ensure_one()
         if self.env.company not in self.company_ids:
             raise AccessError(
-                _(
+                self.env._(
                     "You are not allowed to create an employee because the user does not have access rights for %s",
                     self.env.company.name,
                 )
@@ -475,14 +479,14 @@ class ResUsers(models.Model):
         )
         if len(employees) > 1:
             return {
-                "name": _("Related Employees"),
+                "name": self.env._("Related Employees"),
                 "type": "ir.actions.act_window",
                 "res_model": model,
                 "view_mode": "kanban,list,form",
                 "domain": [("id", "in", employees.ids)],
             }
         return {
-            "name": _("Employee"),
+            "name": self.env._("Employee"),
             "type": "ir.actions.act_window",
             "res_model": model,
             "res_id": employees.id,
@@ -491,7 +495,7 @@ class ResUsers(models.Model):
 
     def action_related_contact(self):
         return {
-            "name": _("Related Contact"),
+            "name": self.env._("Related Contact"),
             "res_id": self.partner_id.id,
             "type": "ir.actions.act_window",
             "res_model": "res.partner",

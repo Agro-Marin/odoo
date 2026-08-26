@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import datetime
 
 from odoo import api, fields, models
-from odoo.libs.datetime import timezone
+from odoo.libs.datetime import localize_standard, timezone
 from odoo.libs.intervals import Intervals
 
 
@@ -95,22 +95,35 @@ class ResourceResource(models.Model):
         )
         for contract in contracts:
             tz = timezone(contract.employee_id.tz)
+            # ``localize_standard``, never a bare ``.replace(tzinfo=tz)``: on the
+            # hour a zone repeats when DST ends the wall time exists twice and
+            # ``.replace`` silently takes fold=0, moving the contract boundary by
+            # an hour once a year. ``datetime.min.time()`` is not safe from this
+            # either -- America/Havana and Atlantic/Azores fold at midnight. Same
+            # rule as hr.employee._combine_tz, which documents it at length.
+            if contract.contract_date_start > start.astimezone(tz).date():
+                interval_start = localize_standard(
+                    datetime.combine(contract.contract_date_start, datetime.min.time()),
+                    tz,
+                )
+            else:
+                interval_start = start
+            if (
+                contract.contract_date_end
+                and contract.contract_date_end < end.astimezone(tz).date()
+            ):
+                interval_end = localize_standard(
+                    datetime.combine(contract.contract_date_end, datetime.max.time()),
+                    tz,
+                )
+            else:
+                interval_end = end
             res[contract.employee_id.resource_id.id][contract.resource_calendar_id] |= (
                 Intervals(
                     [
                         (
-                            datetime.combine(
-                                contract.contract_date_start, datetime.min.time()
-                            ).replace(tzinfo=tz)
-                            if contract.contract_date_start
-                            > start.astimezone(tz).date()
-                            else start,
-                            datetime.combine(
-                                contract.contract_date_end, datetime.max.time()
-                            ).replace(tzinfo=tz)
-                            if contract.contract_date_end
-                            and contract.contract_date_end < end.astimezone(tz).date()
-                            else end,
+                            interval_start,
+                            interval_end,
                             self.env["resource.calendar.attendance"],
                         )
                     ]
@@ -181,11 +194,16 @@ class ResourceResource(models.Model):
         return calendars_within_period_per_resource
 
     def _get_calendar_at(self, date_target, tz=False):
-        result = super()._get_calendar_at(date_target)
+        # ``tz`` is forwarded to super (which ignores it today, but an override
+        # in between must not lose it) and, when absent, simply not applied:
+        # ``date_target.astimezone(False)`` raised TypeError, so the documented
+        # default of this very signature could not be used.
+        result = super()._get_calendar_at(date_target, tz)
         resources_with_employee = self.filtered(lambda r: r.employee_id)
-        employee_calendars = resources_with_employee.employee_id._get_calendars(
-            date_target.astimezone(tz)
-        )
+        if not resources_with_employee:
+            return result
+        date_at = date_target.astimezone(tz) if tz else date_target
+        employee_calendars = resources_with_employee.employee_id._get_calendars(date_at)
         for resource in resources_with_employee:
             result[resource] = employee_calendars[resource.employee_id.id]
         return result

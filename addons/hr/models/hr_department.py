@@ -1,10 +1,11 @@
-import ast
-
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
-from odoo.addons.base.models.ir_actions import eval_action_context
+from odoo.addons.base.models.ir_actions import (
+    eval_action_context,
+    eval_action_domain,
+)
 
 
 class HrDepartment(models.Model):
@@ -49,6 +50,8 @@ class HrDepartment(models.Model):
     member_ids = fields.One2many(
         "hr.employee", "department_id", string="Members", readonly=True
     )
+    # Search-only: no ``compute``, so READING this field raises. It exists to
+    # carry ``_search_has_read_access`` into an action domain (hr_department_views).
     has_read_access = fields.Boolean(
         search="_search_has_read_access", store=False, export_string_translation=False
     )
@@ -114,6 +117,8 @@ class HrDepartment(models.Model):
                 int(dept.parent_path.split("/")[0]) if dept.parent_path else dept.id
             )
 
+    @api.depends_context("allowed_company_ids")
+    @api.depends("member_ids")
     def _compute_total_employee(self):
         emp_data = (
             self.env["hr.employee"]
@@ -131,6 +136,8 @@ class HrDepartment(models.Model):
         for department in self:
             department.total_employee = result.get(department.id, 0)
 
+    @api.depends_context("allowed_company_ids")
+    @api.depends("plan_ids")
     def _compute_plans_count(self):
         plans_data = self.env["mail.activity.plan"]._read_group(
             domain=[
@@ -151,7 +158,9 @@ class HrDepartment(models.Model):
     @api.constrains("parent_id")
     def _check_parent_id(self):
         if self._has_cycle():
-            raise ValidationError(_("You cannot create recursive departments."))
+            raise ValidationError(
+                self.env._("You cannot create recursive departments.")
+            )
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -181,14 +190,18 @@ class HrDepartment(models.Model):
                 ("department_id", "in", self.ids),
             ]
         )
-        employees = self.env["hr.employee"]
-        for department in self:
-            employees |= department_employees.filtered(
-                lambda employee, department=department: (
-                    employee.department_id == department
-                    and employee.parent_id == department.manager_id
-                )
+        # One pass over the employees, looking each one's own department up --
+        # instead of re-``filtered()``ing the whole set once per department.
+        # Called BEFORE super().write, so ``manager_id`` here is still the OLD
+        # manager: that is what identifies the employees who were reporting to it.
+        manager_per_department = {
+            department: department.manager_id for department in self
+        }
+        employees = department_employees.filtered(
+            lambda employee: (
+                employee.parent_id == manager_per_department.get(employee.department_id)
             )
+        )
         employees.write({"parent_id": manager_id})
 
     def get_formview_action(self, access_uid=None):
@@ -222,13 +235,21 @@ class HrDepartment(models.Model):
             ("department_id", "in", self.ids),
         ]
         if "domain" in action:
-            allowed_company_ids = self.env.context.get("allowed_company_ids", [])
+            # The stored domain is an EXPRESSION, not a literal: this one names
+            # ``allowed_company_ids``, which is why ``ast.literal_eval`` raises on
+            # it and why this used to substitute the name into the string before
+            # literal-eval'ing the result -- a substitution that only ever works
+            # for the one name the caller thought of.
+            # ``eval_action_domain`` is the twin of the ``eval_action_context``
+            # this method already uses.
             action["domain"] = Domain.AND(
                 [
-                    ast.literal_eval(
-                        action["domain"].replace(
-                            "allowed_company_ids", str(allowed_company_ids)
-                        )
+                    eval_action_domain(
+                        action["domain"],
+                        self.env,
+                        allowed_company_ids=self.env.context.get(
+                            "allowed_company_ids", []
+                        ),
                     ),
                     domain,
                 ]
@@ -247,7 +268,7 @@ class HrDepartment(models.Model):
             res_model = "hr.employee.public"
             search_view_id = self.env.ref("hr.hr_employee_public_view_search").id
         return {
-            "name": _("Employees"),
+            "name": self.env._("Employees"),
             "type": "ir.actions.act_window",
             "res_model": res_model,
             "view_mode": "list,kanban,form",

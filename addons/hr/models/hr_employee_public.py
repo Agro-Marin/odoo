@@ -1,9 +1,6 @@
-from datetime import UTC, timedelta
-
 from odoo import api, fields, models
 from odoo.db.schema import drop_view_if_exists
-from odoo.libs.datetime import timezone
-from odoo.tools import format_time
+from odoo.fields import Domain
 
 
 class HrEmployeePublic(models.Model):
@@ -130,26 +127,12 @@ class HrEmployeePublic(models.Model):
 
     @api.depends("user_id")
     def _compute_last_activity(self):
-        for employee in self:
-            tz = employee.tz
-            # sudo: res.users - can access presence of accessible user
-            if last_presence := employee.user_id.sudo().presence_ids.last_presence:
-                last_activity_datetime = (
-                    last_presence.replace(tzinfo=UTC)
-                    .astimezone(timezone(tz or "UTC"))
-                    .replace(tzinfo=None)
-                )
-                employee.last_activity = last_activity_datetime.date()
-                if employee.last_activity == fields.Date.today():
-                    employee.last_activity_time = format_time(
-                        self.env, last_presence, time_format="short"
-                    )
-                else:
-                    employee.last_activity_time = False
-            else:
-                employee.last_activity = False
-                employee.last_activity_time = False
+        # Mirror the employee's own computation instead of restating it: this was
+        # a verbatim copy of hr.employee._compute_last_activity, i.e. a second
+        # place for the presence/timezone rules to drift.
+        self._compute_from_employee(["last_activity", "last_activity_time"])
 
+    @api.depends("company_id.country_id")
     def _compute_country_code(self):
         self._compute_from_employee("country_code")
 
@@ -176,13 +159,17 @@ class HrEmployeePublic(models.Model):
         for employee in self:
             employee.is_user = employee.id == user_employee_id
 
+    @api.depends("user_id.im_status", "active")
     def _compute_hr_presence_state(self):
         self._compute_from_employee("hr_presence_state")
 
+    @api.depends("resource_calendar_id", "hr_presence_state")
     def _compute_presence_icon(self):
         # Both fields come from the same sudo employee map — fetch it once.
         self._compute_from_employee(["hr_icon_display", "show_hr_icon_display"])
 
+    @api.depends_context("uid", "company")
+    @api.depends("department_id")
     def _compute_member_of_department(self):
         self._compute_from_employee("member_of_department")
 
@@ -193,24 +180,18 @@ class HrEmployeePublic(models.Model):
         if operator != "in":
             return NotImplemented
 
-        user_employee = self._get_valid_employee_for_user()
+        user_employee = self.env["hr.employee"]._get_valid_employee_for_user()
         if not user_employee.department_id:
-            return [("id", "in", user_employee.ids)]
+            # A search method must agree with its compute, and
+            # ``_compute_member_of_department`` answers False for everyone when
+            # the reader has no department. This used to return
+            # ``[("id", "in", user_employee.ids)]`` -- the reader's own row, on
+            # which the field reads False -- so the "My Department" filter
+            # returned a record that did not satisfy it. The same branch was
+            # copied onto hr.version, where ``id`` is a VERSION id, and there it
+            # matched unrelated versions outright.
+            return Domain.FALSE
         return [("department_id", "child_of", user_employee.department_id.ids)]
-
-    def _get_valid_employee_for_user(self):
-        user = self.env.user
-        # retrieve the employee of the current active company for the user
-        employee = user.employee_id
-        if not employee:
-            # search for all employees as superadmin to not get blocked by multi-company rules
-            user_employees = user.employee_id.sudo().search([("user_id", "=", user.id)])
-            # the default company employee is most likely the correct one, but fallback to the first if not available
-            employee = (
-                user_employees.filtered(lambda r: r.company_id == user.company_id)
-                or user_employees[:1]
-            )
-        return employee
 
     @api.depends_context("uid")
     def _compute_manager_only_fields(self):
@@ -224,19 +205,18 @@ class HrEmployeePublic(models.Model):
                 for f in manager_fields:
                     employee[f] = False
 
+    # Mirror the employee side's indirection rather than hard-coding
+    # ``create_date``: ``_get_new_hire_field`` exists to be overridden, and a
+    # literal here would silently go stale the first time one does.
+    @api.depends(lambda self: [self.env["hr.employee"]._get_new_hire_field()])
     def _compute_newly_hired(self):
         self._compute_from_employee("newly_hired")
 
     def _search_newly_hired(self, operator, value):
-        if operator not in ("in", "not in"):
-            return NotImplemented
-        new_hire_field = self.env["hr.employee"]._get_new_hire_field()
-        new_hires = (
-            self.env["hr.employee"]
-            .sudo()
-            .search([(new_hire_field, ">", fields.Datetime.now() - timedelta(days=90))])
-        )
-        return [("id", operator, new_hires.ids)]
+        # The SQL view selects ``e.id AS id``, so an hr.employee id IS the public
+        # id and the employee-side domain applies verbatim. Delegating keeps the
+        # 90-day window and ``_get_new_hire_field`` in one place.
+        return self.env["hr.employee"]._search_newly_hired(operator, value)
 
     # Fields that ``_get_fields`` always emits explicitly (they are selected
     # from the employee row directly, not derived from the model's field set).

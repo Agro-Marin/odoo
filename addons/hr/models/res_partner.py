@@ -1,4 +1,4 @@
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 from odoo.exceptions import RedirectWarning, UserError
 
 from odoo.addons.mail.tools.discuss import Store
@@ -47,7 +47,7 @@ class ResPartner(models.Model):
         self.ensure_one()
         if self.employees_count > 1:
             return {
-                "name": _("Related Employees"),
+                "name": self.env._("Related Employees"),
                 "type": "ir.actions.act_window",
                 "res_model": "hr.employee",
                 "view_mode": "kanban",
@@ -57,7 +57,7 @@ class ResPartner(models.Model):
                 ],
             }
         return {
-            "name": _("Employee"),
+            "name": self.env._("Employee"),
             "type": "ir.actions.act_window",
             "res_model": "hr.employee",
             "res_id": self.employee_ids.filtered(
@@ -105,19 +105,19 @@ class ResPartner(models.Model):
         partners = self.filtered(lambda partner: partner.sudo().employee_ids)
         if len(self) == 1 and len(partners) == 1 and self.id == partners[0].id:
             raise UserError(
-                _(
+                self.env._(
                     "You cannot delete contact that are linked to an employee, please archive them instead."
                 )
             )
         if partners:
-            error_msg = _(
+            error_msg = self.env._(
                 "You cannot delete contact(s) linked to employee(s).\n"
                 "Please archive them instead.\n\n"
                 "Affected contact(s): %(names)s",
                 names=", ".join([u.name for u in partners]),
             )
             action_error = partners._action_show()
-            raise RedirectWarning(error_msg, action_error, _("Go to contact"))
+            raise RedirectWarning(error_msg, action_error, self.env._("Go to contact"))
 
     def _action_show(self):
         """If self is a singleton, directly access the form view. If it is a recordset, open a list view"""
@@ -130,7 +130,7 @@ class ResPartner(models.Model):
         if len(self) > 1:
             action.update(
                 {
-                    "name": _("Contacts"),
+                    "name": self.env._("Contacts"),
                     "view_mode": "list,form",
                     "views": [[None, "list"], [view_id, "form"]],
                     "domain": [("id", "in", self.ids)],

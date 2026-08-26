@@ -63,31 +63,61 @@ class HrDepartureWizard(models.TransientModel):
 
     @api.depends("employee_ids.user_id")
     def _compute_is_user_employee(self):
+        # Only "does any selected employee have a user" -- it gates the
+        # ``remove_related_user`` checkbox's visibility. Whether a user may
+        # actually be archived (i.e. no employee of theirs is left behind) is
+        # decided in ``action_register_departure``; the comment that used to sit
+        # here described that check instead of this one.
         for wizard in self:
-            # Check if at least one employee in the wizard has a user and all the employees related to this user are in the wizard
-            # This is to ensure that the user is not removed if there are other employees related to it
-            related_users = wizard.employee_ids.user_id
-            wizard.is_user_employee = bool(related_users)
+            wizard.is_user_employee = bool(wizard.employee_ids.user_id)
 
-    def action_register_departure(self):
-        def _get_user_archive_notification_action(message, message_type, next_action):
-            return {
-                "type": "ir.actions.client",
-                "tag": "display_notification",
-                "params": {
-                    "title": self.env._("User Archive Notification"),
-                    "type": message_type,
-                    "message": message,
-                    "next": next_action,
-                },
-            }
+    def _get_user_archive_notification(self, message, message_type, next_action):
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": self.env._("User Archive Notification"),
+                "type": message_type,
+                "message": message,
+                "next": next_action,
+            },
+        }
 
-        employee_ids = self.employee_ids
-        active_versions = employee_ids.version_id
+    def _split_users_by_archivability(self):
+        """Return ``(archivable, kept)`` users of the departing employees.
 
+        A user may only be archived when EVERY employee of theirs is departing --
+        counted over all companies and including archived employees, since an
+        employee this wizard cannot see still holds the user.
+        """
+        archivable = kept = self.env["res.users"]
+        if not self.remove_related_user:
+            return archivable, kept
+        employees_per_user = self.employee_ids.grouped("user_id")
+        total_per_user = dict(
+            self.env["hr.employee"]
+            .sudo()
+            .with_context(active_test=False)
+            ._read_group(
+                domain=[("user_id", "in", self.employee_ids.user_id.ids)],
+                groupby=["user_id"],
+                aggregates=["id:count"],
+            )
+        )
+        for user, employees in employees_per_user.items():
+            if not user:
+                continue
+            if len(employees) == total_per_user.get(user, 0):
+                archivable |= user
+            else:
+                kept |= user
+        return archivable, kept
+
+    def _check_departure_date_against_contracts(self, versions):
         if any(
-            v.contract_date_start and v.contract_date_start > self.departure_date
-            for v in active_versions
+            version.contract_date_start
+            and version.contract_date_start > self.departure_date
+            for version in versions
         ):
             raise UserError(
                 self.env._(
@@ -95,38 +125,21 @@ class HrDepartureWizard(models.TransientModel):
                 )
             )
 
-        allow_archived_users = self.env["res.users"]
-        unarchived_users = self.env["res.users"]
-        if self.remove_related_user:
-            related_users = employee_ids.grouped("user_id")
-            related_employees_count = dict(
-                self.env["hr.employee"]
-                .sudo()
-                .with_context(active_test=False)
-                ._read_group(
-                    domain=[("user_id", "in", employee_ids.user_id.ids)],
-                    groupby=["user_id"],
-                    aggregates=["id:count"],
-                )
-            )
-            for user, emps in related_users.items():
-                if not user:
-                    continue
-                if len(emps) == related_employees_count.get(user, 0):
-                    allow_archived_users |= user
-                else:
-                    unarchived_users |= user
+    def action_register_departure(self):
+        employee_ids = self.employee_ids
+        active_versions = employee_ids.version_id
+        self._check_departure_date_against_contracts(active_versions)
+
+        allow_archived_users, unarchived_users = self._split_users_by_archivability()
 
         archived_employees = self.env["hr.employee"]
         archived_users = self.env["res.users"]
-        for employee in employee_ids.filtered(lambda emp: emp.active):
-            if self.env.context.get("employee_termination", False):
-                archived_employees |= employee
-                if (
-                    self.remove_related_user
-                    and employee.user_id in allow_archived_users
-                ):
-                    archived_users |= employee.user_id
+        # Loop-invariant: the caller either asked for a termination (the archive
+        # hook and hr_timesheet's delete wizard set it) or did not. Read once.
+        if self.env.context.get("employee_termination", False):
+            archived_employees = employee_ids.filtered("active")
+            if self.remove_related_user:
+                archived_users = archived_employees.user_id & allow_archived_users
 
         archived_employees.with_context(no_wizard=True).action_archive()
         # Never archive the acting user or the root/superuser account, even if
@@ -147,25 +160,31 @@ class HrDepartureWizard(models.TransientModel):
 
         if self.set_date_end:
             # Write date and update state of current contracts
-            active_versions = active_versions.filtered(lambda v: v.contract_date_start)
-            active_versions.write({"contract_date_end": self.departure_date})
+            active_versions.filtered(lambda v: v.contract_date_start).write(
+                {"contract_date_end": self.departure_date}
+            )
 
         next_action = {"type": "ir.actions.act_window_close"}
-        if archived_users:
-            message = self.env._(
-                "The following users have been archived: %s",
-                ", ".join(archived_users.mapped("name")),
-            )
-            next_action = _get_user_archive_notification_action(
-                message, "success", next_action
-            )
-        if unarchived_users:
-            message = self.env._(
-                "The following users have not been archived as they are still linked to another active employees: %s",
-                ", ".join(unarchived_users.mapped("name")),
-            )
-            next_action = _get_user_archive_notification_action(
-                message, "danger", next_action
-            )
-
+        for users, message_type, message in (
+            (
+                archived_users,
+                "success",
+                self.env._(
+                    "The following users have been archived: %s",
+                    ", ".join(archived_users.mapped("name")),
+                ),
+            ),
+            (
+                unarchived_users,
+                "danger",
+                self.env._(
+                    "The following users have not been archived as they are still linked to another active employees: %s",
+                    ", ".join(unarchived_users.mapped("name")),
+                ),
+            ),
+        ):
+            if users:
+                next_action = self._get_user_archive_notification(
+                    message, message_type, next_action
+                )
         return next_action

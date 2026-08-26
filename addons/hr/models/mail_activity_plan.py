@@ -1,4 +1,4 @@
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -27,7 +27,7 @@ class MailActivityPlan(models.Model):
         failing_plans = plan_tocheck.filtered("department_id")
         if failing_plans:
             raise UserError(
-                _(
+                self.env._(
                     "Plan %(plan_names)s cannot use a department as it is used only for some HR plans.",
                     plan_names=", ".join(failing_plans.mapped("name")),
                 )
@@ -38,7 +38,7 @@ class MailActivityPlan(models.Model):
         )
         if failing_templates:
             raise UserError(
-                _(
+                self.env._(
                     "Plan activities %(template_names)s cannot use coach, manager or employee responsible as it is used only for employee plans.",
                     template_names=", ".join(
                         failing_templates.mapped("activity_type_id.name")
@@ -46,10 +46,20 @@ class MailActivityPlan(models.Model):
                 )
             )
 
+    @api.model
+    def _is_department_assignable(self, res_model):
+        """Whether a plan for ``res_model`` may be scoped to an hr.department.
+
+        The wizard asks the same question (``mail.activity.schedule``'s
+        ``plan_department_filterable``); one definition, so the two cannot answer
+        differently.
+        """
+        return res_model == "hr.employee"
+
     @api.depends("res_model")
     def _compute_department_assignable(self):
         for plan in self:
-            plan.department_assignable = plan.res_model == "hr.employee"
+            plan.department_assignable = self._is_department_assignable(plan.res_model)
 
     @api.depends("res_model")
     def _compute_department_id(self):

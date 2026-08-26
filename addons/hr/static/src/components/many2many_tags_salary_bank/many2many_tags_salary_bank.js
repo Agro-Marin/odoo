@@ -57,11 +57,23 @@ export class FieldMany2ManyTagsSalaryBank extends Many2ManyTagsFieldColorEditabl
 export const fieldMany2ManyTagsSalaryBank = {
     ...many2ManyTagsFieldColorEditable,
     component: FieldMany2ManyTagsSalaryBank,
-    relatedFields: () => [
-        { name: "employee_salary_amount" },
-        { name: "employee_salary_amount_is_percentage" },
-        { name: "display_name" },
-        { name: "currency_symbol" },
+    // Extend the base list, never replace it. Spelled out afresh, this dropped
+    // two things the Many2ManyTagsFieldColorEditable base contributes:
+    //
+    //   * ``type: "char"`` on ``display_name`` -- bisected as the operative
+    //     cause of the form dying on `OwlError: 'tags[0]' ... 'text' is not a
+    //     string`: untyped, the field had no default, so ``getTagProps`` handed
+    //     TagsList a non-string ``text`` and props validation took the whole
+    //     render down. Typing it alone makes the tour pass.
+    //   * the ``options.color_field`` entry -- latent today (no shipped view
+    //     passes the option) but ``getTagProps`` reads
+    //     ``record.data[colorField]``, so a view that did pass one would find
+    //     the field never requested.
+    relatedFields: (fieldInfo) => [
+        ...many2ManyTagsFieldColorEditable.relatedFields(fieldInfo),
+        { name: "employee_salary_amount", type: "float" },
+        { name: "employee_salary_amount_is_percentage", type: "boolean" },
+        { name: "currency_symbol", type: "char" },
     ],
     additionalClasses: [
         ...(many2ManyTagsFieldColorEditable.additionalClasses || []),

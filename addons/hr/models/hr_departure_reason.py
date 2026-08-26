@@ -1,4 +1,4 @@
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -31,4 +31,4 @@ class HrDepartureReason(models.Model):
     def _unlink_except_default_departure_reasons(self):
         master_departure_codes = self._get_default_departure_reasons()
         if any(reason in master_departure_codes for reason in self):
-            raise UserError(_("Default departure reasons cannot be deleted."))
+            raise UserError(self.env._("Default departure reasons cannot be deleted."))
