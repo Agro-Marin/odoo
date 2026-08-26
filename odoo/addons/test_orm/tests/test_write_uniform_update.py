@@ -8,6 +8,7 @@ from odoo.tests import TransactionCase, tagged
 class UniformUpdateCase(TransactionCase):
     def setUp(self):
         super().setUp()
+        self.plain = self._plain_text_column("test_orm.message")
         self.uniform_calls = []
         self.values_calls = []
         uniform_origin = WriteMixin._update_rows_uniform_sql
@@ -24,6 +25,31 @@ class UniformUpdateCase(TransactionCase):
 
         self.patch(WriteMixin, "_update_rows_uniform_sql", uniform_spy)
         self.patch(WriteMixin, "_update_rows_values_sql", values_spy)
+
+    def _plain_text_column(self, model_name):
+        """Name a stored text column the collapse is eligible for.
+
+        Naming one in the source is not safe: an installed module may redefine
+        it. `test_inherit` does exactly that to `test_orm.message.body`, giving
+        it `translate=True`, so a suite that assumes `body` is plain passes on
+        its own and fails in any run that installs that module -- which
+        `post_install` guarantees. Resolving the column here also keeps the
+        negative tests honest: one that asserts a differing row *blocks* the
+        collapse proves nothing about a column that could never collapse.
+        """
+        for field in self.env[model_name]._fields.values():
+            if (
+                field.store
+                and field.type in ("char", "text")
+                and not field.translate
+                and not field.company_dependent
+                and not field.compute
+                and not field.related
+            ):
+                return field.name
+        raise AssertionError(
+            f"{model_name} has no column the uniform collapse can apply to"
+        )
 
     def _calls_for(self, model_name):
         return (
@@ -65,7 +91,7 @@ class TestUniformUpdateEligibility(UniformUpdateCase):
     def test_plain_scalar_columns_collapse(self):
         records = self.messages(5)
         for fname, value in (
-            ("body", "shared text"),
+            (self.plain, "shared text"),
             ("important", True),
         ):
             with self.subTest(field=fname):
@@ -83,9 +109,9 @@ class TestUniformUpdateEligibility(UniformUpdateCase):
 
     def test_false_and_none_collapse(self):
         records = self.messages(5)
-        records.write({"body": "x"})
+        records.write({self.plain: "x"})
         self.reset_calls()
-        records.write({"body": False})
+        records.write({self.plain: False})
         self.assertCollapsed("test_orm.message")
 
     def test_temporal_columns_collapse(self):
@@ -121,17 +147,17 @@ class TestUniformUpdateEligibility(UniformUpdateCase):
     def test_one_differing_row_blocks_the_collapse(self):
         records = self.messages(5)
         for index, record in enumerate(records):
-            record.body = "same" if index else "different"
+            record[self.plain] = "same" if index else "different"
         self.assertNotCollapsed("test_orm.message")
 
     def test_a_single_record_is_never_collapsed(self):
         record = self.messages(1)
-        record.write({"body": "solo"})
+        record.write({self.plain: "solo"})
         self.assertNotCollapsed("test_orm.message")
 
     def test_mixed_group_is_not_collapsed(self):
         records = self.messages(5)
-        records.write({"body": "shared", "label": "shared label"})
+        records.write({self.plain: "shared", "label": "shared label"})
         self.assertNotCollapsed("test_orm.message")
 
     def test_two_eligible_columns_collapse_together(self):
@@ -152,7 +178,7 @@ class TestUniformUpdateEligibility(UniformUpdateCase):
     def test_log_access_columns_do_not_block_the_collapse(self):
         records = self.messages(5)
         self.assertTrue(records._log_access)
-        records.write({"body": "shared"})
+        records.write({self.plain: "shared"})
         self.env.flush_all()
         uniform, _values = self._calls_for("test_orm.message")
         self.assertTrue(uniform)
@@ -193,17 +219,17 @@ class TestUniformUpdateEquivalence(UniformUpdateCase):
 
     def test_equivalent_for_a_plain_column(self):
         collapsed, via_values = self._write_both_ways(
-            5, "body", "shared text", other="other"
+            5, self.plain, "shared text", other="other"
         )
         self.assertEqual(collapsed, via_values)
         self.assertEqual(collapsed, ["shared text"] * 5)
 
     def test_equivalent_when_overwriting_existing_values(self):
         def seed(index, record):
-            record.body = f"previous {index}"
+            record[self.plain] = f"previous {index}"
 
         collapsed, via_values = self._write_both_ways(
-            5, "body", "shared", other="other", seed=seed
+            5, self.plain, "shared", other="other", seed=seed
         )
         self.assertEqual(collapsed, via_values)
 
@@ -211,19 +237,19 @@ class TestUniformUpdateEquivalence(UniformUpdateCase):
 
         def seed(index, record):
             if index % 2:
-                record.body = f"previous {index}"
+                record[self.plain] = f"previous {index}"
 
         collapsed, via_values = self._write_both_ways(
-            6, "body", "shared", other="other", seed=seed
+            6, self.plain, "shared", other="other", seed=seed
         )
         self.assertEqual(collapsed, via_values)
 
     def test_equivalent_for_false(self):
         def seed(index, record):
-            record.body = f"previous {index}"
+            record[self.plain] = f"previous {index}"
 
         collapsed, via_values = self._write_both_ways(
-            5, "body", False, other="kept", seed=seed
+            5, self.plain, False, other="kept", seed=seed
         )
         self.assertEqual(collapsed, via_values)
         self.assertEqual(collapsed, [None] * 5)
@@ -231,7 +257,7 @@ class TestUniformUpdateEquivalence(UniformUpdateCase):
     def test_equivalent_across_column_types(self):
         for fname, value, other in (
             ("important", True, False),
-            ("body", "text", "different text"),
+            (self.plain, "text", "different text"),
         ):
             with self.subTest(field=fname):
                 collapsed, via_values = self._write_both_ways(
@@ -264,14 +290,14 @@ class TestUniformUpdateStatements(UniformUpdateCase):
         for count in (2, UPDATE_BATCH_SIZE, UPDATE_BATCH_SIZE + 1):
             with self.subTest(count=count):
                 records = self.messages(count)
-                self.assertEqual(self._update_count(records, {"body": "shared"}), 1)
+                self.assertEqual(self._update_count(records, {self.plain: "shared"}), 1)
 
     def test_a_non_uniform_group_still_batches(self):
         count = UPDATE_BATCH_SIZE + 1
         records = self.messages(count)
         self.reset_calls()
         for index, record in enumerate(records):
-            record.body = f"row {index}"
+            record[self.plain] = f"row {index}"
         self.env.flush_all()
         uniform, values = self._calls_for("test_orm.message")
         self.assertFalse(uniform)
@@ -282,7 +308,7 @@ class TestUniformUpdateStatements(UniformUpdateCase):
         count = UPDATE_BATCH_SIZE * 3
         records = self.messages(count)
         self.reset_calls()
-        records.write({"body": "shared"})
+        records.write({self.plain: "shared"})
         self.env.flush_all()
         uniform, _values = self._calls_for("test_orm.message")
         self.assertEqual([call[2] for call in uniform], [count])

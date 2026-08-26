@@ -165,6 +165,7 @@ class TestOrmMessage(models.Model):
     )
     important = fields.Boolean()
     label = fields.Char(translate=True)
+    plain_text = fields.Text()
     priority = fields.Integer()
     active = fields.Boolean(default=True)
     has_important_sibling = fields.Boolean(compute="_compute_has_important_sibling")

@@ -559,6 +559,7 @@ class PropertiesCase(TestPropertiesMixin):
                        "test_orm_message"."name",
                        "test_orm_message"."important",
                        "test_orm_message"."label"->>%s,
+                       "test_orm_message"."plain_text",
                        "test_orm_message"."priority",
                        "test_orm_message"."active",
                        "test_orm_message"."create_uid",

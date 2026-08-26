@@ -1,4 +1,5 @@
 import odoo.tests
+from odoo import Command
 
 
 @odoo.tests.tagged("post_install", "-at_install")
@@ -101,12 +102,45 @@ class TestTranslationWritePropagation(odoo.tests.TransactionCase):
 
         self.assertEqual(self.stored(record), {"en_US": "Steel Knife"})
 
+    def _deactivate_source_language(self):
+        """Take `en_US` out of the installed set, whatever else is installed.
+
+        The echo the caller is about to test is decided by
+        `res.lang._get_data(code="en_US")`, which answers for *active*
+        languages, so the record really does have to be deactivated. Modules
+        may hold a language and refuse that: `website` raises when one is still
+        listed on a site, and `test_import_export` depends on `website` for
+        `MockRequest`, which is enough to make this test fail in any run wide
+        enough to install it. Release the holders first rather than assume the
+        narrow install set.
+        """
+        english = self.env.ref("base.lang_en")
+        replacement = self.env["res.lang"].search(
+            [("code", "!=", "en_US"), ("active", "=", True)], limit=1
+        )
+        self.assertTrue(replacement, "setUpClass activates fr_FR")
+        self.env["res.partner"].with_context(active_test=False).search([]).write(
+            {"lang": replacement.code}
+        )
+        websites = self.env.get("website")
+        if websites is not None:
+            for website in websites.sudo().with_context(active_test=False).search([]):
+                if english in website.language_ids:
+                    website.write(
+                        {
+                            "default_lang_id": replacement.id,
+                            "language_ids": [
+                                Command.set((website.language_ids - english).ids)
+                                if website.language_ids - english
+                                else Command.set(replacement.ids)
+                            ],
+                        }
+                    )
+        english.active = False
+
     def test_uninstalled_source_language_is_not_an_echo_anchor(self):
         self.env["res.lang"]._activate_lang("es_ES")
-        self.env["res.partner"].with_context(active_test=False).search([]).write(
-            {"lang": "fr_FR"}
-        )
-        self.env.ref("base.lang_en").active = False
+        self._deactivate_source_language()
         record = self.Model.create({"name": "Knife"})
 
         record.with_context(lang="fr_FR").name = "Couteau"
