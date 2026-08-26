@@ -364,7 +364,7 @@ class ProductTemplate(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Store the initial standard price in order to be able to retrieve the cost of a product template for a given date"""
+        """Create variants, then propagate related fields (barcode, standard_price, ...) from vals onto the first variant."""
         templates = super().create(vals_list)
         if self.env.context.get("create_product_product", True):
             templates._create_variant_ids()
