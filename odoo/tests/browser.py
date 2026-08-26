@@ -356,11 +356,18 @@ class ChromeBrowser:
             )
 
         port_file = pathlib.Path(self.user_data_dir, "DevToolsActivePort")
+        died = None
         for _ in range(CHECK_BROWSER_ITERATIONS):
             time.sleep(CHECK_BROWSER_SLEEP)
             if port_file.is_file() and port_file.stat().st_size > 5:
                 with port_file.open("r", encoding="utf-8") as f:
                     return proc, int(f.readline())
+            # A Chrome that dies at once -- bad flag, missing shared library,
+            # OOM -- used to burn the whole BROWSER_WAIT before saying anything,
+            # and then blame a missing port rather than the exit. _json_command
+            # already checks its process this way.
+            if (died := proc.poll()) is not None:
+                break
 
         if proc.poll() is None:
             proc.terminate()
@@ -375,6 +382,10 @@ class ChromeBrowser:
         )
         shutil.rmtree(self.user_data_dir, ignore_errors=True)
 
+        if died is not None:
+            raise InfrastructureUnavailable(
+                f"Chrome exited with code {died} before publishing a devtools port."
+            )
         raise InfrastructureUnavailable(
             f"Failed to detect chrome devtools port after {BROWSER_WAIT:.1f}s."
         )
