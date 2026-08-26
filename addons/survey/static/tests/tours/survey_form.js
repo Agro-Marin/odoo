@@ -100,9 +100,14 @@ registry.category("web_tour.tours").add("survey_tour_test_survey_form_triggers",
             run: "click",
         },
         {
+            // Matched by descent, not by child position: the form compiler
+            // prepends an o_form_sheet_scroll_sentinel div to every
+            // o_form_sheet_bg, so ":first-child" is that sentinel and an
+            // alert can never be it. These four steps had been unmatchable
+            // ever since, asserting nothing about the warning they name.
             content: "Check that an alert is shown",
             trigger:
-                ".modal .o_form_sheet_bg div:first-child.alert-warning:contains('positioned before some or all of its triggers')",
+                ".modal .o_form_sheet_bg > .alert-warning:contains('positioned before some or all of its triggers')",
         },
         ...changeTab("options"),
         {
@@ -113,7 +118,7 @@ registry.category("web_tour.tours").add("survey_tour_test_survey_form_triggers",
         },
         {
             content: "Check that the alert is gone",
-            trigger: `.modal .o_form_sheet_bg div:first-child:not(.alert-warning).o_form_sheet`,
+            trigger: `.modal .o_form_sheet_bg:not(:has(> .alert-warning)) .o_form_sheet`,
         },
         {
             content: "Choose a new valid trigger",
@@ -196,7 +201,7 @@ registry.category("web_tour.tours").add("survey_tour_test_survey_form_triggers",
             content:
                 "Check that an alert is shown also when only one trigger is misplaced",
             trigger:
-                ".modal .o_form_sheet_bg div:first-child.alert-warning:contains('positioned before some or all of its triggers')",
+                ".modal .o_form_sheet_bg > .alert-warning:contains('positioned before some or all of its triggers')",
         },
         ...changeTab("options"),
         {
@@ -207,7 +212,7 @@ registry.category("web_tour.tours").add("survey_tour_test_survey_form_triggers",
         },
         {
             content: "Check that the alert is gone in this case too",
-            trigger: `.modal .o_form_sheet_bg div:first-child:not(.alert-warning).o_form_sheet`,
+            trigger: `.modal .o_form_sheet_bg:not(:has(> .alert-warning)) .o_form_sheet`,
         },
         {
             content: "Save the question (3)",

@@ -8,10 +8,6 @@ from odoo.addons.survey.tests import common
 
 class TestSurveyController(common.TestSurveyCommon, HttpCase):
     def test_submit_route_scoring_after_page(self):
-        """Check that the submit route for a scoring after page survey is returning the
-        accurate correct answers depending on the survey layout and the active page questions.
-        The correct answers of the inactive conditional questions shouldn't be returned.
-        """
         survey = self.env["survey.survey"].create(
             {
                 "title": "How much do you know about words?",
@@ -105,7 +101,7 @@ class TestSurveyController(common.TestSurveyCommon, HttpCase):
                 "one_page",
                 [],
                 q1_correct_answer,
-            ),  # skipping gives answers for active questions (q2 and q3 conditional questions are inactive)
+            ),
             (
                 "one_page",
                 a_q1_correct,
@@ -116,13 +112,12 @@ class TestSurveyController(common.TestSurveyCommon, HttpCase):
                 a_q1_partial,
                 {**q1_correct_answer, str(q2.id): [a_q2_correct.id]},
             ),
-            # page0 contains q1 and q2, page1 contains q3
             ("page_per_section", [], q1_correct_answer),
             (
                 "page_per_section",
                 a_q1_correct,
                 q1_correct_answer,
-            ),  # no correct answers for q3 because q3 is not on the same page as q1
+            ),
             (
                 "page_per_section",
                 a_q1_partial,
@@ -158,15 +153,13 @@ class TestSurveyController(common.TestSurveyCommon, HttpCase):
                 elif layout == "page_per_section":
                     post_data["page_id"] = page0.id
 
-                # Submit answers and check the submit route is returning the accurate correct answers
                 response = self._access_submit(survey, answer_token, post_data)
                 self.assertResponse(response, 200)
                 self.assertEqual(response.json()["result"][0], expected_correct_answers)
 
-                user_input.invalidate_recordset()  # TDE note: necessary as lots of sudo in controllers messing with cache
+                user_input.invalidate_recordset()
 
     def test_live_session_without_question(self):
-        """Test that the live session ('Thank You' page) does not crash when no question is present."""
         survey = (
             self.env["survey.survey"]
             .with_user(self.survey_manager)
@@ -184,7 +177,6 @@ class TestSurveyController(common.TestSurveyCommon, HttpCase):
 
         self.authenticate(self.survey_manager.login, self.survey_manager.login)
 
-        # Call the url without any question
         session_manage_url = f"/survey/session/manage/{survey.access_token}"
         response = self.url_open(session_manage_url)
         self.assertEqual(

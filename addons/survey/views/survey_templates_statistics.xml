@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-<data>
     <template id="survey_page_statistics" name="Survey: result statistics page">
-        <t t-set="no_livechat" t-value="True"/>
-        <t t-set="no_survey_navigation" t-value="True"/>
+        <t t-set="no_livechat" t-value="True" />
+        <t t-set="no_survey_navigation" t-value="True" />
         <t t-call="survey.layout">
             <t t-call="survey.survey_button_form_view" />
-            <t t-set="page_record_limit" t-value="10"/><!-- Change this record_limit to change number of record  per page-->
+            <t t-set="page_record_limit" t-value="10" /><!-- Change this record_limit to change
+            number of record  per page-->
             <div class="o_container_small o_survey_result">
                 <t t-call="survey.survey_page_statistics_header" />
                 <t t-call="survey.survey_page_statistics_inner" />
@@ -16,173 +16,186 @@
 
     <template id="survey_page_statistics_header" name="Survey: result statistics header">
         <div class="o_survey_statistics_header mt32">
-            <h2 t-field="survey.title"/>
+            <h2 t-field="survey.title" />
             <div class="d-flex align-items-start">
-                <div t-if="question_and_page_data" class="o_survey_results_topbar d-print-none"><t t-call="survey.survey_results_filters"/></div>
+                <div t-if="question_and_page_data" class="o_survey_results_topbar d-print-none">
+                    <t t-call="survey.survey_results_filters" />
+                </div>
                 <h3 t-else="">
                     Sorry, no one answered this survey yet.
                 </h3>
                 <a t-if="question_and_page_data"
-                   t-attf-href="/survey/results/#{survey.id}/cross-tab"
-                   class="btn btn-secondary d-print-none mt-1 ms-auto me-1"
-                   aria-label="Cross-Tab" title="Cross-Tabulation">
-                    <i class="fa-solid fa-table-cells"/> Cross-Tab
-                </a>
+                    t-attf-href="/survey/results/#{survey.id}/cross-tab"
+                    class="btn btn-secondary d-print-none mt-1 ms-auto me-1"
+                    aria-label="Cross-Tab" title="Cross-Tabulation">
+                    <i class="fa-solid fa-table-cells" /> Cross-Tab </a>
                 <a t-if="question_and_page_data"
-                   t-attf-href="/survey/results/#{survey.id}/export/csv"
-                   class="btn btn-secondary d-print-none mt-1 me-1"
-                   aria-label="Export CSV" title="Export CSV">
-                    <i class="fa-solid fa-download"/> CSV
-                </a>
+                    t-attf-href="/survey/results/#{survey.id}/export/csv"
+                    class="btn btn-secondary d-print-none mt-1 me-1"
+                    aria-label="Export CSV" title="Export CSV">
+                    <i class="fa-solid fa-download" /> CSV </a>
                 <a t-if="question_and_page_data"
-                   t-attf-href="/survey/results/#{survey.id}/export/xlsx"
-                   class="btn btn-secondary d-print-none mt-1 me-1"
-                   aria-label="Export XLSX" title="Export XLSX">
-                    <i class="fa-solid fa-file-excel"/> XLSX
-                </a>
-                <button class="btn btn-primary d-print-none o_survey_results_print mt-1" aria-label="Print" title="Print">
-                    <i class="fa-solid fa-print"/>
+                    t-attf-href="/survey/results/#{survey.id}/export/xlsx"
+                    class="btn btn-secondary d-print-none mt-1 me-1"
+                    aria-label="Export XLSX" title="Export XLSX">
+                    <i class="fa-solid fa-file-excel" /> XLSX </a>
+                <button class="btn btn-primary d-print-none o_survey_results_print mt-1"
+                    aria-label="Print" title="Print">
+                    <i class="fa-solid fa-print" />
                 </button>
             </div>
         </div>
     </template>
 
     <template id="survey_page_statistics_inner" name="Survey: result statistics content">
-        <t t-set="already_filtered_questions" t-value="{filter['question_id'] for filter in search_filters}"/>
-        <div t-if="survey.session_show_leaderboard and leaderboard" class="o_survey_session_leaderboard mb-5 mt-1">
+        <t t-set="already_filtered_questions"
+            t-value="{filter['question_id'] for filter in search_filters}" />
+        <div t-if="survey.session_show_leaderboard and leaderboard"
+            class="o_survey_session_leaderboard mb-5 mt-1">
             <h2 class="mt16 text-uppercase text-muted">Leaderboard</h2>
-            <t t-call="survey.user_input_session_leaderboard"/>
+            <t t-call="survey.user_input_session_leaderboard" />
         </div>
         <div t-if="survey.scoring_type in ['scoring_with_answers', 'scoring_without_answers']">
-            <hr class="my-2"/>
+            <hr class="my-2" />
             <div class="row mt-2">
                 <div class="col">
-                    <h4 class="text-primary" t-out="survey.question_count"/>
+                    <h4 class="text-primary" t-out="survey.question_count" />
                     <h6>Questions</h6>
                 </div>
                 <div class="col">
-                    <h4 class="text-primary" t-out="survey.answer_count"/>
+                    <h4 class="text-primary" t-out="survey.answer_count" />
                     <h6>Registered</h6>
                 </div>
                 <div class="col">
-                    <h4 class="text-primary" t-out="survey.answer_done_count"/>
+                    <h4 class="text-primary" t-out="survey.answer_done_count" />
                     <h6>Completed</h6>
                 </div>
-                <div class="d-sm-none w-100"/>
+                <div class="d-sm-none w-100" />
                 <div class="col">
                     <h4 class="text-primary"><t t-call="survey.survey_remove_unnecessary_decimals">
-                        <t t-set="value_to_format" t-value="survey_data['global_success_rate']"/></t>%</h4>
+                            <t t-set="value_to_format" t-value="survey_data['global_success_rate']" />
+                        </t>
+                        %</h4>
                     <h6>Success rate</h6>
                 </div>
                 <div t-if="survey.answer_duration_avg" class="col">
-                    <h4 class="text-primary" t-out="survey.answer_duration_avg" t-options="{'widget': 'float_time'}"/>
+                    <h4 class="text-primary" t-out="survey.answer_duration_avg"
+                        t-options="{'widget': 'float_time'}" />
                     <h6>Average Duration</h6>
                 </div>
                 <div t-if="survey.answer_score_avg" class="col">
-                    <h4 class="text-primary"><t t-out="round(survey.answer_score_avg, 2)"/>%</h4>
+                    <h4 class="text-primary"><t t-out="round(survey.answer_score_avg, 2)" />%</h4>
                     <h6>Average Score</h6>
                 </div>
-           </div>
-            <hr/>
+            </div>
+            <hr />
         </div>
 
         <!-- Trend analysis chart (loaded via JSONRPC) -->
-        <div t-if="survey.answer_done_count &gt; 1" class="o_survey_trend_analysis mt-3 mb-4 d-print-none">
+        <div t-if="survey.answer_done_count &gt; 1"
+            class="o_survey_trend_analysis mt-3 mb-4 d-print-none">
             <h3 class="text-uppercase text-muted">
                 <a data-bs-toggle="collapse" href="#trendSection" role="button"
-                   aria-expanded="false" aria-controls="trendSection"
-                   class="text-decoration-none text-muted">
-                    <i class="fa-solid fa-chart-line me-2"/>Response Trends
-                    <i class="fa-solid fa-chevron-down ms-1 small"/>
+                    aria-expanded="false" aria-controls="trendSection"
+                    class="text-decoration-none text-muted">
+                    <i class="fa-solid fa-chart-line me-2" />Response Trends <i
+                        class="fa-solid fa-chevron-down ms-1 small" />
                 </a>
             </h3>
             <div class="collapse" id="trendSection">
                 <div class="d-flex align-items-center gap-2 mb-2">
                     <label class="form-label mb-0 small">Granularity:</label>
                     <select class="form-select form-select-sm w-auto o_survey_trend_granularity"
-                            t-att-data-survey-id="survey.id">
+                        t-att-data-survey-id="survey.id">
                         <option value="day" selected="">Daily</option>
                         <option value="week">Weekly</option>
                         <option value="month">Monthly</option>
                     </select>
                 </div>
                 <div class="o_survey_trend_chart_container" t-att-data-survey-id="survey.id"
-                     style="min-height: 250px;">
-                    <canvas class="o_survey_trend_canvas"/>
+                    style="min-height: 250px;">
+                    <canvas class="o_survey_trend_canvas" />
                 </div>
             </div>
         </div>
 
         <div t-foreach="question_and_page_data" t-as='question_data'>
-            <t t-set="question" t-value="question_data['question']"/>
+            <t t-set="question" t-value="question_data['question']" />
             <div t-if="question_data['is_page']" class="o_survey_question_page">
-                <h3 class="mt16 text-uppercase" t-field="question.title"/>
-                <hr class="mt-2 mb-4"/>
+                <h3 class="mt16 text-uppercase" t-field="question.title" />
+                <hr class="mt-2 mb-4" />
             </div>
-            <div t-else="" class="mt-2 o_survey_results_question_wrapper"><t t-call="survey.survey_page_statistics_question"/></div>
+            <div t-else="" class="mt-2 o_survey_results_question_wrapper">
+                <t t-call="survey.survey_page_statistics_question" />
+            </div>
         </div>
 
         <!-- Respondent segmentation -->
-        <div t-if="survey.answer_done_count &gt; 2" class="o_survey_segmentation mt-4 mb-4 d-print-none">
-            <hr/>
+        <div t-if="survey.answer_done_count &gt; 2"
+            class="o_survey_segmentation mt-4 mb-4 d-print-none">
+            <hr />
             <h3 class="text-uppercase text-muted">
                 <a data-bs-toggle="collapse" href="#segmentSection" role="button"
-                   aria-expanded="false" aria-controls="segmentSection"
-                   class="text-decoration-none text-muted">
-                    <i class="fa-solid fa-users me-2"/>Respondent Segments
-                    <i class="fa-solid fa-chevron-down ms-1 small"/>
+                    aria-expanded="false" aria-controls="segmentSection"
+                    class="text-decoration-none text-muted">
+                    <i class="fa-solid fa-users me-2" />Respondent Segments <i
+                        class="fa-solid fa-chevron-down ms-1 small" />
                 </a>
             </h3>
             <div class="collapse" id="segmentSection">
                 <div class="o_survey_segment_charts row" t-att-data-survey-id="survey.id">
                     <div class="col-md-4">
                         <h6 class="text-center text-muted">Score Distribution</h6>
-                        <canvas class="o_survey_segment_score_canvas" style="max-height:250px;"/>
+                        <canvas class="o_survey_segment_score_canvas" style="max-height:250px;" />
                     </div>
                     <div class="col-md-4">
                         <h6 class="text-center text-muted">Quality Score</h6>
-                        <canvas class="o_survey_segment_quality_canvas" style="max-height:250px;"/>
+                        <canvas class="o_survey_segment_quality_canvas" style="max-height:250px;" />
                     </div>
                     <div class="col-md-4">
                         <h6 class="text-center text-muted">Completion Time</h6>
-                        <canvas class="o_survey_segment_duration_canvas" style="max-height:250px;"/>
+                        <canvas class="o_survey_segment_duration_canvas" style="max-height:250px;" />
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Period comparison -->
-        <div t-if="survey.answer_done_count &gt; 1" class="o_survey_comparison mt-4 mb-4 d-print-none">
-            <hr/>
+        <div t-if="survey.answer_done_count &gt; 1"
+            class="o_survey_comparison mt-4 mb-4 d-print-none">
+            <hr />
             <h3 class="text-uppercase text-muted">
                 <a data-bs-toggle="collapse" href="#comparisonSection" role="button"
-                   aria-expanded="false" aria-controls="comparisonSection"
-                   class="text-decoration-none text-muted">
-                    <i class="fa-solid fa-chart-bar me-2"/>Period Comparison
-                    <i class="fa-solid fa-chevron-down ms-1 small"/>
+                    aria-expanded="false" aria-controls="comparisonSection"
+                    class="text-decoration-none text-muted">
+                    <i class="fa-solid fa-chart-bar me-2" />Period Comparison <i
+                        class="fa-solid fa-chevron-down ms-1 small" />
                 </a>
             </h3>
             <div class="collapse" id="comparisonSection">
                 <div class="row g-2 align-items-end mb-3 o_survey_comparison_form"
-                     t-att-data-survey-id="survey.id">
+                    t-att-data-survey-id="survey.id">
                     <div class="col-auto">
                         <label class="form-label small mb-0 fw-bold">Period A</label>
                         <div class="d-flex gap-1">
-                            <input type="date" class="form-control form-control-sm o_compare_a_from" placeholder="From"/>
-                            <input type="date" class="form-control form-control-sm o_compare_a_to" placeholder="To"/>
+                            <input type="date" class="form-control form-control-sm o_compare_a_from"
+                                placeholder="From" />
+                            <input type="date" class="form-control form-control-sm o_compare_a_to"
+                                placeholder="To" />
                         </div>
                     </div>
                     <div class="col-auto">
                         <label class="form-label small mb-0 fw-bold">Period B</label>
                         <div class="d-flex gap-1">
-                            <input type="date" class="form-control form-control-sm o_compare_b_from" placeholder="From"/>
-                            <input type="date" class="form-control form-control-sm o_compare_b_to" placeholder="To"/>
+                            <input type="date" class="form-control form-control-sm o_compare_b_from"
+                                placeholder="From" />
+                            <input type="date" class="form-control form-control-sm o_compare_b_to"
+                                placeholder="To" />
                         </div>
                     </div>
                     <div class="col-auto">
                         <button class="btn btn-sm btn-primary o_survey_compare_btn">
-                            <i class="fa-solid fa-code-compare"/> Compare
-                        </button>
+                            <i class="fa-solid fa-code-compare" /> Compare </button>
                     </div>
                 </div>
                 <div class="o_survey_comparison_results"></div>
@@ -191,17 +204,18 @@
 
         <!-- Cross-tabulation analysis -->
         <div t-if="question_and_page_data" class="o_survey_cross_tabulation mt-4 mb-4 d-print-none">
-            <hr/>
+            <hr />
             <h3 class="text-uppercase text-muted">
                 <a data-bs-toggle="collapse" href="#crossTabSection" role="button"
-                   aria-expanded="false" aria-controls="crossTabSection"
-                   class="text-decoration-none text-muted">
-                    <i class="fa fa-table me-1"/>Cross-Tabulation
-                    <i class="fa fa-chevron-down ms-1 small"/>
+                    aria-expanded="false" aria-controls="crossTabSection"
+                    class="text-decoration-none text-muted">
+                    <i class="fa fa-table me-1" />Cross-Tabulation <i
+                        class="fa fa-chevron-down ms-1 small" />
                 </a>
             </h3>
             <div class="collapse" id="crossTabSection">
-                <p class="text-muted">Select two questions to see how their answers relate to each other.</p>
+                <p class="text-muted">Select two questions to see how their answers relate to each
+                    other.</p>
                 <div class="row mb-3">
                     <div class="col-md-5">
                         <label class="form-label fw-bold">Row question</label>
@@ -210,7 +224,7 @@
                             <t t-foreach="question_and_page_data" t-as="qd">
                                 <t t-if="not qd['is_page']">
                                     <option t-att-value="qd['question'].id"
-                                            t-out="qd['question'].title"/>
+                                        t-out="qd['question'].title" />
                                 </t>
                             </t>
                         </select>
@@ -222,14 +236,14 @@
                             <t t-foreach="question_and_page_data" t-as="qd">
                                 <t t-if="not qd['is_page']">
                                     <option t-att-value="qd['question'].id"
-                                            t-out="qd['question'].title"/>
+                                        t-out="qd['question'].title" />
                                 </t>
                             </t>
                         </select>
                     </div>
                     <div class="col-md-2 d-flex align-items-end">
                         <button type="button" class="btn btn-primary o_survey_cross_tab_btn"
-                                t-att-data-survey-id="survey.id">
+                            t-att-data-survey-id="survey.id">
                             Generate
                         </button>
                     </div>
@@ -240,78 +254,106 @@
     </template>
 
     <template id="survey_page_statistics_question" name="Question: result statistics">
-        <t t-set="comment_lines" t-value="question_data['comment_line_ids']"/>
-        <t t-set="graph_data" t-value="question_data['graph_data']"/>
-        <t t-set="table_data" t-value="question_data['table_data']"/>
-        <t t-set="question_has_image_answers" t-value="any(answer.value_image_filename for answer in question.suggested_answer_ids)"/>
+        <t t-set="comment_lines" t-value="question_data['comment_line_ids']" />
+        <t t-set="graph_data" t-value="question_data['graph_data']" />
+        <t t-set="table_data" t-value="question_data['table_data']" />
+        <t t-set="question_has_image_answers"
+            t-value="any(answer.value_image_filename for answer in question.suggested_answer_ids)" />
 
         <div class="o_survey_results_question pb-3">
-            <t t-set="question_answered" t-value="question_data['answer_input_done_ids']"/>
+            <t t-set="question_answered" t-value="question_data['answer_input_done_ids']" />
             <div class="o_survey_results_question_header">
-                <div class="d-inline-flex flex-nowrap align-items-center cursor-pointer user-select-none" aria-expanded="true"
-                    data-bs-toggle="collapse" t-attf-data-bs-target=".o_survey_results_question_#{question.id}">
-                    <i class="fa-solid fa-caret-right d-print-none me-3" role="img"/>
-                    <i class="fa-solid fa-caret-down d-print-none me-3" role="img"/>
-                    <h5 t-field="question.title" class="mb-1"/>
+                <div
+                    class="d-inline-flex flex-nowrap align-items-center cursor-pointer user-select-none"
+                    aria-expanded="true"
+                    data-bs-toggle="collapse"
+                    t-attf-data-bs-target=".o_survey_results_question_#{question.id}">
+                    <i class="fa-solid fa-caret-right d-print-none me-3" role="img" />
+                    <i class="fa-solid fa-caret-down d-print-none me-3" role="img" />
+                    <h5 t-field="question.title" class="mb-1" />
                 </div>
-                <div t-attf-class="d-flex flex-wrap align-items-center mb-1 collapse show o_survey_results_question_#{question.id}">
+                <div
+                    t-attf-class="d-flex flex-wrap align-items-center mb-1 collapse show o_survey_results_question_#{question.id}">
                     <!-- Question info -->
                     <div class="d-flex align-items-center my-1 me-2">
                         <!-- Scoring info -->
-                        <t t-if="survey.scoring_type != 'no_scoring' and (question.answer_numerical_box or question.answer_date or
+                        <t
+                            t-if="survey.scoring_type != 'no_scoring' and (question.answer_numerical_box or question.answer_date or
                             question.answer_datetime or any([a.is_correct for a in question.suggested_answer_ids]))">
-                            <span t-if="question.question_type in ['numerical_box', 'date', 'datetime', 'simple_choice', 'dropdown', 'multiple_choice']"
+                            <span
+                                t-if="question.question_type in ['numerical_box', 'date', 'datetime', 'simple_choice', 'dropdown', 'multiple_choice']"
                                 class="badge d-flex gap-1 ms-0 me-1 text-info text-start border rounded">
-                                <span t-out="question_data['right_inputs_count']"/>
+                                <span t-out="question_data['right_inputs_count']" />
                                 <span class="text-success">Correct</span>
                             </span>
-                            <span t-if="question.question_type == 'multiple_choice'" class="badge d-flex gap-1 ms-0 me-1 text-info text-start border rounded">
-                                <span t-esc="question_data['partial_inputs_count']"/>
+                            <span t-if="question.question_type == 'multiple_choice'"
+                                class="badge d-flex gap-1 ms-0 me-1 text-info text-start border rounded">
+                                <span t-esc="question_data['partial_inputs_count']" />
                                 <span class="text-warning">Partial</span>
                             </span>
                         </t>
                         <!-- Inputs info -->
-                        <span class="badge d-flex gap-1 ms-0 me-1 text-info text-start border rounded">
-                            <span t-out="len(question_data['answer_input_done_ids'])"/>/
-                            <span t-out="len(question_data['answer_input_ids'])"/>
-                            <span class="text-muted">Responded</span>
+                        <span
+                            class="badge d-flex gap-1 ms-0 me-1 text-info text-start border rounded">
+                            <span t-out="len(question_data['answer_input_done_ids'])" />/ <span
+                                t-out="len(question_data['answer_input_ids'])" />
+                            <span
+                                class="text-muted">Responded</span>
                         </span>
                     </div>
                     <!-- Numerical KPIs -->
-                    <span t-if="question.question_type in ['numerical_box', 'scale']" class="d-flex gap-1 my-1 me-2">
-                        <div class="btn-group o_survey_results_question_pill" role="group" aria-label="Maximum">
+                    <span t-if="question.question_type in ['numerical_box', 'scale']"
+                        class="d-flex gap-1 my-1 me-2">
+                        <div class="btn-group o_survey_results_question_pill" role="group"
+                            aria-label="Maximum">
                             <span class="badge text-bg-secondary only_left_radius px-2 pt-1">Max</span>
-                            <span class="badge text-bg-success only_right_radius px-2 pt-1" t-esc="question_data['numerical_max']"></span>
+                            <span class="badge text-bg-success only_right_radius px-2 pt-1"
+                                t-esc="question_data['numerical_max']"></span>
                         </div>
-                        <div class="btn-group o_survey_results_question_pill" role="group" aria-label="Minimum">
+                        <div class="btn-group o_survey_results_question_pill" role="group"
+                            aria-label="Minimum">
                             <span class="badge text-bg-secondary only_left_radius px-2 pt-1">Min</span>
-                            <span class="badge text-bg-danger only_right_radius px-2 pt-1" t-esc="question_data['numerical_min']"></span>
+                            <span class="badge text-bg-danger only_right_radius px-2 pt-1"
+                                t-esc="question_data['numerical_min']"></span>
                         </div>
-                        <div class="btn-group o_survey_results_question_pill" role="group" aria-label="Average">
+                        <div class="btn-group o_survey_results_question_pill" role="group"
+                            aria-label="Average">
                             <span class="badge text-bg-secondary only_left_radius px-2 pt-1">Avg</span>
-                            <span class="badge text-bg-warning only_right_radius px-2 pt-1" t-esc="question_data['numerical_average']"></span>
+                            <span class="badge text-bg-warning only_right_radius px-2 pt-1"
+                                t-esc="question_data['numerical_average']"></span>
                         </div>
                     </span>
                     <!-- Data buttons -->
-                    <ul t-if="question.question_type not in ['text_box', 'char_box'] and question_answered"
+                    <ul
+                        t-if="question.question_type not in ['text_box', 'char_box'] and question_answered"
                         class="nav btn-group flex-nowrap d-print-none ms-auto" role="tablist">
-                        <li t-if="question.question_type in ['simple_choice', 'dropdown', 'multiple_choice', 'matrix', 'likert', 'scale']" class="nav-item btn-group">
-                            <a t-att-href="'#survey_graph_question_%d' % question.id" t-att-aria-controls="'survey_graph_question_%d' % question.id"
-                                data-bs-toggle="tab" role="tab" class="o_survey_results_data_tab nav-link btn btn-light py-1 px-2 active">
-                                <i t-if="question.question_type in ('simple_choice', 'dropdown')" class="fa-solid fa-chart-pie"/>
-                                <i t-else="" class="fa-solid fa-chart-column"/>
+                        <li
+                            t-if="question.question_type in ['simple_choice', 'dropdown', 'multiple_choice', 'matrix', 'likert', 'scale']"
+                            class="nav-item btn-group">
+                            <a t-att-href="'#survey_graph_question_%d' % question.id"
+                                t-att-aria-controls="'survey_graph_question_%d' % question.id"
+                                data-bs-toggle="tab" role="tab"
+                                class="o_survey_results_data_tab nav-link btn btn-light py-1 px-2 active">
+                                <i t-if="question.question_type in ('simple_choice', 'dropdown')"
+                                    class="fa-solid fa-chart-pie" />
+                                <i t-else="" class="fa-solid fa-chart-column" />
                             </a>
                         </li>
-                        <li t-elif="question.question_type in ['numerical_box', 'date', 'datetime']" class="nav-item btn-group">
-                            <a t-att-href="'#survey_stats_question_%d' % question.id" t-att-aria-controls="'survey_stats_question_%d' % question.id"
-                                data-bs-toggle="tab" role="tab" class="o_survey_results_data_tab nav-link btn btn-light py-1 px-2 active">
-                                <i class="fa-solid fa-trophy"/>
+                        <li t-elif="question.question_type in ['numerical_box', 'date', 'datetime']"
+                            class="nav-item btn-group">
+                            <a t-att-href="'#survey_stats_question_%d' % question.id"
+                                t-att-aria-controls="'survey_stats_question_%d' % question.id"
+                                data-bs-toggle="tab" role="tab"
+                                class="o_survey_results_data_tab nav-link btn btn-light py-1 px-2 active">
+                                <i class="fa-solid fa-trophy" />
                             </a>
                         </li>
                         <li class="nav-item btn-group">
-                            <a t-att-href="'#survey_data_question_%d' % question.id" t-att-aria-controls="'survey_data_question_%d' % question.id"
-                                data-bs-toggle="tab" role="tab" class="o_survey_results_data_tab nav-link btn btn-light py-1 px-2">
-                                <i class="fa-solid fa-bars"/>
+                            <a t-att-href="'#survey_data_question_%d' % question.id"
+                                t-att-aria-controls="'survey_data_question_%d' % question.id"
+                                data-bs-toggle="tab" role="tab"
+                                class="o_survey_results_data_tab nav-link btn btn-light py-1 px-2">
+                                <i class="fa-solid fa-bars" />
                             </a>
                         </li>
                     </ul>
@@ -319,88 +361,111 @@
             </div>
             <div t-attf-class="collapse show o_survey_results_question_#{question.id}">
                 <!-- Question Description -->
-                <div class="o_survey_question_description ms-3 text-muted d-none" t-field="question.description"/>
-    
+                <div class="o_survey_question_description ms-3 text-muted d-none"
+                    t-field="question.description" />
+
                 <!-- Answers -->
                 <div t-if="not question_answered" class="o_survey_no_answers text-center fw-bold">
                     <p>No answers yet!</p>
                 </div>
                 <t t-elif="question.question_type in ['text_box', 'char_box']"
-                    t-call="survey.question_result_text"/>
+                    t-call="survey.question_result_text" />
                 <t t-elif="question.question_type in ['numerical_box', 'date', 'datetime']"
-                    t-call="survey.question_result_number_or_date_or_datetime"/>
-                <t t-elif="question.question_type in ['simple_choice', 'dropdown', 'multiple_choice', 'scale', 'rating', 'ranking', 'constant_sum']"
-                    t-call="survey.question_result_choice"/>
+                    t-call="survey.question_result_number_or_date_or_datetime" />
+                <t
+                    t-elif="question.question_type in ['simple_choice', 'dropdown', 'multiple_choice', 'scale', 'rating', 'ranking', 'constant_sum']"
+                    t-call="survey.question_result_choice" />
                 <t t-elif="question.question_type == 'nps'"
-                    t-call="survey.question_result_nps"/>
+                    t-call="survey.question_result_nps" />
                 <t t-elif="question.question_type == 'slider'"
-                    t-call="survey.question_result_number_or_date_or_datetime"/>
+                    t-call="survey.question_result_number_or_date_or_datetime" />
                 <t t-elif="question.question_type == 'file_upload'"
-                    t-call="survey.question_result_text"/>
+                    t-call="survey.question_result_text" />
                 <t t-elif="question.question_type in ['matrix', 'likert']"
-                    t-call="survey.question_result_matrix"/>
+                    t-call="survey.question_result_matrix" />
             </div>
         </div>
     </template>
 
     <template id="survey_results_filters" name="Survey: Filter results">
-        <t t-set="search_passed_or_failed" t-value="search_failed or search_passed"/>
+        <t t-set="search_passed_or_failed" t-value="search_failed or search_passed" />
         <div class="question_and_page_data o_survey_result p-0">
             <nav class="navbar navbar-light rounded p-0">
                 <div t-if="question_and_page_data" class="justify-content-between w-100">
                     <ul class="nav o_survey_results_topbar_dropdown_filters align-items-center">
-                        <t t-set="dropdown_item_classes" t-translation="off">dropdown-item d-flex align-items-center justify-content-between</t>
+                        <t t-set="dropdown_item_classes" t-translation="off">dropdown-item d-flex
+                            align-items-center justify-content-between</t>
                         <li class="nav-item dropdown me-2 my-1">
                             <a href="#" role="button" data-bs-toggle="dropdown"
-                               t-attf-class="btn btn-outline-primary dropdown-toggle #{'active' if search_finished else ''}">
+                                t-attf-class="btn btn-outline-primary dropdown-toggle #{'active' if search_finished else ''}">
                                 <span t-if="search_finished">Completed surveys</span>
                                 <span t-else="">All surveys</span>
                             </a>
                             <div class="dropdown-menu">
-                                <a t-attf-class="#{dropdown_item_classes} filter-finished-or-not #{'active' if not search_finished else ''}">
+                                <a
+                                    t-attf-class="#{dropdown_item_classes} filter-finished-or-not #{'active' if not search_finished else ''}">
                                     <span>All surveys</span>
-                                    <span t-if="not search_finished" t-esc="survey_data['count_all']" class="badge rounded-pill text-bg-primary ms-3"/>
+                                    <span t-if="not search_finished"
+                                        t-esc="survey_data['count_all']"
+                                        class="badge rounded-pill text-bg-primary ms-3" />
                                 </a>
-                                <a t-attf-class="#{dropdown_item_classes} filter-finished #{'active' if search_finished else ''}">
+                                <a
+                                    t-attf-class="#{dropdown_item_classes} filter-finished #{'active' if search_finished else ''}">
                                     <span>Completed surveys</span>
-                                    <span t-if="not search_finished" t-esc="survey_data['count_finished']" class="badge rounded-pill text-bg-primary ms-3"/>
+                                    <span t-if="not search_finished"
+                                        t-esc="survey_data['count_finished']"
+                                        class="badge rounded-pill text-bg-primary ms-3" />
                                 </a>
                             </div>
                         </li>
-                        <li t-if="survey.scoring_type != 'no_scoring'" class="nav-item dropdown me-2 my-1">
+                        <li t-if="survey.scoring_type != 'no_scoring'"
+                            class="nav-item dropdown me-2 my-1">
                             <a href="#" role="button" data-bs-toggle="dropdown"
-                               t-attf-class="btn btn-outline-primary dropdown-toggle #{'active' if search_passed_or_failed else ''}">
+                                t-attf-class="btn btn-outline-primary dropdown-toggle #{'active' if search_passed_or_failed else ''}">
                                 <span t-if="search_failed">Failed only</span>
                                 <span t-elif="search_passed">Passed only</span>
                                 <span t-else="">Passed and Failed</span>
                             </a>
                             <div class="dropdown-menu">
-                                <a t-attf-class="#{dropdown_item_classes} filter-passed-and-failed #{'active' if not search_passed_or_failed else ''}">
+                                <a
+                                    t-attf-class="#{dropdown_item_classes} filter-passed-and-failed #{'active' if not search_passed_or_failed else ''}">
                                     <span>Passed and Failed</span>
-                                    <span t-if="not search_passed_or_failed" t-esc="survey_data['count_all']" class="badge rounded-pill text-bg-primary ms-3"/>
+                                    <span t-if="not search_passed_or_failed"
+                                        t-esc="survey_data['count_all']"
+                                        class="badge rounded-pill text-bg-primary ms-3" />
                                 </a>
-                                <a t-attf-class="#{dropdown_item_classes} filter-passed #{'active' if search_passed else ''}">
+                                <a
+                                    t-attf-class="#{dropdown_item_classes} filter-passed #{'active' if search_passed else ''}">
                                     <span>Passed only</span>
-                                    <span t-if="not search_passed_or_failed" t-esc="survey_data['count_passed']" class="badge rounded-pill text-bg-primary ms-3"/>
+                                    <span t-if="not search_passed_or_failed"
+                                        t-esc="survey_data['count_passed']"
+                                        class="badge rounded-pill text-bg-primary ms-3" />
                                 </a>
-                                <a t-attf-class="#{dropdown_item_classes} filter-failed #{'active' if search_failed else ''}">
+                                <a
+                                    t-attf-class="#{dropdown_item_classes} filter-failed #{'active' if search_failed else ''}">
                                     <span>Failed only</span>
-                                    <span t-if="not search_passed_or_failed" t-esc="survey_data['count_failed']" class="badge rounded-pill text-bg-primary ms-3"/>
+                                    <span t-if="not search_passed_or_failed"
+                                        t-esc="survey_data['count_failed']"
+                                        class="badge rounded-pill text-bg-primary ms-3" />
                                 </a>
                             </div>
                         </li>
-                        <li t-if="search_filters or search_finished or search_passed_or_failed" class="my-2">
+                        <li t-if="search_filters or search_finished or search_passed_or_failed"
+                            class="my-2">
                             <span class="o_survey_results_topbar_clear_filters text-primary">
-                                <i class="fa-solid fa-trash-can me-1"/>Remove all filters
-                            </span>
+                                <i class="fa-solid fa-trash-can me-1" />Remove all filters </span>
                         </li>
                     </ul>
                     <ul class="nav o_survey_results_topbar_answer_filters">
                         <t t-if="search_filters">
-                            <li t-foreach="search_filters" t-as="filter_data" class="nav-item me-2 my-1">
-                                <span t-attf-class="btn btn-light filter-remove-answer cursor-default">
-                                    <span t-esc="filter_data['question']"/> | <span t-esc="filter_data['answer']"></span>
-                                    <i class="fa-solid fa-times filter-remove-answer text-primary"
+                            <li t-foreach="search_filters" t-as="filter_data"
+                                class="nav-item me-2 my-1">
+                                <span
+                                    t-attf-class="btn btn-light filter-remove-answer cursor-default">
+                                    <span t-esc="filter_data['question']" /> | <span
+                                        t-esc="filter_data['answer']"></span>
+                                    <i
+                                        class="fa-solid fa-times filter-remove-answer text-primary"
                                         t-att-data-model-short-key="filter_data['model_short_key']"
                                         t-att-data-row-id="filter_data['row_id']"
                                         t-att-data-record-id="filter_data['record_id']"></i>
@@ -410,42 +475,46 @@
                     </ul>
                     <!-- Advanced response filters -->
                     <form method="GET" t-attf-action="/survey/results/#{survey.id}"
-                          class="o_survey_advanced_filters d-print-none mt-2">
+                        class="o_survey_advanced_filters d-print-none mt-2">
                         <div class="row g-2 align-items-end">
                             <div class="col-auto">
                                 <label class="form-label small mb-0">From</label>
-                                <input type="date" name="date_from" class="form-control form-control-sm"
-                                       t-att-value="request.params.get('date_from', '')"/>
+                                <input type="date" name="date_from"
+                                    class="form-control form-control-sm"
+                                    t-att-value="request.params.get('date_from', '')" />
                             </div>
                             <div class="col-auto">
                                 <label class="form-label small mb-0">To</label>
-                                <input type="date" name="date_to" class="form-control form-control-sm"
-                                       t-att-value="request.params.get('date_to', '')"/>
+                                <input type="date" name="date_to"
+                                    class="form-control form-control-sm"
+                                    t-att-value="request.params.get('date_to', '')" />
                             </div>
                             <t t-if="survey.scoring_type != 'no_scoring'">
                                 <div class="col-auto">
                                     <label class="form-label small mb-0">Score min %</label>
-                                    <input type="number" name="score_min" class="form-control form-control-sm"
-                                           min="0" max="100" step="1" style="width: 80px;"
-                                           t-att-value="request.params.get('score_min', '')"/>
+                                    <input type="number" name="score_min"
+                                        class="form-control form-control-sm"
+                                        min="0" max="100" step="1" style="width: 80px;"
+                                        t-att-value="request.params.get('score_min', '')" />
                                 </div>
                                 <div class="col-auto">
                                     <label class="form-label small mb-0">Score max %</label>
-                                    <input type="number" name="score_max" class="form-control form-control-sm"
-                                           min="0" max="100" step="1" style="width: 80px;"
-                                           t-att-value="request.params.get('score_max', '')"/>
+                                    <input type="number" name="score_max"
+                                        class="form-control form-control-sm"
+                                        min="0" max="100" step="1" style="width: 80px;"
+                                        t-att-value="request.params.get('score_max', '')" />
                                 </div>
                             </t>
                             <div class="col-auto">
                                 <label class="form-label small mb-0">Quality min</label>
-                                <input type="number" name="quality_min" class="form-control form-control-sm"
-                                       min="0" max="100" step="1" style="width: 80px;"
-                                       t-att-value="request.params.get('quality_min', '')"/>
+                                <input type="number" name="quality_min"
+                                    class="form-control form-control-sm"
+                                    min="0" max="100" step="1" style="width: 80px;"
+                                    t-att-value="request.params.get('quality_min', '')" />
                             </div>
                             <div class="col-auto">
                                 <button type="submit" class="btn btn-sm btn-primary">
-                                    <i class="fa-solid fa-filter"/> Apply
-                                </button>
+                                    <i class="fa-solid fa-filter" /> Apply </button>
                             </div>
                         </div>
                     </form>
@@ -456,53 +525,67 @@
 
     <template id="question_result_text" name="Question: text result (text_box, char_box)">
         <!-- Word cloud / keyword analysis for text questions -->
-        <t t-set="text_analysis" t-value="question_data.get('text_analysis')"/>
+        <t t-set="text_analysis" t-value="question_data.get('text_analysis')" />
         <div t-if="text_analysis and text_analysis.get('top_keywords')" class="mb-3">
             <h6 class="text-muted">Top Keywords</h6>
             <div class="d-flex flex-wrap gap-1 mb-2">
                 <t t-foreach="text_analysis['word_cloud']" t-as="word_item">
                     <span class="badge bg-primary"
-                          t-att-style="'font-size: %spx' % max(12, int(word_item['weight'] / 5))">
-                        <t t-out="word_item['text']"/>
+                        t-att-style="'font-size: %spx' % max(12, int(word_item['weight'] / 5))">
+                        <t t-out="word_item['text']" />
                     </span>
                 </t>
             </div>
             <details class="mb-2">
                 <summary class="text-muted small">Keyword frequency table</summary>
                 <table class="table table-sm table-hover mt-1" style="max-width: 400px;">
-                    <thead><tr><th>Keyword</th><th class="text-end">Count</th></tr></thead>
+                    <thead>
+                        <tr>
+                            <th>Keyword</th>
+                            <th class="text-end">Count</th>
+                        </tr>
+                    </thead>
                     <tbody>
                         <t t-foreach="text_analysis['top_keywords']" t-as="kw">
-                            <tr><td t-out="kw['word']"/><td class="text-end" t-out="kw['count']"/></tr>
+                            <tr>
+                                <td t-out="kw['word']" />
+                                <td class="text-end" t-out="kw['count']" />
+                            </tr>
                         </t>
                     </tbody>
                 </table>
             </details>
         </div>
         <!-- Response table -->
-        <t t-set="answers_json" t-value="question_data.get('answers_data', '[]')"/>
-        <t t-set="hide_filter" t-value="question.id in already_filtered_questions or len(table_data) == 1"/>
-        <div class="survey_table_with_pagination" t-att-data-answers-json="answers_json" t-att-data-hide-filter="hide_filter" t-att-data-record_limit="page_record_limit">
+        <t t-set="answers_json" t-value="question_data.get('answers_data', '[]')" />
+        <t t-set="hide_filter"
+            t-value="question.id in already_filtered_questions or len(table_data) == 1" />
+        <div class="survey_table_with_pagination" t-att-data-answers-json="answers_json"
+            t-att-data-hide-filter="hide_filter" t-att-data-record_limit="page_record_limit">
             <div class="o_survey_results_table_wrapper overflow-auto">
-                <table class="table table-hover table-sm o_survey_results_table_indexed" t-att-id="'survey_table_question_%d' % question.id">
+                <table class="table table-hover table-sm o_survey_results_table_indexed"
+                    t-att-id="'survey_table_question_%d' % question.id">
                     <thead>
                         <tr>
                             <th>#</th>
                             <th>User Responses</th>
                         </tr>
                     </thead>
-                    <!-- The following tbody tag is populated by the interaction survey_result_pagination
+                    <!-- The following tbody tag is populated by the interaction
+                    survey_result_pagination
                     (see also the template survey.paginated_results_rows) -->
-                    <tbody/>
+                    <tbody />
                 </table>
             </div>
-            <t t-call="survey.question_table_pagination"/>
+            <t t-call="survey.question_table_pagination" />
         </div>
     </template>
 
-    <template id="question_result_number_or_date_or_datetime" name="Question: number or date (and time) result (numerical_box or date or datetime)">
+    <template id="question_result_number_or_date_or_datetime"
+        name="Question: number or date (and time) result (numerical_box or date or datetime)">
         <div class="tab-content">
-            <div role="tabpanel" class="tab-pane active with-3d-shadow with-transitions" t-att-id="'survey_stats_question_%d' % question.id">
+            <div role="tabpanel" class="tab-pane active with-3d-shadow with-transitions"
+                t-att-id="'survey_stats_question_%d' % question.id">
                 <table class="table table-hover table-sm">
                     <thead>
                         <tr>
@@ -515,25 +598,34 @@
                         <tr t-foreach="question_data['common_lines']" t-as="common_line">
                             <td>
                                 <t t-if="question.question_type == 'numerical_box'">
-                                    <t t-set="right_answer" t-value="common_line[0] == question.answer_numerical_box"/>
-                                    <span><t t-call="survey.survey_remove_unnecessary_decimals" value_to_format="common_line[0]"/></span>
-                                    <i t-if="right_answer" class="fa-solid fa-check"/>
+                                    <t t-set="right_answer"
+                                        t-value="common_line[0] == question.answer_numerical_box" />
+                                    <span>
+                                        <t t-call="survey.survey_remove_unnecessary_decimals"
+                                            value_to_format="common_line[0]" />
+                                    </span>
+                                    <i t-if="right_answer" class="fa-solid fa-check" />
                                 </t>
                                 <t t-elif="question.question_type == 'date'">
-                                    <t t-set="right_answer" t-value="common_line[0] == question.answer_date"/>
-                                    <span t-esc="common_line[0]" t-options='{"widget": "date"}'/>
-                                    <i t-if="right_answer" class="fa-solid fa-check"/>
+                                    <t t-set="right_answer"
+                                        t-value="common_line[0] == question.answer_date" />
+                                    <span t-esc="common_line[0]" t-options='{"widget": "date"}' />
+                                    <i t-if="right_answer" class="fa-solid fa-check" />
                                 </t>
                                 <t t-elif="question.question_type == 'datetime'">
-                                    <t t-set="right_answer" t-value="common_line[0] == question.answer_datetime"/>
-                                    <span t-esc="common_line[0]" t-options='{"widget": "datetime"}'/>
-                                    <i t-if="right_answer" class="fa-solid fa-check"/>
+                                    <t t-set="right_answer"
+                                        t-value="common_line[0] == question.answer_datetime" />
+                                    <span t-esc="common_line[0]" t-options='{"widget": "datetime"}' />
+                                    <i t-if="right_answer" class="fa-solid fa-check" />
                                 </t>
                             </td>
-                            <td><span t-esc="common_line[1]"></span></td>
+                            <td>
+                                <span t-esc="common_line[1]"></span>
+                            </td>
                             <td t-if="question.is_scored_question">
                                 <span t-if="right_answer">
-                                    <t t-call="survey.survey_remove_unnecessary_decimals" value_to_format="question.answer_score"/>
+                                    <t t-call="survey.survey_remove_unnecessary_decimals"
+                                        value_to_format="question.answer_score" />
                                 </span>
                                 <span t-else="">0</span>
                             </td>
@@ -542,29 +634,34 @@
                 </table>
             </div>
             <div role="tabpanel" class="tab-pane" t-att-id="'survey_data_question_%d' % question.id">
-                <t t-set="answers_json" t-value="question_data['answers_data']"/>
-                <t t-set="hide_filter" t-value="question.id in already_filtered_questions or len(table_data) == 1"/>
-                <div class="survey_table_with_pagination" t-att-data-answers-json="answers_json" t-att-data-hide-filter="hide_filter" t-att-data-record_limit="page_record_limit">   
+                <t t-set="answers_json" t-value="question_data['answers_data']" />
+                <t t-set="hide_filter"
+                    t-value="question.id in already_filtered_questions or len(table_data) == 1" />
+                <div class="survey_table_with_pagination" t-att-data-answers-json="answers_json"
+                    t-att-data-hide-filter="hide_filter" t-att-data-record_limit="page_record_limit">
                     <div class="o_survey_results_table_wrapper overflow-auto">
-                        <table class="table table-hover table-sm o_survey_results_table_indexed" t-att-id="'survey_table_question_%d' % question.id">
+                        <table class="table table-hover table-sm o_survey_results_table_indexed"
+                            t-att-id="'survey_table_question_%d' % question.id">
                             <thead>
                                 <tr>
                                     <th>#</th>
                                     <th>User Responses</th>
                                 </tr>
                             </thead>
-                            <!-- The following tbody tag is populated by the interaction survey_result_pagination
+                            <!-- The following tbody tag is populated by the interaction
+                            survey_result_pagination
                             (see also the template survey.paginated_results_rows) -->
-                            <tbody/>
+                            <tbody />
                         </table>
                     </div>
-                    <t t-call="survey.question_table_pagination"/>
+                    <t t-call="survey.question_table_pagination" />
                 </div>
             </div>
         </div>
     </template>
 
-    <template id="question_result_choice" name="Question: choice result (simple_choice, multiple_choice, scale)">
+    <template id="question_result_choice"
+        name="Question: choice result (simple_choice, multiple_choice, scale)">
         <div class="tab-content">
             <div t-if="question_answered" role="tabpanel" class="tab-pane active survey_graph"
                 t-att-id="'survey_graph_question_%d' % question.id"
@@ -573,7 +670,7 @@
                 t-att-data-graph-data="graph_data"
                 t-att-data-right-answers="list(question_data['answer_line_done_ids'].mapped('value_scale')) if question.question_type in ['scale'] else list(question_data['right_answers'].mapped('value'))">
                 <!-- canvas element for drawing bar chart -->
-                <canvas class="mx-auto w-100 h-auto"/>
+                <canvas class="mx-auto w-100 h-auto" />
             </div>
             <div role="tabpanel" t-att-id="'survey_data_question_%d' % question.id"
                 t-attf-class="tab-pane #{'active' if not question_answered else ''} table-responsive">
@@ -591,54 +688,69 @@
                             <td>
                                 <p class="text-nowrap my-0">
                                     <span t-if="question.question_type == 'numerical_box'">
-                                        <t t-call="survey.survey_remove_unnecessary_decimals" value_to_format="choice_data['value']"/>
+                                        <t t-call="survey.survey_remove_unnecessary_decimals"
+                                            value_to_format="choice_data['value']" />
                                     </span>
-                                    <span t-else="" t-esc="choice_data['value']"/>
-                                    <i t-if="question.is_scored_question and choice_data['suggested_answer'].is_correct" class="fa-solid fa-check"/>
+                                    <span t-else="" t-esc="choice_data['value']" />
+                                    <i
+                                        t-if="question.is_scored_question and choice_data['suggested_answer'].is_correct"
+                                        class="fa-solid fa-check" />
                                 </p>
                             </td>
                             <td t-if="question_has_image_answers">
-                               <div t-if="choice_data['suggested_answer'].value_image"
+                                <div t-if="choice_data['suggested_answer'].value_image"
                                     t-field="choice_data['suggested_answer'].value_image"
-                                    t-options='{"widget": "image", "qweb_img_responsive": False, "class": "o_image_64_max o_survey_answer_image", "alt-field": "name", "itemprop": "image"}'/>
+                                    t-options='{"widget": "image", "qweb_img_responsive": False, "class": "o_image_64_max o_survey_answer_image", "alt-field": "name", "itemprop": "image"}' />
                             </td>
                             <td class="o_survey_answer d-flex align-items-center gap-1">
-                                <span t-esc="round(choice_data['count'] * 100.0/ (len(question_data['answer_line_done_ids']) or 1), 2)"></span> %
-                                <span t-out="choice_data['count_text']" class="badge text-bg-primary"/>
-                                <i t-if="choice_data['suggested_answer'].id and choice_data['count']"
+                                <span
+                                    t-esc="round(choice_data['count'] * 100.0/ (len(question_data['answer_line_done_ids']) or 1), 2)"></span>
+                                % <span t-out="choice_data['count_text']"
+                                    class="badge text-bg-primary" />
+                                <i
+                                    t-if="choice_data['suggested_answer'].id and choice_data['count']"
                                     class="fa-solid fa-filter text-primary filter-add-answer d-print-none"
-                                    data-model-short-key="A" t-att-data-record-id="choice_data['suggested_answer'].id"
-                                    role="img" aria-label="Filter surveys" title="Only show survey results having selected this answer"/>
+                                    data-model-short-key="A"
+                                    t-att-data-record-id="choice_data['suggested_answer'].id"
+                                    role="img" aria-label="Filter surveys"
+                                    title="Only show survey results having selected this answer" />
                             </td>
                             <td t-if="question.is_scored_question">
-                                <t t-call="survey.survey_remove_unnecessary_decimals" value_to_format="choice_data['suggested_answer'].answer_score"/>
+                                <t t-call="survey.survey_remove_unnecessary_decimals"
+                                    value_to_format="choice_data['suggested_answer'].answer_score" />
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </div>
-        <div t-if="comment_lines"><t t-call="survey.question_result_comments"/></div>
+        <div t-if="comment_lines">
+            <t t-call="survey.question_result_comments" />
+        </div>
     </template>
 
     <template id="question_result_matrix" name="Question: matrix result (matrix)">
-        <t t-set="graph_data" t-value="question_data['graph_data']"/>
-        <t t-set="table_data" t-value="question_data['table_data']"/>
+        <t t-set="graph_data" t-value="question_data['graph_data']" />
+        <t t-set="table_data" t-value="question_data['table_data']" />
         <div class="tab-content">
-            <div t-if="question_answered" role="tabpanel" class="tab-pane active with-3d-shadow with-transitions survey_graph"
+            <div t-if="question_answered" role="tabpanel"
+                class="tab-pane active with-3d-shadow with-transitions survey_graph"
                 t-att-id="'survey_graph_question_%d' % question.id"
-                t-att-data-question-id= "question.id"
-                data-graph-type= "multi_bar"
+                t-att-data-question-id="question.id"
+                data-graph-type="multi_bar"
                 t-att-data-graph-data="graph_data">
                 <!-- canvas element for drawing Multibar chart -->
-                <canvas class="mx-auto w-100 h-auto"/>
+                <canvas class="mx-auto w-100 h-auto" />
             </div>
-            <div role="tabpanel" t-attf-class="tab-pane #{'active' if not question_answered else ''} table-responsive" t-att-id="'survey_data_question_%d' % question.id">
+            <div role="tabpanel"
+                t-attf-class="tab-pane #{'active' if not question_answered else ''} table-responsive"
+                t-att-id="'survey_data_question_%d' % question.id">
                 <table class="table table-hover table-sm text-end">
                     <thead t-if="table_data">
                         <tr>
                             <th></th>
-                            <th class="text-end" t-foreach="table_data[0]['columns']" t-as="column_data">
+                            <th class="text-end" t-foreach="table_data[0]['columns']"
+                                t-as="column_data">
                                 <span t-esc="column_data['suggested_answer'].value"></span>
                             </th>
                         </tr>
@@ -648,28 +760,39 @@
                             <td>
                                 <span t-esc="choice_data['row'].value"></span>
                             </td>
-                            <td class="o_survey_answer" t-foreach="choice_data['columns']" t-as="column_data">
+                            <td class="o_survey_answer" t-foreach="choice_data['columns']"
+                                t-as="column_data">
                                 <div class="d-flex align-items-center gap-1 justify-content-end">
-                                    <span t-esc="round(column_data['count'] * 100.0/ (len(question_data['answer_input_done_ids']) or 1), 2)"></span> %
-                                    <span class="badge text-bg-primary" t-esc="column_data['count']"></span>
-                                    <i t-if="column_data['count']" class="fa-solid fa-filter text-primary filter-add-answer d-print-none"
+                                    <span
+                                        t-esc="round(column_data['count'] * 100.0/ (len(question_data['answer_input_done_ids']) or 1), 2)"></span>
+                                    % <span class="badge text-bg-primary"
+                                        t-esc="column_data['count']"></span>
+                                    <i
+                                        t-if="column_data['count']"
+                                        class="fa-solid fa-filter text-primary filter-add-answer d-print-none"
                                         data-model-short-key="A"
                                         t-att-data-row-id="choice_data['row'].id"
-                                        t-att-data-record-id="column_data['suggested_answer'].id" role="img" aria-label="Filter surveys"
-                                        title="Only show survey results having selected this answer"/>
-                                    <i t-else="" class="o_survey_answer_matrix_whitespace d-print-none"/>
+                                        t-att-data-record-id="column_data['suggested_answer'].id"
+                                        role="img" aria-label="Filter surveys"
+                                        title="Only show survey results having selected this answer" />
+                                    <i
+                                        t-else=""
+                                        class="o_survey_answer_matrix_whitespace d-print-none" />
                                 </div>
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-        <div t-if="comment_lines"><t t-call="survey.question_result_comments"/></div>
+            <div t-if="comment_lines">
+                <t t-call="survey.question_result_comments" />
+            </div>
         </div>
     </template>
 
     <template id="question_result_comments" name="Question: comments">
-        <table class="table table-hover table-sm o_survey_results_table_indexed" t-att-id="'survey_table_question_%d' % question.id">
+        <table class="table table-hover table-sm o_survey_results_table_indexed"
+            t-att-id="'survey_table_question_%d' % question.id">
             <thead>
                 <tr>
                     <th>#</th>
@@ -684,7 +807,8 @@
                         </a>
                     </td>
                     <td>
-                        <span t-field="input_line.value_char_box"></span><br/>
+                        <span t-field="input_line.value_char_box"></span>
+                        <br />
                     </td>
                 </tr>
             </tbody>
@@ -692,35 +816,38 @@
     </template>
 
     <template id="question_table_pagination" name="Survey: statistics table pagination">
-        <t t-set="non_skipped_answers_count" t-value="len(question_data['answer_input_done_ids'])"/>
+        <t t-set="non_skipped_answers_count" t-value="len(question_data['answer_input_done_ids'])" />
         <t t-if="non_skipped_answers_count > page_record_limit">
             <div class="d-flex justify-content-between d-print-none pagination_wrapper"
                 t-att-id="'pagination_%d' % question.id" t-att-data-question_id="question.id">
                 <ul class="pagination mt-2">
-                    <t t-set="total" t-value="ceil(non_skipped_answers_count / page_record_limit) + 1"/>
+                    <t t-set="total"
+                        t-value="ceil(non_skipped_answers_count / page_record_limit) + 1" />
                     <li t-foreach="range(1, total)" t-as="num"
                         t-att-class="'page-item o_survey_js_results_pagination %s' % ('active' if num == 1 else '')">
                         <a href="#" class="page-link" t-esc="num"></a>
                     </li>
                 </ul>
-                <button class="btn btn-sm btn-primary mx-0 my-3 o_survey_question_answers_show_btn">Show All</button>
+                <button class="btn btn-sm btn-primary mx-0 my-3 o_survey_question_answers_show_btn">Show
+                    All</button>
             </div>
         </t>
     </template>
 
-    <template id="survey_remove_unnecessary_decimals"  name="Survey: remove .0">
-        <t t-esc="value_to_format if value_to_format % 1 else int(value_to_format)"/>
+    <template id="survey_remove_unnecessary_decimals" name="Survey: remove .0">
+        <t t-esc="value_to_format if value_to_format % 1 else int(value_to_format)" />
     </template>
 
     <!-- NPS Result Template -->
     <template id="question_result_nps" name="Survey: NPS result">
-        <t t-set="nps" t-value="question_data.get('extra_data', {})"/>
+        <t t-set="nps" t-value="question_data.get('extra_data', {})" />
         <!-- NPS Score Banner -->
         <div t-if="nps" class="row mb-3">
             <div class="col-md-4 text-center">
                 <div class="border rounded p-3">
-                    <h2 t-attf-class="#{'text-success' if nps.get('nps_score', 0) &gt; 0 else 'text-danger' if nps.get('nps_score', 0) &lt; 0 else 'text-muted'}">
-                        <t t-out="nps.get('nps_score', 0)"/>
+                    <h2
+                        t-attf-class="#{'text-success' if nps.get('nps_score', 0) &gt; 0 else 'text-danger' if nps.get('nps_score', 0) &lt; 0 else 'text-muted'}">
+                        <t t-out="nps.get('nps_score', 0)" />
                     </h2>
                     <small class="text-muted">NPS Score</small>
                 </div>
@@ -730,50 +857,52 @@
                     <span class="text-success me-2" style="width: 100px;">Promoters</span>
                     <div class="progress flex-fill" style="height: 20px;">
                         <div class="progress-bar bg-success" role="progressbar"
-                             t-att-style="'width: %s%%' % nps.get('promoters_pct', 0)">
-                            <t t-out="nps.get('promoters_pct', 0)"/>%
-                        </div>
+                            t-att-style="'width: %s%%' % nps.get('promoters_pct', 0)">
+                            <t t-out="nps.get('promoters_pct', 0)" />% </div>
                     </div>
-                    <span class="ms-2 text-muted"><t t-out="nps.get('promoters', 0)"/></span>
+                    <span class="ms-2 text-muted">
+                        <t t-out="nps.get('promoters', 0)" />
+                    </span>
                 </div>
                 <div class="d-flex align-items-center mb-1">
                     <span class="text-warning me-2" style="width: 100px;">Passives</span>
                     <div class="progress flex-fill" style="height: 20px;">
                         <div class="progress-bar bg-warning" role="progressbar"
-                             t-att-style="'width: %s%%' % nps.get('passives_pct', 0)">
-                            <t t-out="nps.get('passives_pct', 0)"/>%
-                        </div>
+                            t-att-style="'width: %s%%' % nps.get('passives_pct', 0)">
+                            <t t-out="nps.get('passives_pct', 0)" />% </div>
                     </div>
-                    <span class="ms-2 text-muted"><t t-out="nps.get('passives', 0)"/></span>
+                    <span class="ms-2 text-muted">
+                        <t t-out="nps.get('passives', 0)" />
+                    </span>
                 </div>
                 <div class="d-flex align-items-center mb-1">
                     <span class="text-danger me-2" style="width: 100px;">Detractors</span>
                     <div class="progress flex-fill" style="height: 20px;">
                         <div class="progress-bar bg-danger" role="progressbar"
-                             t-att-style="'width: %s%%' % nps.get('detractors_pct', 0)">
-                            <t t-out="nps.get('detractors_pct', 0)"/>%
-                        </div>
+                            t-att-style="'width: %s%%' % nps.get('detractors_pct', 0)">
+                            <t t-out="nps.get('detractors_pct', 0)" />% </div>
                     </div>
-                    <span class="ms-2 text-muted"><t t-out="nps.get('detractors', 0)"/></span>
+                    <span class="ms-2 text-muted">
+                        <t t-out="nps.get('detractors', 0)" />
+                    </span>
                 </div>
             </div>
         </div>
         <!-- Per-value bar chart (reuses choice template pattern) -->
-        <t t-call="survey.question_result_choice"/>
+        <t t-call="survey.question_result_choice" />
     </template>
 
     <!-- Cross-Tabulation Page -->
     <template id="survey_page_cross_tab" name="Survey: cross-tabulation page">
-        <t t-set="no_livechat" t-value="True"/>
-        <t t-set="no_survey_navigation" t-value="True"/>
+        <t t-set="no_livechat" t-value="True" />
+        <t t-set="no_survey_navigation" t-value="True" />
         <t t-call="survey.layout">
             <t t-call="survey.survey_button_form_view" />
             <div class="o_container_small o_survey_result">
                 <div class="o_survey_statistics_header mt32">
-                    <h2><t t-field="survey.title"/> — Cross-Tabulation</h2>
+                    <h2><t t-field="survey.title" /> — Cross-Tabulation</h2>
                     <a t-attf-href="/survey/results/#{survey.id}" class="btn btn-link">
-                        <i class="fa-solid fa-arrow-left"/> Back to Results
-                    </a>
+                        <i class="fa-solid fa-arrow-left" /> Back to Results </a>
                 </div>
 
                 <!-- Question selectors -->
@@ -784,8 +913,8 @@
                             <option value="">Select a question...</option>
                             <t t-foreach="choice_questions" t-as="q">
                                 <option t-att-value="q.id"
-                                        t-att-selected="'selected' if q.id == selected_row else None"
-                                        t-out="q.title"/>
+                                    t-att-selected="'selected' if q.id == selected_row else None"
+                                    t-out="q.title" />
                             </t>
                         </select>
                     </div>
@@ -795,8 +924,8 @@
                             <option value="">Select a question...</option>
                             <t t-foreach="choice_questions" t-as="q">
                                 <option t-att-value="q.id"
-                                        t-att-selected="'selected' if q.id == selected_col else None"
-                                        t-out="q.title"/>
+                                    t-att-selected="'selected' if q.id == selected_col else None"
+                                    t-out="q.title" />
                             </t>
                         </select>
                     </div>
@@ -812,11 +941,11 @@
                             <thead class="table-light">
                                 <tr>
                                     <th>
-                                        <t t-out="cross_tab_data['question_row']['title']"/>
-                                        \ <t t-out="cross_tab_data['question_col']['title']"/>
+                                        <t t-out="cross_tab_data['question_row']['title']" /> \ <t
+                                            t-out="cross_tab_data['question_col']['title']" />
                                     </th>
                                     <t t-foreach="cross_tab_data['col_labels']" t-as="col_label">
-                                        <th class="text-center" t-out="col_label"/>
+                                        <th class="text-center" t-out="col_label" />
                                     </t>
                                     <th class="text-center table-secondary">Total</th>
                                 </tr>
@@ -824,12 +953,13 @@
                             <tbody>
                                 <t t-foreach="cross_tab_data['row_labels']" t-as="row_label">
                                     <tr>
-                                        <th t-out="row_label"/>
-                                        <t t-foreach="cross_tab_data['matrix'][row_label_index]" t-as="cell">
-                                            <td class="text-center" t-out="cell"/>
+                                        <th t-out="row_label" />
+                                        <t t-foreach="cross_tab_data['matrix'][row_label_index]"
+                                            t-as="cell">
+                                            <td class="text-center" t-out="cell" />
                                         </t>
                                         <td class="text-center table-secondary fw-bold"
-                                            t-out="cross_tab_data['row_totals'][row_label_index]"/>
+                                            t-out="cross_tab_data['row_totals'][row_label_index]" />
                                     </tr>
                                 </t>
                             </tbody>
@@ -837,9 +967,10 @@
                                 <tr>
                                     <th>Total</th>
                                     <t t-foreach="cross_tab_data['col_totals']" t-as="col_total">
-                                        <td class="text-center fw-bold" t-out="col_total"/>
+                                        <td class="text-center fw-bold" t-out="col_total" />
                                     </t>
-                                    <td class="text-center fw-bold" t-out="cross_tab_data['grand_total']"/>
+                                    <td class="text-center fw-bold"
+                                        t-out="cross_tab_data['grand_total']" />
                                 </tr>
                             </tfoot>
                         </table>
@@ -852,5 +983,4 @@
         </t>
     </template>
 
-</data>
 </odoo>

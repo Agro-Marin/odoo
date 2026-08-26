@@ -21,8 +21,6 @@ SURVEY_URL_PREFIX_REGEX = re.compile(
 
 
 class IrHttp(models.AbstractModel):
-    """Extend ir.http to handle survey frontend language resolution."""
-
     _inherit = "ir.http"
 
     @api.model

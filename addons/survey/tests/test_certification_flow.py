@@ -12,8 +12,6 @@ from odoo.addons.survey.tests import common
 @tagged("-at_install", "post_install", "functional", "is_query_count")
 class TestCertificationFlow(common.TestSurveyCommon, MockEmail, HttpCase):
     def test_flow_certification(self):
-        # Step: survey user creates the certification
-        # --------------------------------------------------
         with self.with_user("survey_user"):
             certification = self.env["survey.survey"].create(
                 {
@@ -123,11 +121,8 @@ class TestCertificationFlow(common.TestSurveyCommon, MockEmail, HttpCase):
                 labels=[{"value": "Yes"}, {"value": "No"}],
             )
 
-        # Step: employee takes the certification
-        # --------------------------------------------------
         self.authenticate("user_emp", "user_emp")
 
-        # Employee opens start page
         response = self._access_start(certification)
         self.assertResponse(
             response,
@@ -135,7 +130,6 @@ class TestCertificationFlow(common.TestSurveyCommon, MockEmail, HttpCase):
             [certification.title, "Time limit for this certification", "10 minutes"],
         )
 
-        # -> this should have generated a new user_input with a token
         user_inputs = self.env["survey.user_input"].search(
             [("survey_id", "=", certification.id)]
         )
@@ -143,7 +137,6 @@ class TestCertificationFlow(common.TestSurveyCommon, MockEmail, HttpCase):
         self.assertEqual(user_inputs.partner_id, self.user_emp.partner_id)
         answer_token = user_inputs.access_token
 
-        # Employee begins survey with first page
         response = self._access_page(certification, answer_token)
         self.assertResponse(response, 200)
         csrf_token = self._find_csrf_token(response.text)
@@ -157,13 +150,13 @@ class TestCertificationFlow(common.TestSurveyCommon, MockEmail, HttpCase):
             )
             self._answer_question(
                 q02, q02.suggested_answer_ids.ids[0], answer_token, csrf_token
-            )  # incorrect => no points
+            )
             self._answer_question(
                 q03, "", answer_token, csrf_token, button_submit="previous"
             )
             self._answer_question(
                 q02, q02.suggested_answer_ids.ids[1], answer_token, csrf_token
-            )  # correct answer
+            )
             self._answer_question(
                 q03, "I think they're great!", answer_token, csrf_token
             )
@@ -206,12 +199,10 @@ class TestCertificationFlow(common.TestSurveyCommon, MockEmail, HttpCase):
             )
 
         user_inputs.invalidate_recordset()
-        # Check that certification is successfully passed
         self.assertEqual(user_inputs.scoring_percentage, 87.5)
         self.assertTrue(user_inputs.scoring_success)
 
-        # assert statistics
-        statistics = user_inputs._prepare_statistics()[user_inputs]
+        statistics = user_inputs._prepare_answer_statistics()[user_inputs]
         total_statistics = statistics["totals"]
         self.assertEqual(
             sorted(total_statistics, key=lambda item: item["text"]),
@@ -226,11 +217,9 @@ class TestCertificationFlow(common.TestSurveyCommon, MockEmail, HttpCase):
             ),
         )
 
-        # Check that the certification is still successful even if scoring_success_min of certification is modified
         certification.write({"scoring_success_min": 90})
         self.assertTrue(user_inputs.scoring_success)
 
-        # Check answer correction is taken into account
         self.assertNotIn(
             "I think they're great!",
             user_inputs.mapped("user_input_line_ids.value_text_box"),
@@ -240,7 +229,6 @@ class TestCertificationFlow(common.TestSurveyCommon, MockEmail, HttpCase):
             user_inputs.mapped("user_input_line_ids.value_text_box"),
         )
 
-        # Check certification email correctly sent and contains document
         self.assertMailMail(
             self.user_emp.partner_id,
             "outgoing",
@@ -252,7 +240,6 @@ class TestCertificationFlow(common.TestSurveyCommon, MockEmail, HttpCase):
             },
         )
 
-        # Check that the certification can be printed without access to the participant's company
         with self.with_user("admin"):
             new_company = self.env["res.company"].create(
                 {
@@ -272,14 +259,12 @@ class TestCertificationFlow(common.TestSurveyCommon, MockEmail, HttpCase):
                     "company_ids": [new_company.id],
                 }
             )
-            new_company.invalidate_model()  # cache pollution
+            new_company.invalidate_model()
         self.env["ir.actions.report"].with_user(user_new_company).with_company(
             new_company
         )._render_qweb_pdf("survey.certification_report_view", res_ids=user_inputs.ids)
 
     def test_randomized_certification(self):
-        # Step: survey user creates the randomized certification
-        # --------------------------------------------------
         with self.with_user("survey_user"):
             certification = self.env["survey.survey"].create(
                 {
@@ -336,14 +321,10 @@ class TestCertificationFlow(common.TestSurveyCommon, MockEmail, HttpCase):
                 ],
             )
 
-        # Step: employee takes the randomized certification
-        # --------------------------------------------------
         self.authenticate("user_emp", "user_emp")
 
-        # Employee opens start page
         response = self._access_start(certification)
 
-        # -> this should have generated a new user_input with a token
         user_inputs = self.env["survey.user_input"].search(
             [("survey_id", "=", certification.id)]
         )
@@ -351,7 +332,6 @@ class TestCertificationFlow(common.TestSurveyCommon, MockEmail, HttpCase):
         self.assertEqual(user_inputs.partner_id, self.user_emp.partner_id)
         answer_token = user_inputs.access_token
 
-        # Employee begins survey with first page
         response = self._access_page(certification, answer_token)
         self.assertResponse(response, 200)
         csrf_token = self._find_csrf_token(response.text)
@@ -366,7 +346,6 @@ class TestCertificationFlow(common.TestSurveyCommon, MockEmail, HttpCase):
                 1,
                 "Only one question should have been selected by the randomization",
             )
-            # Whatever which question was selected, the correct answer is the first one
             self._answer_question(
                 question_ids,
                 question_ids.suggested_answer_ids.ids[0],
@@ -374,7 +353,7 @@ class TestCertificationFlow(common.TestSurveyCommon, MockEmail, HttpCase):
                 csrf_token,
             )
 
-        statistics = user_inputs._prepare_statistics()[user_inputs]
+        statistics = user_inputs._prepare_answer_statistics()[user_inputs]
         total_statistics = statistics["totals"]
         self.assertEqual(
             sorted(total_statistics, key=lambda item: item["text"]),

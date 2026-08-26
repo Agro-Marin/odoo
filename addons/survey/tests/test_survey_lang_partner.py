@@ -1,5 +1,3 @@
-"""Tests for the survey extensions on res.lang and res.partner."""
-
 from odoo import Command
 from odoo.exceptions import UserError
 from odoo.tests import tagged
@@ -9,8 +7,6 @@ from .common import TestSurveyCommon
 
 @tagged("post_install", "-at_install")
 class TestSurveyLangDeactivation(TestSurveyCommon):
-    """Language deactivation must not orphan surveys or their answers."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -18,7 +14,6 @@ class TestSurveyLangDeactivation(TestSurveyCommon):
         cls.lang_fr = cls.env["res.lang"]._activate_lang("fr_FR")
 
     def test_deactivating_sole_survey_language_rejected(self):
-        """A language that is a survey's only language cannot be disabled."""
         survey = self.env["survey.survey"].create(
             {
                 "title": "FR only survey",
@@ -30,7 +25,6 @@ class TestSurveyLangDeactivation(TestSurveyCommon):
         self.assertIn(survey.title, str(cm.exception))
 
     def test_deactivating_one_of_many_unlinks_and_clears_answers(self):
-        """Disabling one of several languages unlinks it and clears answers."""
         survey = self.env["survey.survey"].create(
             {
                 "title": "Bilingual survey",
@@ -49,8 +43,6 @@ class TestSurveyLangDeactivation(TestSurveyCommon):
 
 @tagged("post_install", "-at_install")
 class TestPartnerCertifications(TestSurveyCommon):
-    """Certification counters and their smart-button action on partners."""
-
     def test_certification_counts_and_action_domain(self):
         company = self.env["res.partner"].create(
             {"name": "Cert company", "is_company": True},
@@ -81,6 +73,11 @@ class TestPartnerCertifications(TestSurveyCommon):
         user_input = self._add_answer(survey, child)
         self._add_answer_line(question, user_input, question.suggested_answer_ids[0].id)
         self.assertTrue(user_input.scoring_success)
+
+        self.assertEqual(child.certifications_count, 0)
+        user_input._mark_done()
+        child.invalidate_recordset()
+        company.invalidate_recordset()
 
         self.assertEqual(child.certifications_count, 1)
         self.assertEqual(company.certifications_count, 0)

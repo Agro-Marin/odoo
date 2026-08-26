@@ -20,8 +20,6 @@ class TestSurveyFlow(common.TestSurveyCommon, HttpCase):
         return post_data
 
     def test_flow_public(self):
-        # Step: survey manager creates the survey
-        # --------------------------------------------------
         with self.with_user("survey_manager"):
             survey = self.env["survey.survey"].create(
                 {
@@ -32,7 +30,6 @@ class TestSurveyFlow(common.TestSurveyCommon, HttpCase):
                 }
             )
 
-            # First page is about customer data
             page_0 = self.env["survey.question"].create(
                 {
                     "is_page": True,
@@ -61,7 +58,6 @@ class TestSurveyFlow(common.TestSurveyCommon, HttpCase):
                 survey_id=survey.id,
             )
 
-            # Second page is about tarte al djotte
             page_1 = self.env["survey.question"].create(
                 {
                     "is_page": True,
@@ -84,7 +80,6 @@ class TestSurveyFlow(common.TestSurveyCommon, HttpCase):
                 survey_id=survey.id,
             )
 
-        # fetch starting data to check only newly created data during this flow
         answers = self.env["survey.user_input"].search([("survey_id", "=", survey.id)])
         answer_lines = self.env["survey.user_input.line"].search(
             [("survey_id", "=", survey.id)]
@@ -92,21 +87,15 @@ class TestSurveyFlow(common.TestSurveyCommon, HttpCase):
         self.assertEqual(answers, self.env["survey.user_input"])
         self.assertEqual(answer_lines, self.env["survey.user_input.line"])
 
-        # Step: customer takes the survey
-        # --------------------------------------------------
-
-        # Customer opens start page
         r = self._access_start(survey)
         self.assertResponse(r, 200, [survey.title])
 
-        # -> this should have generated a new answer with a token
         answers = self.env["survey.user_input"].search([("survey_id", "=", survey.id)])
         self.assertEqual(len(answers), 1)
         answer_token = answers.access_token
         self.assertTrue(answer_token)
         self.assertAnswer(answers, "new", self.env["survey.question"])
 
-        # Customer begins survey with first page
         r = self._access_page(survey, answer_token)
         self.assertResponse(r, 200)
         self.assertAnswer(answers, "new", self.env["survey.question"])
@@ -115,7 +104,6 @@ class TestSurveyFlow(common.TestSurveyCommon, HttpCase):
         r = self._access_begin(survey, answer_token)
         self.assertResponse(r, 200)
 
-        # Customer submit first page answers
         answer_data = {
             page0_q0.id: {"value": ["Alfred Poilvache"]},
             page0_q1.id: {"value": ["44.0"]},
@@ -125,22 +113,17 @@ class TestSurveyFlow(common.TestSurveyCommon, HttpCase):
             answer_data,
             {"csrf_token": csrf_token, "token": answer_token, "button_submit": "next"},
         )
-        r = self._access_submit(
-            survey, answer_token, post_data, query_count=45
-        )  # ! 45 without `website` (single app CI), 38 `survey+website`, 39 "full" runbot
+        r = self._access_submit(survey, answer_token, post_data, query_count=45)
         self.assertResponse(r, 200)
-        answers.invalidate_recordset()  # TDE note: necessary as lots of sudo in controllers messing with cache
+        answers.invalidate_recordset()
 
-        # -> this should have generated answer lines
         self.assertAnswer(answers, "in_progress", page_0)
         self.assertAnswerLines(page_0, answers, answer_data)
 
-        # Customer is redirected on second page and begins filling it
         r = self._access_page(survey, answer_token)
         self.assertResponse(r, 200)
         csrf_token = self._find_csrf_token(r.text)
 
-        # Customer submit second page answers
         answer_data = {
             page1_q0.id: {
                 "value": [
@@ -154,12 +137,9 @@ class TestSurveyFlow(common.TestSurveyCommon, HttpCase):
             answer_data,
             {"csrf_token": csrf_token, "token": answer_token, "button_submit": "next"},
         )
-        r = self._access_submit(
-            survey, answer_token, post_data, query_count=40
-        )  # ! 37 without `website`, 32 `survey+website`, 40 "full" runbot
+        r = self._access_submit(survey, answer_token, post_data, query_count=40)
         self.assertResponse(r, 200)
-        answers.invalidate_recordset()  # TDE note: necessary as lots of sudo in controllers messing with cache
+        answers.invalidate_recordset()
 
-        # -> this should have generated answer lines and closed the answer
         self.assertAnswer(answers, "done", page_1)
         self.assertAnswerLines(page_1, answers, answer_data)

@@ -6,12 +6,9 @@ from odoo.models import ValuesType
 
 
 class ResLang(models.Model):
-    """Extend res.lang to clean survey language references on deactivation."""
-
     _inherit = "res.lang"
 
     def write(self, vals: ValuesType) -> Literal[True]:
-        """When languages are disabled, clear corresponding survey languages."""
         if "active" in vals and not vals["active"]:
             self.env["survey.user_input"].sudo().search(
                 [("lang_id", "in", self.ids)]

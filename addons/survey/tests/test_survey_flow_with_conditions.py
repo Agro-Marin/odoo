@@ -87,7 +87,7 @@ class TestSurveyFlowWithConditions(common.TestSurveyCommon, HttpCase):
                 lambda q: q.is_correct
             )
 
-            self._add_question(  # q04
+            self._add_question(
                 page_0,
                 "Question 4",
                 "simple_choice",
@@ -142,7 +142,6 @@ class TestSurveyFlowWithConditions(common.TestSurveyCommon, HttpCase):
             q03_suggested_answers_triggering_q07 = (
                 q03.suggested_answer_ids - q03_suggested_answers_triggering_q04
             )
-            # Make sure to have a case with multiple possible triggers.
             self.assertGreater(len(q03_suggested_answers_triggering_q07), 1)
 
             q07 = self._add_question(
@@ -162,10 +161,8 @@ class TestSurveyFlowWithConditions(common.TestSurveyCommon, HttpCase):
                 ],
             )
 
-        # User opens start page
         self._access_start(survey)
 
-        # -> this should have generated a new user_input with a token
         user_inputs = self.env["survey.user_input"].search(
             [("survey_id", "=", survey.id)]
         )
@@ -173,7 +170,6 @@ class TestSurveyFlowWithConditions(common.TestSurveyCommon, HttpCase):
         self.assertEqual(len(user_inputs.predefined_question_ids), 7)
         answer_token = user_inputs.access_token
 
-        # User begins survey with first page
         response = self._access_page(survey, answer_token)
         self.assertResponse(response, 200)
         csrf_token = self._find_csrf_token(response.text)
@@ -182,12 +178,12 @@ class TestSurveyFlowWithConditions(common.TestSurveyCommon, HttpCase):
         self.assertResponse(r, 200)
 
         answers = {
-            q01: q01.suggested_answer_ids[3],  # Right
-            q02: q02.suggested_answer_ids[1],  # Right
-            q03: q03.suggested_answer_ids[0],  # Wrong
-            q05: q05.suggested_answer_ids[3],  # Right
-            q06: q06.suggested_answer_ids[2],  # Wrong
-            q07: q07.suggested_answer_ids[1],  # Right
+            q01: q01.suggested_answer_ids[3],
+            q02: q02.suggested_answer_ids[1],
+            q03: q03.suggested_answer_ids[0],
+            q05: q05.suggested_answer_ids[3],
+            q06: q06.suggested_answer_ids[2],
+            q07: q07.suggested_answer_ids[1],
         }
 
         self._answer_page(page_0, answers, answer_token, csrf_token)

@@ -17,22 +17,17 @@ from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 from odoo.http import content_disposition, request
 from odoo.tools import format_date, format_datetime, is_html_empty
-from odoo.tools.urls import keep_query, urljoin
+from odoo.tools.urls import keep_query
 
 _logger = logging.getLogger(__name__)
 
 
 class Survey(http.Controller):
-    # ------------------------------------------------------------
-    # ACCESS
-    # ------------------------------------------------------------
+    MAX_UPLOADS_PER_ANSWER = 20
 
     def _fetch_from_access_token(
         self, survey_token: str, answer_token: str | bool
     ) -> tuple[Any, Any]:
-        """Check that given token matches an answer from the given survey_id.
-        Returns a sudo-ed browse record of survey in order to avoid access rights
-        issues now that access is granted through token."""
         SurveySudo, UserInputSudo = (
             request.env["survey.survey"].sudo(),
             request.env["survey.user_input"].sudo(),
@@ -45,9 +40,7 @@ class Survey(http.Controller):
                     "survey_id",
                     "any",
                     Domain("access_token", "=", survey_token)
-                    & Domain(
-                        "active", "in", (True, False)
-                    ),  # keeping active test for UserInput
+                    & Domain("active", "in", (True, False)),
                 )
                 & Domain("access_token", "=", answer_token),
                 limit=1,
@@ -67,25 +60,6 @@ class Survey(http.Controller):
         ensure_token: bool = True,
         check_partner: bool = True,
     ) -> str | bool:
-        """Check survey is open and can be taken. This does not check for
-        security rules, only functional / business rules. It returns a string key
-        allowing further manipulation of validity issues
-
-         * survey_wrong: survey does not exist;
-         * survey_auth: authentication is required;
-         * survey_closed: survey is closed and does not accept input anymore;
-         * survey_void: survey is void and should not be taken;
-         * token_wrong: given token not recognized;
-         * token_required: no token given, but it is required to access the survey;
-         * answer_deadline: token linked to an expired answer;
-
-        :param ensure_token: whether user input existence based on given access token
-          should be enforced or not, depending on the route requesting a token or
-          allowing external world calls;
-
-        :param check_partner: Whether we must check that the partner associated to the target
-          answer corresponds to the active user.
-        """
         if not survey_sudo:
             return "survey_wrong"
 
@@ -105,7 +79,7 @@ class Survey(http.Controller):
 
         if (
             not survey_sudo.page_ids
-            and survey_sudo.questions_layout == "page_per_section"
+            and survey_sudo.questions_layout_effective == "page_per_section"
         ) or not survey_sudo.question_ids:
             return "survey_void"
 
@@ -122,13 +96,11 @@ class Survey(http.Controller):
                 and answer_sudo.partner_id
                 and not answer_token
             ):
-                # answers from public user should not have any partner_id; this indicates probably a cookie issue
                 return "answer_wrong_user"
             if (
                 not request.env.user._is_public()
                 and answer_sudo.partner_id != request.env.user.partner_id
             ):
-                # partner mismatch, probably a cookie issue
                 return "answer_wrong_user"
 
         return True
@@ -140,12 +112,6 @@ class Survey(http.Controller):
         ensure_token: bool = True,
         check_partner: bool = True,
     ) -> dict[str, Any]:
-        """Get back data related to survey and user input, given the ID and access
-        token provided by the route.
-
-         : param ensure_token: whether user input existence should be enforced or not(see ``_check_validity``)
-         : param check_partner: whether the partner of the target answer should be checked (see ``_check_validity``)
-        """
         survey_sudo, answer_sudo = self._fetch_from_access_token(
             survey_token, answer_token
         )
@@ -190,13 +156,11 @@ class Survey(http.Controller):
                 "survey.survey_closed_expired", {"survey": survey_sudo}
             )
         elif error_key == "survey_auth":
-            if not answer_sudo:  # survey is not even started
+            if not answer_sudo:
                 redirect_url = (
                     f"/web/login?redirect=/survey/start/{survey_sudo.access_token}"
                 )
-            elif (
-                answer_sudo.access_token
-            ):  # survey is started but user is not logged in anymore.
+            elif answer_sudo.access_token:
                 if answer_sudo.partner_id and (
                     answer_sudo.partner_id.user_ids or survey_sudo.users_can_signup
                 ):
@@ -223,16 +187,10 @@ class Survey(http.Controller):
 
         return request.redirect("/")
 
-    # ------------------------------------------------------------
-    # TEST / RETRY SURVEY ROUTES
-    # ------------------------------------------------------------
-
     @http.route(
         "/survey/test/<string:survey_token>", type="http", auth="user", website=True
     )
     def survey_test(self, survey_token: str, **kwargs: Any) -> Response:
-        """Test mode for surveys: create a test answer, only for managers or officers
-        testing their surveys"""
         survey_sudo, _dummy = self._fetch_from_access_token(survey_token, False)
         try:
             answer_sudo = survey_sudo._create_answer(
@@ -253,8 +211,6 @@ class Survey(http.Controller):
     def survey_retry(
         self, survey_token: str, answer_token: str, **post: Any
     ) -> Response:
-        """This route is called whenever the user has attempts left and hits the 'Retry' button
-        after failing the survey."""
         access_data = self._get_access_data(
             survey_token, answer_token, ensure_token=True
         )
@@ -266,7 +222,6 @@ class Survey(http.Controller):
             access_data["answer_sudo"],
         )
         if not answer_sudo:
-            # attempts to 'retry' without having tried first
             return request.redirect("/")
 
         try:
@@ -298,10 +253,6 @@ class Survey(http.Controller):
             values["token"] = token
         return values
 
-    # ------------------------------------------------------------
-    # TAKING SURVEY ROUTES
-    # ------------------------------------------------------------
-
     @http.route(
         "/survey/start/<string:survey_token>", type="http", auth="public", website=True
     )
@@ -312,11 +263,6 @@ class Survey(http.Controller):
         email: str | bool = False,
         **post: Any,
     ) -> Response:
-        """Start a survey by providing
-        * a token linked to a survey;
-        * a token linked to an answer or generate a new token if access is allowed;
-        """
-        # Get the current answer token from cookie
         answer_from_cookie = False
         if not answer_token:
             answer_token = request.cookies.get(f"survey_{survey_token}")
@@ -330,9 +276,6 @@ class Survey(http.Controller):
             "answer_wrong_user",
             "token_wrong",
         ):
-            # If the cookie had been generated for another user or does not correspond to any existing answer object
-            # (probably because it has been deleted), ignore it and redo the check.
-            # The cookie will be replaced by a legit value when resolving the URL, so we don't clean it further here.
             access_data = self._get_access_data(survey_token, None, ensure_token=False)
 
         if access_data["validity_code"] is not True:
@@ -358,7 +301,6 @@ class Survey(http.Controller):
             else:
                 return request.render("survey.survey_403_page", {"survey": survey_sudo})
 
-        # When resuming survey, restore language  + always enforce that the language is supported by the survey
         lang = self._get_lang_with_fallback(answer_sudo.sudo(False))
         url_from = f"/survey/{survey_sudo.access_token}/{answer_sudo.access_token}"
         return request.redirect(self.env["ir.http"]._url_for(url_from, lang.code))
@@ -366,19 +308,13 @@ class Survey(http.Controller):
     def _prepare_survey_data(
         self, survey_sudo: Any, answer_sudo: Any, **post: Any
     ) -> dict[str, Any]:
-        """Prepare all data needed for survey template rendering based on user input state.
-
-        :param post:
-            - previous_page_id: from breadcrumb/back button, forces loading previous questions
-            - next_skipped_page: forces display of next skipped question or page
-        """
         data = self._prepare_survey_base_data(survey_sudo, answer_sudo)
         (
             triggering_answers_by_question,
             triggered_questions_by_answer,
             selected_answers,
         ) = answer_sudo._get_conditional_values()
-        if survey_sudo.questions_layout not in ("page_per_question", "conversational"):
+        if survey_sudo.questions_layout_effective != "page_per_question":
             data.update(
                 {
                     "triggering_answers_by_question": {
@@ -396,11 +332,10 @@ class Survey(http.Controller):
 
         page_or_question_key = (
             "question"
-            if survey_sudo.questions_layout in ("page_per_question", "conversational")
+            if survey_sudo.questions_layout_effective == "page_per_question"
             else "page"
         )
 
-        # Breadcrumb / back button: jump to a specific page
         if "previous_page_id" in post:
             return self._prepare_survey_back_navigation_data(
                 data, survey_sudo, answer_sudo, page_or_question_key, post
@@ -423,7 +358,6 @@ class Survey(http.Controller):
     def _prepare_survey_base_data(
         self, survey_sudo: Any, answer_sudo: Any
     ) -> dict[str, Any]:
-        """Build the base rendering context shared by all survey states."""
         data = {
             "is_html_empty": is_html_empty,
             "survey": survey_sudo,
@@ -469,12 +403,10 @@ class Survey(http.Controller):
         page_or_question_key: str,
         post: dict[str, Any],
     ) -> dict[str, Any]:
-        """Handle breadcrumb / back-button navigation to a previous page."""
         try:
             previous_page_or_question_id = int(post["previous_page_id"])
         except ValueError, TypeError:
             return data
-        # Validate the question belongs to this survey before browsing
         if previous_page_or_question_id not in survey_sudo.question_and_page_ids.ids:
             return data
         new_previous_id = survey_sudo._get_next_page_or_question(
@@ -504,7 +436,6 @@ class Survey(http.Controller):
         triggered_questions_by_answer: Any,
         post: dict[str, Any],
     ) -> None:
-        """Populate rendering data for a survey that is currently in progress."""
         next_page_or_question = self._resolve_next_page_or_question(
             survey_sudo, answer_sudo, post
         )
@@ -523,7 +454,7 @@ class Survey(http.Controller):
             if (
                 not answer_sudo.survey_first_submitted
                 and survey_last
-                and survey_sudo.questions_layout != "one_page"
+                and survey_sudo.questions_layout_effective != "one_page"
             ):
                 data["survey_last_triggering_answers"] = (
                     self._get_last_page_triggering_answers(
@@ -553,7 +484,7 @@ class Survey(http.Controller):
                 ),
             }
         )
-        if survey_sudo.questions_layout != "one_page":
+        if survey_sudo.questions_layout_effective != "one_page":
             data["previous_page_id"] = survey_sudo._get_next_page_or_question(
                 answer_sudo, next_page_or_question.id, go_back=True
             ).id
@@ -561,7 +492,6 @@ class Survey(http.Controller):
     def _resolve_next_page_or_question(
         self, survey_sudo: Any, answer_sudo: Any, post: dict[str, Any]
     ) -> Any:
-        """Determine which page or question to show next during survey progression."""
         if answer_sudo.is_session_answer:
             return survey_sudo.session_question_id
 
@@ -586,17 +516,12 @@ class Survey(http.Controller):
         next_page_or_question: Any,
         triggered_questions_by_answer: Any,
     ) -> list[int]:
-        """Get answer IDs on the current page that trigger questions on following pages.
-
-        Used on the last survey page to dynamically toggle the submit/continue button
-        based on which conditional questions would be activated by the selected answers.
-        """
         pages_or_questions = survey_sudo._get_pages_or_questions(answer_sudo)
         following_questions = pages_or_questions.filtered(
             lambda pq: pq.sequence > next_page_or_question.sequence
         )
         next_page_suggested_answers = next_page_or_question.suggested_answer_ids
-        if survey_sudo.questions_layout == "page_per_section":
+        if survey_sudo.questions_layout_effective == "page_per_section":
             following_questions = following_questions.question_ids
             next_page_suggested_answers = (
                 next_page_or_question.question_ids.suggested_answer_ids
@@ -613,10 +538,6 @@ class Survey(http.Controller):
     def _prepare_question_html(
         self, survey_sudo: Any, answer_sudo: Any, **post: Any
     ) -> dict[str, Any]:
-        """Survey page navigation is done in AJAX. This function prepare the 'next page' to display in html
-        and send back this html to the survey_form widget that will inject it into the page.
-        Background url must be given to the caller in order to process its refresh as we don't have the next question
-        object at frontend side."""
         survey_data = self._prepare_survey_data(survey_sudo, answer_sudo, **post)
 
         IrQweb = request.env["ir.qweb"].with_context(
@@ -635,7 +556,7 @@ class Survey(http.Controller):
             answer_sudo.state == "in_progress"
             and not survey_data.get("question", request.env["survey.question"]).is_page
         ):
-            if survey_sudo.questions_layout == "page_per_section":
+            if survey_sudo.questions_layout_effective == "page_per_section":
                 page_ids = survey_sudo.page_ids.ids
                 survey_progress = IrQweb._render(
                     "survey.survey_progression",
@@ -646,10 +567,7 @@ class Survey(http.Controller):
                         + (1 if survey_sudo.progression_mode == "number" else 0),
                     },
                 )
-            elif survey_sudo.questions_layout in (
-                "page_per_question",
-                "conversational",
-            ):
+            elif survey_sudo.questions_layout_effective == "page_per_question":
                 page_ids = (
                     answer_sudo.predefined_question_ids.ids
                     if not answer_sudo.is_session_answer
@@ -684,18 +602,6 @@ class Survey(http.Controller):
     def _apply_url_prefill(
         self, survey_sudo: Any, answer_sudo: Any, post: dict[str, Any]
     ) -> None:
-        """Pre-fill survey answers from URL query parameters.
-
-        Supports two formats:
-        - ``?prefill_<question_id>=<value>`` — explicit prefill by question database ID
-        - ``?Q<question_id>=<value>`` — shorthand form (same as piping syntax)
-
-        For choice questions (simple_choice, dropdown, multiple_choice), the value
-        should be the ``survey.question.answer`` id or the answer label text.
-        For text/numerical/date questions, the value is used directly.
-
-        Only questions that have no existing answer are prefilled (no overwriting).
-        """
         question_ids = {q.id: q for q in survey_sudo.question_ids}
         existing_question_ids = set(
             answer_sudo.user_input_line_ids.mapped("question_id").ids
@@ -723,34 +629,36 @@ class Survey(http.Controller):
         for question_id, raw_value in prefills.items():
             question = question_ids[question_id]
             try:
-                if question.question_type in ("simple_choice", "dropdown"):
-                    # Try value as answer ID first, then as label text
-                    answer = self._resolve_prefill_choice(question, raw_value)
-                    if answer:
-                        answer_sudo._save_lines(question, answer)
-                elif question.question_type == "multiple_choice":
-                    # Comma-separated answer IDs or labels
-                    answers = []
-                    for part in raw_value.split(","):
-                        ans = self._resolve_prefill_choice(question, part.strip())
-                        if ans:
-                            answers.append(ans)
-                    if answers:
-                        answer_sudo._save_lines(question, answers)
-                elif question.question_type in (
-                    "char_box",
-                    "text_box",
-                    "numerical_box",
-                    "date",
-                    "datetime",
-                    "scale",
-                    "nps",
-                    "slider",
-                    "rating",
-                ):
-                    answer_sudo._save_lines(question, raw_value)
+                # A failure here can be a DB-level one (an out-of-int4 scale value
+                # reaches PostgreSQL, not Python), which aborts the transaction. Without
+                # a savepoint the swallow below leaves every later query in this request
+                # dying on InFailedSqlTransaction.
+                with request.env.cr.savepoint():
+                    if question.question_type in ("simple_choice", "dropdown"):
+                        answer = self._resolve_prefill_choice(question, raw_value)
+                        if answer:
+                            answer_sudo._save_lines(question, answer)
+                    elif question.question_type == "multiple_choice":
+                        answers = []
+                        for part in raw_value.split(","):
+                            ans = self._resolve_prefill_choice(question, part.strip())
+                            if ans:
+                                answers.append(ans)
+                        if answers:
+                            answer_sudo._save_lines(question, answers)
+                    elif question.question_type in (
+                        "char_box",
+                        "text_box",
+                        "numerical_box",
+                        "date",
+                        "datetime",
+                        "scale",
+                        "nps",
+                        "slider",
+                        "rating",
+                    ):
+                        answer_sudo._save_lines(question, raw_value)
             except Exception:
-                # Silently skip invalid prefill values — don't block survey start
                 _logger.debug(
                     "Skipping invalid prefill value for question %s",
                     question.id,
@@ -760,19 +668,12 @@ class Survey(http.Controller):
 
     @staticmethod
     def _resolve_prefill_choice(question: Any, raw_value: str) -> int | None:
-        """Resolve a prefill value to a ``survey.question.answer`` id.
-
-        Tries integer ID first, then exact label match (case-insensitive).
-        Returns the answer id or ``None`` if not found.
-        """
-        # Try as numeric answer ID
         try:
             answer_id = int(raw_value)
             if question.suggested_answer_ids.filtered(lambda a: a.id == answer_id):
                 return answer_id
         except ValueError:
             pass
-        # Try as label text (case-insensitive match)
         for answer in question.suggested_answer_ids:
             if (answer.value or "").strip().lower() == raw_value.strip().lower():
                 return answer.id
@@ -802,10 +703,6 @@ class Survey(http.Controller):
             self._prepare_survey_data(access_data["survey_sudo"], answer_sudo, **post),
         )
 
-    # --------------------------------------------------------------------------
-    # ROUTES to handle question images + survey background transitions + Tool
-    # --------------------------------------------------------------------------
-
     @http.route(
         "/survey/<string:survey_token>/get_background_image",
         type="http",
@@ -815,6 +712,11 @@ class Survey(http.Controller):
     )
     def survey_get_background(self, survey_token: str) -> Response:
         survey_sudo, _dummy = self._fetch_from_access_token(survey_token, False)
+        if not survey_sudo or not (
+            survey_sudo.active
+            or survey_sudo.with_user(request.env.user).has_access("read")
+        ):
+            raise werkzeug.exceptions.NotFound
         return (
             request.env["ir.binary"]
             ._get_stream_image_from_record(survey_sudo, "background_image")
@@ -833,9 +735,14 @@ class Survey(http.Controller):
     ) -> Response:
         survey_sudo, _dummy = self._fetch_from_access_token(survey_token, False)
 
+        if not survey_sudo or not (
+            survey_sudo.active
+            or survey_sudo.with_user(request.env.user).has_access("read")
+        ):
+            raise werkzeug.exceptions.NotFound
+
         section = survey_sudo.page_ids.filtered(lambda q: q.id == section_id)
         if not section:
-            # trying to access a question that is not in this survey
             raise werkzeug.exceptions.Forbidden
 
         return (
@@ -889,10 +796,6 @@ class Survey(http.Controller):
             .get_response()
         )
 
-    # ----------------------------------------------------------------
-    # SAVE & CONTINUE LATER
-    # ----------------------------------------------------------------
-
     @http.route(
         "/survey/save_later/<string:survey_token>/<string:answer_token>",
         type="jsonrpc",
@@ -902,7 +805,6 @@ class Survey(http.Controller):
     def survey_save_later(
         self, survey_token: str, answer_token: str, **post: Any
     ) -> dict[str, Any]:
-        """Email the respondent a link to resume their in-progress survey."""
         access_data = self._get_access_data(
             survey_token, answer_token, ensure_token=True
         )
@@ -910,43 +812,108 @@ class Survey(http.Controller):
             return {"error": access_data["validity_code"]}
 
         answer_sudo = access_data["answer_sudo"]
-        survey_sudo = access_data["survey_sudo"]
 
         if not answer_sudo.email:
             return {"error": "no_email"}
 
-        resume_url = urljoin(
-            survey_sudo.get_base_url(),
-            f"/survey/start/{survey_sudo.access_token}?answer_token={answer_sudo.access_token}",
-        )
+        if not answer_sudo._consume_save_later_allowance():
+            return {"error": "too_many_requests"}
 
-        # Send email with resume link
-        template = self.env.ref(
-            "survey.mail_template_survey_save_later", raise_if_not_found=False
+        template = self.env.ref("survey.mail_template_survey_save_later")
+        template.sudo().send_mail(
+            answer_sudo.id,
+            email_values={"email_to": answer_sudo.email},
+            force_send=True,
         )
-        if template:
-            template.sudo().send_mail(
-                answer_sudo.id,
-                email_values={"email_to": answer_sudo.email},
-                force_send=True,
-            )
-        else:
-            # Fallback: simple email via mail.mail
-            self.env["mail.mail"].sudo().create(
-                {
-                    "subject": f"Continue your survey: {survey_sudo.title}",
-                    "email_to": answer_sudo.email,
-                    "body_html": f"<p>You can resume your survey at any time using this link:</p>"
-                    f'<p><a href="{resume_url}">{resume_url}</a></p>',
-                    "auto_delete": True,
-                }
-            ).send()
 
         return {"success": True, "email": answer_sudo.email}
 
-    # ----------------------------------------------------------------
-    # JSON ROUTES to begin / continue survey (ajax navigation) + Tools
-    # ----------------------------------------------------------------
+    @http.route(
+        "/survey/upload/<string:survey_token>/<string:answer_token>",
+        type="http",
+        auth="public",
+        methods=["POST"],
+        csrf=True,
+        website=True,
+    )
+    def survey_upload(
+        self, survey_token: str, answer_token: str, **post: Any
+    ) -> Response:
+        access_data = self._get_access_data(
+            survey_token, answer_token, ensure_token=True
+        )
+        if access_data["validity_code"] is not True:
+            return request.make_json_response(
+                {"error": access_data["validity_code"]}, status=403
+            )
+        answer_sudo = access_data["answer_sudo"]
+        survey_sudo = access_data["survey_sudo"]
+
+        try:
+            question = survey_sudo.question_ids.browse(int(post.get("question_id")))
+        except ValueError, TypeError:
+            return request.make_json_response({"error": "invalid_question"}, status=400)
+        if question not in survey_sudo.question_ids or (
+            question.question_type != "file_upload"
+        ):
+            return request.make_json_response({"error": "invalid_question"}, status=400)
+
+        upload = request.httprequest.files.get("file")
+        if not upload:
+            return request.make_json_response({"error": "no_file"}, status=400)
+
+        content = upload.read(question.file_upload_max_size * 1024 * 1024 + 1)
+        if len(content) > question.file_upload_max_size * 1024 * 1024:
+            return request.make_json_response({"error": "too_large"}, status=413)
+
+        # This route is auth="public" and creates a record per POST. Without a ceiling,
+        # a respondent holding one valid answer token can fill the filestore one upload
+        # at a time; the previous file for the same question is also released here, so
+        # re-uploading does not accumulate.
+        Attachment = request.env["ir.attachment"].sudo()
+        own_domain = [
+            ("res_model", "=", answer_sudo._name),
+            ("res_id", "=", answer_sudo.id),
+        ]
+        if Attachment.search_count(own_domain) >= self.MAX_UPLOADS_PER_ANSWER:
+            return request.make_json_response({"error": "too_many_files"}, status=429)
+
+        previous = answer_sudo.user_input_line_ids.filtered(
+            lambda line: line.question_id == question and line.value_char_box
+        )
+        superseded = Attachment.search(
+            [
+                *own_domain,
+                (
+                    "id",
+                    "in",
+                    [
+                        int(line.value_char_box)
+                        for line in previous
+                        if line.value_char_box.isdigit()
+                    ],
+                ),
+            ]
+        )
+
+        attachment = Attachment.create(
+            {
+                "name": upload.filename,
+                "raw": content,
+                "res_model": answer_sudo._name,
+                "res_id": answer_sudo.id,
+            }
+        )
+        errors = question._check_answer(attachment.id)
+        if errors:
+            attachment.unlink()
+            return request.make_json_response(
+                {"error": "rejected", "message": errors[question.id]}, status=400
+            )
+        superseded.unlink()
+        return request.make_json_response(
+            {"attachment_id": attachment.id, "name": attachment.name}
+        )
 
     @http.route(
         "/survey/begin/<string:survey_token>/<string:answer_token>",
@@ -957,8 +924,6 @@ class Survey(http.Controller):
     def survey_begin(
         self, survey_token: str, answer_token: str, **post: Any
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Route used to start the survey user input and display the first survey page.
-        Returns an empty dict for the correct answers and the first page html."""
         access_data = self._get_access_data(
             survey_token, answer_token, ensure_token=True
         )
@@ -978,7 +943,6 @@ class Survey(http.Controller):
                 answer_sudo.lang_id = lang
         answer_sudo._mark_in_progress()
 
-        # Apply URL parameter prefill (e.g. ?Q42=value or ?prefill_42=value)
         self._apply_url_prefill(survey_sudo, answer_sudo, post)
 
         return {}, self._prepare_question_html(survey_sudo, answer_sudo, **post)
@@ -992,8 +956,6 @@ class Survey(http.Controller):
     def survey_next_question(
         self, survey_token: str, answer_token: str, **post: Any
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Method used to display the next survey question in an ongoing session.
-        Triggered on all attendees screens when the host goes to the next question."""
         access_data = self._get_access_data(
             survey_token, answer_token, ensure_token=True
         )
@@ -1010,13 +972,6 @@ class Survey(http.Controller):
         return {}, self._prepare_question_html(survey_sudo, answer_sudo, **post)
 
     def _check_time_limit_exceeded(self, survey_sudo: Any, answer_sudo: Any) -> bool:
-        """Check if the time limit grace period has passed, preventing late submissions.
-
-        Returns True if the submission should be rejected (cheating detected),
-        False if submission is allowed (within grace period or no time limit).
-        A small grace period (3s for questions, 10s for surveys) accounts for
-        network latency between client timer and server check.
-        """
         if not (
             answer_sudo.survey_time_limit_reached
             or answer_sudo.question_time_limit_reached
@@ -1042,11 +997,6 @@ class Survey(http.Controller):
         correct_answers: dict[str, Any],
         **post: Any,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Determine navigation after a successful page submission.
-
-        Handles four cases: going back via breadcrumb, advancing to next skipped
-        question, advancing to the natural next page, or marking the survey done.
-        """
         if "previous_page_id" in post:
             answer_sudo.last_displayed_page_id = post["previous_page_id"]
             return correct_answers, self._prepare_question_html(
@@ -1060,7 +1010,6 @@ class Survey(http.Controller):
             )
 
         if not answer_sudo.is_session_answer:
-            # Check for skip actions on the most recently answered question(s)
             skip_result = self._check_skip_actions(
                 survey_sudo, answer_sudo, page_or_question_id, correct_answers
             )
@@ -1104,11 +1053,6 @@ class Survey(http.Controller):
     def survey_submit(
         self, survey_token: str, answer_token: str, **post: Any
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Submit a page from the survey.
-
-        Validates access, enforces time/attempt limits, saves answers, and
-        returns correct answers if scoring_type is 'scoring_with_answers_after_page'.
-        """
         access_data = self._get_access_data(
             survey_token, answer_token, ensure_token=True
         )
@@ -1119,6 +1063,10 @@ class Survey(http.Controller):
             access_data["answer_sudo"],
         )
 
+        # Taken before the state is read, so a second request carrying the same token
+        # waits here rather than racing this one to _mark_done().
+        answer_sudo._lock()
+        answer_sudo.invalidate_recordset(["state"])
         if answer_sudo.state == "done":
             return {}, {"error": "unauthorized"}
 
@@ -1136,47 +1084,7 @@ class Survey(http.Controller):
         if self._check_time_limit_exceeded(survey_sudo, answer_sudo):
             return {}, {"error": "unauthorized"}
 
-        # Validate and save answers per question
-        errors = {}
-        for question in questions:
-            inactive_questions = (
-                request.env["survey.question"]
-                if answer_sudo.is_session_answer
-                else answer_sudo._get_inactive_conditional_questions()
-            )
-            if question in inactive_questions:
-                continue
-            answer, comment = self._extract_comment_from_answers(
-                question, post.get(str(question.id))
-            )
-            errors.update(question._check_answer(answer, comment))
-            if not errors.get(question.id):
-                # Enforce quotas on choice answers before saving
-                if (
-                    survey_sudo.quota_ids
-                    and question.question_type
-                    in ("simple_choice", "dropdown", "multiple_choice")
-                    and answer
-                ):
-                    answer_ids = (
-                        [int(a) for a in answer]
-                        if isinstance(answer, list)
-                        else [int(answer)]
-                    )
-                    full_quotas = survey_sudo.quota_ids._check_quota(answer_ids)
-                    if full_quotas:
-                        errors[question.id] = _(
-                            "One or more selected answers have reached their response quota."
-                        )
-                        continue
-                answer_sudo._save_lines(
-                    question,
-                    answer,
-                    comment,
-                    overwrite_existing=survey_sudo.users_can_go_back
-                    or question.save_as_nickname
-                    or question.save_as_email,
-                )
+        errors = self._validate_and_save_page(survey_sudo, answer_sudo, questions, post)
 
         if errors and not (
             answer_sudo.survey_time_limit_reached
@@ -1187,12 +1095,9 @@ class Survey(http.Controller):
         if not answer_sudo.is_session_answer:
             answer_sudo._clear_inactive_conditional_answers()
 
-        # Recompute calculated fields after saving answers
         answer_sudo._evaluate_calculated_fields()
 
-        # Fire page_submitted webhook
-        if survey_sudo.webhook_url and not answer_sudo.test_entry:
-            answer_sudo._fire_webhook("page_submitted")
+        answer_sudo._fire_webhook("page_submitted")
 
         correct_answers = {}
         if survey_sudo.scoring_type == "scoring_with_answers_after_page":
@@ -1203,7 +1108,7 @@ class Survey(http.Controller):
 
         if (
             answer_sudo.survey_time_limit_reached
-            or survey_sudo.questions_layout == "one_page"
+            or survey_sudo.questions_layout_effective == "one_page"
         ):
             answer_sudo._mark_done()
             return correct_answers, self._prepare_question_html(
@@ -1214,6 +1119,63 @@ class Survey(http.Controller):
             survey_sudo, answer_sudo, page_or_question_id, correct_answers, **post
         )
 
+    def _validate_and_save_page(
+        self, survey_sudo: Any, answer_sudo: Any, questions: Any, post: dict[str, Any]
+    ) -> dict[int, str]:
+        gating_questions = (
+            survey_sudo.question_and_page_ids.triggering_answer_ids.question_id
+            | survey_sudo.question_and_page_ids.triggering_question_id
+        )
+        inactive_questions = (
+            request.env["survey.question"]
+            if answer_sudo.is_session_answer
+            else answer_sudo._get_inactive_conditional_questions()
+        )
+        errors = {}
+        for question in questions:
+            if question in inactive_questions:
+                continue
+            answer, comment = self._extract_comment_from_answers(
+                question, post.get(str(question.id))
+            )
+            errors.update(question._check_answer(answer, comment))
+            if errors.get(question.id):
+                continue
+            if quota_error := self._check_answer_quota(survey_sudo, question, answer):
+                errors[question.id] = quota_error
+                continue
+            answer_sudo._save_lines(
+                question,
+                answer,
+                comment,
+                overwrite_existing=survey_sudo.users_can_go_back
+                or question.save_as_nickname
+                or question.save_as_email,
+            )
+            if question in gating_questions and not answer_sudo.is_session_answer:
+                inactive_questions = answer_sudo._get_inactive_conditional_questions()
+        return errors
+
+    def _check_answer_quota(
+        self, survey_sudo: Any, question: Any, answer: Any
+    ) -> str | None:
+        if not survey_sudo.quota_ids or not answer:
+            return None
+        if question.question_type not in (
+            "simple_choice",
+            "dropdown",
+            "multiple_choice",
+        ):
+            return None
+        answer_ids = (
+            [int(a) for a in answer] if isinstance(answer, list) else [int(answer)]
+        )
+        if survey_sudo.quota_ids._check_quota(answer_ids):
+            return _("One or more selected answers have reached their response quota.")
+        return None
+
+    _SKIP_ACTION_PRECEDENCE = {"end_survey": 0, "redirect": 1, "skip_to": 2}
+
     def _check_skip_actions(
         self,
         survey_sudo: Any,
@@ -1221,28 +1183,27 @@ class Survey(http.Controller):
         page_or_question_id: int,
         correct_answers: dict[str, Any],
     ) -> tuple[dict[str, Any], dict[str, Any]] | None:
-        """Check if any answer on the current page has a skip action.
-
-        Examines the most recently saved answer lines for the submitted
-        question(s) and returns a navigation override if a skip action
-        (skip_to, end_survey, redirect) is configured.
-
-        Returns ``None`` if normal navigation should proceed, otherwise
-        returns the ``(correct_answers, response_data)`` tuple.
-        """
-        # Find the questions that were just submitted (use sudo env for ACL)
         Question = survey_sudo.env["survey.question"]
-        if survey_sudo.questions_layout in ("page_per_question", "conversational"):
+        if survey_sudo.questions_layout_effective == "page_per_question":
             submitted_questions = Question.browse(page_or_question_id)
         else:
             page = Question.browse(page_or_question_id)
             submitted_questions = page.question_ids if page.is_page else page
 
-        # Check selected answers for skip actions
-        for line in answer_sudo.user_input_line_ids.filtered(
+        selected = answer_sudo.user_input_line_ids.filtered(
             lambda ln: ln.question_id in submitted_questions and ln.suggested_answer_id
+        ).suggested_answer_id
+        # A multiple-choice question can carry several answers with different skip
+        # actions. Taking whichever line the recordset happened to yield first made the
+        # winner an artifact of insertion order; the most terminal action wins now, so
+        # picking "end the survey" alongside "jump to Q7" ends the survey.
+        for answer in selected.sorted(
+            lambda a: (
+                self._SKIP_ACTION_PRECEDENCE.get(a.skip_action, 99),
+                a.sequence,
+                a.id,
+            )
         ):
-            answer = line.suggested_answer_id
             if answer.skip_action == "end_survey":
                 answer_sudo._mark_done()
                 return correct_answers, self._prepare_question_html(
@@ -1256,9 +1217,6 @@ class Survey(http.Controller):
             elif answer.skip_action == "skip_to" and answer.skip_target_id:
                 target = answer.skip_target_id
                 if target.id in survey_sudo.question_and_page_ids.ids:
-                    # Set last_displayed_page_id to the question BEFORE the
-                    # target so _get_next_page_or_question returns the target
-                    # itself (its semantics is "what comes after this page?").
                     before_target = survey_sudo._get_next_page_or_question(
                         answer_sudo, target.id, go_back=True
                     )
@@ -1271,34 +1229,20 @@ class Survey(http.Controller):
     def _extract_comment_from_answers(
         self, question: Any, answers: Any
     ) -> tuple[Any, str | None]:
-        """Answers is a custom structure depending of the question type
-        that can contain question answers but also comments that need to be
-        extracted before validating and saving answers.
-        If multiple answers, they are listed in an array, except for matrix
-        where answers are structured differently. See input and output for
-        more info on data structures.
-        :param question: survey.question
-        :param answers:
-          * question_type: free_text, text_box, numerical_box, date, datetime
-            answers is a string containing the value
-          * question_type: simple_choice with no comment
-            answers is a string containing the value ('question_id_1')
-          * question_type: simple_choice with comment
-            ['question_id_1', {'comment': str}]
-          * question_type: multiple choice
-            ['question_id_1', 'question_id_2'] + [{'comment': str}] if holds a comment
-          * question_type: matrix
-            {'matrix_row_id_1': ['question_id_1', 'question_id_2'],
-             'matrix_row_id_2': ['question_id_1', 'question_id_2']
-            } + {'comment': str} if holds a comment
-        :return: tuple(
-          same structure without comment,
-          extracted comment for given question
-        )"""
         comment = None
         answers_no_comment = []
-        if answers:
-            if question.question_type in ("matrix", "likert"):
+        if not question._is_well_shaped_answer(answers):
+            # Hand the payload on unchanged; _check_answer refuses it with a message.
+            # Reaching into it here -- `"comment" in answers` on a number -- raised out
+            # of the request instead.
+            return answers, None
+        if not question._is_unanswered(answers):
+            if question.question_type in (
+                "matrix",
+                "likert",
+                "ranking",
+                "constant_sum",
+            ):
                 if "comment" in answers:
                     comment = answers["comment"].strip()
                     answers.pop("comment")
@@ -1315,10 +1259,6 @@ class Survey(http.Controller):
                     answers_no_comment = answers_no_comment[0]
         return answers_no_comment, comment
 
-    # ------------------------------------------------------------
-    # COMPLETED SURVEY ROUTES
-    # ------------------------------------------------------------
-
     @http.route(
         "/survey/print/<string:survey_token>",
         type="http",
@@ -1333,8 +1273,6 @@ class Survey(http.Controller):
         answer_token: str | None = None,
         **post: Any,
     ) -> Response:
-        """Display an survey in printable view; if <answer_token> is set, it will
-        grab the answers of the user_input_id that has <answer_token>."""
         access_data = self._get_access_data(
             survey_token, answer_token, ensure_token=False, check_partner=False
         )
@@ -1366,7 +1304,9 @@ class Survey(http.Controller):
                     request.env, dt, dt_format=False
                 ),
                 "format_date": lambda date: format_date(request.env, date),
-                "graph_data": json.dumps(answer_sudo._prepare_statistics()[answer_sudo])
+                "graph_data": json.dumps(
+                    answer_sudo._prepare_answer_statistics()[answer_sudo]
+                )
                 if answer_sudo
                 and survey_sudo.scoring_type
                 in ["scoring_with_answers", "scoring_with_answers_after_page"]
@@ -1398,7 +1338,6 @@ class Survey(http.Controller):
         website=True,
     )
     def survey_get_certification_preview(self, survey: Any, **kwargs: Any) -> Response:
-        """Generate a preview of the certification PDF without persisting the attempt."""
         if not request.env.user.has_group("survey.group_survey_user"):
             raise werkzeug.exceptions.Forbidden
 
@@ -1417,7 +1356,6 @@ class Survey(http.Controller):
         website=True,
     )
     def survey_get_certification(self, survey_id: int, **kwargs: Any) -> Response:
-        """The certification document can be downloaded as long as the user has succeeded the certification"""
         survey = (
             request.env["survey.survey"]
             .sudo()
@@ -1425,7 +1363,6 @@ class Survey(http.Controller):
         )
 
         if not survey:
-            # no certification found
             return request.redirect("/")
 
         succeeded_attempt = (
@@ -1436,19 +1373,21 @@ class Survey(http.Controller):
                     ("partner_id", "=", request.env.user.partner_id.id),
                     ("survey_id", "=", survey_id),
                     ("scoring_success", "=", True),
+                    # _mark_done already refuses to mail a certificate for a test
+                    # entry; downloading one had no such rule, so a test run that
+                    # scored well produced a real certificate.
+                    ("test_entry", "=", False),
                 ],
+                # The best passing attempt, not whichever the default order returned.
+                order="scoring_percentage desc, id desc",
                 limit=1,
             )
         )
 
         if not succeeded_attempt:
-            raise UserError(_("The user has not succeeded the certification"))
+            return request.redirect("/")
 
         return self._generate_report(succeeded_attempt, download=True)
-
-    # ------------------------------------------------------------
-    # REPORTING SURVEY ROUTES AND TOOLS
-    # ------------------------------------------------------------
 
     @http.route(
         '/survey/results/<model("survey.survey"):survey>',
@@ -1459,30 +1398,16 @@ class Survey(http.Controller):
     def survey_report(
         self, survey: Any, answer_token: str | None = None, **post: Any
     ) -> Response:
-        """Display survey Results & Statistics for given survey.
-
-        New structure: {
-            'survey': current survey browse record,
-            'question_and_page_data': see ``SurveyQuestion._prepare_statistics()``,
-            'survey_data'= see ``SurveySurvey._prepare_statistics()``
-            'search_filters': [],
-            'search_finished': either filter on finished inputs only or not,
-            'search_passed': either filter on passed inputs only or not,
-            'search_failed': either filter on failed inputs only or not,
-        }
-        """
         user_input_lines, search_filters = self._extract_filters_data(survey, post)
-        survey_data = survey._prepare_statistics(user_input_lines)
-        question_and_page_data = survey.question_and_page_ids._prepare_statistics(
-            user_input_lines
+        survey_data = survey._prepare_survey_statistics(user_input_lines)
+        question_and_page_data = (
+            survey.question_and_page_ids._prepare_question_statistics(user_input_lines)
         )
 
         template_values = {
-            # survey and its statistics
             "survey": survey,
             "question_and_page_data": question_and_page_data,
             "survey_data": survey_data,
-            # search
             "search_filters": search_filters,
             "search_finished": post.get("finished") == "true",
             "search_failed": post.get("failed") == "true",
@@ -1495,21 +1420,13 @@ class Survey(http.Controller):
         return request.render("survey.survey_page_statistics", template_values)
 
     @http.route(
-        "/survey/results/<int:survey_id>/cross_tabulation",
+        '/survey/results/<model("survey.survey"):survey>/cross_tabulation',
         type="jsonrpc",
         auth="user",
     )
     def survey_cross_tabulation(
-        self, survey_id: int, question_row_id: int, question_col_id: int
+        self, survey: Any, question_row_id: int, question_col_id: int
     ) -> dict[str, Any]:
-        """Return a cross-tabulation (contingency table) between two questions.
-
-        Called via JSON-RPC from the results page to generate on-demand
-        cross-tab analysis between any pair of questions.
-        """
-        survey = request.env["survey.survey"].browse(survey_id)
-        if not survey.exists():
-            return {"error": "Survey not found"}
         return survey._prepare_cross_tabulation(question_row_id, question_col_id)
 
     def _generate_report(self, user_input: Any, download: bool = True) -> Response:
@@ -1539,15 +1456,6 @@ class Survey(http.Controller):
         )
 
     def _get_results_page_user_input_domain(self, survey: Any, **post: Any) -> Domain:
-        """Build the base domain for filtering survey results.
-
-        Supports URL parameters:
-        - ``finished``: only completed responses
-        - ``failed`` / ``passed``: score-based filter
-        - ``date_from`` / ``date_to``: date range (YYYY-MM-DD)
-        - ``score_min`` / ``score_max``: score percentage range (0-100)
-        - ``quality_min``: minimum quality score (0-100)
-        """
         user_input_domains = []
         if post.get("finished"):
             user_input_domains.append(Domain("state", "=", "done"))
@@ -1558,13 +1466,11 @@ class Survey(http.Controller):
         elif post.get("passed"):
             user_input_domains.append(Domain("scoring_success", "=", True))
 
-        # Date range filter
         if post.get("date_from"):
             user_input_domains.append(Domain("end_datetime", ">=", post["date_from"]))
         if post.get("date_to"):
             user_input_domains.append(Domain("end_datetime", "<=", post["date_to"]))
 
-        # Score range filter
         if post.get("score_min"):
             with contextlib.suppress(ValueError):
                 user_input_domains.append(
@@ -1576,7 +1482,6 @@ class Survey(http.Controller):
                     Domain("scoring_percentage", "<=", float(post["score_max"]))
                 )
 
-        # Quality score filter
         if post.get("quality_min"):
             with contextlib.suppress(ValueError):
                 user_input_domains.append(
@@ -1591,22 +1496,11 @@ class Survey(http.Controller):
     def _extract_filters_data(
         self, survey: Any, post: dict[str, Any]
     ) -> tuple[Any, list[dict[str, Any]]]:
-        """Extracts the filters from the URL to returns the related user_input_lines and
-        the parameters used to render/remove the filters on the results page (search_filters).
-
-        The matching user_input_lines are all the lines tied to the user inputs which respect
-        the survey base domain and which have lines matching all the filters.
-        For example, with the filter 'Where do you live?|Brussels', we need to display ALL the lines
-        of the survey user inputs which have answered 'Brussels' to this question.
-
-        :return (recordset, List[dict]): all matching user input lines, each search filter data
-        """
         user_input_line_subdomains = []
         search_filters = []
 
         answer_by_column, user_input_lines_ids = self._get_filters_from_post(post)
 
-        # Matrix, Multiple choice, Simple choice filters
         if answer_by_column:
             answer_ids, row_ids = [], []
             for answer_column_id, answer_row_ids in answer_by_column.items():
@@ -1616,19 +1510,15 @@ class Survey(http.Controller):
             answers_and_rows = request.env["survey.question.answer"].browse(
                 answer_ids + row_ids
             )
-            # For performance, accessing 'a.matrix_question_id' caches all useful fields of the
-            # answers and rows records, avoiding unnecessary queries.
             answers = answers_and_rows.filtered(lambda a: not a.matrix_question_id)
 
             for answer in answers:
                 if not answer_by_column[answer.id]:
-                    # Simple/Multiple choice
                     user_input_line_subdomains.append(
                         answer._get_answer_matching_domain()
                     )
                     search_filters.append(self._prepare_search_filter_answer(answer))
                 else:
-                    # Matrix
                     for row_id in answer_by_column[answer.id]:
                         row = answers_and_rows.filtered(
                             lambda answer_or_row, rid=row_id: answer_or_row.id == rid
@@ -1640,7 +1530,6 @@ class Survey(http.Controller):
                             self._prepare_search_filter_answer(answer, row)
                         )
 
-        # Char_box, Text_box, Numerical_box, Date, Datetime filters
         if user_input_lines_ids:
             user_input_lines = request.env["survey.user_input.line"].browse(
                 user_input_lines_ids
@@ -1653,10 +1542,8 @@ class Survey(http.Controller):
                     self._prepare_search_filter_input_line(input_line)
                 )
 
-        # Compute base domain
         user_input_domain = self._get_results_page_user_input_domain(survey, **post)
 
-        # Add filters domain to the base domain
         if user_input_line_subdomains:
             all_required_lines_domains = [
                 [
@@ -1672,7 +1559,6 @@ class Survey(http.Controller):
                 [user_input_domain, *all_required_lines_domains]
             )
 
-        # Get the matching user input lines
         user_inputs_query = (
             request.env["survey.user_input"].sudo()._search(user_input_domain)
         )
@@ -1685,18 +1571,6 @@ class Survey(http.Controller):
     def _get_filters_from_post(
         self, post: dict[str, Any]
     ) -> tuple[defaultdict[int, list[int]], list[int]]:
-        """Extract the filters from post depending on the model that needs to be called to retrieve the filtered answer data.
-        Simple choice and multiple choice question types are mapped onto empty row_id.
-        Input/output example with respectively matrix, simple_choice and char_box filters:
-            input: 'A,1,24|A,0,13|L,0,36'
-            output:
-                answer_by_column: {24: [1], 13: []}
-                user_input_lines_ids: [36]
-
-        * Model short key = 'A' : Match a `survey.question.answer` record (simple_choice, multiple_choice, matrix)
-        * Model short key = 'L' : Match a `survey.user_input.line` record (char_box, text_box, numerical_box, date, datetime)
-        :rtype: (collections.defaultdict[int, list[int]], list[int])
-        """
         answer_by_column = defaultdict(list)
         user_input_lines_ids = []
 
@@ -1724,7 +1598,6 @@ class Survey(http.Controller):
     def _prepare_search_filter_answer(
         self, answer: Any, row: Any = False
     ) -> dict[str, Any]:
-        """Format parameters used to render/remove this filter on the results page."""
         return {
             "question_id": answer.question_id.id,
             "question": answer.question_id.title,
@@ -1735,7 +1608,6 @@ class Survey(http.Controller):
         }
 
     def _prepare_search_filter_input_line(self, user_input_line: Any) -> dict[str, Any]:
-        """Format parameters used to render/remove this filter on the results page."""
         return {
             "question_id": user_input_line.question_id.id,
             "question": user_input_line.question_id.title,
@@ -1746,7 +1618,6 @@ class Survey(http.Controller):
         }
 
     def _get_lang_with_fallback(self, user_input: Any) -> Any:
-        """:return: the most suitable language for the user that is supported by the survey."""
         user_input.ensure_one()
         user_input_sudo = user_input.sudo()
         if user_input_sudo.lang_id:
@@ -1759,7 +1630,6 @@ class Survey(http.Controller):
         supported_lang_codes_set = set(supported_lang_codes)
         if lang_code in supported_lang_codes_set:
             return ResLang._lang_get(lang_code)
-        # Take the first frontend language supported by the survey and if there are none, the first survey language
         return ResLang._lang_get(
             next(
                 (
@@ -1771,17 +1641,12 @@ class Survey(http.Controller):
             )
         )
 
-    # ------------------------------------------------------------
-    # EXPORT
-    # ------------------------------------------------------------
-
     @http.route(
         '/survey/results/<model("survey.survey"):survey>/export/csv',
         type="http",
         auth="user",
     )
     def survey_export_csv(self, survey: Any, **post: Any) -> Response:
-        """Export all completed survey responses as a CSV file."""
         header, rows = self._build_export_data(survey)
 
         output = io.StringIO()
@@ -1805,7 +1670,6 @@ class Survey(http.Controller):
         auth="user",
     )
     def survey_export_xlsx(self, survey: Any, **post: Any) -> Response:
-        """Export all completed survey responses as an XLSX file with formatting."""
         import openpyxl
         from openpyxl.styles import Alignment, Font, PatternFill
         from openpyxl.utils import get_column_letter
@@ -1816,7 +1680,6 @@ class Survey(http.Controller):
         ws = wb.active
         ws.title = "Responses"
 
-        # Header styling
         header_font = Font(bold=True, color="FFFFFF")
         header_fill = PatternFill(
             start_color="714B67", end_color="714B67", fill_type="solid"
@@ -1827,22 +1690,19 @@ class Survey(http.Controller):
             cell.fill = header_fill
             cell.alignment = Alignment(horizontal="center", wrap_text=True)
 
-        # Data rows
         for row_idx, row_data in enumerate(rows, 2):
             for col_idx, value in enumerate(row_data, 1):
                 ws.cell(row=row_idx, column=col_idx, value=value)
 
-        # Auto-width columns (capped at 40)
         for col_idx in range(1, len(header) + 1):
             max_len = max(
                 len(str(ws.cell(row=r, column=col_idx).value or ""))
-                for r in range(1, min(len(rows) + 2, 50))  # sample first 50 rows
+                for r in range(1, min(len(rows) + 2, 50))
             )
             ws.column_dimensions[get_column_letter(col_idx)].width = min(
                 max_len + 2, 40
             )
 
-        # Freeze header row
         ws.freeze_panes = "A2"
 
         output = io.BytesIO()
@@ -1861,11 +1721,6 @@ class Survey(http.Controller):
         )
 
     def _build_export_data(self, survey: Any) -> tuple[list[str], list[list]]:
-        """Build header and data rows for CSV/XLSX export.
-
-        Returns ``(header, rows)`` where header is a list of column names
-        and rows is a list of lists with one entry per response.
-        """
         user_inputs = request.env["survey.user_input"].search(
             [
                 ("survey_id", "=", survey.id),
@@ -1913,13 +1768,16 @@ class Survey(http.Controller):
                 else "",
             ]
 
-            lines = user_input.user_input_line_ids
+            lines_by_question = user_input.user_input_line_ids.grouped("question_id")
             for question in questions:
-                q_lines = lines.filtered(lambda ln, q=question: ln.question_id == q)
+                q_lines = lines_by_question.get(
+                    question, request.env["survey.user_input.line"]
+                )
                 if question.question_type in ("matrix", "likert"):
+                    lines_by_row = q_lines.grouped("matrix_row_id")
                     for matrix_row in question.matrix_row_ids:
-                        row_lines = q_lines.filtered(
-                            lambda ln, r=matrix_row: ln.matrix_row_id == r
+                        row_lines = lines_by_row.get(
+                            matrix_row, request.env["survey.user_input.line"]
                         )
                         row.append(
                             ", ".join(
@@ -1974,13 +1832,17 @@ class Survey(http.Controller):
                     )
                 else:
                     row.append("")
-            rows.append(row)
+            rows.append([self._sanitize_export_cell(cell) for cell in row])
 
         return header, rows
 
-    # ------------------------------------------------------------
-    # CROSS-TABULATION
-    # ------------------------------------------------------------
+    _FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")
+
+    @staticmethod
+    def _sanitize_export_cell(value: Any) -> Any:
+        if isinstance(value, str) and value.startswith(Survey._FORMULA_TRIGGERS):
+            return f"'{value}"
+        return value
 
     @http.route(
         '/survey/results/<model("survey.survey"):survey>/cross-tab',
@@ -1989,11 +1851,6 @@ class Survey(http.Controller):
         website=True,
     )
     def survey_cross_tab(self, survey: Any, **post: Any) -> Response:
-        """Display a cross-tabulation (contingency table) between two questions.
-
-        The two question IDs are passed as ``q_row`` and ``q_col`` GET parameters.
-        When absent, shows a selector form to pick the questions.
-        """
         choice_questions = survey.question_ids.filtered(
             lambda q: (
                 q.question_type
@@ -2009,8 +1866,11 @@ class Survey(http.Controller):
         )
 
         cross_tab_data = {}
-        q_row = int(post.get("q_row", 0))
-        q_col = int(post.get("q_col", 0))
+        try:
+            q_row = int(post.get("q_row") or 0)
+            q_col = int(post.get("q_col") or 0)
+        except ValueError, TypeError:
+            q_row = q_col = 0
         if q_row and q_col and q_row != q_col:
             cross_tab_data = survey._prepare_cross_tabulation(q_row, q_col)
 
@@ -2025,23 +1885,12 @@ class Survey(http.Controller):
             },
         )
 
-    # ------------------------------------------------------------
-    # RESPONDENT SEGMENTATION
-    # ------------------------------------------------------------
-
     @http.route(
         '/survey/results/<model("survey.survey"):survey>/segments',
         type="jsonrpc",
         auth="user",
     )
     def survey_segments(self, survey: Any, **post: Any) -> dict[str, Any]:
-        """Return respondent segmentation data for the analytics dashboard.
-
-        Segments respondents by:
-        - Score bands (0-25%, 25-50%, 50-75%, 75-100%)
-        - Completion time quartiles
-        - Quality score tiers (Low/Medium/High)
-        """
         request.env.cr.execute(
             """
             SELECT
@@ -2066,8 +1915,7 @@ class Survey(http.Controller):
                 "total": 0,
             }
 
-        # Score bands
-        bands = {"0-25%": 0, "25-50%": 0, "50-75%": 0, "75-100%": 0}
+        bands = dict.fromkeys(("0-25%", "25-50%", "50-75%", "75-100%"), 0)
         for score, _quality, _dur in rows:
             if score < 25:
                 bands["0-25%"] += 1
@@ -2078,45 +1926,50 @@ class Survey(http.Controller):
             else:
                 bands["75-100%"] += 1
 
-        # Quality tiers
-        tiers = {"Low (0-33)": 0, "Medium (34-66)": 0, "High (67-100)": 0}
+        tiers = dict.fromkeys(("low", "medium", "high"), 0)
         for _score, quality, _dur in rows:
             if quality <= 33:
-                tiers["Low (0-33)"] += 1
+                tiers["low"] += 1
             elif quality <= 66:
-                tiers["Medium (34-66)"] += 1
+                tiers["medium"] += 1
             else:
-                tiers["High (67-100)"] += 1
+                tiers["high"] += 1
 
-        # Duration buckets (based on quartiles of actual data)
         durations = sorted(d for _s, _q, d in rows if d and d > 0)
         if durations:
             q1 = durations[len(durations) // 4]
             median = durations[len(durations) // 2]
             q3 = durations[3 * len(durations) // 4]
             buckets = {
-                f"< {q1:.0f} min": len([d for d in durations if d < q1]),
-                f"{q1:.0f}-{median:.0f} min": len(
+                _("< %(minutes).0f min", minutes=q1): len(
+                    [d for d in durations if d < q1]
+                ),
+                _("%(low).0f-%(high).0f min", low=q1, high=median): len(
                     [d for d in durations if q1 <= d < median]
                 ),
-                f"{median:.0f}-{q3:.0f} min": len(
+                _("%(low).0f-%(high).0f min", low=median, high=q3): len(
                     [d for d in durations if median <= d < q3]
                 ),
-                f"> {q3:.0f} min": len([d for d in durations if d >= q3]),
+                _("> %(minutes).0f min", minutes=q3): len(
+                    [d for d in durations if d >= q3]
+                ),
             }
         else:
             buckets = {}
 
         return {
             "score_bands": [{"label": k, "count": v} for k, v in bands.items()],
-            "quality_tiers": [{"label": k, "count": v} for k, v in tiers.items()],
+            "quality_tiers": [
+                {"label": label, "count": tiers[key]}
+                for key, label in (
+                    ("low", _("Low (0-33)")),
+                    ("medium", _("Medium (34-66)")),
+                    ("high", _("High (67-100)")),
+                )
+            ],
             "duration_buckets": [{"label": k, "count": v} for k, v in buckets.items()],
             "total": len(rows),
         }
-
-    # ------------------------------------------------------------
-    # COMPARISON REPORTS
-    # ------------------------------------------------------------
 
     @http.route(
         '/survey/results/<model("survey.survey"):survey>/compare',
@@ -2132,12 +1985,6 @@ class Survey(http.Controller):
         period_b_to: str = "",
         **post: Any,
     ) -> dict[str, Any]:
-        """Compare survey results between two time periods.
-
-        Returns per-question statistics for each period (counts, averages,
-        correct answer rates) and deltas between them.
-        """
-
         def _get_lines_for_period(date_from, date_to):
             domain = [
                 ("survey_id", "=", survey.id),
@@ -2173,7 +2020,6 @@ class Survey(http.Controller):
         period_a = _get_lines_for_period(period_a_from, period_a_to)
         period_b = _get_lines_for_period(period_b_from, period_b_to)
 
-        # Compute deltas
         deltas = {}
         for key in ("count", "avg_score", "avg_quality", "success_rate"):
             a_val = period_a.get(key)
@@ -2189,10 +2035,6 @@ class Survey(http.Controller):
             "deltas": deltas,
         }
 
-    # ------------------------------------------------------------
-    # TREND ANALYSIS
-    # ------------------------------------------------------------
-
     @http.route(
         '/survey/results/<model("survey.survey"):survey>/trends',
         type="jsonrpc",
@@ -2201,12 +2043,6 @@ class Survey(http.Controller):
     def survey_trends(
         self, survey: Any, granularity: str = "day", **post: Any
     ) -> dict[str, Any]:
-        """Return time-series data for survey responses.
-
-        :param granularity: 'day', 'week', or 'month'
-        :returns: dict with ``labels`` (date strings), ``counts`` (response counts),
-            and ``avg_scores`` (average score percentages, empty if no scoring).
-        """
         if granularity not in ("day", "week", "month"):
             granularity = "day"
 

@@ -9,13 +9,16 @@ from werkzeug.wrappers import Response
 
 from odoo import fields, http
 from odoo.http import request
-from odoo.tools import escape_psql, is_html_empty
+from odoo.tools import is_html_empty
 
 
 class UserInputSession(http.Controller):
+    # The host screen scrolls free-text answers live; past this many the display is
+    # unusable anyway. The count of what was left out travels with the payload rather
+    # than the slice being silent about it.
+    MAX_LIVE_ANSWERS = 100
+
     def _fetch_from_token(self, survey_token: str) -> Any:
-        """Check that given survey_token matches a survey 'access_token'.
-        Unlike the regular survey controller, user trying to access the survey must have full access rights!"""
         return request.env["survey.survey"].search(
             [("access_token", "=", survey_token)]
         )
@@ -23,8 +26,6 @@ class UserInputSession(http.Controller):
     def _fetch_from_session_code(
         self, session_code: str
     ) -> tuple[Any, dict[str, Any] | None]:
-        """Matches a survey against a passed session_code, and checks if it is valid.
-        If it is valid, returns the start url. Else, the error type."""
         if not session_code:
             return None, {"error": "survey_wrong"}
         survey = (
@@ -43,10 +44,6 @@ class UserInputSession(http.Controller):
             }
         return None, {"error": "survey_session_not_launched"}
 
-    # ------------------------------------------------------------
-    # SURVEY SESSION MANAGEMENT
-    # ------------------------------------------------------------
-
     @http.route(
         "/survey/session/manage/<string:survey_token>",
         type="http",
@@ -54,16 +51,6 @@ class UserInputSession(http.Controller):
         website=True,
     )
     def survey_session_manage(self, survey_token: str, **kwargs: Any) -> Response:
-        """Main route used by the host to 'manager' the session.
-        - If the state of the session is 'ready'
-          We render a template allowing the host to showcase the different options of the session
-          and to actually start the session.
-          If there are no questions, a "void content" is displayed instead to avoid displaying a
-          blank survey.
-        - If the state of the session is 'in_progress'
-          We render a template allowing the host to show the question results, display the attendees
-          leaderboard or go to the next question of the session."""
-
         survey = self._fetch_from_token(survey_token)
 
         if not survey:
@@ -79,7 +66,6 @@ class UserInputSession(http.Controller):
                     },
                 )
             return request.render("survey.user_input_session_open", {"survey": survey})
-        # Note that at this stage survey.session_state can be False meaning that the survey has ended (session closed)
         return request.render(
             "survey.user_input_session_manage",
             self._prepare_manage_session_values(survey),
@@ -94,31 +80,9 @@ class UserInputSession(http.Controller):
     def survey_session_next_question(
         self, survey_token: str, go_back: bool = False, **kwargs: Any
     ) -> dict[str, Any]:
-        """This route is called when the host goes to the next question of the session.
-
-        It's not a regular 'request.render' route because we handle the transition between
-        questions using a AJAX call to be able to display a bioutiful fade in/out effect.
-
-        It triggers the next question of the session.
-
-        We artificially add 1 second to the 'current_question_start_time' to account for server delay.
-        As the timing can influence the attendees score, we try to be fair with everyone by giving them
-        an extra second before we start counting down.
-
-        Frontend should take the delay into account by displaying the appropriate animations.
-
-        Writing the next question on the survey is sudo'ed to avoid potential access right issues.
-        e.g: a survey user can create a live session from any survey but they can only write
-        on their own survey.
-
-        In addition to return a pre-rendered html template with the next question, we also return the background
-        to display. Background image depends on the next question to display and cannot be extracted from the
-        html rendered question template. The background needs to be changed at frontend side on a specific selector."""
-
         survey = self._fetch_from_token(survey_token)
 
         if not survey or not survey.session_state:
-            # no open session
             return {}
 
         if survey.session_state == "ready":
@@ -126,7 +90,6 @@ class UserInputSession(http.Controller):
 
         next_question = survey._get_session_next_question(go_back)
 
-        # using datetime.datetime because we want the millis portion
         if next_question:
             now = datetime.datetime.now(UTC)
             survey.sudo().write(
@@ -163,15 +126,9 @@ class UserInputSession(http.Controller):
     def survey_session_results(
         self, survey_token: str, **kwargs: Any
     ) -> dict[str, Any] | bool:
-        """This route is called when the host shows the current question's results.
-
-        It's not a regular 'request.render' route because we handle the display of results using
-        an AJAX request to be able to include the results in the currently displayed page."""
-
         survey = self._fetch_from_token(survey_token)
 
         if not survey or survey.session_state != "in_progress":
-            # no open session
             return False
 
         user_input_lines = request.env["survey.user_input.line"].search(
@@ -191,15 +148,9 @@ class UserInputSession(http.Controller):
         website=True,
     )
     def survey_session_leaderboard(self, survey_token: str, **kwargs: Any) -> str:
-        """This route is called when the host shows the current question's attendees leaderboard.
-
-        It's not a regular 'request.render' route because we handle the display of the leaderboard
-        using an AJAX request to be able to include the results in the currently displayed page."""
-
         survey = self._fetch_from_token(survey_token)
 
         if not survey or survey.session_state != "in_progress":
-            # no open session
             return ""
 
         return request.env["ir.qweb"]._render(
@@ -207,52 +158,35 @@ class UserInputSession(http.Controller):
             {"animate": True, "leaderboard": survey._prepare_leaderboard_values()},
         )
 
-    # ------------------------------------------------------------
-    # QUICK ACCESS SURVEY ROUTES
-    # ------------------------------------------------------------
-
     @http.route("/s", type="http", auth="public", website=True, sitemap=False)
     def survey_session_code(self, **post: Any) -> Response:
-        """Renders the survey session code page route.
-        This page allows the user to enter the session code of the survey.
-        It is mainly used to ease survey access for attendees in session mode."""
         return request.render("survey.survey_session_code")
 
     @http.route("/s/<string:session_code>", type="http", auth="public", website=True)
     def survey_start_short(self, session_code: str, **post) -> Response:
-        """Unified short-link handler for ``/s/<code>``.
-
-        Resolution order:
-        1. Active session code → redirect to session start
-        2. Custom slug → redirect to survey start
-        3. Short access token prefix → redirect to survey start
-        4. Nothing found → show session code entry page with error
-        """
-        # 1. Try session code (original upstream behavior)
         survey, survey_error = self._fetch_from_session_code(session_code)
         if survey:
             return request.redirect(survey.get_start_url())
 
-        # 2. Try custom slug (exact match on active surveys)
         SurveySudo = request.env["survey.survey"].sudo()
-        survey = SurveySudo.search(
-            [("slug", "=", session_code), ("active", "=", True)], limit=1
-        )
-        if survey:
-            return request.redirect(survey.get_start_url())
-
-        # 3. Try short access token prefix (first N chars of UUID)
+        # Same guard _resolve_short_token applies below: redirecting here hands the
+        # survey's access_token -- a bearer secret -- to an anonymous visitor, and for
+        # an invite-only survey they cannot answer with it anyway.
         survey = SurveySudo.search(
             [
-                ("access_token", "=like", f"{escape_psql(session_code)}%"),
+                ("slug", "=", session_code),
                 ("active", "=", True),
+                ("access_mode", "=", "public"),
             ],
             limit=1,
         )
         if survey:
             return request.redirect(survey.get_start_url())
 
-        # 4. Nothing matched — show session code page with original error
+        survey = SurveySudo._resolve_short_token(session_code)
+        if survey:
+            return request.redirect(survey.get_start_url())
+
         if survey_error:
             return request.render(
                 "survey.survey_session_code",
@@ -267,9 +201,6 @@ class UserInputSession(http.Controller):
         website=True,
     )
     def survey_check_session_code(self, session_code: str) -> dict[str, Any]:
-        """Checks if the given code is matching a survey session_code.
-        If yes, redirect to /s/code route.
-        If not, return error. The user is invited to type again the code."""
         survey, survey_error = self._fetch_from_session_code(session_code)
         if survey_error:
             return survey_error
@@ -317,24 +248,6 @@ class UserInputSession(http.Controller):
     def _prepare_question_results_values(
         self, survey: Any, user_input_lines: Any
     ) -> dict[str, Any]:
-        """Prepares usefull values to display during the host session:
-
-        - question_statistics_graph
-          The graph data to display the bar chart for questions of type 'choice'
-        - input_lines_values
-          The answer values to text/date/datetime questions
-        - answers_validity
-          An array containing the is_correct value for all question answers.
-          We need this special variable because of Chartjs data structure.
-          The library determines the parameters (color/label/...) by only passing the answer 'index'
-          (and not the id or anything else we can identify).
-          In other words, we need to know if the answer at index 2 is correct or not.
-        - answer_count
-          The number of answers to the current question.
-        - selected_answers
-          The current question selected answers.
-        """
-
         question = survey.session_question_id
         if not question:
             return {}
@@ -346,20 +259,25 @@ class UserInputSession(http.Controller):
             if question.comment_count_as_answer:
                 answers_validity.append(False)
 
-        full_statistics = question._prepare_statistics(user_input_lines)[0]
+        full_statistics = question._prepare_question_statistics(user_input_lines)[0]
         input_line_values = []
+        omitted_line_count = 0
         if question.question_type in ["char_box", "date", "datetime"]:
+            table_data = full_statistics.get(
+                "table_data", request.env["survey.user_input.line"]
+            )
+            shown = table_data[: self.MAX_LIVE_ANSWERS]
+            omitted_line_count = max(len(table_data) - len(shown), 0)
             input_line_values = [
                 {"id": line.id, "value": line[f"value_{question.question_type}"]}
-                for line in full_statistics.get(
-                    "table_data", request.env["survey.user_input.line"]
-                )[:100]
+                for line in shown
             ]
 
         return {
             "is_html_empty": is_html_empty,
             "question_statistics_graph": full_statistics.get("graph_data"),
             "input_line_values": input_line_values,
+            "omitted_line_count": omitted_line_count,
             "answers_validity": json.dumps(answers_validity),
             "answer_count": survey.session_question_answer_count,
             "attendees_count": survey.session_answer_count,

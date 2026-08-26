@@ -22,7 +22,6 @@ class TestAccess(common.TestSurveyCommon):
     @mute_logger("odoo.addons.base.models.ir_model")
     @users("user_emp")
     def test_access_survey_employee(self):
-        # Create: nope
         with self.assertRaises(AccessError):
             self.env["survey.survey"].create({"title": "Test Survey 2"})
         with self.assertRaises(AccessError):
@@ -40,13 +39,11 @@ class TestAccess(common.TestSurveyCommon):
                 {"title": "My Question", "sequence": 1, "page_id": self.page_0.id}
             )
 
-        # Read: nope
         with self.assertRaises(AccessError):
             self.env["survey.survey"].search([("title", "ilike", "Test")])
         with self.assertRaises(AccessError):
             self.survey.with_user(self.env.user).read(["title"])
 
-        # Write: nope
         with self.assertRaises(AccessError):
             self.survey.with_user(self.env.user).write({"title": "New Title"})
         with self.assertRaises(AccessError):
@@ -54,7 +51,6 @@ class TestAccess(common.TestSurveyCommon):
         with self.assertRaises(AccessError):
             self.question_ft.with_user(self.env.user).write({"question": "New Title"})
 
-        # Unlink: nope
         with self.assertRaises(AccessError):
             self.survey.with_user(self.env.user).unlink()
         with self.assertRaises(AccessError):
@@ -65,7 +61,6 @@ class TestAccess(common.TestSurveyCommon):
     @mute_logger("odoo.addons.base.models.ir_model")
     @users("user_portal")
     def test_access_survey_portal(self):
-        # Create: nope
         with self.assertRaises(AccessError):
             self.env["survey.survey"].create({"title": "Test Survey 2"})
         with self.assertRaises(AccessError):
@@ -83,13 +78,11 @@ class TestAccess(common.TestSurveyCommon):
                 {"title": "My Question", "sequence": 1, "page_id": self.page_0.id}
             )
 
-        # Read: nope
         with self.assertRaises(AccessError):
             self.env["survey.survey"].search([("title", "ilike", "Test")])
         with self.assertRaises(AccessError):
             self.survey.with_user(self.env.user).read(["title"])
 
-        # Write: nope
         with self.assertRaises(AccessError):
             self.survey.with_user(self.env.user).write({"title": "New Title"})
         with self.assertRaises(AccessError):
@@ -97,7 +90,6 @@ class TestAccess(common.TestSurveyCommon):
         with self.assertRaises(AccessError):
             self.question_ft.with_user(self.env.user).write({"question": "New Title"})
 
-        # Unlink: nope
         with self.assertRaises(AccessError):
             self.survey.with_user(self.env.user).unlink()
         with self.assertRaises(AccessError):
@@ -108,7 +100,6 @@ class TestAccess(common.TestSurveyCommon):
     @mute_logger("odoo.addons.base.models.ir_model")
     @users("user_public")
     def test_access_survey_public(self):
-        # Create: nope
         with self.assertRaises(AccessError):
             self.env["survey.survey"].create({"title": "Test Survey 2"})
         with self.assertRaises(AccessError):
@@ -126,13 +117,11 @@ class TestAccess(common.TestSurveyCommon):
                 {"title": "My Question", "sequence": 1, "page_id": self.page_0.id}
             )
 
-        # Read: nope
         with self.assertRaises(AccessError):
             self.env["survey.survey"].search([("title", "ilike", "Test")])
         with self.assertRaises(AccessError):
             self.survey.with_user(self.env.user).read(["title"])
 
-        # Write: nope
         with self.assertRaises(AccessError):
             self.survey.with_user(self.env.user).write({"title": "New Title"})
         with self.assertRaises(AccessError):
@@ -140,7 +129,6 @@ class TestAccess(common.TestSurveyCommon):
         with self.assertRaises(AccessError):
             self.question_ft.with_user(self.env.user).write({"question": "New Title"})
 
-        # Unlink: nope
         with self.assertRaises(AccessError):
             self.survey.with_user(self.env.user).unlink()
         with self.assertRaises(AccessError):
@@ -150,7 +138,6 @@ class TestAccess(common.TestSurveyCommon):
 
     @users("survey_manager")
     def test_access_survey_survey_manager(self):
-        # Create: all
         survey = self.env["survey.survey"].create({"title": "Test Survey 2"})
         self.env["survey.question"].create(
             {
@@ -165,28 +152,23 @@ class TestAccess(common.TestSurveyCommon):
             {"title": "My Question", "sequence": 1, "survey_id": survey.id}
         )
 
-        # Read: all
         surveys = self.env["survey.survey"].search([("title", "ilike", "Test")])
         self.assertEqual(surveys, self.survey | survey)
         surveys.read(["title"])
 
-        # Write: all
         (self.survey | survey).write({"title": "New Title"})
 
-        # Unlink: all
         (self.survey | survey).unlink()
 
     @mute_logger("odoo.addons.base.models.ir_model")
     @users("survey_user")
     def test_access_survey_survey_user(self):
-        # Restrict common survey to survey_manager
         restricted_to_other_survey = self.survey
         self.assertEqual(self.survey_manager, restricted_to_other_survey.user_id)
         restricted_to_other_survey.write(
             {"restrict_user_ids": [[4, restricted_to_other_survey.user_id.id]]}
         )
 
-        # Create: restricted to self or no one
         unrestricted_survey = self.env["survey.survey"].create(
             {"title": "Test Survey Unrestricted"}
         )
@@ -216,19 +198,16 @@ class TestAccess(common.TestSurveyCommon):
                 }
             )
 
-        # Read: restricted to self or no one
         surveys = self.env["survey.survey"].search([("title", "ilike", "Test")])
         self.assertEqual(surveys, restricted_to_self_survey | unrestricted_survey)
         surveys.read(["title"])
 
-        # Write: restricted to self or no one
         (unrestricted_survey + restricted_to_self_survey).write({"title": "New Title"})
         with self.assertRaises(AccessError):
             restricted_to_other_survey.with_user(self.env.user).write(
                 {"title": "New Title"}
             )
 
-        # Unlink: restricted to self or no one
         (unrestricted_survey + restricted_to_self_survey).unlink()
         with self.assertRaises(AccessError):
             restricted_to_other_survey.with_user(self.env.user).unlink()
@@ -236,7 +215,6 @@ class TestAccess(common.TestSurveyCommon):
     @mute_logger("odoo.addons.base.models.ir_model")
     @users("user_emp")
     def test_access_answers_employee(self):
-        # Create: nope
         with self.assertRaises(AccessError):
             self.env["survey.user_input"].create({"survey_id": self.survey.id})
         with self.assertRaises(AccessError):
@@ -249,7 +227,6 @@ class TestAccess(common.TestSurveyCommon):
                 }
             )
 
-        # Read: nope
         with self.assertRaises(AccessError):
             self.env["survey.user_input"].search(
                 [("survey_id", "in", [self.survey.id])]
@@ -265,11 +242,9 @@ class TestAccess(common.TestSurveyCommon):
                 ["value_numerical_box"]
             )
 
-        # Write: nope
         with self.assertRaises(AccessError):
             self.answer_0.with_user(self.env.user).write({"state": "done"})
 
-        # Unlink: nope
         with self.assertRaises(AccessError):
             self.answer_0.with_user(self.env.user).unlink()
         with self.assertRaises(AccessError):
@@ -278,7 +253,6 @@ class TestAccess(common.TestSurveyCommon):
     @mute_logger("odoo.addons.base.models.ir_model")
     @users("user_portal")
     def test_access_answers_portal(self):
-        # Create: nope
         with self.assertRaises(AccessError):
             self.env["survey.user_input"].create({"survey_id": self.survey.id})
         with self.assertRaises(AccessError):
@@ -291,7 +265,6 @@ class TestAccess(common.TestSurveyCommon):
                 }
             )
 
-        # Read: nope
         with self.assertRaises(AccessError):
             self.env["survey.user_input"].search(
                 [("survey_id", "in", [self.survey.id])]
@@ -307,11 +280,9 @@ class TestAccess(common.TestSurveyCommon):
                 ["value_numerical_box"]
             )
 
-        # Write: nope
         with self.assertRaises(AccessError):
             self.answer_0.with_user(self.env.user).write({"state": "done"})
 
-        # Unlink: nope
         with self.assertRaises(AccessError):
             self.answer_0.with_user(self.env.user).unlink()
         with self.assertRaises(AccessError):
@@ -320,7 +291,6 @@ class TestAccess(common.TestSurveyCommon):
     @mute_logger("odoo.addons.base.models.ir_model")
     @users("user_public")
     def test_access_answers_public(self):
-        # Create: nope
         with self.assertRaises(AccessError):
             self.env["survey.user_input"].create({"survey_id": self.survey.id})
         with self.assertRaises(AccessError):
@@ -333,7 +303,6 @@ class TestAccess(common.TestSurveyCommon):
                 }
             )
 
-        # Read: nope
         with self.assertRaises(AccessError):
             self.env["survey.user_input"].search(
                 [("survey_id", "in", [self.survey.id])]
@@ -349,11 +318,9 @@ class TestAccess(common.TestSurveyCommon):
                 ["value_numerical_box"]
             )
 
-        # Write: nope
         with self.assertRaises(AccessError):
             self.answer_0.with_user(self.env.user).write({"state": "done"})
 
-        # Unlink: nope
         with self.assertRaises(AccessError):
             self.answer_0.with_user(self.env.user).unlink()
         with self.assertRaises(AccessError):
@@ -376,7 +343,6 @@ class TestAccess(common.TestSurveyCommon):
             {"title": "Other Question", "sequence": 1, "survey_id": survey_own.id}
         )
 
-        # Create: unrestricted survey
         answer_own = self.env["survey.user_input"].create({"survey_id": survey_own.id})
         with self.assertRaises(AccessError):
             self.env["survey.user_input.line"].create(
@@ -388,7 +354,6 @@ class TestAccess(common.TestSurveyCommon):
                 }
             )
 
-        # Read: restricted to self or no one
         answers = self.env["survey.user_input"].search(
             [("survey_id", "in", [survey_own.id, self.survey.id])]
         )
@@ -413,7 +378,6 @@ class TestAccess(common.TestSurveyCommon):
                 ["value_numerical_box"]
             )
 
-        # Create: in restricted users survey (moved after read because DB not correctly rollbacked with assertRaises)
         self.survey.write({"restrict_user_ids": [[4, self.survey.user_id.id]]})
         with self.assertRaises(AccessError):
             self.env["survey.user_input"].create({"survey_id": self.survey.id})
@@ -427,12 +391,10 @@ class TestAccess(common.TestSurveyCommon):
                 }
             )
 
-        # Write: unrestricted survey or in restricted users
         answer_own.write({"state": "done"})
         with self.assertRaises(AccessError):
             self.answer_0.with_user(self.env.user).write({"state": "done"})
 
-        # Unlink: unrestricted survey or in restricted users
         answer_own.unlink()
         with self.assertRaises(AccessError):
             self.answer_0.with_user(self.env.user).unlink()
@@ -459,7 +421,6 @@ class TestAccess(common.TestSurveyCommon):
             self.assertEqual(survey_other.create_uid, admin)
             self.assertEqual(question_other.create_uid, admin)
 
-        # Create: always
         answer_own = self.env["survey.user_input"].create({"survey_id": self.survey.id})
         answer_other = self.env["survey.user_input"].create(
             {"survey_id": survey_other.id}
@@ -481,7 +442,6 @@ class TestAccess(common.TestSurveyCommon):
             }
         )
 
-        # Read: always
         answers = self.env["survey.user_input"].search(
             [("survey_id", "in", [survey_other.id, self.survey.id])]
         )
@@ -505,18 +465,15 @@ class TestAccess(common.TestSurveyCommon):
             ["value_numerical_box"]
         )
 
-        # Write: always
         answer_own.write({"state": "done"})
         answer_other.write({"partner_id": self.env.user.partner_id.id})
 
-        # Unlink: always
         (answer_own | answer_other | self.answer_0).unlink()
 
 
 @tagged("post_install", "-at_install")
 class TestSurveySecurityControllers(common.TestSurveyCommon, HttpCase):
     def test_survey_start_short(self):
-        # avoid name clash with existing data
         self.env["survey.survey"].search(
             [("session_state", "in", ["ready", "in_progress"])]
         )
@@ -530,23 +487,19 @@ class TestSurveySecurityControllers(common.TestSurveyCommon, HttpCase):
             }
         )
 
-        # right short access token
         response = self.url_open("/s/123456")
         self.assertEqual(response.status_code, 200)
         self.assertIn(
             "The session will begin automatically when the host starts", response.text
         )
 
-        # `like` operator injection
         response = self.url_open("/s/______")
         self.assertFalse(self.survey.title in response.text)
 
-        # right short token, but closed survey
         self.survey.action_archive()
         response = self.url_open("/s/123456")
         self.assertFalse(self.survey.title in response.text)
 
-        # right short token, but wrong `session_state`
         self.survey.write({"session_state": False, "active": True})
         response = self.url_open("/s/123456")
         self.assertFalse(self.survey.title in response.text)

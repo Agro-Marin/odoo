@@ -25,9 +25,11 @@
                 <filter string="Tests Only" name="test" domain="[('test_entry','=', True)]" />
                 <filter string="Exclude Tests" name="not_test" domain="[('test_entry','=', False)]" />
                 <separator />
-                <filter string="Low Quality" name="low_quality" domain="[('quality_score', '&lt;', 50)]" />
+                <filter string="Low Quality" name="low_quality"
+                    domain="[('quality_score', '&lt;', 50)]" />
                 <filter string="Speeders" name="speeders" domain="[('is_speeder', '=', True)]" />
-                <filter string="Straight-liners" name="straight_liners" domain="[('is_straight_liner', '=', True)]" />
+                <filter string="Straight-liners" name="straight_liners"
+                    domain="[('is_straight_liner', '=', True)]" />
                 <group>
                     <filter name="group_by_survey" string="Survey"
                         context="{'group_by': 'survey_id'}" />

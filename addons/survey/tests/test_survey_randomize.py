@@ -3,7 +3,6 @@ from odoo.tests.common import TransactionCase
 
 class TestSurveyRandomize(TransactionCase):
     def test_01_generate_randomized_questions(self):
-        """Use random generate for a survey and verify that questions within the page are selected accordingly"""
         Question = self.env["survey.question"].sudo()
         question_and_pages = self.env["survey.question"]
         page_1 = Question.create(

@@ -9,8 +9,6 @@ from odoo.addons.survey.tests import common
 
 @tagged("post_install", "-at_install")
 class TestSessionHostRoutes(common.TestSurveyCommon, HttpCase):
-    """Host-side session routes and the guard they share."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -59,10 +57,7 @@ class TestSessionHostRoutes(common.TestSurveyCommon, HttpCase):
             }
         )
 
-    # --- next question ---------------------------------------------------
-
     def test_next_question_advances_a_ready_session(self):
-        """From a ready session the host route serves the first question."""
         self.form.action_start_session()
         self.authenticate("session_host", "session_host")
         result = self._rpc(f"/survey/session/next_question/{self.form.access_token}")
@@ -71,15 +66,11 @@ class TestSessionHostRoutes(common.TestSurveyCommon, HttpCase):
         self.assertEqual(self.form.session_state, "in_progress")
 
     def test_next_question_without_a_session_returns_nothing(self):
-        """With no session open the host route yields an empty payload."""
         self.authenticate("session_host", "session_host")
         result = self._rpc(f"/survey/session/next_question/{self.form.access_token}")
         self.assertFalse(result)
 
-    # --- results ---------------------------------------------------------
-
     def test_results_are_served_for_a_live_session(self):
-        """A running session returns the current question's result values."""
         self._open_session()
         self.authenticate("session_host", "session_host")
         result = self._rpc(f"/survey/session/results/{self.form.access_token}")
@@ -87,12 +78,9 @@ class TestSessionHostRoutes(common.TestSurveyCommon, HttpCase):
         self.assertTrue(result)
 
     def test_results_are_refused_without_a_live_session(self):
-        """A closed session serves no results at all."""
         self.authenticate("session_host", "session_host")
         result = self._rpc(f"/survey/session/results/{self.form.access_token}")
         self.assertFalse(result)
-
-    # --- leaderboard -----------------------------------------------------
 
     def _attendee(self, score=5):
         answer = self.env["survey.user_input"].create(
@@ -116,7 +104,6 @@ class TestSessionHostRoutes(common.TestSurveyCommon, HttpCase):
         return answer
 
     def test_leaderboard_renders_the_ranked_attendees(self):
-        """With attendees the leaderboard comes back as rendered markup."""
         self._open_session()
         self._attendee()
         self.authenticate("session_host", "session_host")
@@ -125,7 +112,6 @@ class TestSessionHostRoutes(common.TestSurveyCommon, HttpCase):
         self.assertIn("Ana", result)
 
     def test_leaderboard_is_empty_without_attendees(self):
-        """A live session with nobody scoring yet renders nothing."""
         self._open_session()
         self.authenticate("session_host", "session_host")
         self.assertEqual(
@@ -134,13 +120,11 @@ class TestSessionHostRoutes(common.TestSurveyCommon, HttpCase):
         )
 
     def test_leaderboard_is_empty_without_a_live_session(self):
-        """No open session means no leaderboard markup (boundary)."""
         self.authenticate("session_host", "session_host")
         result = self._rpc(f"/survey/session/leaderboard/{self.form.access_token}")
         self.assertEqual(result, "")
 
     def test_unknown_token_yields_no_session_data(self):
-        """A token matching no survey never leaks session data."""
         self.authenticate("session_host", "session_host")
         self.assertFalse(self._rpc("/survey/session/results/not-a-token"))
         self.assertEqual(self._rpc("/survey/session/leaderboard/not-a-token"), "")

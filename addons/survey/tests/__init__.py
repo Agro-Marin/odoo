@@ -26,3 +26,8 @@ from . import test_conditional_triggers
 from . import test_submit_guards
 from . import test_short_links
 from . import test_session_host_routes
+from . import test_survey_audit_regressions
+from . import test_zero_is_an_answer
+from . import test_transaction_isolation
+from . import test_survey_access_surface
+from . import test_survey_hardening

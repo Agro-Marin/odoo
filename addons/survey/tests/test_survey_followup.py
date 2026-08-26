@@ -1,5 +1,3 @@
-"""Tests for the survey follow-up rules engine."""
-
 from odoo import Command
 from odoo.tests import tagged
 
@@ -8,8 +6,6 @@ from .common import TestSurveyCommon
 
 @tagged("post_install", "-at_install")
 class TestSurveyFollowupRules(TestSurveyCommon):
-    """Condition matrix and mail dispatch of survey.followup.rule."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -65,7 +61,6 @@ class TestSurveyFollowupRules(TestSurveyCommon):
         return user_input
 
     def test_evaluate_condition_matrix(self):
-        """Each condition type matches exactly its intended scoring state."""
         passed = self._make_input(correct=True)
         failed = self._make_input(correct=False)
         self.assertEqual(passed.scoring_percentage, 100.0)
@@ -88,7 +83,6 @@ class TestSurveyFollowupRules(TestSurveyCommon):
         self.assertFalse(on_failed._evaluate(passed))
 
     def test_execute_sends_mail_only_when_condition_met(self):
-        """_execute queues one mail when met and none when not met."""
         passed = self._make_input(correct=True)
         failed = self._make_input(correct=False)
         rule = self._make_rule("on pass", condition_type="passed")

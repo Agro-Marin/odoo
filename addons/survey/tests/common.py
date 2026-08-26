@@ -22,38 +22,28 @@ class SurveyCase(common.TransactionCase):
             "text_box": ("text_box", "value_text_box"),
             "char_box": ("char_box", "value_char_box"),
             "numerical_box": ("numerical_box", "value_numerical_box"),
-            "scale": ("scale", "value_scale"),  # similar to numerical_box
+            "scale": ("scale", "value_scale"),
             "date": ("date", "value_date"),
             "datetime": ("datetime", "value_datetime"),
             "simple_choice": (
                 "suggestion",
                 "suggested_answer_id",
-            ),  # TDE: still unclear
+            ),
             "multiple_choice": (
                 "suggestion",
                 "suggested_answer_id",
-            ),  # TDE: still unclear
+            ),
             "matrix": (
                 "suggestion",
                 ("suggested_answer_id", "matrix_row_id"),
-            ),  # TDE: still unclear
+            ),
         }
-
-    # ------------------------------------------------------------
-    # ASSERTS
-    # ------------------------------------------------------------
 
     def assertAnswer(self, answer, state, page):
         self.assertEqual(answer.state, state)
         self.assertEqual(answer.last_displayed_page_id, page)
 
     def assertAnswerLines(self, page, answer, answer_data):
-        """Check answer lines.
-
-        :param dict answer_data:
-          key = question ID
-          value = {'value': [user input]}
-        """
         lines = answer.user_input_line_ids.filtered(lambda l: l.page_id == page)
         answer_count = sum(
             len(user_input["value"]) for user_input in answer_data.values()
@@ -61,9 +51,7 @@ class SurveyCase(common.TransactionCase):
         self.assertEqual(len(lines), answer_count)
         for qid, user_input in answer_data.items():
             answer_lines = lines.filtered(lambda l, q=qid: l.question_id.id == q)
-            question = answer_lines[
-                0
-            ].question_id  # TDE note: might have several answers for a given question
+            question = answer_lines[0].question_id
             if question.question_type == "multiple_choice":
                 values = user_input["value"]
                 answer_fname = self._type_match[question.question_type][1]
@@ -93,10 +81,6 @@ class SurveyCase(common.TransactionCase):
         self.assertEqual(response.status_code, status_code)
         for text in text_bits or []:
             self.assertIn(text, response.text)
-
-    # ------------------------------------------------------------
-    # DATA CREATION
-    # ------------------------------------------------------------
 
     def _add_question(self, page, name, qtype, **kwargs):
         constr_mandatory = kwargs.pop("constr_mandatory", True)
@@ -154,8 +138,6 @@ class SurveyCase(common.TransactionCase):
                 )
                 for label in kwargs.pop("labels_2")
             ]
-        else:
-            pass
         base_qvalues.update(kwargs)
         return self.env["survey.question"].create(base_qvalues)
 
@@ -188,10 +170,6 @@ class SurveyCase(common.TransactionCase):
 
         base_alvals.update(kwargs)
         return self.env["survey.user_input.line"].create(base_alvals)
-
-    # ------------------------------------------------------------
-    # UTILS / CONTROLLER ENDPOINTS FLOWS
-    # ------------------------------------------------------------
 
     def _access_start(self, survey):
         return self.url_open(f"/survey/start/{survey.access_token}")
@@ -242,7 +220,6 @@ class SurveyCase(common.TransactionCase):
         submit_query_count=None,
         access_page_query_count=None,
     ):
-        # Employee submits the question answer
         post_data = self._format_submission_data(
             question,
             answer,
@@ -257,7 +234,6 @@ class SurveyCase(common.TransactionCase):
         )
         self.assertResponse(response, 200)
 
-        # Employee is redirected on next question
         response = self._access_page(
             question.survey_id, answer_token, query_count=access_page_query_count
         )
@@ -284,12 +260,10 @@ class SurveyCase(common.TransactionCase):
         post_data.update(**additional_post_data)
         return post_data
 
-    # ------------------------------------------------------------
-    # UTILS / TOOLS
-    # ------------------------------------------------------------
-
     def _assert_skipped_question(self, question, survey_user):
-        statistics = question._prepare_statistics(survey_user.user_input_line_ids)
+        statistics = question._prepare_question_statistics(
+            survey_user.user_input_line_ids
+        )
         question_data = next(
             (
                 question_data
@@ -495,7 +469,6 @@ class TestSurveyResultsCommon(SurveyCase):
             groups="survey.group_survey_manager,base.group_user",
         )
 
-        # Create survey with questions
         cls.survey = cls.env["survey.survey"].create(
             {"title": "Test Survey Results", "questions_layout": "one_page"}
         )
@@ -567,7 +540,6 @@ class TestSurveyResultsCommon(SurveyCase):
             sequence="7",
         )
 
-        # Question answers ids
         [cls.cat_id, cls.dog_id] = cls.question_sc.suggested_answer_ids.ids
         [cls.gras_id, cls.bette_id, _, _] = cls.question_mc.suggested_answer_ids.ids
         [cls.apples_row_id, cls.strawberries_row_id] = (
@@ -579,7 +551,6 @@ class TestSurveyResultsCommon(SurveyCase):
             cls.question_mx2.suggested_answer_ids.ids
         )
 
-        # Populate survey with answers
         cls.user_input_1 = cls._add_answer(
             cls, cls.survey, cls.survey_manager.partner_id
         )

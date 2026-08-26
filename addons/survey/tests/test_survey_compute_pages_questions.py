@@ -71,7 +71,6 @@ class TestSurveyComputePagesQuestions(common.TestSurveyCommon):
         self.assertEqual(page1_q2.page_id, page_1, "Question 8 should belong to page 2")
         self.assertEqual(page1_q3.page_id, page_1, "Question 9 should belong to page 2")
 
-        # move 1 question from page 1 to page 2
         page0_q2.write({"sequence": 12})
         page0_q2._compute_page_id()
         self.assertEqual(

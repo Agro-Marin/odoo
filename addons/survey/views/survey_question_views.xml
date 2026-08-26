@@ -225,20 +225,26 @@
                                     <span>How would you rate us?</span>
                                     <br />
                                     <div class="fs-3 text-warning" aria-label="3 out of 5 stars">
-                                        <i class="fa-solid fa-star" aria-hidden="true"/>
-                                        <i class="fa-solid fa-star" aria-hidden="true"/>
-                                        <i class="fa-solid fa-star" aria-hidden="true"/>
-                                        <i class="fa-regular fa-star" aria-hidden="true"/>
-                                        <i class="fa-regular fa-star" aria-hidden="true"/>
+                                        <i class="fa-solid fa-star" aria-hidden="true" />
+                                        <i class="fa-solid fa-star" aria-hidden="true" />
+                                        <i class="fa-solid fa-star" aria-hidden="true" />
+                                        <i class="fa-regular fa-star" aria-hidden="true" />
+                                        <i class="fa-regular fa-star" aria-hidden="true" />
                                     </div>
                                 </div>
                                 <div invisible="question_type != 'ranking'">
                                     <span>Rank these items:</span>
                                     <br />
                                     <div class="ps-2">
-                                        <div class="mb-1"><i class="fa-solid fa-grip-vertical me-2 text-muted"/>1. Item A</div>
-                                        <div class="mb-1"><i class="fa-solid fa-grip-vertical me-2 text-muted"/>2. Item B</div>
-                                        <div class="mb-1"><i class="fa-solid fa-grip-vertical me-2 text-muted"/>3. Item C</div>
+                                        <div class="mb-1"><i
+                                                class="fa-solid fa-grip-vertical me-2 text-muted" />1.
+                                            Item A</div>
+                                        <div class="mb-1"><i
+                                                class="fa-solid fa-grip-vertical me-2 text-muted" />2.
+                                            Item B</div>
+                                        <div class="mb-1"><i
+                                                class="fa-solid fa-grip-vertical me-2 text-muted" />3.
+                                            Item C</div>
                                     </div>
                                 </div>
                                 <div invisible="question_type != 'constant_sum'">
@@ -254,7 +260,7 @@
                                     <span>Upload a document:</span>
                                     <br />
                                     <div class="border rounded p-3 text-center text-muted mt-1">
-                                        <i class="fa-solid fa-cloud-upload fa-2x" title="Upload"/>
+                                        <i class="fa-solid fa-cloud-upload fa-2x" title="Upload" />
                                         <div class="small">Drop file here</div>
                                     </div>
                                 </div>

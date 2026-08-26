@@ -23,6 +23,25 @@ import { utils as uiUtils } from "@web/ui/viewport";
 
 const { DateTime } = luxon;
 
+function bound(raw) {
+    if (raw === undefined || raw === "") {
+        return null;
+    }
+    const value = Number(raw);
+    return Number.isNaN(value) ? null : value;
+}
+
+function outOfBounds(value, min, max) {
+    if (Number.isNaN(value)) {
+        return false;
+    }
+    return (min !== null && value < min) || (max !== null && value > max);
+}
+
+function isBlank(value) {
+    return value === undefined || value === null || String(value).trim() === "";
+}
+
 export class SurveyForm extends Interaction {
     static selector = ".o_survey_form";
     dynamicSelectors = {
@@ -696,22 +715,32 @@ export class SurveyForm extends Interaction {
             params,
         );
 
-        if (
-            !this.options.isStartScreen &&
-            this.options.scoringType === "scoring_with_answers_after_page"
-        ) {
-            const [correctAnswers] = await this.waitFor(submitPromise);
+        // `finally`, not two assignments: if the request fails -- a 500, a dropped
+        // connection, a tab that lost the network -- the flag stayed true and every
+        // later click returned early at the guard above. The form was then dead for
+        // good, and reloading mid-survey is how a respondent loses the page they were
+        // on.
+        try {
             if (
-                Object.keys(correctAnswers).length &&
-                this.el.querySelector(".js_question-wrapper")
+                !this.options.isStartScreen &&
+                this.options.scoringType === "scoring_with_answers_after_page"
             ) {
-                this.showCorrectAnswers(correctAnswers, submitPromise, options);
-                this.submitting = false;
-                return;
+                const [correctAnswers] = await this.waitFor(submitPromise);
+                if (
+                    Object.keys(correctAnswers).length &&
+                    this.el.querySelector(".js_question-wrapper")
+                ) {
+                    this.showCorrectAnswers(correctAnswers, submitPromise, options);
+                    return;
+                }
+            }
+            await this.nextScreen(submitPromise, options);
+        } finally {
+            this.submitting = false;
+            if (this.options.sessionInProgress) {
+                this.readonly = false;
             }
         }
-        await this.nextScreen(submitPromise, options);
-        this.submitting = false;
     }
 
     /**
@@ -894,10 +923,10 @@ export class SurveyForm extends Interaction {
                 questionWrapperEl.dataset.validationErrorMsg || "";
             const inputData = {
                 questionType: inputEl.dataset.questionType,
-                validationLengthMin: Number(inputEl.dataset.validationLengthMin),
-                validationLengthMax: Number(inputEl.dataset.validationLengthMax),
-                validationFloatMin: Number(inputEl.dataset.validationFloatMin),
-                validationFloatMax: Number(inputEl.dataset.validationFloatMax),
+                validationLengthMin: bound(inputEl.dataset.validationLengthMin),
+                validationLengthMax: bound(inputEl.dataset.validationLengthMax),
+                validationFloatMin: bound(inputEl.dataset.validationFloatMin),
+                validationFloatMax: bound(inputEl.dataset.validationFloatMax),
                 minDate: inputEl.dataset.minDate,
                 maxDate: inputEl.dataset.maxDate,
             };
@@ -915,7 +944,7 @@ export class SurveyForm extends Interaction {
                         const lengthMin = inputData.validationLengthMin;
                         const lengthMax = inputData.validationLengthMax;
                         const length = inputEl.value.length;
-                        if (lengthMin && (lengthMin > length || length > lengthMax)) {
+                        if (outOfBounds(length, lengthMin, lengthMax)) {
                             errors[questionId] = validationErrorMsg;
                         }
                     }
@@ -926,20 +955,20 @@ export class SurveyForm extends Interaction {
                     }
                     break;
                 case "numerical_box":
-                    if (questionRequired && !data[questionId]) {
+                    if (questionRequired && isBlank(data[questionId])) {
                         errors[questionId] = constrErrorMsg;
                     } else {
                         const floatMin = inputData.validationFloatMin;
                         const floatMax = inputData.validationFloatMax;
                         const value = parseFloat(inputEl.value);
-                        if (floatMin && (floatMin > value || value > floatMax)) {
+                        if (outOfBounds(value, floatMin, floatMax)) {
                             errors[questionId] = validationErrorMsg;
                         }
                     }
                     break;
                 case "date":
                 case "datetime":
-                    if (questionRequired && !data[questionId]) {
+                    if (questionRequired && isBlank(data[questionId])) {
                         errors[questionId] = constrErrorMsg;
                     } else if (data[questionId]) {
                         const [parse, deserialize] =
@@ -962,7 +991,7 @@ export class SurveyForm extends Interaction {
                     }
                     break;
                 case "scale":
-                    if (questionRequired && !data[questionId]) {
+                    if (questionRequired && isBlank(data[questionId])) {
                         errors[questionId] = constrErrorMsg;
                     }
                     break;
@@ -1073,8 +1102,54 @@ export class SurveyForm extends Interaction {
                 case "matrix":
                     params = this.prepareSubmitAnswersMatrix(params, el);
                     break;
+                case "ranking":
+                case "constant_sum":
+                    params = this.prepareSubmitPerAnswerValues(params, el);
+                    break;
+                case "file_upload":
+                    params = this.prepareSubmitFileUpload(params, el);
+                    break;
             }
         }
+    }
+
+    /**
+     *   Prepare ranking / constant sum answers before submitting form.
+     *   Both types collect one number per suggested answer rather than a
+     *   selection, so they submit a mapping instead of a value or a list:
+     *   params = { 'questionId': { 'answerId1': 1, 'answerId2': 2 } }
+     *   which is the shape `_save_line_per_answer` reads on the server.
+     */
+    prepareSubmitPerAnswerValues(params, wrapperEl) {
+        const values = {};
+        for (const inputEl of wrapperEl.querySelectorAll("[data-answer-id]")) {
+            const answerId = inputEl.dataset.answerId;
+            const raw =
+                inputEl.tagName === "INPUT"
+                    ? inputEl.value
+                    : inputEl.querySelector("input")?.value;
+            if (raw !== undefined && raw !== "") {
+                values[answerId] = Number(raw);
+            }
+        }
+        if (Object.keys(values).length) {
+            params[wrapperEl.dataset.name] = values;
+        }
+        return params;
+    }
+
+    /**
+     *   Prepare a file upload answer before submitting form.
+     *   The file itself is uploaded ahead of submit by `uploadQuestionFile`,
+     *   which stamps the resulting ir.attachment id on the wrapper; only that
+     *   id travels with the answer.
+     */
+    prepareSubmitFileUpload(params, wrapperEl) {
+        const attachmentId = wrapperEl.dataset.attachmentId;
+        if (attachmentId) {
+            params[wrapperEl.dataset.name] = Number(attachmentId);
+        }
+        return params;
     }
 
     /**

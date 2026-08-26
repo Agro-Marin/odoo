@@ -1,14 +1,3 @@
-"""Regression tests for correctness bugs found during the survey module audit.
-
-Each test class targets a specific bug that was found and fixed:
-1. scoring_max_obtainable: sum vs max for simple_choice
-2. survey statistics: wrong denominator for avg/ratio
-3. quota enforcement: _check_quota never called
-4. skip_to off-by-one: skip lands on target+1
-5. action_end_session: bypasses _mark_done()
-6. /s/ route: collision between slug and session code handlers
-"""
-
 from datetime import timedelta
 
 from odoo import Command, fields
@@ -18,10 +7,6 @@ from odoo.addons.survey.tests.common import TestSurveyCommon
 
 
 class TestScoringMaxObtainable(TestSurveyCommon):
-    """Bug #1: _compute_scoring_max_obtainable used sum() for simple_choice
-    instead of max(). Only ONE answer can be selected in simple_choice,
-    so the max obtainable is the highest single answer score."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -40,7 +25,6 @@ class TestScoringMaxObtainable(TestSurveyCommon):
                 "question_type": False,
             }
         )
-        # simple_choice with answers scored [10, 5, 0]
         cls.q_simple = cls._add_question(
             cls,
             page,
@@ -53,7 +37,6 @@ class TestScoringMaxObtainable(TestSurveyCommon):
                 {"value": "Green", "answer_score": 0},
             ],
         )
-        # multiple_choice with answers scored [4, 3, 0]
         cls.q_multi = cls._add_question(
             cls,
             page,
@@ -66,7 +49,6 @@ class TestScoringMaxObtainable(TestSurveyCommon):
                 {"value": "COBOL", "answer_score": 0},
             ],
         )
-        # numerical_box scored question
         cls.q_num = cls._add_question(
             cls,
             page,
@@ -78,15 +60,9 @@ class TestScoringMaxObtainable(TestSurveyCommon):
         )
 
     def test_simple_choice_uses_max_not_sum(self):
-        """Max obtainable for simple_choice is max(positive_scores), not sum."""
-        # simple_choice: max(10, 5) = 10 (NOT 10+5=15)
-        # multiple_choice: sum(4, 3) = 7
-        # numerical_box: 2
-        # Total: 10 + 7 + 2 = 19
         self.assertEqual(self.scored_survey.scoring_max_obtainable, 19)
 
     def test_single_correct_answer(self):
-        """Simple_choice with one scored answer: max = that answer's score."""
         survey = self.env["survey.survey"].create(
             {
                 "title": "Single scored",
@@ -115,7 +91,6 @@ class TestScoringMaxObtainable(TestSurveyCommon):
         self.assertEqual(survey.scoring_max_obtainable, 5)
 
     def test_dropdown_uses_max(self):
-        """Dropdown behaves like simple_choice: max, not sum."""
         survey = self.env["survey.survey"].create(
             {
                 "title": "Dropdown scored",
@@ -142,48 +117,36 @@ class TestScoringMaxObtainable(TestSurveyCommon):
                 {"value": "C", "answer_score": 0},
             ],
         )
-        # max(8, 3) = 8, NOT 8+3=11
         self.assertEqual(survey.scoring_max_obtainable, 8)
 
     def test_matches_compute_scoring_values(self):
-        """scoring_max_obtainable must agree with _compute_scoring_values denominator.
-
-        When a respondent selects ALL best answers, scoring_percentage must be 100%.
-        """
         survey = self.scored_survey
         answer = survey._create_answer(user=self.survey_manager, test_entry=True)
-        # Select the best answer for each question
         self.env["survey.user_input.line"].create(
             [
                 {
                     "user_input_id": answer.id,
                     "question_id": self.q_simple.id,
                     "answer_type": "suggestion",
-                    "suggested_answer_id": self.q_simple.suggested_answer_ids[
-                        0
-                    ].id,  # Red=10
+                    "suggested_answer_id": self.q_simple.suggested_answer_ids[0].id,
                 },
                 {
                     "user_input_id": answer.id,
                     "question_id": self.q_multi.id,
                     "answer_type": "suggestion",
-                    "suggested_answer_id": self.q_multi.suggested_answer_ids[
-                        0
-                    ].id,  # Python=4
+                    "suggested_answer_id": self.q_multi.suggested_answer_ids[0].id,
                 },
                 {
                     "user_input_id": answer.id,
                     "question_id": self.q_multi.id,
                     "answer_type": "suggestion",
-                    "suggested_answer_id": self.q_multi.suggested_answer_ids[
-                        1
-                    ].id,  # Rust=3
+                    "suggested_answer_id": self.q_multi.suggested_answer_ids[1].id,
                 },
                 {
                     "user_input_id": answer.id,
                     "question_id": self.q_num.id,
                     "answer_type": "numerical_box",
-                    "value_numerical_box": 4,  # correct
+                    "value_numerical_box": 4,
                 },
             ]
         )
@@ -192,9 +155,6 @@ class TestScoringMaxObtainable(TestSurveyCommon):
 
 
 class TestSurveyStatistics(TestSurveyCommon):
-    """Bug #2: answer_score_avg and success_ratio divided by answer_count
-    (all inputs) instead of answer_done_count (completed only)."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -227,9 +187,7 @@ class TestSurveyStatistics(TestSurveyCommon):
         )
 
     def test_avg_score_excludes_in_progress(self):
-        """answer_score_avg should only consider completed responses."""
         survey = self.scored_survey
-        # Done response with 100% score
         done_answer = self._add_answer(survey, self.customer, state="new")
         done_answer.write(
             {
@@ -245,22 +203,16 @@ class TestSurveyStatistics(TestSurveyCommon):
             }
         )
         done_answer.write({"state": "done"})
-        # Verify the done answer actually has 100% score
         done_answer.invalidate_recordset(["scoring_percentage"])
         self.assertEqual(done_answer.scoring_percentage, 100.0)
 
-        # In-progress response (0% because incomplete)
         self._add_answer(survey, self.customer, state="in_progress")
 
         survey.invalidate_recordset()
-        # Average should be 100% (from the one done response),
-        # NOT 50% (100+0 / 2 inputs)
         self.assertEqual(survey.answer_score_avg, 100.0)
 
     def test_success_ratio_excludes_in_progress(self):
-        """success_ratio should use done count as denominator."""
         survey = self.scored_survey
-        # One done response that passed
         done_answer = self._add_answer(survey, self.customer, state="new")
         done_answer.write(
             {
@@ -279,17 +231,13 @@ class TestSurveyStatistics(TestSurveyCommon):
         done_answer.invalidate_recordset(["scoring_percentage", "scoring_success"])
         self.assertTrue(done_answer.scoring_success)
 
-        # One in-progress (not done)
         self._add_answer(survey, self.customer, state="in_progress")
 
         survey.invalidate_recordset()
-        # 1 success / 1 done = 100%, NOT 1 success / 2 total = 50%
         self.assertEqual(survey.success_ratio, 100)
 
 
 class TestQuotaEnforcement(TestSurveyCommon):
-    """Bug #3: _check_quota was defined but never called during submission."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -325,7 +273,6 @@ class TestQuotaEnforcement(TestSurveyCommon):
         cls.answer_b = cls.q_choice.suggested_answer_ids[1]
 
     def test_check_quota_returns_full(self):
-        """_check_quota returns full quotas when answer count >= limit."""
         quota = self.env["survey.quota"].create(
             {
                 "survey_id": self.survey_with_quota.id,
@@ -334,7 +281,6 @@ class TestQuotaEnforcement(TestSurveyCommon):
                 "limit": 1,
             }
         )
-        # Create one done response selecting answer A
         ui = self._add_answer(self.survey_with_quota, self.customer, state="done")
         self.env["survey.user_input.line"].create(
             {
@@ -350,7 +296,6 @@ class TestQuotaEnforcement(TestSurveyCommon):
         self.assertEqual(full, quota)
 
     def test_check_quota_allows_under_limit(self):
-        """_check_quota returns empty when under limit."""
         self.env["survey.quota"].create(
             {
                 "survey_id": self.survey_with_quota.id,
@@ -363,7 +308,6 @@ class TestQuotaEnforcement(TestSurveyCommon):
         self.assertFalse(full)
 
     def test_different_answer_not_blocked(self):
-        """Quota on answer A does not block answer B."""
         quota = self.env["survey.quota"].create(
             {
                 "survey_id": self.survey_with_quota.id,
@@ -372,7 +316,6 @@ class TestQuotaEnforcement(TestSurveyCommon):
                 "limit": 1,
             }
         )
-        # Fill quota for answer A
         ui = self._add_answer(self.survey_with_quota, self.customer, state="done")
         self.env["survey.user_input.line"].create(
             {
@@ -383,15 +326,11 @@ class TestQuotaEnforcement(TestSurveyCommon):
             }
         )
         quota.invalidate_recordset(["current_count", "is_full"])
-        # Answer B should not be blocked
         full = self.survey_with_quota.quota_ids._check_quota([self.answer_b.id])
         self.assertFalse(full)
 
 
 class TestSkipToNavigation(TestSurveyCommon):
-    """Bug #4: skip_action='skip_to' set last_displayed_page_id=target.id
-    causing the user to see target+1 instead of target."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -449,7 +388,6 @@ class TestSkipToNavigation(TestSurveyCommon):
             survey_id=cls.survey_skip.id,
             constr_mandatory=False,
         )
-        # Configure skip_to on Q1's first answer → Q3
         cls.q1.suggested_answer_ids[0].write(
             {
                 "skip_action": "skip_to",
@@ -458,33 +396,25 @@ class TestSkipToNavigation(TestSurveyCommon):
         )
 
     def test_skip_to_predecessor_computation(self):
-        """_get_next_page_or_question(target, go_back=True) returns Q before target."""
         survey = self.survey_skip
         answer = survey._create_answer(user=self.survey_manager, test_entry=True)
-        # The question before Q3 should be Q2
         before_q3 = survey._get_next_page_or_question(answer, self.q3.id, go_back=True)
         self.assertEqual(before_q3, self.q2)
 
     def test_skip_to_navigates_to_correct_target(self):
-        """After computing predecessor, _get_next_page_or_question returns target."""
         survey = self.survey_skip
         answer = survey._create_answer(user=self.survey_manager, test_entry=True)
-        # Get the predecessor of Q3
         before_q3 = survey._get_next_page_or_question(answer, self.q3.id, go_back=True)
-        # Now get the next page from that predecessor — should be Q3 itself
         next_q = survey._get_next_page_or_question(answer, before_q3.id)
         self.assertEqual(next_q, self.q3)
 
     def test_skip_to_first_question(self):
-        """Skip-to targeting the first question: predecessor is empty, resolves to first."""
         survey = self.survey_skip
         answer = survey._create_answer(user=self.survey_manager, test_entry=True)
         first_q = survey.question_ids[0]
         before_first = survey._get_next_page_or_question(
             answer, first_q.id, go_back=True
         )
-        # Predecessor of first Q should be empty or page
-        # Using id=0 triggers "First page" branch
         next_q = survey._get_next_page_or_question(
             answer, before_first.id if before_first else 0
         )
@@ -492,9 +422,6 @@ class TestSkipToNavigation(TestSurveyCommon):
 
 
 class TestActionEndSession(TestSurveyCommon):
-    """Bug #5: action_end_session used bare write(state='done') bypassing
-    _mark_done() — no end_datetime, no webhooks, no follow-up rules."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -530,7 +457,6 @@ class TestActionEndSession(TestSurveyCommon):
         )
 
     def test_end_session_sets_end_datetime(self):
-        """action_end_session must set end_datetime on session inputs."""
         survey = self.survey_session.with_user(self.survey_manager)
         survey.action_start_session()
         survey._session_open()
@@ -552,7 +478,6 @@ class TestActionEndSession(TestSurveyCommon):
         )
 
     def test_end_session_preserves_historical(self):
-        """Historical (non-session) inputs are not touched by action_end_session."""
         survey = self.survey_session.with_user(self.survey_manager)
         survey.action_start_session()
         survey._session_open()
@@ -569,21 +494,15 @@ class TestActionEndSession(TestSurveyCommon):
         self.assertFalse(historical.end_datetime)
 
     def test_end_session_with_no_inputs(self):
-        """action_end_session should not crash when there are no session inputs."""
         survey = self.survey_session.with_user(self.survey_manager)
         survey.action_start_session()
         survey._session_open()
-        # No answers created — should not raise
         survey.action_end_session()
         self.assertFalse(survey.session_state)
 
 
 class TestShortUrlRouting(HttpCase):
-    """Bug #6: /s/<string:...> was handled by two competing route handlers,
-    causing either slug or session code lookup to be unreachable."""
-
     def test_slug_resolves_survey(self):
-        """A survey with slug='customer-feedback' is reachable at /s/customer-feedback."""
         survey = self.env["survey.survey"].create(
             {
                 "title": "Slug Survey",
@@ -591,7 +510,6 @@ class TestShortUrlRouting(HttpCase):
                 "slug": "customer-feedback",
             }
         )
-        # Need at least one question so survey isn't void
         self.env["survey.question"].create(
             {
                 "title": "P",
@@ -611,12 +529,10 @@ class TestShortUrlRouting(HttpCase):
         )
 
         response = self.url_open("/s/customer-feedback", allow_redirects=False)
-        # Should redirect to /survey/start/<token>
         self.assertEqual(response.status_code, 303)
         self.assertIn(survey.access_token, response.headers.get("Location", ""))
 
     def test_short_token_resolves_survey(self):
-        """Short access token prefix (first 6 chars) resolves the survey."""
         survey = self.env["survey.survey"].create(
             {
                 "title": "Token Survey",
@@ -647,7 +563,5 @@ class TestShortUrlRouting(HttpCase):
         self.assertIn(survey.access_token, response.headers.get("Location", ""))
 
     def test_unknown_code_does_not_crash(self):
-        """An unknown code does not crash the server."""
         response = self.url_open("/s/nonexistent_999", allow_redirects=False)
-        # Should show session code page or redirect — not 500
         self.assertIn(response.status_code, (200, 303))

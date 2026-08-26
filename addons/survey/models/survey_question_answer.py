@@ -6,24 +6,14 @@ from odoo.exceptions import ValidationError
 
 
 class SurveyQuestionAnswer(models.Model):
-    """A preconfigured answer for a question. This model stores values used
-    for
-
-      * simple choice, multiple choice: proposed values for the selection /
-        radio;
-      * matrix: row and column values;
-
-    """
-
     _name = "survey.question.answer"
     _rec_name = "value"
     _rec_names_search = ["question_id.title", "value"]
     _order = "question_id, sequence, id"
     _description = "Survey Label"
 
-    MAX_ANSWER_NAME_LENGTH = 90  # empirically tested in client dropdown
+    MAX_ANSWER_NAME_LENGTH = 90
 
-    # question and question related fields
     question_id = fields.Many2one(
         "survey.question",
         string="Question",
@@ -39,7 +29,6 @@ class SurveyQuestionAnswer(models.Model):
     sequence = fields.Integer("Label Sequence order", default=10)
     question_type = fields.Selection(related="question_id.question_type")
     scoring_type = fields.Selection(related="question_id.scoring_type")
-    # answer related fields
     value = fields.Char("Suggested value", translate=True)
     value_image = fields.Image("Image", max_width=1024, max_height=1024)
     value_image_filename = fields.Char("Image Filename")
@@ -59,7 +48,6 @@ class SurveyQuestionAnswer(models.Model):
         translate=True,
         help="Feedback shown to the learner when this answer is selected.",
     )
-    # -- skip logic: what happens when this answer is selected
     skip_action = fields.Selection(
         [
             ("next", "Continue normally"),
@@ -82,16 +70,23 @@ class SurveyQuestionAnswer(models.Model):
         help="External URL to redirect to when 'Redirect to URL' action is selected.",
     )
 
-    _value_not_empty = models.Constraint(
-        "CHECK (value IS NOT NULL OR value_image_filename IS NOT NULL)",
-        "Suggested answer value must not be empty (a text and/or an image must be provided).",
-    )
+    # `value` is translate=True, so the column is jsonb: a CHECK for NOT NULL passes
+    # on {"en_US": ""}, which is exactly the case it was written to reject.
+    @api.constrains("value", "value_image_filename")
+    def _check_value_not_empty(self) -> None:
+        for label in self:
+            if not (label.value or "").strip() and not label.value_image_filename:
+                raise ValidationError(
+                    _(
+                        "Suggested answer value must not be empty (a text and/or an "
+                        "image must be provided)."
+                    )
+                )
 
     @api.constrains("question_id", "matrix_question_id")
     def _check_question_not_empty(self) -> None:
-        """Ensure that field question_id XOR field matrix_question_id is not null"""
         for label in self:
-            if not bool(label.question_id) != bool(label.matrix_question_id):
+            if bool(label.question_id) == bool(label.matrix_question_id):
                 raise ValidationError(
                     _("A label must be attached to only one question.")
                 )
@@ -103,12 +98,6 @@ class SurveyQuestionAnswer(models.Model):
         "matrix_question_id",
     )
     def _compute_display_name(self) -> None:
-        """Render an answer name as "Question title : Answer label value", making sure it is not too long.
-
-        Unless the answer is part of a matrix-type question, this implementation makes sure we have
-        at least 30 characters for the question title, then we elide it, leaving the rest of the
-        space for the answer.
-        """
         for answer in self:
             answer_label = answer.value_label
             if not answer.question_id or answer.question_id.question_type in (
@@ -120,7 +109,7 @@ class SurveyQuestionAnswer(models.Model):
             title = answer.question_id.title or _("[Question Title]")
             n_extra_characters = (
                 len(title) + len(answer_label) + 3 - self.MAX_ANSWER_NAME_LENGTH
-            )  # 3 for `" : "`
+            )
             if n_extra_characters <= 0:
                 answer.display_name = f"{title} : {answer_label}"
             else:
@@ -132,9 +121,7 @@ class SurveyQuestionAnswer(models.Model):
 
     @api.depends("question_id.suggested_answer_ids", "sequence", "value")
     def _compute_value_label(self) -> None:
-        """Compute the label as the value if not empty or a letter representing the index of the answer otherwise."""
         for answer in self:
-            # using image -> use a letter to represent the value
             if not answer.value and answer.question_id and answer.id:
                 answer_idx = answer.question_id.suggested_answer_ids.ids.index(
                     answer.id
@@ -146,7 +133,6 @@ class SurveyQuestionAnswer(models.Model):
     def _get_answer_matching_domain(
         self, row_id: int | bool = False
     ) -> list[str | tuple[str, str, Any]]:
-        """Build a domain to find user_input_lines matching this suggested answer."""
         self.ensure_one()
         if self.question_type in ("matrix", "likert"):
             return [

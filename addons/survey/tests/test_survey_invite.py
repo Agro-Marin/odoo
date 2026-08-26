@@ -13,29 +13,21 @@ from odoo.addons.survey.tests import common
 class TestSurveyInvite(common.TestSurveyCommon, MailCase):
     def setUp(self):
         res = super().setUp()
-        # by default signup not allowed
         self.env["ir.config_parameter"].set_param("auth_signup.invitation_scope", "b2b")
         view = self.env.ref("survey.survey_invite_view_form").sudo()
         tree = etree.fromstring(view.arch)
-        # Remove the invisible on `emails` to be able to test the onchange `_onchange_emails`
-        # which raises an error when attempting to change `emails`
-        # while the survey is set with `users_login_required` to True
-        # By default, `<field name="emails"/>` is invisible when `survey_users_login_required` is True,
-        # making it normally impossible to change by the user in the web client by default.
-        # For tests `test_survey_invite_authentication_nosignup` and `test_survey_invite_token_internal`
         tree.xpath('//field[@name="emails"]')[0].attrib.pop("invisible", None)
         view.arch = etree.tostring(tree)
         return res
 
     @users("survey_manager")
     def test_survey_invite_action(self):
-        # Check correctly configured survey returns an invite wizard action
         action = self.survey.action_send_survey()
         self.assertEqual(action["res_model"], "survey.invite")
 
         bad_cases = [
-            {},  # empty
-            {  # no question
+            {},
+            {
                 "question_and_page_ids": [
                     Command.create(
                         {
@@ -48,7 +40,6 @@ class TestSurveyInvite(common.TestSurveyCommon, MailCase):
                 ],
             },
             {
-                # scored without positive score obtainable
                 "scoring_type": "scoring_with_answers",
                 "question_and_page_ids": [
                     Command.create(
@@ -57,7 +48,6 @@ class TestSurveyInvite(common.TestSurveyCommon, MailCase):
                 ],
             },
             {
-                # scored without positive score obtainable from simple choice
                 "scoring_type": "scoring_with_answers",
                 "question_and_page_ids": [
                     Command.create(
@@ -74,7 +64,6 @@ class TestSurveyInvite(common.TestSurveyCommon, MailCase):
                 ],
             },
             {
-                # closed
                 "active": False,
                 "question_and_page_ids": [
                     Command.create(
@@ -93,7 +82,6 @@ class TestSurveyInvite(common.TestSurveyCommon, MailCase):
         ]
         good_cases = [
             {
-                # scored with positive score obtainable
                 "scoring_type": "scoring_with_answers",
                 "question_and_page_ids": [
                     Command.create(
@@ -107,11 +95,10 @@ class TestSurveyInvite(common.TestSurveyCommon, MailCase):
                 ],
             },
             {
-                # scored with positive score obtainable from simple choice
                 "scoring_type": "scoring_with_answers",
                 "question_and_page_ids": [
                     Command.create(
-                        {  # not sufficient
+                        {
                             "question_type": "simple_choice",
                             "title": "Q0",
                             "sequence": 1,
@@ -122,7 +109,7 @@ class TestSurveyInvite(common.TestSurveyCommon, MailCase):
                         }
                     ),
                     Command.create(
-                        {  # sufficient even if not 'is_correct'
+                        {
                             "question_type": "simple_choice",
                             "title": "Q1",
                             "sequence": 2,
@@ -159,7 +146,6 @@ class TestSurveyInvite(common.TestSurveyCommon, MailCase):
         invite_form = Form.from_action(self.env, self.survey.action_send_survey())
         invite_form.send_email = True
 
-        # some lowlevel checks that action is correctly configured
         self.assertEqual(
             Answer.search([("survey_id", "=", self.survey.id)]),
             self.env["survey.user_input"],
@@ -197,9 +183,7 @@ class TestSurveyInvite(common.TestSurveyCommon, MailCase):
         invite_form = Form.from_action(self.env, self.survey.action_send_survey())
         invite_form.send_email = True
 
-        with self.assertRaises(
-            UserError
-        ):  # do not allow to add customer (partner without user)
+        with self.assertRaises(UserError):
             invite_form.partner_ids.add(self.customer)
         invite_form.partner_ids.clear()
         invite_form.partner_ids.add(self.user_portal.partner_id)
@@ -238,8 +222,6 @@ class TestSurveyInvite(common.TestSurveyCommon, MailCase):
         invite_form.partner_ids.add(self.customer)
         invite_form.partner_ids.add(self.user_portal.partner_id)
         invite_form.partner_ids.add(self.user_emp.partner_id)
-        # TDE FIXME: not sure for emails in authentication + signup
-        # invite_form.emails = 'test1@example.com, Raoulette Vignolette <test2@example.com>'
 
         invite = invite_form.save()
         invite.action_invite()
@@ -257,8 +239,6 @@ class TestSurveyInvite(common.TestSurveyCommon, MailCase):
 
     @users("survey_manager")
     def test_survey_invite_email_from(self):
-        # Verifies whether changing the value of the "email_from" field reflects on the receiving end.
-        # by default avoid rendering restriction complexity
         self.env["ir.config_parameter"].sudo().set_param(
             "mail.restrict.template.rendering", False
         )
@@ -342,11 +322,9 @@ class TestSurveyInvite(common.TestSurveyCommon, MailCase):
         self.survey.write({"access_mode": "token", "users_login_required": True})
         invite_form = Form.from_action(self.env, self.survey.action_send_survey())
 
-        with self.assertRaises(
-            UserError
-        ):  # do not allow to add customer (partner without user)
+        with self.assertRaises(UserError):
             invite_form.partner_ids.add(self.customer)
-        with self.assertRaises(UserError):  # do not allow to add portal user
+        with self.assertRaises(UserError):
             invite_form.partner_ids.add(self.user_portal.partner_id)
         invite_form.partner_ids.clear()
         invite_form.partner_ids.add(self.user_emp.partner_id)
@@ -365,11 +343,6 @@ class TestSurveyInvite(common.TestSurveyCommon, MailCase):
         self.assertEqual(answers.mapped("partner_id"), self.user_emp.partner_id)
 
     def test_survey_invite_token_by_email_nosignup(self):
-        """
-        Case: have multiples partners with the same email address
-        If I set one email address, I expect one email to be sent
-        """
-
         first_partner = self.env["res.partner"].create(
             {
                 "name": "Test 1",
@@ -398,13 +371,10 @@ class TestSurveyInvite(common.TestSurveyCommon, MailCase):
 
     @users("survey_user")
     def test_survey_invite_with_template_attachment(self):
-        """
-        Test that a group_survey_user can send a survey that includes an attachment from the survey invite's
-            email template
-        """
         mail_template = self.env["mail.template"].create(
             {
                 "name": "test mail template",
+                "model_id": self.env.ref("survey.model_survey_user_input").id,
                 "attachment_ids": [
                     Command.create(
                         {
@@ -466,4 +436,60 @@ class TestSurveyInvite(common.TestSurveyCommon, MailCase):
             )
             .attachment_ids,
             mail_template.attachment_ids,
+        )
+
+    def test_resend_to_a_contact_without_an_email(self):
+        """mapped('email') keeps the False of a partner-only participation.
+
+        The lookup it was fed was only filled ``if answer.email``, so resending to
+        a contact with no email address raised KeyError(False) -- and action_resend
+        forces existing_mode='resend', so this was the mainline flow.
+        """
+        partner = self.env["res.partner"].create({"name": "No Email Contact"})
+        existing = self.survey._create_answer(partner=partner, check_attempts=False)
+        self.env.flush_all()
+
+        action = existing.action_resend()
+        invite = (
+            self.env["survey.invite"]
+            .with_context(**action["context"])
+            .create(
+                {
+                    "survey_id": self.survey.id,
+                    "existing_mode": "resend",
+                    "partner_ids": [(6, 0, [partner.id])],
+                }
+            )
+        )
+        with self.mock_mail_gateway():
+            invite.action_invite()
+
+        self.assertEqual(
+            self.env["survey.user_input"].search_count(
+                [("survey_id", "=", self.survey.id), ("partner_id", "=", partner.id)]
+            ),
+            1,
+            "resend must reuse the existing participation, not create a second one",
+        )
+
+    def test_resend_to_a_contact_with_an_email_still_works(self):
+        partner = self.env["res.partner"].create(
+            {"name": "With Email Contact", "email": "with.email@test.com"}
+        )
+        self.survey._create_answer(partner=partner, check_attempts=False)
+        self.env.flush_all()
+        invite = self.env["survey.invite"].create(
+            {
+                "survey_id": self.survey.id,
+                "existing_mode": "resend",
+                "partner_ids": [(6, 0, [partner.id])],
+            }
+        )
+        with self.mock_mail_gateway():
+            invite.action_invite()
+        self.assertEqual(
+            self.env["survey.user_input"].search_count(
+                [("survey_id", "=", self.survey.id), ("partner_id", "=", partner.id)]
+            ),
+            1,
         )

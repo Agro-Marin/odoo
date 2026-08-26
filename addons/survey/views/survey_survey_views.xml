@@ -151,7 +151,8 @@
                                     <field name="survey_url" widget="CopyClipboardChar" />
                                     <field name="slug" placeholder="e.g. customer-feedback" />
                                     <field name="survey_embed_code" widget="CopyClipboardChar" />
-                                    <field name="webhook_url" placeholder="https://example.com/webhook" />
+                                    <field name="webhook_url"
+                                        placeholder="https://example.com/webhook" />
                                     <field name="webhook_events" invisible="not webhook_url" />
                                     <field name="survey_qr_url" widget="image_url"
                                         nolabel="1" class="w-auto"
@@ -247,36 +248,41 @@
                         <page string="Quotas" name="quotas">
                             <field name="quota_ids">
                                 <list editable="bottom">
-                                    <field name="question_id" domain="[('survey_id', '=', parent.id), ('question_type', 'in', ['simple_choice', 'multiple_choice'])]"/>
-                                    <field name="answer_id" domain="[('question_id', '=', question_id)]"/>
-                                    <field name="limit"/>
-                                    <field name="current_count"/>
-                                    <field name="is_full"/>
+                                    <field name="question_id"
+                                        domain="[('survey_id', '=', parent.id), ('question_type', 'in', ['simple_choice', 'multiple_choice'])]" />
+                                    <field name="answer_id"
+                                        domain="[('question_id', '=', question_id)]" />
+                                    <field name="limit" />
+                                    <field name="current_count" />
+                                    <field name="is_full" />
                                 </list>
                             </field>
                         </page>
                         <page string="Follow-up Rules" name="followup_rules">
                             <field name="followup_rule_ids">
                                 <list editable="bottom">
-                                    <field name="sequence" widget="handle"/>
-                                    <field name="name"/>
-                                    <field name="condition_type"/>
-                                    <field name="score_min" invisible="condition_type != 'score_range'"/>
-                                    <field name="score_max" invisible="condition_type != 'score_range'"/>
-                                    <field name="mail_template_id"/>
-                                    <field name="active"/>
+                                    <field name="sequence" widget="handle" />
+                                    <field name="name" />
+                                    <field name="condition_type" />
+                                    <field name="score_min"
+                                        invisible="condition_type != 'score_range'" />
+                                    <field name="score_max"
+                                        invisible="condition_type != 'score_range'" />
+                                    <field name="mail_template_id" />
+                                    <field name="active" />
                                 </list>
                             </field>
                         </page>
                         <page string="Theme" name="theme">
                             <group>
                                 <group string="Appearance">
-                                    <field name="theme_color" widget="color"/>
-                                    <field name="theme_font"/>
+                                    <field name="theme_color" widget="color" />
+                                    <field name="theme_font" />
                                 </group>
                                 <group string="Advanced">
                                     <field name="theme_custom_css" widget="ace"
-                                        options="{'mode': 'css'}" placeholder="/* Custom CSS for survey frontend */"/>
+                                        options="{'mode': 'css'}"
+                                        placeholder="/* Custom CSS for survey frontend */" />
                                 </group>
                             </group>
                         </page>

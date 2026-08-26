@@ -46,15 +46,15 @@ sent mails with personal token for the invitation of the survey.
         "views/survey_menus.xml",
     ],
     "demo": [
-        "data/gamification_badge_demo.xml",
-        "data/res_users_demo.xml",
-        "data/survey_demo_feedback.xml",
-        "data/survey_demo_feedback_user_input.xml",
-        "data/survey_demo_feedback_user_input_line.xml",
-        "data/survey_demo_certification.xml",
-        "data/survey_demo_certification_user_input.xml",
-        "data/survey_demo_certification_user_input_line.xml",
-        "data/survey_demo_conditional.xml",
+        "demo/gamification_badge_demo.xml",
+        "demo/res_users_demo.xml",
+        "demo/survey_demo_feedback.xml",
+        "demo/survey_demo_feedback_user_input.xml",
+        "demo/survey_demo_feedback_user_input_line.xml",
+        "demo/survey_demo_certification.xml",
+        "demo/survey_demo_certification_user_input.xml",
+        "demo/survey_demo_certification_user_input_line.xml",
+        "demo/survey_demo_conditional.xml",
     ],
     "installable": True,
     "application": True,
@@ -75,8 +75,10 @@ sent mails with personal token for the invitation of the survey.
             "survey/static/src/interactions/survey_breadcrumb_templates.xml",
             "survey/static/src/xml/survey_paginated_results_rows_template.xml",
             "survey/static/src/interactions/*",
+            ("remove", "survey/static/src/interactions/survey_session_manage.js"),
         ],
         "survey.survey_user_input_session_assets": [
+            "web/static/src/libs/bootstrap.js",
             "survey/static/src/interactions/chartjs_setup.js",
             "survey/static/src/interactions/survey_session_colors.js",
             "survey/static/src/interactions/survey_session_chart.js",
@@ -96,8 +98,7 @@ sent mails with personal token for the invitation of the survey.
             "survey/static/src/scss/survey_question_views.scss",
             "survey/static/src/js/tours/survey_tour.js",
         ],
-        "web.assets_web_dark": [
-        ],
+        "web.assets_web_dark": [],
         "web.assets_tests": [
             "survey/static/tests/tours/*.js",
         ],
@@ -116,6 +117,12 @@ sent mails with personal token for the invitation of the survey.
             "survey.survey_assets",
             "survey.survey_user_input_session_assets",
         ],
+        "secondary_import_map_includes": {
+            "web.assets_frontend": [
+                "survey.survey_assets",
+                "survey.survey_user_input_session_assets",
+            ],
+        },
         "external_libs": {
             "chartjs-plugin-datalabels": (
                 "/survey/static/lib/chartjs-plugin-datalabels.js"

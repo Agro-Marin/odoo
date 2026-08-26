@@ -77,7 +77,6 @@ class TestCertificationBadge(common.TestSurveyCommon):
         )
 
     def test_archive(self):
-        """Archive status of survey is propagated to its badges."""
         self.certification_survey.write(
             {
                 "certification_give_badge": True,
@@ -100,7 +99,6 @@ class TestCertificationBadge(common.TestSurveyCommon):
                 "certification_badge_id": self.certification_badge.id,
             }
         )
-        # set the same badge on another survey should fail:
         with mute_logger("odoo.db"):
             with self.assertRaises(IntegrityError):
                 self.certification_survey_2.write(
@@ -111,8 +109,6 @@ class TestCertificationBadge(common.TestSurveyCommon):
                 )
 
     def test_badge_configuration(self):
-        """Test badge synchronization"""
-        # add a certification badge on a new survey
         challenge = self.env["gamification.challenge"].search(
             [("reward_id", "=", self.certification_badge.id)]
         )
@@ -153,7 +149,6 @@ class TestCertificationBadge(common.TestSurveyCommon):
             "A goal should be created if the certification badge is activated on a certification survey",
         )
 
-        # don't give badge anymore
         self.certification_survey.write({"certification_give_badge": False})
         self.assertEqual(
             self.certification_badge.id,
@@ -189,7 +184,6 @@ class TestCertificationBadge(common.TestSurveyCommon):
             "The goal should be deleted if the certification badge is unset from the certification survey",
         )
 
-        # re active the badge in the survey
         self.certification_survey.write({"certification_give_badge": True})
         self.assertEqual(
             self.certification_badge.active,
@@ -220,7 +214,6 @@ class TestCertificationBadge(common.TestSurveyCommon):
             "A goal should be created if the certification badge is activated on a certification survey",
         )
 
-        # If 'certification_give_badge' is True but no certification badge is linked, ValueError should be raised
         duplicate_survey = self.certification_survey.copy()
         self.assertFalse(
             duplicate_survey.certification_give_badge,
@@ -300,7 +293,6 @@ class TestCertificationBadge(common.TestSurveyCommon):
         goals = challenge_lines.mapped("definition_id")
         self.assertEqual(len(goals), 3, "3 goals should be created")
 
-        # Test write multi
         certification_surveys.write({"certification_give_badge": False})
         for survey in certification_surveys:
             self.assertEqual(

@@ -12,4 +12,5 @@ from . import survey_quota
 from . import survey_survey
 from . import survey_tag
 from . import survey_user_input
+from . import survey_user_input_line
 from . import templates

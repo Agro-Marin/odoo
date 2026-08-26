@@ -4,24 +4,31 @@ from odoo import api, fields, models
 
 
 class ResPartner(models.Model):
-    """Extend res.partner with certification statistics."""
-
     _inherit = "res.partner"
 
     certifications_count = fields.Integer(
-        "Certifications Count", compute="_compute_certifications_count"
+        "Certifications Count",
+        compute="_compute_certifications_count",
     )
     certifications_company_count = fields.Integer(
-        "Company Certifications Count", compute="_compute_certifications_company_count"
+        "Company Certifications Count",
+        compute="_compute_certifications_company_count",
     )
 
-    @api.depends("is_company")
+    def _get_domain_certification(self, partner_ids: list[int] | None = None) -> list:
+        return [
+            ("partner_id", "in", self.ids if partner_ids is None else partner_ids),
+            ("scoring_success", "=", True),
+            ("state", "=", "done"),
+            ("test_entry", "=", False),
+        ]
+
     def _compute_certifications_count(self) -> None:
         read_group_res = (
             self.env["survey.user_input"]
             .sudo()
             ._read_group(
-                [("partner_id", "in", self.ids), ("scoring_success", "=", True)],
+                self._get_domain_certification(),
                 ["partner_id"],
                 ["__count"],
             )
@@ -38,16 +45,11 @@ class ResPartner(models.Model):
             )
 
     def action_view_certifications(self) -> dict[str, Any]:
-        """Open the list of successful certification attempts for this partner (and children)."""
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "survey.res_partner_action_certifications"
         )
         action["view_mode"] = "list"
-        action["domain"] = [
-            ("scoring_success", "=", True),
-            "|",
-            ("partner_id", "in", self.ids),
-            ("partner_id", "in", self.child_ids.ids),
-        ]
-
+        action["domain"] = self._get_domain_certification(
+            partner_ids=(self | self.child_ids).ids
+        )
         return action

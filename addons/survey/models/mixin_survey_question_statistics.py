@@ -9,27 +9,15 @@ from odoo import _, models, tools
 
 
 class MixinSurveyQuestionStatistics(models.AbstractModel):
-    """Statistics / reporting methods for survey questions.
-
-    Provides chart data, summary aggregations, NPS scoring, text analysis,
-    and correct-answer lookups.  Designed to be inherited by ``survey.question``.
-    """
-
     _name = "mixin.survey.question.statistics"
     _description = "Survey Question Statistics Mixin"
 
-    # ------------------------------------------------------------------
-    # PUBLIC ENTRY POINTS
-    # ------------------------------------------------------------------
-
-    def _prepare_statistics(self, user_input_lines: Any) -> list[dict[str, Any]]:
-        """Compute statistical data for each question by counting votes per choice.
-
-        Returns a list of dicts, one per question/page in ``self``, containing
-        table data, graph data, text analysis, and summary counts suitable for
-        the results template.
-        """
+    def _prepare_question_statistics(
+        self, user_input_lines: Any
+    ) -> list[dict[str, Any]]:
         all_questions_data = []
+        lines_by_question = user_input_lines.grouped("question_id")
+        empty_lines = self.env["survey.user_input.line"]
         for question in self:
             question_data = {"question": question, "is_page": question.is_page}
 
@@ -37,10 +25,7 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
                 all_questions_data.append(question_data)
                 continue
 
-            # Separate real answers from comments
-            all_lines = user_input_lines.filtered(
-                lambda line, q=question: line.question_id == q
-            )
+            all_lines = lines_by_question.get(question, empty_lines)
             if question.question_type in [
                 "simple_choice",
                 "dropdown",
@@ -74,7 +59,6 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
             )
             question_data.update(question._get_stats_summary_data(answer_lines))
 
-            # Table and graph data
             table_data, graph_data, extra_data = question._get_stats_data(answer_lines)
             question_data["table_data"] = table_data
             question_data["graph_data"] = json.dumps(graph_data)
@@ -97,7 +81,6 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
                     if not input_line.skipped
                 ]
                 question_data["answers_data"] = json.dumps(answers_data, default=str)
-            # Text analysis for open-text questions
             if question.question_type in ("text_box", "char_box"):
                 question_data["text_analysis"] = question._get_text_analysis(
                     answer_lines
@@ -105,18 +88,9 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
             all_questions_data.append(question_data)
         return all_questions_data
 
-    # ------------------------------------------------------------------
-    # PER-TYPE STATISTICS DISPATCHERS
-    # ------------------------------------------------------------------
-
     def _get_stats_data(
         self, user_input_lines: Any
     ) -> tuple[Any, list[dict[str, Any]], dict[str, Any] | None]:
-        """Return ``(table_data, graph_data, extra)`` for chart/table rendering.
-
-        Dispatches to a type-specific method.  The third element contains
-        type-specific metadata (e.g. NPS summary) or ``None``.
-        """
         if self.question_type in ("simple_choice", "dropdown"):
             table_data, graph_data = self._get_stats_data_answers(user_input_lines)
             return table_data, graph_data, None
@@ -140,18 +114,9 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
             return self._get_stats_data_per_answer(user_input_lines)
         return list(user_input_lines), [], None
 
-    # ------------------------------------------------------------------
-    # CHOICE / SUGGESTION-BASED STATISTICS
-    # ------------------------------------------------------------------
-
     def _get_stats_data_answers(
         self, user_input_lines: Any
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        """Statistics for choice-based questions (simple/multiple choice).
-
-        A void ``survey.question.answer`` record is added when comments count
-        as answers, keeping everything in one uniform structure.
-        """
         suggested_answers = list(self.mapped("suggested_answer_ids"))
         if self.comment_count_as_answer:
             suggested_answers += [self.env["survey.question.answer"]]
@@ -189,14 +154,14 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
     def _get_stats_graph_data_matrix(
         self, user_input_lines: Any
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        """Statistics for matrix questions: cross-tabulation of rows x columns."""
         suggested_answers = self.mapped("suggested_answer_ids")
         matrix_rows = self.mapped("matrix_row_ids")
 
         count_data = dict.fromkeys(itertools.product(matrix_rows, suggested_answers), 0)
         for line in user_input_lines:
-            if line.matrix_row_id and line.suggested_answer_id:
-                count_data[(line.matrix_row_id, line.suggested_answer_id)] += 1
+            cell = (line.matrix_row_id, line.suggested_answer_id)
+            if cell in count_data:
+                count_data[cell] += 1
 
         table_data = [
             {
@@ -224,14 +189,9 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
 
         return table_data, graph_data
 
-    # ------------------------------------------------------------------
-    # SCALE / NPS / RATING STATISTICS
-    # ------------------------------------------------------------------
-
     def _get_stats_data_scale(
         self, user_input_lines: Any
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        """Statistics for scale questions: count per discrete value."""
         suggested_answers = range(self.scale_min, self.scale_max + 1)
 
         count_data = dict.fromkeys(suggested_answers, 0)
@@ -259,11 +219,6 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
     def _get_stats_data_nps(
         self, user_input_lines: Any
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, int]]:
-        """Compute NPS statistics: Detractor (0-6), Passive (7-8), Promoter (9-10).
-
-        Returns scale-like table/graph data plus NPS-specific bucket counts.
-        NPS score = %Promoters - %Detractors (range -100 to +100).
-        """
         count_data = dict.fromkeys(range(11), 0)
         for line in user_input_lines:
             if not line.skipped and 0 <= line.value_scale <= 10:
@@ -278,7 +233,6 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
         table_data = []
         graph_data = []
         for value in range(11):
-            # Color: red for detractors, yellow for passives, green for promoters
             color = "#dc3545" if value <= 6 else "#ffc107" if value <= 8 else "#28a745"
             table_data.append(
                 {
@@ -312,7 +266,6 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
     def _get_stats_data_rating(
         self, user_input_lines: Any
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        """Statistics for rating questions: count per level (1 to rating_max)."""
         suggested_answers = range(1, self.rating_max + 1)
         count_data = dict.fromkeys(suggested_answers, 0)
         for line in user_input_lines:
@@ -333,14 +286,9 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
             graph_data.append({"text": str(value), "count": count_data[value]})
         return table_data, graph_data
 
-    # ------------------------------------------------------------------
-    # PER-ANSWER STATISTICS (RANKING / CONSTANT SUM)
-    # ------------------------------------------------------------------
-
     def _get_stats_data_per_answer(
         self, user_input_lines: Any
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], None]:
-        """Statistics for ranking/constant_sum: average value per suggested answer."""
         table_data = []
         graph_data = []
         for answer in self.suggested_answer_ids:
@@ -360,121 +308,143 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
             graph_data.append({"text": answer.value, "count": round(avg_val, 1)})
         return table_data, [{"key": self.title, "values": graph_data}], None
 
-    # ------------------------------------------------------------------
-    # TEXT ANALYSIS
-    # ------------------------------------------------------------------
+    _STOP_WORDS_BY_LANG = {
+        "en": frozenset(
+            [
+                "a",
+                "an",
+                "the",
+                "and",
+                "or",
+                "but",
+                "in",
+                "on",
+                "at",
+                "to",
+                "for",
+                "of",
+                "is",
+                "it",
+                "was",
+                "be",
+                "are",
+                "been",
+                "have",
+                "has",
+                "had",
+                "do",
+                "does",
+                "did",
+                "will",
+                "would",
+                "could",
+                "should",
+                "may",
+                "might",
+                "all",
+                "any",
+                "each",
+                "every",
+                "some",
+                "both",
+                "few",
+                "many",
+                "how",
+                "what",
+                "when",
+                "where",
+                "which",
+                "who",
+                "whom",
+                "why",
+                "its",
+                "his",
+                "her",
+                "there",
+                "here",
+                "then",
+                "now",
+                "only",
+                "still",
+                "already",
+                "even",
+                "again",
+            ]
+        ),
+        "es": frozenset(
+            [
+                "el",
+                "la",
+                "los",
+                "las",
+                "un",
+                "una",
+                "unos",
+                "unas",
+                "y",
+                "o",
+                "pero",
+                "en",
+                "de",
+                "del",
+                "a",
+                "al",
+                "para",
+                "por",
+                "con",
+                "sin",
+                "que",
+                "se",
+                "lo",
+                "su",
+                "sus",
+                "es",
+                "son",
+                "era",
+                "eran",
+                "ser",
+                "estar",
+                "este",
+                "esta",
+                "estos",
+                "estas",
+                "ese",
+                "esa",
+                "como",
+                "cuando",
+                "donde",
+                "quien",
+                "porque",
+                "muy",
+                "mas",
+                "menos",
+                "todo",
+                "toda",
+                "todos",
+                "todas",
+                "ya",
+                "tambien",
+                "solo",
+                "aun",
+                "otra",
+                "otro",
+            ]
+        ),
+    }
 
-    # Common English stop words excluded from word frequency analysis
-    _STOP_WORDS = frozenset(
-        [
-            "a",
-            "an",
-            "the",
-            "and",
-            "or",
-            "but",
-            "in",
-            "on",
-            "at",
-            "to",
-            "for",
-            "of",
-            "is",
-            "it",
-            "was",
-            "be",
-            "are",
-            "been",
-            "have",
-            "has",
-            "had",
-            "do",
-            "does",
-            "did",
-            "will",
-            "would",
-            "could",
-            "should",
-            "may",
-            "might",
-            "can",
-            "i",
-            "me",
-            "my",
-            "we",
-            "our",
-            "you",
-            "your",
-            "he",
-            "she",
-            "they",
-            "them",
-            "their",
-            "this",
-            "that",
-            "these",
-            "those",
-            "with",
-            "from",
-            "by",
-            "not",
-            "no",
-            "so",
-            "if",
-            "as",
-            "up",
-            "out",
-            "about",
-            "into",
-            "over",
-            "after",
-            "very",
-            "much",
-            "more",
-            "most",
-            "also",
-            "just",
-            "than",
-            "too",
-            "all",
-            "any",
-            "each",
-            "every",
-            "some",
-            "both",
-            "few",
-            "many",
-            "how",
-            "what",
-            "when",
-            "where",
-            "which",
-            "who",
-            "whom",
-            "why",
-            "its",
-            "his",
-            "her",
-            "there",
-            "here",
-            "then",
-            "now",
-            "only",
-            "still",
-            "already",
-            "even",
-            "again",
-        ]
-    )
+    def _stop_words(self) -> frozenset[str]:
+        """Keyed by the answers' language, not hardcoded to one of them.
+
+        A single English list applied to Spanish answers returns de/la/que/el as
+        the most frequent words, which is the whole word cloud. An unlisted
+        language filters nothing rather than filtering the wrong thing.
+        """
+        lang = (self.env.context.get("lang") or self.env.lang or "en").split("_")[0]
+        return self._STOP_WORDS_BY_LANG.get(lang, frozenset())
 
     def _get_text_analysis(
         self, user_input_lines: Any
     ) -> dict[str, list[dict[str, Any]]]:
-        """Compute keyword frequency data for open-text questions.
-
-        Returns a dict with ``word_cloud`` (list of ``{text, weight}`` for the
-        top 50 words) and ``top_keywords`` (top 20 with counts).
-        """
         self.ensure_one()
         field_name = (
             "value_text_box" if self.question_type == "text_box" else "value_char_box"
@@ -487,9 +457,9 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
         if not all_text.strip():
             return {"word_cloud": [], "top_keywords": []}
 
-        # Tokenize: lowercase, split on non-alphanumeric, filter stop words and short words
-        words = re.findall(r"[a-záéíóúñüàèìòùâêîôû]{3,}", all_text.lower())
-        words = [w for w in words if w not in self._STOP_WORDS]
+        stop_words = self._stop_words()
+        words = re.findall(r"\w{3,}", all_text.lower())
+        words = [w for w in words if w not in stop_words and not w.isdigit()]
         counter = collections.Counter(words)
 
         top_50 = counter.most_common(50)
@@ -506,12 +476,7 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
             "top_keywords": top_keywords,
         }
 
-    # ------------------------------------------------------------------
-    # SUMMARY / AGGREGATION
-    # ------------------------------------------------------------------
-
     def _get_stats_summary_data(self, user_input_lines: Any) -> dict[str, Any]:
-        """Dispatch summary computation by question type."""
         stats = {}
         if self.question_type in ["simple_choice", "dropdown", "multiple_choice"]:
             stats.update(self._get_stats_summary_data_choice(user_input_lines))
@@ -535,7 +500,6 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
         return stats
 
     def _get_stats_summary_data_choice(self, user_input_lines: Any) -> dict[str, Any]:
-        """Compute correct/partial answer counts for choice questions."""
         right_inputs, partial_inputs = (
             self.env["survey.user_input"],
             self.env["survey.user_input"],
@@ -552,7 +516,6 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
                 correct_selected = input_lines.filtered(
                     lambda l: l.answer_is_correct
                 ).mapped("suggested_answer_id")
-                # Fully correct: selected exactly the right answers (no extra wrong ones)
                 if (
                     correct_selected
                     and correct_selected == right_answers
@@ -574,7 +537,6 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
     def _get_stats_summary_data_numerical(
         self, user_input_lines: Any, fname: str = "value_numerical_box"
     ) -> dict[str, float]:
-        """Compute min/max/average for numerical-valued answers."""
         all_values = user_input_lines.filtered(lambda line: not line.skipped).mapped(
             fname
         )
@@ -585,11 +547,9 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
             "numerical_average": round(lines_sum / (len(all_values) or 1), 2),
         }
 
-    # Question types that reuse another type's value field for storage
     _VALUE_FIELD_ALIAS = {"nps": "scale", "slider": "numerical_box", "rating": "scale"}
 
     def _get_stats_summary_data_scored(self, user_input_lines: Any) -> dict[str, Any]:
-        """Compute most-common answers and correct-answer counts for scored questions."""
         value_field_type = self._VALUE_FIELD_ALIAS.get(
             self.question_type, self.question_type
         )
@@ -606,20 +566,9 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
             ),
         }
 
-    # ------------------------------------------------------------------
-    # CORRECT ANSWERS
-    # ------------------------------------------------------------------
-
     def _get_correct_answers(self) -> dict[int, Any]:
-        """Return a dict mapping scorable question ids to their correct answers.
-
-        For choice questions the value is a list of ``survey.question.answer``
-        ids; for numerical/date/datetime it is the formatted correct value.
-        Questions without a configured correct answer are omitted.
-        """
         correct_answers = {}
 
-        # Simple and multiple choice
         choices_questions = self.filtered(
             lambda q: (
                 q.question_type in ["simple_choice", "dropdown", "multiple_choice"]
@@ -632,18 +581,19 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
                     ("is_correct", "=", True),
                 ],
                 ["question_id", "id"],
-                load="",  # prevent computing display_names
+                load="",
             )
             for data in suggested_answers_data:
                 if not data.get("id"):
                     continue
                 correct_answers.setdefault(data["question_id"], []).append(data["id"])
 
-        # Numerical box, date, datetime
         for question in self - choices_questions:
             if question.question_type not in ["numerical_box", "date", "datetime"]:
                 continue
             answer = question[f"answer_{question.question_type}"]
+            if not question.is_scored_question:
+                continue
             if question.question_type == "date":
                 answer = tools.format_date(self.env, answer)
             elif question.question_type == "datetime":

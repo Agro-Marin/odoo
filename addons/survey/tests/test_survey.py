@@ -12,7 +12,6 @@ from odoo.addons.survey.tests import common
 class TestSurveyInternals(common.TestSurveyCommon, MailCase):
     @users("survey_manager")
     def test_allowed_triggering_question_ids(self):
-        # Create 2 surveys, each with 3 questions, each with 2 suggested answers
         survey_1, survey_2 = self.env["survey.survey"].create(
             [{"title": "Test Survey 1"}, {"title": "Test Survey 2"}]
         )
@@ -39,7 +38,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         survey_2_q_1, survey_2_q_2, _ = survey_2.question_ids
 
         with self.subTest("Editing existing questions"):
-            # Only previous questions from the same survey
             self.assertFalse(
                 bool(
                     survey_1_q_2.allowed_triggering_question_ids
@@ -53,7 +51,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         survey_2_new_question = self.env["survey.question"].new({"survey_id": survey_2})
 
         with self.subTest("New questions"):
-            # New questions should be allowed to use any question with choices from the same survey
             self.assertFalse(
                 bool(
                     survey_1_new_question.allowed_triggering_question_ids
@@ -70,9 +67,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
             )
 
     def test_answer_attempts_count(self):
-        """As 'attempts_number' and 'attempts_count' are computed using raw SQL queries, let us
-        test the results."""
-
         test_survey = self.env["survey.survey"].create(
             {
                 "title": "Test Survey",
@@ -87,7 +81,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
                 test_survey, self.survey_user.partner_id, state="done"
             )
 
-        # read both fields at once to allow computing their values in batch
         attempts_results = all_attempts.read(["attempts_number", "attempts_count"])
         first_attempt = attempts_results[0]
         second_attempt = attempts_results[1]
@@ -109,10 +102,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
     @freeze_time("2020-02-15 18:00")
     @users("survey_manager")
     def test_answer_display_name(self):
-        """The "display_name" field in a survey.user_input.line is a computed field that will
-        display the answer label for any type of question.
-        Let us test the various question types."""
-
         questions = self._create_one_question_per_type()
         user_input = self._add_answer(self.survey, self.survey_user.partner_id)
 
@@ -175,15 +164,11 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
 
     @users("survey_manager")
     def test_answer_validation_mandatory(self):
-        """For each type of question check that mandatory questions correctly check for complete answers"""
         for question in self._create_one_question_per_type():
             if question.question_type in ("statement", "calculated"):
-                # These question types collect no direct answer — validation always passes
                 self.assertDictEqual(question._check_answer(""), {})
                 continue
-            self.assertDictEqual(
-                question._check_answer(""), {question.id: "TestError"}
-            )
+            self.assertDictEqual(question._check_answer(""), {question.id: "TestError"})
 
     @users("survey_manager")
     def test_answer_validation_date(self):
@@ -264,9 +249,7 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
             validation_error_msg="ValidationError",
         )
 
-        self.assertEqual(
-            question._check_answer("l"), {question.id: "ValidationError"}
-        )
+        self.assertEqual(question._check_answer("l"), {question.id: "ValidationError"})
 
         self.assertEqual(
             question._check_answer("waytoomuchlonganswer"),
@@ -277,10 +260,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
 
     @users("survey_manager")
     def test_simple_choice_validation_multiple_answers(self):
-        """
-        Check that a 'simple_choice' question fails validation if more than one
-        valid answer is provided.
-        """
         question = self._add_question(
             self.page_0,
             "Simple Choice Constraint Test",
@@ -332,8 +311,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
 
     @users("survey_manager")
     def test_answer_validation_comment(self):
-        """Check that a comment validates a mandatory question based on 'comment_count_as_answer'."""
-        # Scenario 1: A comment counts as a valid answer.
         question_ok = self._add_question(
             self.page_0,
             "Q_OK",
@@ -352,7 +329,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
             {},
         )
 
-        # Scenario 2: A comment does NOT count as a valid answer.
         question_fail = self._add_question(
             self.page_0,
             "Q_FAIL",
@@ -372,9 +348,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         )
 
     def test_partial_scores_simple_choice(self):
-        """ " Check that if partial scores are given for partially correct answers, in the case of a multiple
-        choice question with single choice, choosing the answer with max score gives 100% of points."""
-
         partial_scores_survey = self.env["survey.survey"].create(
             {
                 "title": "How much do you know about words?",
@@ -415,13 +388,11 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
             }
         )
 
-        # Check that scoring is correct and survey is passed
         self.assertEqual(user_input.scoring_percentage, 100)
         self.assertTrue(user_input.scoring_success)
 
     @users("survey_manager")
     def test_numerical_box_zero_answer_scoring(self):
-        """A correct answer of 0 must be scored properly (not treated as empty)."""
         survey = self.env["survey.survey"].create(
             {
                 "title": "Math Quiz",
@@ -445,7 +416,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
             }
         )
 
-        # User answers 0 (the correct answer)
         answer_line = self.env["survey.user_input.line"].create(
             {
                 "user_input_id": user_input.id,
@@ -461,7 +431,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         self.assertEqual(answer_line.answer_score, 10.0)
         self.assertEqual(user_input.scoring_percentage, 100)
 
-        # User answers non-zero (wrong answer)
         user_input_2 = self.env["survey.user_input"].create(
             {
                 "survey_id": survey.id,
@@ -529,44 +498,35 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         )
 
         def assert_answer_status(expected_answer_status, questions_statistics):
-            """Assert counts for 'Correct', 'Partially', 'Incorrect', 'Unanswered' are 0, and 1 for our expected answer status"""
             for status, count in [
                 (total["text"], total["count"])
                 for total in questions_statistics["totals"]
             ]:
                 self.assertEqual(count, 1 if status == expected_answer_status else 0)
 
-        # this answer is incorrect with no score: should be considered as incorrect
-        statistics = user_input._prepare_statistics()[user_input]
+        statistics = user_input._prepare_answer_statistics()[user_input]
         assert_answer_status("Incorrect", statistics)
 
-        # this answer is correct with a positive score (even if not the maximum): should be considered as correct
         user_input_line.suggested_answer_id = a_02.id
-        statistics = user_input._prepare_statistics()[user_input]
+        statistics = user_input._prepare_answer_statistics()[user_input]
         assert_answer_status("Correct", statistics)
 
-        # this answer is correct with the best score: should be considered as correct
         user_input_line.suggested_answer_id = a_03.id
-        statistics = user_input._prepare_statistics()[user_input]
+        statistics = user_input._prepare_answer_statistics()[user_input]
         assert_answer_status("Correct", statistics)
 
-        # this answer is incorrect but has a score: should be considered as "partially"
         user_input_line.suggested_answer_id = a_04.id
-        statistics = user_input._prepare_statistics()[user_input]
+        statistics = user_input._prepare_answer_statistics()[user_input]
         assert_answer_status("Partially", statistics)
 
     @users("survey_manager")
     def test_skipped_values(self):
-        """Create one question per type of questions.
-        Make sure they are correctly registered as 'skipped' after saving an empty answer for each
-        of them."""
-
         questions = self._create_one_question_per_type()
         survey_user = self.survey._create_answer(user=self.survey_user)
 
         for question in questions:
             if question.question_type in ("statement", "calculated"):
-                continue  # no direct answer to save
+                continue
             answer = "" if question.question_type in ["char_box", "text_box"] else None
             survey_user._save_lines(question, answer)
 
@@ -577,7 +537,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
 
     @users("survey_manager")
     def test_multiple_choice_comment_not_skipped(self):
-        """Test that a multiple choice question with only a comment is not marked as skipped."""
         survey_user = self.survey._create_answer(user=self.survey_user)
         question = self._add_question(
             self.page_0,
@@ -588,7 +547,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
             labels=[{"value": "Choice A"}, {"value": "Choice B"}],
         )
 
-        # Save an answer with no selected choice but with a comment.
         survey_user._save_lines(question, answer=[], comment="This is only a comment")
 
         answer_line = self.env["survey.user_input.line"].search(
@@ -602,15 +560,9 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
 
     @users("survey_manager")
     def test_copy_conditional_question_settings(self):
-        """Create a survey with conditional layout, clone it and verify that the cloned survey has the same conditional
-        layout as the original survey.
-        The test also check that the cloned survey doesn't reference the original survey.
-        """
-
         def get_question_by_title(survey, title):
             return survey.question_ids.filtered(lambda q: q.title == title)[0]
 
-        # Create the survey questions (! texts of the questions must be unique as they are used to query them)
         q_is_vegetarian_text = "Are you vegetarian?"
         q_is_vegetarian = self._add_question(
             self.page_0,
@@ -644,10 +596,8 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
             labels=[{"value": "Steak with french fries"}, {"value": "Fish"}],
         )
 
-        # Clone the survey
         survey_clone = self.survey.copy()
 
-        # Verify the conditional layout and that the cloned survey doesn't reference the original survey
         q_is_vegetarian_cloned = get_question_by_title(
             survey_clone, q_is_vegetarian_text
         )
@@ -660,9 +610,7 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
 
         self.assertFalse(bool(q_is_vegetarian_cloned.triggering_answer_ids))
 
-        # Vegetarian choice
         self.assertTrue(bool(q_food_vegetarian_cloned))
-        # Correct conditional layout
         self.assertEqual(
             q_food_vegetarian_cloned.triggering_answer_ids.ids,
             [
@@ -670,7 +618,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
                 q_is_vegetarian_cloned.suggested_answer_ids[2].id,
             ],
         )
-        # Doesn't reference the original survey
         self.assertNotEqual(
             q_food_vegetarian_cloned.triggering_answer_ids.ids,
             [
@@ -679,14 +626,11 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
             ],
         )
 
-        # Not vegetarian choice
         self.assertTrue(bool(q_food_not_vegetarian_cloned.triggering_answer_ids))
-        # Correct conditional layout
         self.assertEqual(
             q_food_not_vegetarian_cloned.triggering_answer_ids.ids,
             q_is_vegetarian_cloned.suggested_answer_ids[1].ids,
         )
-        # Doesn't reference the original survey
         self.assertNotEqual(
             q_food_not_vegetarian_cloned.triggering_answer_ids.ids,
             q_is_vegetarian.suggested_answer_ids[1].ids,
@@ -694,14 +638,9 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
 
     @users("survey_manager")
     def test_copy_conditional_question_with_sequence_changed(self):
-        """Create a survey with two questions, change the sequence of the questions,
-        set the second question as conditional on the first one, and check that the conditional
-        question is still conditional on the first one after copying the survey."""
-
         def get_question_by_title(survey, title):
             return survey.question_ids.filtered(lambda q: q.title == title)[0]
 
-        # Create the survey questions
         q_1 = self._add_question(
             self.page_0,
             "Q1",
@@ -719,20 +658,16 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
             labels=[{"value": "Yes"}, {"value": "No"}],
         )
 
-        # Change the sequence of the second question to be before the first one
         q_2.write({"sequence": 100})
 
-        # Set a conditional question on the first question
         q_1.write(
             {"triggering_answer_ids": [Command.set([q_2.suggested_answer_ids[0].id])]}
         )
 
         (q_1 | q_2).invalidate_recordset()
 
-        # Clone the survey
         cloned_survey = self.survey.copy()
 
-        # Check that the sequence of the questions are the same as the original survey
         self.assertEqual(
             get_question_by_title(cloned_survey, "Q1").sequence, q_1.sequence
         )
@@ -740,7 +675,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
             get_question_by_title(cloned_survey, "Q2").sequence, q_2.sequence
         )
 
-        # Check that the conditional question is correctly copied to the right question
         self.assertEqual(
             get_question_by_title(cloned_survey, "Q1").triggering_answer_ids[0].value,
             q_1.triggering_answer_ids[0].value,
@@ -751,8 +685,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
 
     @users("survey_manager")
     def test_matrix_rows_display_name(self):
-        """Check that matrix rows' display name is not changed."""
-        # A case's shape is: (question title, row value, expected row display names)
         cases = [
             (
                 "Question 1",
@@ -781,11 +713,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
 
     @users("survey_manager")
     def test_suggested_answer_display_name(self):
-        """Check that answers' display name is not too long and allows to identify the question & answer.
-
-        When a matrix answer though, simply show the value as the question and row should be made
-        clear via the survey.user.input.line context."""
-        # A case's shape is: (question title, answer value, expected display name, additional create values)
         cases = [
             ("Question 1", "Answer A is short", "Question 1 : Answer A is short", {}),
             (
@@ -842,7 +769,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
 
     @users("survey_manager")
     def test_unlink_triggers(self):
-        # Create the survey questions
         q_is_vegetarian_text = "Are you vegetarian?"
         q_is_vegetarian = self._add_question(
             self.page_0,
@@ -864,7 +790,7 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
             labels=[{"value": "Yes"}, {"value": "No"}],
             constr_mandatory=True,
             triggering_answer_ids=[
-                Command.link(q_is_vegetarian.suggested_answer_ids[1].id),  # It depends
+                Command.link(q_is_vegetarian.suggested_answer_ids[1].id),
             ],
         )
 
@@ -878,10 +804,8 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
             labels=[{"value": "Vegetarian pizza"}, {"value": "Vegetarian burger"}],
             constr_mandatory=True,
             triggering_answer_ids=[
-                Command.link(q_is_vegetarian.suggested_answer_ids[0].id),  # Veggie
-                Command.link(
-                    q_is_kinda_vegetarian.suggested_answer_ids[0].id
-                ),  # Would prefer veggie
+                Command.link(q_is_vegetarian.suggested_answer_ids[0].id),
+                Command.link(q_is_kinda_vegetarian.suggested_answer_ids[0].id),
             ],
         )
 
@@ -895,26 +819,19 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
             labels=[{"value": "Steak with french fries"}, {"value": "Fish"}],
             constr_mandatory=True,
             triggering_answer_ids=[
-                Command.link(
-                    q_is_vegetarian.suggested_answer_ids[1].id
-                ),  # Not a veggie
-                Command.link(
-                    q_is_kinda_vegetarian.suggested_answer_ids[1].id
-                ),  # Would not prefer veggie
+                Command.link(q_is_vegetarian.suggested_answer_ids[1].id),
+                Command.link(q_is_kinda_vegetarian.suggested_answer_ids[1].id),
             ],
         )
 
         q_is_kinda_vegetarian.unlink()
 
-        # Deleting one trigger but maintaining another keeps conditional behavior
         self.assertTrue(bool(veggie_question.triggering_answer_ids))
 
         q_is_vegetarian.suggested_answer_ids[0].unlink()
 
-        # Deleting answer Yes makes the following question always visible
         self.assertFalse(bool(veggie_question.triggering_answer_ids))
 
-        # But the other is still conditional
         self.assertEqual(
             not_veggie_question.triggering_answer_ids[0].id,
             q_is_vegetarian.suggested_answer_ids[0].id,
@@ -922,7 +839,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
 
         q_is_vegetarian.unlink()
 
-        # Now it will also be always visible
         self.assertFalse(bool(not_veggie_question.triggering_answer_ids))
 
     def test_get_correct_answers(self):
@@ -947,24 +863,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         self.assertEqual(questions._get_correct_answers(), expected_correct_answer)
 
     def test_get_pages_and_questions_to_show(self):
-        """
-        Tests the method `_get_pages_and_questions_to_show` - it takes a recordset of
-        question.question from a survey.survey and returns a recordset without
-        invalid conditional questions and pages without description
-
-        Structure of the test survey:
-
-        sequence   | type                         | trigger           | validity
-        ----------------------------------------------------------------------
-        1          | page, no description         | /                 | X
-        2          | simple_choice                | trigger is 5      | X
-        3          | simple_choice                | trigger is 2      | X
-        4          | page, description            | /                 | V
-        5          | multiple_choice              | /                 | V
-        6          | text_box                     | triggers are 5+7  | V
-        7          | multiple_choice              |                   | V
-        """
-
         my_survey = self.env["survey.survey"].create(
             {
                 "title": "my_survey",
@@ -1062,7 +960,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         )
 
     def test_survey_session_leaderboard(self):
-        """Check leaderboard rendering with small (max) scores values."""
         start_time = datetime.datetime(2023, 7, 7, 12, 0, 0)
         test_survey = self.env["survey.survey"].create(
             {
@@ -1117,7 +1014,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         )
 
     def test_notify_subscribers(self):
-        """Check that messages are posted only if there are participation followers"""
         survey_2 = self.survey.copy()
         survey_participation_subtype = self.env.ref(
             "survey.mt_survey_survey_user_input_completed"
@@ -1125,12 +1021,10 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         user_input_participation_subtype = self.env.ref(
             "survey.mt_survey_user_input_completed"
         )
-        # Make survey_user (group_survey_user) follow participation to survey (they follow), not survey 2 (no followers)
         self.survey.message_subscribe(
             partner_ids=self.survey_user.partner_id.ids,
             subtype_ids=survey_participation_subtype.ids,
         )
-        # Complete a participation for both surveys, only one should trigger a notification for followers
         user_inputs = self.env["survey.user_input"].create(
             [{"survey_id": survey.id} for survey in (self.survey, survey_2)]
         )
@@ -1148,7 +1042,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         )
 
     def test_survey_session_speed_reward_config_propagation(self):
-        """Check the speed rating time limit propagation to non time-customized questions."""
         test_survey = self.env["survey.survey"].create(
             {
                 "title": "Test This Survey",
@@ -1172,7 +1065,7 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
                     ),
                     Command.create(
                         {
-                            "time_limit": 11,  # left-over somehow
+                            "time_limit": 11,
                             "title": "Question C",
                         }
                     ),
@@ -1204,7 +1097,7 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         test_survey.question_ids[:2].write(
             {
                 "is_time_limited": False,
-                "is_time_customized": True,  # As would the client do
+                "is_time_customized": True,
             }
         )
         self.assertListEqual(
@@ -1231,7 +1124,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
             {*test_survey.question_ids.mapped("is_time_customized")}, {False}
         )
 
-        # test update in batch
         test_survey.write(
             {"session_speed_rating": True, "session_speed_rating_time_limit": 30}
         )
@@ -1244,7 +1136,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         )
 
     def test_survey_session_speed_reward_default_applied(self):
-        """Check that new questions added to a survey with speed reward will apply defaults."""
         test_survey = self.env["survey.survey"].create(
             {
                 "title": "Test This Survey",
@@ -1258,14 +1149,14 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         ].create(
             [
                 {
-                    "is_time_limited": True,  # from client, unedited time limits (from default_get)
+                    "is_time_limited": True,
                     "question_type": "numerical_box",
                     "survey_id": test_survey.id,
                     "time_limit": 60,
                     "title": "Question 1",
                 },
                 {
-                    "survey_id": test_survey.id,  # simple values (via rpc for example), will be updated to is_time_customized
+                    "survey_id": test_survey.id,
                     "question_type": "numerical_box",
                     "title": "Question 2",
                 },
@@ -1277,7 +1168,7 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
                     "title": "Question 3",
                 },
                 {
-                    "is_time_customized": True,  # override in client
+                    "is_time_customized": True,
                     "is_time_limited": True,
                     "question_type": "numerical_box",
                     "survey_id": test_survey.id,
@@ -1303,8 +1194,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         self.assertTrue(question_4.is_time_customized)
 
     def test_survey_time_limits_results(self):
-        """Check that speed-related scores awarded are correctly computed."""
-        start_time = datetime.datetime(2023, 7, 7, 12, 0, 0)
         test_survey = self.env["survey.survey"].create(
             {
                 "title": "Test This Survey",
@@ -1312,7 +1201,6 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
                 "scoring_success_min": 80.0,
                 "session_speed_rating": True,
                 "session_speed_rating_time_limit": 30,
-                "session_question_start_time": start_time,
             }
         )
         q_01 = self.env["survey.question"].create(
@@ -1351,11 +1239,11 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         )
         for (seconds_since_start, answer), expected_score in zip(
             [
-                (61, answer_correct),  # time limit elapsed
+                (61, answer_correct),
                 (61, answer_incorrect),
-                (31, answer_correct),  # half of time limit elapsed
+                (31, answer_correct),
                 (31, answer_incorrect),
-                (2, answer_correct),  # end of max_score_delay
+                (2, answer_correct),
                 (2, answer_incorrect),
             ],
             [
@@ -1366,14 +1254,14 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
                 5.0,
                 0.0,
             ],
-            strict=False,  # 2.5 if succeeded + up to 2.5 depending on time to answer
+            strict=False,
         ):
-            with (
-                self.subTest(elapsed=seconds_since_start, is_correct=answer.is_correct),
-                freeze_time(
-                    start_time + datetime.timedelta(seconds=seconds_since_start)
-                ),
+            with self.subTest(
+                elapsed=seconds_since_start, is_correct=answer.is_correct
             ):
+                test_survey.session_question_start_time = self.env.cr.now() - (
+                    datetime.timedelta(seconds=seconds_since_start)
+                )
                 user_input_line = self.env["survey.user_input.line"].create(
                     {
                         "user_input_id": user_input.id,

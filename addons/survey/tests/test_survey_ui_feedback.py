@@ -328,7 +328,6 @@ class TestUiFeedback(HttpCaseWithUserDemo):
         self.start_tour(f"/survey/start/{access_token}", "test_survey", login="demo")
 
     def test_03_public_multilingual_survey_tour(self):
-        # Setup survey translation
         self.assertEqual(
             [lang[0] for lang in self.env["res.lang"].get_installed()], ["en_US"]
         )
@@ -345,16 +344,6 @@ class TestUiFeedback(HttpCaseWithUserDemo):
         self.start_tour(f"/survey/start/{access_token}", "test_survey_multilang")
 
     def test_04_public_survey_with_triggers(self):
-        """Check that chained conditional questions are correctly
-        hidden from survey when a previously selected triggering answer is
-        unselected. E.g., if a specific answer for "Question 1" is selected,
-        which triggers asking "Question 2", and a specific answer for
-        "Question 2" is selected and triggers asking "Question 3",
-        changing the selected answer for "Question 1" should:
-          * hide questions 2 and 3
-          * enable submitting the survey without answering questions 2 and 3,
-           even if "constr_mandatory=True", as they are not visible.
-        """
         survey_with_triggers = self.env["survey.survey"].create(
             {
                 "title": "Survey With Triggers",
@@ -430,7 +419,6 @@ class TestUiFeedback(HttpCaseWithUserDemo):
         )
 
     def test_05_public_survey_with_trigger_on_different_page(self):
-        """Check that conditional questions are shown when triggered from a different page too."""
         survey_with_trigger_on_different_page = self.env["survey.survey"].create(
             {
                 "title": "Survey With Trigger on a different page",

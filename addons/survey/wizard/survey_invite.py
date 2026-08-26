@@ -4,6 +4,7 @@ from typing import Any, Self
 
 from odoo import Command, _, api, fields, models, tools
 from odoo.exceptions import UserError
+from odoo.models import ValuesType
 from odoo.tools.mail import email_normalize, email_split_and_format
 
 _logger = logging.getLogger(__name__)
@@ -20,7 +21,6 @@ class SurveyInvite(models.TransientModel):
     def _default_author_id(self) -> Self:
         return self.env.user.partner_id
 
-    # composer content
     attachment_ids = fields.Many2many(
         "ir.attachment",
         "survey_mail_compose_message_ir_attachments_rel",
@@ -32,7 +32,6 @@ class SurveyInvite(models.TransientModel):
         readonly=False,
         bypass_search_access=True,
     )
-    # origin
     author_id = fields.Many2one(
         "res.partner",
         "Author",
@@ -40,7 +39,6 @@ class SurveyInvite(models.TransientModel):
         ondelete="set null",
         default=_default_author_id,
     )
-    # recipients
     partner_ids = fields.Many2many(
         "res.partner",
         "survey_invite_partner_ids",
@@ -73,9 +71,7 @@ class SurveyInvite(models.TransientModel):
         required=True,
     )
     existing_text = fields.Text("Resend Comment", compute="_compute_existing_text")
-    # technical info
     mail_server_id = fields.Many2one("ir.mail_server", "Outgoing mail server")
-    # survey
     survey_id = fields.Many2one("survey.survey", string="Survey", required=True)
     survey_start_url = fields.Char("Survey URL", compute="_compute_survey_start_url")
     survey_access_mode = fields.Selection(
@@ -96,7 +92,7 @@ class SurveyInvite(models.TransientModel):
             record.send_email = record.survey_access_mode == "token"
 
     def _inverse_send_email(self) -> None:
-        """No-op inverse required to make the computed ``send_email`` field editable."""
+        pass
 
     @api.depends("partner_ids", "survey_id")
     def _compute_existing_partner_ids(self) -> None:
@@ -139,10 +135,24 @@ class SurveyInvite(models.TransientModel):
                 else False
             )
 
-    # Overrides of mixin.mail.composer
-    @api.depends("survey_id")  # fake trigger otherwise not computed in new mode
+    @api.depends("survey_id")
     def _compute_render_model(self) -> None:
         self.render_model = "survey.user_input"
+
+    @api.constrains("template_id")
+    def _check_template_renders_user_inputs(self) -> None:
+        for invite in self.filtered("template_id"):
+            if invite.template_id.model != "survey.user_input":
+                raise UserError(
+                    _(
+                        'The email template "%(template)s" is not a survey '
+                        "invitation template: it renders %(model)s rather than "
+                        "survey participations. Set its model to "
+                        '"Survey User Input" or pick another template.',
+                        template=invite.template_id.display_name,
+                        model=invite.template_id.model or _("no model"),
+                    )
+                )
 
     @api.onchange("emails")
     def _onchange_emails(self) -> None:
@@ -186,7 +196,7 @@ class SurveyInvite(models.TransientModel):
                     )
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict[str, Any]]) -> Self:
+    def create(self, vals_list: list[ValuesType]) -> Self:
         for values in vals_list:
             if values.get("template_id") and not (
                 values.get("body") or values.get("subject")
@@ -219,19 +229,11 @@ class SurveyInvite(models.TransientModel):
 
     @api.depends("template_id")
     def _compute_attachment_ids(self) -> None:
-        """
-        'OnChange-like' behavior used for template selection: not intended to update records when
-            individual attachments get added
-        """
         for invite in self:
             if invite.template_id:
                 invite.attachment_ids = invite.template_id.attachment_ids
             else:
                 invite.attachment_ids = False
-
-    # ------------------------------------------------------
-    # Wizard validation and send
-    # ------------------------------------------------------
 
     def _prepare_answers(self, partners: Any, emails: list[str]) -> Any:
         existing_answers = self.env["survey.user_input"].search(
@@ -264,30 +266,24 @@ class SurveyInvite(models.TransientModel):
         answers = self.env["survey.user_input"]
         partners_done = self.env["res.partner"]
         emails_done = []
-        if existing_answers:
-            if self.existing_mode == "resend":
-                partners_done = existing_answers.mapped("partner_id")
-                emails_done = existing_answers.mapped("email")
+        if existing_answers and self.existing_mode == "resend":
+            newest_first = existing_answers.sorted("create_date", reverse=True)
+            latest_by_partner = {}
+            latest_by_email = {}
+            for answer in newest_first:
+                if answer.partner_id:
+                    latest_by_partner.setdefault(answer.partner_id, answer)
+                if answer.email:
+                    latest_by_email.setdefault(answer.email, answer)
 
-                # only add the last answer for each user of each type (partner_id & email)
-                # to have only one mail sent per user
-                for partner_done in partners_done:
-                    answers |= next(
-                        existing_answer
-                        for existing_answer in existing_answers.sorted(
-                            lambda answer: answer.create_date, reverse=True
-                        )
-                        if existing_answer.partner_id == partner_done
-                    )
-
-                for email_done in emails_done:
-                    answers |= next(
-                        existing_answer
-                        for existing_answer in existing_answers.sorted(
-                            lambda answer: answer.create_date, reverse=True
-                        )
-                        if existing_answer.email == email_done
-                    )
+            # Iterate the keys that were actually indexed. mapped() on a Char keeps
+            # the False of a partner-only participation, and looking that up raised
+            # KeyError(False) on the mainline resend flow.
+            partners_done = self.env["res.partner"].union(*latest_by_partner)
+            emails_done = list(latest_by_email)
+            answers = self.env["survey.user_input"].union(
+                *latest_by_partner.values(), *latest_by_email.values()
+            )
         return (partners_done, emails_done, answers)
 
     def _get_answers_values(self) -> dict[str, Any]:
@@ -295,11 +291,34 @@ class SurveyInvite(models.TransientModel):
             "deadline": self.deadline,
         }
 
-    def _send_mail(self, answer: Any) -> Any:
-        """Create mail specific for recipient containing notably its access token"""
+    def _send_mails(self, answers: Any) -> Any:
+        """Render each field once for the whole batch.
+
+        _render_field takes a list of ids; calling it per recipient from a Python loop
+        made a 1000-address invite 2000 single-record template renders.
+        """
+        if not answers:
+            return self.env["mail.mail"]
+        rendered = {
+            field: self._render_field(field, answers.ids)
+            for field in ("subject", "body")
+        }
+        if self.template_id.email_from:
+            rendered["email_from"] = self.template_id._render_field(
+                "email_from", answers.ids
+            )
+        return (
+            self.env["mail.mail"]
+            .sudo()
+            .create([self._prepare_mail_values(answer, rendered) for answer in answers])
+        )
+
+    def _prepare_mail_values(
+        self, answer: Any, rendered: dict[str, Any]
+    ) -> dict[str, Any]:
         email_from = (
-            self.template_id._render_field("email_from", answer.ids)[answer.id]
-            if self.template_id.email_from
+            rendered["email_from"][answer.id]
+            if "email_from" in rendered
             else self.author_id.email_formatted
         )
         if not email_from:
@@ -308,9 +327,8 @@ class SurveyInvite(models.TransientModel):
                     "Unable to post message, please configure the sender's email address."
                 )
             )
-        subject = self._render_field("subject", answer.ids)[answer.id]
-        body = self._render_field("body", answer.ids)[answer.id]
-        # post the message
+        subject = rendered["subject"][answer.id]
+        body = rendered["body"][answer.id]
         mail_values = {
             "attachment_ids": [Command.link(att.id) for att in self.attachment_ids],
             "auto_delete": True,
@@ -326,7 +344,6 @@ class SurveyInvite(models.TransientModel):
         else:
             mail_values["email_to"] = answer.email
 
-        # optional support of default_email_layout_xmlid in context
         email_layout_xmlid = self.env.context.get(
             "default_email_layout_xmlid", self.env.context.get("notif_layout")
         )
@@ -336,16 +353,13 @@ class SurveyInvite(models.TransientModel):
                 mail_values["body_html"],
                 context_record=self.survey_id,
             )
-        return self.env["mail.mail"].sudo().create(mail_values)
+        return mail_values
 
     def action_invite(self) -> dict[str, Any]:
-        """Process the wizard content and proceed with sending the related
-        email(s), rendering any template patterns on the fly if needed"""
         self.ensure_one()
         invite = self
         Partner = self.env["res.partner"]
 
-        # compute partners and emails, try to find partners for given emails
         valid_partners = invite.partner_ids
         langs = set(valid_partners.mapped("lang")) - {False}
         if len(langs) == 1:
@@ -369,8 +383,6 @@ class SurveyInvite(models.TransientModel):
         if not valid_partners and not valid_emails:
             raise UserError(_("Please enter at least one valid recipient."))
 
-        answers = invite._prepare_answers(valid_partners, valid_emails)
-        for answer in answers:
-            invite._send_mail(answer)
+        invite._send_mails(invite._prepare_answers(valid_partners, valid_emails))
 
         return {"type": "ir.actions.act_window_close"}

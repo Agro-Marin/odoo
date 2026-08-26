@@ -5,8 +5,6 @@ from odoo.addons.survey.tests import common
 
 @tagged("post_install", "-at_install")
 class TestConditionalValueTriggers(common.TestSurveyCommon):
-    """Value-based conditional display of questions."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -70,7 +68,6 @@ class TestConditionalValueTriggers(common.TestSurveyCommon):
         return self.env["survey.user_input"].create({"survey_id": self.form.id})
 
     def test_numeric_operators(self):
-        """Each numeric operator compares the answer against the threshold."""
         answer = self._answer_with(self.age, 18)
         cases = [
             ("eq", "18", True),
@@ -95,7 +92,6 @@ class TestConditionalValueTriggers(common.TestSurveyCommon):
                 )
 
     def test_string_operators(self):
-        """Text answers compare case-insensitively, including contains."""
         answer = self._answer_with(self.city, "Guadalajara", field="value_char_box")
         cases = [
             ("eq", "guadalajara", True),
@@ -114,7 +110,6 @@ class TestConditionalValueTriggers(common.TestSurveyCommon):
                 )
 
     def test_answered_and_not_answered_operators(self):
-        """Presence operators do not look at the value at all."""
         answered = self._answer_with(self.age, 30)
         blank = self._empty_answer()
 
@@ -127,26 +122,22 @@ class TestConditionalValueTriggers(common.TestSurveyCommon):
         self.assertTrue(blank._evaluate_value_trigger(not_answered))
 
     def test_unanswered_trigger_blocks_value_operators(self):
-        """With no answer to compare, a value operator cannot be met."""
         blank = self._empty_answer()
         question = self._conditional(self.age, "gt", "10")
         self.assertFalse(blank._evaluate_value_trigger(question))
 
     def test_non_numeric_threshold_is_refused(self):
-        """A threshold that cannot be parsed never matches (negative)."""
         answer = self._answer_with(self.age, 18)
         question = self._conditional(self.age, "gt", "eighteen")
         self.assertFalse(answer._evaluate_value_trigger(question))
 
     def test_unknown_operator_never_matches(self):
-        """An operator outside the mapping defaults to not shown."""
         answer = self._answer_with(self.age, 18)
         question = self._conditional(self.age, "gt", "10")
         question.triggering_operator = False
         self.assertFalse(answer._evaluate_value_trigger(question))
 
     def test_inactive_questions_hide_unmet_conditionals(self):
-        """A conditional question stays hidden while its trigger is unmet."""
         answer = self._answer_with(self.age, 18)
         shown = self._conditional(self.age, "gte", "18", sequence=10)
         hidden = self._conditional(self.age, "gte", "65", sequence=11)
