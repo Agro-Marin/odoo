@@ -93,7 +93,7 @@ export class Checkout extends Interaction {
             this.services['public.interactions'].startInteractions(this.el);
             await this.waitFor(this._prepareDeliveryMethods());
         }
-        this._enableMainButton();  // Try to enable the main button.
+        this._enableMainButton();
     }
 
     /**
@@ -132,7 +132,7 @@ export class Checkout extends Interaction {
         }
         this.addBillingAddressBtn.classList.toggle('d-none', useDeliveryAsBilling);
 
-        this._enableMainButton();  // Try to enable the main button.
+        this._enableMainButton();
     }
 
     /**
@@ -216,7 +216,6 @@ export class Checkout extends Interaction {
             '[name="o_pickup_location_details"]'
         ).classList.remove('d-none');
 
-        // Remove the button.
         pickupLocation.querySelector('button[name="o_pickup_location_selector"]')?.remove();
     }
 
@@ -559,7 +558,7 @@ export class Checkout extends Interaction {
 
     // #=== GETTERS & SETTERS ===#
 
-    /** Determine and return the selected address who card has the class rowAddrClass.
+    /** Determine and return the selected address who card has the class `bg-400`.
      *
      * @private
      * @param addressType - The type of the address: 'billing' or 'delivery'.

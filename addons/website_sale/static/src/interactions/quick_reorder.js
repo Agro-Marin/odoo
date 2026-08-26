@@ -159,7 +159,7 @@ export class QuickReorder extends Interaction {
     /**
      * Moves the focus to the next quantity input.
      *
-     * @param {HTMLElement} buttonIndex - The index of the reorder button that was clicked before
+     * @param {number} buttonIndex - The index of the reorder button that was clicked before
      *                                    DOM updates.
      * @return {void}
      */

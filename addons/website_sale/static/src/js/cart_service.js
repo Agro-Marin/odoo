@@ -253,6 +253,7 @@ export class CartService {
      * @param {Object} [options] - Define how to add products to the cart.
      * @param {Boolean} [options.isBuyNow] - Whether the product should be added immediately,
      *      bypassing optional configurations.
+     * @param {Boolean} [options.showQuantity] - Whether to show the quantity in the configurator.
      * @param {Object} [additionalData] - Additional data sent to the controllers.
      *
      * @returns {Number} - The product's quantity added to the cart.
@@ -300,6 +301,7 @@ export class CartService {
      * @private
      * @param {Number} productTemplateId - The product template id, as a `product.template` id.
      * @param {Number} quantity - The quantity to add to the cart.
+     * @param {Number} [uomId] - The unit of measure of the added quantity, as a `uom.uom` id.
      * @param {Number[]} combination - The combination of the product, as a list of
      *      `product.template.attribute.value` ids.
      * @param {CustomAttributeValues[]} productCustomAttributeValues - An array of objects
@@ -309,6 +311,7 @@ export class CartService {
      *      bypassing optional configurations.
      * @param {Boolean} [options.isMainProductConfigurable] - Whether the product should be
      *      configurable.
+     * @param {Boolean} [options.showQuantity] - Whether to show the quantity in the configurator.
      * @param {Object} [additionalData] - Additional data sent to the controllers.
      *
      * @returns {Number} - The product's quantity added to the cart.
