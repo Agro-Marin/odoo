@@ -228,6 +228,25 @@ def _id_or_xmlid(ref: str | int) -> str | int:
         return ref
 
 
+def to_text(value: Any) -> str:
+    """Turn a value into text, with False and None reading as empty.
+
+    The shared half of :meth:`IrQweb._compile_to_str`.  That method is a
+    renderer's hook for how an evaluated *value* reads -- mail overrides it to
+    render a recordset as its display name -- and `_add_text` was calling it too,
+    on literal XML text, at compile time.  Nothing was wrong with the result,
+    because a literal is already a string; the trap was that a hook written for
+    one job silently ran the other.
+    """
+    if value is None or value is False:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, bytes):
+        return value.decode()
+    return str(value)
+
+
 def indent_code(code: str, level: int) -> str:
     return textwrap.indent(textwrap.dedent(code).strip(), " " * 4 * level)
 
@@ -1233,7 +1252,7 @@ class IrQweb(models.AbstractModel):
     def _add_text(
         self, text: str | bytes | None, compile_context: dict[str, Any]
     ) -> None:
-        compile_context["_text_concat"].append(self._compile_to_str(text))
+        compile_context["_text_concat"].append(to_text(text))
 
     def _strip_pending_trailing_ws(self, compile_context: dict[str, Any]) -> None:
         text_concat = compile_context["_text_concat"]
@@ -1630,15 +1649,7 @@ class IrQweb(models.AbstractModel):
         renders a recordset as its display name, not as its repr) overrides this
         and gets all three at once.
         """
-        if expr is None or expr is False:
-            return ""
-
-        if isinstance(expr, str):
-            return expr
-        elif isinstance(expr, bytes):
-            return expr.decode()
-        else:
-            return str(expr)
+        return to_text(expr)
 
     def _directives_eval_order(self) -> list[str]:
         return [
@@ -2902,14 +2913,18 @@ class IrQweb(models.AbstractModel):
         return (attributes, content, inherit_branding)
 
 
-class _MockCursor:
+# The renderer the database manager uses, which runs before any database
+# exists: `web/controllers/database.py` is its only caller.  It was named
+# `_Mock*` throughout, which says test scaffolding about code that serves a
+# real page.
+class _StandaloneCursor:
     dbname = None
 
     def __init__(self) -> None:
         self.cache: dict[str, Any] = {}
 
 
-class _MockRegistry:
+class _StandaloneRegistry:
     db_name = None
 
     def __init__(self) -> None:
@@ -2919,16 +2934,16 @@ class _MockRegistry:
         }
 
 
-class _MockEnv(dict):
+class _StandaloneEnv(dict):
     def __init__(
         self,
-        registry: _MockRegistry | None = None,
+        registry: _StandaloneRegistry | None = None,
         context: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
-        self.registry = registry if registry is not None else _MockRegistry()
+        self.registry = registry if registry is not None else _StandaloneRegistry()
         self.context: dict[str, Any] = {} if context is None else dict(context)
-        self.cr = _MockCursor()
+        self.cr = _StandaloneCursor()
 
     def __call__(
         self,
@@ -2936,18 +2951,18 @@ class _MockEnv(dict):
         user: Any = None,
         context: dict[str, Any] | None = None,
         su: Any = None,
-    ) -> _MockEnv:
-        return _MockEnv(
+    ) -> _StandaloneEnv:
+        return _StandaloneEnv(
             registry=self.registry,
             context=self.context if context is None else context,
         )
 
 
-class _MockIrQWeb(IrQweb):
+class _StandaloneQweb(IrQweb):
     _register = False
 
     @property
-    def pool(self) -> _MockRegistry:
+    def pool(self) -> _StandaloneRegistry:
         return self.env.registry
 
     def _get_template_info(self, id_or_xmlid: int | str) -> dict[str, Any]:
@@ -2988,7 +3003,7 @@ class _MockIrQWeb(IrQweb):
 def render(
     template_name: str | int, values: dict[str, Any], load: Any, **options: Any
 ) -> Markup:
-    renderer = _MockIrQWeb(_MockEnv(), (), ())
+    renderer = _StandaloneQweb(_StandaloneEnv(), (), ())
     return renderer._render(
         template_name, values, load=load, minimal_qcontext=True, **options
     )
