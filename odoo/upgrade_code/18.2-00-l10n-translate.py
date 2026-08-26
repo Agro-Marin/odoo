@@ -181,21 +181,36 @@ def upgrade(file_manager: FileManager) -> None:
             )
         elif file.path.suffix == ".csv":
             model = file.path.stem
+            # Both guards come BEFORE the first row is read. They used to come
+            # after, so a header-only CSV raised IndexError and one without an
+            # `id` column raised KeyError -- for files this script does not even
+            # target, since the `model in MODELS` test was the thing being
+            # deferred. `migrate()` flushes only once every script has run, so
+            # either exception discarded the whole run's edits.
+            if model not in MODELS:
+                continue
             csv_file = csv.DictReader(file.content.splitlines())
             csv_data = list(csv_file)
-            first_row = csv_data[0]
-            first_xmlid = ".".join(parse_xmlid(first_row["id"], module_name))
-            fnames = model in MODELS and sorted(
-                set(first_row.keys()) & set(MODELS[model])
-            )
+            if not csv_data or "id" not in csv_data[0]:
+                continue
+            fnames = sorted(set(csv_data[0].keys()) & set(MODELS[model]))
             if fnames:
+                # Over EVERY row, not just the first. Sampling the first row
+                # meant that a file whose first record happened to be
+                # untranslated was skipped whole -- while the same run still
+                # stripped those `model:` occurrences from the .po and dropped
+                # the entries, so the translations were destroyed rather than
+                # merely left behind. Four files in this tree were affected;
+                # `l10n_dk/data/account.account.tag.csv` starts with tag "1010",
+                # a number nobody translates, and took 541 occurrences with it.
                 langs = sorted(
                     {
                         lang
+                        for row in csv_data
                         for fname in fnames
-                        for lang, val in translations[module_name][model][first_xmlid][
-                            fname
-                        ].items()
+                        for lang, val in translations[module_name][model][
+                            ".".join(parse_xmlid(row["id"], module_name))
+                        ][fname].items()
                         if val
                     }
                 )
