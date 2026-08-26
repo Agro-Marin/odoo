@@ -378,8 +378,11 @@ class ResPartner(models.Model):
         for p in self:
             p.application_statistics = result.get(p.id, [])
 
-    def _compute_application_statistics_hook(self) -> dict[int, list]:
-        return {}
+    def _compute_application_statistics_hook(self) -> defaultdict[int, list]:
+        # a defaultdict is the contract, not an accident: overrides down the
+        # chain append into data_list[partner.id] without creating the key
+        # first (see base_order's _add_order_statistics).
+        return defaultdict(list)
 
     def _get_street_split(self) -> dict[str, str]:
         self.ensure_one()
