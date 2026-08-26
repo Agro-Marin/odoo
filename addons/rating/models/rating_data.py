@@ -46,7 +46,7 @@ def _rating_assert_value(rating_value):
 
 
 def _rating_to_grade(rating_value):
-    """From a rating value give a text-based mean value."""
+    """Return the grade bucket ('great', 'okay', 'bad') for a rating value."""
     _rating_assert_value(rating_value)
     if rating_value >= RATING_LIMIT_SATISFIED:
         return "great"
