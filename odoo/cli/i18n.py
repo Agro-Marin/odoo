@@ -305,6 +305,10 @@ class I18n(DatabaseCommand):
                 lang_code = languages.code if languages else None
                 self._export_file(env, module_names, lang_code, parsed_args.output)
             else:
+                # Resolved up front, before any file is written: erroring out
+                # mid-loop on a later module would otherwise leave the i18n
+                # files of earlier modules already written on disk.
+                module_paths = {}
                 for module_name in module_names:
                     module_path = get_module_path(module_name)
                     if not module_path:
@@ -313,7 +317,9 @@ class I18n(DatabaseCommand):
                             "database but was not found on the addons path; "
                             "fix --addons-path or export with --output"
                         )
-                    i18n_path = Path(module_path, "i18n")
+                    module_paths[module_name] = module_path
+                for module_name in module_names:
+                    i18n_path = Path(module_paths[module_name], "i18n")
                     if export_pot:
                         path = i18n_path / f"{module_name}.pot"
                         self._export_file(env, [module_name], None, path)
