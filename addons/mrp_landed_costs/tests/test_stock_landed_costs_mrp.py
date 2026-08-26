@@ -21,7 +21,7 @@ class TestStockLandedCostsMrp(ValuationReconciliationTestCommon):
         cls.supplier_location_id = cls.env.ref("stock.stock_location_suppliers")
         cls.stock_location_id = cls.company_data["default_warehouse"].lot_stock_id
         cls.customer_location_id = cls.env.ref("stock.stock_location_customers")
-        # Create product refrigerator & oven
+        # Create the refrigerator and its two components
         cls.product_component1 = cls.env["product.product"].create(
             {
                 "name": "Component1",
@@ -260,7 +260,7 @@ class TestStockLandedCostsMrp(ValuationReconciliationTestCommon):
         ).save()
         landed_cost.target_model = "manufacturing"
 
-        # Check that the MO can be selected by the stock_manger user
+        # Check that the MO's finished moves carry a valuation layer in this company
         self.assertTrue(
             man_order
             in self.env["mrp.production"].search(
@@ -280,7 +280,7 @@ class TestStockLandedCostsMrp(ValuationReconciliationTestCommon):
         """
         Do not apply landed costs to byproducts without cost_share
         """
-        # Create product refrigerator & oven
+        # Two by-products for the BoM
         byproduct1 = self.env["product.product"].create(
             {
                 "name": "Byproduct1",
