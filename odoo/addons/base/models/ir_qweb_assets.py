@@ -1,7 +1,6 @@
 import contextlib
 import json as json_mod
 import logging
-import threading
 import time
 from collections.abc import Iterable, Sequence
 from pathlib import Path
@@ -21,6 +20,7 @@ from odoo.tools.assets.esbuild import (
     EsbuildCompiler,
     EsbuildResult,
 )
+from odoo.tools.assets.esbuild_policy import EsbuildCircuit
 from odoo.tools.assets.esm_graph import (
     addon_specifier_to_url,
     discover_transitive_import_specifiers,
@@ -58,6 +58,11 @@ _fallback_log = get_asset_logger("fallback")
 _loader_log = get_asset_logger("loader")
 _lock_log = get_asset_logger("lock")
 _pregen_log = get_asset_logger("pregen")
+
+#: Process-wide, keyed `(database, bundle)`.  The transition rules and the
+#: synchronisation live in `odoo/tools/assets/esbuild_policy.py`, where they
+#: are unit-testable; this module only supplies the clock and the cooldowns.
+_esbuild_circuit = EsbuildCircuit()
 
 
 class _BuildDeclined(Exception):
@@ -147,17 +152,16 @@ class IrQweb(models.AbstractModel):
         debug: str | None = None,
         autoprefix: bool = False,
     ) -> list[str]:
-        rtl = (
-            self.env["res.lang"]
-            .sudo()
-            ._get_data(code=(self.env.lang or self.env.user.lang))
-            .direction
-            == "rtl"
-        )
+        # `rtl` and `autoprefix` reach only the stylesheet pipeline
+        # (`AssetsBundle._collect_files` hands them to the stylesheet type and
+        # to nothing else), so for a JS-only call they are not merely unused --
+        # they are cache-key noise, splitting one answer across two entries per
+        # text direction.  Pinning them off also spares the language lookup.
+        rtl = css and self._is_rtl_language()
+        autoprefix = css and autoprefix
         assets_params = self.env["ir.asset"]._prepare_assets_params()
-        debug_assets = self._is_debug_assets(debug)
 
-        if debug_assets:
+        if self._is_debug_assets(debug):
             return self._get_asset_links_uncached(
                 bundle,
                 css=css,
@@ -167,15 +171,23 @@ class IrQweb(models.AbstractModel):
                 rtl=rtl,
                 autoprefix=autoprefix,
             )
-        else:
-            return self._get_asset_links_cached(
-                bundle,
-                css=css,
-                js=js,
-                assets_params=assets_params,
-                rtl=rtl,
-                autoprefix=autoprefix,
-            )
+        return self._get_asset_links_cached(
+            bundle,
+            css=css,
+            js=js,
+            assets_params=assets_params,
+            rtl=rtl,
+            autoprefix=autoprefix,
+        )
+
+    def _is_rtl_language(self) -> bool:
+        return (
+            self.env["res.lang"]
+            .sudo()
+            ._get_data(code=(self.env.lang or self.env.user.lang))
+            .direction
+            == "rtl"
+        )
 
     @tools.conditional(
         "xml" not in tools.config["dev_mode"],
@@ -514,12 +526,9 @@ class IrQweb(models.AbstractModel):
 
     _loader_shim_cache: tuple[float, str] | None = None
 
-    # Guarded because `_open_esbuild_circuit` reads the failure count, adds
-    # one and writes it back: unsynchronised, two workers failing at once lose
-    # a count, and that count is what chooses between a 60 s and a 600 s
-    # cooldown.  This fork gates free-threading, so the GIL is not the answer.
-    _esbuild_cooldowns: dict[tuple[str, str], tuple[float, str, int]] = {}
-    _esbuild_cooldowns_lock = threading.Lock()
+    #: The module-level `_esbuild_circuit` above, bound here so a test or an
+    #: addon can reach the breaker through the model rather than the module.
+    _esbuild_circuit = _esbuild_circuit
     _ESBUILD_COOLDOWN_S: float = 60.0
     _ESBUILD_EXTENDED_COOLDOWN_S: float = 600.0
 
@@ -551,53 +560,43 @@ class IrQweb(models.AbstractModel):
         return (self.env.cr.dbname, bundle)
 
     def _get_esbuild_circuit_state(self, bundle: str) -> tuple[bool, str]:
-        key = self._get_esbuild_cooldown_key(bundle)
-        entry = IrQweb._esbuild_cooldowns.get(key)
-        if not entry:
-            return True, ""
-        expiry, reason, _fails = entry
-        if time.monotonic() < expiry:
-            return False, reason
-        # Half-open: the entry stays so the failure count survives, but the
-        # expiry is not rewritten -- it was, on every call, for as long as the
-        # entry lived, which is a dict write per render for no effect.
-        return True, ""
+        return _esbuild_circuit.state(
+            self._get_esbuild_cooldown_key(bundle), now=time.monotonic()
+        )
 
     def _open_esbuild_circuit(self, bundle: str, reason: str) -> None:
-        key = self._get_esbuild_cooldown_key(bundle)
+        # BOTH cooldowns are read before the circuit is touched.  Choosing
+        # between them depends on the failure count, and the count is only
+        # knowable inside the critical section -- so reading the parameters
+        # there would mean holding a lock across a database round trip, and
+        # reading them in two passes (which is what this did) means two workers
+        # failing together both see "first failure" and the extended cooldown
+        # is never reached.
         config = self._get_esbuild_config()
-        with IrQweb._esbuild_cooldowns_lock:
-            prev = IrQweb._esbuild_cooldowns.get(key)
-            fails = (prev[2] + 1) if prev else 1
-        if fails >= 2:
-            cooldown = config.get_param_float(
-                "web.esbuild.extended_cooldown_s", self._ESBUILD_EXTENDED_COOLDOWN_S
-            )
-        else:
-            cooldown = config.get_param_float(
+        now = time.monotonic()
+        entry = _esbuild_circuit.record_failure(
+            self._get_esbuild_cooldown_key(bundle),
+            reason,
+            now=now,
+            cooldown_s=config.get_param_float(
                 "web.esbuild.cooldown_s", self._ESBUILD_COOLDOWN_S
-            )
-        with IrQweb._esbuild_cooldowns_lock:
-            IrQweb._esbuild_cooldowns[key] = (
-                time.monotonic() + cooldown,
-                reason,
-                fails,
-            )
+            ),
+            extended_cooldown_s=config.get_param_float(
+                "web.esbuild.extended_cooldown_s", self._ESBUILD_EXTENDED_COOLDOWN_S
+            ),
+        )
         log_event(
             _fallback_log,
             logging.WARNING,
             "circuit_open",
             bundle=bundle,
             reason=reason,
-            cooldown_s=cooldown,
-            fails=fails,
+            cooldown_s=entry.expiry - now,
+            fails=entry.failures,
         )
 
     def _close_esbuild_circuit(self, bundle: str) -> None:
-        key = self._get_esbuild_cooldown_key(bundle)
-        with IrQweb._esbuild_cooldowns_lock:
-            existed = IrQweb._esbuild_cooldowns.pop(key, None) is not None
-        if existed:
+        if _esbuild_circuit.record_success(self._get_esbuild_cooldown_key(bundle)):
             log_event(
                 _fallback_log,
                 logging.INFO,

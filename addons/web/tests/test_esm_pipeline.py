@@ -75,8 +75,10 @@ class TestEsbuildCircuitBreaker(TransactionCase):
         super().setUp()
         self.IrQweb = self.env["ir.qweb"]
         self.addCleanup(
-            self.IrQweb._esbuild_cooldowns.clear,
+            self.IrQweb._esbuild_circuit.restore,
+            self.IrQweb._esbuild_circuit.snapshot(),
         )
+        self.IrQweb._esbuild_circuit.clear()
 
     def test_initial_state_allows(self):
         allow, reason = self.IrQweb._get_esbuild_circuit_state("web.test_bundle")
@@ -113,11 +115,11 @@ class TestEsbuildCircuitBreaker(TransactionCase):
         self.assertEqual(len(captured.records), 2)
         self.assertIn("fails=1", captured.records[0].getMessage())
         self.assertIn("fails=2", captured.records[1].getMessage())
-        _expiry, _reason, fails = self.IrQweb._esbuild_cooldowns[
+        entry = self.IrQweb._esbuild_circuit.entry(
             (self.env.cr.dbname, "web.test_bundle")
-        ]
-        self.assertEqual(fails, 2)
-        remaining = _expiry - time.monotonic()
+        )
+        self.assertEqual(entry.failures, 2)
+        remaining = entry.expiry - time.monotonic()
         self.assertGreater(
             remaining,
             self.IrQweb._ESBUILD_COOLDOWN_S,
@@ -137,7 +139,7 @@ class TestEsbuildCircuitBreaker(TransactionCase):
         self.assertIn("event=circuit_open", captured.records[0].getMessage())
         self.assertNotIn(
             (self.env.cr.dbname, "web.test_bundle"),
-            self.IrQweb._esbuild_cooldowns,
+            self.IrQweb._esbuild_circuit,
         )
         allow, _ = self.IrQweb._get_esbuild_circuit_state("web.test_bundle")
         self.assertTrue(allow)
@@ -150,18 +152,20 @@ class TestEsbuildCircuitBreaker(TransactionCase):
             )
         self.assertIn(
             (self.env.cr.dbname, "web.test_bundle"),
-            self.IrQweb._esbuild_cooldowns,
+            self.IrQweb._esbuild_circuit,
             msg="cooldown key must be (db_name, bundle)",
         )
         self.assertNotIn(
             "web.test_bundle",
-            self.IrQweb._esbuild_cooldowns,
+            self.IrQweb._esbuild_circuit,
             msg="bundle-only key would bleed the breaker across databases",
         )
-        self.IrQweb._esbuild_cooldowns[("some_other_db", "web.test_bundle")] = (
-            time.monotonic() + 1e6,
+        self.IrQweb._esbuild_circuit.record_failure(
+            ("some_other_db", "web.test_bundle"),
             "OtherDbFail",
-            1,
+            now=time.monotonic(),
+            cooldown_s=1e6,
+            extended_cooldown_s=1e6,
         )
         allow, reason = self.IrQweb._get_esbuild_circuit_state("web.test_bundle")
         self.assertFalse(
@@ -2543,3 +2547,42 @@ class TestPageScopedScriptsAreRenderedOnce(TransactionCase):
             IrQweb._dedup_request_page_scripts("a", self._pre("a", ["@a/one", "@b/x"]))
             with self.assertNoLogs(logger.name, level="WARNING"):
                 IrQweb._dedup_request_page_scripts("b", self._pre("b", ["@a/one"]))
+
+
+@tagged("web_unit", "web_assets")
+class TestAssetLinkCacheKey(TransactionCase):
+    """`rtl` and `autoprefix` reach only the stylesheet pipeline, so carrying
+    them into a JS-only lookup splits one answer across two ormcache entries
+    per text direction and costs a language lookup for nothing."""
+
+    def _observe(self, **kwargs):
+        IrQweb = self.env["ir.qweb"]
+        seen = {}
+        real = type(IrQweb)._get_asset_links_cached
+
+        def spy(self_, bundle, **kw):
+            seen.update(kw)
+            return real(self_, bundle, **kw)
+
+        with patch.object(type(IrQweb), "_get_asset_links_cached", spy):
+            IrQweb._get_asset_links("web.assets_web", **kwargs)
+        return seen
+
+    def test_a_js_only_lookup_pins_both_css_knobs_off(self):
+        seen = self._observe(css=False, js=True, autoprefix=True)
+        self.assertFalse(seen["rtl"])
+        self.assertFalse(seen["autoprefix"])
+
+    def test_a_css_lookup_still_carries_them(self):
+        seen = self._observe(css=True, js=False, autoprefix=True)
+        self.assertTrue(seen["autoprefix"])
+        self.assertEqual(seen["rtl"], self.env["ir.qweb"]._is_rtl_language())
+
+    def test_a_js_only_lookup_does_not_consult_the_language(self):
+        IrQweb = self.env["ir.qweb"]
+        with patch.object(
+            type(IrQweb),
+            "_is_rtl_language",
+            side_effect=AssertionError("no language lookup for a JS-only call"),
+        ):
+            IrQweb._get_asset_links("web.assets_web", css=False, js=True)

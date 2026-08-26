@@ -636,11 +636,34 @@ class TestHootOwnership(TransactionCase):
             [suite],
         )
 
-    def test_a_runner_bundle_still_owns_its_unnamed_helpers(self):
-        helper = "@web/../tests/_framework/mock_server/mock_server"
+    def test_an_import_map_parent_owns_none_of_its_helpers(self):
+        """`RUNNER_BUNDLE` is a parent of an import-map pair, and a parent owns
+        no tests: its job is to PROVIDE, the child's is to run.  Hoot
+        specifiers are withheld from `registerNativeModules` and handed to
+        `loadAndStart` instead, so classifying a parent's helpers as hoot does
+        two wrong things at once -- it starts a runner from the setup bundle,
+        and it withholds exactly the modules the child has to bridge onto,
+        leaving the child with `loadAndStart is not a function`.
 
+        This asserted the opposite until the guard that fixed that hang landed
+        in `_get_hoot_specifiers`, and then kept asserting it.
+        """
+        helper = "@web/../tests/_framework/mock_server/mock_server"
+        self.assertIn(self.RUNNER_BUNDLE, esm_registry().import_map_includes)
         self.assertEqual(
             self.env["ir.qweb"]._get_hoot_specifiers(self.RUNNER_BUNDLE, [helper]),
+            [],
+        )
+
+    def test_the_child_of_that_pair_owns_its_unnamed_helpers(self):
+        """The other half of the same rule: the bundle that runs the tests
+        classifies everything under a `tests/` tree, helpers included, because
+        that is what it hands to `loadAndStart`."""
+        helper = "@web/../tests/_framework/mock_server/mock_server"
+        child = esm_registry().import_map_includes[self.RUNNER_BUNDLE][0]
+        self.assertIn(child, esm_registry().import_map_included_bundles)
+        self.assertEqual(
+            self.env["ir.qweb"]._get_hoot_specifiers(child, [helper]),
             [helper],
         )
 
@@ -1182,11 +1205,9 @@ class TestEsbuildEndToEnd(TransactionCase):
 class TestEsbuildFailurePath(TransactionCase):
     def setUp(self):
         super().setUp()
-        IrQweb = type(self.env["ir.qweb"])
-        cooldowns = IrQweb._esbuild_cooldowns
-        self.addCleanup(cooldowns.update, dict(cooldowns))
-        self.addCleanup(cooldowns.clear)
-        cooldowns.clear()
+        circuit = self.env["ir.qweb"]._esbuild_circuit
+        self.addCleanup(circuit.restore, circuit.snapshot())
+        circuit.clear()
 
     def _run_with_broken_compiler(self, fail_closed):
         self.env["ir.config_parameter"].sudo().set_param(
@@ -1896,10 +1917,16 @@ class TestExportExtractionWithoutTheLexer(BaseCase):
 
 
 class _EntryMod:
-    def __init__(self, module_path, url="", filename=None):
+    """A stand-in for a native module, and it has to satisfy the whole of
+    `NativeModuleLike`: `_esbuild_entry_lines` reads `raw_content` through
+    `_imports_owl()` on the standalone path, so a stub without it raised
+    `AttributeError` there while every non-standalone test passed."""
+
+    def __init__(self, module_path, url="", filename=None, raw_content=""):
         self.module_path = module_path
         self.url = url
         self._filename = filename
+        self.raw_content = raw_content
 
 
 class TestEsbuildEntryLines(BaseCase):
@@ -1908,13 +1935,58 @@ class TestEsbuildEntryLines(BaseCase):
     def _compiler(self, modules, **kw):
         return EsbuildCompiler("test.entry", modules, [], **kw)
 
-    def test_a_standalone_bundle_imports_for_side_effects_only(self):
+    def test_a_standalone_bundle_publishes_its_modules_behind_a_guard(self):
+        """It once imported for side effects only, and that is what this
+        asserted.  A standalone bundle can still be the parent a runtime-loaded
+        child bridges onto -- the livechat embed is, for its support-tours
+        bundle -- and a bridge resolves through `odoo.loader.modules`, so the
+        publication is there.  The guard is the part that must not be lost: a
+        standalone artifact may also be loaded where there are no globals at
+        all (a worker), and there the publication is simply not wanted.
+        """
         lines = self._compiler(
             [_EntryMod("@a/one", url="/a/static/src/one.js")], standalone=True
         )._esbuild_entry_lines(self.ROOT)
 
-        self.assertEqual(lines, ['import "./addons/a/static/src/one.js";'])
-        self.assertFalse(any("registerNativeModules" in ln for ln in lines))
+        self.assertEqual(
+            lines[0], 'import * as __m0 from "./addons/a/static/src/one.js";'
+        )
+        self.assertEqual(
+            lines[1], "if (globalThis.odoo?.loader?.registerNativeModules) {"
+        )
+        self.assertEqual(lines[-1], "}")
+        self.assertIn('  "@a/one": __m0', lines)
+
+    def test_a_rendered_bundle_publishes_unguarded(self):
+        """A rendered page always carries the loader shim, so a missing loader
+        there is a defect and should say so rather than silently skip."""
+        lines = self._compiler(
+            [_EntryMod("@a/one", url="/a/static/src/one.js")]
+        )._esbuild_entry_lines(self.ROOT)
+
+        self.assertNotIn("if (globalThis.odoo?.loader?.registerNativeModules) {", lines)
+        self.assertIn("odoo.loader.registerNativeModules({", lines)
+
+    def test_owl_rides_along_only_when_a_standalone_bundle_uses_it(self):
+        """Standalone carries owl inlined rather than external, so importing it
+        is only worth the bytes when the bundle actually uses it: the livechat
+        embed does, the websocket worker does not."""
+        without = self._compiler(
+            [_EntryMod("@a/one", url="/a/static/src/one.js")], standalone=True
+        )._esbuild_entry_lines(self.ROOT)
+        self.assertFalse(any("@odoo/owl" in line for line in without))
+
+        with_owl = self._compiler(
+            [
+                _EntryMod(
+                    "@a/one",
+                    url="/a/static/src/one.js",
+                    raw_content='import { Component } from "@odoo/owl";',
+                )
+            ],
+            standalone=True,
+        )._esbuild_entry_lines(self.ROOT)
+        self.assertIn('import * as __owl from "@odoo/owl";', with_owl)
 
     def test_an_app_bundle_registers_every_member_with_the_loader(self):
         lines = self._compiler(
