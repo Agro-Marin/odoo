@@ -216,7 +216,6 @@ class ProductTemplate(models.Model):
         string="Lots Count",
     )
 
-
     @api.constrains("type", "is_storable")
     def _check_is_storable(self):
         for template in self:
@@ -242,7 +241,6 @@ class ProductTemplate(models.Model):
                         product=template.display_name,
                     ),
                 )
-
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -434,7 +432,6 @@ class ProductTemplate(models.Model):
             or self.env["ir.sequence"]
         )
 
-
     @api.depends_context("allowed_company_ids", "uid")
     @api.depends(
         "product_variant_ids.orderpoint_ids.product_min_qty",
@@ -564,7 +561,6 @@ class ProductTemplate(models.Model):
                 template.product_variant_ids._origin.mapped("count_lot_ids"),
             )
 
-
     def _search_variant_quantity(self, field_name, operator, value):
         Product = self.env["product.product"]
         operation = PY_OPERATORS.get(operator)
@@ -590,7 +586,6 @@ class ProductTemplate(models.Model):
 
     def _search_qty_outgoing(self, operator, value):
         return self._search_variant_quantity("qty_outgoing", operator, value)
-
 
     def _inverse_serial_prefix_format(self):
         default_sequence = self._default_lot_sequence()
@@ -628,64 +623,6 @@ class ProductTemplate(models.Model):
             return
         self._set_qty_available([template.qty_available for template in self])
 
-    def _search_variant_quantity(self, field_name, operator, value):
-        Product = self.env["product.product"]
-        operation = PY_OPERATORS.get(operator)
-        if operation is None:
-            return self._filter_quantity_in_python(field_name, operator, value)
-
-        location_domains = Product._get_domain_locations()
-        candidates = Product._get_quantity_search_candidates(
-            location_domains=location_domains
-        )
-        vals_by_variant = candidates.with_context(
-            prefetch_fields=False
-        )._prepare_quantities_vals(
-            self.env.context.get("lot_id"),
-            self.env.context.get("owner_id"),
-            self.env.context.get("package_id"),
-            self.env.context.get("from_date", False),
-            self.env.context.get("to_date", False),
-            location_domains=location_domains,
-        )
-        totals = defaultdict(float)
-        for variant in candidates.filtered("active"):
-            totals[variant.product_tmpl_id.id] += vals_by_variant[variant.id][
-                field_name
-            ]
-        matched = [
-            tmpl_id for tmpl_id, total in totals.items() if operation(total, value)
-        ]
-        if operation(0.0, value):
-            return ["|", ("id", "in", matched), ("id", "not in", list(totals))]
-        return [("id", "in", matched)]
-
-    def _filter_quantity_in_python(self, field_name, operator, value):
-        records = self.with_context(prefetch_fields=False).search_fetch(
-            [], [field_name], order="id"
-        )
-        positive_operator = Domain.NEGATIVE_OPERATORS.get(operator, operator)
-        predicate = self._fields[field_name].filter_function(
-            records, field_name, positive_operator, value
-        )
-        if positive_operator != operator:
-            matched_records = records.filtered(lambda rec: not predicate(rec))
-        else:
-            matched_records = records.filtered(predicate)
-        return [("id", "in", matched_records.ids)]
-
-    def _search_qty_available(self, operator, value):
-        return self._search_variant_quantity("qty_available", operator, value)
-
-    def _search_qty_available_virtual(self, operator, value):
-        return self._search_variant_quantity("qty_available_virtual", operator, value)
-
-    def _search_qty_incoming(self, operator, value):
-        return self._search_variant_quantity("qty_incoming", operator, value)
-
-    def _search_qty_outgoing(self, operator, value):
-        return self._search_variant_quantity("qty_outgoing", operator, value)
-
     @api.onchange("tracking")
     def _onchange_tracking(self):
         return self.product_variant_ids._onchange_tracking()
@@ -716,7 +653,6 @@ class ProductTemplate(models.Model):
                 ),
             }
         return res
-
 
     def action_view_quants(self):
         variants = self.with_context(active_test=False).product_variant_ids
@@ -824,7 +760,6 @@ class ProductTemplate(models.Model):
             "stock.stock_forecasted_product_template_action",
         )
 
-
     @api.model
     def _has_product_selectable_route(self):
         return bool(
@@ -833,21 +768,6 @@ class ProductTemplate(models.Model):
                 limit=1,
             )
         )
-
-    def _resolve_diagram_products(self):
-        Product = self.env["product.product"]
-        if self.env.context.get("default_product_id"):
-            products = Product.browse(self.env.context["default_product_id"])
-            if products:
-                return products
-        if self.env.context.get("default_product_tmpl_id"):
-            products = self.browse(
-                self.env.context["default_product_tmpl_id"]
-            ).product_variant_ids
-            if products:
-                return products
-        templates = self or self.browse(self.env.context.get("active_id") or [])
-        return templates.product_variant_ids
 
     def _reset_inventory(self):
         move_line_domain = Domain(

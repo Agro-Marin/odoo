@@ -1,0 +1,4 @@
+{
+  "count": 0,
+  "note": "New gate, ADR-0062, over `design-themes`. Zero from the start, measured 2026-08-26.\n\nA class body defines each member once. This scope is clean, so the floor is a\ncontract rather than debt -- the gate exists here to keep it that way.\n\nThe sibling scopes are governed from day one on purpose. ADR-0062's Enforcement\nsection says so, and the reason is the hole `naming` still has (`architecture.yml`\ninvokes it without `--roots`, so a naming regression outside `odoo/` is caught\nby nothing and a fix there is credited by nothing). This gate does not repeat\nthat: it rides the cross-repo `architecture.yml` `design-themes` already carries, the same\nlane `sql_placeholder` and `mail_hook_keyword_check` use, and the pin stays in\n`odoo` scoped by provenance."
+}

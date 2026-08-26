@@ -884,7 +884,7 @@ Two readings of the gate itself:
   ``crm.team._get_default_team_id``.
 * **The reserved prefixes are worn by more than the hooks**
   ``[gate doc_restated_counts]``. ``field_hook_naming.py --unbound``: **153**
-  names, at **229** definitions, wear one while no field declaration and no
+  names, at **228** definitions, wear one while no field declaration and no
   binding decorator names them (``_compute_`` leads at 72 names, ``_search_`` at
   49). A candidate population, not a violation count.
 
@@ -950,7 +950,7 @@ ways: 6 stems are written with two or more verbs drawn from one semantic family,
 and 102 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 24,347 non-test methods
+``[gate doc_restated_counts]``. The population is the 24,341 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. Semantic families are read off the table
 below, so the justification is computed from the rule it justifies. Census and
@@ -1358,7 +1358,7 @@ grounds in ascending weight:
   happens, while ``self._raise_x_error()`` looks like every other call and the
   lines after it are unreachable in a way a reader has to deduce;
 * nothing types it. A function that never returns is ``NoReturn``; **0** of this
-  repository's **23** ``_raise_*`` model methods say so, and six claim
+  repository's **24** ``_raise_*`` model methods say so, and six claim
   ``-> None``, which is false.
 
 The cost is accepted -- the call site says the verb twice, and ``B904`` fires the
@@ -1370,7 +1370,7 @@ moment the raise moves into the caller's own ``except``.
   which 9 spell ``_prepare_*_error`` -- a floor, since the complete test is a body
   whose every ``return`` is an exception constructor.
 * **A method that raises only sometimes is a different family** ``[review]``. The
-  rule above reaches the unconditional raiser, **15** of those **23**; the rest
+  rule above reaches the unconditional raiser, **16** of those **24**; the rest
   spell ``_raise_if_*`` or ``_raise_for_*``, have nothing to return when the
   condition does not hold, and are the Validation row: ``_check_*``.
 
@@ -1418,7 +1418,7 @@ in the tree** ``[review]``. ``_migrate_remote_to_local`` is
 discards the return inside ``except (ValidationError, RequestException)``, so the
 contract is *fetch the remote bytes and store them locally*.
 
-**``_resolve_`` is the verb to keep** ``[review]``, at **34** definitions here
+**``_resolve_`` is the verb to keep** ``[review]``, at **33** definitions here
 against the size of ``_find_`` -- **29**. It is a **partial** producer, returning
 the object or ``None`` meaning *not applicable*; a read that always answers is
 ``_get_``. Where a dispatch chain mixes the spellings, read it as the chain saying

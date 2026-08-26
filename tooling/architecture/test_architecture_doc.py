@@ -1115,6 +1115,9 @@ class TestReferencedArtifacts(unittest.TestCase):
         "sql_in_placeholder_agromarin": "agromarin",
         "py_count_as_boolean_enterprise": "enterprise",
         "py_count_as_boolean_agromarin": "agromarin",
+        "py_shadowed_member_enterprise": "enterprise",
+        "py_shadowed_member_agromarin": "agromarin",
+        "py_shadowed_member_design-themes": "design-themes",
     }
 
     #: Scopes whose `lint_<rule>_<scope>` floors are driven by one
