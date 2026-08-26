@@ -96,7 +96,6 @@ class SaleOrderLine(models.Model):
             pos_lines = sale_line.sudo().pos_order_line_ids.filtered(
                 lambda order_line: order_line.order_id.state not in ["cancel", "draft"]
             )
-            # Add POS quantities to invoiced quantity
             sale_line.qty_invoiced += sum(
                 (
                     self._convert_qty(sale_line, pos_line.qty, "p2s")
@@ -104,7 +103,6 @@ class SaleOrderLine(models.Model):
                 ),
                 0,
             )
-            # Add POS amounts to invoiced amounts
             sale_line.amount_taxexc_invoiced += sum(pos_lines.mapped("price_subtotal"))
 
     def _prepare_qty_invoiced(self):
@@ -188,10 +186,15 @@ class SaleOrderLine(models.Model):
 
     @api.model
     def _convert_qty(self, sale_line, qty, direction):
-        """Converts the given QTY based on the given SALE_LINE and DIR.
+        """Convert qty between sale_line's UoM and its product's UoM.
 
-        if DIR='s2p': convert from sale line uom to product uom
-        if DIR='p2s': convert from product uom to sale line uom
+        :param recordset sale_line: sale.order.line to convert for
+        :param float qty: quantity to convert
+        :param str direction: "s2p" (sale line UoM to product UoM) or "p2s"
+            (product UoM to sale line UoM)
+        :return: converted quantity
+        :rtype: float
+        :raises ValueError: if direction is neither "s2p" nor "p2s"
         """
         product_uom_id = sale_line.product_id.uom_id
         sale_line_uom = sale_line.product_uom_id
