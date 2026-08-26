@@ -268,6 +268,21 @@ def release_stranded_test_cursors(owner: str = "") -> int:
             "releasing its registry lock",
             owner or "the test",
         )
+        # Roll the savepoint back before disowning the cursor. Marking it
+        # closed and handing the lock back left its uncommitted writes live on
+        # the shared class cursor, visible to whatever ran next, with the ORM
+        # caches never invalidated -- close() does this via rollback() and the
+        # stranded path skipped it. Guarded: the underlying cursor may already
+        # be unusable, and losing the lock release here is what this function
+        # exists to prevent.
+        try:
+            cursor._close_savepoint(rollback=True)
+        except Exception:
+            _logger.warning(
+                "Could not roll back the savepoint of the cursor stranded by %s",
+                owner or "the test",
+                exc_info=True,
+            )
         cursor._closed = True
         cursor._lock.release()
     count = len(stranded)
