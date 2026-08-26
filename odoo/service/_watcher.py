@@ -279,7 +279,7 @@ class FSWatcherWatchdog(FSWatcherBase):
 class _InotifyInternals:
     """Every reach into ``inotify``'s private surface, named in one place.
 
-    There are four, and two are name-mangled, so a rename in a minor release of
+    There are four, and one is name-mangled, so a rename in a minor release of
     the library breaks recovery from ``IN_Q_OVERFLOW`` at a distance and each
     one fails differently: losing ``__watches_r`` raises out of
     ``_build_watcher`` (autoreload off, loudly); losing ``_mask`` degrades to a
