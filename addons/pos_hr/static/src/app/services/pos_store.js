@@ -95,8 +95,10 @@ patch(PosStore.prototype, {
 
         return super.addLineToCurrentOrder(vals, opt, configure);
     },
-    /**{name: null, id: null, barcode: null, user_id:null, pin:null}
-     * If pos_hr is activated, return {name: string, id: int, barcode: string, pin: string, user_id: int}
+    /**
+     * If pos_hr is activated, return the cashier's `hr.employee` record:
+     * {id: int, name: string, user_id: res.users, work_contact_id: res.partner,
+     * _role: string, _barcode: string, _pin: string}
      * @returns {null|*}
      */
     getCashier() {
