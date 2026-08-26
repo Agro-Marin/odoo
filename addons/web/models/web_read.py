@@ -152,8 +152,10 @@ class Base(models.AbstractModel):
                     client_dt = client_dt.replace(microsecond=0)
                 if server_write_date and client_dt and server_write_date > client_dt:
                     raise UserError(
-                        "This record was modified by another user.\n"
-                        "Please reload and re-apply your changes."
+                        self.env._(
+                            "This record was modified by another user.\n"
+                            "Please reload and re-apply your changes."
+                        )
                     )
             self.write(vals)
             record = self
