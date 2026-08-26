@@ -389,6 +389,8 @@ class SaleOrderLine(models.Model):
         If a line should create a RFQ, it will check for existing PO. If no one is find, the SO line will create one, then adds
         a new PO line. The created purchase order line will be linked to the SO line.
         :param quantity: the quantity to force on the PO line, expressed in SO line UoM
+        :return: map of sale.order.line to the created purchase.order.line records
+        :rtype: dict
         """
         supplier_po_map = {}
         sale_line_purchase_map = {}
@@ -422,6 +424,9 @@ class SaleOrderLine(models.Model):
     def _purchase_service_generation(self):
         """Create a Purchase for the first time from the sale line. If the SO line already created a PO, it
         will not create a second one.
+
+        :return: map of sale.order.line to the created purchase.order.line records
+        :rtype: dict
         """
         sale_line_purchase_map = {}
         for line in self:
