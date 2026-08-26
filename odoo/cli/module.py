@@ -201,7 +201,19 @@ class Module(DatabaseCommand):
                 upgradable_modules = self._get_all_installed_modules(env)
             else:
                 valid_module_names = self._get_module_names(parsed_args.modules)
+                if unknown := set(parsed_args.modules) - valid_module_names:
+                    _logger.warning(
+                        "Ignoring modules not found on disk: %s",
+                        ", ".join(sorted(unknown)),
+                    )
                 upgradable_modules = self._get_modules(env, valid_module_names)
+                if unknown_in_db := valid_module_names - set(
+                    upgradable_modules.mapped("name")
+                ):
+                    _logger.warning(
+                        "Ignoring modules not found in the database: %s",
+                        ", ".join(sorted(unknown_in_db)),
+                    )
                 if not_installed := upgradable_modules.filtered(
                     lambda m: m.state not in ("installed", "to upgrade")
                 ):
