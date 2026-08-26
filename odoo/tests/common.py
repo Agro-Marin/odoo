@@ -371,6 +371,11 @@ class BaseCase(case.TestCase):
     cr: Cursor = None
 
     test_tags: set[str] | None = None
+    freeze_time = None
+    #: Set by the bases that own a class cursor: they start ``freeze_time``
+    #: themselves, at a position chosen so the class cleanups that still need
+    #: real time get it (see ``TransactionCase.setUpClass``).
+    _starts_freeze_time_itself = False
 
     test_module: str = ""
 
@@ -504,6 +509,8 @@ class BaseCase(case.TestCase):
 
         cls.addClassCleanup(close_esm_lexer)
         super().setUpClass()
+        if cls.freeze_time and not cls._starts_freeze_time_itself:
+            cls.startClassPatcher(cls.freeze_time)
         if "standard" in cls.test_tags or "click_all" in cls.test_tags:
             patcher = patch.object(
                 requests.sessions.Session,
@@ -1164,7 +1171,11 @@ class Approx:
 
 class TransactionCase(BaseCase):
     muted_registry_logger = mute_logger(odoo.orm.runtime.registry._logger.name)
-    freeze_time = None
+    # freeze_time is started below, deliberately *after* the _gc_filestore
+    # cleanup is registered: that cleanup compares file mtimes against
+    # time.time(), so a frozen clock would skip every file and disable the
+    # filestore GC outright.
+    _starts_freeze_time_itself = True
 
     @classmethod
     def _gc_filestore(cls) -> None:
@@ -1320,6 +1331,8 @@ class TransactionCase(BaseCase):
 
 
 class SingleTransactionCase(BaseCase):
+    _starts_freeze_time_itself = True
+
     @classmethod
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
@@ -1339,6 +1352,9 @@ class SingleTransactionCase(BaseCase):
         cls.cr = cls.registry.cursor()
         cls.addClassCleanup(cast("Cursor", cls.cr).close)
         seed_planner_stats(cls.cr)
+
+        if cls.freeze_time:
+            cls.startClassPatcher(cls.freeze_time)
 
         cls.env = api.Environment(cls.cr, api.SUPERUSER_ID, {})
 
