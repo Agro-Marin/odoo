@@ -35,7 +35,7 @@ def get_certificate_end_date():
     """Check if the certificate is up to date and valid
 
     :return: End date of the certificate if it is valid, None otherwise
-    :rtype: str
+    :rtype: str or None
     """
     base_path = [get_path_nginx(), "conf"] if IS_WINDOWS else ["/etc/ssl/certs"]
     path = Path(*base_path, "nginx-cert.crt")
