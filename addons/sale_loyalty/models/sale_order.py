@@ -924,7 +924,7 @@ class SaleOrder(models.Model):
 
     def _get_real_points_for_coupon(self, coupon, post_confirm=False):
         """
-        Returns the actual points usable for this coupon for this order. Set pos_confirm to True to include points for future orders.
+        Returns the actual points usable for this coupon for this order.
 
         This is calculated by taking the points on the coupon, the points the order will give to the coupon (if applicable) and removing the points taken by already applied rewards.
         """
@@ -1301,7 +1301,7 @@ class SaleOrder(models.Model):
             for p in all_programs_to_check - domain_matching_programs
         }
         # Compute applicability and points given for all programs that passed the domain check
-        # Note that points are computed with reward lines present
+        # Points are computed with reward lines present
         all_programs_status.update(
             self._program_check_compute_points(domain_matching_programs)
         )
