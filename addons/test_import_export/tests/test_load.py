@@ -904,10 +904,7 @@ class test_m2o(ImporterCase):
             [
                 message(
                     "Invalid database id 'foo' for the field 'Value'",
-                    moreinfo=moreaction(
-                        res_model="ir.model.data",
-                        domain=[("model", "=", "export.integer")],
-                    ),
+                    moreinfo=moreaction(res_model="export.integer"),
                     field_name="Value",
                     field_path=["value", ".id"],
                 ),
@@ -974,10 +971,7 @@ class test_m2o(ImporterCase):
             [
                 message(
                     "No matching record found for database id '66' in field 'Value'",
-                    moreinfo=moreaction(
-                        res_model="ir.model.data",
-                        domain=[("model", "=", "export.integer")],
-                    ),
+                    moreinfo=moreaction(res_model="export.integer"),
                     field_name="Value",
                     field_path=["value", ".id"],
                     field_type="database id",
@@ -1125,10 +1119,7 @@ class test_m2m(ImporterCase):
             [
                 message(
                     "No matching record found for database id '42' in field 'Value'",
-                    moreinfo=moreaction(
-                        res_model="ir.model.data",
-                        domain=[("model", "=", "export.many2many.other")],
-                    ),
+                    moreinfo=moreaction(res_model="export.many2many.other"),
                     field_name="Value",
                     field_path=["value", ".id"],
                     field_type="database id",

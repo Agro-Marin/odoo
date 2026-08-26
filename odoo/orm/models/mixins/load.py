@@ -1,7 +1,6 @@
 import functools
 import itertools
 import logging
-import re
 import typing
 from collections import defaultdict
 from typing import Self
@@ -178,7 +177,6 @@ class LoadMixin(_ModelStubs):
         if limit is None:
             limit = float("inf")
 
-        skip_fields = self._import_skip_fields()
         info = {"rows": {"to": -1}}
         savepoint = cr.savepoint()
         try:
@@ -187,7 +185,7 @@ class LoadMixin(_ModelStubs):
             )
             converted = flush_recordset._convert_records(extracted, log=messages.append)
             for id, xid, record, info in converted:
-                if any(record.get(field, False) is None for field in skip_fields):
+                if record is None:
                     continue
                 if xid:
                     xid = xid if "." in xid else f"{current_module}.{xid}"
@@ -214,16 +212,6 @@ class LoadMixin(_ModelStubs):
             "messages": messages,
             "nextrow": nextrow,
         }
-
-    @api.model
-    def _import_skip_fields(self) -> frozenset[str]:
-        context = self.env.context
-        if not context.get("import_file"):
-            return frozenset()
-        return frozenset(
-            re.split(r"[/.]", path, maxsplit=1)[0]
-            for path in context.get("import_skip_records") or []
-        )
 
     @api.model
     def _invalid_load_paths(

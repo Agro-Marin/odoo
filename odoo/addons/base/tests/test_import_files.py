@@ -11,6 +11,8 @@ from odoo.libs.lru import LRU
 from odoo.tests import TransactionCase, can_import, loaded_demo_data, tagged
 from odoo.tools.misc import file_open
 
+from odoo.addons.base.models.ir_fields import SKIP
+
 
 @tagged("post_install", "-at_install")
 class TestFieldConverters(TransactionCase):
@@ -144,12 +146,12 @@ class TestFieldConverters(TransactionCase):
             self.converter._str_to_boolean(self.flds["bool"], "maybe")
         self.assertIn("maybe", str(cm.exception.args[0]))
 
-    def test_str_to_boolean_skip_policy_still_returns_none(self):
+    def test_str_to_boolean_skip_policy_returns_the_skip_sentinel(self):
         skipping = self.converter.with_context(
             import_file=True, import_skip_records=["is_company"]
         )
         value, warnings = skipping._str_to_boolean(self.flds["bool"], "maybe")
-        self.assertIsNone(value)
+        self.assertIs(value, SKIP)
         self.assertFalse(warnings)
 
     def test_boolean_error_carries_field_path(self):
@@ -197,7 +199,7 @@ class TestFieldConverters(TransactionCase):
             import_skip_records=["child_ids/type"],
         )
         value, warnings = nested._str_to_selection(fld, "not_a_real_type")
-        self.assertIsNone(value)
+        self.assertIs(value, SKIP)
         self.assertFalse(warnings)
 
         bare = self.converter.with_context(
@@ -404,7 +406,9 @@ class TestFieldConverters(TransactionCase):
             raise psycopg.DataError('invalid input syntax for integer: "50%"')
 
         messages = []
-        with patch.object(type(converter), "_resolve_converter_field", lambda *a, **kw: boom):
+        with patch.object(
+            type(converter), "_resolve_converter_field", lambda *a, **kw: boom
+        ):
             convert = converter._get_converter_record(self.env["res.partner"])
             convert({"name": "x"}, lambda f, e: messages.append(str(e.args[0])))
 
@@ -656,7 +660,8 @@ class TestFieldConverters(TransactionCase):
             {"name": "p1", "type": "integer", "string": "P1", "value": "x"}
         ]
         self.assertEqual(
-            self.converter._get_field_path_for_error("props", properties_value), ["props"]
+            self.converter._get_field_path_for_error("props", properties_value),
+            ["props"],
         )
 
     def test_error_field_path_keeps_the_referencing_subfield(self):
@@ -665,10 +670,13 @@ class TestFieldConverters(TransactionCase):
             ["value", "id"],
         )
         self.assertEqual(
-            self.converter._get_field_path_for_error("value", [{None: "somename"}]), ["value"]
+            self.converter._get_field_path_for_error("value", [{None: "somename"}]),
+            ["value"],
         )
         nested = self.converter.with_context(parent_fields_hierarchy=["child_ids"])
-        self.assertEqual(nested._get_field_path_for_error("type", "bad"), ["child_ids", "type"])
+        self.assertEqual(
+            nested._get_field_path_for_error("type", "bad"), ["child_ids", "type"]
+        )
 
     def test_o2m_subfield_label_with_percent_is_reported(self):
         fld = self.env["res.partner"]._fields["type"]
@@ -727,7 +735,7 @@ class TestFieldConverters(TransactionCase):
             import_file=True, import_skip_records=["is_company.mybool"]
         )
         value, warnings = column._str_to_properties(self.flds["bool"], payload)
-        self.assertIsNone(value, "the skip sentinel must propagate")
+        self.assertIs(value, SKIP, "the skip sentinel must propagate")
         self.assertFalse(warnings)
 
         parent = self.converter.with_context(
@@ -783,12 +791,13 @@ class TestFieldConverters(TransactionCase):
             import_set_empty_fields=["type", "category_id", "parent_id"],
         )
         partner_fields = self.env["res.partner"]._fields
-        self.assertIsNone(both._str_to_selection(partner_fields["type"], "zzz")[0])
-        self.assertIsNone(
-            both._str_to_many2many(partner_fields["category_id"], [{None: "zzz"}])[0]
+        self.assertIs(both._str_to_selection(partner_fields["type"], "zzz")[0], SKIP)
+        self.assertIs(
+            both._str_to_many2many(partner_fields["category_id"], [{None: "zzz"}])[0],
+            SKIP,
         )
-        self.assertIsNone(
-            both._str_to_many2one(partner_fields["parent_id"], [{None: "zzz"}])[0]
+        self.assertIs(
+            both._str_to_many2one(partner_fields["parent_id"], [{None: "zzz"}])[0], SKIP
         )
 
     def test_non_text_reference_is_a_clean_error(self):
@@ -877,23 +886,28 @@ class TestFieldConverters(TransactionCase):
             converter._str_to_selection(fields["type"], "IFLD40 nope")[0], False
         )
 
-    def test_skip_record_many2one_still_returns_none(self):
+    def test_skip_record_many2one_returns_the_skip_sentinel(self):
         converter = self.converter.with_context(
             import_file=True, import_skip_records=["parent_id"]
         )
         got, _w = converter._str_to_many2one(
             self.env["res.partner"]._fields["parent_id"], [{None: "IFLD40b nope"}]
         )
-        self.assertIsNone(got)
+        self.assertIs(got, SKIP)
 
     def test_database_id_possible_values_shows_database_ids(self):
         field = self.env["res.partner"]._fields["parent_id"]
-        for subfield in ("id", ".id"):
+        external = self.converter._get_action_possible_values(field, "id")
+        self.assertEqual(external["res_model"], "ir.model.data")
+        self.assertEqual(external["domain"], [("model", "=", "res.partner")])
+        for subfield in (None, ".id"):
             action = self.converter._get_action_possible_values(field, subfield)
-            self.assertEqual(action["res_model"], "ir.model.data")
-            self.assertEqual(action["domain"], [("model", "=", "res.partner")])
-        by_name = self.converter._get_action_possible_values(field, None)
-        self.assertEqual(by_name["res_model"], "res.partner")
+            self.assertEqual(
+                action["res_model"],
+                "res.partner",
+                "a database id is not an external id: the records ARE the values",
+            )
+            self.assertNotIn("domain", action)
 
     def test_unparseable_datetime_is_reported_not_a_server_fault(self):
         with self.assertRaises(ValueError) as cm:
@@ -968,7 +982,18 @@ class TestFieldConverters(TransactionCase):
         model = self.env["res.partner"].with_context(
             import_file=True, import_skip_records=["properties.pb"]
         )
-        self.assertEqual(model._import_skip_fields(), frozenset({"properties"}))
+        converted = self.converter.with_context(
+            import_file=True, import_skip_records=["properties.pb"]
+        )._str_to_properties(
+            self.env["res.partner"]._fields["properties"],
+            [{"name": "pb", "type": "boolean", "string": "PB", "value": "maybe"}],
+        )
+        self.assertIs(
+            converted[0],
+            SKIP,
+            "the policy path is `properties.pb`; the converter decides, and the "
+            "record it belongs to is dropped by load()",
+        )
         result = model.load(["name", "properties.pb"], [["IFLD46 SkipMe", "maybe"]])
         self.assertFalse(result["ids"], "the record must be skipped, not created")
         self.assertFalse(
@@ -1017,7 +1042,7 @@ class TestFieldConverters(TransactionCase):
         skip = self.converter.with_context(
             import_file=True, import_skip_records=["is_company.sel"]
         )
-        self.assertIsNone(skip._str_to_properties(field, payload)[0])
+        self.assertIs(skip._str_to_properties(field, payload)[0], SKIP)
 
         with self.assertRaises(ValueError):
             self.converter._str_to_properties(field, payload)
@@ -1106,3 +1131,252 @@ class TestImportFiles(TransactionCase):
             results["messages"],
             "results should be empty on successful import of ",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestSelectionIndexPrecedence(TransactionCase):
+    """A raw selection value must never be shadowed by another item's label.
+
+    `_get_selection_index` used to register value and label together, one item
+    at a time, into a `setdefault` map -- so item n's label claimed a token
+    before item n+k's own value could, and importing a field by its own stored
+    value silently wrote a different one. Five fields in a 78-module database
+    were affected; `mail.notification.notification_status` wrote `pending` for
+    `sent`, with no error and no warning.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.converter = cls.env["ir.fields.converter"]
+
+    def _index_for(self, selection):
+        field = self.env["res.partner"]._fields["type"]
+        cache = self.converter._get_transaction_cache()
+        lang = self.converter.env.lang
+        cache[("selection", field.model_name, field.name, lang)] = (selection, {})
+        cache.pop(("selection_index", field.model_name, field.name, lang), None)
+        return self.converter._get_selection_index(field)
+
+    def test_a_value_is_never_shadowed_by_another_items_label(self):
+        index = self._index_for([("pending", "Sent"), ("sent", "Delivered")])
+        self.assertEqual(index["sent"], "sent", "the raw value must win the token")
+        self.assertEqual(index["delivered"], "sent")
+
+    def test_every_raw_value_round_trips_on_every_live_selection(self):
+        broken = []
+        for model_name in self.env.registry.models:
+            model = self.env[model_name]
+            for fname, field in model._fields.items():
+                if field.type != "selection":
+                    continue
+                with contextlib.suppress(Exception):
+                    selection = [
+                        (value, label)
+                        for value, label in field._description_selection(self.env)
+                        if isinstance(value, str) and isinstance(label, str)
+                    ]
+                    if not selection:
+                        continue
+                    index = self.converter._get_selection_index(field)
+                    broken += [
+                        (model_name, fname, value)
+                        for value, _label in selection
+                        if value and index.get(value.lower()) != value
+                    ]
+        self.assertFalse(
+            broken, f"selection values that import as a different value: {broken}"
+        )
+
+    def test_the_stored_value_survives_a_real_load(self):
+        if "mail.notification" not in self.env:
+            self.skipTest("mail is not installed")
+        partner = self.env["res.partner"].create({"name": "IFLD-SEL owner"})
+        message = self.env["mail.message"].create(
+            {"model": "res.partner", "res_id": partner.id, "body": "x"}
+        )
+        self.env.flush_all()
+        result = self.env["mail.notification"].load(
+            [
+                "mail_message_id/.id",
+                "res_partner_id/.id",
+                "notification_type",
+                "notification_status",
+            ],
+            [[str(message.id), str(partner.id), "email", "sent"]],
+        )
+        self.assertFalse(result["messages"])
+        self.env.flush_all()
+        self.env.cr.execute(
+            "SELECT notification_status FROM mail_notification WHERE id = %s",
+            [result["ids"][0]],
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], "sent")
+
+    def test_the_error_lists_possible_values_in_the_readers_language(self):
+        self.env["res.lang"]._activate_lang("fr_FR")
+        field = self.env["res.partner"]._fields["type"]
+        french = self.converter.with_context(lang="fr_FR")
+        _index, labels = french._get_selection_index_and_labels(field)
+        source = dict(french._get_selection_and_labels(field)[0])
+        translated = {
+            label for item, label in labels.items() if label != source.get(item)
+        }
+        if not translated:
+            self.skipTest("no translated selection labels on this build")
+        with self.assertRaises(ValueError) as caught:
+            french._str_to_selection(field, "pas une valeur")
+        offered = set(caught.exception.args[1]["moreinfo"])
+        self.assertTrue(
+            offered & translated,
+            f"a French message must offer French values, got {offered}",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestConverterContracts(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.converter = cls.env["ir.fields.converter"]
+
+    def test_json_null_is_a_value_not_the_skip_sentinel(self):
+        field = self.env["ir.module.module"]._fields["data_file_checksums"]
+        value, _warnings = self.converter._str_to_json(field, "null")
+        self.assertIsNone(value)
+        self.assertIsNot(value, SKIP, "a JSON null must not skip the record")
+
+    def test_a_json_null_row_is_imported_not_silently_dropped(self):
+        module = self.env["ir.module.module"].search([("name", "=", "base")], limit=1)
+        self.assertTrue(module)
+        result = (
+            self.env["ir.module.module"]
+            .with_context(import_file=True, import_skip_records=["data_file_checksums"])
+            .load(["id", "data_file_checksums"], [["base.module_base", "null"]])
+        )
+        self.assertFalse(result["messages"])
+        self.assertEqual(
+            len(result["ids"] or []),
+            1,
+            "a JSON null used to look like the skip sentinel and dropped the row",
+        )
+
+    def test_an_empty_reference_record_is_reported_not_a_server_fault(self):
+        convert = self.converter.with_context(import_file=True)._get_converter_record(
+            self.env["res.partner"]
+        )
+        logged = []
+        result = convert({"parent_id": [{}]}, lambda f, e: logged.append((f, e)))
+        self.assertEqual(result, {})
+        self.assertEqual([f for f, _e in logged], ["parent_id"])
+        self.assertIsInstance(logged[0][1], ValueError)
+
+    def test_an_unexpected_converter_failure_is_reported_not_raised(self):
+        def boom(_value):
+            raise KeyError("not one of the six")
+
+        with patch.object(
+            type(self.converter),
+            "_resolve_converter_field",
+            lambda *a, **kw: boom,
+        ):
+            convert = self.converter._get_converter_record(self.env["res.partner"])
+            logged = []
+            result = convert({"name": "x"}, lambda f, e: logged.append((f, e)))
+        self.assertEqual(result, {})
+        self.assertEqual([f for f, _e in logged], ["name"])
+        self.assertIsInstance(logged[0][1], ValueError)
+
+    def test_an_infrastructure_error_still_propagates(self):
+        def boom(_value):
+            raise psycopg.OperationalError("connection gone")
+
+        with patch.object(
+            type(self.converter),
+            "_resolve_converter_field",
+            lambda *a, **kw: boom,
+        ):
+            convert = self.converter._get_converter_record(self.env["res.partner"])
+            with self.assertRaises(psycopg.OperationalError):
+                convert({"name": "x"}, lambda f, e: None)
+
+    def test_char_import_honours_the_field_trim_attribute(self):
+        partner_fields = self.env["res.partner"]._fields
+        self.assertTrue(partner_fields["name"].trim)
+        value, _w = self.converter._str_to_str(partner_fields["name"], "  Acme  ")
+        self.assertEqual(value, "Acme")
+        comment = partner_fields["comment"]
+        untrimmed, _w = self.converter._str_to_str(comment, "  kept  ")
+        self.assertEqual(
+            untrimmed, "  kept  ", "only Char declares trim; Text must be left alone"
+        )
+
+    def test_a_loaded_name_is_trimmed_like_the_wizard_trims_it(self):
+        result = self.env["res.partner"].load(["name"], [["  IFLD-TRIM Co  "]])
+        self.assertFalse(result["messages"])
+        self.env.flush_all()
+        self.env.cr.execute(
+            "SELECT name FROM res_partner WHERE id = %s", [result["ids"][0]]
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], "IFLD-TRIM Co")
+
+    def test_numbers_do_not_accept_python_literal_grammar(self):
+        partner_fields = self.env["res.partner"]._fields
+        for value in ("1_0", "1_000"):
+            with self.assertRaises(ValueError, msg=value):
+                self.converter._str_to_integer(partner_fields["color"], value)
+            with self.assertRaises(ValueError, msg=value):
+                self.converter._str_to_float(partner_fields["partner_latitude"], value)
+        self.assertEqual(
+            self.converter._str_to_integer(partner_fields["color"], " 12 ")[0], 12
+        )
+
+    def test_every_property_type_obeys_the_import_policy(self):
+        field = self.env["res.partner"]._fields["is_company"]
+        payloads = {
+            "integer": {"name": "n", "type": "integer", "string": "N", "value": "x"},
+            "float": {"name": "n", "type": "float", "string": "N", "value": "x"},
+            "tags": {
+                "name": "n",
+                "type": "tags",
+                "string": "N",
+                "tags": [["a", "A", 1]],
+                "value": ["nope"],
+            },
+        }
+        for kind, payload in payloads.items():
+            with self.subTest(kind=kind):
+                with self.assertRaises(ValueError):
+                    self.converter._str_to_properties(field, [payload])
+                skipping = self.converter.with_context(
+                    import_file=True, import_skip_records=["is_company.n"]
+                )
+                self.assertIs(
+                    skipping._str_to_properties(field, [payload])[0],
+                    SKIP,
+                    f"a bad {kind} property must obey the skip policy",
+                )
+                emptying = self.converter.with_context(
+                    import_file=True, import_set_empty_fields=["is_company.n"]
+                )
+                self.assertIs(
+                    emptying._str_to_properties(field, [payload])[0][0]["value"], False
+                )
+
+    def test_the_boolean_vocabulary_is_derived_from_the_extraction_anchors(self):
+        from odoo.addons.base.models.ir_fields import (
+            BOOLEAN_FALSE_TERMS,
+            BOOLEAN_TRANSLATIONS,
+            BOOLEAN_TRUE_TERMS,
+        )
+
+        self.assertEqual(
+            {term._source for term in BOOLEAN_TRUE_TERMS + BOOLEAN_FALSE_TERMS},
+            {term._source for term in BOOLEAN_TRANSLATIONS},
+            "the extraction anchors and the vocabulary must not drift apart",
+        )
+        trues, falses = self.converter._get_boolean_tokens()
+        for term in BOOLEAN_TRUE_TERMS:
+            self.assertIn(term._source, trues)
+        for term in BOOLEAN_FALSE_TERMS:
+            self.assertIn(term._source, falses)

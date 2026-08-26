@@ -15,14 +15,13 @@ from odoo.exceptions import UserError
 from odoo.libs.datetime import utc
 from odoo.libs.json import loads as json_loads
 from odoo.tools import SQL, OrderedSet
+from odoo.tools.misc import DATE_LENGTH
 from odoo.tools.translate import LazyTranslate, code_translations
 
 _logger = logging.getLogger(__name__)
 _lt = LazyTranslate(__name__)
 
 REFERENCING_FIELDS = frozenset({None, "id", ".id"})
-
-DATE_LENGTH = 10
 
 
 def get_ref_values(record: dict[str | None, Any]) -> dict[str | None, Any]:
@@ -37,7 +36,20 @@ def escape_import_message(text: str) -> str:
     return text.replace("%", "%%")
 
 
-BOOLEAN_TRANSLATIONS = (_lt("yes"), _lt("no"), _lt("true"), _lt("false"))
+def parse_number(value: Any, cast: Callable[[Any], Any]) -> Any:
+    if isinstance(value, str) and "_" in value:
+        raise ValueError(value)
+    return cast(value)
+
+
+BOOLEAN_TRUE_TERMS = (_lt("yes"), _lt("true"))
+BOOLEAN_FALSE_TERMS = (_lt("no"), _lt("false"))
+BOOLEAN_TRANSLATIONS = (
+    BOOLEAN_TRUE_TERMS[0],
+    BOOLEAN_FALSE_TERMS[0],
+    BOOLEAN_TRUE_TERMS[1],
+    BOOLEAN_FALSE_TERMS[1],
+)
 
 
 class ImportPolicy(StrEnum):
@@ -46,14 +58,29 @@ class ImportPolicy(StrEnum):
     SET_EMPTY = "import_set_empty_fields"
 
 
-class FakeField(NamedTuple):
+class SkipRecord:
+    __slots__ = ()
+
+    def __bool__(self) -> bool:
+        return False
+
+    def __repr__(self) -> str:
+        return "SKIP"
+
+
+SKIP = SkipRecord()
+
+_UNCONVERTED = object()
+
+
+class PropertyField(NamedTuple):
     comodel_name: str | None
     name: str
 
 
-type FieldLike = fields.Field | FakeField
+type ConvertibleField = fields.Field | PropertyField
 type Converter = Callable[[Any], tuple[Any, list]]
-type RecordConverter = Callable[[dict, Callable], dict]
+type RecordConverter = Callable[[dict, Callable], dict | None]
 
 
 class RefLookup(NamedTuple):
@@ -98,7 +125,7 @@ class IrFieldsConverter(models.AbstractModel):
         return error_type(error_msg % error_params, error_args or {})
 
     @api.model
-    def _get_field_path(self, field: FieldLike) -> str:
+    def _get_field_path(self, field: ConvertibleField) -> str:
         return "/".join(
             self.env.context.get("parent_fields_hierarchy", []) + [field.name]
         )
@@ -114,7 +141,7 @@ class IrFieldsConverter(models.AbstractModel):
         )
 
     @api.model
-    def _get_policy(self, field: FieldLike) -> ImportPolicy:
+    def _get_policy(self, field: ConvertibleField) -> ImportPolicy:
         path = self._get_field_path(field)
         skip_records, set_empty_fields = self._get_policy_paths()
         if path in skip_records:
@@ -124,21 +151,15 @@ class IrFieldsConverter(models.AbstractModel):
         return ImportPolicy.REPORT
 
     @api.model
-    def _get_subfields_to_skip(self, hierarchy: list[str]) -> set[str]:
-        skip_records, _set_empty = self._get_policy_paths()
-        prefix = "/".join(hierarchy) + "/"
-        return {
-            path[len(prefix) :].partition("/")[0]
-            for path in skip_records
-            if path.startswith(prefix)
-        }
-
-    @api.model
     def _get_field_path_for_error(self, field: str, value: Any) -> list[str]:
         field_path = [*(self.env.context.get("parent_fields_hierarchy") or []), field]
         while isinstance(value, list) and value:
             record = value[0]
-            if not isinstance(record, dict) or not record.keys() <= REFERENCING_FIELDS:
+            if (
+                not isinstance(record, dict)
+                or len(record) != 1
+                or not record.keys() <= REFERENCING_FIELDS
+            ):
                 break
             subfield = next(iter(record))
             if subfield:
@@ -147,94 +168,103 @@ class IrFieldsConverter(models.AbstractModel):
         return field_path
 
     @api.model
+    def _error_unknown_field(self, model: models.BaseModel) -> Exception:
+        return self._prepare_import_error(
+            ValueError,
+            self.env._("Field '%%(field)s' does not exist on model '%s'"),
+            model._name,
+        )
+
+    @api.model
+    def _error_unsupported_type(self, field: fields.Field) -> Exception:
+        return self._prepare_import_error(
+            ValueError,
+            self.env._(
+                "Field '%%(field)s' cannot be imported (unsupported field type '%s')"
+            ),
+            field.type,
+        )
+
+    @api.model
+    def _as_import_error(
+        self, exception: Exception, fname: str, value: Any, in_import_file: Any
+    ) -> Exception:
+        if isinstance(exception, (UnicodeEncodeError, UnicodeDecodeError)):
+            return ValueError(escape_import_message(str(exception)))
+        if isinstance(exception, ValueError):
+            if in_import_file:
+                error_info = exception.args[1] if len(exception.args) > 1 else None
+                if isinstance(error_info, dict) and not error_info.get("field_path"):
+                    error_info["field_path"] = self._get_field_path_for_error(
+                        fname, value
+                    )
+            return exception
+        _logger.error(
+            "Import converter for field %r failed on a %s value",
+            fname,
+            type(value).__name__,
+            exc_info=exception,
+        )
+        return self._prepare_import_error(
+            ValueError,
+            self.env._(
+                "Field '%%(field)s' could not be imported from a "
+                "value of type '%s'; see the server logs for details"
+            ),
+            type(value).__name__,
+        )
+
+    @api.model
     def _get_converter_record(
         self, model: models.BaseModel, fromtype: type | str = str
     ) -> RecordConverter:
         model = self.env[model._name]
         model_fields = model._fields
-
         converter_cache: dict[str, Converter | None] = {}
+        in_import_file = self.env.context.get("import_file")
 
         def resolve_converter(name: str, field: fields.Field) -> Converter | None:
             if name not in converter_cache:
                 converter_cache[name] = self._resolve_converter_field(field, fromtype)
             return converter_cache[name]
 
-        import_file_context = self.env.context.get("import_file")
+        def convert_one(fname: str, value: Any, log: Callable) -> Any:
+            field = model_fields.get(fname)
+            if field is None:
+                log(fname, self._error_unknown_field(model))
+                return _UNCONVERTED
+            if not value:
+                return False
+            converter = resolve_converter(fname, field)
+            if converter is None:
+                log(fname, self._error_unsupported_type(field))
+                return _UNCONVERTED
+            try:
+                converted, warnings = converter(value)
+            except psycopg.Error as e:
+                if not isinstance(e, psycopg.DataError):
+                    raise
+                log(fname, ValueError(escape_import_message(str(e))))
+                return _UNCONVERTED
+            except Exception as e:
+                log(fname, self._as_import_error(e, fname, value, in_import_file))
+                return _UNCONVERTED
+            for warning in warnings:
+                if isinstance(warning, str):
+                    warning = OdooImportWarning(warning)
+                log(fname, warning)
+            return converted
 
-        def convert_record(record: dict, log: Callable) -> dict:
+        def convert_record(record: dict, log: Callable) -> dict | None:
             converted = {}
             for fname, value in record.items():
                 if fname in REFERENCING_FIELDS:
                     continue
-                field = model_fields.get(fname)
-                if field is None:
-                    log(
-                        fname,
-                        self._prepare_import_error(
-                            ValueError,
-                            self.env._(
-                                "Field '%%(field)s' does not exist on model '%s'"
-                            ),
-                            model._name,
-                        ),
-                    )
-                    continue
-                if not value:
-                    converted[fname] = False
-                    continue
-                converter = resolve_converter(fname, field)
-                if converter is None:
-                    log(
-                        fname,
-                        self._prepare_import_error(
-                            ValueError,
-                            self.env._(
-                                "Field '%%(field)s' cannot be imported (unsupported field type '%s')"
-                            ),
-                            field.type,
-                        ),
-                    )
-                    continue
-                try:
-                    converted[fname], ws = converter(value)
-                    for w in ws:
-                        if isinstance(w, str):
-                            w = OdooImportWarning(w)
-                        log(fname, w)
-                except (
-                    UnicodeEncodeError,
-                    UnicodeDecodeError,
-                    psycopg.DataError,
-                ) as e:
-                    log(fname, ValueError(escape_import_message(str(e))))
-                except ValueError as e:
-                    if import_file_context:
-                        error_info = e.args[1] if len(e.args) > 1 else None
-                        if isinstance(error_info, dict) and not error_info.get(
-                            "field_path"
-                        ):
-                            error_info["field_path"] = self._get_field_path_for_error(
-                                fname, value
-                            )
-                    log(fname, e)
-                except AttributeError, TypeError:
-                    _logger.exception(
-                        "Import converter for field %r failed on a %s value",
-                        fname,
-                        type(value).__name__,
-                    )
-                    log(
-                        fname,
-                        self._prepare_import_error(
-                            ValueError,
-                            self.env._(
-                                "Field '%%(field)s' could not be imported from a "
-                                "value of type '%s'; see the server logs for details"
-                            ),
-                            type(value).__name__,
-                        ),
-                    )
+                value = convert_one(fname, value, log)
+                if value is SKIP:
+                    return None
+                if value is not _UNCONVERTED:
+                    converted[fname] = value
             return converted
 
         return convert_record
@@ -254,7 +284,7 @@ class IrFieldsConverter(models.AbstractModel):
         return functools.partial(converter, field)
 
     @api.model
-    def _str_to_json(self, field: FieldLike, value: str) -> tuple[Any, list]:
+    def _str_to_json(self, field: ConvertibleField, value: str) -> tuple[Any, list]:
         try:
             return json_loads(value), []
         except ValueError:
@@ -275,21 +305,18 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def _str_to_properties(
-        self, field: FieldLike, value: str | list
-    ) -> tuple[list, list]:
+        self, field: ConvertibleField, value: str | list
+    ) -> tuple[Any, list]:
+        msg = self.env._(
+            "Unable to import '%%(field)s' Properties field as a whole, target individual property instead."
+        )
         if isinstance(value, str):
             try:
                 value = json_loads(value)
             except ValueError:
-                msg = self.env._(
-                    "Unable to import '%%(field)s' Properties field as a whole, target individual property instead."
-                )
                 raise self._prepare_import_error(ValueError, msg) from None
 
         if not isinstance(value, list):
-            msg = self.env._(
-                "Unable to import '%%(field)s' Properties field as a whole, target individual property instead."
-            )
             raise self._prepare_import_error(ValueError, msg, {"value": value})
 
         value = [dict(property_dict) for property_dict in value]
@@ -302,37 +329,30 @@ class IrFieldsConverter(models.AbstractModel):
             if val in (None, "", [], ()):
                 continue
 
-            sub_field = FakeField(
+            sub_field = PropertyField(
                 comodel_name=property_dict.get("comodel"),
                 name=f"{field.name}.{property_dict['name']}",
             )
-            match property_dict["type"]:
-                case "selection":
-                    coerced, ws = self._property_to_selection(
-                        sub_field, val, property_dict
-                    )
-                case "tags":
-                    coerced, ws = self._property_to_tags(val, property_dict)
-                case "boolean":
-                    coerced, ws = self._property_to_boolean(
-                        sub_field, val, property_dict
-                    )
-                case "many2one" | "many2many":
-                    coerced, ws = self._property_to_relational(
-                        sub_field, val, property_dict
-                    )
-                case "integer":
-                    coerced, ws = self._property_to_integer(val, property_dict)
-                case "float":
-                    coerced, ws = self._property_to_float(val, property_dict)
-                case _:
-                    coerced, ws = val, []
+            coerce = self._PROPERTY_CONVERTERS.get(property_dict["type"])
+            if coerce is None:
+                continue
+            coerced, ws = getattr(self, coerce)(sub_field, val, property_dict)
             warnings.extend(ws)
-            if coerced is None:
-                return None, warnings
+            if coerced is SKIP:
+                return SKIP, warnings
             property_dict["value"] = coerced
 
         return value, warnings
+
+    _PROPERTY_CONVERTERS = {
+        "selection": "_property_to_selection",
+        "tags": "_property_to_tags",
+        "boolean": "_property_to_boolean",
+        "many2one": "_property_to_relational",
+        "many2many": "_property_to_relational",
+        "integer": "_property_to_integer",
+        "float": "_property_to_float",
+    }
 
     _PROPERTY_TYPE_KEYS = {
         "selection": ("selection", 2),
@@ -384,7 +404,7 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def _property_to_selection(
-        self, field: FieldLike, val: Any, property_dict: dict
+        self, field: ConvertibleField, val: Any, property_dict: dict
     ) -> tuple[Any, list]:
         new_val = next(
             (
@@ -397,18 +417,18 @@ class IrFieldsConverter(models.AbstractModel):
         if new_val is not None:
             return new_val, []
 
-        match self._get_policy(field):
-            case ImportPolicy.SKIP_RECORD:
-                return None, []
-            case ImportPolicy.SET_EMPTY:
-                return False, []
+        skipped = self._policy_fallback_value(field)
+        if skipped is not None:
+            return skipped, []
         msg = self.env._(
             "'%(value)s' does not seem to be a valid Selection value for '%(label_property)s' (subfield of '%%(field)s' field)."
         )
         raise self._prepare_property_error(msg, val, property_dict)
 
     @api.model
-    def _property_to_tags(self, val: Any, property_dict: dict) -> tuple[list, list]:
+    def _property_to_tags(
+        self, field: ConvertibleField, val: Any, property_dict: dict
+    ) -> tuple[Any, list]:
         tags = val.split(",") if isinstance(val, str) else list(val)
         new_val = []
         for tag in tags:
@@ -421,6 +441,9 @@ class IrFieldsConverter(models.AbstractModel):
                 None,
             )
             if val_tag is None:
+                skipped = self._policy_fallback_value(field)
+                if skipped is not None:
+                    return skipped, []
                 msg = self.env._(
                     "'%(value)s' does not seem to be a valid Tag value for '%(label_property)s' (subfield of '%%(field)s' field)."
                 )
@@ -430,8 +453,8 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def _property_to_boolean(
-        self, field: FieldLike, val: Any, property_dict: dict
-    ) -> tuple[bool | None, list]:
+        self, field: ConvertibleField, val: Any, property_dict: dict
+    ) -> tuple[Any, list]:
         if isinstance(val, bool):
             return val, []
         try:
@@ -444,7 +467,7 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def _property_to_relational(
-        self, field: FieldLike, val: Any, property_dict: dict
+        self, field: ConvertibleField, val: Any, property_dict: dict
     ) -> tuple[Any, list]:
         try:
             [record] = val
@@ -460,29 +483,53 @@ class IrFieldsConverter(models.AbstractModel):
         ids, warnings = self._get_reference_ids(field, record, multi=multi)
         if any(id_ is None for id_ in ids):
             if self._get_policy(field) is ImportPolicy.SKIP_RECORD:
-                return None, warnings
+                return SKIP, warnings
             ids = [id_ for id_ in ids if id_]
         return (ids if multi else (ids[0] if ids else False)), warnings
 
     @api.model
-    def _property_to_integer(self, val: Any, property_dict: dict) -> tuple[int, list]:
+    def _property_to_integer(
+        self, field: ConvertibleField, val: Any, property_dict: dict
+    ) -> tuple[Any, list]:
         try:
-            return int(val), []
+            return parse_number(val, int), []
         except ValueError, TypeError:
+            skipped = self._policy_fallback_value(field)
+            if skipped is not None:
+                return skipped, []
             msg = self.env._(
                 "'%(value)s' does not seem to be an integer for field '%(label_property)s' property (subfield of '%%(field)s' field)."
             )
             raise self._prepare_property_error(msg, val, property_dict) from None
 
     @api.model
-    def _property_to_float(self, val: Any, property_dict: dict) -> tuple[float, list]:
+    def _property_to_float(
+        self, field: ConvertibleField, val: Any, property_dict: dict
+    ) -> tuple[Any, list]:
         try:
-            return float(val), []
+            return parse_number(val, float), []
         except ValueError, TypeError:
+            skipped = self._policy_fallback_value(field)
+            if skipped is not None:
+                return skipped, []
             msg = self.env._(
-                "'%(value)s' does not seem to be an float for field '%(label_property)s' property (subfield of '%%(field)s' field)."
+                "'%(value)s' does not seem to be a number for field '%(label_property)s' property (subfield of '%%(field)s' field)."
             )
             raise self._prepare_property_error(msg, val, property_dict) from None
+
+    @api.model
+    def _policy_fallback_value(self, field: ConvertibleField) -> Any:
+        """What an unresolvable value becomes, or None when it must be reported.
+
+        `None` is the "no fallback" answer and never a value. SKIP is falsy on
+        purpose, so callers must test this with `is None` and never with `or`.
+        """
+        match self._get_policy(field):
+            case ImportPolicy.SKIP_RECORD:
+                return SKIP
+            case ImportPolicy.SET_EMPTY:
+                return False
+        return None
 
     @api.model
     def _get_transaction_cache(self) -> dict:
@@ -496,17 +543,21 @@ class IrFieldsConverter(models.AbstractModel):
             trues = frozenset(
                 word.lower()
                 for word in itertools.chain(
-                    ["1", "true", "yes"],
-                    self._get_boolean_translations("true"),
-                    self._get_boolean_translations("yes"),
+                    ["1"],
+                    *(
+                        [term._source, *self._get_boolean_translations(term._source)]
+                        for term in BOOLEAN_TRUE_TERMS
+                    ),
                 )
             )
             falses = frozenset(
                 word.lower()
                 for word in itertools.chain(
-                    ["", "0", "false", "no"],
-                    self._get_boolean_translations("false"),
-                    self._get_boolean_translations("no"),
+                    ["", "0"],
+                    *(
+                        [term._source, *self._get_boolean_translations(term._source)]
+                        for term in BOOLEAN_FALSE_TERMS
+                    ),
                 )
             )
             tnx_cache[cache_key] = (trues, falses)
@@ -518,7 +569,7 @@ class IrFieldsConverter(models.AbstractModel):
         return isinstance(value, str) and value.lower() in falses
 
     @api.model
-    def _str_to_boolean(self, field: FieldLike, value: str) -> tuple[bool | None, list]:
+    def _str_to_boolean(self, field: ConvertibleField, value: str) -> tuple[Any, list]:
         trues, falses = self._get_boolean_tokens()
         value_lower = str(value).lower()
         if value_lower in trues:
@@ -527,7 +578,7 @@ class IrFieldsConverter(models.AbstractModel):
             return False, []
 
         if self._get_policy(field) is ImportPolicy.SKIP_RECORD:
-            return None, []
+            return SKIP, []
 
         raise self._prepare_import_error(
             ValueError,
@@ -537,9 +588,9 @@ class IrFieldsConverter(models.AbstractModel):
         )
 
     @api.model
-    def _str_to_integer(self, field: FieldLike, value: str) -> tuple[int, list]:
+    def _str_to_integer(self, field: ConvertibleField, value: str) -> tuple[int, list]:
         try:
-            return int(value), []
+            return parse_number(value, int), []
         except ValueError:
             raise self._prepare_import_error(
                 ValueError,
@@ -550,9 +601,9 @@ class IrFieldsConverter(models.AbstractModel):
             ) from None
 
     @api.model
-    def _str_to_float(self, field: FieldLike, value: str) -> tuple[float, list]:
+    def _str_to_float(self, field: ConvertibleField, value: str) -> tuple[float, list]:
         try:
-            result = float(value)
+            result = parse_number(value, float)
             valid = math.isfinite(result)
         except ValueError:
             valid = False
@@ -567,7 +618,9 @@ class IrFieldsConverter(models.AbstractModel):
     _str_to_monetary = _str_to_float
 
     @api.model
-    def _str_to_str(self, field: FieldLike, value: str) -> tuple[str, list]:
+    def _str_to_str(self, field: ConvertibleField, value: str) -> tuple[str, list]:
+        if isinstance(value, str) and getattr(field, "trim", False):
+            return value.strip(), []
         return value, []
 
     _str_to_reference = _str_to_char = _str_to_text = _str_to_binary = _str_to_html = (
@@ -575,7 +628,7 @@ class IrFieldsConverter(models.AbstractModel):
     )
 
     @api.model
-    def _str_to_date(self, field: FieldLike, value: str) -> tuple[str, list]:
+    def _str_to_date(self, field: ConvertibleField, value: str) -> tuple[str, list]:
         try:
             if isinstance(value, str) and value[DATE_LENGTH:].strip():
                 fields.Datetime.from_string(value)
@@ -607,7 +660,7 @@ class IrFieldsConverter(models.AbstractModel):
         return parsed, tz_aware
 
     @api.model
-    def _str_to_datetime(self, field: FieldLike, value: str) -> tuple[str, list]:
+    def _str_to_datetime(self, field: ConvertibleField, value: str) -> tuple[str, list]:
         try:
             parsed_value, tz_aware = self._parse_datetime(value)
         except ValueError:
@@ -649,85 +702,123 @@ class IrFieldsConverter(models.AbstractModel):
         tnx_cache = self._get_transaction_cache()
         cache_key = ("selection", field.model_name, field.name, self.env.lang)
         if cache_key not in tnx_cache:
-            computed = callable(field.selection) or isinstance(field.selection, str)
-            source_lang = "en_US" if computed else None
+            dynamic = self._is_dynamic_selection(field)
             selection = field._description_selection(
-                self.with_context(lang=source_lang).env
+                self.with_context(lang="en_US" if dynamic else None).env
             )
             current_lang_labels = (
-                dict(field._description_selection(self.env)) if computed else None
+                dict(field._description_selection(self.env)) if dynamic else None
             )
             tnx_cache[cache_key] = (selection, current_lang_labels)
         return tnx_cache[cache_key]
 
+    @staticmethod
+    def _is_dynamic_selection(field: fields.Field) -> bool:
+        return callable(field.selection) or isinstance(field.selection, str)
+
+    @api.model
+    def _build_selection_index(
+        self, field: fields.Field
+    ) -> tuple[dict[str, Any], dict[str, str]]:
+        """Token -> item, and item -> the label to show the reader.
+
+        Both come out of the same pass, and for a stored selection out of the
+        same query: the `name` jsonb the translation lookup already reads
+        carries every installed language, so the reader's label costs nothing
+        beyond picking a key out of a row that was fetched anyway.
+
+        Precedence in the index is strict and the whole point of the three
+        passes: a raw VALUE outranks any label. Registering value and label
+        together, one item at a time, let one item's label claim a token that
+        was another item's own value -- so importing `sent` into
+        `mail.notification.notification_status` stored `pending`.
+        """
+        selection, current_lang_labels = self._get_selection_and_labels(field)
+        index: dict[str, Any] = {}
+        labels = dict(selection)
+
+        def put(token: Any, item: Any) -> None:
+            if token is not None and token != "":
+                index.setdefault(str(token).lower(), item)
+
+        for item, _label in selection:
+            put(item, item)
+        for item, label in selection:
+            put(label, item)
+        if current_lang_labels is not None:
+            for item, label in selection:
+                translated = current_lang_labels.get(item, label)
+                put(translated, item)
+                labels[item] = translated
+            return index, labels
+
+        lang = self.env.lang or "en_US"
+        self.env["ir.model.fields.selection"].flush_model()
+        self.env.cr.execute(
+            SQL(
+                """
+                SELECT s.value, s.name
+                FROM ir_model_fields_selection s
+                JOIN ir_model_fields f ON s.field_id = f.id
+                WHERE f.model = %s AND f.name = %s
+                ORDER BY s.sequence, s.id
+                """,
+                field.model_name,
+                field.name,
+            )
+        )
+        for value, name in self.env.cr.fetchall():
+            if value not in labels:
+                continue
+            for term_lang, txt in (name or {}).items():
+                if txt is None:
+                    continue
+                if term_lang != "en_US":
+                    put(txt, value)
+                if term_lang == lang:
+                    labels[value] = txt
+        return index, labels
+
     @api.model
     def _get_selection_index(self, field: fields.Field) -> dict[str, Any]:
+        return self._get_selection_index_and_labels(field)[0]
+
+    @api.model
+    def _get_selection_index_and_labels(
+        self, field: fields.Field
+    ) -> tuple[dict[str, Any], dict[str, str]]:
         tnx_cache = self._get_transaction_cache()
         cache_key = ("selection_index", field.model_name, field.name, self.env.lang)
         if cache_key not in tnx_cache:
-            selection, current_lang_labels = self._get_selection_and_labels(field)
-            index: dict[str, Any] = {}
-
-            def put(token: Any, item: Any) -> None:
-                if token is not None and token != "":
-                    index.setdefault(str(token).lower(), item)
-
-            valid_items = set()
-            for item, label in selection:
-                valid_items.add(item)
-                put(item, item)
-                put(label, item)
-
-            if current_lang_labels is not None:
-                for item, label in selection:
-                    put(current_lang_labels.get(item, label), item)
-            else:
-                self.env["ir.model.fields.selection"].flush_model()
-                self.env.cr.execute(
-                    """
-                    SELECT s.value, s.name
-                    FROM ir_model_fields_selection s
-                    JOIN ir_model_fields f ON s.field_id = f.id
-                    WHERE f.model = %s AND f.name = %s
-                    ORDER BY s.sequence, s.id
-                    """,
-                    [field.model_name, field.name],
-                )
-                for value, name in self.env.cr.fetchall():
-                    if value not in valid_items:
-                        continue
-                    for lang, txt in (name or {}).items():
-                        if lang != "en_US" and txt is not None:
-                            put(txt, value)
-            tnx_cache[cache_key] = index
+            tnx_cache[cache_key] = self._build_selection_index(field)
         return tnx_cache[cache_key]
 
     @api.model
     def _str_to_selection(self, field: fields.Field, value: str) -> tuple[Any, list]:
-        item = self._get_selection_index(field).get(str(value).lower())
+        index, labels = self._get_selection_index_and_labels(field)
+        item = index.get(str(value).lower())
         if item is not None:
             return item, []
 
-        match self._get_policy(field):
-            case ImportPolicy.SKIP_RECORD:
-                return None, []
-            case ImportPolicy.SET_EMPTY:
-                return False, []
-        selection, _current_lang_labels = self._get_selection_and_labels(field)
+        skipped = self._policy_fallback_value(field)
+        if skipped is not None:
+            return skipped, []
         raise self._prepare_import_error(
             ValueError,
             self.env._("Value '%s' not found in selection field '%%(field)s'"),
             value,
             {
                 "moreinfo": [
-                    _label or str(item) for item, _label in selection if _label or item
+                    labels.get(item) or str(item)
+                    for item in labels
+                    if labels.get(item) or item
                 ]
             },
         )
 
     @api.model
     def _get_action_possible_values(
-        self, field: FieldLike, subfield: str | None
+        self, field: ConvertibleField, subfield: str | None
     ) -> dict:
         action = {
             "name": "Possible Values",
@@ -738,16 +829,16 @@ class IrFieldsConverter(models.AbstractModel):
             "context": {"create": False},
             "help": self.env._("See all possible values"),
         }
-        if subfield is None:
-            action["res_model"] = field.comodel_name
-        elif subfield in ("id", ".id"):
+        if subfield == "id":
             action["res_model"] = "ir.model.data"
             action["domain"] = [("model", "=", field.comodel_name)]
+        else:
+            action["res_model"] = field.comodel_name
         return action
 
     @api.model
     def _resolve_cache_and_key(
-        self, field: FieldLike, subfield: str | None, value: Any
+        self, field: ConvertibleField, subfield: str | None, value: Any
     ) -> tuple[Any, tuple | None]:
         cache = self.env.context.get("import_cache")
         if cache is None or subfield not in (None, ".id") or not isinstance(value, str):
@@ -757,10 +848,10 @@ class IrFieldsConverter(models.AbstractModel):
     @api.model
     def _get_db_id(
         self,
-        field: FieldLike,
+        field: ConvertibleField,
         subfield: str | None,
         value: str,
-    ) -> tuple[int | bool | None, list]:
+    ) -> tuple[Any, list]:
         cache, cache_key = self._resolve_cache_and_key(field, subfield, value)
         if cache is not None:
             if (cached := cache.get(cache_key)) is not None:
@@ -790,7 +881,7 @@ class IrFieldsConverter(models.AbstractModel):
         return lookup.id, lookup.warnings
 
     @api.model
-    def _get_ref_from_dbid(self, field: FieldLike, value: str) -> RefLookup:
+    def _get_ref_from_dbid(self, field: ConvertibleField, value: str) -> RefLookup:
         field_type = self.env._("database id")
         if self._is_falsy_token(value):
             return RefLookup(False, field_type, "", [])
@@ -807,7 +898,7 @@ class IrFieldsConverter(models.AbstractModel):
         return RefLookup((tentative_id if exists else None), field_type, "", [])
 
     @api.model
-    def _get_ref_from_xmlid(self, field: FieldLike, value: str) -> RefLookup:
+    def _get_ref_from_xmlid(self, field: ConvertibleField, value: str) -> RefLookup:
         field_type = self.env._("external id")
         if self._is_falsy_token(value):
             return RefLookup(False, field_type, "", [])
@@ -822,7 +913,7 @@ class IrFieldsConverter(models.AbstractModel):
         return RefLookup(id, field_type, "", [])
 
     @api.model
-    def _get_ref_from_name(self, field: FieldLike, value: str) -> RefLookup:
+    def _get_ref_from_name(self, field: ConvertibleField, value: str) -> RefLookup:
         field_type = self.env._("name")
         warnings = []
         if value == "":
@@ -864,7 +955,7 @@ class IrFieldsConverter(models.AbstractModel):
     @api.model
     def _prepare_ref_not_found_error(
         self,
-        field: FieldLike,
+        field: ConvertibleField,
         subfield: str | None,
         field_type: str,
         value: Any,
@@ -1032,7 +1123,7 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def _get_reference_ids(
-        self, field: FieldLike, record: dict, *, multi: bool
+        self, field: ConvertibleField, record: dict, *, multi: bool
     ) -> tuple[list[int | None], list]:
         subfield = self._get_subfield_referencing(record)
         raw = record[subfield]
@@ -1049,28 +1140,29 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def _str_to_many2one(
-        self, field: FieldLike, values: list[dict]
-    ) -> tuple[int | bool | None, list]:
+        self, field: ConvertibleField, values: list[dict]
+    ) -> tuple[Any, list]:
         record = self._get_record_single(values)
         ids, warnings = self._get_reference_ids(field, record, multi=False)
         id_ = ids[0]
-        if id_ is None and self._get_policy(field) is ImportPolicy.SET_EMPTY:
-            return False, warnings
+        if id_ is None:
+            fallback = self._policy_fallback_value(field)
+            return (False if fallback is None else fallback), warnings
         return id_, warnings
 
     _str_to_many2one_reference = _str_to_integer
 
     @api.model
     def _str_to_many2many(
-        self, field: FieldLike, value: list[dict]
-    ) -> tuple[list | None, list]:
+        self, field: ConvertibleField, value: list[dict]
+    ) -> tuple[Any, list]:
         record = self._get_record_single(value)
         ids, warnings = self._get_reference_ids(field, record, multi=True)
 
         if any(id is None for id in ids) and (
             self._get_policy(field) is ImportPolicy.SKIP_RECORD
         ):
-            return None, warnings
+            return SKIP, warnings
 
         ids = [id for id in ids if id]
         if self.env.context.get("update_many2many"):
@@ -1089,27 +1181,24 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def _get_converter_nested(
-        self, field: FieldLike, hierarchy: list[str]
-    ) -> tuple[RecordConverter, set[str]]:
+        self, field: ConvertibleField, hierarchy: list[str]
+    ) -> RecordConverter:
         cache = self.env.context.get("import_cache")
         key = ("o2m_converter", tuple(hierarchy), field.comodel_name)
         if cache is not None and (cached := cache.get(key)) is not None:
             return cached
 
-        pair = (
-            self.with_context(
-                parent_fields_hierarchy=list(hierarchy)
-            )._get_converter_record(self.env[field.comodel_name]),
-            self._get_subfields_to_skip(hierarchy),
-        )
+        convert = self.with_context(
+            parent_fields_hierarchy=list(hierarchy)
+        )._get_converter_record(self.env[field.comodel_name])
         if cache is not None:
-            cache[key] = pair
-        return pair
+            cache[key] = convert
+        return convert
 
     @api.model
     def _str_to_one2many(
-        self, field: FieldLike, records: list[dict]
-    ) -> tuple[list | None, list]:
+        self, field: ConvertibleField, records: list[dict]
+    ) -> tuple[Any, list]:
         commands = []
         warnings = []
 
@@ -1134,16 +1223,14 @@ class IrFieldsConverter(models.AbstractModel):
                 raise exception
             warnings.append(exception)
 
-        convert, skipping_subfields = self._get_converter_nested(
-            field, parent_fields_hierarchy
-        )
+        convert = self._get_converter_nested(field, parent_fields_hierarchy)
 
         for record in records:
             id = None
             refs = get_ref_values(record)
             writable = convert(get_non_ref_values(record), log)
-            if any(writable.get(f, False) is None for f in skipping_subfields):
-                return None, warnings
+            if writable is None:
+                return SKIP, warnings
             if refs:
                 subfield = self._get_subfield_referencing(refs)
                 try:
