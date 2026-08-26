@@ -369,7 +369,7 @@ def load_addons_commands(command: str | None = None) -> None:
     mapping: dict[str, Path] = {}
     initialize_sys_path()
     for path in odoo.addons.__path__:
-        for fullpath in Path(path).glob(f"*/cli/{command}.py"):
+        for fullpath in sorted(Path(path).glob(f"*/cli/{command}.py")):
             found_command = fullpath.stem
             if not Command.is_valid_name(found_command):
                 continue
