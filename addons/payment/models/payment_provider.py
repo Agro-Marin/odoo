@@ -288,10 +288,10 @@ class PaymentProvider(models.Model):
 
         - `support_express_checkout`: Whether the "express checkout" feature is supported. `False`
           by default.
-        - `support_manual_capture`: Whether the "manual capture" feature is supported. `False` by
-          default.
-        - `support_refund`: Which type of the "refunds" feature is supported: `None`,
-          `'full_only'`, or `'partial'`. `None` by default.
+        - `support_manual_capture`: Which type of the "manual capture" feature is supported:
+          `None`, `'full_only'`, or `'partial'`. `None` by default.
+        - `support_refund`: Which type of the "refunds" feature is supported: `'none'`,
+          `'full_only'`, or `'partial'`. `'none'` by default.
         - `support_tokenization`: Whether the "tokenization feature" is supported. `False` by
           default.
 
@@ -597,7 +597,7 @@ class PaymentProvider(models.Model):
         """Toggle the field `is_published`.
 
         :return: None
-        :raise UserError: If the provider is disabled.
+        :raise UserError: If the provider is disabled and not published yet.
         """
         if self.state == "disabled" and not self.is_published:
             raise UserError(_("You cannot publish a disabled provider."))
@@ -946,7 +946,7 @@ class PaymentProvider(models.Model):
         return {}
 
     def _prepare_request_auth(self, **kwargs):
-        """Set the basic HTTP Auth of the request
+        """Return the basic HTTP Auth of the request
 
         This method serves as a hook to allow providers to build the request's basic HTTP Auth.
 

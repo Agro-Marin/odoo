@@ -95,7 +95,7 @@ class ResConfigSettings(models.TransientModel):
 
         :param int menu_id: The menu from which the onboarding is started, as an `ir.ui.menu` id.
         :return: The action returned by `action_start_onboarding`.
-        :rtype: dict
+        :rtype: dict|bool
         """
         self.ensure_one()
         if not self.onboarding_payment_module:

@@ -162,8 +162,6 @@ def to_minor_currency_units(major_amount, currency, arbitrary_decimal_number=Non
     To force a different number of decimals, set it as the value of the `arbitrary_decimal_number`
     argument.
 
-    Note: currency.ensure_one() if arbitrary_decimal_number is not provided
-
     :param float major_amount: The amount in major units, to convert in minor units
     :param recordset currency: The currency of the amount, as a `res.currency` record
     :param int arbitrary_decimal_number: The number of decimals to use instead of that of ISO 4217

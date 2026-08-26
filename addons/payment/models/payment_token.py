@@ -86,7 +86,8 @@ class PaymentToken(models.Model):
 
         :return: The result of the call to the parent method.
         :rtype: bool
-        :raise UserError: If at least one token is being unarchived.
+        :raise UserError: If a token linked to an inactive payment method or a disabled provider
+                         is being unarchived.
         """
         if "active" in vals:
             if vals["active"]:
