@@ -12,8 +12,7 @@ class Base(models.AbstractModel):
 
     @api.model
     def _phone_get_number_fields(self):
-        """This method returns the fields to use to find the number to use to
-        send an SMS on a record."""
+        """Return the fields likely to hold a phone number on the record (e.g. 'mobile', 'phone')."""
         return [
             number_fname for number_fname in ("mobile", "phone") if number_fname in self
         ]
