@@ -26,7 +26,8 @@ class AccountTax(models.Model):
         ":param base: float, actual amount on which the tax is applied\n"
         ":param price_unit: float\n"
         ":param quantity: float\n"
-        ":param product: A object representing the product\n",
+        ":param product: A object representing the product\n"
+        ":param uom: A object representing the product's unit of measure\n",
     )
     formula_decoded_info = fields.Json(compute="_compute_formula_decoded_info")
 
