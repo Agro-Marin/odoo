@@ -3,15 +3,15 @@ from datetime import UTC, date, datetime, time, timedelta
 from functools import partial
 from itertools import chain
 from typing import TYPE_CHECKING, Any, NamedTuple
+from zoneinfo import ZoneInfo
 
 from dateutil.relativedelta import relativedelta
 from dateutil.rrule import DAILY, rrule
-from zoneinfo import ZoneInfo
-
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Command, Domain
+from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
 from odoo.libs.numbers import float_round
 from odoo.models import ValuesType
@@ -20,7 +20,6 @@ from odoo.tools.date_utils import float_to_time, localized, to_timezone
 
 from .utils import HOURS_PER_DAY
 from odoo.addons.base.models.res_partner import _tz_get
-from odoo.libs.datetime import timezone
 
 if TYPE_CHECKING:
     from .resource_calendar_attendance import ResourceCalendarAttendance
@@ -178,9 +177,7 @@ class ResourceCalendar(models.Model):
         readonly=False,
         copy=False,
     )
-    is_fulltime = fields.Boolean(
-        compute="_compute_work_time", string="Is Full Time"
-    )
+    is_fulltime = fields.Boolean(compute="_compute_work_time", string="Is Full Time")
     two_weeks_calendar = fields.Boolean(string="Calendar in 2 weeks mode")
     two_weeks_explanation = fields.Char(
         "Explanation", compute="_compute_two_weeks_explanation"
