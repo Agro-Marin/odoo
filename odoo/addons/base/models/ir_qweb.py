@@ -195,6 +195,7 @@ ELEMENT_MARKER_REGEXP = re.compile(r"\s*# element: (.*)")
 TO_VARNAME_REGEXP = re.compile(r"[^A-Za-z0-9_]+")
 SPECIAL_DIRECTIVES = {"t-translation", "t-ignore", "t-title"}
 OUTPUT_DIRECTIVES = ("t-out", "t-field", "t-esc", "t-raw")
+ARGUMENT_NAME_TEMPLATE = "_arg_%s__"
 T_CALL_SLOT = "0"
 
 GENERATED_CODE_PREAMBLE_LINES = 1
@@ -1317,63 +1318,95 @@ class IrQweb(models.AbstractModel):
         argument_names: list[str] | None = None,
         raise_on_missing: bool = False,
     ) -> str:
-        bracket_depth = 0
+        """Compile a tokenised qweb expression into Python source.
 
-        argument_name = "_arg_%s__"
+        Three passes over one token list, sharing nothing but the list:
+        collect the names a lambda or comprehension binds, fold every
+        bracketed group into a single pre-compiled token, then emit.  They
+        were one 159-line body at complexity 37 -- the second longest in
+        ``odoo/`` and second only to ``apply_inheritance_specs`` on the ``c901``
+        ratchet -- which is also why each pass could only ever be exercised
+        through the whole of it.
+        """
         argument_names = argument_names or []
+        self._collect_expr_argument_names(tokens, argument_names)
+        self._fold_expr_brackets(tokens, allowed_keys, argument_names, raise_on_missing)
+        return self._emit_expr_tokens(
+            tokens, allowed_keys, argument_names, raise_on_missing
+        )
 
+    def _collect_expr_argument_names(
+        self, tokens: list[tokenize.TokenInfo], argument_names: list[str]
+    ) -> None:
+        """Append every name a lambda or comprehension binds at depth 0.
+
+        Only depth 0: a binding inside brackets belongs to the sub-expression
+        that :meth:`_fold_expr_brackets` compiles on its own, with its own copy
+        of this list.
+        """
+        bracket_depth = 0
         for index, t in enumerate(tokens):
-            if t.exact_type in [token.LPAR, token.LSQB, token.LBRACE]:
+            if t.exact_type in (token.LPAR, token.LSQB, token.LBRACE):
                 bracket_depth += 1
-            elif t.exact_type in [token.RPAR, token.RSQB, token.RBRACE]:
+            elif t.exact_type in (token.RPAR, token.RSQB, token.RBRACE):
                 bracket_depth -= 1
             elif bracket_depth == 0 and t.exact_type == token.NAME:
-                string = t.string
-                if string == "lambda":
-                    for i in range(index + 1, len(tokens)):
-                        t = tokens[i]
-                        if t.exact_type == token.NAME:
-                            argument_names.append(t.string)
-                        elif t.exact_type == token.COMMA:
-                            pass
-                        elif t.exact_type == token.COLON:
-                            break
-                        elif t.exact_type == token.EQUAL:
-                            msg = "Lambda default values are not supported"
-                            raise NotImplementedError(msg)
-                        else:
-                            msg = "This lambda code style is not implemented."
-                            raise NotImplementedError(msg)
-                elif string == "for":
-                    for i in range(index + 1, len(tokens)):
-                        t = tokens[i]
-                        if t.exact_type == token.NAME:
-                            if t.string == "in":
-                                break
-                            argument_names.append(t.string)
-                        elif t.exact_type in [
-                            token.COMMA,
-                            token.LPAR,
-                            token.RPAR,
-                        ]:
-                            pass
-                        else:
-                            msg = "This loop code style is not implemented."
-                            raise NotImplementedError(msg)
+                if t.string == "lambda":
+                    self._collect_lambda_argument_names(tokens, index, argument_names)
+                elif t.string == "for":
+                    self._collect_loop_target_names(tokens, index, argument_names)
 
+    @staticmethod
+    def _collect_lambda_argument_names(
+        tokens: list[tokenize.TokenInfo], index: int, argument_names: list[str]
+    ) -> None:
+        for t in tokens[index + 1 :]:
+            if t.exact_type == token.NAME:
+                argument_names.append(t.string)
+            elif t.exact_type == token.COLON:
+                return
+            elif t.exact_type == token.EQUAL:
+                msg = "Lambda default values are not supported"
+                raise NotImplementedError(msg)
+            elif t.exact_type != token.COMMA:
+                msg = "This lambda code style is not implemented."
+                raise NotImplementedError(msg)
+
+    @staticmethod
+    def _collect_loop_target_names(
+        tokens: list[tokenize.TokenInfo], index: int, argument_names: list[str]
+    ) -> None:
+        for t in tokens[index + 1 :]:
+            if t.exact_type == token.NAME:
+                if t.string == "in":
+                    return
+                argument_names.append(t.string)
+            elif t.exact_type not in (token.COMMA, token.LPAR, token.RPAR):
+                msg = "This loop code style is not implemented."
+                raise NotImplementedError(msg)
+
+    def _fold_expr_brackets(
+        self,
+        tokens: list[tokenize.TokenInfo],
+        allowed_keys: list[str] | frozenset[str],
+        argument_names: list[str],
+        raise_on_missing: bool,
+    ) -> None:
+        """Replace each depth-0 bracketed group with one compiled QWEB token.
+
+        Mutates ``tokens`` in place, so the emit pass sees a flat list in which
+        every group is already Python source.
+        """
         index = 0
         open_bracket_index = -1
         bracket_depth = 0
-
         while index < len(tokens):
             t = tokens[index]
-            string = t.string
-
-            if t.exact_type in [token.LPAR, token.LSQB, token.LBRACE]:
+            if t.exact_type in (token.LPAR, token.LSQB, token.LBRACE):
                 if bracket_depth == 0:
                     open_bracket_index = index
                 bracket_depth += 1
-            elif t.exact_type in [token.RPAR, token.RSQB, token.RBRACE]:
+            elif t.exact_type in (token.RPAR, token.RSQB, token.RBRACE):
                 bracket_depth -= 1
                 if bracket_depth == 0:
                     code = self._compile_expr_tokens(
@@ -1393,10 +1426,17 @@ class IrQweb(models.AbstractModel):
                         )
                     ]
                     index = open_bracket_index
-
             index += 1
 
-        code = []
+    def _emit_expr_tokens(
+        self,
+        tokens: list[tokenize.TokenInfo],
+        allowed_keys: list[str] | frozenset[str],
+        argument_names: list[str],
+        raise_on_missing: bool,
+    ) -> str:
+        """Emit Python source, preserving the original inter-token spacing."""
+        code: list[str] = []
         index = 0
         pos = tokens and tokens[0].start
         while index < len(tokens):
@@ -1417,48 +1457,25 @@ class IrQweb(models.AbstractModel):
                     )
                 if string == "lambda":
                     code.append("lambda ")
-                    index += 1
-                    while index < len(tokens):
-                        t = tokens[index]
-                        if t.exact_type == token.NAME and t.string in argument_names:
-                            code.append(argument_name % t.string)
-                        if t.exact_type in [token.COMMA, token.COLON]:
-                            code.append(t.string)
-                        if t.exact_type == token.COLON:
-                            break
-                        index += 1
-                    if t.end[0] != pos[0]:
-                        pos = (t.end[0], 0)
-                    else:
-                        pos = t.end
-                elif string in argument_names:
-                    code.append(argument_name % t.string)
-                elif (
-                    string in allowed_keys
-                    or (
-                        index + 1 < len(tokens)
-                        and tokens[index + 1].exact_type == token.EQUAL
+                    index, t = self._emit_lambda_parameters(
+                        tokens, index, argument_names, code
                     )
-                    or (
-                        index > 0
-                        and tokens[index - 1]
-                        and tokens[index - 1].exact_type == token.DOT
-                    )
-                ):
-                    code.append(string)
-                elif raise_on_missing or (
-                    index + 1 < len(tokens)
-                    and tokens[index + 1].exact_type
-                    in [token.DOT, token.LPAR, token.LSQB, QWEB_TOKEN_TYPE]
-                ):
-                    code.append(f"values[{string!r}]")
                 else:
-                    code.append(f"values.get({string!r})")
-            elif t.type not in [
+                    code.append(
+                        self._emit_expr_name(
+                            tokens,
+                            index,
+                            string,
+                            allowed_keys,
+                            argument_names,
+                            raise_on_missing,
+                        )
+                    )
+            elif t.type not in (
                 tokenize.ENCODING,
                 token.ENDMARKER,
                 token.DEDENT,
-            ]:
+            ):
                 code.append(self._flatten_token(t, string))
 
             if t.end[0] != pos[0]:
@@ -1469,6 +1486,67 @@ class IrQweb(models.AbstractModel):
             index += 1
 
         return "".join(code)
+
+    @staticmethod
+    def _emit_lambda_parameters(
+        tokens: list[tokenize.TokenInfo],
+        index: int,
+        argument_names: list[str],
+        code: list[str],
+    ) -> tuple[int, tokenize.TokenInfo]:
+        """Emit a lambda's renamed parameter list, stopping on its colon.
+
+        Returns the index of that colon and the token the caller must use to
+        advance its spacing cursor.
+        """
+        t = tokens[index]
+        index += 1
+        while index < len(tokens):
+            t = tokens[index]
+            if t.exact_type == token.NAME and t.string in argument_names:
+                code.append(ARGUMENT_NAME_TEMPLATE % t.string)
+            if t.exact_type in (token.COMMA, token.COLON):
+                code.append(t.string)
+            if t.exact_type == token.COLON:
+                break
+            index += 1
+        return index, t
+
+    @staticmethod
+    def _emit_expr_name(
+        tokens: list[tokenize.TokenInfo],
+        index: int,
+        string: str,
+        allowed_keys: list[str] | frozenset[str],
+        argument_names: list[str],
+        raise_on_missing: bool,
+    ) -> str:
+        """Resolve one NAME token to the source that reads it."""
+        if string in argument_names:
+            return ARGUMENT_NAME_TEMPLATE % string
+
+        follows_dot = (
+            index > 0
+            and tokens[index - 1]
+            and tokens[index - 1].exact_type == token.DOT
+        )
+        is_keyword_argument = (
+            index + 1 < len(tokens) and tokens[index + 1].exact_type == token.EQUAL
+        )
+        if string in allowed_keys or is_keyword_argument or follows_dot:
+            return string
+
+        # A name that is about to be walked into cannot be absent without the
+        # walk failing anyway, so it is read strictly; anything else is optional.
+        is_walked_into = index + 1 < len(tokens) and tokens[index + 1].exact_type in (
+            token.DOT,
+            token.LPAR,
+            token.LSQB,
+            QWEB_TOKEN_TYPE,
+        )
+        if raise_on_missing or is_walked_into:
+            return f"values[{string!r}]"
+        return f"values.get({string!r})"
 
     @staticmethod
     def _flatten_token(t: tokenize.TokenInfo, string: str) -> str:
