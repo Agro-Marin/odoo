@@ -220,7 +220,6 @@ class CalendarRecurrence(models.Model):
             self._fields["weekday"]._description_selection(self.env)
         )
         weekdays = self._get_week_days()
-        # Convert Weekday object
         weekdays = [str(w) for w in weekdays]
         # We need to get the day full name from its three first letters.
         week_map = {v: k for k, v in RRULE_WEEKDAYS.items()}
