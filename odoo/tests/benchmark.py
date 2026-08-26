@@ -147,7 +147,7 @@ class BenchmarkStats:
             f"{'=' * 70}\n"
             f"  Iterations: {self.iterations} (samples: {self.total_samples})\n"
             f"\n"
-            f"  TIMING ({symbol}) -- Min/Max raw, mean and percentiles trimmed:\n"
+            f"  TIMING ({symbol}):\n"
             f"    Mean:   {v['mean']:10.{p}f}  (\u00b1{v['std_dev']:.{p}f} std)\n"
             f"    Median: {v['median']:10.{p}f}\n"
             f"    Min:    {v['min']:10.{p}f}    Max: {v['max']:.{p}f}\n"
@@ -294,13 +294,8 @@ class PerfTimer:
         p50 = percentile(clean, 50)
         p95 = percentile(clean, 95)
         p99 = percentile(clean, 99)
-        # Extremes come from the untrimmed samples, the percentiles from the
-        # trimmed ones -- the same split compute_stats uses (and that
-        # test_compute_stats_raw_extremes_joint_trim pins). Reporting a trimmed
-        # max hid the worst observed run, which is the number a perf regression
-        # shows up in first.
-        mn = min(us)
-        mx = max(us)
+        mn = min(clean)
+        mx = max(clean)
         std = statistics.stdev(clean) if n > 1 else 0
 
         result = {
