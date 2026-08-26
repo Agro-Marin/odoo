@@ -228,6 +228,37 @@ class TestHrEmployee(TestHrCommon):
         self.assertTrue(self.employee_without_image.avatar_1024)
         self.assertTrue(self.employee_without_image.avatar_1920)
 
+    def test_a_blank_after_strip_name_does_not_crash_create(self):
+        for name in ("   ", "\t", ""):
+            with self.subTest(name=name):
+                employee = self.env["hr.employee"].create({"name": name})
+                self.env.flush_all()
+                self.assertFalse(
+                    employee.image_1920,
+                    "no avatar can be generated from a name with no first character",
+                )
+                self.assertTrue(
+                    employee.avatar_128, "the mixin still answers with a placeholder"
+                )
+
+    def test_the_import_path_accepts_a_blank_name(self):
+        result = self.env["hr.employee"].load(["name"], [["  "]])
+        self.assertFalse(
+            [m for m in result["messages"] if m.get("type") == "error"],
+            f"import must not fail on a padded-blank name: {result['messages']}",
+        )
+        self.assertTrue(result["ids"])
+
+    def test_a_real_name_still_gets_a_generated_avatar(self):
+        employee = self.env["hr.employee"].create({"name": " Real Name "})
+        self.env.flush_all()
+        self.assertTrue(employee.image_1920)
+        self.assertEqual(
+            employee.work_contact_id.image_1920,
+            employee.image_1920,
+            "the work contact keeps the bytes the employee was given",
+        )
+
     def test_employee_has_same_avatar_as_corresponding_user(self):
         self.assertEqual(
             self.employee_without_image.avatar_1920, self.user_without_image.avatar_1920

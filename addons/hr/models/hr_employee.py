@@ -2167,6 +2167,17 @@ We can redirect you to the public employee list."""
         )
         old_partner_employee_ids.work_contact_id = None
 
+    def _generate_missing_avatars(self):
+        # creating 'svg/xml' attachments requires specific rights -- one check
+        # for the batch, not one per employee
+        if not self.env["ir.ui.view"].sudo(False).has_access("write"):
+            return
+        for employee in self:
+            if employee.image_1920 or not (employee.name or "").strip():
+                continue
+            employee.image_1920 = employee._prepare_avatar_svg()
+            employee.work_contact_id.image_1920 = employee.image_1920
+
     def _sync_user(self, user, employee_has_image=False):
         vals = {"user_id": user.id}
         if user:
@@ -2247,13 +2258,7 @@ We can redirect you to the public employee list."""
         ).sudo()._create_work_contacts()
         if self.env.context.get("salary_simulation"):
             return employees
-        # creating 'svg/xml' attachments requires specific rights -- one check
-        # for the batch, not one per employee
-        may_write_views = self.env["ir.ui.view"].sudo(False).has_access("write")
-        if may_write_views:
-            for employee_sudo in employees.sudo().filtered(lambda e: not e.image_1920):
-                employee_sudo.image_1920 = employee_sudo._prepare_avatar_svg()
-                employee_sudo.work_contact_id.image_1920 = employee_sudo.image_1920
+        employees.sudo()._generate_missing_avatars()
         employee_departments = employees.department_id
         if employee_departments:
             self.env["discuss.channel"].sudo().search(
