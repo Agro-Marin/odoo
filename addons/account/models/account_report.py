@@ -783,8 +783,8 @@ class AccountReportLine(models.Model):
                 if not domain_match:
                     raise ValidationError(
                         _(
-                            "Invalid domain formula %(formula)r on report line "
-                            "%(line)r. Expected the form 'sum(<domain>)' "
+                            "Invalid domain formula '%(formula)s' on report line "
+                            "'%(line)s'. Expected the form 'sum(<domain>)' "
                             "(optionally '-sum(<domain>)').",
                             formula=report_line.domain_formula,
                             line=report_line.name,

@@ -1,0 +1,455 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* document_extract_account
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.0+e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-25 22:37+0000\n"
+"PO-Revision-Date: 2026-08-25 22:37+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. module: document_extract_account
+#: model_terms:ir.ui.view,arch_db:document_extract_account.extract_line_wizard_view_form
+msgid ""
+"<span>\n"
+"                        The accepted lines do not add up to what the document says\n"
+"                        its own lines come to before tax. One of the two is wrong.\n"
+"                    </span>"
+msgstr ""
+"<span>\n"
+"                        Las líneas aceptadas no suman lo que el documento dice\n"
+"                        que suman sus propias líneas antes de impuestos. Una de las dos\n"
+"                        está mal.\n"
+"                    </span>"
+
+#. module: document_extract_account
+#: model_terms:ir.ui.view,arch_db:document_extract_account.extract_line_wizard_view_form
+msgid ""
+"<span>\n"
+"                        These lines were read from the document and have not been\n"
+"                        added to the bill. A line decides an account and a tax, and\n"
+"                        the bill's total is computed from the lines, so nothing is\n"
+"                        added until you say so.\n"
+"                    </span>"
+msgstr ""
+"<span>\n"
+"                        Estas líneas se leyeron del documento y no se han agregado\n"
+"                        a la factura. Una línea decide una cuenta y un impuesto, y el\n"
+"                        total de la factura se calcula a partir de las líneas, así que\n"
+"                        no se agrega nada hasta que usted lo indique.\n"
+"                    </span>"
+
+#. module: document_extract_account
+#: model_terms:ir.ui.view,arch_db:document_extract_account.view_move_form_document_extract
+msgid ""
+"<span>\n"
+"                        This bill's document was read in part. What is missing is\n"
+"                        listed in the Extraction tab, and needs a person.\n"
+"                    </span>"
+msgstr ""
+"<span>\n"
+"                        El documento de esta factura se leyó en parte. Lo que falta\n"
+"                        está en la pestaña Extracción, y necesita a una persona.\n"
+"                    </span>"
+
+#. module: document_extract_account
+#: model_terms:ir.ui.view,arch_db:document_extract_account.view_move_form_document_extract
+msgid "<span>A service is still reading this bill's document.</span>"
+msgstr ""
+"<span>Un servicio todavía está leyendo el documento de esta factura.</span>"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_proposal__accepted
+msgid "Accepted"
+msgstr "Aceptada"
+
+#. module: document_extract_account
+#: model_terms:ir.ui.view,arch_db:document_extract_account.extract_line_wizard_view_form
+msgid "Accepted lines add up to"
+msgstr "Las líneas aceptadas suman"
+
+#. module: document_extract_account
+#: model_terms:ir.ui.view,arch_db:document_extract_account.extract_line_wizard_view_form
+msgid "Add the accepted lines"
+msgstr "Agregar las líneas aceptadas"
+
+#. module: document_extract_account
+#: model_terms:ir.ui.view,arch_db:document_extract_account.extract_line_wizard_view_form
+msgid "Cancel"
+msgstr "Cancelar"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_proposal__confidence
+msgid "Confidence"
+msgstr "Confianza"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_proposal__create_uid
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_wizard__create_uid
+msgid "Created by"
+msgstr ""
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_proposal__create_date
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_wizard__create_date
+msgid "Created on"
+msgstr ""
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_proposal__currency_id
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_wizard__currency_id
+msgid "Currency"
+msgstr "Moneda"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_proposal__description
+msgid "Description"
+msgstr "Descripción"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move__display_name
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_proposal__display_name
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_wizard__display_name
+msgid "Display Name"
+msgstr ""
+
+#. module: document_extract_account
+#: model:ir.model.fields,help:document_extract_account.field_account_move__extract_result
+msgid ""
+"Every value that was read, with which strategy proposed it and how confident"
+" it was."
+msgstr ""
+"Cada valor que se leyó, con qué estrategia lo propuso y qué tan segura "
+"estaba."
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_bank_statement_line__extract_can_be_read
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move__extract_can_be_read
+msgid "Extract Can Be Read"
+msgstr "Se puede leer el documento"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move__extract_corrections
+msgid "Extract Corrections"
+msgstr "Correcciones de la extracción"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move__extract_error
+msgid "Extract Error"
+msgstr "Error de la extracción"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_bank_statement_line__extract_has_lines
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move__extract_has_lines
+msgid "Extract Has Lines"
+msgstr "La extracción tiene líneas"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_bank_statement_line__extract_lines_applied
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move__extract_lines_applied
+msgid "Extract Lines Applied"
+msgstr "Líneas de la extracción ya agregadas"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move__extract_missing
+msgid "Extract Missing"
+msgstr "Faltantes de la extracción"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move__extract_pending
+msgid "Extract Pending"
+msgstr "Extracción pendiente"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move__extract_result
+msgid "Extract Result"
+msgstr "Resultado de la extracción"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move__extract_state
+msgid "Extract State"
+msgstr "Estado de la extracción"
+
+#. module: document_extract_account
+#: model_terms:ir.ui.view,arch_db:document_extract_account.view_move_form_document_extract
+msgid "Extraction"
+msgstr "Extracción"
+
+#. module: document_extract_account
+#: model:ir.model.fields,help:document_extract_account.field_account_move__extract_corrections
+msgid ""
+"Fields a person changed after extraction, with what was read and what it "
+"should have been."
+msgstr ""
+"Campos que una persona cambió después de la extracción, con lo que se leyó y"
+" lo que debía ser."
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move__id
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_proposal__id
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_wizard__id
+msgid "ID"
+msgstr ""
+
+#. module: document_extract_account
+#: model_terms:ir.ui.view,arch_db:document_extract_account.extract_line_wizard_view_form
+msgid "Its lines come to (before tax)"
+msgstr "Sus líneas suman (antes de impuestos)"
+
+#. module: document_extract_account
+#: model:ir.model,name:document_extract_account.model_account_move
+msgid "Journal Entry"
+msgstr ""
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_proposal__write_uid
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_wizard__write_uid
+msgid "Last Updated by"
+msgstr ""
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_proposal__write_date
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_wizard__write_date
+msgid "Last Updated on"
+msgstr ""
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_wizard__line_ids
+msgid "Line"
+msgstr "Línea"
+
+#. module: document_extract_account
+#: model:ir.model,name:document_extract_account.model_account_move_extract_line_proposal
+msgid "Line Read From a Document, Awaiting a Person"
+msgstr "Línea leída de un documento, en espera de una persona"
+
+#. module: document_extract_account
+#. odoo-python
+#: code:addons/document_extract_account/models/account_move.py:0
+#: model_terms:ir.ui.view,arch_db:document_extract_account.extract_line_wizard_view_form
+msgid "Lines read from the document"
+msgstr "Líneas leídas del documento"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_wizard__move_id
+msgid "Move"
+msgstr "Asiento"
+
+#. module: document_extract_account
+#. odoo-python
+#: code:addons/document_extract_account/wizard/extract_line_wizard.py:0
+msgid "No line was accepted, so nothing was added."
+msgstr "No se aceptó ninguna línea, así que no se agregó nada."
+
+#. module: document_extract_account
+#. odoo-python
+#: code:addons/document_extract_account/models/account_move.py:0
+msgid "No lines were read from this bill's document."
+msgstr "No se leyó ninguna línea del documento de esta factura."
+
+#. module: document_extract_account
+#. odoo-python
+#: code:addons/document_extract_account/models/account_move.py:0
+#: code:addons/document_extract_account/wizard/extract_line_wizard.py:0
+msgid "Only a draft bill can take lines read from its document."
+msgstr ""
+"Solo una factura en borrador puede recibir las líneas leídas de su "
+"documento."
+
+#. module: document_extract_account
+#. odoo-python
+#: code:addons/document_extract_account/models/account_move.py:0
+msgid ""
+"Only a vendor bill carries a document this can read. %(name)s is not one."
+msgstr ""
+"Solo una factura de proveedor lleva un documento que esto pueda leer. "
+"%(name)s no lo es."
+
+#. module: document_extract_account
+#: model:ir.model.fields,help:document_extract_account.field_account_move_extract_line_proposal__read_index
+msgid ""
+"Position of this line in what the document said. Kept so a correction is "
+"attributed to the line it was made on even after the rows are reordered."
+msgstr ""
+"Posición de esta línea en lo que dijo el documento. Se conserva para que una"
+" corrección se atribuya a la línea sobre la que se hizo, incluso después de "
+"reordenar los renglones."
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_proposal__price_unit
+msgid "Price Unit"
+msgstr "Precio unitario"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_proposal__product_id
+msgid "Product"
+msgstr "Producto"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_wizard__proposed_total
+msgid "Proposed Total"
+msgstr "Total propuesto"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_proposal__quantity
+msgid "Quantity"
+msgstr "Cantidad"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_proposal__read_by
+msgid "Read By"
+msgstr "Leída por"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_proposal__read_index
+msgid "Read Index"
+msgstr "Índice de lectura"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_wizard__read_total
+msgid "Read Total"
+msgstr "Total leído"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_wizard__read_untaxed_total
+msgid "Read Untaxed Total"
+msgstr "Total leído sin impuestos"
+
+#. module: document_extract_account
+#: model_terms:ir.ui.view,arch_db:document_extract_account.view_move_form_document_extract
+msgid "Read the document"
+msgstr "Leer el documento"
+
+#. module: document_extract_account
+#: model:ir.model.fields,help:document_extract_account.field_account_move__extract_missing
+msgid ""
+"Required fields no strategy could read, and rules that do not hold. What a "
+"person has to supply."
+msgstr ""
+"Campos obligatorios que ninguna estrategia pudo leer, y reglas que no se "
+"cumplen. Lo que una persona tiene que aportar."
+
+#. module: document_extract_account
+#: model:ir.model,name:document_extract_account.model_account_move_extract_line_wizard
+msgid "Review Lines Read From a Document"
+msgstr "Revisar las líneas leídas de un documento"
+
+#. module: document_extract_account
+#: model_terms:ir.ui.view,arch_db:document_extract_account.view_move_form_document_extract
+msgid "Review read lines"
+msgstr "Revisar las líneas leídas"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_proposal__sequence
+msgid "Sequence"
+msgstr "Secuencia"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_proposal__subtotal
+msgid "Subtotal"
+msgstr ""
+
+#. module: document_extract_account
+#. odoo-python
+#: code:addons/document_extract_account/models/account_move.py:0
+msgid "The document was read in full."
+msgstr "El documento se leyó por completo."
+
+#. module: document_extract_account
+#. odoo-python
+#: code:addons/document_extract_account/models/account_move.py:0
+msgid "The document was read in part. Still missing: %(fields)s"
+msgstr "El documento se leyó en parte. Todavía falta: %(fields)s"
+
+#. module: document_extract_account
+#. odoo-python
+#: code:addons/document_extract_account/wizard/extract_line_wizard.py:0
+msgid ""
+"The lines read from this document were already added to this bill. Read the "
+"document again to offer them afresh."
+msgstr ""
+"Las líneas leídas de este documento ya se agregaron a esta factura. Lea el "
+"documento de nuevo para volver a ofrecerlas."
+
+#. module: document_extract_account
+#: model:ir.model.fields,help:document_extract_account.field_account_move__extract_pending
+msgid ""
+"The service this document is waiting on, and its handle. Kept so the next "
+"attempt asks again rather than submitting the document a second time."
+msgstr ""
+"El servicio que este documento está esperando, y su identificador. Se "
+"conserva para que el siguiente intento vuelva a preguntar en lugar de enviar"
+" el documento por segunda vez."
+
+#. module: document_extract_account
+#. odoo-python
+#: code:addons/document_extract_account/models/account_move.py:0
+msgid "This bill's document is already being read. Try again in a moment."
+msgstr ""
+"El documento de esta factura ya se está leyendo. Inténtelo de nuevo en un "
+"momento."
+
+#. module: document_extract_account
+#: model_terms:ir.ui.view,arch_db:document_extract_account.extract_line_wizard_view_form
+msgid "Total on the document"
+msgstr "Total del documento"
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_wizard__totals_agree
+msgid "Totals Agree"
+msgstr "Los totales coinciden"
+
+#. module: document_extract_account
+#. odoo-python
+#: code:addons/document_extract_account/models/account_move.py:0
+msgid "Unnamed line"
+msgstr "Línea sin nombre"
+
+#. module: document_extract_account
+#: model_terms:ir.ui.view,arch_db:document_extract_account.view_move_form_document_extract
+msgid "What a person corrected afterwards"
+msgstr "Lo que una persona corrigió después"
+
+#. module: document_extract_account
+#: model_terms:ir.ui.view,arch_db:document_extract_account.view_move_form_document_extract
+msgid "What happened"
+msgstr "Qué pasó"
+
+#. module: document_extract_account
+#: model_terms:ir.ui.view,arch_db:document_extract_account.view_move_form_document_extract
+msgid "What is missing"
+msgstr "Qué falta"
+
+#. module: document_extract_account
+#: model_terms:ir.ui.view,arch_db:document_extract_account.view_move_form_document_extract
+msgid "What was read, and by which reader"
+msgstr "Qué se leyó, y por cuál lector"
+
+#. module: document_extract_account
+#: model:ir.model.fields,help:document_extract_account.field_account_bank_statement_line__extract_lines_applied
+#: model:ir.model.fields,help:document_extract_account.field_account_move__extract_lines_applied
+msgid ""
+"Whether the lines read from the document have already been added to this "
+"bill. Kept so the screen that offers them cannot add them a second time."
+msgstr ""
+"Si las líneas leídas del documento ya se agregaron a esta factura. Se "
+"conserva para que la pantalla que las ofrece no pueda agregarlas por segunda"
+" vez."
+
+#. module: document_extract_account
+#: model:ir.model.fields,field_description:document_extract_account.field_account_move_extract_line_proposal__wizard_id
+msgid "Wizard"
+msgstr "Asistente"
+
+#. module: document_extract_account
+#. odoo-python
+#: code:addons/document_extract_account/models/account_move.py:0
+msgid "nothing required"
+msgstr "nada obligatorio"

@@ -93,6 +93,6 @@ class TestCheckAccountMoves(AccountTestInvoicingCommon):
         with self.assertRaisesRegex(
             ValidationError, "Validated entries can only be changed by your accountant."
         ):
-            bank_line_1.with_user(self.simple_accountman).delete_reconciled_line(
+            bank_line_1.with_user(self.simple_accountman).remove_reconciled_line(
                 payment.move_id.line_ids[0].id
             )

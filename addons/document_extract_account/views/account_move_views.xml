@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_move_form_document_extract" model="ir.ui.view">
+        <field name="name">account.move.form.document.extract</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form" />
+        <field name="arch" type="xml">
+            <div name="journal_div" position="before">
+                <div
+                    class="alert alert-info"
+                    role="alert"
+                    invisible="extract_state != 'partial'">
+                    <span>
+                        This bill's document was read in part. What is missing is
+                        listed in the Extraction tab, and needs a person.
+                    </span>
+                </div>
+                <div
+                    class="alert alert-warning"
+                    role="alert"
+                    invisible="extract_state != 'waiting'">
+                    <span>A service is still reading this bill's document.</span>
+                </div>
+            </div>
+            <!-- account.view_move_form carries two buttons named action_post:
+                the entry-only "Post" and, second, the "Confirm" a bill uses.
+                Anchoring by name alone binds to the first, which is not this
+                one. Same for the two pages named other_info, hence the id. -->
+            <xpath expr="(//button[@name='action_post'])[2]" position="before">
+                <button
+                    name="action_extract_document"
+                    string="Read the document"
+                    type="object"
+                    groups="account.group_account_invoice"
+                    invisible="not extract_can_be_read" />
+                <button
+                    name="action_review_extracted_lines"
+                    string="Review read lines"
+                    type="object"
+                    groups="account.group_account_invoice"
+                    invisible="not extract_has_lines" />
+            </xpath>
+            <page id="other_tab" position="after">
+                <page
+                    name="document_extract"
+                    string="Extraction"
+                    invisible="extract_state == 'none'">
+                    <group>
+                        <group string="What happened">
+                            <field name="extract_state" />
+                            <field name="extract_error" invisible="not extract_error" />
+                            <field name="extract_can_be_read" invisible="1" />
+                            <field name="extract_has_lines" invisible="1" />
+                        </group>
+                        <group string="What is missing">
+                            <field name="extract_missing" widget="json" />
+                        </group>
+                    </group>
+                    <group string="What was read, and by which reader">
+                        <field name="extract_result" widget="json" nolabel="1" />
+                    </group>
+                    <group
+                        string="What a person corrected afterwards"
+                        invisible="not extract_corrections">
+                        <field name="extract_corrections" widget="json" nolabel="1" />
+                    </group>
+                </page>
+            </page>
+        </field>
+    </record>
+
+</odoo>

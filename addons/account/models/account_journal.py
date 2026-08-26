@@ -1304,7 +1304,7 @@ class AccountJournal(models.Model):
         if not journal_code_base:
             raise UserError(
                 _(
-                    "Unknown journal type %r, cannot generate a default code.",
+                    "Unknown journal type '%s', cannot generate a default code.",
                     journal_type,
                 )
             )
@@ -1358,7 +1358,7 @@ class AccountJournal(models.Model):
         if journal_type not in LIQUIDITY_TYPES:
             raise UserError(
                 _(
-                    "No default account can be created for a journal of type %r.",
+                    "No default account can be created for a journal of type %s.",
                     journal_type,
                 )
             )

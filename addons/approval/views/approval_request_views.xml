@@ -759,12 +759,12 @@
         <field name="model_id" ref="model_approval_request" />
         <field name="binding_model_id" ref="model_approval_request" />
         <field name="binding_view_types">list</field>
-        <field name="group_ids" eval="[(4, ref('group_approval_approver'))]" />
         <field name="state">code</field>
         <field name="code">
 if records:
     action = records.action_approve_bulk()
         </field>
+        <field name="group_ids" eval="[(4, ref('group_approval_approver'))]" />
     </record>
 
     <record id="server_action_approval_request_refuse_bulk" model="ir.actions.server">
@@ -772,12 +772,12 @@ if records:
         <field name="model_id" ref="model_approval_request" />
         <field name="binding_model_id" ref="model_approval_request" />
         <field name="binding_view_types">list</field>
-        <field name="group_ids" eval="[(4, ref('group_approval_approver'))]" />
         <field name="state">code</field>
         <field name="code">
 if records:
     action = records.action_refuse_bulk()
         </field>
+        <field name="group_ids" eval="[(4, ref('group_approval_approver'))]" />
     </record>
 
 </odoo>

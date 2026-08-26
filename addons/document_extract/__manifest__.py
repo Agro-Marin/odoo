@@ -1,6 +1,6 @@
 {
     "name": "Document Extraction",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.1.0",
     "category": "Technical",
     "sequence": 10,
     "summary": "Format-agnostic, strategy-agnostic field extraction from documents",

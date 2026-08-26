@@ -2013,7 +2013,7 @@ class AccountMoveLine(models.Model):
             for line in self.filtered(lambda l: l.move_id.posted_before)
         }
 
-    def _log_tracked_change(self, body_template, tracked_pair):
+    def _log_tracked_change(self, body_for_link, tracked_pair):
         # `tracked_pair(line, fnames)` answers "which record does mail compare, and
         # against which values": creation compares the new line against blanks,
         # deletion compares a blank line against the values it used to hold.
@@ -2029,9 +2029,7 @@ class AccountMoveLine(models.Model):
                 tracking_value_ids = record._mail_track(ref_fields, initial_values)[1]
                 if tracking_value_ids:
                     move._message_log(
-                        body=_(
-                            body_template, line._get_html_link(title=f"#{line.id}")
-                        ),
+                        body=body_for_link(line._get_html_link(title=f"#{line.id}")),
                         tracking_value_ids=tracking_value_ids,
                     )
 
@@ -2227,7 +2225,7 @@ class AccountMoveLine(models.Model):
         lines._check_tax_lock_date()
 
         lines._log_tracked_change(
-            "Journal Item %s created",
+            lambda link: _("Journal Item %s created", link),
             lambda line, fnames: (line, dict.fromkeys(fnames)),
         )
 
@@ -2383,7 +2381,7 @@ class AccountMoveLine(models.Model):
             self.browse(tax_lock_check_ids)._check_tax_lock_date()
 
             self._log_tracked_change(
-                "Journal Item %s updated",
+                lambda link: _("Journal Item %s updated", link),
                 lambda line, fnames: (line, tracking_snapshot.get(line.id, {})),
             )
             if "analytic_line_ids" in vals:
@@ -2463,7 +2461,7 @@ class AccountMoveLine(models.Model):
 
         blank_line = self.browse([False])
         self._log_tracked_change(
-            "Journal Item %s deleted",
+            lambda link: _("Journal Item %s deleted", link),
             lambda line, fnames: (
                 blank_line,
                 {fname: line[fname] for fname in fnames},
