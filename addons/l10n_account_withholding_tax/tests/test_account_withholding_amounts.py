@@ -997,7 +997,7 @@ class TestL10nAccountWithholdingTaxesAmounts(TestTaxCommon):
             }
         )
         invoice.action_post()
-        # Simply check the total, we should see a base of 1000, affected by tax d, but not tax g
+        # Check the total, we should see a base of 1000, affected by tax d, but not tax g
         self.assertRecordValues(
             invoice,
             [
