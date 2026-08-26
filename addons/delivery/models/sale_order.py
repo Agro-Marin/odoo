@@ -126,7 +126,7 @@ class SaleOrder(models.Model):
 
         Note: self.ensure_one()
 
-        :param int zip_code: The zip code to look up to, optional.
+        :param str zip_code: The zip code to look up to, optional.
         :param res.country country: The country to look up to, required if `zip_code` is provided.
         :return: The close pickup locations data.
         :rtype: dict
