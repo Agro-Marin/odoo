@@ -800,7 +800,7 @@ which leads to stray network requests and inconsistencies."""
         params["name"] = name
         self._websocket_request("Network.deleteCookies", params=params)
 
-    def _wait_ready(self, ready_code: str | None = None, timeout: int = 60) -> bool:
+    def _wait_ready(self, ready_code: str | None = None, timeout: float = 60) -> bool:
         timeout *= self.throttling_factor
         ready_code = ready_code or "document.readyState === 'complete'"
         self._logger.info('Evaluate ready code "%s"', ready_code)

@@ -463,7 +463,12 @@ class HttpCase(TransactionCase):
             atexit.callback(browser.stop)
 
             self.assertTrue(
-                browser._wait_ready(ready),
+                # Pass the caller's budget: _wait_ready's own default is also
+                # 60, so nothing changes for a default browser_js, but a caller
+                # that raised the timeout -- or debug=True, which sets it to 1e6
+                # precisely so a human can step through -- used to still get 60s
+                # for the ready phase.
+                browser._wait_ready(ready, timeout),
                 'The ready "%s" code was always falsy' % ready,
             )
 
