@@ -19,7 +19,7 @@ class SmsSms(models.Model):
     IAP_TO_SMS_STATE_SUCCESS = {
         "processing": "process",
         "success": "pending",
-        # These below are not returned in responses from IAP API in _send but are received via webhook events.
+        # These below are not returned in responses from IAP API in _send_with_api but are received via webhook events.
         "sent": "pending",
         "delivered": "sent",
     }
@@ -213,7 +213,7 @@ class SmsSms(models.Model):
         yield from batched(self.ids, batch_size, strict=False)
 
     def _send(self, unlink_failed=False, unlink_sent=True, raise_exception=False):
-        """Send SMS after checking the number (presence and formatting)."""
+        """Resolve the SMS API and delegate sending to it."""
         sms_api = self.env.context.get("sms_api")
         if not sms_api:
             company = self._get_sms_company()
@@ -230,7 +230,7 @@ class SmsSms(models.Model):
     def _send_with_api(
         self, sms_api, unlink_failed=False, unlink_sent=True, raise_exception=False
     ):
-        """Send SMS after checking the number (presence and formatting)."""
+        """Send SMS via the given API and process the delivery results."""
         messages = [
             {
                 "content": body,

@@ -41,7 +41,7 @@ class SmsTracker(models.Model):
         """
         :param str provider_error: value returned by SMS service provider (IAP) or any string.
             If provided, notification values will be derived from it.
-            (see ``_get_tracker_values_from_provider_error``)
+            (see this method's own failure_type/error_status derivation below)
         """
         failure_reason = self.env.context.get(
             "sms_known_failure_reason"

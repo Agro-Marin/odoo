@@ -357,7 +357,7 @@ class SmsComposer(models.TransientModel):
         return sms_su
 
     def _action_send_sms_comment_single(self, records=None):
-        # If we have a recipient_single_original number, it's possible this number has been corrected in the popup
+        # If we have a recipient_single_number_itf, it's possible this number has been corrected in the popup
         # if invalid. As a consequence, the test cannot be based on recipient_invalid_count, which count is based
         # on the numbers in the database.
         records = records if records is not None else self._get_records()
