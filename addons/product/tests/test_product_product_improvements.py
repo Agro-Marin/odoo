@@ -52,6 +52,49 @@ class TestProductProductImprovements(ProductCommon):
             "limit=0 must behave like unlimited, not skip the name search",
         )
 
+    def test_name_search_limit_zero_reaches_every_branch(self):
+        """limit=0 is normalised once, so no branch of the method sees LIMIT 0."""
+        template = self.env["product.template"].create(
+            {
+                "name": "EveryBranchProbe",
+                "list_price": 1.0,
+                "default_code": "EBP-CODE",
+                "barcode": "EBP-BAR",
+            }
+        )
+        product = template.product_variant_id
+        partner = self.env["res.partner"].create({"name": "Every Branch Supplier"})
+        self.env["product.supplierinfo"].create(
+            {
+                "partner_id": partner.id,
+                "product_code": "EBP-SUPPLIER",
+                "product_tmpl_id": template.id,
+            }
+        )
+        Product = self.env["product.product"].with_context(partner_id=partner.id)
+
+        for term, branch in (
+            ("EBP-CODE", "default_code exact match"),
+            ("EBP-BAR", "barcode exact match"),
+            ("EveryBranchProbe", "name match"),
+            ("EBP-SUPPLIER", "supplier-info fallback"),
+        ):
+            with self.subTest(branch=branch):
+                bounded = dict(
+                    Product.name_search(name=term, operator="ilike", limit=100)
+                )
+                unlimited = dict(
+                    Product.name_search(name=term, operator="ilike", limit=0)
+                )
+                self.assertIn(
+                    product.id, bounded, f"sanity: {branch} works when bounded"
+                )
+                self.assertIn(
+                    product.id,
+                    unlimited,
+                    f"{branch} must survive limit=0, which means unlimited here",
+                )
+
     def test_name_search_limit_positive_still_bounded(self):
         """A positive limit must still cap results (no regression)."""
         self.env["product.template"].create(

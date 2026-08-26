@@ -853,6 +853,11 @@ class ProductProduct(models.Model):
 
     @api.model
     def name_search(self, name="", domain=None, operator="ilike", limit=100):
+        # On this RPC-facing method 0 means "no limit", as it does on
+        # load_product_from_pos. The ORM's own sentinel is None alone, and
+        # handing it a 0 emits LIMIT 0, so normalise once here rather than at
+        # each of the six searches below.
+        limit = limit or None
         if not name:
             return super().name_search(name, domain, operator, limit)
         # search progressively by the most specific attributes
@@ -882,10 +887,7 @@ class ProductProduct(models.Model):
                     limit=limit,
                 )
                 limit_rest = limit and limit - len(products)
-                # `search` treats limit=0/None as "unlimited", so keep searching
-                # names whenever there is no limit or room remains. Guarding on
-                # `limit_rest > 0` alone dropped every name match for limit=0.
-                if not limit or limit_rest > 0:
+                if limit_rest is None or limit_rest > 0:
                     # This branch only runs when the default_code search did not
                     # reach `limit`, so `products` already holds every matching
                     # default_code row: reuse its ids instead of re-issuing the
