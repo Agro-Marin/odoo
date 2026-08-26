@@ -8266,3 +8266,193 @@ class TestPreloadViewsIgnoresFalsyRefs(ViewCase):
 
     def test_an_empty_ref_is_skipped(self):
         self.assertIsInstance(self.View._preload_views([""]), dict)
+
+
+class TestBothPhasesShareOneScope(ViewCase):
+    """`_postprocess_view` and `_check_view` thread the same scope.
+
+    They walk the same tree and narrow the same two things down it --
+    `view_groups` by each node's `groups`, `editable` by `_editable_node`.
+    That was written twice, and while it was, their `groupby` handlers
+    disagreed about whether to recurse into their own node: one terminated
+    only because the comodel happened to lack a same-named field, and
+    `get_view()` died of a `RecursionError` on a view that had validated
+    cleanly. These pin the shared contract so the next divergence is a diff.
+    """
+
+    ARCH = """<form>
+        <field name="name"/>
+        <group groups="base.group_system">
+            <field name="model"/>
+            <field name="type" readonly="1"/>
+        </group>
+        <notebook>
+            <page string="p"><field name="arch_db"/></page>
+        </notebook>
+    </form>"""
+
+    def _scopes(self, phase):
+        """Every node_info the phase builds, keyed by tag path."""
+        seen = []
+        View = type(self.View)
+        original = View._iter_arch_nodes
+
+        def traced(view, root, make_node_info):
+            for node, info in original(view, root, make_node_info):
+                seen.append((node.tag, info))
+                yield node, info
+
+        view = self.View.create(
+            {
+                "name": "shared scope",
+                "model": "ir.ui.view",
+                "type": "form",
+                "arch": self.ARCH,
+            }
+        )
+        tree = etree.fromstring(view.arch)
+        View._iter_arch_nodes = traced
+        try:
+            if phase == "check":
+                view._check_view(tree, "ir.ui.view")
+            else:
+                view._postprocess_view(tree, "ir.ui.view")
+        finally:
+            View._iter_arch_nodes = original
+        return seen
+
+    SHARED_KEYS = frozenset(
+        {
+            "view_type",
+            "model_groups",
+            "view_groups",
+            "editable",
+            "name_manager",
+            "group_definitions",
+        }
+    )
+
+    def test_both_phases_build_the_same_shared_keys(self):
+        for phase in ("check", "post"):
+            with self.subTest(phase=phase):
+                for tag, info in self._scopes(phase):
+                    self.assertLessEqual(
+                        self.SHARED_KEYS,
+                        set(info),
+                        f"<{tag}> in the {phase} phase is missing shared scope keys",
+                    )
+
+    def test_only_the_phase_specific_keys_differ(self):
+        check = {k for _tag, info in self._scopes("check") for k in info}
+        post = {k for _tag, info in self._scopes("post") for k in info}
+        self.assertEqual(
+            check - post,
+            {"validate"},
+            "the check phase carries exactly one key of its own",
+        )
+        self.assertEqual(
+            post - check,
+            {"mobile"},
+            "and the postprocess phase exactly one of its own",
+        )
+
+    def test_children_appears_only_where_a_handler_steers_the_walk(self):
+        # `node_info["children"]` is how a handler tells _iter_arch_nodes what
+        # to descend into. It is absent until one sets it, which is why the key
+        # sets above are otherwise equal -- and it is the protocol the two
+        # handlers that steer by mutating the tree instead should be using.
+        plain = {k for _tag, info in self._scopes("post") for k in info}
+        self.assertNotIn("children", plain)
+
+        view = self.View.create(
+            {
+                "name": "steered walk",
+                "model": "ir.ui.view",
+                "type": "search",
+                "arch": """<search>
+                    <field name="name"/>
+                    <searchpanel><field name="type" select="one"/></searchpanel>
+                </search>""",
+            }
+        )
+        steered = []
+        View = type(self.View)
+        original = View._iter_arch_nodes
+
+        def traced(v, root, make_node_info):
+            for node, info in original(v, root, make_node_info):
+                steered.append(info)
+                yield node, info
+
+        tree = etree.fromstring(view.arch)
+        View._iter_arch_nodes = traced
+        try:
+            view._postprocess_view(tree, "ir.ui.view")
+        finally:
+            View._iter_arch_nodes = original
+        self.assertTrue(
+            any("children" in info for info in steered),
+            "_postprocess_tag_search steers the walk past the searchpanel it "
+            "has already processed, and does it through node_info",
+        )
+
+    def test_view_groups_narrows_identically_in_both_phases(self):
+        by_phase = {}
+        for phase in ("check", "post"):
+            by_phase[phase] = [
+                (tag, info["view_groups"].key)
+                for tag, info in self._scopes(phase)
+                if isinstance(tag, str)
+            ]
+        self.assertEqual(
+            by_phase["check"],
+            by_phase["post"],
+            "the two phases disagree about which groups a node is scoped to",
+        )
+
+    def test_editable_narrows_identically_in_both_phases(self):
+        by_phase = {}
+        for phase in ("check", "post"):
+            by_phase[phase] = [
+                (tag, bool(info["editable"]))
+                for tag, info in self._scopes(phase)
+                if isinstance(tag, str)
+            ]
+        self.assertEqual(by_phase["check"], by_phase["post"])
+
+    def test_a_groups_attribute_narrows_the_scope_below_it(self):
+        for phase in ("check", "post"):
+            with self.subTest(phase=phase):
+                scopes = {
+                    tag: info
+                    for tag, info in self._scopes(phase)
+                    if isinstance(tag, str)
+                }
+                self.assertNotEqual(
+                    scopes["form"]["view_groups"].key,
+                    scopes["group"]["view_groups"].key,
+                    "a node carrying `groups` must narrow view_groups for its "
+                    "subtree, in both phases",
+                )
+
+    def test_refine_runs_before_the_groups_narrowing(self):
+        # The check phase's refine reads the `groups` attribute to report an
+        # unknown group. Running it after the narrowing would still see the
+        # attribute, but the ordering is what lets a phase act on the raw value
+        # before it is folded in -- so it is pinned rather than incidental.
+        seen = []
+
+        def refine(node, info):
+            seen.append((node.tag, info["view_groups"].key))
+
+        tree = etree.fromstring("<form><group groups='base.group_system'/></form>")
+        _manager, make_node_info = self.View._arch_scope(
+            tree, "ir.ui.view", None, translate=False, editable=True, refine=refine
+        )
+        root_info = make_node_info(tree, None)
+        make_node_info(tree.find("group"), root_info)
+        self.assertEqual(
+            seen[1][1],
+            seen[0][1],
+            "refine saw the scope already narrowed by the node's own groups",
+        )

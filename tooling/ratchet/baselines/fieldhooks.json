@@ -1,4 +1,4 @@
 {
-  "count": 285,
-  "note": "288 -> 285. Re-derived on the rebase of 19.0-marin onto origin/19.0-marin. Neither parent's floor measures the composed tree: this branch's was taken before origin's 102 commits were under it, origin's before this branch's 124 were. Measured in a detached worktree at the rebased tip, so no working-tree state is carried. An exact ratchet fails in the falling direction too, which is why the reductions are banked here rather than left red."
+  "count": 284,
+  "note": "stock/product_template.py: 285 -> 284, banking a fall that 1bf7b8a8b69 left unbanked.\n\nThat commit deleted a duplicated block in ProductTemplate, and the 285th field\nhook was in it -- `_search_qty_available` and its three siblings were each\ndefined twice, and the shadowed copies counted. Removing them leaves one\ndefinition per field, which is the number this gate is measuring.\n\nAn exact ratchet fails in the falling direction too, and this one did: the\ncommit that caused the fall did not carry the floor with it. Corrected here\nrather than left, because a red gate nobody owns is exactly what \u00a74 of the\nworkspace CLAUDE.md is about, and this one has an owner."
 }

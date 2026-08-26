@@ -1823,6 +1823,71 @@ class IrUiView(models.Model):
                 for child in reversed(node_info.get("children", node))
             )
 
+    def _arch_scope(
+        self,
+        root: _Element,
+        model_name: str,
+        node_info: dict[str, Any] | None,
+        *,
+        translate: bool,
+        editable: bool,
+        root_extra: dict[str, Any] | None = None,
+        scoped: dict[str, Any] | None = None,
+        refine: Callable[[_Element, dict[str, Any]], None] | None = None,
+    ) -> tuple[
+        NameManager, Callable[[_Element, dict[str, Any] | None], dict[str, Any]]
+    ]:
+        # The name manager and the per-node closure that _postprocess_view and
+        # _check_view both need. They walk the same tree, thread the same two
+        # scopes down it -- `view_groups`, narrowed by each node's `groups`, and
+        # `editable`, narrowed by _editable_node -- and dispatch on the same
+        # tags. Only what they DO at each node differs, and that stays in each.
+        #
+        # Keeping the threading in one place is what makes the difference
+        # between the two phases a diff rather than a discovery: their groupby
+        # handlers disagreed for months about whether to recurse into their own
+        # node, one of them terminating only by accident, and nothing showed it.
+        #
+        #   root_extra  constant for the whole walk (postprocess: `mobile`)
+        #   scoped      inherited from the parent (check: `validate`)
+        #   refine      the phase's own per-node adjustment, run before the
+        #               `groups` narrowing so it can still read the attribute
+        name_manager, group_definitions, model_groups = self._init_view_processing(
+            root, model_name, node_info, translate=translate
+        )
+        root_info = {
+            "view_type": root.tag,
+            "model_groups": model_groups,
+            "name_manager": name_manager,
+            "group_definitions": group_definitions,
+            **(root_extra or {}),
+        }
+        initial = {
+            "view_groups": (
+                node_info["view_groups"] if node_info else group_definitions.universe
+            ),
+            "editable": editable,
+            **(scoped or {}),
+        }
+
+        def make_node_info(
+            node: _Element, parent_info: dict[str, Any] | None
+        ) -> dict[str, Any]:
+            inherited = initial if parent_info is None else parent_info
+            info = dict(root_info, **{key: inherited[key] for key in initial})
+            info["editable"] = inherited["editable"] and self._editable_node(
+                node, name_manager
+            )
+            if refine is not None:
+                refine(node, info)
+            if groups := node.get("groups"):
+                info["view_groups"] &= group_definitions.parse(
+                    groups, raise_if_not_found=False
+                )
+            return info
+
+        return name_manager, make_node_info
+
     def _postprocess_view(
         self,
         node: _Element,
@@ -1833,49 +1898,20 @@ class IrUiView(models.Model):
     ) -> NameManager:
         root = node
 
-        name_manager, group_definitions, model_groups = self._init_view_processing(
-            root, model_name, node_info, translate=True
-        )
-        view_groups = (
-            node_info["view_groups"] if node_info else group_definitions.universe
+        name_manager, make_node_info = self._arch_scope(
+            root,
+            model_name,
+            node_info,
+            translate=True,
+            editable=editable,
+            root_extra={"mobile": options.get("mobile")},
         )
         model = name_manager.model
-
-        root_info = {
-            "view_type": root.tag,
-            "mobile": options.get("mobile"),
-            "model_groups": model_groups,
-            "view_groups": view_groups,
-            "name_manager": name_manager,
-            "group_definitions": group_definitions,
-        }
+        root_model_groups = name_manager.model_groups
 
         preserve_groups = options.get("preserve_groups")
 
         self._postprocess_debug_to_cache(root)
-
-        initial_view_groups, initial_editable = view_groups, editable
-
-        def make_node_info(
-            node: _Element, parent_info: dict[str, Any] | None
-        ) -> dict[str, Any]:
-            editable = (
-                parent_info["editable"] if parent_info is not None else initial_editable
-            )
-            node_info = dict(
-                root_info,
-                view_groups=(
-                    parent_info["view_groups"]
-                    if parent_info is not None
-                    else initial_view_groups
-                ),
-                editable=editable and self._editable_node(node, name_manager),
-            )
-            if node_groups := node.get("groups"):
-                node_info["view_groups"] &= group_definitions.parse(
-                    node_groups, raise_if_not_found=False
-                )
-            return node_info
 
         for elem, elem_info in self._iter_arch_nodes(root, make_node_info):
             postprocessor = getattr(self, f"_postprocess_tag_{elem.tag}", None)
@@ -1886,7 +1922,7 @@ class IrUiView(models.Model):
                     continue
 
             elem_groups = elem.get("groups")
-            if elem_groups or root_info["model_groups"] != elem_info["model_groups"]:
+            if elem_groups or root_model_groups != elem_info["model_groups"]:
                 groups = elem_info["model_groups"] & elem_info["view_groups"]
                 elem.set("__groups_key__", groups.key)
 
@@ -2283,49 +2319,26 @@ class IrUiView(models.Model):
                 node,
             )
 
-        validate = node_info["validate"] if node_info else False
-        name_manager, group_definitions, model_groups = self._init_view_processing(
-            node, model_name, node_info, translate=False
-        )
-        view_groups = (
-            node_info["view_groups"] if node_info else group_definitions.universe
-        )
-
-        root_view_type = node.tag
-        initial_view_groups, initial_editable, initial_validate = (
-            view_groups,
-            editable,
-            validate,
-        )
-
-        def make_node_info(
-            node: _Element, parent_info: dict[str, Any] | None
-        ) -> dict[str, Any]:
-            if parent_info is not None:
-                view_groups = parent_info["view_groups"]
-                editable = parent_info["editable"]
-                validate = parent_info["validate"]
-            else:
-                view_groups = initial_view_groups
-                editable = initial_editable
-                validate = initial_validate
-            validate = validate or node.get("__validate__")
-            node_info = {
-                "editable": editable and self._editable_node(node, name_manager),
-                "validate": validate,
-                "view_type": root_view_type,
-                "model_groups": model_groups,
-                "view_groups": view_groups,
-                "name_manager": name_manager,
-                "group_definitions": group_definitions,
-            }
-            if groups := node.get("groups"):
+        def refine(elem: _Element, info: dict[str, Any]) -> None:
+            # `__validate__` turns validation on for a subtree and never off,
+            # so it is an inherited flag a node may only raise.
+            info["validate"] = info["validate"] or elem.get("__validate__")
+            # `groups="a,,b"` still reaches must_exist_group with the empty
+            # name, exactly as before -- an empty group is not a group, and
+            # this is the check phase's job to say so.
+            if groups := elem.get("groups"):
                 for group_name in groups.replace("!", "").split(","):
-                    name_manager.must_exist_group(group_name, node)
-                node_info["view_groups"] &= group_definitions.parse(
-                    groups, raise_if_not_found=False
-                )
-            return node_info
+                    name_manager.must_exist_group(group_name, elem)
+
+        name_manager, make_node_info = self._arch_scope(
+            node,
+            model_name,
+            node_info,
+            translate=False,
+            editable=editable,
+            scoped={"validate": node_info["validate"] if node_info else False},
+            refine=refine,
+        )
 
         for elem, elem_info in self._iter_arch_nodes(node, make_node_info):
             validator = getattr(self, f"_check_view_tag_{elem.tag}", None)
