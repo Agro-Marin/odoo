@@ -593,6 +593,11 @@ class Obfuscate(DatabaseCommand):
             self.cr = None
             self._field_kinds = None
             self._field_widths = None
+            # `_read_field_file` is memoized "once per path per run", but
+            # `functools.cache` keeps it for the process's lifetime: a second
+            # `Obfuscate().run()` with a changed `--file` would otherwise see
+            # the first run's stale content.
+            _read_field_file.cache_clear()
 
     def _resolve_targets(
         self, opt: argparse.Namespace, pwd: str
