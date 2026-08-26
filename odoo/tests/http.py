@@ -6,7 +6,6 @@ import json
 import logging
 import threading
 import time
-import unittest
 from contextlib import ExitStack, contextmanager
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
@@ -28,7 +27,7 @@ from .common import (
     TransactionCase,
     release_test_lock,
 )
-from .utils import HOST, env_int, get_db_name
+from .utils import HOST, InfrastructureUnavailable, env_int, get_db_name
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -81,7 +80,14 @@ class HttpCase(TransactionCase):
     @classmethod
     def setUpClass(cls) -> None:
         if cls.http_port() is None:
-            raise unittest.SkipTest(
+            # InfrastructureUnavailable, not a bare SkipTest: no HTTP server is
+            # the environment being unable to run this, not a decision that it
+            # should not run. As a plain skip it was invisible -- under
+            # --no-http, a port-bind failure or a crashed http_spawn every
+            # HttpCase skipped, the summary did not name them, and
+            # ODOO_REQUIRE_INFRA=1 could not turn it into an error, so a host
+            # that ran zero HttpCase assertions still exited 0.
+            raise InfrastructureUnavailable(
                 f"{cls.__name__} requires a running HTTP server (--no-http?)"
             )
         super().setUpClass()
