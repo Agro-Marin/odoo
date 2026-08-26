@@ -2,11 +2,11 @@
 
 `initialize` needed each module's id before it could build the `ir_model_data`
 and dependency rows, and reached for it with a per-module
-`INSERT ... RETURNING id` -- 1554 round trips to collect 1554 integers, on every
-database creation, while the rows that consumed them were already written with
-`copy_from`. Batched, `initialize` issues 2036 -> 484 queries and writes a
-byte-identical table (verified against md5 digests over `ir_module_module`,
-`ir_model_data` and the dependency table).
+`INSERT ... RETURNING id` -- one round trip per module to collect their ids, on
+every database creation, while the rows that consumed them were already
+written with `copy_from`. Batched, `initialize` issues one round trip per chunk
+instead and writes a byte-identical table (verified against md5 digests over
+`ir_module_module`, `ir_model_data` and the dependency table).
 """
 
 import unittest
