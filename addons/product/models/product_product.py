@@ -1895,7 +1895,12 @@ class ProductProduct(models.Model):
         :param dict context: extra context for the write
         :raise UserError: if a record uses a unit other than the product's own
         """
-        Model = self.env[model]
+        # sudo: re-stamping the unit on documents that already reference the
+        # product is a consistency consequence of a write the caller was allowed
+        # to make on the product itself. Requiring read access to every module's
+        # documents as well would stop a product manager from changing a unit at
+        # all -- _has_order_lines already probes the same rows this way.
+        Model = self.env[model].sudo()
         if domain is None:
             domain = [("product_id", "in", self.ids)]
         to_write = Model.browse()
