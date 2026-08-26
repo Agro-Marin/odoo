@@ -3,11 +3,6 @@ from odoo.fields import Domain
 
 
 class MixinProductCatalog(models.AbstractModel):
-    """This mixin should be inherited when the model should be able to work
-    with the product catalog.
-    It assumes the model using this mixin has a O2M field where the products are added/removed and
-    this field's co-related model should has a method named `_get_product_catalog_lines_data`.
-    """
 
     _name = "mixin.product.catalog"
     _description = "Product Catalog Mixin"
@@ -29,13 +24,6 @@ class MixinProductCatalog(models.AbstractModel):
         }
 
     def _get_catalog_action_context(self):
-        """Context forwarded to the catalog action.
-
-        The caller is an order form, so its context carries `default_*` keys for
-        *its own* model (partner, company, order name...). Forwarding them
-        wholesale meant a product created from the catalog inherited defaults
-        that belong to a sale/purchase order. Drop them and keep the rest.
-        """
         return {
             key: value
             for key, value in self.env.context.items()
@@ -49,47 +37,15 @@ class MixinProductCatalog(models.AbstractModel):
         }
 
     def _get_product_catalog_domain(self) -> Domain:
-        """Get the domain to search for products in the catalog.
-
-        For a model that uses products that has to be hidden in the catalog, it
-        must override this method and extend the appropriate domain.
-        :returns: A domain.
-        """
         return (
             Domain("company_id", "=", False)
             | Domain("company_id", "parent_of", self.company_id.id)
         ) & Domain("type", "!=", "combo")
 
     def _get_product_catalog_record_lines(self, product_ids, **kwargs):
-        """Returns the record's lines grouped by product.
-        Must be overrided by each model using this mixin.
-
-        :param list product_ids: The ids of the products currently displayed in the product catalog.
-        :rtype: dict
-        """
         return {}
 
     def _get_product_catalog_order_data(self, products, **kwargs):
-        """Returns a dict containing the products' data. Those data are for products who aren't in
-        the record yet. For products already in the record, see `_get_product_catalog_lines_data`.
-
-        For each product, its id is the key and the value is another dict with all needed data.
-        By default, the price is the only needed data but each model is free to add more data.
-        Must be overrided by each model using this mixin.
-
-        :param products: Recordset of `product.product`.
-        :param dict kwargs: additional values given for inherited models.
-        :rtype: dict
-        :return: A dict with the following structure:
-            {
-                'quantity': float (optional)
-                'productType': string
-                'price': float
-                'uomDisplayName': string
-                'code': string (optional)
-                'readOnly': bool (optional)
-            }
-        """
         return {
             product.id: {
                 "productType": product.type,
@@ -102,21 +58,6 @@ class MixinProductCatalog(models.AbstractModel):
     def _get_product_catalog_order_line_info(
         self, product_ids, child_field=False, **kwargs
     ):
-        """Returns products information to be shown in the catalog.
-        :param list product_ids: The products currently displayed in the product catalog, as a list
-                                 of `product.product` ids.
-        :param dict kwargs: additional values given for inherited models.
-        :rtype: dict
-        :return: A dict with the following structure:
-            {
-                'quantity': float (optional)
-                'productType': string
-                'price': float
-                'uomDisplayName': string
-                'code': string (optional)
-                'readOnly': bool (optional)
-            }
-        """
         order_line_info = {}
 
         for product, record_lines in self._get_product_catalog_record_lines(
@@ -146,15 +87,6 @@ class MixinProductCatalog(models.AbstractModel):
         return order_line_info
 
     def _get_action_add_from_catalog_extra_context(self):
-        # `order_id` is the one key naming this record, and every part of the
-        # catalog client reads it. It used to be shadowed by a second key,
-        # `product_catalog_order_id`, holding the same id: `kanban_record.js`
-        # read one while `kanban_model.js` (which fetches the line info for the
-        # whole page) and `kanban_controller.js` (the "Back to Order" button)
-        # read the other, so both had to be emitted and either could be the one
-        # a caller forgot. Callers are unaffected either way: the button is
-        # rendered inside the order's own form, so the `parent.id` some of them
-        # still pass as `order_id` is this very record.
         return {
             "display_uom": self.env.user.has_group("uom.group_uom"),
             "order_id": self.id,
@@ -162,20 +94,7 @@ class MixinProductCatalog(models.AbstractModel):
         }
 
     def _is_readonly(self):
-        """Must be overrided by each model using this mixin.
-        :return: Whether the record is read-only or not.
-        :rtype: bool
-        """
         return False
 
     def _update_order_line_info(self, product_id, quantity, **kwargs):
-        """Update the line information for a given product or create a new one if none exists yet.
-        Must be overrided by each model using this mixin.
-        :param int product_id: The product, as a `product.product` id.
-        :param int quantity: The product's quantity.
-        :param dict kwargs: additional values given for inherited models.
-        :return: The unit price of the product, based on the pricelist of the
-                 purchase order and the quantity selected.
-        :rtype: float
-        """
         return 0

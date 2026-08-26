@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_product_category_form_expiry" model="ir.ui.view">
+        <field name="name">product.category.form.inherit.expiry</field>
+        <field name="model">product.category</field>
+        <field name="inherit_id" ref="stock.view_product_category_form_inherit" />
+        <field name="arch" type="xml">
+            <group name="logistics" position="inside">
+                <field name="use_expiration_date" string="Expiration Date" />
+            </group>
+        </field>
+    </record>
+
+</odoo>

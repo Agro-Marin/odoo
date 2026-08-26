@@ -91,7 +91,7 @@ class TestImportFiles(TransactionCase):
             )
 
     def test_import_write_product_demo_xls(self):
-        self.import_product_xls("product.product")  # create products
+        self.import_product_xls("product.product")
         template = self.env.ref("__import__.product_template_BB")
         self.assertEqual(len(template.product_variant_ids), 8)
         self.assertEqual(
@@ -108,12 +108,11 @@ class TestImportFiles(TransactionCase):
         )
         self.assertEqual(self.env.ref("__import__.product_product_1").lst_price, 110)
         self.assertEqual(self.env.ref("__import__.product_product_6").lst_price, 110)
-        # self.assertEqual(self.env.ref('__import__.product_tshirt_SW_red_l').lst_price, 0)  # TODO: the price can be imported for each product regardless of others
 
         self.import_product_xls(
             "product.product",
             filepath="product/static/xls/test_import_update_product_price.xls",
-        )  # update products
+        )
 
         self.assertEqual(len(template.product_variant_ids), 8)
 
@@ -135,7 +134,6 @@ class TestImportFiles(TransactionCase):
         self.assertEqual(
             self.env.ref("__import__.product_tshirt_SW_blue_xl").standard_price, 55
         )
-        # self.assertEqual(self.env.ref('__import__.product_product_1').lst_price, 2000)  # TODO: the price can be imported for each product regardless of others
         self.assertEqual(self.env.ref("__import__.product_product_6").lst_price, 2001)
         self.assertEqual(
             self.env.ref("__import__.product_tshirt_SW_red_l").lst_price, 2002
@@ -143,7 +141,7 @@ class TestImportFiles(TransactionCase):
 
     @mute_logger("odoo.db.cursor")
     def test_import_write_product_xls_error(self):
-        results = self.import_product_xls("product.product")  # create products
+        results = self.import_product_xls("product.product")
         self.assertFalse(
             results["messages"],
             "results should be empty on successful import of ",
@@ -152,7 +150,7 @@ class TestImportFiles(TransactionCase):
         results = self.import_product_xls(
             "product.product",
             filepath="product/static/xls/test_import_update_error.xls",
-        )  # update products
+        )
         self.assertIn(
             'The existing product has different attribute values. "Color:Yellow,Size:M" is not equivalent to "Color:Blue,Size:M" for "__import__.product_product_6"',
             results["messages"][0]["message"],
@@ -165,15 +163,10 @@ class TestImportFiles(TransactionCase):
         results = self.import_product_xls(
             "product.product",
             filepath="product/static/xls/test_import_update_error_2.xls",
-        )  # update products
+        )
         self.assertIn("already exists", results["messages"][0]["message"])
 
     def test_import_product_without_values_xls(self):
-        # Some field must be imported only once and only on product.product like
-        # qty_available. If the field is imported when we create the
-        # product.template the quantity should be add on the the default first
-        # product.product. But the product should be removed after import some
-        # variant.
 
         prod_ids = self.env["product.product"].search([]).ids
         attr_ids = self.env["product.attribute"].search([]).ids

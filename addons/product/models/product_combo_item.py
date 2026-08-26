@@ -49,18 +49,6 @@ class ProductComboItem(models.Model):
             )
 
     def unlink(self):
-        """Keep `product.combo`'s "at least 1 choice" invariant.
-
-        That constraint lives on `product.combo` and only fires when the combo
-        itself is created/written. Deleting the items directly never writes the
-        parent, so the combo was left empty -- and an empty combo prices its
-        choice at 0 through `base_price`.
-
-        The check is deferred to precommit rather than done here: within a
-        single write on the parent, the ORM flushes *deletes before creates*
-        (see `one2many.write_real`), so replacing every item of a combo passes
-        through a transient empty state that must not be rejected.
-        """
         combo_ids = set(self.combo_id.ids)
         res = super().unlink()
         if combo_ids:
@@ -73,8 +61,6 @@ class ProductComboItem(models.Model):
     @api.model
     def _check_combos_not_emptied(self):
         combo_ids = self.env.cr.precommit.data.pop("product.combo.emptied", ())
-        # Combos deleted in the same transaction are fine: their items are meant
-        # to go with them.
         combos = self.env["product.combo"].browse(combo_ids).exists()
         if not combos:
             return

@@ -12,7 +12,6 @@ class TestProductRounding(ProductCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # test-specific currencies
         cls.currency_jpy = cls.env["res.currency"].create(
             {
                 "name": "JPX",
@@ -72,7 +71,6 @@ class TestProductRounding(ProductCommon):
         )
 
     def test_no_discount_1_dollar_product(self):
-        """Ensure that no discount is applied when there shouldn't be, even for very small amounts."""
         product = self.product_1_dollar
 
         product_in_jpy = product.with_context(pricelist=self.pricelist_jpy.id)
@@ -103,7 +101,6 @@ class TestProductRounding(ProductCommon):
         )
 
     def test_no_discount_100_dollars_product(self):
-        """Ensure that no discount is applied when there shouldn't be, even for very small amounts."""
         product = self.product_100_dollars
 
         product_in_jpy = product.with_context(pricelist=self.pricelist_jpy.id)
@@ -134,11 +131,6 @@ class TestProductRounding(ProductCommon):
         )
 
     def test_discount_percentage_rule(self):
-        """A percentage pricelist rule must surface as a contextual discount.
-
-        Guards against `_get_contextual_discount` degenerating into a constant
-        0.0 — the zero-discount tests above cannot tell those apart.
-        """
         self._enable_pricelists()
         self.pricelist_usd.item_ids = [
             Command.create(
@@ -152,7 +144,6 @@ class TestProductRounding(ProductCommon):
         self.assertAlmostEqual(product._get_contextual_discount(), 0.10, places=6)
 
     def test_discount_percentage_rule_cross_currency(self):
-        """The contextual discount must hold across a currency conversion."""
         self._enable_pricelists()
         self.pricelist_cad.item_ids = [
             Command.create(
@@ -166,15 +157,6 @@ class TestProductRounding(ProductCommon):
         self.assertAlmostEqual(product._get_contextual_discount(), 0.25, places=4)
 
     def test_discount_uses_the_contextual_date_on_both_sides(self):
-        """`context['date']` reaches the price but used to be ignored by the
-        list price it is compared against.
-
-        `_get_contextual_price` forwards the date down to `_compute_price_rule`,
-        while the denominator was converted at `fields.Datetime.now()`. Any
-        currency-rate change between the two dates leaked straight into the
-        ratio: with the rate below (1.0 then 4.0) a plain 10% rule reported a
-        77.5% discount on a back-dated context.
-        """
         self._enable_pricelists()
         currency = self.env["res.currency"].create(
             {

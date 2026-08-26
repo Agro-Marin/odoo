@@ -120,14 +120,6 @@ class ProductSupplierinfo(models.Model):
         "discount", "price", "product_uom_id", "product_id", "product_tmpl_id.uom_id"
     )
     def _compute_price_discounted(self):
-        # `product_uom_id` is deliberately allowed to be cross-category (a
-        # vendor may quote in a unit unrelated to the product's own; such
-        # sellers are filtered at use time by `_get_filtered_sellers`). This
-        # field restates the vendor price in the *product's* unit, so when the
-        # two units are incompatible there is no meaningful conversion: degrade
-        # to the unconverted price instead of scaling by the raw factor ratio,
-        # which turned a 100/kg quote on a product sold in Units into 0.10 and
-        # carried that straight into `purchase_stock`'s replenishment estimate.
         for rec in self:
             product_uom_id = (rec.product_id or rec.product_tmpl_id).uom_id
             rec.price_discounted = rec.product_uom_id._compute_price_estimate(
@@ -143,11 +135,6 @@ class ProductSupplierinfo(models.Model):
 
     @api.depends("product_tmpl_id")
     def _compute_product_id(self):
-        # Only seed the variant from the context default, and only when it is
-        # empty and the default variant actually belongs to this row's
-        # template. Assigning unconditionally would let a later recompute stamp
-        # a variant of a *different* template onto the row (and the outcome
-        # would depend on which env flushes it).
         default_product = self.env["product.product"].browse(
             self.env.context.get("default_product_id")
         )
@@ -186,7 +173,6 @@ class ProductSupplierinfo(models.Model):
 
     @api.onchange("product_tmpl_id")
     def _onchange_product_tmpl_id(self):
-        """Clear product variant if it no longer matches the product template."""
         if (
             self.product_id
             and self.product_id not in self.product_tmpl_id.product_variant_ids
@@ -203,12 +189,6 @@ class ProductSupplierinfo(models.Model):
         ]
 
     def _sanitize_vals(self, vals):
-        """Return ``vals`` with the template deduced from the variant.
-
-        Returns a new dict rather than mutating: ``vals`` belongs to the caller,
-        and silently adding `product_tmpl_id` to it leaked into any later reuse
-        of the same dict -- pinning unrelated rows to the first row's template.
-        """
         if vals.get("product_id") and not vals.get("product_tmpl_id"):
             product = self.env["product.product"].browse(vals["product_id"])
             return {**vals, "product_tmpl_id": product.product_tmpl_id.id}

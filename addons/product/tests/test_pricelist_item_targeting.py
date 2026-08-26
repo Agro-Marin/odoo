@@ -4,9 +4,6 @@ from odoo.addons.product.tests.common import ProductCommon
 
 
 class TestPricelistItemTargeting(ProductCommon):
-    """`product.pricelist.item` keeps its targeting fields and its `applied_on`
-    level describing the same thing, whichever way a rule is written.
-    """
 
     @classmethod
     def setUpClass(cls):
@@ -51,10 +48,7 @@ class TestPricelistItemTargeting(ProductCommon):
             template.product_variant_ids[1],
         )
 
-    # === applied_on is deduced on write, not only on create === #
-
     def test_write_product_id_deduces_applied_on(self):
-        """Narrowing a template rule to one variant makes it a variant rule."""
         template, red, _blue = self._two_variant_template("Targeting Deduce")
         item = self.env["product.pricelist.item"].create(
             {
@@ -72,7 +66,6 @@ class TestPricelistItemTargeting(ProductCommon):
         self.assertEqual(item.product_tmpl_id, template)
 
     def test_write_clearing_variant_falls_back_to_template(self):
-        """Widening a variant rule back to its template re-levels it too."""
         _template, red, blue = self._two_variant_template("Targeting Widen")
         item = self.env["product.pricelist.item"].create(
             {
@@ -90,7 +83,6 @@ class TestPricelistItemTargeting(ProductCommon):
         self.assertEqual(self.pricelist._get_product_price(blue, 1.0), 10.0)
 
     def test_write_categ_id_deduces_category_level(self):
-        """A rule pointed at a category becomes a category rule."""
         item = self.env["product.pricelist.item"].create(
             {
                 "pricelist_id": self.pricelist.id,
@@ -109,7 +101,6 @@ class TestPricelistItemTargeting(ProductCommon):
         )
 
     def test_write_explicit_applied_on_is_respected(self):
-        """An explicit level still wins over deduction, and still sanitizes."""
         _template, red, _blue = self._two_variant_template("Targeting Explicit")
         item = self.env["product.pricelist.item"].create(
             {
@@ -125,11 +116,9 @@ class TestPricelistItemTargeting(ProductCommon):
         self.assertEqual(item.applied_on, "3_global")
         self.assertFalse(item.product_id)
         self.assertFalse(item.product_tmpl_id)
-        # the caller's dict is not mutated
         self.assertEqual(write_vals, {"applied_on": "3_global"})
 
     def test_write_deduces_per_record_in_a_batch(self):
-        """Records resolving to different levels are written per level."""
         _template, red, _blue = self._two_variant_template("Targeting Batch")
         variant_item, global_item = self.env["product.pricelist.item"].create(
             [
@@ -146,20 +135,12 @@ class TestPricelistItemTargeting(ProductCommon):
                 },
             ]
         )
-        # `categ_id` alone: the first record still has a variant (so stays a
-        # variant rule), the second has nothing else (so becomes a category rule).
         (variant_item + global_item).write({"categ_id": self.product_category.id})
 
         self.assertEqual(variant_item.applied_on, "0_product_variant")
         self.assertEqual(global_item.applied_on, "2_product_category")
 
     def test_narrowed_rule_outranks_a_later_template_rule(self):
-        """`_order` starts with `applied_on`, so a stale level changes priority.
-
-        A template rule narrowed to a single variant must win over a
-        template-wide rule created afterwards, exactly as it would have had the
-        very same rule been built by `create`.
-        """
         template, red, _blue = self._two_variant_template("Targeting Priority")
         override = self.env["product.pricelist.item"].create(
             {
@@ -181,10 +162,7 @@ class TestPricelistItemTargeting(ProductCommon):
 
         self.assertEqual(self.pricelist._get_product_price(red, 1.0), 10.0)
 
-    # === the variant and the template must describe the same product === #
-
     def test_variant_of_another_template_is_rejected(self):
-        """Mirrors `product.supplierinfo._check_product_variant_consistency`."""
         _template_a, red_a, _blue_a = self._two_variant_template("Targeting Cons A")
         template_b, _red_b, _blue_b = self._two_variant_template("Targeting Cons B")
         item = self.env["product.pricelist.item"].create(
@@ -216,7 +194,6 @@ class TestPricelistItemTargeting(ProductCommon):
             self.env.flush_all()
 
     def test_retargeting_a_rule_to_another_template_keeps_it_reachable(self):
-        """Moving a rule between templates must leave it matching something."""
         _template_a, red_a, _blue_a = self._two_variant_template("Targeting Move A")
         template_b, red_b, blue_b = self._two_variant_template("Targeting Move B")
         item = self.env["product.pricelist.item"].create(

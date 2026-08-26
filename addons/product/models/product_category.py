@@ -24,9 +24,6 @@ class ProductCategory(models.Model):
     parent_id = fields.Many2one(
         comodel_name="product.category",
         string="Parent Category",
-        # `restrict`, not `cascade`: a cascade would silently delete whole
-        # subtrees at the SQL level (skipping the Python unlink hooks and mail
-        # cleanup) and detach every product under them.
         ondelete="restrict",
         index=True,
     )
@@ -42,8 +39,6 @@ class ProductCategory(models.Model):
         inverse_name="parent_id",
         string="Child Categories",
     )
-    # Technical inverse of `product.template.categ_id`: no column, it exists so
-    # `product_count` can declare a dependency on the templates it counts.
     product_tmpl_ids = fields.One2many(
         comodel_name="product.template",
         inverse_name="categ_id",
@@ -52,8 +47,6 @@ class ProductCategory(models.Model):
     product_count = fields.Integer(
         string="# Products",
         compute="_compute_product_count",
-        # Counts products `child_of` this category, so it depends on its own
-        # value on child categories (see `_compute_product_count`).
         recursive=True,
         help="The number of products under this category and its children.",
     )
@@ -69,9 +62,6 @@ class ProductCategory(models.Model):
         vals_list = super().copy_data(default=default)
         if "name" not in default:
             for category, vals in zip(self, vals_list, strict=True):
-                # `vals` is None for a record already copied in this operation
-                # (the same record twice in `self`, or a cycle through a
-                # relation); `copy()` drops those entries.
                 if vals is None:
                     continue
                 vals["name"] = _("%s (copy)", category.name)
@@ -90,23 +80,12 @@ class ProductCategory(models.Model):
 
     @api.depends("product_tmpl_ids", "child_id.product_count")
     def _compute_product_count(self):
-        # Both dependencies are needed: `product_tmpl_ids` invalidates the
-        # category a product moves in or out of, `child_id.product_count`
-        # propagates that up the tree (the count is `child_of`, so an ancestor's
-        # value changes when a descendant's does). Without them this non-stored
-        # compute stayed cached for the whole transaction and reported the
-        # pre-move counts.
         read_group_res = self.env["product.template"]._read_group(
             [("categ_id", "child_of", self.ids)], ["categ_id"], ["__count"]
         )
-        # Attribute each counted category's products to all its ancestors in
-        # `self`, derived from parent_path (O(count groups × depth)).
         self_ids = set(self.ids)
         count_by_categ = {}
         for categ, count in read_group_res:
-            # `parent_path` is unset for categories created in the same
-            # transaction before `_parent_store` flushes: fall back to the
-            # record itself so the count is attributed rather than crashing.
             parent_path = categ.parent_path or f"{categ.id}/"
             for ancestor_id in map(int, parent_path.split("/")[:-1]):
                 if ancestor_id in self_ids:

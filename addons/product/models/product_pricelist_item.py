@@ -9,10 +9,6 @@ class ProductPricelistItem(models.Model):
     _order = "applied_on, min_quantity desc, categ_id desc, id desc"
     _check_company_auto = True
 
-    # The fields that decide *what* a rule targets, and from which its
-    # `applied_on` level is deduced. `create` and `write` both derive the level
-    # from exactly these, and `_sanitize_applied_on_vals` nulls out the ones the
-    # level does not use -- keep the three in step.
     _TARGETING_FIELDS = ("product_id", "product_tmpl_id", "categ_id")
 
     pricelist_id = fields.Many2one(
@@ -21,7 +17,6 @@ class ProductPricelistItem(models.Model):
         required=False,
         default=lambda self: self._default_pricelist_id(),
         ondelete="cascade",
-        # Standard flows do not handle rules without pricelists (but some custom modules do)!
         index=True,
     )
     is_pricelist_required = fields.Boolean(compute="_compute_is_pricelist_required")
@@ -173,8 +168,6 @@ class ProductPricelistItem(models.Model):
         compute="_compute_price_markup",
         inverse="_inverse_price_markup",
         help="You can apply a mark-up on the cost",
-        # Not stored: it is purely the negation of price_discount (see
-        # _compute_price_markup). The inverse persists edits onto price_discount.
     )
 
     price_min_margin = fields.Float(
@@ -188,7 +181,6 @@ class ProductPricelistItem(models.Model):
         help="Specify the maximum amount of margin over the base price.",
     )
 
-    # functional fields used for usability purposes
     name = fields.Char(
         string="Name",
         compute="_compute_name",
@@ -203,14 +195,10 @@ class ProductPricelistItem(models.Model):
         compute="_compute_rule_tip",
     )
 
-    # === CONSTRAINT METHODS ===#
-
     @api.constrains("base_pricelist_id", "pricelist_id", "base")
     def _check_pricelist_recursion(self):
         def dfs_path(from_pl, to_pl, path, seen):
             if (from_pl, to_pl) in seen:
-                # If another pricelist rule from the same pricelist has the same
-                # target, there is no need to test that path again.
                 return path.browse()
             if to_pl in path:
                 return path + to_pl
@@ -227,7 +215,6 @@ class ProductPricelistItem(models.Model):
 
         seen = set()
         for item in self:
-            # Skip validation for rules not based on other pricelists.
             if (
                 item.base != "pricelist"
                 or not item.base_pricelist_id
@@ -260,8 +247,6 @@ class ProductPricelistItem(models.Model):
     @api.constrains("price_min_margin", "price_max_margin")
     def _check_margin(self):
         for item in self:
-            # A zero max margin means "no upper cap" in _compute_price, so it is
-            # only a real bound (and thus comparable to the min) when non-zero.
             if item.price_max_margin and item.price_min_margin > item.price_max_margin:
                 raise ValidationError(
                     _(
@@ -275,17 +260,6 @@ class ProductPricelistItem(models.Model):
 
     @api.constrains("product_id", "product_tmpl_id")
     def _check_product_variant_consistency(self):
-        """A rule may not target a variant of a *different* template.
-
-        ``_check_product_consistency`` below only checks that the target
-        implied by ``applied_on`` is *present*; nothing checked that the two
-        product fields agree. They are read as a pair by
-        ``_get_applicable_rules_domain``, which requires both to match, so a
-        rule whose variant and template disagree matches no product at all --
-        a silently dead row rather than an error. Named after (and mirroring)
-        ``product.supplierinfo._check_product_variant_consistency``, which
-        already rejects exactly this on the same field pair.
-        """
         for item in self:
             if (
                 item.product_id
@@ -337,8 +311,6 @@ class ProductPricelistItem(models.Model):
     @api.constrains("price_round")
     def _check_price_round(self):
         for item in self:
-            # float_round() raises on a negative precision, so a bad value stored
-            # via import/RPC would crash every price computation for this rule.
             if item.price_round and item.price_round < 0:
                 raise ValidationError(
                     _(
@@ -347,13 +319,8 @@ class ProductPricelistItem(models.Model):
                     ),
                 )
 
-    # === CRUD METHODS ===#
-
     @api.model_create_multi
     def create(self, vals_list):
-        # Batch-resolve the template of variant-only vals in a single read rather
-        # than one browse per row - an N+1 that bites bulk imports/RPC, where the
-        # referenced variants are typically not yet in cache.
         missing_tmpl_ids = [
             vals["product_id"]
             for vals in vals_list
@@ -364,16 +331,10 @@ class ProductPricelistItem(models.Model):
             for variant in self.env["product.product"].browse(missing_tmpl_ids)
         }
 
-        # Build new dicts rather than editing the caller's: these overrides add
-        # `product_tmpl_id`/`applied_on` and null out targeting fields, and a
-        # caller reusing one dict across rows (or reading it back after the
-        # call) would silently inherit another row's deductions.
         new_vals_list = []
         for vals in vals_list:
             values = dict(vals)
             if values.get("product_id") and not values.get("product_tmpl_id"):
-                # Deduce the template from the variant so the rule stays properly
-                # configured/displayed even with partial data (mostly for imports).
                 values["product_tmpl_id"] = tmpl_by_variant.get(values["product_id"])
 
             if not values.get("applied_on"):
@@ -381,14 +342,12 @@ class ProductPricelistItem(models.Model):
                     **{field: values.get(field) for field in self._TARGETING_FIELDS}
                 )
 
-            # Ensure item consistency for later searches.
             self._sanitize_applied_on_vals(values)
             new_vals_list.append(values)
         return super().create(new_vals_list)
 
     def write(self, vals):
         if vals.get("applied_on"):
-            # Ensure item consistency for later searches (on a copy: see create).
             vals = dict(vals)
             self._sanitize_applied_on_vals(vals)
             return super().write(vals)
@@ -396,23 +355,9 @@ class ProductPricelistItem(models.Model):
         if not any(field in vals for field in self._TARGETING_FIELDS):
             return super().write(vals)
 
-        # Targeting changed without an explicit level: deduce it, exactly like
-        # `create` does. Maintaining the invariant in one direction only left a
-        # rule whose stored `applied_on` no longer described what it targets --
-        # and since `_order` starts with `applied_on`, such a rule sorts at the
-        # wrong precedence: a template rule narrowed to a single variant kept
-        # sorting as a template rule and lost to any template-wide rule created
-        # after it, instead of winning as the variant override it had become.
-        # The level depends on each record's *merged* (stored + written) state,
-        # so group the recordset by what it resolves to. Only the resolved level
-        # (and a template deduced from a written variant) is ever written back:
-        # the rest of the merged picture exists solely to derive the level, and
-        # writing it would stamp one record's targets onto the whole group.
         writes = {}
         for item in self:
             applied_on, template_id = item._targeting_after_write(vals)
-            # `vals` already carries the template when the caller wrote one; an
-            # override is only needed for a template deduced from a variant.
             override = (
                 None
                 if "product_tmpl_id" in vals or template_id == item.product_tmpl_id.id
@@ -433,26 +378,7 @@ class ProductPricelistItem(models.Model):
         return result
 
     def _targeting_after_write(self, vals):
-        """Return the ``(applied_on, product_tmpl_id)`` ``vals`` leaves this rule on.
-
-        Fields absent from ``vals`` are read through to their stored value, so
-        the level is derived from the same complete picture ``create`` sees.
-        An explicitly written variant carries its template with it -- the
-        completion ``create`` performs -- because between the two the variant is
-        the more specific statement; an explicitly written *template* is left
-        alone, so a variant that contradicts it reaches
-        :meth:`_check_product_variant_consistency` instead of being papered over.
-        """
         self.ensure_one()
-        # NB: a `categ_id` written on a rule that already targets a template or
-        # a variant is *dropped*, not honoured: the stored, higher-precedence
-        # target keeps the level where it is and `_sanitize_applied_on_vals`
-        # then nulls the category out again, so the write succeeds and stores
-        # nothing. That is deliberate (see
-        # `test_pricelist_item_targeting.test_write_deduces_per_record_in_a_batch`)
-        # -- a rule has exactly one target and the most specific one wins. To
-        # re-aim a rule at a category, clear the product/template in the same
-        # write, or name the level explicitly with `applied_on`.
         product = (
             self.env["product.product"].browse(vals["product_id"])
             if "product_id" in vals
@@ -476,11 +402,6 @@ class ProductPricelistItem(models.Model):
     def _deduce_applied_on(
         self, product_id=False, product_tmpl_id=False, categ_id=False
     ):
-        """Return the ``applied_on`` level implied by the targeting fields.
-
-        Precedence: variant > template > category > global. Single source of
-        truth for deducing the level, shared by ``create`` and the onchanges.
-        """
         if product_id:
             return "0_product_variant"
         if product_tmpl_id:
@@ -491,12 +412,6 @@ class ProductPricelistItem(models.Model):
 
     @api.model
     def _sanitize_applied_on_vals(self, vals):
-        """Null out the product/category links that don't match ``applied_on``.
-
-        Keeps a rule's targeting fields consistent with its ``applied_on`` level
-        so later rule searches (``_get_applicable_rules_domain``) stay reliable.
-        Mutates ``vals`` in place; no-op when ``applied_on`` is absent/unknown.
-        """
         applied_on = vals.get("applied_on")
         if applied_on == "3_global":
             vals.update({"product_id": None, "product_tmpl_id": None, "categ_id": None})
@@ -507,11 +422,7 @@ class ProductPricelistItem(models.Model):
         elif applied_on == "0_product_variant":
             vals.update({"categ_id": None})
 
-    # === COMPUTE METHODS ===#
-
     def _compute_is_pricelist_required(self):
-        # Override hook: some flows (e.g. sale_subscription plans) set this to
-        # False; views bind `required="is_pricelist_required"` on pricelist_id.
         self.is_pricelist_required = True
 
     @api.depends("pricelist_id.company_id", "product_tmpl_id")
@@ -639,7 +550,6 @@ class ProductPricelistItem(models.Model):
             if item.compute_price != "formula" or not item.base:
                 continue
             base_amount = 100
-            # price_markup is -price_discount, so both are equal here.
             discount = item.price_discount
             discount_factor = (100 - discount) / 100
             discounted_price = base_amount * discount_factor
@@ -672,17 +582,9 @@ class ProductPricelistItem(models.Model):
         return _("discount"), self._int_if_whole(self.price_discount)
 
     def _int_if_whole(self, percentage):
-        """Return ``percentage`` as an int when it has no fractional part.
-
-        Used for display so a whole percentage shows as ``25`` rather than
-        ``25.0``; a fractional one keeps its decimals.
-        """
         return int(percentage) if percentage == int(percentage) else percentage
 
     def _get_price_label_base_str(self):
-        """This method allows you to extend it to other modules with other
-        options in the base field to return a different text.
-        """
         self.ensure_one()
         base_str = ""
         if self.base == "pricelist" and self.base_pricelist_id:
@@ -698,8 +600,6 @@ class ProductPricelistItem(models.Model):
             ["|", ("company_id", "=", False), ("company_id", "=", self.env.company.id)],
             limit=1,
         )
-
-    # === ONCHANGE METHODS ===#
 
     @api.onchange("base")
     def _onchange_base(self):
@@ -752,12 +652,6 @@ class ProductPricelistItem(models.Model):
                     }
                 )
             elif item.display_applied_on == "2_product_category":
-                # No `product_uom_name`: it is `related="product_tmpl_id.uom_name"`
-                # and the template is being cleared on the very same line, so
-                # the ORM recomputes it to False by itself. Assigning it here
-                # only wrote a value the next recompute overwrote -- and wrote
-                # it *through* a readonly related field, which on a saved
-                # record would try to reach `uom.uom.name`.
                 item.update(
                     {
                         "product_id": None,
@@ -772,8 +666,6 @@ class ProductPricelistItem(models.Model):
         for item in has_product_id:
             item.product_tmpl_id = item.product_id.product_tmpl_id
         if self.env.context.get("default_applied_on", False) == "1_product":
-            # If a product variant is specified, apply on variants instead
-            # Reset if product variant is removed
             has_product_id.update({"applied_on": "0_product_variant"})
             (self - has_product_id).update({"applied_on": "1_product"})
 
@@ -790,7 +682,6 @@ class ProductPricelistItem(models.Model):
     @api.onchange("product_id", "product_tmpl_id", "categ_id")
     def _onchange_rule_content(self):
         if not self.env.context.get("default_applied_on", False):
-            # If we aren't coming from a specific product template/variant.
             variants_rules = self.filtered(
                 lambda r: bool(r.product_id) and bool(r.product_tmpl_id)
             )
@@ -810,18 +701,7 @@ class ProductPricelistItem(models.Model):
     def _onchange_validity_period(self):
         self._check_date_range()
 
-    # === BUSINESS METHODS ===#
-
     def _is_applicable_for(self, product, qty_in_product_uom):
-        """Check whether the current rule is valid for the given product & qty.
-
-        Note: self.ensure_one()
-
-        :param product: product record (product.product/product.template)
-        :param float qty_in_product_uom: quantity, expressed in product UoM
-        :returns: Whether rules is valid or not
-        :rtype: bool
-        """
         self.ensure_one()
         product.ensure_one()
 
@@ -831,64 +711,37 @@ class ProductPricelistItem(models.Model):
         if self.applied_on == "2_product_category":
             if not product.categ_id:
                 return False
-            # Applicable on the rule's category or any of its descendants.
             return (
                 product.categ_id == self.categ_id
                 or product.categ_id.parent_path.startswith(self.categ_id.parent_path)
             )
 
-        # Rule targets a specific template/variant.
         if product._name == "product.template":
             if self.applied_on == "1_product":
                 return product.id == self.product_tmpl_id.id
             if self.applied_on == "0_product_variant":
-                # A template matches a variant rule only if it is its sole variant.
                 return (
                     product.product_variant_count == 1
                     and product.product_variant_id.id == self.product_id.id
                 )
-            return True  # 3_global
+            return True
 
         if self.applied_on == "1_product":
             return product.product_tmpl_id.id == self.product_tmpl_id.id
         if self.applied_on == "0_product_variant":
             return product.id == self.product_id.id
-        return True  # 3_global
+        return True
 
     def _compute_price(
         self, product, quantity, uom, date, currency=None, *, base_price=None, **kwargs
     ):
-        """Compute the unit price of a product in the context of a pricelist application.
-
-        Note: self and self.ensure_one()
-
-        :param product: recordset of product (product.product/product.template)
-        :param float quantity: quantity of products requested (in given uom)
-        :param uom: unit of measure (uom.uom record)
-        :param datetime date: date to use for price computation and currency conversions
-        :param currency: currency (for the case where self is empty)
-        :param float base_price: base price already computed (in ``currency``) by the
-            caller, used to skip the per-product `_compute_base_price` call. Callers
-            that price several products at once (see
-            :meth:`~product.pricelist._compute_chained_base_prices`) precompute it in
-            batch; when ``None`` it is computed here as usual.
-        :param dict kwargs: unused parameters available for overrides
-
-        :returns: price according to pricelist rule or the product price, expressed in the param
-                  currency, the pricelist currency or the company currency
-        :rtype: float
-        """
-        self and self.ensure_one()  # self is at most one record
+        self and self.ensure_one()
         product.ensure_one()
         uom.ensure_one()
 
         currency = currency or self.currency_id or self.env.company.currency_id
         currency.ensure_one()
 
-        # Rule amounts (fixed price, surcharge, margins) are stored in the rule's
-        # own currency and per the product's default UoM. Convert both to the
-        # requested currency & UoM before combining them with the base price
-        # (which _compute_base_price already returns in `currency`).
         product_uom_id = product.uom_id
         rule_currency = self.currency_id or currency
 
@@ -898,19 +751,12 @@ class ProductPricelistItem(models.Model):
                     price, currency, self.env.company, date, round=False
                 )
             if product_uom_id != uom:
-                # Through the product's guarded converter, like every other
-                # price conversion: `uom._compute_price` alone just scales by
-                # the factor ratio, so a fixed-price rule asked for a unit from
-                # another category returned silent nonsense (50 -> 50000) where
-                # the very same call on a formula rule raised, because its base
-                # price goes through `product._compute_price`.
                 price = product._convert_price_to_uom(price, uom)
             return price
 
         if self.compute_price == "fixed":
             return convert(self.fixed_price)
 
-        # Every remaining branch prices off the base price; compute it once.
         if base_price is None:
             base_price = self._compute_base_price(
                 product, quantity, uom, date, currency, **kwargs
@@ -921,14 +767,9 @@ class ProductPricelistItem(models.Model):
 
         if self.compute_price == "formula":
             price_limit = base_price
-            # price_markup is -price_discount, so both are equal here.
             discount = self.price_discount
             price = base_price - (base_price * (discount / 100))
             if self.price_round:
-                # price_round is expressed in the rule's currency & UoM like every
-                # other rule amount, so convert it before rounding the (already
-                # converted) price - otherwise the rounding grid is mis-scaled for
-                # cross-currency / cross-UoM applications.
                 price = float_round(price, precision_rounding=convert(self.price_round))
             if self.price_surcharge:
                 price += convert(self.price_surcharge)
@@ -938,21 +779,9 @@ class ProductPricelistItem(models.Model):
                 price = min(price, price_limit + convert(self.price_max_margin))
             return price
 
-        # Empty self, or extended pricelist price computation logic.
         return base_price
 
     def _compute_base_price(self, product, quantity, uom, date, currency, **kwargs):
-        """Compute the base price for a given rule.
-
-        :param product: recordset of product (product.product/product.template)
-        :param float quantity: quantity of products requested (in given uom)
-        :param uom: unit of measure (uom.uom record)
-        :param datetime date: date to use for price computation and currency conversions
-        :param currency: currency in which the returned price must be expressed
-
-        :returns: base price, expressed in provided pricelist currency
-        :rtype: float
-        """
         currency.ensure_one()
 
         rule_base = self.base or "list_price"
@@ -970,13 +799,6 @@ class ProductPricelistItem(models.Model):
             src_currency = product.cost_currency_id
             price = product._compute_price(rule_base, uom=uom, date=date)[product.id]
         else:
-            # `list_price`, and anything unknown. The bare `else` used to hand
-            # whatever it got straight to `product._compute_price`, which reads
-            # it as a field name -- so a `base` this method does not handle
-            # priced every product through a raw `KeyError` instead of saying
-            # what was wrong. `base` is a Selection, so `create`/`write` cannot
-            # produce one; a stale column left by an uninstalled module that
-            # extended the selection, or a direct SQL edit, can.
             if rule_base != "list_price":
                 raise ValidationError(
                     _(
@@ -999,20 +821,7 @@ class ProductPricelistItem(models.Model):
     def _compute_price_before_discount(
         self, product, quantity, uom, date, currency=None, **kwargs
     ):
-        """Compute the base price of the given rule, considering chained pricelists.
-
-        :param product: recordset of product (product.product/product.template)
-        :param float quantity: quantity of products requested (in given uom)
-        :param uom: unit of measure (uom.uom record)
-        :param datetime date: date to use for price computation and currency conversions
-        :param currency: currency in which the returned price must be expressed
-
-        :returns: base price, expressed in provided pricelist currency
-        :rtype: float
-        """
         pricelist_item = self
-        # Find the lowest pricelist rule whose pricelist is configured to show
-        # the discount to the customer.
         while pricelist_item.base == "pricelist":
             rule_id = pricelist_item.base_pricelist_id._get_product_rule(
                 product, quantity, currency=currency, uom=uom, date=date, **kwargs

@@ -1,4 +1,4 @@
-from odoo import _, models
+from odoo import models
 
 
 class MrpProduction(models.Model):
@@ -15,12 +15,13 @@ class MrpProduction(models.Model):
         # user already confirmed the wizard about using expired lots.
         if self.env.context.get("skip_expired"):
             return False
-        expired_lot_ids = self.move_raw_ids.move_line_ids.filtered(
-            lambda ml: ml.lot_id.product_expiry_alert
-        ).lot_id.ids
+        # The same predicate the delivery side uses: one definition of "these goods
+        # must not be used", so a component that raises the confirmation here is the
+        # same component a transfer would refuse to ship.
+        expired_lot_ids = self.move_raw_ids.move_line_ids._filtered_expired().lot_id.ids
         if expired_lot_ids:
             return {
-                "name": _("Confirmation"),
+                "name": self.env._("Confirmation"),
                 "type": "ir.actions.act_window",
                 "res_model": "expiry.picking.confirmation",
                 "view_mode": "form",

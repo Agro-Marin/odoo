@@ -61,7 +61,6 @@ class TestProductCombo(ProductCommon):
         self.setup_main_company(currency_code="GBP")
         currency_eur = self._enable_currency("EUR")
         company = self._create_company(currency_id=currency_eur.id)
-        # For the sake of this test, we consider that 1 EUR is equivalent to 0.5 GBP.
         currency_eur.rate_ids = [
             Command.create({"name": "2000-01-01", "rate": 2, "company_id": company.id})
         ]
@@ -131,7 +130,6 @@ class TestProductCombo(ProductCommon):
         company_b = self._create_company(name="Company B")
         product_in_company_a = self._create_product(company_id=company_a.id)
 
-        # Raise if we try to create a combo in company B with a product in company A.
         with self.assertRaises(UserError):
             self.env["product.combo"].create(
                 {
@@ -142,7 +140,6 @@ class TestProductCombo(ProductCommon):
                     ],
                 }
             )
-        # Don't raise if we try to create a combo in company A with a product in company A.
         combo_in_company_a = self.env["product.combo"].create(
             {
                 "name": "Test combo",
@@ -153,20 +150,17 @@ class TestProductCombo(ProductCommon):
             }
         )
 
-        # Raise if we try to create a combo product in company B with a combo in company A.
         with self.assertRaises(UserError):
             self._create_product(
                 company_id=company_b.id,
                 type="combo",
                 combo_ids=[Command.link(combo_in_company_a.id)],
             )
-        # Don't raise if we try to create a combo product in company A with a combo in company A.
         self._create_product(
             company_id=company_a.id,
             type="combo",
             combo_ids=[Command.link(combo_in_company_a.id)],
         )
-        # Raise if we try to update a combo product in company A with a combo without company.
         with self.assertRaises(UserError):
             combo_in_company_a.write(
                 {
@@ -175,7 +169,6 @@ class TestProductCombo(ProductCommon):
             )
 
     def test_combo_template_requires_combo_choices(self):
-        """A combo-type product template must have at least one combo."""
         with self.assertRaises(ValidationError):
             self._create_product(type="combo")
 
@@ -191,12 +184,10 @@ class TestProductCombo(ProductCommon):
             type="combo",
             combo_ids=[Command.link(combo.id)],
         )
-        # Emptying the combos afterwards must be blocked too.
         with self.assertRaises(ValidationError):
             combo_template.combo_ids = [Command.clear()]
 
     def test_sellable_combo_requires_sellable_products(self):
-        """A sellable combo template cannot contain non-sellable products."""
         non_sellable = self._create_product(sale_ok=False)
         combo = self.env["product.combo"].create(
             {
@@ -210,19 +201,15 @@ class TestProductCombo(ProductCommon):
                 sale_ok=True,
                 combo_ids=[Command.link(combo.id)],
             )
-        # Fine as long as the combo product itself is not sellable.
         combo_template = self._create_product(
             type="combo",
             sale_ok=False,
             combo_ids=[Command.link(combo.id)],
         )
-        # Making it sellable afterwards must be blocked.
         with self.assertRaises(ValidationError):
             combo_template.sale_ok = True
 
     def test_combo_base_price(self):
-        """base_price is the minimum item list price (extra_price excluded),
-        and follows product price changes."""
         product_a = self._create_product(list_price=100.0)
         product_b = self._create_product(list_price=80.0)
         combo = self.env["product.combo"].create(
@@ -235,6 +222,5 @@ class TestProductCombo(ProductCommon):
             }
         )
         self.assertEqual(combo.base_price, 80.0)
-        # The compute must follow an item's product price change.
         product_b.list_price = 120.0
         self.assertEqual(combo.base_price, 100.0)

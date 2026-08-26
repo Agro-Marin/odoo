@@ -58,6 +58,21 @@ class TestOrderpointAudit(TransactionCase):
             values["route_ids"] = [(6, 0, self.supply_route.ids)]
         return self.env["product.product"].create(values)
 
+    def _unsuppliable_location(self, name):
+        """A location no rule can reach, so procurement for it genuinely fails.
+
+        A product carrying no route is not unreplenishable: the warehouse's own
+        reception route supplies its stock location whatever the product's routes
+        say. Only a destination outside every route's reach has no rule at all --
+        and unlike "product without a vendor", it needs nothing beyond `stock`.
+        """
+        root = self.env["stock.location"].create(
+            {"name": f"{name} Root", "usage": "view", "location_id": False},
+        )
+        return self.env["stock.location"].create(
+            {"name": name, "usage": "internal", "location_id": root.id},
+        )
+
     def _orderpoint(self, product, **overrides):
         values = {
             "product_id": product.id,
@@ -800,7 +815,7 @@ class TestOrderpointAudit(TransactionCase):
         the retry loop exists to re-run the survivors. It could not: `failed` was
         built as `self.concat(...)`, and `concat` prepends `self` -- the entire
         batch -- so `orderpoints -= failed` emptied the set and the loop ended
-        after the round it had just discarded. One product with no route
+        after the round it had just discarded. One orderpoint nothing could supply
         therefore stopped every other orderpoint in the database from ordering,
         silently: the `if not failed` guard that logs it can never fire while
         `self` is non-empty.
@@ -808,7 +823,9 @@ class TestOrderpointAudit(TransactionCase):
         good = self._product("Audit Batch Good")
         bad = self._product("Audit Batch Bad", suppliable=False)
         orderpoints = self._orderpoint(good, trigger="auto") + self._orderpoint(
-            bad, trigger="auto"
+            bad,
+            trigger="auto",
+            location_id=self._unsuppliable_location("Audit Batch Nowhere").id,
         )
         self.env.flush_all()
 
@@ -817,7 +834,7 @@ class TestOrderpointAudit(TransactionCase):
         self.assertEqual(
             [orderpoint.product_id for orderpoint, _msg in failures],
             [bad],
-            "only the routeless product should have failed",
+            "only the orderpoint no rule can reach should have failed",
         )
         self.assertEqual(
             self.env["stock.move"].search_count(

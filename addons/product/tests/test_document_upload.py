@@ -7,8 +7,6 @@ from odoo.tests import HttpCase, new_test_user, tagged
 
 @tagged("post_install", "-at_install")
 class TestProductDocumentUpload(HttpCase):
-    """Exercise /product/document/upload end to end, including the
-    record-rule (multi-company) enforcement on the target record."""
 
     @classmethod
     def setUpClass(cls):
@@ -62,7 +60,6 @@ class TestProductDocumentUpload(HttpCase):
         self.assertEqual(document.company_id, self.company_a)
 
     def test_upload_other_company_product_denied(self):
-        """The record rule must block uploads on another company's product."""
         result = self._upload("product.template", self.product_b.id)
         self.assertIn("error", result)
         self.assertFalse(self._documents_of(self.product_b))

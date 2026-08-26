@@ -23,8 +23,6 @@ class ReportProductReport_Pricelist(models.AbstractModel):
         )
 
     def _get_report_data(self, data, report_type="html"):
-        # `data` may come straight from a client request (`get_html` and the
-        # /product/export/pricelist/ route): validate it instead of crashing.
         quantities = self._parse_quantities(data.get("quantities"))
         try:
             data_pricelist_id = data.get("pricelist_id")
@@ -42,9 +40,6 @@ class ReportProductReport_Pricelist(models.AbstractModel):
             active_ids = [int(id_) for id_ in data.get("active_ids") or []]
         except ValueError, TypeError:
             raise UserError(_("Invalid product ids.")) from None
-        # `active_ids` is client-provided and each product costs one price
-        # computation per quantity column (plus one per variant): bound it the
-        # same way `quantities` is bounded, or a single request can pin a worker.
         if len(active_ids) > self.MAX_PRODUCTS:
             raise UserError(
                 _(
@@ -74,12 +69,6 @@ class ReportProductReport_Pricelist(models.AbstractModel):
         }
 
     def _parse_quantities(self, quantities):
-        """Validate the client-provided quantity columns.
-
-        :param quantities: raw `quantities` value from the request payload
-        :returns: a non-empty, bounded list of positive numbers
-        :raises UserError: on non-numeric or out-of-bound input
-        """
         if not quantities:
             return [1]
         try:
@@ -88,8 +77,6 @@ class ReportProductReport_Pricelist(models.AbstractModel):
                 value = float(qty)
                 if not math.isfinite(value):
                     raise ValueError
-                # Whole quantities are kept as ints so they display (and key
-                # the price dicts) as `5`, not `5.0`.
                 parsed.append(int(value) if value.is_integer() else value)
             quantities = parsed
         except ValueError, TypeError:
@@ -107,25 +94,9 @@ class ReportProductReport_Pricelist(models.AbstractModel):
         return quantities
 
     def _get_products_data(self, is_product_tmpl, products, pricelist, quantities):
-        """Build the report rows for ``products``, batching the price computation.
-
-        Pricing one product at a time runs a full rule search per (product,
-        quantity) pair -- and again per variant. `_get_products_price` resolves
-        the rules once for the whole recordset, so the number of queries becomes
-        proportional to the quantity columns instead of to
-        products x quantities x variants.
-
-        :param bool is_product_tmpl: whether ``products`` are templates
-        :param products: recordset of `product.template` / `product.product`
-        :param pricelist: the `product.pricelist` to price against
-        :param list quantities: the quantity columns
-        :rtype: list[dict]
-        """
         if not products:
             return []
 
-        # Variants of multi-variant templates get their own sub-rows; price them
-        # in the same batch as their templates rather than per template.
         variants_by_tmpl = {}
         if is_product_tmpl:
             for product in products:
@@ -162,10 +133,6 @@ class ReportProductReport_Pricelist(models.AbstractModel):
         return products_data
 
     def _get_product_data(self, is_product_tmpl, product, pricelist, quantities):
-        """Single-product row. Kept as an extension point for modules overriding
-        the per-product shape; the report itself batches via
-        :meth:`_get_products_data`.
-        """
         return self._get_products_data(is_product_tmpl, product, pricelist, quantities)[
             0
         ]

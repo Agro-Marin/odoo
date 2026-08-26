@@ -1,22 +1,44 @@
 from collections import defaultdict
 
-from odoo import _, models
+from odoo import api, models
 from odoo.exceptions import UserError
 
 
-def _prepare_data(env, docids, data):
-    # change product ids by actual product object to get access to fields in xml template
-    # we needed to pass ids because reports only accepts native python types (int, float, strings, ...)
+class MixinProductLabelReport(models.AbstractModel):
 
-    layout_wizard = env["product.label.layout"].browse(data.get("layout_wizard"))
-    if data.get("active_model") == "product.template":
-        Product = env["product.template"].with_context(display_default_code=False)
-    elif data.get("active_model") == "product.product":
-        Product = env["product.product"].with_context(display_default_code=False)
-    elif data.get("studio") and docids:
-        # special case: users trying to customize labels
+    _name = "mixin.product.label.report"
+    _description = "Product Label Report"
+
+    def _get_report_values(self, docids, data):
+        data = data or {}
+        layout = self.env["product.label.layout"].browse(
+            self._get_label_id(data.get("layout_wizard"))
+        )
+
+        if data.get("studio") and docids and not data.get("active_model"):
+            return self._get_studio_report_values(docids, layout)
+
+        Product = self._get_label_product_model(data.get("active_model"))
+        if not layout:
+            raise UserError(
+                self.env._(
+                    "This label layout is no longer available. Please reopen the"
+                    " print dialog and try again."
+                )
+            )
+
+        quantity_by_product, total = self._get_label_quantities(data, Product)
+        return {
+            "quantity": quantity_by_product,
+            "page_numbers": self._get_label_page_count(total, layout),
+            "price_included": data.get("price_included"),
+            "extra_html": layout.extra_html,
+            "pricelist": layout.pricelist_id,
+        }
+
+    def _get_studio_report_values(self, docids, layout):
         products = (
-            env["product.template"]
+            self.env["product.template"]
             .with_context(display_default_code=False)
             .browse(docids)
         )
@@ -26,89 +48,101 @@ def _prepare_data(env, docids, data):
         return {
             "quantity": quantity_by_product,
             "page_numbers": 1,
-            "pricelist": layout_wizard.pricelist_id,
+            "pricelist": layout.pricelist_id,
         }
-    else:
-        raise UserError(
-            _("Product model not defined, Please contact your administrator.")
-        )
 
-    if not layout_wizard:
-        raise UserError(
-            _(
-                "This label layout is no longer available. Please reopen the"
-                " print dialog and try again."
+    @api.model
+    def _get_label_product_model(self, active_model):
+        if active_model not in ("product.template", "product.product"):
+            raise UserError(
+                self.env._(
+                    "Product model not defined, Please contact your administrator."
+                )
             )
-        )
+        return self.env[active_model].with_context(display_default_code=False)
 
-    total = 0
-    # Normalize the keys to ints: they are ints when the data dict comes
-    # straight from the wizard (server-side rendering) but strings after a
-    # JSON round-trip through the client report flow.
-    qty_by_product_in = {
-        int(product_id): qty
-        for product_id, qty in (data.get("quantity_by_product") or {}).items()
-    }
-    # search for products all at once, ordered by name desc since popitem() used in xml to print the labels
-    # is LIFO, which results in ordering by product name in the report
-    products = Product.search(
-        [("id", "in", list(qty_by_product_in))], order="name desc"
-    )
-    quantity_by_product = defaultdict(list)
-    for product in products:
-        q = qty_by_product_in[product.id]
-        quantity_by_product[product].append((product.barcode, q))
-        total += q
-    if data.get("custom_barcodes"):
-        # we expect custom barcodes format as: {product: [(barcode, qty_of_barcode)]}
-        for product, barcodes_qtys in data.get("custom_barcodes").items():
-            quantity_by_product[Product.browse(int(product))] += barcodes_qtys
-            total += sum(qty for _, qty in barcodes_qtys)
+    @api.model
+    def _get_label_id(self, value):
+        try:
+            return int(value)
+        except TypeError, ValueError:
+            return 0
 
-    return {
-        "quantity": quantity_by_product,
-        "page_numbers": (total - 1) // (layout_wizard.rows * layout_wizard.columns) + 1,
-        "price_included": data.get("price_included"),
-        "extra_html": layout_wizard.extra_html,
-        "pricelist": layout_wizard.pricelist_id,
-    }
+    def _get_label_quantities(self, data, Product):
+        quantity_by_product = defaultdict(list)
+        total = 0
+
+        requested = {
+            self._get_label_id(product_id): self._get_label_quantity(quantity)
+            for product_id, quantity in (data.get("quantity_by_product") or {}).items()
+        }
+        for product in Product.search(
+            [("id", "in", list(requested))], order="name desc"
+        ):
+            quantity = requested[product.id]
+            quantity_by_product[product].append((product.barcode, quantity))
+            total += quantity
+
+        for product_id, barcodes in (data.get("custom_barcodes") or {}).items():
+            product = Product.browse(self._get_label_id(product_id)).exists()
+            if not product:
+                continue
+            pairs = [
+                (barcode, self._get_label_quantity(quantity))
+                for barcode, quantity in barcodes
+            ]
+            quantity_by_product[product] += pairs
+            total += sum(quantity for _, quantity in pairs)
+
+        return quantity_by_product, total
+
+    @api.model
+    def _get_label_quantity(self, value):
+        try:
+            quantity = int(value)
+        except TypeError, ValueError:
+            raise UserError(
+                self.env._("%s is not a number of labels.", value)
+            ) from None
+        if quantity < 0:
+            raise UserError(self.env._("A number of labels cannot be negative."))
+        return quantity
+
+    @api.model
+    def _get_label_page_count(self, total, layout):
+        per_page = layout.rows * layout.columns
+        if not total or per_page <= 0:
+            raise UserError(
+                self.env._("There is nothing to print with this label layout.")
+            )
+        return (total - 1) // per_page + 1
 
 
 class ReportProductReport_Producttemplatelabel2x7(models.AbstractModel):
     _name = "report.product.report_producttemplatelabel2x7"
+    _inherit = ["mixin.product.label.report"]
     _description = "Product Label Report 2x7"
-
-    def _get_report_values(self, docids, data):
-        return _prepare_data(self.env, docids, data)
 
 
 class ReportProductReport_Producttemplatelabel4x7(models.AbstractModel):
     _name = "report.product.report_producttemplatelabel4x7"
+    _inherit = ["mixin.product.label.report"]
     _description = "Product Label Report 4x7"
-
-    def _get_report_values(self, docids, data):
-        return _prepare_data(self.env, docids, data)
 
 
 class ReportProductReport_Producttemplatelabel4x12(models.AbstractModel):
     _name = "report.product.report_producttemplatelabel4x12"
+    _inherit = ["mixin.product.label.report"]
     _description = "Product Label Report 4x12"
-
-    def _get_report_values(self, docids, data):
-        return _prepare_data(self.env, docids, data)
 
 
 class ReportProductReport_Producttemplatelabel4x12noprice(models.AbstractModel):
     _name = "report.product.report_producttemplatelabel4x12noprice"
+    _inherit = ["mixin.product.label.report"]
     _description = "Product Label Report 4x12 No Price"
-
-    def _get_report_values(self, docids, data):
-        return _prepare_data(self.env, docids, data)
 
 
 class ReportProductReport_Producttemplatelabel_Dymo(models.AbstractModel):
     _name = "report.product.report_producttemplatelabel_dymo"
-    _description = "Product Label Report"
-
-    def _get_report_values(self, docids, data):
-        return _prepare_data(self.env, docids, data)
+    _inherit = ["mixin.product.label.report"]
+    _description = "Product Label Report Dymo"

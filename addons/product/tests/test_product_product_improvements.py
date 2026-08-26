@@ -6,19 +6,8 @@ from odoo.addons.product.tests.common import ProductCommon
 
 @tagged("post_install", "-at_install")
 class TestProductProductImprovements(ProductCommon):
-    """Locks down the fork-specific fixes on ``product.product``:
 
-    * ``name_search`` must honour ``limit=0`` as "unlimited";
-    * a negative ``standard_price`` must be rejected by a constraint (not only
-      the onchange);
-    * the decomposed ``_load_records_create`` import path keeps producing the
-      same variants + attribute values as before the refactor.
-    """
-
-    # -- name_search(limit=0) -------------------------------------------------
-
-    def test_name_search_limit_zero_returns_name_matches(self):
-        """limit=0 means unlimited; a name-only match must still be returned."""
+    def test_name_search_unlimited_reaches_the_name_branch(self):
         template = self.env["product.template"].create(
             {
                 "name": "ZeroLimitProbe",
@@ -26,30 +15,31 @@ class TestProductProductImprovements(ProductCommon):
             }
         )
         product = template.product_variant_id
-        # Force the name branch: the record has NO default_code/barcode equal to
-        # the search term, so it can only be found by name.
         product.default_code = "ZLP-REF"
 
+        Product = self.env["product.product"]
         found_none = dict(
-            self.env["product.product"].name_search(
-                name="ZeroLimitProbe",
-                operator="ilike",
-                limit=None,
-            )
+            Product.name_search(name="ZeroLimitProbe", operator="ilike", limit=None)
         )
-        found_zero = dict(
-            self.env["product.product"].name_search(
-                name="ZeroLimitProbe",
-                operator="ilike",
-                limit=0,
-            )
+        found_zero = Product.name_search(
+            name="ZeroLimitProbe", operator="ilike", limit=0
         )
 
-        self.assertIn(product.id, found_none, "sanity: unlimited search finds it")
         self.assertIn(
             product.id,
+            found_none,
+            "an unlimited name_search must reach the name branch",
+        )
+        self.assertEqual(
             found_zero,
-            "limit=0 must behave like unlimited, not skip the name search",
+            [],
+            "a zero limit asks for no rows here exactly as it does on every"
+            " other model",
+        )
+        self.assertEqual(
+            found_zero,
+            self.env["product.category"].name_search(name="no such category", limit=0),
+            "sanity: the generic name_search answers a zero limit the same way",
         )
 
     def test_name_search_limit_zero_reaches_every_branch(self):
@@ -96,7 +86,6 @@ class TestProductProductImprovements(ProductCommon):
                 )
 
     def test_name_search_limit_positive_still_bounded(self):
-        """A positive limit must still cap results (no regression)."""
         self.env["product.template"].create(
             [{"name": f"BoundProbe {i}", "list_price": 1.0} for i in range(3)]
         )
@@ -106,8 +95,6 @@ class TestProductProductImprovements(ProductCommon):
             limit=2,
         )
         self.assertEqual(len(res), 2)
-
-    # -- negative standard_price constraint -----------------------------------
 
     def test_negative_standard_price_write_rejected(self):
         with self.assertRaises(ValidationError):
@@ -124,14 +111,11 @@ class TestProductProductImprovements(ProductCommon):
             ).flush_recordset()
 
     def test_zero_and_positive_standard_price_allowed(self):
-        # Must NOT raise: zero and positive are valid costs.
         self.product.standard_price = 0.0
         self.product.flush_recordset()
         self.product.standard_price = 12.5
         self.product.flush_recordset()
         self.assertEqual(self.product.standard_price, 12.5)
-
-    # -- _load_records_create decomposition (behaviour preserving) ------------
 
     def _import(self, rows):
         fields = ["name", "list_price", "import_attribute_values"]
@@ -155,21 +139,16 @@ class TestProductProductImprovements(ProductCommon):
             sorted(template.product_variant_ids.mapped("import_attribute_values")),
             sorted(["Color:Red,Size:S", "Color:Red,Size:M", "Color:Blue,Size:S"]),
         )
-        # attributes + values were created on demand
         self.assertEqual(
             set(template.attribute_line_ids.attribute_id.mapped("name")),
             {"Color", "Size"},
         )
 
     def test_import_reuses_existing_template_and_attributes(self):
-        # First import creates everything.
         self._import([["ReuseTee", "10", "Color:Green,Size:S"]])
         template = self.env["product.template"].search([("name", "=", "ReuseTee")])
         attr_ids_before = set(self.env["product.attribute"].search([]).ids)
 
-        # Second import on the SAME template with a new combination must add a
-        # variant, reuse the Color/Size attributes, and only create the missing
-        # value ("Green" already exists, "L"/"Red" are new).
         result = self._import([["ReuseTee", "10", "Color:Red,Size:L"]])
         self.assertFalse(
             [m for m in result["messages"] if m.get("type") == "error"],
@@ -177,7 +156,6 @@ class TestProductProductImprovements(ProductCommon):
         )
         template.invalidate_recordset()
         self.assertEqual(len(template.product_variant_ids), 2)
-        # No duplicate Color/Size attributes were spawned.
         colors = self.env["product.attribute"].search([("name", "=", "Color")])
         sizes = self.env["product.attribute"].search([("name", "=", "Size")])
         self.assertEqual(len(colors), 1)

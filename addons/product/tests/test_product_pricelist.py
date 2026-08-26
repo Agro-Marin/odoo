@@ -189,8 +189,6 @@ class TestProductPricelist(ProductCommon):
         )
 
     def test_10_calculation_price_of_products_pricelist(self):
-        """Test calculation of product price based on pricelist"""
-        # I check sale price of Customizable Desk
         context = {}
         context.update({"pricelist": self.customer_pricelist.id, "quantity": 1})
         product = self.ipad_retina_display
@@ -209,7 +207,6 @@ class TestProductPricelist(ProductCommon):
             msg,
         )
 
-        # I check sale price of Laptop.
         product = self.laptop_E5023
         price = self.customer_pricelist._get_product_price(product, quantity=1.0)
         msg = "Wrong sale price: Laptop. should be %s instead of %s" % (
@@ -220,7 +217,6 @@ class TestProductPricelist(ProductCommon):
             float_compare(price, product.lst_price + 1, precision_digits=2), 0, msg
         )
 
-        # I check sale price of IT component.
         product = self.apple_in_ear_headphones
         price = self.customer_pricelist._get_product_price(product, quantity=1.0)
         msg = "Wrong sale price: IT component. should be %s instead of %s" % (
@@ -231,7 +227,6 @@ class TestProductPricelist(ProductCommon):
             float_compare(price, product.lst_price, precision_digits=2), 0, msg
         )
 
-        # I check sale price of IT component if more than 3 Unit.
         context.update({"quantity": 5})
         product = self.laptop_S3450
         price = self.customer_pricelist._get_product_price(product, quantity=5.0)
@@ -249,7 +244,6 @@ class TestProductPricelist(ProductCommon):
             msg,
         )
 
-        # I check sale price of LCD Monitor.
         product = self.ipad_mini
         price = self.customer_pricelist._get_product_price(product, quantity=1.0)
         msg = "Wrong sale price: LCD Monitor. should be %s instead of %s" % (
@@ -260,7 +254,6 @@ class TestProductPricelist(ProductCommon):
             float_compare(price, product.lst_price, precision_digits=2), 0, msg
         )
 
-        # I check sale price of LCD Monitor on end of year.
         price = self.customer_pricelist._get_product_price(
             product, quantity=1.0, date="2011-12-31"
         )
@@ -278,7 +271,6 @@ class TestProductPricelist(ProductCommon):
             msg,
         )
 
-        # Check if the pricelist is applied at precise datetime
         product = self.monitor
         price = self.customer_pricelist._get_product_price(
             product, quantity=1.0, date="2020-04-05 08:00:00"
@@ -301,7 +293,6 @@ class TestProductPricelist(ProductCommon):
             float_compare(price, product.lst_price / 2, precision_digits=2), 0, msg
         )
 
-        # Check if the price is different when we change the pricelist
         product = self.product_multi_price
         price = self.customer_pricelist._get_product_price(product, quantity=1.0)
         msg = "Wrong price: Multi Product Price. should be 99 instead of %s" % price
@@ -330,7 +321,6 @@ class TestProductPricelist(ProductCommon):
             }
         )
         price = pricelist._get_product_price(self.monitor, quantity=1.0)
-        # product price use the currency of the pricelist
         self.assertEqual(price, 10100)
 
     def test_21_price_diff_cur_min_margin_pricelist(self):
@@ -353,7 +343,6 @@ class TestProductPricelist(ProductCommon):
             }
         )
         price = pricelist._get_product_price(self.monitor, quantity=1.0)
-        # product price use the currency of the pricelist
         self.assertEqual(price, 10010)
 
     def test_22_price_diff_cur_max_margin_pricelist(self):
@@ -376,7 +365,6 @@ class TestProductPricelist(ProductCommon):
             }
         )
         price = pricelist._get_product_price(self.monitor, quantity=1.0)
-        # product price use the currency of the pricelist
         self.assertEqual(price, 10090)
 
     def test_price_without_pricelist_fallback_product_price(self):
@@ -417,7 +405,6 @@ class TestProductPricelist(ProductCommon):
         )
 
     def test_30_pricelist_delete(self):
-        """Test that `unlink` on many records doesn't raise a RecursionError."""
         self.customer_pricelist = self.env["product.pricelist"].create(
             {
                 "name": "Customer Pricelist",
@@ -434,21 +421,16 @@ class TestProductPricelist(ProductCommon):
         self.customer_pricelist.unlink()
 
     def test_40_pricelist_item_min_quantity_precision(self):
-        """Test that the min_quantity has the precision of Product UoM."""
-        # Arrange: Change precision digits
         uom_precision = self.env.ref("uom.decimal_product_uom")
         uom_precision.digits = 3
         pricelist_item = self.customer_pricelist.item_ids[0]
         precise_value = 1.234
 
-        # Act: Set a value for the increased precision
         pricelist_item.min_quantity = precise_value
 
-        # Assert: The set value is kept
         self.assertEqual(pricelist_item.min_quantity, precise_value)
 
     def test_remove_product_on_0_product_variant_applied_on_rule(self):
-        """Test generation of applied on based on rule data"""
         self.pricelist_item = self.env["product.pricelist.item"].create(
             {
                 "pricelist_id": self.pricelist.id,
@@ -464,7 +446,6 @@ class TestProductPricelist(ProductCommon):
         self.assertEqual(self.pricelist_item.applied_on, "0_product_variant")
         with Form(self.pricelist_item) as form:
             form.product_tmpl_id = self.env["product.template"]
-        # Test values after on change
         self.assertFalse(self.pricelist_item.product_tmpl_id)
         self.assertFalse(self.pricelist_item.product_id)
         self.assertEqual(self.pricelist_item.applied_on, "3_global")
@@ -521,8 +502,6 @@ class TestProductPricelist(ProductCommon):
             form.standard_price = -5
 
     def test_unlink_pricelist_used_as_rule_base(self):
-        """A pricelist referenced as another pricelist's rule base cannot be
-        deleted alone, but can be deleted together with its dependent."""
         base_pricelist = self._create_pricelist(name="Base PL")
         dependent_pricelist = self._create_pricelist(
             name="Dependent PL",
@@ -539,19 +518,11 @@ class TestProductPricelist(ProductCommon):
         )
         with self.assertRaises(UserError):
             base_pricelist.unlink()
-        # Deleting both together must not be blocked.
         (base_pricelist | dependent_pricelist).unlink()
         self.assertFalse(base_pricelist.exists())
         self.assertFalse(dependent_pricelist.exists())
 
     def test_batched_chained_pricing_matches_per_product(self):
-        """Batch pricing through a chained pricelist (in another currency) must
-        return exactly what per-product pricing returns.
-
-        Locks the `_compute_chained_base_prices` batching: a product dropped
-        from the batch, or a base price converted with the wrong currency,
-        would make the two paths diverge.
-        """
         currency_mxn = self.env["res.currency"].create(
             {
                 "name": "MX2",
@@ -587,7 +558,7 @@ class TestProductPricelist(ProductCommon):
                         "compute_price": "formula",
                         "base": "pricelist",
                         "base_pricelist_id": base_pricelist.id,
-                        "price_discount": -10,  # 10% markup on the chained base
+                        "price_discount": -10,
                     }
                 )
             ],
@@ -605,6 +576,4 @@ class TestProductPricelist(ProductCommon):
                 places=6,
                 msg=f"Batched price diverges for {product.display_name}",
             )
-        # And the maths itself: list price → -20% (in MXN) → +10% markup,
-        # converted back to the chained pricelist's currency (company one).
         self.assertAlmostEqual(batched[products[0].id], 100.0 * 0.8 * 1.1, places=6)

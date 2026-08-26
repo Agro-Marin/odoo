@@ -66,9 +66,14 @@ export class GenerateDialog extends Component {
         this.orm = useService("orm");
         this.opGuard = useOperationGuard();
         this._onGenerate = this.opGuard.guard(this._onGenerate.bind(this));
-        this.onGenerateCustomSerial = useDebounced(this._onGenerateCustomSerial, 500, {
-            immediate: true,
-        });
+        // Guarded as well as debounced: `_onGenerate` refuses an empty
+        // `nextSerial`, so a click landing while the preview is in flight was
+        // told to enter a first number the request was about to supply.
+        this.onGenerateCustomSerial = useDebounced(
+            this.opGuard.guard(this._onGenerateCustomSerial.bind(this)),
+            500,
+            { immediate: true },
+        );
 
         // Every field is state, not a DOM ref read at submit time: the values
         // are the dialog's model, and the validation below has to be reachable

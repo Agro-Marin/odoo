@@ -9,8 +9,6 @@ from odoo.addons.product.tests.common import ProductVariantsCommon
 
 @tagged("post_install", "-at_install")
 class TestProductMerge(ProductVariantsCommon):
-    """Post-install: the merge walks the foreign keys the *database* holds, so
-    it is only exercised for real once every module's tables are there."""
 
     @classmethod
     def setUpClass(cls):
@@ -181,9 +179,6 @@ class TestProductMerge(ProductVariantsCommon):
         self.assertEqual(len(destination.attribute_line_ids), 1)
 
     def test_merge_pairs_by_value_not_by_position(self):
-        """The source's only variant is the destination's *second* one, so a
-        merge pairing variants by position would move the document onto the
-        wrong colour and still pass."""
         destination = self._create_color_template(
             "Mug", self.color_attribute_red + self.color_attribute_blue
         )
@@ -360,10 +355,6 @@ class TestProductMerge(ProductVariantsCommon):
         )
 
     def test_merge_never_narrows_the_company_of_the_destination(self):
-        """A product scoped to one company may be merged into a shared one --
-        that is the direction `_check_mergeable` allows. The destination must
-        stay shared, or every other company's documents now point at a product
-        they cannot use."""
         shared = self._create_template("Shared Target")
         company = self.env["res.company"].browse(self.env.company.id)
         scoped = self._create_template("Scoped Source", company_id=company.id)
@@ -386,10 +377,6 @@ class TestProductMerge(ProductVariantsCommon):
         self.assertTrue(shared.exists())
 
     def test_duplicate_search_groups_on_the_variant_barcode(self):
-        """`barcode` lives on the variant, so this criterion joins the variants
-        in -- a different query shape from every template-level one. The
-        duplicate is built the way a real one survives the uniqueness check:
-        one product per company, each scanning the same code."""
         other_company = self.env["res.company"].create({"name": "Merge Test Co"})
         companies = self.env.company + other_company
 
@@ -412,8 +399,6 @@ class TestProductMerge(ProductVariantsCommon):
         )
 
     def test_duplicate_search_ignores_products_without_the_criterion(self):
-        """NULL is not a shared value: two products that simply have no
-        category are not duplicates of each other."""
         uncategorised = [
             self._create_template(f"No Category {index}", categ_id=False)
             for index in range(2)
@@ -448,8 +433,6 @@ class TestProductMerge(ProductVariantsCommon):
         self.assertEqual(len((first + second).exists()), 2, "Nothing was merged")
 
     def test_a_product_manager_can_merge_without_being_a_superuser(self):
-        """Every other test runs as root, which checks no access rule at all.
-        This one runs the whole wizard as a plain product manager."""
         manager = self.env["res.users"].create(
             {
                 "name": "Merge Manager",

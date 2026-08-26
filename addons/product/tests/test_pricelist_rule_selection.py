@@ -6,11 +6,6 @@ from odoo.addons.product.tests.common import ProductCommon
 
 
 class TestPricelistRuleSelection(ProductCommon):
-    """`_compute_price_rule` hands each product only the rules that can name it.
-
-    That narrowing must be invisible: the rule selected from the narrowed
-    candidates has to be the very one a full ordered scan would have picked.
-    """
 
     @classmethod
     def setUpClass(cls):
@@ -58,7 +53,6 @@ class TestPricelistRuleSelection(ProductCommon):
         return self.env["product.template"].create(vals)
 
     def test_category_rule_reaches_descendant_products(self):
-        """A rule on an ancestor category still reaches a leaf-category product."""
         pricelist = self._pricelist("Sel categ")
         template = self._template("Sel deep", categ=self.leaf)
         self.env["product.pricelist.item"].create(
@@ -91,7 +85,6 @@ class TestPricelistRuleSelection(ProductCommon):
         )
 
     def test_variant_rule_reaches_a_single_variant_template(self):
-        """A template with one variant is priced by that variant's rule."""
         pricelist = self._pricelist("Sel single")
         template = self._template("Sel single tmpl", categ=self.leaf)
         self.env["product.pricelist.item"].create(
@@ -106,7 +99,6 @@ class TestPricelistRuleSelection(ProductCommon):
         self.assertEqual(pricelist._get_product_price(template, 1.0), 42.0)
 
     def test_variant_rule_does_not_reach_a_multi_variant_template(self):
-        """A template with several variants is not priced by one variant's rule."""
         pricelist = self._pricelist("Sel multi")
         template = self._template("Sel multi tmpl", categ=self.leaf, variants=True)
         self.assertGreater(template.product_variant_count, 1)
@@ -141,12 +133,6 @@ class TestPricelistRuleSelection(ProductCommon):
         )
 
     def test_narrowed_candidates_match_a_full_ordered_scan(self):
-        """The differential that guards the optimisation itself.
-
-        Every rule level, overlapping categories, quantity thresholds and both
-        product models -- the narrowed candidate list must select exactly what
-        scanning the whole ordered recordset selects.
-        """
         rng = random.Random(20260807)
         categories = self.root + self.middle + self.leaf + self.sibling
         templates = self.env["product.template"].concat(

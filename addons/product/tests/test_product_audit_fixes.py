@@ -12,20 +12,8 @@ from odoo.addons.product.tests.common import ProductCommon
 
 @tagged("post_install", "-at_install")
 class TestProductAuditFixes(ProductCommon):
-    """Regression net for the defects found in the `product` audit.
-
-    Every test below was written from a reproduction that *failed* before the
-    corresponding fix; the docstrings state the observed broken behaviour so the
-    intent survives if the implementation changes.
-    """
-
-    # -- create/write overrides must not mutate the caller's vals -------------
 
     def test_attribute_line_write_does_not_mutate_caller_vals(self):
-        """Archiving a line injects `value_ids: [Command.clear()]`. That was
-        written into the caller's own dict, so a dict reused for a second write
-        silently wiped the values of records the caller never meant to touch.
-        """
         attribute = self.env["product.attribute"].create(
             {
                 "name": "MutAttr",
@@ -53,9 +41,6 @@ class TestProductAuditFixes(ProductCommon):
         self.assertEqual(vals, {"active": False})
 
     def test_supplierinfo_create_does_not_mutate_caller_vals(self):
-        """`_sanitize_vals` deduced `product_tmpl_id` straight into the caller's
-        dict, so a dict reused for a second row carried the first row's template.
-        """
         vendor = self.env["res.partner"].create({"name": "MutVendor"})
         vals = {
             "partner_id": vendor.id,
@@ -66,9 +51,6 @@ class TestProductAuditFixes(ProductCommon):
         self.assertNotIn("product_tmpl_id", vals)
 
     def test_pricelist_item_create_and_write_do_not_mutate_caller_vals(self):
-        """`create` deduces `applied_on`/`product_tmpl_id` and `write` nulls out
-        the targeting fields; both did it in the caller's dict.
-        """
         vals = {
             "pricelist_id": self.pricelist.id,
             "product_id": self.product.id,
@@ -78,7 +60,6 @@ class TestProductAuditFixes(ProductCommon):
         expected = dict(vals)
         item = self.env["product.pricelist.item"].create([vals])
         self.assertEqual(vals, expected)
-        # ... and the deduction still happened on the record itself.
         self.assertEqual(item.applied_on, "0_product_variant")
         self.assertEqual(item.product_tmpl_id, self.product.product_tmpl_id)
 
@@ -87,13 +68,7 @@ class TestProductAuditFixes(ProductCommon):
         self.assertEqual(write_vals, {"applied_on": "3_global"})
         self.assertFalse(item.product_id)
 
-    # -- pricelist feature toggle --------------------------------------------
-
     def test_settings_save_does_not_archive_pricelists_when_already_disabled(self):
-        """Saving settings while the pricelist feature is already off used to
-        run `sudo().search([]).action_archive()` on *every* save, silently
-        re-archiving pricelists an admin had reactivated.
-        """
         pricelist = self.env["product.pricelist"].create({"name": "SurvivorPL"})
         group = self.env.ref("product.group_product_pricelist")
         self.env.user.write({"group_ids": [Command.unlink(group.id)]})
@@ -111,7 +86,6 @@ class TestProductAuditFixes(ProductCommon):
         )
 
     def test_disabling_pricelist_feature_still_archives(self):
-        """The enabled -> disabled transition must keep archiving."""
         self.env["res.config.settings"].create(
             {"group_product_pricelist": True}
         ).execute()
@@ -126,12 +100,7 @@ class TestProductAuditFixes(ProductCommon):
             pricelist.active, "disabling the feature must archive active pricelists"
         )
 
-    # -- attribute line reactivation -----------------------------------------
-
     def test_archived_attribute_line_is_reactivated_not_duplicated(self):
-        """`create` reuses an archived line for the same (template, attribute)
-        instead of inserting a second one, so existing variants keep their
-        configuration."""
         attribute = self.env["product.attribute"].create(
             {"name": "ReuseColor", "value_ids": [Command.create({"name": "R"})]}
         )
@@ -152,8 +121,6 @@ class TestProductAuditFixes(ProductCommon):
         line.active = False
         self.env.flush_all()
 
-        # Re-adding the same attribute reactivates the archived line instead of
-        # tripping the index.
         template.write(
             {
                 "attribute_line_ids": [
@@ -176,21 +143,13 @@ class TestProductAuditFixes(ProductCommon):
             1,
         )
 
-    # -- product tag name uniqueness -----------------------------------------
-
     def test_duplicate_tag_name_rejected(self):
-        """`unique (name)` on a translated (jsonb) column compares whole
-        translation dicts, so two tags with the same visible name inserted
-        cleanly as soon as one of them had a second translation.
-        """
         self.env["product.tag"].create({"name": "DupTag"})
         with self.assertRaises(ValidationError):
             self.env["product.tag"].create({"name": "DupTag"})
             self.env.flush_all()
 
     def test_duplicate_tag_name_rejected_across_translations(self):
-        """The exact reproduction: a second translation on the first tag used to
-        make the SQL unique index blind to the collision."""
         self.env["res.lang"]._activate_lang("es_MX")
         tag = self.env["product.tag"].create({"name": "TransTag"})
         tag.with_context(lang="es_MX").name = "Frágil"
@@ -200,13 +159,7 @@ class TestProductAuditFixes(ProductCommon):
             self.env["product.tag"].create({"name": "TransTag"})
             self.env.flush_all()
 
-    # -- combo integrity ------------------------------------------------------
-
     def test_unlinking_last_combo_item_rejected(self):
-        """`product.combo`'s "at least 1 choice" constraint only fires on writes
-        to the combo, so deleting the items directly left an empty combo whose
-        `base_price` is 0.
-        """
         product = (
             self.env["product.template"]
             .create({"name": "ComboChoice", "list_price": 5.0})
@@ -220,13 +173,9 @@ class TestProductAuditFixes(ProductCommon):
         )
         with self.assertRaises(ValidationError):
             combo.combo_item_ids.unlink()
-            # The guard runs at precommit (see `product.combo.item.unlink`), which
-            # `cr.flush()` drives -- the same path a real request takes on commit.
             self.env.cr.flush()
 
     def test_replacing_all_combo_items_in_one_write_is_allowed(self):
-        """The guard must not break the normal edit flow, where the form sends
-        delete-then-create for the same combo in a single write."""
         products = (
             self.env["product.template"]
             .create(
@@ -255,8 +204,6 @@ class TestProductAuditFixes(ProductCommon):
         self.assertEqual(combo.combo_item_ids.product_id, products[1])
 
     def test_deleting_combo_cascades_to_its_items(self):
-        """Deleting the combo itself must still work (the guard only protects
-        against emptying a surviving combo)."""
         product = (
             self.env["product.template"]
             .create({"name": "ComboGone", "list_price": 5.0})
@@ -272,12 +219,7 @@ class TestProductAuditFixes(ProductCommon):
         self.env.cr.flush()
         self.assertFalse(combo.exists())
 
-    # -- category product_count invalidation ----------------------------------
-
     def test_product_count_refreshes_when_product_changes_category(self):
-        """`product_count` is a non-stored compute that declared no dependency,
-        so it stayed cached for the whole transaction and reported pre-move
-        counts."""
         Category = self.env["product.category"]
         source = Category.create({"name": "CountSource"})
         target = Category.create({"name": "CountTarget"})
@@ -293,11 +235,7 @@ class TestProductAuditFixes(ProductCommon):
         self.assertEqual(source.product_count, 0, "source count must drop")
         self.assertEqual(target.product_count, 1, "target count must rise")
 
-    # -- packaging barcode uniqueness ----------------------------------------
-
     def test_packaging_barcode_is_unique_per_company_not_globally(self):
-        """A global `unique(barcode)` contradicted `product.product`, whose
-        barcodes are explicitly per-company."""
         company_a = self.env["res.company"].create({"name": "PkgCoA"})
         company_b = self.env["res.company"].create({"name": "PkgCoB"})
         uom = self.env.ref("uom.product_uom_unit")
@@ -316,7 +254,6 @@ class TestProductAuditFixes(ProductCommon):
                 "company_id": company_a.id,
             }
         )
-        # Same barcode, other company: allowed, exactly like product barcodes.
         self.env["product.uom"].create(
             {
                 "product_id": products[company_b].id,
@@ -354,8 +291,6 @@ class TestProductAuditFixes(ProductCommon):
             self.env.flush_all()
 
     def test_product_barcode_collides_with_same_company_packaging(self):
-        """The product-side and packaging-side checks must agree: within one
-        company a product may not take a barcode a packaging already uses."""
         company = self.env["res.company"].create({"name": "PkgCoSym"})
         uom = self.env.ref("uom.product_uom_unit")
         template = self.env["product.template"].create(
@@ -380,11 +315,7 @@ class TestProductAuditFixes(ProductCommon):
             )
             self.env.flush_all()
 
-    # -- multi-company record rules -------------------------------------------
-
     def test_packaging_not_visible_across_companies(self):
-        """`product.uom` has a real `company_id` and employee read access, but
-        no record rule -- packaging barcodes leaked across companies."""
         company_a = self.env["res.company"].create({"name": "RuleCoA"})
         company_b = self.env["res.company"].create({"name": "RuleCoB"})
         uom = self.env.ref("uom.product_uom_unit")
@@ -447,9 +378,6 @@ class TestProductAuditFixes(ProductCommon):
         )
 
     def test_label_layout_wizard_is_private_to_its_creator(self):
-        """Transient models get no implicit per-user isolation and the wizard is
-        reachable by id from the report payload, so any employee could read or
-        overwrite another user's in-flight wizard."""
         user_a = new_test_user(self.env, login="label_a", groups="base.group_user")
         user_b = new_test_user(self.env, login="label_b", groups="base.group_user")
         wizard = (
@@ -464,16 +392,7 @@ class TestProductAuditFixes(ProductCommon):
                 ["print_format"]
             )
 
-    # -- variant combination integrity ---------------------------------------
-
     def test_variant_value_alias_keeps_combination_indices_in_sync(self):
-        """`product_template_variant_value_ids` shares the
-        `product_variant_combination` table with
-        `product_template_attribute_value_ids`, but only the latter fed
-        `combination_indices`. Writing through the alias moved the relation
-        while the stored index kept its old value, so two *active* variants
-        could end up on the same combination despite `_combination_unique`.
-        """
         attribute = self.env["product.attribute"].create(
             {
                 "name": "AliasColor",
@@ -499,15 +418,13 @@ class TestProductAuditFixes(ProductCommon):
         first, second = template.product_variant_ids
         target = second.product_template_attribute_value_ids
 
-        # A direct write (as an RPC could do) must either be refused or keep the
-        # index consistent -- never leave the two out of sync.
         try:
             first.write(
                 {"product_template_variant_value_ids": [Command.set(target.ids)]}
             )
             self.env.flush_all()
         except Exception:
-            return  # refused outright: invariant preserved
+            return
         self.env.invalidate_all()
         self.assertEqual(
             first.combination_indices,
@@ -516,18 +433,12 @@ class TestProductAuditFixes(ProductCommon):
         )
 
     def test_variant_value_alias_is_readonly(self):
-        """The alias is a display-only view of the combination."""
         field = self.env["product.product"]._fields[
             "product_template_variant_value_ids"
         ]
         self.assertTrue(field.readonly)
 
-    # -- price/UoM compatibility ---------------------------------------------
-
     def test_price_in_incompatible_uom_raises(self):
-        """`uom._compute_price` scales by the factor ratio with no compatibility
-        check, so pricing a Units product "in Liters" returned list_price x 1000
-        instead of failing."""
         liter = self.env.ref("uom.product_uom_litre", raise_if_not_found=False)
         if not liter:
             self.skipTest("liter UoM not available")
@@ -543,7 +454,6 @@ class TestProductAuditFixes(ProductCommon):
             template.product_variant_id._compute_price("list_price", uom=liter)
 
     def test_price_in_compatible_uom_still_converts(self):
-        """The guard must not disturb legitimate conversions."""
         dozen = self.env.ref("uom.product_uom_dozen")
         unit = self.env.ref("uom.product_uom_unit")
         template = self.env["product.template"].create(
@@ -555,11 +465,7 @@ class TestProductAuditFixes(ProductCommon):
             places=6,
         )
 
-    # -- variant limit config parameter --------------------------------------
-
     def test_invalid_variant_limit_parameter_is_tolerated(self):
-        """A non-numeric `product.dynamic_variant_limit` (free-text system
-        parameter) used to abort variant generation with a bare ValueError."""
         self.env["ir.config_parameter"].sudo().set_param(
             "product.dynamic_variant_limit", "not-a-number"
         )
@@ -581,12 +487,7 @@ class TestProductAuditFixes(ProductCommon):
         )
         self.assertTrue(template.product_variant_ids)
 
-    # -- catalog action context ----------------------------------------------
-
     def test_catalog_action_drops_caller_defaults(self):
-        """The catalog action forwarded the order form's whole context, so a
-        product created from it inherited `default_*` keys belonging to a
-        sale/purchase order."""
         order = self.env["mixin.product.catalog"]
         context = {
             "default_partner_id": 42,
@@ -600,11 +501,7 @@ class TestProductAuditFixes(ProductCommon):
             "allowed_company_ids", forwarded, "non-default keys must be preserved"
         )
 
-    # -- pricelist report -----------------------------------------------------
-
     def test_pricelist_report_rejects_oversized_product_list(self):
-        """`quantities` was capped but `active_ids` was not, so one request could
-        request millions of price computations."""
         Report = self.env["report.product.report_pricelist"]
         with self.assertRaises(UserError):
             Report._get_report_data(
@@ -616,10 +513,6 @@ class TestProductAuditFixes(ProductCommon):
             )
 
     def test_pricelist_report_batches_price_computation(self):
-        """Pricing was done one (product, quantity) pair at a time, costing a
-        full rule search per cell. Adding products must not add queries
-        proportionally.
-        """
         Report = self.env["report.product.report_pricelist"]
         pricelist = self.env["product.pricelist"].create({"name": "ReportPL"})
         templates = self.env["product.template"].create(
@@ -650,8 +543,6 @@ class TestProductAuditFixes(ProductCommon):
         )
 
     def test_pricelist_report_prices_are_unchanged_by_batching(self):
-        """Behaviour lock: the batched path must return the same prices as
-        pricing each product individually."""
         Report = self.env["report.product.report_pricelist"]
         pricelist = self.env["product.pricelist"].create(
             {
@@ -690,12 +581,6 @@ class TestProductAuditFixes(ProductCommon):
                 )
 
     def test_attribute_config_not_visible_across_companies(self):
-        """`product.template.attribute.{line,value,exclusion}` carry a stored
-        `product_tmpl_id` and are readable by every employee, but -- unlike
-        `product.product` -- they do not delegate to the rule-protected template
-        through `_inherits`. A user who could not see the template at all still
-        read which attributes it used and the `price_extra` of each value.
-        """
         company_a = self.env["res.company"].create({"name": "AttrCo A"})
         company_b = self.env["res.company"].create({"name": "AttrCo B"})
         attribute = self.env["product.attribute"].create(
@@ -755,13 +640,7 @@ class TestProductAuditFixes(ProductCommon):
             "its attribute values (and their price_extra) must be hidden too",
         )
 
-    # -- batching / wasted work ----------------------------------------------
-
     def test_tag_name_uniqueness_still_holds_when_batched(self):
-        """The check ran one `search_count` per record (37 queries for 30 tags,
-        now 8). Batching must not lose either duplicate case: against a stored
-        tag, and against another tag of the same batch.
-        """
         Tag = self.env["product.tag"]
         Tag.create({"name": "BatchTagA"})
 
@@ -771,16 +650,10 @@ class TestProductAuditFixes(ProductCommon):
         with self.assertRaises(ValidationError):
             Tag.create([{"name": "BatchTagB"}, {"name": "BatchTagB"}])
 
-        # Distinct names in one batch stay legal, and a no-op rewrite of a
-        # record's own name must not collide with itself.
         tags = Tag.create([{"name": "BatchTagC"}, {"name": "BatchTagD"}])
         tags[0].name = "BatchTagC"
 
     def test_chained_fixed_rule_does_not_evaluate_its_base_pricelist(self):
-        """A `fixed` rule returns its own amount before `_compute_base_price` is
-        reached, so batching its base pricelist ran a whole extra rule search and
-        price computation whose result was discarded.
-        """
         self._enable_pricelists()
         base_pricelist = self.env["product.pricelist"].create(
             {
@@ -829,9 +702,6 @@ class TestProductAuditFixes(ProductCommon):
         )
 
     def test_chained_formula_rule_still_evaluates_its_base_pricelist(self):
-        """The counterpart: a rule that *does* read the base price must keep
-        getting it, so the skip above cannot be over-eager.
-        """
         self._enable_pricelists()
         base_pricelist = self.env["product.pricelist"].create(
             {
@@ -858,25 +728,11 @@ class TestProductAuditFixes(ProductCommon):
                 ],
             }
         )
-        # 20.00 list price -> 50% off in the base -> 10.00 -> 10% off -> 9.00
         self.assertAlmostEqual(
             top_pricelist._get_product_price(self.product, 1.0), 9.0, places=6
         )
 
     def test_value_archived_by_one_line_is_revived_by_a_later_one(self):
-        """`_update_product_template_attribute_values` resolves re-usable
-        archived values in one query for the whole recordset instead of one
-        `_read_group` per line. The pool it builds has to stay in step with the
-        loop: a value archived while processing one line must still be
-        available to a later line of the same call, which is the only reason
-        the query used to sit inside the loop.
-
-        Without that bookkeeping the later line silently creates a *new*
-        `product.template.attribute.value` instead of reviving the existing one
-        -- a different record, so its `price_extra` is lost and anything holding
-        the old one (a variant, through the restrict FK of
-        `product_variant_combination`) is left pointing at a deleted row.
-        """
         attribute = self.env["product.attribute"].create(
             {
                 "name": "PoolAttr",
@@ -889,8 +745,6 @@ class TestProductAuditFixes(ProductCommon):
             }
         )
         value_x, value_y, value_z = attribute.value_ids
-        # Two lines carrying the *same* attribute is supported (see the note on
-        # the model), and is what puts both lines in one sync call's scope.
         template = self.env["product.template"].create(
             {
                 "name": "PoolProbe",
@@ -917,7 +771,6 @@ class TestProductAuditFixes(ProductCommon):
         value_for_x.price_extra = 42.0
         original_id = value_for_x.id
 
-        # Move X from the first line to the second, in a single sync call.
         no_sync = {"update_product_template_attribute_values": False}
         first_line.with_context(**no_sync).write(
             {"value_ids": [Command.set(value_y.ids)]}
@@ -944,13 +797,7 @@ class TestProductAuditFixes(ProductCommon):
         self.assertTrue(values_for_x.ptav_active)
         self.assertEqual(values_for_x.price_extra, 42.0, "its configuration survives")
 
-    # -- variant generation opt-out -------------------------------------------
-
     def test_reactivation_respects_the_variant_generation_opt_out(self):
-        """`create_product_product=False` means "this caller manages variants
-        itself" (the import path). The reactivation branch of `write` ignored it
-        and generated variants behind such a caller's back.
-        """
         template = self.env["product.template"].create({"name": "OptOutProbe"})
         variant = template.product_variant_id
         template.action_archive()
@@ -967,19 +814,11 @@ class TestProductAuditFixes(ProductCommon):
             "the opt-out must be honoured on reactivation too",
         )
 
-        # Without the opt-out, reactivation still regenerates as before.
         template.write({"active": True})
         self.env.flush_all()
         self.assertTrue(variant.active)
 
-    # -- attribute value deletion --------------------------------------------
-
     def test_deleting_value_used_on_archived_template_archives_it(self):
-        """`_unlink_except_used_on_product` only looks at lines of *active*
-        templates, so a value used solely on an archived template passed every
-        Python guard and then hit the restrict FK on the attribute-line relation
-        -- surfacing a raw RestrictViolation traceback instead of a handled
-        outcome."""
         attribute = self.env["product.attribute"].create(
             {
                 "name": "ArchAttr",
@@ -1010,24 +849,10 @@ class TestProductAuditFixes(ProductCommon):
         value.unlink()
         self.env.flush_all()
 
-        # Archived rather than deleted, and above all: no database error.
         self.assertTrue(value.exists(), "the value must survive as archived")
         self.assertFalse(value.active)
 
     def test_deleting_value_left_on_an_archived_variant_archives_it(self):
-        """The sibling of the case above, for the *variant* relation.
-
-        `unlink` grouped the linked template values with ``|=`` starting from a
-        recordset built on the bare environment, which discarded the
-        ``active_test=False`` the search had been given: unions take the left
-        operand's environment, and the ORM applies the active filter when the
-        m2m is read, from the reading record's context. `linked_products` was
-        therefore always active-only, so `not active_linked and linked` could
-        never be true and a value whose only remaining trace was an archived
-        variant fell through to `super().unlink()` -- where the RESTRICT foreign
-        key of `product_variant_combination` turned it into a raw
-        RestrictViolation traceback.
-        """
         attribute = self.env["product.attribute"].create(
             {
                 "name": "ArchVariantAttr",
@@ -1059,12 +884,6 @@ class TestProductAuditFixes(ProductCommon):
         red_variant = red_ptav.ptav_product_variant_ids
         red_variant.action_archive()
 
-        # Detach the value from the line *without* running the value/variant
-        # sync, so the archived template value keeps pointing at the archived
-        # variant. That is exactly the state the sync itself leaves behind when
-        # something (a stock move, an order line, a combo item...) blocks the
-        # deletion of that variant -- reproduced here without depending on a
-        # module that provides such a reference.
         line.with_context(update_product_template_attribute_values=False).write(
             {"value_ids": [Command.set(blue.ids)]}
         )
@@ -1085,16 +904,6 @@ class TestProductAuditFixes(ProductCommon):
         self.assertFalse(red.active)
 
     def test_deleting_value_an_active_product_still_offers_raises(self):
-        """The archive fallback must stop at values an active product still uses,
-        even when every variant carrying them is archived.
-
-        Upstream archives here (and so did the first cut of the fix above), which
-        is worse than the error it replaces: the line's `value_ids` stops listing
-        the archived value while the stored `value_count` and the *active*
-        `product.template.attribute.value` keep counting it, and the next
-        `_create_variant_ids` resurrects the variant the user had archived. The
-        explanatory UserError has to win instead.
-        """
         attribute = self.env["product.attribute"].create(
             {
                 "name": "LiveLineAttr",
@@ -1131,14 +940,12 @@ class TestProductAuditFixes(ProductCommon):
         with self.assertRaises(UserError):
             red.unlink()
 
-        # And nothing was archived on the way to the error.
         self.env.invalidate_all()
         self.assertTrue(red.active)
         self.assertEqual(line.value_ids, attribute.value_ids)
         self.assertEqual(line.value_count, 2)
 
     def test_deleting_unused_value_still_deletes(self):
-        """The archive fallback must not swallow ordinary deletions."""
         attribute = self.env["product.attribute"].create(
             {
                 "name": "FreeAttr",
@@ -1153,14 +960,7 @@ class TestProductAuditFixes(ProductCommon):
         self.env.flush_all()
         self.assertFalse(value.exists(), "an unused value must be deleted outright")
 
-    # -- catalog controller ---------------------------------------------------
-
     def _catalog_controller(self):
-        """`_get_order` reads `request.env`, so it needs a request. The catalog
-        routes have no concrete order model inside `product` itself (sale /
-        purchase provide one), which is why this guard had no coverage at all --
-        stub the request instead of pulling in a dependency.
-        """
         from unittest.mock import patch
 
         from odoo.addons.product.controllers import catalog
@@ -1170,20 +970,14 @@ class TestProductAuditFixes(ProductCommon):
         ), catalog.ProductCatalogController
 
     def test_catalog_get_order_rejects_unknown_model(self):
-        """Only models implementing `mixin.product.catalog` are valid targets;
-        `res_model` comes straight from the client."""
         request_patch, controller = self._catalog_controller()
         with request_patch, self.assertRaises(UserError):
             controller._get_order("res.partner", 1)
 
     def test_catalog_get_order_rejects_non_numeric_id(self):
-        """A non-numeric id is client-provided input: it must produce a normal
-        user error, not a bare ValueError (HTTP 500)."""
         request_patch, controller = self._catalog_controller()
         with request_patch, self.assertRaises(UserError):
             controller._get_order("mixin.product.catalog", "not-an-int")
-
-    # -- multi-variant template cost ------------------------------------------
 
     def _template_with_two_costed_variants(self, name):
         attribute = self.env["product.attribute"].create(
@@ -1213,12 +1007,6 @@ class TestProductAuditFixes(ProductCommon):
         return template
 
     def test_multi_variant_template_cost_falls_back_to_first_variant(self):
-        """Contract lock, not a bug report.
-
-        `standard_price` is stored per variant, so a multi-variant template
-        reads 0 and `_compute_price` falls back to the first variant's cost --
-        otherwise a cost-based pricelist would price the template free.
-        """
         template = self._template_with_two_costed_variants("CostFallback")
         first, second = template.product_variant_ids
         first.standard_price = 10.0
@@ -1232,11 +1020,6 @@ class TestProductAuditFixes(ProductCommon):
         )
 
     def test_multi_variant_template_cost_follows_variant_order(self):
-        """The sharp edge of the fallback, pinned so it cannot regress unnoticed:
-        "first variant" means `product.product._order` ("default_code, name,
-        id"), so changing an internal reference changes which variant's cost the
-        template is priced from -- without any cost being edited.
-        """
         template = self._template_with_two_costed_variants("CostOrder")
         first, second = template.product_variant_ids
         first.standard_price = 10.0
@@ -1247,7 +1030,6 @@ class TestProductAuditFixes(ProductCommon):
             template._compute_price("standard_price")[template.id], 10.0, places=2
         )
 
-        # Give the *other* variant an internal reference that sorts first.
         second.default_code = "AAA-first"
         self.env.flush_all()
         self.env.invalidate_all()
@@ -1259,31 +1041,18 @@ class TestProductAuditFixes(ProductCommon):
             msg="cost basis follows variant ordering, not any cost edit",
         )
 
-    # -- variant cache scoping ------------------------------------------------
-
     def _warm_caches(self, template):
-        """Fill one product-variant cache entry and several 'default' ones."""
         self.env["ir.rule"]._compute_domain("product.template", "read")
         self.env["ir.rule"]._compute_domain("res.partner", "read")
         self.env["ir.model.access"].check("product.template", "read", False)
         template._get_first_possible_variant_id()
 
     def test_variant_cache_invalidation_spares_unrelated_caches(self):
-        """Variant churn used to clear the whole "default" ormcache group -- so
-        archiving one variant evicted record-rule domains, ACL checks and xmlid
-        lookups in this and every other worker. Those live in "default"; the two
-        variant lookups now live in "product_variants".
-        """
         lrus = self.env.registry.ormcache_lrus
         template = self.env["product.template"].create({"name": "CacheScopeProbe"})
         self.env.flush_all()
         self._warm_caches(template)
 
-        # Compare the *keys*, not their number. A count is only stable for a
-        # given set of installed modules: the write below legitimately warms a
-        # new "default" entry once enough modules hook it (measured: 10 with
-        # `product` alone, 11 once industry_fsm_sale's dependencies are in), and
-        # this assertion is about eviction, not about growth.
         default_before = set(lrus["default"])
         variants_before = len(lrus["product_variants"])
         self.assertTrue(default_before, "sanity: 'default' is warm")
@@ -1301,9 +1070,6 @@ class TestProductAuditFixes(ProductCommon):
         )
 
     def test_clearing_default_still_clears_variant_caches(self):
-        """Backward compatibility: "product_variants" is a member of the
-        "default" composite, so code clearing the broad group (outside this
-        module) keeps invalidating variant lookups as it did before."""
         lrus = self.env.registry.ormcache_lrus
         template = self.env["product.template"].create({"name": "CacheCompatProbe"})
         self.env.flush_all()
@@ -1314,23 +1080,7 @@ class TestProductAuditFixes(ProductCommon):
 
         self.assertEqual(len(lrus["product_variants"]), 0)
 
-    # -- multi-company pricing contract ---------------------------------------
-
     def test_pricing_follows_the_environment_company_not_the_pricelist_owner(self):
-        """Contract lock, not a bug report.
-
-        Company-specific currency rates and the company-dependent
-        `standard_price` are resolved against `self.env.company`, so the *same*
-        pricelist can return different prices to readers in different companies.
-        That is by design: `company_id` on a pricelist marks ownership, and every
-        caller sets the company of the document being priced first (e.g.
-        `order.with_company(order.company_id)` in `sale.order`, `sale.order.line`
-        and the catalog controller).
-
-        This test exists so that a future "fix" making pricing prefer
-        `pricelist.company_id` fails loudly here instead of silently changing
-        inter-company prices.
-        """
         usd = self.env.ref("base.USD")
         usd.active = True
         company_a = self.env["res.company"].create(
@@ -1347,7 +1097,6 @@ class TestProductAuditFixes(ProductCommon):
         product.with_company(company_b).standard_price = 70.0
         self.env.flush_all()
 
-        # A cost-based pricelist owned by company B.
         pricelist = self.env["product.pricelist"].create(
             {
                 "name": "CtxPL",
@@ -1379,8 +1128,6 @@ class TestProductAuditFixes(ProductCommon):
         self.assertAlmostEqual(price_from_a, 10.0, places=2)
         self.assertAlmostEqual(price_from_b, 70.0, places=2)
 
-    # -- duplication of a translated name -------------------------------------
-
     def _spanish_product(self):
         self.env["res.lang"]._activate_lang("es_MX")
         template = self.env["product.template"].create({"name": "Blue Widget"})
@@ -1389,12 +1136,6 @@ class TestProductAuditFixes(ProductCommon):
         return template
 
     def test_duplicating_in_one_language_suffixes_every_language(self):
-        """`copy_data` rewrites `name` to "<name> (copy)" using only the
-        duplicating user's language; `copy_translations` then restored the
-        source record's translations for every *other* language, so a copy made
-        by a Spanish user kept the original's exact en_US name -- an English
-        user saw two products with identical names.
-        """
         template = self._spanish_product()
 
         copy = template.with_context(lang="es_MX").copy()
@@ -1412,9 +1153,6 @@ class TestProductAuditFixes(ProductCommon):
         self.assertIn("Artilugio Azul", name_es, "the Spanish name keeps its own term")
 
     def test_duplicating_in_the_base_language_also_suffixes_translations(self):
-        """The mirror case: duplicating as an en_US user used to leave the
-        Spanish translation as the source product's unsuffixed name.
-        """
         template = self._spanish_product()
 
         copy = template.with_context(lang="en_US").copy()
@@ -1424,10 +1162,6 @@ class TestProductAuditFixes(ProductCommon):
         self.assertIn("Artilugio Azul", copy.with_context(lang="es_MX").name)
 
     def test_renaming_a_copy_in_one_language_leaves_the_others_distinguishable(self):
-        """Writing a translated field in one language only ever updates that
-        language -- by design.  What must not happen is the other languages
-        falling back to the *source* product's name.
-        """
         template = self._spanish_product()
 
         copy = template.with_context(lang="es_MX").copy()
@@ -1438,9 +1172,6 @@ class TestProductAuditFixes(ProductCommon):
         self.assertNotEqual(copy.with_context(lang="en_US").name, "Blue Widget")
 
     def test_explicit_default_name_wins_in_every_language(self):
-        """A caller-supplied `name` default must not be suffixed or
-        per-language patched: `copy_translations` has to leave it alone.
-        """
         template = self._spanish_product()
 
         copy = template.with_context(lang="es_MX").copy({"name": "Fixed Name"})
@@ -1450,9 +1181,6 @@ class TestProductAuditFixes(ProductCommon):
         self.assertEqual(copy.with_context(lang="es_MX").name, "Fixed Name")
 
     def test_duplicating_a_variant_suffixes_every_language(self):
-        """`product.product.copy` delegates to the template, so it must inherit
-        the same per-language suffixing.
-        """
         template = self._spanish_product()
 
         variant = template.product_variant_id.with_context(lang="es_MX").copy()
@@ -1465,14 +1193,6 @@ class TestProductAuditFixes(ProductCommon):
 
 @tagged("post_install", "-at_install")
 class TestAttributeNameUniqueness(ProductCommon):
-    """What `mixin.catalog` does and does not enforce on the attribute family.
-
-    `mixin.attribute.value` re-scopes the inherited rule to `attribute_id`, and
-    `mixin.attribute` declines it outright. Both halves are asserted here
-    because both are claims about product data rather than about the mixin:
-    values of one attribute are a closed vocabulary, attributes themselves are
-    not.
-    """
 
     @mute_logger("odoo.sql_db")
     def test_duplicate_value_in_one_attribute_is_refused(self):
@@ -1499,7 +1219,6 @@ class TestAttributeNameUniqueness(ProductCommon):
         self.env.flush_all()
 
     def test_duplicate_attribute_names_are_allowed(self):
-        """product ships eight attributes; a database may add same-named ones."""
         Attribute = self.env["product.attribute"]
         first = Attribute.create({"name": "Diameter"})
         second = Attribute.create({"name": "Diameter"})
@@ -1507,14 +1226,6 @@ class TestAttributeNameUniqueness(ProductCommon):
         self.assertNotEqual(first.id, second.id)
 
     def test_the_opt_out_stays_on_the_concrete_model(self):
-        """mixin.attribute must not decline the rule on everyone's behalf.
-
-        An opt-out is a real definition rather than an absence, so declaring it
-        on the shared mixin wins the MRO over `mixin.catalog`'s rule for *every*
-        consumer -- and because `Index.apply_to_database` drops before it
-        creates, it would delete the unique index of consumers whose attribute
-        vocabulary is flat, on their next upgrade, with nothing logged.
-        """
         mixin = self.env.registry["mixin.attribute"]
         declared = [
             obj

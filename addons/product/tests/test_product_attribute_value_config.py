@@ -237,7 +237,6 @@ class TestProductAttributeValueCommon(BaseCommon):
             ]
         )
 
-        # Setup extra prices
         cls._setup_ssd_attribute_line()
         cls._setup_ram_attribute_line()
         cls._setup_hdd_attribute_line()
@@ -252,7 +251,6 @@ class TestProductAttributeValueCommon(BaseCommon):
 
     @classmethod
     def _setup_ram_attribute_line(cls):
-        """Setup extra prices"""
 
         cls.computer_ram_attribute_lines.product_template_value_ids[0].price_extra = 20
         cls.computer_ram_attribute_lines.product_template_value_ids[1].price_extra = 40
@@ -268,7 +266,6 @@ class TestProductAttributeValueCommon(BaseCommon):
 
     @classmethod
     def _setup_ssd_attribute_line(cls):
-        """Setup extra prices"""
 
         cls.computer_ssd_attribute_lines.product_template_value_ids[0].price_extra = 200
         cls.computer_ssd_attribute_lines.product_template_value_ids[1].price_extra = 400
@@ -283,7 +280,6 @@ class TestProductAttributeValueCommon(BaseCommon):
 
     @classmethod
     def _setup_hdd_attribute_line(cls):
-        """Setup extra prices"""
 
         cls.computer_hdd_attribute_lines.product_template_value_ids[0].price_extra = 2
         cls.computer_hdd_attribute_lines.product_template_value_ids[1].price_extra = 4
@@ -326,14 +322,6 @@ class TestProductAttributeValueCommon(BaseCommon):
     def _get_product_template_attribute_value(
         self, product_attribute_value, model=False
     ):
-        """
-        Return the `product.template.attribute.value` matching
-            `product_attribute_value` for self.
-
-        :param: recordset of one product.attribute.value
-        :return: recordset of one product.template.attribute.value if found
-            else empty
-        """
         if not model:
             model = self.computer
         return model.valid_product_template_attribute_line_ids.filtered(
@@ -384,12 +372,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
         )
 
     def test_complete_inverse_exclusions_symmetry(self):
-        """Regression: the completed exclusion mapping consumed by the JS
-        configurator (`_get_attribute_exclusions()['exclusions']`) must be
-        symmetric. A single one-directional exclusion where one value excludes
-        two values that straddle it in id-order used to silently drop one
-        direction, so the configurator failed to grey out an excluded value.
-        """
         Attribute = self.env["product.attribute"]
         color, size, material = Attribute.create(
             [
@@ -445,7 +427,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
         red = ptav(color.value_ids[0])
         s = ptav(size.value_ids[0])
         cotton = ptav(material.value_ids[0])
-        # Size S excludes Red (lower id) and Cotton (higher id): a "straddle".
         s.write(
             {
                 "exclude_for": [
@@ -477,33 +458,22 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
         computer_ram_16 = self._get_product_template_attribute_value(self.ram_16)
         computer_hdd_1 = self._get_product_template_attribute_value(self.hdd_1)
 
-        # completely defined variant
         combination = computer_ssd_256 + computer_ram_8 + computer_hdd_1
         ok_variant = self.computer._get_variant_for_combination(combination)
         self.assertEqual(ok_variant.product_template_attribute_value_ids, combination)
 
-        # over defined variant
         combination = (
             computer_ssd_256 + computer_ram_8 + computer_ram_16 + computer_hdd_1
         )
         variant = self.computer._get_variant_for_combination(combination)
         self.assertEqual(len(variant), 0)
 
-        # under defined variant
         combination = computer_ssd_256 + computer_ram_8
         variant = self.computer._get_variant_for_combination(combination)
         self.assertFalse(variant)
 
     @mute_logger("odoo.models.unlink")
     def test_product_filtered_exclude_for(self):
-        """
-        Super Computer has 18 variants total (2 ssd * 3 ram * 3 hdd)
-        RAM 16 excludes HDD 1, that matches 2 variants:
-        - SSD 256 RAM 16 HDD 1
-        - SSD 512 RAM 16 HDD 1
-
-        => There has to be 16 variants left when filtered
-        """
         computer_ssd_256 = self._get_product_template_attribute_value(self.ssd_256)
         computer_ssd_512 = self._get_product_template_attribute_value(self.ssd_512)
         computer_ram_8 = self._get_product_template_attribute_value(self.ram_8)
@@ -530,14 +500,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
         )
 
     def test_children_product_filtered_exclude_for(self):
-        """
-        Super Computer Case has 3 variants total (3 size)
-        Reference product Computer with HDD 4 excludes Size M
-        The following variant will be excluded:
-        - Size M
-
-        => There has to be 2 variants left when filtered
-        """
         computer_hdd_4 = self._get_product_template_attribute_value(self.hdd_4)
         computer_size_m = self._get_product_template_attribute_value(
             self.size_m, self.computer_case
@@ -560,32 +522,27 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
         computer_hdd_1 = self._get_product_template_attribute_value(self.hdd_1)
         self._add_exclude(computer_ram_16, computer_hdd_1)
 
-        # CASE: basic
         self.assertTrue(
             self.computer._is_combination_possible(
                 computer_ssd_256 + computer_ram_8 + computer_hdd_1
             )
         )
 
-        # CASE: ram 16 excluding hdd1
         self.assertFalse(
             self.computer._is_combination_possible(
                 computer_ssd_256 + computer_ram_16 + computer_hdd_1
             )
         )
 
-        # CASE: under defined combination
         self.assertFalse(
             self.computer._is_combination_possible(computer_ssd_256 + computer_ram_16)
         )
 
-        # CASE: no combination, no variant, just return the only variant
         mouse = self.env["product.template"].create({"name": "Mouse"})
         self.assertTrue(
             mouse._is_combination_possible(self.env["product.template.attribute.value"])
         )
 
-        # prep work for the last part of the test
         color_attribute = self.env["product.attribute"].create({"name": "Color"})
         color_red = self.env["product.attribute.value"].create(
             {
@@ -618,14 +575,12 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
             computer_ssd_256 + computer_ram_8 + computer_hdd_1
         )
 
-        # CASE: wrong attributes (mouse_color_red not on computer)
         self.assertFalse(
             self.computer._is_combination_possible(
                 computer_ssd_256 + computer_ram_16 + mouse_color_red
             )
         )
 
-        # CASE: parent ok
         self.assertTrue(
             self.computer._is_combination_possible(
                 computer_ssd_256 + computer_ram_8 + computer_hdd_1, mouse_color_red
@@ -637,21 +592,18 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
             )
         )
 
-        # CASE: parent exclusion but good direction (parent is directional)
         self.assertTrue(
             self.computer._is_combination_possible(
                 computer_ssd_256 + computer_ram_8 + computer_hdd_1, mouse_color_green
             )
         )
 
-        # CASE: parent exclusion and wrong direction (parent is directional)
         self.assertFalse(
             mouse._is_combination_possible(
                 mouse_color_green, computer_ssd_256 + computer_ram_8 + computer_hdd_1
             )
         )
 
-        # CASE: deleted combination
         variant.unlink()
         self.assertFalse(
             self.computer._is_combination_possible(
@@ -659,8 +611,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
             )
         )
 
-        # CASE: if multiple variants exist for the same combination and at least
-        # one of them is not archived, the combination is possible
         combination = computer_ssd_256 + computer_ram_8 + computer_hdd_1
         self.env["product.product"].create(
             {
@@ -694,7 +644,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
         computer_hdd_4 = self._get_product_template_attribute_value(self.hdd_4)
         self._add_exclude(computer_ram_16, computer_hdd_1)
 
-        # Basic case: test all iterations of generator
         gen = self.computer._get_possible_combinations()
         self.assertEqual(next(gen), computer_ssd_256 + computer_ram_8 + computer_hdd_1)
         self.assertEqual(next(gen), computer_ssd_256 + computer_ram_8 + computer_hdd_2)
@@ -714,23 +663,18 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
         self.assertEqual(next(gen), computer_ssd_512 + computer_ram_32 + computer_hdd_4)
         self.assertIsNone(next(gen, None))
 
-        # Give priority to ram_16 but it is not allowed by hdd_1 so it should return hhd_2 instead
-        # Test invalidate_cache on product.attribute.value write
         computer_ram_16.product_attribute_value_id.sequence = -1
         self.assertEqual(
             self.computer._get_first_possible_combination(),
             computer_ssd_256 + computer_ram_16 + computer_hdd_2,
         )
 
-        # Move down the ram, so it will try to change the ram instead of the hdd
-        # Test invalidate_cache on product.attribute write
         self.ram_attribute.sequence = 10
         self.assertEqual(
             self.computer._get_first_possible_combination(),
             computer_ssd_256 + computer_ram_8 + computer_hdd_1,
         )
 
-        # Give priority to ram_32 and is allowed with the rest so it should return it
         self.ram_attribute.sequence = 2
         computer_ram_16.product_attribute_value_id.sequence = 2
         computer_ram_32.product_attribute_value_id.sequence = -1
@@ -739,7 +683,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
             computer_ssd_256 + computer_ram_32 + computer_hdd_1,
         )
 
-        # Give priority to ram_16 but now it is not allowing any hdd so it should return ram_8 instead
         computer_ram_32.product_attribute_value_id.sequence = 3
         computer_ram_16.product_attribute_value_id.sequence = -1
         self._add_exclude(computer_ram_16, computer_hdd_2)
@@ -749,7 +692,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
             computer_ssd_256 + computer_ram_8 + computer_hdd_1,
         )
 
-        # Only the last combination is possible
         computer_ram_16.product_attribute_value_id.sequence = 2
         self._add_exclude(computer_ram_8, computer_hdd_1)
         self._add_exclude(computer_ram_8, computer_hdd_2)
@@ -762,17 +704,12 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
             computer_ssd_512 + computer_ram_32 + computer_hdd_4,
         )
 
-        # Not possible to add an exclusion when only one variant is left -> it deletes the product template associated to it
         with self.assertRaises(UserError):
             self._add_exclude(computer_ram_32, computer_hdd_4)
 
-        # If an exclusion rule deletes all variants at once it does not delete the template.
-        # Here we can test `_get_first_possible_combination` with a product template with no variants
-        # Deletes all exclusions
         for exclusion in computer_ram_32.exclude_for:
             computer_ram_32.write({"exclude_for": [(2, exclusion.id, 0)]})
 
-        # Activates all exclusions at once
         computer_ram_32.write(
             {
                 "exclude_for": [
@@ -807,13 +744,11 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
         gen = self.computer._get_possible_combinations()
         self.assertIsNone(next(gen, None))
 
-        # Testing parent case
         mouse = self.env["product.template"].create({"name": "Mouse"})
         self.assertTrue(
             mouse._is_combination_possible(self.env["product.template.attribute.value"])
         )
 
-        # prep work for the last part of the test
         color_attribute = self.env["product.attribute"].create({"name": "Color"})
         color_red = self.env["product.attribute.value"].create(
             {
@@ -848,7 +783,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
             mouse_color_green,
         )
 
-        # Test to see if several attribute_line for same attribute is well handled
         color_blue = self.env["product.attribute.value"].create(
             {
                 "name": "Blue",
@@ -876,7 +810,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
             mouse_color_red + mouse_color_yellow,
         )
 
-        # Making sure it's not extremely slow (has to discard invalid combinations early !)
         product_template = self.env["product.template"].create(
             {
                 "name": "many combinations",
@@ -884,7 +817,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
         )
 
         for i in range(10):
-            # create the attributes
             product_attribute = self.env["product.attribute"].create(
                 {
                     "name": "att %s" % i,
@@ -894,7 +826,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
             )
 
             for j in range(50):
-                # create the attribute values
                 value = self.env["product.attribute.value"].create(
                     [
                         {
@@ -905,7 +836,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
                     ]
                 )
 
-            # set attribute and attribute values on the template
             self.env["product.template.attribute.line"].create(
                 [
                     {
@@ -952,7 +882,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
             product_template._get_first_possible_combination(), combination
         )
         elapsed = time.time() - started_at
-        # It should be about instantaneous, 0.5 to avoid false positives
         self.assertLess(elapsed, 0.5)
 
     @mute_logger("odoo.models.unlink")
@@ -967,12 +896,10 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
         computer_hdd_4 = self._get_product_template_attribute_value(self.hdd_4)
         self._add_exclude(computer_ram_16, computer_hdd_1)
 
-        # CASE nothing special (test 2 iterations)
         gen = self.computer._get_closest_possible_combinations(None)
         self.assertEqual(next(gen), computer_ssd_256 + computer_ram_8 + computer_hdd_1)
         self.assertEqual(next(gen), computer_ssd_256 + computer_ram_8 + computer_hdd_2)
 
-        # CASE contains computer_hdd_1 (test all iterations)
         gen = self.computer._get_closest_possible_combinations(computer_hdd_1)
         self.assertEqual(next(gen), computer_ssd_256 + computer_ram_8 + computer_hdd_1)
         self.assertEqual(next(gen), computer_ssd_256 + computer_ram_32 + computer_hdd_1)
@@ -980,13 +907,11 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
         self.assertEqual(next(gen), computer_ssd_512 + computer_ram_32 + computer_hdd_1)
         self.assertIsNone(next(gen, None))
 
-        # CASE contains computer_hdd_2
         self.assertEqual(
             self.computer._get_closest_possible_combination(computer_hdd_2),
             computer_ssd_256 + computer_ram_8 + computer_hdd_2,
         )
 
-        # CASE contains computer_hdd_2, computer_ram_16
         self.assertEqual(
             self.computer._get_closest_possible_combination(
                 computer_hdd_2 + computer_ram_16
@@ -994,7 +919,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
             computer_ssd_256 + computer_ram_16 + computer_hdd_2,
         )
 
-        # CASE invalid combination (excluded):
         self.assertEqual(
             self.computer._get_closest_possible_combination(
                 computer_hdd_1 + computer_ram_16
@@ -1002,7 +926,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
             computer_ssd_256 + computer_ram_8 + computer_hdd_1,
         )
 
-        # CASE invalid combination (too much):
         self.assertEqual(
             self.computer._get_closest_possible_combination(
                 computer_ssd_256 + computer_ram_8 + computer_hdd_4 + computer_hdd_2
@@ -1010,7 +933,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
             computer_ssd_256 + computer_ram_8 + computer_hdd_4,
         )
 
-        # Make sure this is not extremely slow:
         product_template = self.env["product.template"].create(
             {
                 "name": "many combinations",
@@ -1018,7 +940,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
         )
 
         for i in range(10):
-            # create the attributes
             product_attribute = self.env["product.attribute"].create(
                 {
                     "name": "att %s" % i,
@@ -1028,7 +949,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
             )
 
             for j in range(10):
-                # create the attribute values
                 self.env["product.attribute.value"].create(
                     [
                         {
@@ -1039,7 +959,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
                     ]
                 )
 
-            # set attribute and attribute values on the template
             self.env["product.template.attribute.line"].create(
                 [
                     {
@@ -1050,8 +969,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
                 ]
             )
 
-        # Get a value in the middle for each attribute to make sure it would
-        # take time to reach it (if looping one by one like before the fix).
         combination = self.env["product.template.attribute.value"]
         for ptal in product_template.attribute_line_ids:
             combination += ptal.product_template_value_ids[5]
@@ -1061,28 +978,21 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
             product_template._get_closest_possible_combination(combination), combination
         )
         elapsed = time.time() - started_at
-        # It should take around 10ms, but to avoid false positives we check an
-        # higher value. Before the fix it would take hours.
         self.assertLess(elapsed, 0.5)
 
     @mute_logger("odoo.models.unlink")
     def test_clear_caches(self):
-        """The goal of this test is to make sure the cache is invalidated when
-        it should be."""
         computer_ssd_256 = self._get_product_template_attribute_value(self.ssd_256)
         computer_ram_8 = self._get_product_template_attribute_value(self.ram_8)
         computer_hdd_1 = self._get_product_template_attribute_value(self.hdd_1)
         combination = computer_ssd_256 + computer_ram_8 + computer_hdd_1
 
-        # CASE: initial result of _get_variant_for_combination
         variant = self.computer._get_variant_for_combination(combination)
         self.assertTrue(variant)
 
-        # CASE: clear_caches in product.product unlink
         variant.unlink()
         self.assertFalse(self.computer._get_variant_for_combination(combination))
 
-        # CASE: clear_caches in product.product create
         variant = self.env["product.product"].create(
             {
                 "product_tmpl_id": self.computer.id,
@@ -1093,12 +1003,10 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
             variant, self.computer._get_variant_for_combination(combination)
         )
 
-        # CASE: clear_caches in product.product write
         variant.product_template_attribute_value_ids = False
         self.assertFalse(self.computer._get_variant_id_for_combination(combination))
 
     def test_constraints(self):
-        """The goal of this test is to make sure constraints are correct."""
         with self.assertRaises(
             UserError,
             msg="can't change variants creation mode of attribute used on product",
@@ -1166,10 +1074,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
 
     @mute_logger("odoo.models.unlink")
     def test_inactive_related_product_update(self):
-        """
-        Create a product and give it a product attribute then archive it, delete the product attribute,
-        unarchive the product and check that the product is not related to the product attribute.
-        """
         product_attribut = self.env["product.attribute"].create(
             {
                 "name": "PA",
@@ -1217,9 +1121,6 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
         )
 
     def test_copy_extra_prices_of_product_attribute_values(self):
-        """
-        Check that the extra price of attributes are copied along the duplication of a product.
-        """
         product_template = self.computer
         extra_prices = (
             product_template.attribute_line_ids.product_template_value_ids.mapped(
@@ -1235,30 +1136,21 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
         self.assertEqual(extra_prices, copied_extra_prices)
 
     def test_04_create_product_variant_non_dynamic(self):
-        """The goal of this test is to make sure the _create_product_variant does
-        not create variant if the type is not dynamic. It can however return a
-        variant if it already exists."""
         computer_ssd_256 = self._get_product_template_attribute_value(self.ssd_256)
         computer_ram_8 = self._get_product_template_attribute_value(self.ram_8)
         computer_ram_16 = self._get_product_template_attribute_value(self.ram_16)
         computer_hdd_1 = self._get_product_template_attribute_value(self.hdd_1)
         self._add_exclude(computer_ram_16, computer_hdd_1)
 
-        # CASE: variant is already created, it should return it
         combination = computer_ssd_256 + computer_ram_8 + computer_hdd_1
         variant1 = self.computer._get_variant_for_combination(combination)
         self.assertEqual(self.computer._create_product_variant(combination), variant1)
 
-        # CASE: variant does not exist, but template is non-dynamic, so it
-        # should not create it
         Product = self.env["product.product"]
         variant1.unlink()
         self.assertEqual(self.computer._create_product_variant(combination), Product)
 
     def test_05_create_product_variant_dynamic(self):
-        """The goal of this test is to make sure the _create_product_variant does
-        work with dynamic. If the combination is possible, it should create it.
-        If it's not possible, it should not create it."""
         self.computer_hdd_attribute_lines.write({"active": False})
         self.hdd_attribute.create_variant = "dynamic"
         self._add_hdd_attribute_line()
@@ -1269,19 +1161,14 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
         computer_hdd_1 = self._get_product_template_attribute_value(self.hdd_1)
         self._add_exclude(computer_ram_16, computer_hdd_1)
 
-        # CASE: variant does not exist, but combination is not possible
-        # so it should not create it
         impossible_combination = computer_ssd_256 + computer_ram_16 + computer_hdd_1
         Product = self.env["product.product"]
         self.assertEqual(
             self.computer._create_product_variant(impossible_combination), Product
         )
 
-        # CASE: the variant does not exist, and the combination is possible, so
-        # it should create it
         combination = computer_ssd_256 + computer_ram_8 + computer_hdd_1
         variant = self.computer._create_product_variant(combination)
         self.assertTrue(variant)
 
-        # CASE: the variant already exists, so it should return it
         self.assertEqual(variant, self.computer._create_product_variant(combination))

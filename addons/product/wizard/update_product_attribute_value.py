@@ -36,10 +36,6 @@ class UpdateProductAttributeValue(models.TransientModel):
                 )
 
     def _get_product_count_key(self):
-        """What identifies the set of products this wizard would act on.
-
-        Two wizards sharing a key count exactly the same products.
-        """
         self.ensure_one()
         if self.mode == "add":
             return ("add", self.attribute_value_id.attribute_id.id)
@@ -49,21 +45,15 @@ class UpdateProductAttributeValue(models.TransientModel):
 
     @api.model
     def _get_product_count_domain(self, key):
-        """`product.template` domain answering a key from
-        :meth:`_get_product_count_key`.
-        """
         mode, record_id = key
         if mode == "add":
             return [("attribute_line_ids.attribute_id", "=", record_id)]
         return [("attribute_line_ids.value_ids", "=", record_id)]
 
-    @api.depends("mode")
+    @api.depends("mode", "attribute_value_id")
     def _compute_product_count(self):
         self.product_count = 0
         ProductTemplate = self.env["product.template"]
-        # One count per *distinct* target rather than one per wizard record.
-        # The domain depends only on (mode, attribute value), so a recompute
-        # over several records re-issued the very same query for each of them.
         keys_by_wizard = {wizard: wizard._get_product_count_key() for wizard in self}
         counts = {
             key: ProductTemplate.search_count(self._get_product_count_domain(key))
@@ -83,7 +73,6 @@ class UpdateProductAttributeValue(models.TransientModel):
         ptals = self.env["product.template.attribute.line"].search(
             [
                 ("attribute_id", "=", self.attribute_value_id.attribute_id.id),
-                # Make sure we do not impact products belonging to other companies
                 ("product_tmpl_id.company_id", "in", self.env.companies.ids + [False]),
             ]
         )
@@ -93,7 +82,6 @@ class UpdateProductAttributeValue(models.TransientModel):
         ptavs = self.env["product.template.attribute.value"].search(
             [
                 ("product_attribute_value_id", "=", self.attribute_value_id.id),
-                # Make sure we do not impact products belonging to other companies
                 ("product_tmpl_id.company_id", "in", self.env.companies.ids + [False]),
             ]
         )

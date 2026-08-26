@@ -6,15 +6,6 @@ from odoo.tests import TransactionCase, tagged
 
 @tagged("post_install", "-at_install")
 class TestDuplicatedRecordsetCopy(TransactionCase):
-    """`copy_data` answers a record it has already copied in this operation with
-    a ``None`` entry (see `CopyMixin.copy_data`), which `copy()` then drops. Every
-    override in this addon used to index into that entry unconditionally.
-
-    A repeated record in the recordset is now refused by the ORM itself (see
-    `base.tests.test_copy`), so these check the two things this addon still owns:
-    its overrides tolerate a `None` entry whatever produces it, and the normal
-    single-record path still renames correctly.
-    """
 
     @classmethod
     def setUpClass(cls):
@@ -22,14 +13,11 @@ class TestDuplicatedRecordsetCopy(TransactionCase):
         cls.uom_unit = cls.env.ref("uom.product_uom_unit")
 
     def _assert_copy_data_tolerates_a_none_entry(self, record):
-        """Feed the override the shape the recursion guard produces -- a record
-        it has already copied -- and check it neither raises nor renames it."""
         seen = defaultdict(set)
         seen[record._name].add(record.id)
         vals_list = record.with_context(__copy_data_seen=seen).copy_data()
         self.assertEqual(vals_list, [None])
 
-        # ... and the ordinary path still renames.
         vals_list = record.copy_data()
         self.assertEqual(len(vals_list), 1)
         self.assertIsInstance(vals_list[0], dict)
@@ -79,9 +67,6 @@ class TestDuplicatedRecordsetCopy(TransactionCase):
         )
         attachments_before = self.env["ir.attachment"].search_count([])
         vals = self._assert_copy_data_tolerates_a_none_entry(document)
-        # `copy_data` is what clones the attachment here, so a skipped entry
-        # must not leave an orphan behind: exactly one new attachment, for the
-        # one entry that will actually be created.
         self.assertEqual(
             self.env["ir.attachment"].search_count([]), attachments_before + 1
         )
@@ -89,8 +74,6 @@ class TestDuplicatedRecordsetCopy(TransactionCase):
         self.assertNotEqual(vals["ir_attachment_id"], document.ir_attachment_id.id)
 
     def test_copy_several_variants_of_one_template(self):
-        """`product.product.copy()` used to build one template entry per variant,
-        feeding `copy()` a recordset with the same template twice."""
         attribute = self.env["product.attribute"].create({"name": "Dup Size"})
         values = self.env["product.attribute.value"].create(
             [{"name": name, "attribute_id": attribute.id} for name in ("S", "M")]
@@ -116,15 +99,12 @@ class TestDuplicatedRecordsetCopy(TransactionCase):
 
         copies = variants.copy()
 
-        # One duplicated product (carrying both its variants), not two.
         self.assertEqual(len(copies.product_tmpl_id), 1)
         self.assertNotEqual(copies.product_tmpl_id, template)
         self.assertEqual(copies.product_tmpl_id.name, "Dup Variants (copy)")
         self.assertEqual(len(copies.product_tmpl_id.product_variant_ids), 2)
 
     def test_copy_template_keeps_price_extra_per_template(self):
-        """The extra prices must be re-applied template by template, not by
-        position across the flattened attribute lines of the whole batch."""
         attribute = self.env["product.attribute"].create({"name": "Dup Colour"})
         red, blue = self.env["product.attribute.value"].create(
             [{"name": name, "attribute_id": attribute.id} for name in ("Red", "Blue")]
@@ -206,7 +186,6 @@ class TestPriceUomConversion(TransactionCase):
         )
 
     def test_lst_price_converts_the_attribute_extra_too(self):
-        """`lst_price` under a UoM context must agree with `_compute_price`."""
         self.assertEqual(self.variant.lst_price, 110.0)
         in_dozen = self.variant.with_context(uom=self.uom_dozen.id).lst_price
         self.assertEqual(
@@ -215,20 +194,18 @@ class TestPriceUomConversion(TransactionCase):
                 self.variant.id
             ],
         )
-        # 12 x (100 list + 10 attribute extra), not 12 x 100 + 10.
         self.assertEqual(in_dozen, 1320.0)
 
     def test_lst_price_round_trips_through_its_inverse(self):
         variant_in_dozen = self.variant.with_context(uom=self.uom_dozen.id)
         variant_in_dozen.lst_price = 2400.0
-        self.assertEqual(self.variant.list_price, 190.0)  # 2400/12 - 10
+        self.assertEqual(self.variant.list_price, 190.0)
         self.variant.invalidate_recordset()
         self.assertEqual(
             self.variant.with_context(uom=self.uom_dozen.id).lst_price, 2400.0
         )
 
     def test_lst_price_refuses_an_incompatible_uom(self):
-        """The guard `_compute_price` already applies must not be bypassed."""
         with self.assertRaises(UserError):
             self.variant.with_context(uom=self.uom_kgm.id).read(["lst_price"])
 
@@ -244,8 +221,6 @@ class TestPriceUomConversion(TransactionCase):
             self.variant._convert_price_from_uom(1.0, self.uom_kgm)
 
     def test_fixed_pricelist_rule_refuses_an_incompatible_uom(self):
-        """A fixed-price rule used to return silent nonsense where a formula
-        rule -- the same request by another route -- raised."""
         pricelist = self.env["product.pricelist"].create(
             {"name": "UoM PL", "currency_id": self.env.company.currency_id.id}
         )
@@ -258,21 +233,16 @@ class TestPriceUomConversion(TransactionCase):
                 "fixed_price": 50.0,
             }
         )
-        # Compatible unit: still converted as before.
         self.assertEqual(
             pricelist._get_product_price(self.variant, 1.0, uom=self.uom_dozen), 600.0
         )
         with self.assertRaises(UserError):
             pricelist._get_product_price(self.variant, 1.0, uom=self.uom_kgm)
 
-        # ... and the formula branch keeps refusing it too.
         rule.write({"compute_price": "percentage", "percent_price": 10.0})
         with self.assertRaises(UserError):
             pricelist._get_product_price(self.variant, 1.0, uom=self.uom_kgm)
 
-        # A pricelist prices templates as well as variants, and the rule-side
-        # conversion calls the guard on whichever model it was handed, so both
-        # must expose it.
         rule.write({"compute_price": "fixed", "fixed_price": 50.0})
         self.assertEqual(
             pricelist._get_product_price(self.template, 1.0, uom=self.uom_dozen), 600.0
@@ -281,8 +251,6 @@ class TestPriceUomConversion(TransactionCase):
             pricelist._get_product_price(self.template, 1.0, uom=self.uom_kgm)
 
     def test_price_uom_guard_is_symmetric_between_template_and_variant(self):
-        """The two models carry parallel copies of the price-conversion helpers
-        (`_inherits` delegates fields, not methods); they must not drift."""
         for record in (self.template, self.variant):
             self.assertTrue(hasattr(record, "_check_price_uom"))
             self.assertEqual(record._convert_price_to_uom(10.0, self.uom_dozen), 120.0)
@@ -290,12 +258,6 @@ class TestPriceUomConversion(TransactionCase):
                 record._convert_price_to_uom(10.0, self.uom_kgm)
 
     def test_supplierinfo_price_discounted_keeps_the_product_uom_contract(self):
-        """`price_discounted` is documented as being expressed in the *product's*
-        UoM, and `purchase.order._get_product_catalog_order_line_info` converts it
-        back into the vendor's UoM for display. Locking the round trip: it is what
-        makes the cross-category value (meaningless on its own) unsafe to "fix"
-        without changing that caller too.
-        """
         vendor = self.env["res.partner"].create({"name": "UoM Vendor"})
         seller = self.env["product.supplierinfo"].create(
             {
@@ -316,11 +278,6 @@ class TestPriceUomConversion(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestPackagingUomCategory(TransactionCase):
-    """`uom_ids` only excluded `uom_id` itself, so a product measured in Units
-    could be given a "kg" packaging through the normal form -- and order lines
-    union `uom_ids` into their allowed units. That is the configuration that let
-    a 50.00 fixed-price rule price a sale line at 50000.00.
-    """
 
     @classmethod
     def setUpClass(cls):
@@ -328,10 +285,6 @@ class TestPackagingUomCategory(TransactionCase):
         cls.uom_unit = cls.env.ref("uom.product_uom_unit")
         cls.uom_dozen = cls.env.ref("uom.product_uom_dozen")
         cls.uom_kgm = cls.env.ref("uom.product_uom_kgm")
-        # `uom.product_uom_dozen` ships archived (it only becomes selectable once
-        # the UoM feature is enabled), and a many2many read filters archived
-        # records out -- so without this the packaging would silently read back
-        # empty and the assertions below would test nothing.
         cls.uom_dozen.action_unarchive()
 
     def test_packaging_in_the_same_category_is_allowed(self):
@@ -362,8 +315,6 @@ class TestPackagingUomCategory(TransactionCase):
             template.uom_ids = self.uom_kgm
 
     def test_changing_the_unit_revalidates_existing_packagings(self):
-        """The constraint watches `uom_id` too: moving the product to another
-        category must not leave its packagings stranded."""
         template = self.env["product.template"].create(
             {
                 "name": "Rebased Product",
@@ -378,8 +329,6 @@ class TestPackagingUomCategory(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestTemplateUomChange(TransactionCase):
     def test_uom_change_covers_archived_variants(self):
-        """Changing the unit restamps it on every document referencing the
-        product, so archived variants must be handed to `_update_uom` too."""
         uom_unit = self.env.ref("uom.product_uom_unit")
         uom_dozen = self.env.ref("uom.product_uom_dozen")
         attribute = self.env["product.attribute"].create({"name": "Archived Size"})

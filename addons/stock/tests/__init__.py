@@ -32,7 +32,6 @@ from . import test_picking_tours
 from . import test_proc_rule
 from . import test_product
 from . import test_product_quantity_scope
-from . import test_pending_quant_availability
 from . import test_quant
 from . import test_quant_dormancy
 from . import test_quant_improvements

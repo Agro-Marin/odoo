@@ -1,4 +1,4 @@
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 
 
 class ExpiryPickingConfirmation(models.TransientModel):
@@ -7,33 +7,34 @@ class ExpiryPickingConfirmation(models.TransientModel):
     production_ids = fields.Many2many("mrp.production", readonly=True)
     workorder_id = fields.Many2one("mrp.workorder", readonly=True)
 
-    @api.depends("lot_ids")
-    def _compute_descriptive_fields(self):
-        if self.production_ids or self.workorder_id:
-            self.show_lots = len(self.lot_ids) > 1
-            if self.show_lots:
+    @api.depends("lot_ids", "production_ids", "workorder_id")
+    def _compute_description(self):
+        manufacturing = self.filtered(
+            lambda wizard: wizard.production_ids or wizard.workorder_id
+        )
+        for wizard in manufacturing:
+            if wizard.show_lots:
                 # For multiple expired lots, they are listed in the wizard view.
-                self.description = _(
+                wizard.description = self.env._(
                     "You are going to use some expired components."
                     "\nDo you confirm you want to proceed?"
                 )
             else:
                 # For one expired lot, its name is written in the wizard message.
-                self.description = _(
+                wizard.description = self.env._(
                     "You are going to use the component %(product_name)s, %(lot_name)s which is expired."
                     "\nDo you confirm you want to proceed?",
-                    product_name=self.lot_ids.product_id.display_name,
-                    lot_name=self.lot_ids.name,
+                    product_name=wizard.lot_ids.product_id.display_name,
+                    lot_name=wizard.lot_ids.name,
                 )
-        else:
-            super()._compute_descriptive_fields()
+        super(ExpiryPickingConfirmation, self - manufacturing)._compute_description()
 
     def confirm_produce(self):
-        ctx = dict(self.env.context, skip_expired=True)
-        ctx.pop("default_lot_ids")
-        return self.production_ids.with_context(ctx).button_mark_done()
+        return self.production_ids.with_context(
+            **self._validation_context()
+        ).button_mark_done()
 
     def confirm_workorder(self):
-        ctx = dict(self.env.context, skip_expired=True)
-        ctx.pop("default_lot_ids")
-        return self.workorder_id.with_context(ctx).record_production()
+        return self.workorder_id.with_context(
+            **self._validation_context()
+        ).record_production()

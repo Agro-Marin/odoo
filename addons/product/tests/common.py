@@ -37,7 +37,6 @@ class ProductCommon(UomCommon):
                 "name": "Test Pricelist",
             }
         )
-        # Archive all existing pricelists
         cls.env["product.pricelist"].search(
             [
                 ("id", "!=", cls.pricelist.id),

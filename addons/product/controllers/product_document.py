@@ -22,8 +22,6 @@ class ProductDocumentController(Controller):
 
         record = request.env[res_model].browse(res_id).exists()
 
-        # `has_access` on the record itself: the model-level ACL alone is not
-        # enough, the record rules (e.g. multi-company) must run against it too.
         if not record or not record.has_access("write"):
             return self._error_response(
                 _("You are not allowed to attach documents to this record.")
@@ -32,11 +30,6 @@ class ProductDocumentController(Controller):
         files = request.httprequest.files.getlist("ufile")
         failed = []
         for file in files:
-            # One savepoint per file. Without it a database-level failure (FK
-            # violation, constraint, size limit) aborts the whole request
-            # transaction, so every *later* file dies with InFailedSqlTransaction
-            # and the already-created documents are rolled back -- while the
-            # response still reported success.
             try:
                 with request.env.cr.savepoint():
                     request.env["product.document"].create(
@@ -51,8 +44,6 @@ class ProductDocumentController(Controller):
                         }
                     )
             except Exception:
-                # The exception text can carry SQL, table/column names and paths:
-                # log it, but only name the offending file to the client.
                 logger.exception("Failed to upload document %s", file.filename)
                 failed.append(file.filename or _("unnamed file"))
 
@@ -66,18 +57,13 @@ class ProductDocumentController(Controller):
 
     @staticmethod
     def _error_result(message):
-        # Shape recognized by the `file_upload` service (see handleResponse in
-        # web/static/src/core/file_upload/file_upload_service.js): the message is only
-        # displayed when nested as a JSON-RPC-style error object.
         return {"error": {"message": message}}
 
     def _error_response(self, message):
         return json.dumps(self._error_result(message))
 
-    # mrp hook
     def get_additional_create_params(self, **kwargs):
         return {}
 
-    # eco hook
     def is_model_valid(self, res_model):
         return res_model in ("product.product", "product.template")

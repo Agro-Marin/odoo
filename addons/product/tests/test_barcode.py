@@ -44,22 +44,18 @@ class TestProductBarcode(TransactionCase):
         )
 
     def test_blank_barcodes_allowed(self):
-        """Makes sure duplicated blank barcodes are allowed."""
         for i in range(2):
             self.env["product.product"].create({"name": f"BC_{i}"})
 
     def test_false_barcodes_allowed(self):
-        """Makes sure duplicated False barcodes are allowed."""
         for i in range(2):
             self.env["product.product"].create({"name": f"BC_{i}", "barcode": False})
 
     def test_duplicated_barcode(self):
-        """Tests for simple duplication."""
         with self.assertRaises(ValidationError):
             self.env["product.product"].create({"name": "BC3", "barcode": "1"})
 
     def test_duplicated_barcode_in_batch_edit(self):
-        """Tests for duplication in batch edits."""
         batch = [
             {"name": "BC3", "barcode": "3"},
             {"name": "BC4", "barcode": "4"},
@@ -70,7 +66,6 @@ class TestProductBarcode(TransactionCase):
             self.env["product.product"].create(batch)
 
     def test_test_duplicated_barcode_error_msg_content(self):
-        """Validates the error message shown when duplicated barcodes are found."""
         batch = [
             {"name": "BC3", "barcode": "3"},
             {"name": "BC4", "barcode": "3"},
@@ -90,7 +85,6 @@ class TestProductBarcode(TransactionCase):
         self.assertIn('Barcode "1" already assigned to product(s): BC1', message)
 
     def test_delete_packaging_and_use_its_barcode_in_product(self):
-        """Test that the barcode of the packaging can be used when the packaging is removed from the product."""
         pack_uom = self.env["uom.uom"].create(
             {
                 "name": "Pack of 10",
@@ -119,29 +113,20 @@ class TestProductBarcode(TransactionCase):
         product.barcode = "1234"
 
     def test_duplicated_barcodes_are_allowed_for_different_companies(self):
-        """Barcode needs to be unique only withing the same company"""
         company_a = self.env.company
         company_b = self.env["res.company"].create({"name": "CB"})
 
         allowed_products = [
-            # Allowed, barcode doesn't exist yet
             {"name": "A1", "barcode": "3", "company_id": company_a.id},
-            # Allowed, barcode exists (A1), but for a different company
             {"name": "A2", "barcode": "3", "company_id": company_b.id},
         ]
 
         forbidden_products = [
-            # Forbidden, collides with BC1
             {"name": "F1", "barcode": "1", "company_id": False},
-            # Forbidden, collides with BC1
             {"name": "F2", "barcode": "1", "company_id": company_a.id},
-            # Forbidden, collides with BC2
             {"name": "F3", "barcode": "2", "company_id": company_b.id},
-            # Forbidden, collides with A1
             {"name": "F4", "barcode": "3", "company_id": company_a.id},
-            # Forbidden, collides with A2
             {"name": "F5", "barcode": "3", "company_id": company_b.id},
-            # Forbidden, collides with A1 and A2
             {"name": "F6", "barcode": "3", "company_id": False},
         ]
 
@@ -153,11 +138,6 @@ class TestProductBarcode(TransactionCase):
                 self.env["product.product"].create(product)
 
     def test_duplicated_barcodes_in_product_variants(self):
-        """
-        Create 2 variants with different barcodes and same company.
-        Assign a duplicated barcode to one of them while changing the company.
-        Barcode validation should be triggered and a duplicated barcode should be detected.
-        """
         company_a = self.env.company
         company_b = self.env["res.company"].create({"name": "CB"})
 
@@ -172,7 +152,6 @@ class TestProductBarcode(TransactionCase):
         with self.assertRaises(ValidationError):
             variant_2.write({"barcode": "barcode_1", "company_id": company_b})
 
-        # Variant 1 was not updated
         self.assertEqual(variant_2.barcode, "barcode_2")
         self.assertEqual(variant_2.company_id, company_a)
 

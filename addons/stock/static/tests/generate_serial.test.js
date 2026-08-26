@@ -99,6 +99,37 @@ test("double-click on Generate emits a single command batch", async () => {
     expect(commands.slice(0, 2).map((c) => c[0] === 2 && c[1])).toEqual([51, 52]);
 });
 
+test("Generate is held disabled until the New preview lands", async () => {
+    const { move, applied } = makeMove();
+    const previewDone = new Deferred();
+    onRpc("preview_next_lot", async () => {
+        expect.step("preview-rpc");
+        await previewDone;
+        return "SN0001";
+    });
+    onRpc("action_generate_lot_line_vals", () => {
+        expect.step("generate-rpc");
+        return [{ lot_name: "SN0001" }, { lot_name: "SN0002" }];
+    });
+    await mountDialog(move);
+    const generateButton = queryFirst(".modal-footer button.btn-primary");
+    await click(".o_form_view button.btn-primary");
+    await animationFrame();
+    expect(generateButton).toHaveAttribute("disabled");
+    await click(generateButton);
+    await animationFrame();
+    expect.verifySteps(["preview-rpc"]);
+    expect(".alert").toHaveCount(0);
+    previewDone.resolve();
+    await animationFrame();
+    expect(generateButton).not.toHaveAttribute("disabled");
+    expect("#generate_next_serial").toHaveValue("SN0001");
+    await click(generateButton);
+    await animationFrame();
+    expect.verifySteps(["generate-rpc", "close"]);
+    expect(applied.length).toBe(1);
+});
+
 test("a fractional serial count is refused in words, not thrown", async () => {
     const { move, applied } = makeMove({ tracking: "serial" });
     onRpc("action_generate_lot_line_vals", () => {

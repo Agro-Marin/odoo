@@ -6,12 +6,6 @@ from odoo.http import Controller, request, route
 class ProductCatalogController(Controller):
     @staticmethod
     def _get_order(res_model, order_id):
-        """Browse the order targeted by a catalog route, safely.
-
-        `res_model`/`order_id` are client-provided: only models implementing
-        `mixin.product.catalog` are valid targets, and the record must exist
-        (record rules are enforced by the ORM on the later read/write).
-        """
         env = request.env
         if res_model not in env.registry or not isinstance(
             env[res_model], env.registry["mixin.product.catalog"]
@@ -20,8 +14,6 @@ class ProductCatalogController(Controller):
         try:
             order_id = int(order_id)
         except ValueError, TypeError:
-            # Client-provided: a non-numeric id must not surface as a bare
-            # ValueError traceback (HTTP 500) but as a normal user error.
             raise UserError(_("The requested record does not exist.")) from None
         order = env[res_model].browse(order_id).exists()
         if not order:
@@ -34,24 +26,6 @@ class ProductCatalogController(Controller):
     def product_catalog_get_order_lines_info(
         self, res_model, order_id, product_ids, **kwargs
     ):
-        """Returns products information to be shown in the catalog.
-
-        :param string res_model: The order model.
-        :param int order_id: The order id.
-        :param list product_ids: The products currently displayed in the product catalog, as a list
-                                 of `product.product` ids.
-        :rtype: dict
-        :return: A dict with the following structure:
-            {
-                product.id: {
-                    'quantity': float (optional)
-                    'price': float
-                    'uomDisplayName': string
-                    'code': string (optional)
-                    'readOnly': bool (optional)
-                }
-            }
-        """
         order = self._get_order(res_model, order_id)
         return order.with_company(
             order.company_id
@@ -64,18 +38,7 @@ class ProductCatalogController(Controller):
     def product_catalog_update_order_line_info(
         self, res_model, order_id, product_id, quantity=0, **kwargs
     ):
-        """Update order line information on a given order for a given product.
-
-        :param string res_model: The order model.
-        :param int order_id: The order id.
-        :param int product_id: The product, as a `product.product` id.
-        :return: The unit price price of the product, based on the pricelist of the order and
-                 the quantity selected.
-        :rtype: float
-        """
         order = self._get_order(res_model, order_id)
-        # The UI disables edition based on `_is_readonly()`; enforce the same
-        # rule here so direct RPC calls cannot edit locked/done records.
         if order._is_readonly():
             raise UserError(_("You cannot edit the products of a read-only record."))
         return order.with_company(order.company_id)._update_order_line_info(

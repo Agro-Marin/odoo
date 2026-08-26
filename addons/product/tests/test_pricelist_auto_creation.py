@@ -6,21 +6,16 @@ class TestPricelistAutoCreation(ProductCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Only one currency enabled and used on companies (multi-curr disabled)
         cls.currency_euro = cls._enable_currency("EUR")
         cls.currency_usd = cls.env["res.currency"].search([("name", "=", "USD")])
         cls.env["res.company"].search([]).currency_id = cls.currency_euro
         cls.env["res.currency"].search([("name", "!=", "EUR")]).action_archive()
 
-        # Disabled pricelists feature
         cls.group_user = cls.env.ref("base.group_user").sudo()
         cls.group_user._remove_group(cls.group_product_pricelist)
         cls.env["product.pricelist"].search([]).unlink()
 
     def test_inactive_curr_set_on_company(self):
-        """Make sure that when setting an inactive currency on a company, the activation of the
-        multi-currency group won't
-        """
         self.env.company.currency_id = self.currency_usd
         self.assertFalse(
             self.env["product.pricelist"].search(
@@ -39,8 +34,3 @@ class TestPricelistAutoCreation(ProductCommon):
                 ]
             )
         )
-        # self.env.user.clear_caches()
-        # self.group_user.invalidate_recordset()
-        # self.assertTrue(
-        #     self.group_product_pricelist in self.group_user.implied_ids
-        # )

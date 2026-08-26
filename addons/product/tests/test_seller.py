@@ -166,16 +166,13 @@ class TestSeller(TransactionCase):
         )
 
         product = self.ipad_mini
-        # Supplierinfo pricing
 
-        # I check cost price of LCD Monitor.
         price = product._select_seller(
             partner_id=self.res_partner_4, quantity=1.0
         ).price
         msg = "Wrong cost price: LCD Monitor. should be 790 instead of %s" % price
         self.assertEqual(float_compare(price, 790, precision_digits=2), 0, msg)
 
-        # I check cost price of LCD Monitor if more than 3 Unit.
         price = product._select_seller(
             partner_id=self.res_partner_4, quantity=3.0
         ).price
@@ -186,9 +183,6 @@ class TestSeller(TransactionCase):
         self.assertEqual(float_compare(price, 785, precision_digits=2), 0, msg)
 
     def test_31_select_seller(self):
-        """Check that the right seller is selected, even when the decimal precision of
-        Product Price is higher than the precision of the currency.
-        """
         self.env.ref("product.decimal_price").digits = 3
         partner = self.asustec
         product = self.product_consu
@@ -208,8 +202,6 @@ class TestSeller(TransactionCase):
         )
 
     def test_40_seller_min_qty_precision(self):
-        """Test that the min_qty has the precision of Product UoM."""
-        # Arrange: Change precision digits
         uom_precision = self.env.ref("uom.decimal_product_uom")
         uom_precision.digits = 3
         product = self.product_service
@@ -223,10 +215,8 @@ class TestSeller(TransactionCase):
         supplier_info = product.seller_ids[0]
         precise_value = 1.234
 
-        # Act: Set a value for the increased precision
         supplier_info.min_qty = precise_value
 
-        # Assert: The set value is kept
         self.assertEqual(supplier_info.min_qty, precise_value)
 
     def test_50_seller_ids(self):

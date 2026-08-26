@@ -11,7 +11,6 @@ from odoo.tools.misc import unique
 
 from .utils import unlink_where_possible
 
-# Resolutions (px) for which resized image / image_variant fields exist.
 IMAGE_SIZES = (1920, 1024, 512, 256, 128)
 
 
@@ -19,7 +18,11 @@ class ProductProduct(models.Model):
     _name = "product.product"
     _description = "Product Variant"
     _inherits = {"product.template": "product_tmpl_id"}
-    _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
+    _inherit = [
+        "mixin.mail.thread",
+        "mixin.mail.activity",
+        "mixin.product.price",
+    ]
     _order = "default_code, name, id"
     _check_company_domain = models.check_company_domain_parent_of
 
@@ -69,14 +72,12 @@ class ProductProduct(models.Model):
         string="Unit Barcode",
     )
 
-    # price_extra: catalog extra value only, sum of variant extra attributes
     price_extra = fields.Float(
         string="Variant Price Extra",
         min_display_digits="Product Price",
         compute="_compute_price_extra",
         help="This is the sum of the extra price of all attributes",
     )
-    # lst_price: catalog value + extra, context dependent (uom)
     lst_price = fields.Float(
         string="Public Price",
         min_display_digits="Product Price",
@@ -109,15 +110,6 @@ class ProductProduct(models.Model):
         string="Attribute Values",
         ondelete="restrict",
     )
-    # Display-only view onto the same `product_variant_combination` relation as
-    # `product_template_attribute_value_ids`, filtered to the values that
-    # actually distinguish variants. It is `readonly` because it is a second
-    # door onto the combination: writing through it changes the relation while
-    # the stored `combination_indices` (computed from the *other* field) keeps
-    # its old value, which lets two active variants end up on the same
-    # combination despite the `_combination_unique` index. Every view already
-    # renders it readonly and nothing writes it; the compute below also depends
-    # on it so that even a direct RPC write cannot desynchronise the index.
     product_template_variant_value_ids = fields.Many2many(
         comodel_name="product.template.attribute.value",
         relation="product_variant_combination",
@@ -179,16 +171,12 @@ class ProductProduct(models.Model):
         search="_search_is_in_selected_section_of_order",
     )
 
-    # all image fields are base64 encoded and PIL-supported
-
-    # all image_variant fields are technical and should not be displayed to the user
     image_variant_1920 = fields.Image(
         string="Variant Image",
         max_width=1920,
         max_height=1920,
     )
 
-    # resized fields stored (as attachment) for performance
     image_variant_1024 = fields.Image(
         related="image_variant_1920",
         string="Variant Image 1024",
@@ -223,8 +211,6 @@ class ProductProduct(models.Model):
         store=True,
     )
 
-    # Computed fields that are used to create a fallback to the template if
-    # necessary, it's recommended to display those fields to the user.
     image_1920 = fields.Image(
         string="Image",
         compute="_compute_image_1920",
@@ -240,18 +226,12 @@ class ProductProduct(models.Model):
     )
 
     _is_favorite_index = models.Index("(is_favorite) WHERE is_favorite IS TRUE")
-    # Ensure there is at most one active variant for each combination.
-    # There could be no variant for a combination if using dynamic attributes.
     _combination_unique = models.UniqueIndex(
         "(product_tmpl_id, combination_indices) WHERE active IS TRUE",
     )
 
     @api.constrains("barcode")
     def _check_barcode_uniqueness(self):
-        """With GS1 nomenclature, products and packagings use the same pattern. Therefore, we need
-        to ensure the uniqueness between products' barcodes and packagings' ones
-        """
-        # Barcodes should only be unique within a company
         self_ctx = self.with_context(skip_preprocess_gs1=True)
         for company_id, barcodes_within_company in self_ctx._get_barcodes_by_company():
             self_ctx._check_duplicated_product_barcodes(
@@ -274,9 +254,6 @@ class ProductProduct(models.Model):
 
     @api.constrains("standard_price")
     def _check_standard_price(self):
-        # `_onchange_standard_price` only gives UI feedback; a negative cost
-        # written through ORM / import / server actions would otherwise reach
-        # AVCO valuation and sale-margin computation unchecked.
         for product in self:
             if product.standard_price < 0:
                 raise ValidationError(
@@ -289,35 +266,16 @@ class ProductProduct(models.Model):
             ProductProduct,
             self.with_context(create_product_product=False),
         ).create(vals_list)
-        # `_get_variant_id_for_combination` depends on existing variants.
-        # Scoped to the "product_variants" group on purpose: a bare
-        # `clear_cache()` clears the whole "default" group -- record-rule
-        # domains, ACL checks, xmlid lookups -- in this and every other worker,
-        # which is a heavy price for invalidating two product caches.
         self.env.registry.clear_cache("product_variants")
-        # Return products in the caller's env so that the internal
-        # create_product_product=False context doesn't leak to downstream
-        # operations (e.g., product.copy() calling template.create() which
-        # then skips _create_variant_ids()).
         return products.with_env(self.env)
 
     def write(self, vals):
         res = super().write(vals)
         if "product_template_variant_value_ids" in vals:
-            # The alias and `product_template_attribute_value_ids` are two
-            # fields over the *same* m2m table, which the ORM has no way to
-            # know: writing one leaves the other's cache (and everything
-            # computed from it, notably `combination_indices`) stale. Refresh
-            # the canonical field from the database and replay its dependents,
-            # so the combination and the index it is guarded by cannot diverge.
             self.invalidate_recordset(["product_template_attribute_value_ids"])
             self.modified(["product_template_attribute_value_ids"])
-        # `_get_variant_id_for_combination` depends on `product_template_attribute_value_ids`
-        # and on which template a variant belongs to;
-        # `_get_first_possible_variant_id` depends on the variants' active state.
         if (
             "product_template_attribute_value_ids" in vals
-            # same relation, reachable through the readonly alias
             or "product_template_variant_value_ids" in vals
             or "active" in vals
             or "product_tmpl_id" in vals
@@ -326,23 +284,7 @@ class ProductProduct(models.Model):
         return res
 
     def copy(self, default=None):
-        """Variants are generated depending on the configuration of attributes
-        and values on the template, so copying them does not make sense.
 
-        For convenience the template is copied instead and its first variant is
-        returned.
-        """
-        # copy variant is disabled in https://github.com/odoo/odoo/pull/38303
-        # this returns the first possible combination of variant to make it
-        # works for now, need to be fixed to return product_variant_id if it's
-        # possible in the future
-
-        # One copy per *distinct* template. Building the recordset per variant
-        # instead (`concat` keeps duplicates) put the same template twice into a
-        # single `copy()`, which cannot be honoured -- `copy_data` now rejects a
-        # repeated record outright. Two variants of one template therefore yield
-        # one duplicated product (carrying all its variants), not two identical
-        # ones.
         templates_to_copy = self.product_tmpl_id
         new_templates = templates_to_copy.copy(default=default)
         new_product_list = [
@@ -355,15 +297,12 @@ class ProductProduct(models.Model):
     def unlink(self):
         if self.env.context.get("create_product_product") is False:
             res = super().unlink()
-            # `_get_variant_id_for_combination` depends on existing variants,
-            # also on this early-return path (e.g. import placeholder cleanup).
             self.env.registry.clear_cache("product_variants")
             return res
 
         unlink_products_ids = set()
         unlink_templates_ids = set()
 
-        # Check if products still exists, in case they've been unlinked by unlinking their template
         existing_products = self.exists()
         product_ids_by_template_id = {
             template.id: set(ids)
@@ -375,20 +314,13 @@ class ProductProduct(models.Model):
                 aggregates=["id:array_agg"],
             )
         }
-        for product in existing_products:
-            # If there is an image set on the variant and no image set on the
-            # template, move the image to the template.
+        for product in existing_products.with_context(bin_size=False):
             if product.image_variant_1920 and not product.product_tmpl_id.image_1920:
                 product.product_tmpl_id.image_1920 = product.image_variant_1920
-            # Check if the product is last product of this template...
-            # NB: only the current record is subtracted (not the whole batch):
-            # the variant engine batch-unlinks every obsolete variant during
-            # regeneration and relies on the template surviving that call.
             has_other_products = product_ids_by_template_id.get(
                 product.product_tmpl_id.id,
                 set(),
             ) - {product.id}
-            # ... and do not delete product template if it's configured to be created "on demand"
             if (
                 not has_other_products
                 and not product.product_tmpl_id.has_dynamic_attributes()
@@ -397,11 +329,8 @@ class ProductProduct(models.Model):
             unlink_products_ids.add(product.id)
         unlink_products = self.env["product.product"].browse(unlink_products_ids)
         res = super(ProductProduct, unlink_products).unlink()
-        # delete templates after calling super, as deleting template could lead to deleting
-        # products due to ondelete='cascade'
         unlink_templates = self.env["product.template"].browse(unlink_templates_ids)
         unlink_templates.unlink()
-        # `_get_variant_id_for_combination` depends on existing variants
         self.env.registry.clear_cache("product_variants")
         return res
 
@@ -416,13 +345,6 @@ class ProductProduct(models.Model):
             )
 
     def _compute_variant_image(self, size):
-        """Fall back to the template image when the variant has none, for the
-        given resolution ``size`` (e.g. 1920).
-
-        Kept as one method per size (rather than a single compute assigning all
-        five fields) so that reading a thumbnail never forces loading the larger
-        image blobs.
-        """
         field = "image_%s" % size
         variant_field = "image_variant_%s" % size
         for record in self:
@@ -444,7 +366,6 @@ class ProductProduct(models.Model):
         self._compute_variant_image(128)
 
     def _compute_can_image_1024_be_zoomed(self):
-        """Get the image from the template if no image is set on the variant."""
         for record in self:
             record.can_image_1024_be_zoomed = (
                 record.can_image_variant_1024_be_zoomed
@@ -454,8 +375,6 @@ class ProductProduct(models.Model):
 
     @api.depends("image_variant_1920", "image_variant_1024")
     def _compute_can_image_variant_1024_be_zoomed(self):
-        # bin_size=False: under a bin_size context the binary fields yield
-        # size strings ("12.5 Kb") that crash the image decoding.
         for record in self.with_context(bin_size=False):
             record.can_image_variant_1024_be_zoomed = (
                 record.image_variant_1920
@@ -479,24 +398,6 @@ class ProductProduct(models.Model):
 
     @api.depends("product_tmpl_id.write_date")
     def _compute_write_date(self):
-        """
-        First, the purpose of this computation is to update a product's
-        write_date whenever its template's write_date is updated.  Indeed,
-        when a template's image is modified, updating its products'
-        write_date will invalidate the browser's cache for the products'
-        image, which may be the same as the template's.  This guarantees UI
-        consistency.
-
-        Second, the field 'write_date' is automatically updated by the
-        framework when the product is modified.  The recomputation of the
-        field supplements that behavior to keep the product's write_date
-        up-to-date with its template's write_date.
-
-        Third, the framework normally prevents us from updating write_date
-        because it is a "magic" field.  However, the assignment inside the
-        compute method is not subject to this restriction.  It therefore
-        works as intended :-)
-        """
         now = self.env.cr.now()
         self.fetch(["write_date"])
         for record in self:
@@ -510,10 +411,6 @@ class ProductProduct(models.Model):
 
     @api.depends("product_template_attribute_value_ids")
     def _compute_combination_indices(self):
-        # A write through `product_template_variant_value_ids` (same relation)
-        # is funnelled back here by `write()`, which invalidates the field read
-        # below -- a plain `depends` on the alias would recompute from the
-        # sibling field's stale cache.
         for product in self:
             product.combination_indices = (
                 product.product_template_attribute_value_ids._ids2str()
@@ -537,13 +434,6 @@ class ProductProduct(models.Model):
             to_uom = self.env["uom.uom"].browse(self.env.context["uom"])
 
         for product in self:
-            # `price_extra` is denominated in the product's own UoM, exactly
-            # like `list_price`, so the *sum* is what gets converted. Converting
-            # only the base price left the attribute extra unscaled: a 100 + 10
-            # product read 1210 per dozen where `_compute_price('list_price',
-            # uom=dozen)` -- the same quantity by another route -- returned 1320,
-            # and `_inverse_lst_price` (which does convert the sum) could
-            # not round-trip its own field.
             price = product.list_price + product.price_extra
             if to_uom:
                 price = product._convert_price_to_uom(price, to_uom)
@@ -565,8 +455,6 @@ class ProductProduct(models.Model):
         partner_id = self.env.context.get("partner_id")
         for product in self:
             product.code = product.default_code
-            # With no partner in context no supplier row can match, so skip
-            # iterating sellers entirely (the common, no-partner render path).
             if read_access and partner_id:
                 for supplier_info in product.seller_ids:
                     if supplier_info.partner_id.id == partner_id:
@@ -574,13 +462,11 @@ class ProductProduct(models.Model):
                             supplier_info.product_id
                             and supplier_info.product_id != product
                         ):
-                            # Supplier info specific for another variant.
                             continue
                         product.code = (
                             supplier_info.product_code or product.default_code
                         )
                         if product == supplier_info.product_id:
-                            # Supplier info specific for this variant.
                             break
 
     @api.depends(
@@ -595,8 +481,6 @@ class ProductProduct(models.Model):
     def _compute_partner_ref(self):
         partner_id = self.env.context.get("partner_id")
         for product in self:
-            # Without a partner in context, no supplier row matches: fall back to
-            # display_name directly instead of scanning seller_ids per product.
             matched_seller = False
             if partner_id:
                 matched_seller = next(
@@ -664,14 +548,11 @@ class ProductProduct(models.Model):
             partner_ids = []
         company_id = self.env.context.get("company_id")
 
-        # all user don't have access to seller and partner
-        # check access and use superuser
         self.check_access("read")
 
         product_template_ids = self.sudo().product_tmpl_id.ids
 
         if partner_ids:
-            # prefetch the fields used by the `display_name`
             supplier_info = (
                 self.env["product.supplierinfo"]
                 .sudo()
@@ -693,8 +574,6 @@ class ProductProduct(models.Model):
             for r in supplier_info:
                 supplier_info_by_template.setdefault(r.product_tmpl_id, []).append(r)
 
-        # Loop-invariant: the seller forced through context is the same for
-        # every product, so resolve it once instead of per record.
         context_sellers = (
             self.env["product.supplierinfo"]
             .sudo()
@@ -721,9 +600,6 @@ class ProductProduct(models.Model):
                 ]
                 if not sellers:
                     sellers = [x for x in product_supplier_info if not x.product_id]
-                # Filter out sellers based on the company. This is done afterwards for a better
-                # code readability. At this point, only a few sellers should remain, so it should
-                # not be a performance issue.
                 if company_id:
                     sellers = [
                         x for x in sellers if x.company_id.id in [company_id, False]
@@ -759,8 +635,6 @@ class ProductProduct(models.Model):
             template = product.product_tmpl_id
             template.pricelist_rule_ids = (
                 product.pricelist_rule_ids
-                # We have to manually keep the rules the current variant
-                # wasn't aware of because they targeted other variants.
                 | template.pricelist_rule_ids.filtered(
                     lambda rule, product=product: (
                         rule.product_id and rule.product_id != product
@@ -773,7 +647,6 @@ class ProductProduct(models.Model):
 
     @api.model
     def _search(self, domain, *args, **kwargs):
-        # TDE FIXME: strange
         if self.env.context.get("search_default_categ_id"):
             domain = Domain(domain) & Domain(
                 "categ_id",
@@ -807,14 +680,12 @@ class ProductProduct(models.Model):
                 ("product_name", operator, value),
             ]
 
-        # AND clauses properly hit indexes so no need for custom sql in this case.
         if operator in Domain.NEGATIVE_OPERATORS:
             domains = template_domains + product_domains
             if supplier_domain:
                 domains.append([("product_tmpl_id.seller_ids", "any", supplier_domain)])
             return Domain.AND(domains)
 
-        # Disable active_test to simplify subqueries
         self_no_active_test = self.with_context(active_test=False)
         queries = [
             self_no_active_test._search(
@@ -860,7 +731,6 @@ class ProductProduct(models.Model):
         limit = limit or None
         if not name:
             return super().name_search(name, domain, operator, limit)
-        # search progressively by the most specific attributes
         positive_operators = ["=", "ilike", "=ilike", "like", "=like"]
         is_positive = operator not in Domain.NEGATIVE_OPERATORS
         products = self.browse()
@@ -877,16 +747,12 @@ class ProductProduct(models.Model):
             )
         if not products:
             if is_positive:
-                # Do not merge the 2 next lines into one single search, SQL search performance would be abysmal
-                # on a database with thousands of matching products, due to the huge merge+unique needed for the
-                # OR operator (and given the fact that the 'name' lookup results come from the ir.translation table
-                # Performing a quick memory merge of ids in Python will give much better performance
                 products = self.search_fetch(
                     domain & Domain("default_code", operator, name),
                     ["display_name"],
                     limit=limit,
                 )
-                limit_rest = limit and limit - len(products)
+                limit_rest = None if limit is None else limit - len(products)
                 if limit_rest is None or limit_rest > 0:
                     # This branch only runs when the default_code search did not
                     # reach `limit`, so `products` already holds every matching
@@ -921,7 +787,6 @@ class ProductProduct(models.Model):
                 limit=limit,
             )
         if not products and (partner_id := self.env.context.get("partner_id")):
-            # still no results, partner in context: search on supplier info as last hope to find something
             supplier_domain = Domain(
                 [
                     ("partner_id", "=", partner_id),
@@ -957,12 +822,6 @@ class ProductProduct(models.Model):
         if not (order_id and order_model and line_field):
             return []
 
-        # `order_model` and `line_field` reach us straight from the client (the
-        # catalog kanban forwards its search context, see
-        # `product_catalog/kanban_model.js`), so they get the same validation
-        # `product.catalog` controller applies to its own payload: an unknown
-        # model or field name would otherwise leave the ORM raising a bare
-        # KeyError out of a plain `search()` -- an HTTP 500 on user input.
         if order_model not in self.env.registry or not isinstance(
             self.env[order_model], self.env.registry["mixin.product.catalog"]
         ):
@@ -998,13 +857,6 @@ class ProductProduct(models.Model):
             value -= product.price_extra
             product.write({"list_price": value})
 
-    @api.onchange("standard_price")
-    def _onchange_standard_price(self):
-        if self.standard_price < 0:
-            raise ValidationError(
-                self.env._("The cost of a product can't be negative."),
-            )
-
     @api.onchange("default_code")
     def _onchange_default_code(self):
         if not self.default_code:
@@ -1019,7 +871,7 @@ class ProductProduct(models.Model):
                 "warning": {
                     "title": self.env._("Note:"),
                     "message": self.env._(
-                        "The Reference '%s' already exists.",
+                        "The Internal Reference '%s' already exists.",
                         self.default_code,
                     ),
                 },
@@ -1054,12 +906,9 @@ class ProductProduct(models.Model):
             )
         return super().view_header_get(view_id, view_type)
 
-    # === ACTION METHODS ===#
-
     def action_archive(self):
         records = self.filtered("active")
         super().action_archive()
-        # We deactivate product templates which are active with no active variants.
         records.product_tmpl_id.filtered(
             lambda product_tmpl: (
                 product_tmpl.active and not product_tmpl.product_variant_ids
@@ -1069,7 +918,6 @@ class ProductProduct(models.Model):
     def action_unarchive(self):
         records = self.filtered(lambda rec: not rec.active)
         super().action_unarchive()
-        # We activate product templates which are inactive with active variants.
         records.product_tmpl_id.filtered(
             lambda product_tmpl: (
                 not product_tmpl.active and product_tmpl.product_variant_ids
@@ -1089,7 +937,6 @@ class ProductProduct(models.Model):
         return action
 
     def view_product_template(self):
-        """Utility method used to add an "Open Template" button in product views"""
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
@@ -1111,83 +958,6 @@ class ProductProduct(models.Model):
         )
         return res
 
-    # === BUSINESS METHODS ===#
-
-    def _compute_price(
-        self,
-        price_type,
-        uom=None,
-        currency=None,
-        company=None,
-        date=False,
-    ):
-        company = company or self.env.company
-        date = date or fields.Date.context_today(self)
-
-        self = self.with_company(company)
-        if price_type == "standard_price":
-            # standard_price field can only be seen by users in base.group_user
-            # Thus, in order to compute the sale price from the cost for users not in this group
-            # We fetch the standard price as the superuser
-            self = self.sudo()
-
-        prices = dict.fromkeys(self.ids, 0.0)
-        for product in self:
-            price = product[price_type] or 0.0
-            price_currency = product.currency_id
-            if price_type == "standard_price":
-                price_currency = product.cost_currency_id
-            elif price_type == "list_price":
-                price += product._get_attributes_extra_price()
-
-            if uom:
-                price = product._convert_price_to_uom(price, uom)
-
-            # Convert from current user company currency to asked one
-            # This is right cause a field cannot be in more than one currency
-            if currency:
-                price = price_currency._convert(price, currency, company, date)
-
-            prices[product.id] = price
-
-        return prices
-
-    def _check_price_uom(self, uom):
-        """Raise if a price of this product cannot be expressed in ``uom``.
-
-        `uom._compute_price` scales by the ratio of the two units' factors with
-        no compatibility check, so asking for the price of a product sold in
-        Units "in Liters" silently returns a plausible-looking but meaningless
-        number (list price x liter factor / unit factor) instead of failing.
-        Quantity conversion (`_compute_quantity`) already refuses that case;
-        price conversion must not be more permissive.
-        """
-        self.ensure_one()
-        if uom and self.uom_id and not self.uom_id._has_common_reference(uom):
-            raise UserError(
-                self.env._(
-                    "The price of %(product)s cannot be expressed in %(unit)s:"
-                    " that unit is not compatible with the product's unit"
-                    " %(product_unit)s.",
-                    product=self.display_name,
-                    unit=uom.display_name,
-                    product_unit=self.uom_id.display_name,
-                )
-            )
-
-    def _convert_price_to_uom(self, price, uom):
-        """Convert ``price`` (per unit of the product's UoM) into ``uom``."""
-        self._check_price_uom(uom)
-        return self.uom_id._compute_price(price, uom)
-
-    def _convert_price_from_uom(self, price, uom):
-        """Convert ``price`` (per unit of ``uom``) into the product's own UoM.
-
-        Exact inverse of :meth:`_convert_price_to_uom`, guarded the same way.
-        """
-        self._check_price_uom(uom)
-        return uom._compute_price(price, self.uom_id)
-
     def _filter_to_unlink(self):
         return self
 
@@ -1195,7 +965,6 @@ class ProductProduct(models.Model):
         return self._get_contextual_price()
 
     def _get_contextual_price(self):
-        # FIXME VFE this won't consider ptavs extra prices, since we rely on the template price
         self.ensure_one()
         return self.product_tmpl_id._get_contextual_price(self)
 
@@ -1204,15 +973,8 @@ class ProductProduct(models.Model):
 
         pricelist = self.product_tmpl_id._get_contextual_pricelist()
         if not pricelist:
-            # No pricelist = no discount
             return 0.0
 
-        # Both sides of the ratio must be converted at the *same* date, the one
-        # the price itself is computed at (`_get_contextual_price` forwards
-        # `context['date']` down to `_compute_price_rule`). Pinning the
-        # numerator to `now()` while the denominator followed the context date
-        # made the discount drift by the whole currency-rate change between the
-        # two: a plain 10% rule on a back-dated context reported 77.5%.
         date = self.env.context.get("date") or fields.Datetime.now()
         lst_price = self.currency_id._convert(
             self.lst_price,
@@ -1281,13 +1043,6 @@ class ProductProduct(models.Model):
                 continue
             if seller.product_id and seller.product_id != self:
                 continue
-            # min_qty is expressed in the seller's UoM, so convert the requested
-            # quantity into it before comparing. This runs only for sellers that
-            # passed the filters above, so we never convert into the UoM of an
-            # irrelevant seller. If the requested UoM shares no reference unit
-            # with the seller's (different category, e.g. Units vs Liters), the
-            # seller cannot satisfy a request denominated in `uom_id` -- skip it
-            # instead of letting the conversion raise.
             if quantity is not None:
                 quantity_uom_seller = quantity
                 if quantity_uom_seller and uom_id and uom_id != seller.product_uom_id:
@@ -1323,8 +1078,6 @@ class ProductProduct(models.Model):
         return res
 
     def _get_no_variant_attributes_price_extra(self, combination):
-        # It is possible that a no_variant attribute is still in a variant if
-        # the type of the attribute has been changed after creation.
         return sum(
             ptav.price_extra
             for ptav in combination.filtered(
@@ -1352,10 +1105,6 @@ class ProductProduct(models.Model):
         return super().get_empty_list_help(help_message)
 
     def get_product_multiline_description_sale(self):
-        """Compute a multiline description of this product, in the context of sales
-        (do not use for purchases or other display reasons that don't intend to use "description_sale").
-        It will often be used as the default description of a sale order line referencing this product.
-        """
         name = self.display_name
         if self.description_sale:
             name += "\n" + self.description_sale
@@ -1397,11 +1146,6 @@ class ProductProduct(models.Model):
                 )
             )
 
-        # Keep only truthy values (import_attribute_values, guaranteed truthy by
-        # the early return above, is always dropped). During an attribute-value
-        # import an empty cell must not overwrite the matched product's existing
-        # value. Known limitation: a cell holding an explicit falsy value (0, "")
-        # is indistinguishable from an empty cell here, so it is not written.
         values = {
             key: val
             for key, val in values.items()
@@ -1411,13 +1155,6 @@ class ProductProduct(models.Model):
         return super()._load_records_write(values)
 
     def _parse_import_attribute_values(self, raw):
-        """Parse an ``"Attribute:Value,Attribute2:Value2"`` import string into a
-        list of ``(attribute_name, value_name)`` tuples (both stripped).
-
-        Validates the format and rejects a repeated attribute within the same
-        row. Centralizes what used to be three independent, hand-synchronized
-        parses in ``_load_records_create``.
-        """
         parsed = []
         seen_attributes = set()
         for token in raw.split(","):
@@ -1455,120 +1192,123 @@ class ProductProduct(models.Model):
             return super()._load_records_create(data_list)
 
         imported_product = super()._load_records_create(without_import_values)
+        rows = self._import_read_rows(with_import_values)
 
-        for vals in with_import_values:
-            vals["name"] = (vals.get("name") or "").strip()
-            if not vals["name"] and not vals.get("product_tmpl_id"):
-                raise ValueError(
-                    self.env._(
-                        "Unable to import products with attribute values but without name of product set"
-                    )
-                )
-
-        # sudo + context shared by every resolution phase below. Attribute /
-        # template / PTAL / PTAV lookups all run through this env; only the raw
-        # string parsing stays on `self` (for its access-checked error _()).
         contexted = self.sudo().with_context(
             create_product_product=False,
             update_product_template_attribute_values=True,
         )
 
-        # Parse each row's "attribute:value,..." string exactly once and reuse
-        # it across attribute/value creation, PTAL creation and PTAV resolution.
-        parsed_by_vals = {
-            id(vals): self._parse_import_attribute_values(
-                vals["import_attribute_values"]
-            )
-            for vals in with_import_values
-        }
-
-        # Resolve (creating on demand) the attribute values, templates, and the
-        # template-attribute-values the imported variants will point at. The
-        # phases are ordered: default_values must be read *before* the useless
-        # placeholder products are pruned, since it reads their field values.
-        pa_pav_records = contexted._import_resolve_attribute_values(
-            with_import_values, parsed_by_vals
-        )
+        pa_pav_records = contexted._import_resolve_attribute_values(rows)
         id2template, name2template, product_templates, created_templates = (
-            contexted._import_resolve_templates(with_import_values)
+            contexted._import_resolve_templates(rows)
+        )
+        default_values = self._import_template_defaults(
+            rows, product_templates + created_templates
         )
 
-        field_names = list(with_import_values[0])
-        default_values = {
-            values["product_tmpl_id"][0]: values
-            for values in (
-                product_templates.product_variant_id
-                + created_templates.product_variant_id
-            ).read(fields=["product_tmpl_id"] + field_names)
-        }
+        for row in rows:
+            row["target_template_id"] = (
+                row["product_tmpl_id"] or name2template[row["name"]].id
+            )
 
-        # Remove the useless product created with each product template. It has
-        # no attribute value; it should not exist because we created variants.
         useless_products = contexted.env["product.product"].search(
-            Domain("product_tmpl_id", "in", id2template.keys())
+            Domain("product_tmpl_id", "in", [row["target_template_id"] for row in rows])
             & Domain("product_template_attribute_value_ids", "=", False)
         )
         useless_products._unlink_or_archive()
 
         template_value_to_ptav = contexted._import_resolve_ptavs(
-            with_import_values,
-            parsed_by_vals,
+            rows,
             id2template,
             name2template,
             pa_pav_records,
         )
-
-        # Rewrite each row into a plain create dict: resolve the template id,
-        # translate parsed attributes into ptav ids, and fall back to the
-        # template's default value for any empty imported cell.
-        for vals in with_import_values:
-            name = vals.pop("name")
-            if not vals.get("product_tmpl_id"):
-                vals["product_tmpl_id"] = name2template[name].id
-
-            parsed = parsed_by_vals[id(vals)]
-            vals.pop("import_attribute_values")
-            vals["product_template_attribute_value_ids"] = [
-                template_value_to_ptav[
-                    vals["product_tmpl_id"],
-                    pa_pav_records[attribute_name, value_name].id,
-                ].id
-                for attribute_name, value_name in parsed
+        products = super()._load_records_create(
+            [
+                self._import_variant_values(
+                    row,
+                    default_values,
+                    template_value_to_ptav,
+                    pa_pav_records,
+                )
+                for row in rows
             ]
-
-        new_data_list = [
-            {
-                key: value or default_values[vals["product_tmpl_id"]].get(key, False)
-                for key, value in vals.items()
-                if key not in ("import_attribute_values", "id")
-            }
-            for vals in with_import_values
-        ]
-        products = super()._load_records_create(new_data_list)
+        )
 
         return imported_product.exists() + products
 
-    def _import_resolve_attribute_values(self, with_import_values, parsed_by_vals):
-        """Resolve every ``(attribute_name, value_name)`` pair referenced by the
-        imported rows into a ``product.attribute.value`` record, creating the
-        missing attributes (as dynamic) and values on demand.
+    def _import_read_rows(self, with_import_values):
+        rows = []
+        for vals in with_import_values:
+            name = (vals.get("name") or "").strip()
+            if not name and not vals.get("product_tmpl_id"):
+                raise ValueError(
+                    self.env._(
+                        "Unable to import products with attribute values but without name of product set"
+                    )
+                )
+            rows.append(
+                {
+                    "values": vals,
+                    "name": name,
+                    "product_tmpl_id": vals.get("product_tmpl_id"),
+                    "parsed": self._parse_import_attribute_values(
+                        vals["import_attribute_values"]
+                    ),
+                }
+            )
+        return rows
 
-        :return: ``{(attribute_name, value_name): product.attribute.value}``
-        """
+    def _import_template_defaults(self, rows, templates):
+        field_names = [
+            name
+            for name in unique(key for row in rows for key in row["values"])
+            if name in self._fields
+        ]
+        return {
+            values["product_tmpl_id"][0]: values
+            for values in templates.product_variant_id.read(
+                fields=["product_tmpl_id"] + field_names
+            )
+        }
+
+    def _import_variant_values(
+        self, row, default_values, template_value_to_ptav, pa_pav_records
+    ):
+        template_id = row["target_template_id"]
+        defaults = default_values.get(template_id) or {}
+        values = {}
+        for key, value in row["values"].items():
+            if key in ("import_attribute_values", "id", "name"):
+                continue
+            if value:
+                values[key] = value
+                continue
+            field = self._fields.get(key)
+            if field is not None and field.inherited:
+                continue
+            values[key] = defaults.get(key, False)
+        values["product_tmpl_id"] = template_id
+        values["product_template_attribute_value_ids"] = [
+            template_value_to_ptav[
+                template_id,
+                pa_pav_records[attribute_name, value_name].id,
+            ].id
+            for attribute_name, value_name in row["parsed"]
+        ]
+        return values
+
+    def _import_resolve_attribute_values(self, rows):
         PA = self.env["product.attribute"]
         PAV = self.env["product.attribute.value"]
 
-        attribute_to_values = defaultdict(OrderedSet)  # attribute_name => {value_name}
-        for vals in with_import_values:
-            for attribute_name, value_name in parsed_by_vals[id(vals)]:
+        attribute_to_values = defaultdict(OrderedSet)
+        for row in rows:
+            for attribute_name, value_name in row["parsed"]:
                 attribute_to_values[attribute_name].add(value_name)
 
-        # Seed pa_records with the *existing* attributes, then create the
-        # missing ones. Seeding matters: when an attribute already exists but
-        # every imported value for it is new, the PAV search below finds nothing
-        # and would leave pa_records[attribute_name] unset -> KeyError when
-        # building missing_pav (a latent upstream bug).
-        pa_records = {  # attribute_name => Record<'product.attribute'>
+        pa_records = {
             pa.name: pa
             for pa in PA.search(Domain("name", "in", list(attribute_to_values)))
         }
@@ -1585,8 +1325,7 @@ class ProductProduct(models.Model):
             for pa in PA.create(missing_pa):
                 pa_records[pa.name] = pa
 
-        # search existing attribute values
-        pa_pav_records = {}  # (attribute_name, value_name) => Record<'product.attribute.value'>
+        pa_pav_records = {}
         domain = Domain(False)
         for attribute_name, value_names in attribute_to_values.items():
             domain |= Domain("name", "in", value_names) & Domain(
@@ -1596,7 +1335,6 @@ class ProductProduct(models.Model):
             pa_records[pav.attribute_id.name] = pav.attribute_id
             pa_pav_records[pav.attribute_id.name, pav.name] = pav
 
-        # create missing attribute values
         missing_pav = [
             {
                 "name": value_name,
@@ -1612,41 +1350,30 @@ class ProductProduct(models.Model):
 
         return pa_pav_records
 
-    def _import_resolve_templates(self, with_import_values):
-        """Resolve the ``product.template`` each imported row targets (by
-        ``product_tmpl_id`` or by ``name``), creating missing templates with
-        only their required fields.
-
-        :return: ``(id2template, name2template, product_templates,
-            created_templates)`` where the first two are lookup dicts and the
-            last two are the pre-existing / newly created recordsets.
-        """
+    def _import_resolve_templates(self, rows):
         PT = self.env["product.template"]
 
         product_templates = PT.search(
-            Domain("name", "in", [vals["name"] for vals in with_import_values])
-            | Domain(
-                "id", "in", [vals.get("product_tmpl_id") for vals in with_import_values]
-            )
+            Domain("name", "in", [row["name"] for row in rows])
+            | Domain("id", "in", [row["product_tmpl_id"] for row in rows])
         )
         id2template = dict(
             zip(product_templates.ids, product_templates, strict=True)
-        )  # id => Record<'product.template'>
+        )
         name2template = dict(
             zip(product_templates.mapped("name"), product_templates, strict=True)
-        )  # template_name => Record<'product.template'>
+        )
 
         template_vals_list = {}
-        for vals in with_import_values:
-            name = vals["name"]
+        for row in rows:
+            name = row["name"]
             if name and name not in name2template and name not in template_vals_list:
                 template_vals_list[name] = {
                     key: value
-                    for key, value in vals.items()
-                    if PT._fields[key].required
+                    for key, value in row["values"].items()
+                    if (field := PT._fields.get(key)) is not None and field.required
                 }
 
-        # create the first product to have default values
         created_templates = PT.with_context(create_product_product=True).create(
             list(template_vals_list.values())
         )
@@ -1658,30 +1385,21 @@ class ProductProduct(models.Model):
 
     def _import_resolve_ptavs(
         self,
-        with_import_values,
-        parsed_by_vals,
+        rows,
         id2template,
         name2template,
         pa_pav_records,
     ):
-        """Ensure each template carries the attribute lines/values used by the
-        import (creating ``product.template.attribute.line`` or extending its
-        ``value_ids``), then map every ``(template_id, attribute_value_id)`` to
-        its ``product.template.attribute.value``.
-
-        :return: ``{(template_id, attribute_value_id):
-            product.template.attribute.value}``
-        """
         PTAL = self.env["product.template.attribute.line"]
 
         pt_to_attribute_to_values = defaultdict(
             list
-        )  # (template_id, attribute_id) => [pav]
-        for vals in with_import_values:
-            pt = id2template.get(vals.get("product_tmpl_id")) or name2template.get(
-                vals["name"]
+        )
+        for row in rows:
+            pt = id2template.get(row["product_tmpl_id"]) or name2template.get(
+                row["name"]
             )
-            for attribute_name, value_name in parsed_by_vals[id(vals)]:
+            for attribute_name, value_name in row["parsed"]:
                 pav = pa_pav_records[attribute_name, value_name]
                 pt_to_attribute_to_values[pt.id, pav.attribute_id.id].append(pav)
         domain = Domain(False)
@@ -1689,7 +1407,7 @@ class ProductProduct(models.Model):
             domain |= Domain("product_tmpl_id", "=", template_id) & Domain(
                 "attribute_id", "=", attribute_id
             )
-        template_attribute_to_ptal = {  # (template_id, attribute_id) => ptal
+        template_attribute_to_ptal = {
             (ptal.product_tmpl_id.id, ptal.attribute_id.id): ptal
             for ptal in PTAL.search(domain)
         }
@@ -1697,7 +1415,6 @@ class ProductProduct(models.Model):
         for (template_id, attribute_id), pavs in pt_to_attribute_to_values.items():
             ptal = template_attribute_to_ptal.get((template_id, attribute_id))
             if ptal:
-                # add the new value ids
                 ptal.value_ids = ptal.value_ids.union(*pavs)
             else:
                 ptals_to_create.append(
@@ -1722,7 +1439,7 @@ class ProductProduct(models.Model):
                 )
             )
 
-        return {  # (template_id, value_id) => Record<'product.template.attribute.value'>
+        return {
             (template_id, pav.id): template_attribute_to_ptal[
                 template_id, attribute_id
             ].product_template_value_ids.filtered(
@@ -1733,10 +1450,6 @@ class ProductProduct(models.Model):
         }
 
     def _prepare_sellers(self, params=False):
-        # Use variant_seller_ids (no company domain, unlike seller_ids) so that
-        # _get_filtered_supplier can do the company filtering itself based on
-        # params (e.g. the order company). sudo: reading cross-company sellers
-        # would otherwise raise on suppliers of other companies.
         all_sellers = self.sudo().variant_seller_ids
         sellers = all_sellers._get_filtered_supplier(self.env.company, self, params)
         return sellers.sorted(lambda s: (s.sequence, -s.min_qty, s.price, s.id))
@@ -1750,7 +1463,6 @@ class ProductProduct(models.Model):
         ordered_by="price_discounted",
         params=False,
     ):
-        # Always sort by discounted price but another field can take the primacy through the `ordered_by` param.
         sort_key = ("price_discounted", "sequence", "id")
         if ordered_by != "price_discounted":
             sort_key = (ordered_by, "price_discounted", "sequence", "id")
@@ -1784,7 +1496,6 @@ class ProductProduct(models.Model):
         return res and res.sorted(sort_function)[:1]
 
     def _set_template_field(self, template_field, variant_field):
-        # Batch count active variants per template to avoid N+1 search_count
         tmpl_ids = self.product_tmpl_id.ids
         variant_counts = {}
         if tmpl_ids:
@@ -1796,16 +1507,11 @@ class ProductProduct(models.Model):
             variant_counts = {tmpl.id: count for tmpl, count in data}
         for record in self:
             if (
-                # We are trying to remove a field from the variant even though it is already
-                # not set on the variant, remove it from the template instead.
                 (not record[template_field] and not record[variant_field])
-                # We are trying to add a field to the variant, but the template field is
-                # not set, write on the template instead.
                 or (
                     record[template_field]
                     and not record.product_tmpl_id[template_field]
                 )
-                # There is only one variant, always write on the template.
                 or variant_counts.get(record.product_tmpl_id.id, 0) <= 1
             ):
                 record[variant_field] = False
@@ -1817,15 +1523,6 @@ class ProductProduct(models.Model):
         return False
 
     def _unlink_or_archive(self, check_access=True):
-        """Unlink or archive products.
-        Try in batch as much as possible because it is much faster.
-        Use dichotomy when an exception occurs.
-        """
-        # Avoid access errors in case the products is shared amongst companies
-        # but the underlying objects are not. If unlink fails because of an
-        # AccessError (e.g. while recomputing fields), the 'write' call will
-        # fail as well for the same reason since the field has been set to
-        # recompute.
         if check_access:
             self.check_access("unlink")
             self.check_access("write")
@@ -1835,24 +1532,10 @@ class ProductProduct(models.Model):
             to_archive.write({"active": False})
             self = to_unlink
 
-        # Note: archiving can still fail if something prevents it -- existing
-        # stock reordering rules, for one.
         undeletable = unlink_where_possible(self, lambda products: products.unlink())
         undeletable.filtered("active").write({"active": False})
 
     def _is_variant_possible(self, parent_combination=None):
-        """Return whether the variant is possible based on its own combination,
-        and optionally a parent combination.
-
-        See `_is_combination_possible` for more information.
-
-        :param parent_combination: combination from which `self` is an
-            optional or accessory product.
-        :type parent_combination: recordset `product.template.attribute.value`
-
-        :return: ẁhether the variant is possible based on its own combination
-        :rtype: bool
-        """
         self.ensure_one()
         return self.product_tmpl_id._is_combination_possible(
             self.product_template_attribute_value_ids,
@@ -1861,9 +1544,6 @@ class ProductProduct(models.Model):
         )
 
     def _update_uom(self, to_uom_id):
-        """Hook to handle an UoM modification. Avoid recomputation and just replace the
-        many2one field on the impacted models.
-        """
         return True
 
     def _restamp_uom(
@@ -1874,27 +1554,6 @@ class ProductProduct(models.Model):
         product_field="product_id",
         context=None,
     ):
-        """Rewrite ``product_uom_id`` on every ``model`` record of ``self``.
-
-        Refuses the change when a record already uses a unit *other* than the
-        product's own: it carries a quantity expressed in that unit, and rewriting
-        the unit alone would silently reinterpret the quantity. Because of that
-        guard every surviving group is one product at its own unit, so the writes
-        are collected and issued once instead of once per group.
-
-        Four modules carried this loop -- ``stock`` (twice), ``base_order``,
-        ``repair`` and ``mrp`` (three times) -- differing only in the model, what
-        identifies the product on it, the domain that selects its rows, and four
-        drifted spellings of one sentence. ``mrp`` needs ``product_tmpl_id`` and a
-        ``mail_notrack`` context, hence the last two parameters.
-
-        :param str model: model to rewrite
-        :param int to_uom_id: id of the ``uom.uom`` to move the records to
-        :param domain: rows to select, default every row of ``self``
-        :param str product_field: field naming the product, grouped on
-        :param dict context: extra context for the write
-        :raise UserError: if a record uses a unit other than the product's own
-        """
         # sudo: re-stamping the unit on documents that already reference the
         # product is a consistency consequence of a write the caller was allowed
         # to make on the product itself. Requiring read access to every module's

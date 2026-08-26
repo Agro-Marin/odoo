@@ -1,12 +1,3 @@
-"""Comprehensive tests for product module code quality and performance fixes.
-
-Tests are organized into sections:
-- Bug fix verification (B1-B3)
-- Performance optimization verification (P1-P14)
-- Code quality fix verification (Q3-Q14)
-- Coverage for untested models (product.document, product.category, etc.)
-"""
-
 from datetime import datetime, timedelta
 
 from odoo import Command, fields
@@ -17,19 +8,12 @@ from .common import ProductCommon, ProductVariantsCommon
 
 
 class TestBugFixes(ProductCommon):
-    """Verify all critical bug fixes remain fixed."""
 
     def test_b1_mutable_default_pricelist_recursion(self):
-        """B1: _check_pricelist_recursion must not use mutable default argument.
-
-        Previously, `seen=set()` was used as a default parameter, causing
-        state leakage between calls. Verify independent calls don't share state.
-        """
         self._enable_pricelists()
         pl_a = self._create_pricelist(name="PL A")
         pl_b = self._create_pricelist(name="PL B")
 
-        # Create non-recursive chain: A → B (uses B as base)
         self.env["product.pricelist.item"].create(
             {
                 "pricelist_id": pl_a.id,
@@ -39,7 +23,6 @@ class TestBugFixes(ProductCommon):
             }
         )
 
-        # Now create a recursive chain: B → A (should be caught)
         with self.assertRaises(ValidationError, msg="Recursive pricelist not detected"):
             self.env["product.pricelist.item"].create(
                 {
@@ -51,14 +34,12 @@ class TestBugFixes(ProductCommon):
             )
 
     def test_b1_pricelist_recursion_independent_checks(self):
-        """B1: Two separate non-recursive checks must not interfere."""
         self._enable_pricelists()
         pl_1 = self._create_pricelist(name="PL 1")
         pl_2 = self._create_pricelist(name="PL 2")
         pl_3 = self._create_pricelist(name="PL 3")
         pl_4 = self._create_pricelist(name="PL 4")
 
-        # Chain 1: PL1 → PL2 (non-recursive)
         self.env["product.pricelist.item"].create(
             {
                 "pricelist_id": pl_1.id,
@@ -67,7 +48,6 @@ class TestBugFixes(ProductCommon):
                 "compute_price": "formula",
             }
         )
-        # Chain 2: PL3 → PL4 (non-recursive, should NOT be affected by chain 1)
         self.env["product.pricelist.item"].create(
             {
                 "pricelist_id": pl_3.id,
@@ -78,11 +58,6 @@ class TestBugFixes(ProductCommon):
         )
 
     def test_b3_attribute_domain_boolean(self):
-        """B3: Domain filter for product_tmpl_id.active must use boolean True, not string.
-
-        The _compute_count_product_tmpl and _compute_product_tmpl_ids methods
-        must use boolean True in domain filters for the active field.
-        """
         attribute = self.env["product.attribute"].create(
             {
                 "name": "Test Attr B3",
@@ -102,7 +77,6 @@ class TestBugFixes(ProductCommon):
                 ],
             }
         )
-        # The attribute should show it has related products
         attribute.invalidate_recordset(["count_product_tmpl"])
         self.assertGreater(
             attribute.count_product_tmpl,
@@ -110,7 +84,6 @@ class TestBugFixes(ProductCommon):
             "Domain filter with boolean True should count active templates",
         )
 
-        # Archive the template - count should drop
         template.active = False
         attribute.invalidate_recordset(["count_product_tmpl"])
         self.assertEqual(
@@ -121,14 +94,11 @@ class TestBugFixes(ProductCommon):
 
 
 class TestPerformanceOptimizations(ProductVariantsCommon):
-    """Verify performance optimizations produce correct results."""
 
     def test_p1_batch_template_document_count(self):
-        """P1: _compute_product_document_count on template should work in batch."""
         template1 = self.product.product_tmpl_id
         template2 = self.service_product.product_tmpl_id
 
-        # Create documents for template1
         for i in range(3):
             self.env["product.document"].create(
                 {
@@ -144,7 +114,6 @@ class TestPerformanceOptimizations(ProductVariantsCommon):
         self.assertEqual(template2.product_document_count, 0)
 
     def test_p2_batch_product_document_count(self):
-        """P2: _compute_product_document_count on product should work in batch."""
         product1 = self.product
         product2 = self.service_product
 
@@ -162,8 +131,6 @@ class TestPerformanceOptimizations(ProductVariantsCommon):
         self.assertEqual(product2.product_document_count, 0)
 
     def test_p3_batch_set_template_field(self):
-        """P3: _set_template_field batches variant count check via _read_group."""
-        # Single-variant template: field should be set on template
         template = self.product.product_tmpl_id
         self.assertEqual(
             len(template.product_variant_ids),
@@ -171,19 +138,15 @@ class TestPerformanceOptimizations(ProductVariantsCommon):
             "Single variant expected",
         )
 
-        # Set barcode on the single variant → should propagate to template
         self.product.barcode = "TEST123"
         self.assertEqual(template.barcode, "TEST123")
 
-        # Multi-variant template: barcode should stay on variant
         sofa_red = self.product_sofa_red
         sofa_red.barcode = "SOFA-RED"
         self.assertEqual(sofa_red.barcode, "SOFA-RED")
-        # Template barcode should not be set (multiple variants)
         self.assertFalse(self.product_template_sofa.barcode)
 
     def test_p5_category_product_count_hierarchical(self):
-        """P5: Category product_count should work with hierarchical categories."""
         parent_cat = self.env["product.category"].create({"name": "Parent"})
         child_cat = self.env["product.category"].create(
             {
@@ -198,7 +161,6 @@ class TestPerformanceOptimizations(ProductVariantsCommon):
             }
         )
 
-        # Create products in each level
         self.env["product.template"].create(
             [
                 {"name": "In Parent", "categ_id": parent_cat.id},
@@ -208,7 +170,6 @@ class TestPerformanceOptimizations(ProductVariantsCommon):
             ]
         )
 
-        # Batch compute all at once
         categories = parent_cat | child_cat | grandchild_cat
         categories.invalidate_recordset(["product_count"])
         self.assertEqual(
@@ -218,7 +179,6 @@ class TestPerformanceOptimizations(ProductVariantsCommon):
         self.assertEqual(grandchild_cat.product_count, 1, "Grandchild has 1 product")
 
     def test_p6_get_filtered_sellers_batch(self):
-        """P6: _get_filtered_sellers should not use O(N²) recordset concat."""
         partner1 = self.env["res.partner"].create({"name": "Vendor 1"})
         partner2 = self.env["res.partner"].create({"name": "Vendor 2"})
 
@@ -242,7 +202,6 @@ class TestPerformanceOptimizations(ProductVariantsCommon):
         self.assertTrue(all(s.partner_id == partner1 for s in sellers))
 
     def test_p7_select_seller_batch(self):
-        """P7: _select_seller should not use O(N²) recordset concat."""
         partner = self.env["res.partner"].create({"name": "Vendor"})
         template = self.product.product_tmpl_id
 
@@ -270,16 +229,12 @@ class TestPerformanceOptimizations(ProductVariantsCommon):
         self.assertEqual(seller_bulk.price, 40.0, "Should select bulk price seller")
 
     def test_p10_copy_no_quadratic(self):
-        """P10: product.product copy() should use concat() instead of +=."""
-        # Copy a single product (copy creates a new template)
         copy = self.product_sofa_red.copy()
         self.assertTrue(copy.exists())
         self.assertNotEqual(copy.product_tmpl_id, self.product_sofa_red.product_tmpl_id)
-        # Copy returns a product.product recordset
         self.assertEqual(copy._name, "product.product")
 
     def test_p12_batch_pav_unlink(self):
-        """P12: PAV unlink should batch PTAV search instead of per-record."""
         attr = self.env["product.attribute"].create(
             {
                 "name": "Batch Test",
@@ -290,7 +245,6 @@ class TestPerformanceOptimizations(ProductVariantsCommon):
                 ],
             }
         )
-        # Values not used on any product can be unlinked
         vals = attr.value_ids
         self.assertEqual(len(vals), 3)
         vals.unlink()
@@ -298,10 +252,8 @@ class TestPerformanceOptimizations(ProductVariantsCommon):
 
 
 class TestCodeQualityFixes(ProductCommon):
-    """Verify code quality improvements remain correct."""
 
     def test_q3_no_dead_compute_price_on_supplierinfo(self):
-        """Q3: product.supplierinfo should not have a dead _compute_price method."""
         SupplierInfo = self.env["product.supplierinfo"]
         self.assertFalse(
             hasattr(SupplierInfo, "_compute_price")
@@ -312,7 +264,6 @@ class TestCodeQualityFixes(ProductCommon):
         )
 
     def test_q4_batch_combo_ids_clear(self):
-        """Q4: Changing type from combo should clear combo_ids in batch."""
         combo_choice = self.env["product.combo"].create(
             {
                 "name": "Choice",
@@ -334,16 +285,13 @@ class TestCodeQualityFixes(ProductCommon):
         )
         self.assertTrue(template.combo_ids)
 
-        # Change type from combo to consu → combo_ids should be cleared
         template.type = "consu"
         self.assertFalse(template.combo_ids)
 
     def test_q9_supplierinfo_context_get(self):
-        """Q9: _compute_product_id should use self.env.context.get, not self.env.get."""
         partner = self.env["res.partner"].create({"name": "Supplier"})
         template = self.product.product_tmpl_id
 
-        # Create supplierinfo with context default_product_id
         supplier = (
             self.env["product.supplierinfo"]
             .with_context(
@@ -364,7 +312,6 @@ class TestCodeQualityFixes(ProductCommon):
         )
 
     def test_q11_simplified_pricelist_vals(self):
-        """Q11: _get_default_pricelist_vals should return correct structure."""
         company = self.env.company
         vals = company._get_default_pricelist_vals()
         self.assertIn("name", vals)
@@ -374,7 +321,6 @@ class TestCodeQualityFixes(ProductCommon):
         self.assertEqual(vals["currency_id"], company.currency_id.id)
 
     def test_q14_check_date_range_constraint(self):
-        """Q14: _check_date_range should raise on invalid date range (no dead return)."""
         self._enable_pricelists()
         with self.assertRaises(
             ValidationError, msg="Date range constraint not enforced"
@@ -391,10 +337,8 @@ class TestCodeQualityFixes(ProductCommon):
 
 
 class TestProductDocument(ProductCommon):
-    """Tests for product.document model (previously zero coverage)."""
 
     def test_create_document(self):
-        """Create product documents and verify linkage."""
         doc = self.env["product.document"].create(
             {
                 "name": "Test Document",
@@ -406,7 +350,6 @@ class TestProductDocument(ProductCommon):
         self.assertEqual(doc.res_model, "product.template")
 
     def test_document_unlink_cascades_attachment(self):
-        """Unlinking a document should also remove the underlying attachment."""
         doc = self.env["product.document"].create(
             {
                 "name": "To Delete",
@@ -422,7 +365,6 @@ class TestProductDocument(ProductCommon):
         )
 
     def test_document_copy(self):
-        """Copying a document should copy the underlying attachment too."""
         doc = self.env["product.document"].create(
             {
                 "name": "Original",
@@ -435,10 +377,8 @@ class TestProductDocument(ProductCommon):
 
 
 class TestProductCategory(ProductCommon):
-    """Tests for product.category (previously minimal coverage)."""
 
     def test_complete_name_hierarchy(self):
-        """Complete name should include full hierarchy path."""
         parent = self.env["product.category"].create({"name": "Electronics"})
         child = self.env["product.category"].create(
             {
@@ -449,7 +389,6 @@ class TestProductCategory(ProductCommon):
         self.assertEqual(child.complete_name, "Electronics / Phones")
 
     def test_category_recursion_constraint(self):
-        """Cannot create circular category hierarchy."""
         cat_a = self.env["product.category"].create({"name": "A"})
         cat_b = self.env["product.category"].create(
             {
@@ -457,18 +396,15 @@ class TestProductCategory(ProductCommon):
                 "parent_id": cat_a.id,
             }
         )
-        # _parent_store_update raises UserError; _check_category_recursion raises ValidationError
         with self.assertRaises(UserError):
             cat_a.parent_id = cat_b.id
 
     def test_category_copy_appends_copy(self):
-        """Copying a category should append (copy) to name."""
         cat = self.env["product.category"].create({"name": "Original"})
         copy = cat.copy()
         self.assertIn("(copy)", copy.name)
 
     def test_display_name_flat(self):
-        """With hierarchical_naming=False, display_name should be just name."""
         parent = self.env["product.category"].create({"name": "Parent"})
         child = self.env["product.category"].create(
             {
@@ -481,13 +417,11 @@ class TestProductCategory(ProductCommon):
         self.assertEqual(flat_child.display_name, "Child")
 
     def test_name_create(self):
-        """name_create should create a category and return (id, display_name)."""
         result = self.env["product.category"].name_create("New Category")
         self.assertEqual(result[1], "New Category")
 
 
 class TestPricelistItemConstraints(ProductCommon):
-    """Tests for pricelist item constraints."""
 
     @classmethod
     def setUpClass(cls):
@@ -495,7 +429,6 @@ class TestPricelistItemConstraints(ProductCommon):
         cls._enable_pricelists()
 
     def test_margin_constraint(self):
-        """Min margin must be lower than max margin."""
         with self.assertRaises(ValidationError):
             self.env["product.pricelist.item"].create(
                 {
@@ -507,11 +440,6 @@ class TestPricelistItemConstraints(ProductCommon):
             )
 
     def test_margin_zero_max_is_uncapped(self):
-        """A zero max margin means 'no upper cap' and must not clash with a min.
-
-        _compute_price treats a zero max margin as unset, so the constraint must
-        not reject a positive min margin paired with a zero (unset) max margin.
-        """
         rule = self.env["product.pricelist.item"].create(
             {
                 "pricelist_id": self.pricelist.id,
@@ -523,11 +451,6 @@ class TestPricelistItemConstraints(ProductCommon):
         self.assertTrue(rule.exists())
 
     def test_price_round_negative_constraint(self):
-        """A negative price_round must be rejected at write time, not at pricing.
-
-        Otherwise float_round() raises later on every price computation for the
-        rule (a data-poisoning 500), instead of failing fast on the bad write.
-        """
         with self.assertRaises(ValidationError):
             self.env["product.pricelist.item"].create(
                 {
@@ -538,8 +461,6 @@ class TestPricelistItemConstraints(ProductCommon):
             )
 
     def test_product_consistency_constraint(self):
-        """applied_on requires corresponding product/category fields to be set."""
-        # applied_on="1_product" without product_tmpl_id should raise
         with self.assertRaises(ValidationError):
             self.env["product.pricelist.item"].create(
                 {
@@ -552,7 +473,6 @@ class TestPricelistItemConstraints(ProductCommon):
             )
 
     def test_three_level_pricelist_recursion(self):
-        """Three-level pricelist chain should be detected: A → B → C → A."""
         pl_a = self._create_pricelist(name="PL A")
         pl_b = self._create_pricelist(name="PL B")
         pl_c = self._create_pricelist(name="PL C")
@@ -585,10 +505,8 @@ class TestPricelistItemConstraints(ProductCommon):
 
 
 class TestSupplierInfoCompute(ProductCommon):
-    """Tests for product.supplierinfo compute methods."""
 
     def test_compute_product_uom_id(self):
-        """UOM should default from product or template."""
         partner = self.env["res.partner"].create({"name": "Vendor"})
         supplier = self.env["product.supplierinfo"].create(
             {
@@ -604,7 +522,6 @@ class TestSupplierInfoCompute(ProductCommon):
         )
 
     def test_compute_price_discounted(self):
-        """Discounted price should apply discount percentage."""
         partner = self.env["res.partner"].create({"name": "Vendor"})
         supplier = self.env["product.supplierinfo"].create(
             {
@@ -622,7 +539,6 @@ class TestSupplierInfoCompute(ProductCommon):
         )
 
     def test_sanitize_vals_sets_template(self):
-        """Creating supplierinfo with product_id should auto-set product_tmpl_id."""
         partner = self.env["res.partner"].create({"name": "Vendor"})
         supplier = self.env["product.supplierinfo"].create(
             {
@@ -639,10 +555,8 @@ class TestSupplierInfoCompute(ProductCommon):
 
 
 class TestResCompanyPricelist(TransactionCase):
-    """Tests for res.company pricelist auto-creation."""
 
     def test_company_creates_default_pricelist(self):
-        """Creating a company should auto-create a default pricelist."""
         self.env.user.group_ids += self.env.ref("product.group_product_pricelist")
         company = self.env["res.company"].create(
             {
@@ -660,11 +574,8 @@ class TestResCompanyPricelist(TransactionCase):
 
 
 class TestVariantOptimizations(ProductVariantsCommon):
-    """Verify variant-related optimizations work correctly."""
 
     def test_p8_variant_limit_hoisted(self):
-        """P8: variant_limit config param should work (hoisted before loop)."""
-        # Create a template that would exceed a low limit
         self.env["ir.config_parameter"].sudo().set_param(
             "product.dynamic_variant_limit",
             "2",
@@ -691,8 +602,6 @@ class TestVariantOptimizations(ProductVariantsCommon):
             )
 
     def test_p14_batch_combo_items_cleanup(self):
-        """P14: Combo items should be batch-cleaned when variants are unlinked."""
-        # Create combo product referencing a variant
         combo_choice = self.env["product.combo"].create(
             {
                 "name": "Sofa Choice",
@@ -707,7 +616,6 @@ class TestVariantOptimizations(ProductVariantsCommon):
         )
         self.assertEqual(len(combo_choice.combo_item_ids), 1)
 
-        # Remove the color attribute → variants get recreated, combo items cleaned
         self.product_template_sofa.write(
             {
                 "attribute_line_ids": [
@@ -715,7 +623,6 @@ class TestVariantOptimizations(ProductVariantsCommon):
                 ],
             }
         )
-        # The old variant is gone, combo item should be cleaned up
         combo_choice.invalidate_recordset()
         self.assertFalse(
             combo_choice.combo_item_ids.filtered(
@@ -726,7 +633,6 @@ class TestVariantOptimizations(ProductVariantsCommon):
 
 
 class TestPricelistItemComputeHardening(ProductCommon):
-    """Compute/label correctness for product.pricelist.item rules."""
 
     @classmethod
     def setUpClass(cls):
@@ -734,7 +640,6 @@ class TestPricelistItemComputeHardening(ProductCommon):
         cls._enable_pricelists()
 
     def test_percentage_compute_price(self):
-        """`percentage` compute_price applies percent_price to the base price."""
         product = self._create_product(list_price=200.0)
         rule = self.env["product.pricelist.item"].create(
             {
@@ -747,10 +652,9 @@ class TestPricelistItemComputeHardening(ProductCommon):
         price = rule._compute_price(
             product, 1.0, product.uom_id, date=fields.Datetime.now()
         )
-        self.assertAlmostEqual(price, 150.0, places=2)  # 200 - 25%
+        self.assertAlmostEqual(price, 150.0, places=2)
 
     def test_name_recomputes_on_display_applied_on_change(self):
-        """`name` depends on display_applied_on; toggling it must refresh name."""
         rule = self.env["product.pricelist.item"].create(
             {
                 "pricelist_id": self.pricelist.id,
@@ -765,15 +669,8 @@ class TestPricelistItemComputeHardening(ProductCommon):
         self.assertEqual(rule.name, "All Categories")
 
     def test_rule_amounts_expressed_in_requested_currency(self):
-        """Fixed price & surcharge must be returned in the caller's currency.
-
-        The amounts are stored in the rule's (pricelist) currency; _compute_price
-        must convert them to the requested currency, not leak the rule currency.
-        """
         company = self.env.company
         rule_cur = company.currency_id
-        # Pick a different, explicit currency (a fresh DB only activates the
-        # company currency, so a plain search would return nothing).
         req_cur = self.env.ref("base.EUR")
         if req_cur == rule_cur:
             req_cur = self.env.ref("base.USD")
@@ -783,7 +680,7 @@ class TestPricelistItemComputeHardening(ProductCommon):
             {
                 "currency_id": req_cur.id,
                 "name": "2099-01-01",
-                "rate": 2.0,  # 1 rule-currency unit -> 2 requested-currency units
+                "rate": 2.0,
                 "company_id": company.id,
             }
         )
@@ -804,7 +701,7 @@ class TestPricelistItemComputeHardening(ProductCommon):
         self.assertAlmostEqual(
             got, rule_cur._convert(50.0, req_cur, company, date), places=2
         )
-        self.assertAlmostEqual(got, 100.0, places=2)  # 50 * 2.0
+        self.assertAlmostEqual(got, 100.0, places=2)
 
         surcharge_rule = self.env["product.pricelist.item"].create(
             {
@@ -819,15 +716,12 @@ class TestPricelistItemComputeHardening(ProductCommon):
         got2 = surcharge_rule._compute_price(
             product, 1.0, product.uom_id, date=date, currency=req_cur
         )
-        base_req = rule_cur._convert(100.0, req_cur, company, date)  # 200
-        surcharge_req = rule_cur._convert(10.0, req_cur, company, date)  # 20
-        self.assertAlmostEqual(got2, base_req + surcharge_req, places=2)  # 220
+        base_req = rule_cur._convert(100.0, req_cur, company, date)
+        surcharge_req = rule_cur._convert(10.0, req_cur, company, date)
+        self.assertAlmostEqual(got2, base_req + surcharge_req, places=2)
 
 
 class TestPricelistItemRefactor(ProductCommon):
-    """Locks the product.pricelist.item refactor: currency-consistent rounding,
-    non-stored markup, batched create deduction, and guard-clause applicability.
-    """
 
     @classmethod
     def setUpClass(cls):
@@ -835,7 +729,6 @@ class TestPricelistItemRefactor(ProductCommon):
         cls._enable_pricelists()
 
     def _second_currency(self, rate):
-        """Activate a currency distinct from the company one, at ``rate``."""
         company = self.env.company
         rule_cur = company.currency_id
         req = self.env.ref("base.EUR")
@@ -854,17 +747,10 @@ class TestPricelistItemRefactor(ProductCommon):
         return rule_cur, req
 
     def test_price_round_is_currency_consistent(self):
-        """price_round is a rule-currency amount and must be converted before it
-        rounds the (already converted) price.
-
-        A rule with price_round=10 stored in currency C rounds to a grid of 10 C.
-        Requested in a currency worth 1/3 of C, that grid is 30 - so 99 must round
-        to 90, not to 100 (rounding on a raw grid of 10 in the wrong currency).
-        """
         rule_cur, req = self._second_currency(3.0)
         date = datetime(2099, 1, 1)
         pricelist = self._create_pricelist(currency_id=rule_cur.id)
-        product = self._create_product(list_price=33.0)  # 99 in req currency
+        product = self._create_product(list_price=33.0)
         rule = self.env["product.pricelist.item"].create(
             {
                 "pricelist_id": pricelist.id,
@@ -887,8 +773,6 @@ class TestPricelistItemRefactor(ProductCommon):
         )
 
     def test_price_markup_not_stored_but_inverts(self):
-        """price_markup is a non-stored mirror of -price_discount; editing it
-        persists onto price_discount through the inverse."""
         PI = self.env["product.pricelist.item"]
         self.assertFalse(
             PI._fields["price_markup"].store,
@@ -909,7 +793,6 @@ class TestPricelistItemRefactor(ProductCommon):
         self.assertEqual(rule.price_markup, 40.0)
 
     def test_create_batches_variant_template_deduction(self):
-        """Variant-only rules deduce both product_tmpl_id and applied_on per row."""
         products = self.env["product.product"].create(
             [{"name": "BV1"}, {"name": "BV2"}, {"name": "BV3"}]
         )
@@ -929,7 +812,6 @@ class TestPricelistItemRefactor(ProductCommon):
             self.assertEqual(rule.applied_on, "0_product_variant")
 
     def test_deduce_applied_on_precedence(self):
-        """variant > template > category > global."""
         PI = self.env["product.pricelist.item"]
         self.assertEqual(
             PI._deduce_applied_on(product_id=1, product_tmpl_id=2, categ_id=3),
@@ -942,7 +824,6 @@ class TestPricelistItemRefactor(ProductCommon):
         self.assertEqual(PI._deduce_applied_on(), "3_global")
 
     def test_is_applicable_for_category_descendant(self):
-        """A category rule applies to its category and descendants, not siblings."""
         parent = self.env["product.category"].create({"name": "RP"})
         child = self.env["product.category"].create(
             {"name": "RC", "parent_id": parent.id}
@@ -963,7 +844,6 @@ class TestPricelistItemRefactor(ProductCommon):
         self.assertFalse(rule._is_applicable_for(in_other, 1.0))
 
     def test_is_applicable_for_min_quantity(self):
-        """min_quantity gates applicability regardless of the target level."""
         rule = self.env["product.pricelist.item"].create(
             {
                 "pricelist_id": self.pricelist.id,
@@ -978,7 +858,6 @@ class TestPricelistItemRefactor(ProductCommon):
         self.assertTrue(rule._is_applicable_for(product, 5.0))
 
     def test_is_applicable_for_single_variant_template(self):
-        """A variant rule matches a template only when it is its sole variant."""
         product = self._create_product()
         template = product.product_tmpl_id
         rule = self.env["product.pricelist.item"].create(
@@ -990,6 +869,5 @@ class TestPricelistItemRefactor(ProductCommon):
                 "fixed_price": 1.0,
             }
         )
-        # Single-variant template is accepted for its variant rule.
         self.assertTrue(rule._is_applicable_for(template, 1.0))
         self.assertTrue(rule._is_applicable_for(product, 1.0))

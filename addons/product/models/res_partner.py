@@ -4,11 +4,6 @@ from odoo import api, fields, models
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-    # when the specific_property_product_pricelist is not defined
-    # the fallback value may be computed with 2 ir.config_parameter
-    # in self.env['product.pricelist']._get_partner_pricelist_multi
-    # 1. res.partner.property_product_pricelist_{company_id}  # fallback for current company
-    # 2. res.partner.property_product_pricelist               # fallback for all companies
     property_product_pricelist = fields.Many2one(
         comodel_name="product.pricelist",
         string="Pricelist",
@@ -16,12 +11,9 @@ class ResPartner(models.Model):
         inverse="_inverse_property_product_pricelist",
         company_dependent=False,
         domain=lambda self: [("company_id", "in", (self.env.company.id, False))],
-        # behave like company dependent field but is not company_dependent
         help="Used for sales to the current partner",
     )
 
-    # the specific pricelist to compute property_product_pricelist
-    # this company dependent field shouldn't have any fallback in ir.default
     specific_property_product_pricelist = fields.Many2one(
         comodel_name="product.pricelist",
         company_dependent=True,
@@ -41,7 +33,6 @@ class ResPartner(models.Model):
         for partner in self:
             default_for_country = defaults.get(partner.country_id.id)
             actual = partner.specific_property_product_pricelist
-            # update at each change country, and so erase old pricelist
             if partner.property_product_pricelist or (
                 actual and default_for_country and default_for_country.id != actual.id
             ):

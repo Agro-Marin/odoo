@@ -38,7 +38,6 @@ class TestName(TransactionCase):
         self.assertNotIn(self.product.id, res_ids)
 
     def test_product_template_search_name_no_product_product(self):
-        # To be able to test dynamic variant "variants" feature must be set up
         self.env.user.write(
             {"group_ids": [(4, self.env.ref("product.group_product_variant").id)]}
         )
@@ -76,10 +75,7 @@ class TestName(TransactionCase):
             }
         )
         self.assertTrue(template_dyn.has_dynamic_attributes())
-        # Ensure that template_dyn hasn't any product_product
         self.assertEqual(len(template_dyn.product_variant_ids), 0)
-        # Ensure that Dynam search return Dynamo and Test Dynamical as this
-        # last have no product_product
         res = self.env["product.template"].name_search(name="Dynam", operator="ilike")
         res_ids = [r[0] for r in res]
         self.assertIn(template_dyn.id, res_ids)

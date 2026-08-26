@@ -4,10 +4,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 19.0\n"
+"Project-Id-Version: Odoo Server 19.0+e\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-01-25 18:36+0000\n"
-"PO-Revision-Date: 2026-01-25 18:36+0000\n"
+"POT-Creation-Date: 2026-08-25 15:43+0000\n"
+"PO-Revision-Date: 2026-08-25 15:43+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -30,15 +30,15 @@ msgstr ""
 #. module: product_expiry
 #: model_terms:ir.ui.view,arch_db:product_expiry.view_move_form_expiry
 msgid ""
-"<span class=\"badge rounded-pill float-end text-bg-warning\" invisible=\"not (alert_date &lt;= time.strftime('%Y-%m-%d %H:%M:%S') &lt; expiration_date)\">Expiring</span>\n"
-"            <span class=\"badge rounded-pill float-end text-bg-danger\" invisible=\"not product_expiry_alert\">Expired</span>"
+"<span class=\"badge rounded-pill float-end text-bg-warning\" invisible=\"not use_expiration_date or not (alert_date &lt;= time.strftime('%Y-%m-%d %H:%M:%S') &lt; expiration_date)\">Expiring</span>\n"
+"            <span class=\"badge rounded-pill float-end text-bg-danger\" invisible=\"not use_expiration_date or not product_expiry_alert\">Expired</span>"
 msgstr ""
 
 #. module: product_expiry
 #: model_terms:ir.ui.view,arch_db:product_expiry.view_production_lot_view_kanban
 msgid ""
-"<span title=\"Alert\" class=\"fa fa-exclamation-triangle text-danger me-2\" "
-"invisible=\"product_qty &lt;= 0 or not product_expiry_alert or not "
+"<span title=\"Alert\" class=\"fa-solid fa-exclamation-triangle text-danger "
+"me-2\" invisible=\"product_qty &lt;= 0 or not product_expiry_alert or not "
 "expiration_date\"/>"
 msgstr ""
 
@@ -66,7 +66,7 @@ msgid "Alert Date Reached"
 msgstr ""
 
 #. module: product_expiry
-#: model_terms:ir.ui.view,arch_db:product_expiry.quant_search_view_inherit_product_expiry
+#: model_terms:ir.ui.view,arch_db:product_expiry.view_stock_quant_search_inherit_product_expiry
 msgid "Alert Lots"
 msgstr ""
 
@@ -81,7 +81,7 @@ msgid "Available Quantity"
 msgstr ""
 
 #. module: product_expiry
-#: model:ir.model.fields,help:product_expiry.field_product_product__free_qty
+#: model:ir.model.fields,help:product_expiry.field_product_product__qty_free
 msgid ""
 "Available quantity (computed as Quantity On Hand - reserved quantity - quantity to remove)\n"
 "In a context with a single Stock Location, this includes goods stored in this location, or any of its children.\n"
@@ -172,6 +172,7 @@ msgstr ""
 
 #. module: product_expiry
 #: model:ir.model.fields,field_description:product_expiry.field_expiry_picking_confirmation__display_name
+#: model:ir.model.fields,field_description:product_expiry.field_product_category__display_name
 #: model:ir.model.fields,field_description:product_expiry.field_product_product__display_name
 #: model:ir.model.fields,field_description:product_expiry.field_product_template__display_name
 #: model:ir.model.fields,field_description:product_expiry.field_report_stock_quantity__display_name
@@ -182,8 +183,16 @@ msgstr ""
 #: model:ir.model.fields,field_description:product_expiry.field_stock_move_line__display_name
 #: model:ir.model.fields,field_description:product_expiry.field_stock_picking__display_name
 #: model:ir.model.fields,field_description:product_expiry.field_stock_quant__display_name
-#: model:ir.model.fields,field_description:product_expiry.field_stock_rule__display_name
+#: model:ir.model.fields,field_description:product_expiry.field_stock_scheduler__display_name
 msgid "Display Name"
+msgstr ""
+
+#. module: product_expiry
+#. odoo-python
+#: code:addons/product_expiry/wizard/confirm_expiry.py:0
+msgid ""
+"Every line of this transfer is expired, so there is nothing left to deliver."
+" Cancel the transfer, or replace the expired lots before validating it."
 msgstr ""
 
 #. module: product_expiry
@@ -197,7 +206,7 @@ msgid "Expiration"
 msgstr ""
 
 #. module: product_expiry
-#: model_terms:ir.ui.view,arch_db:product_expiry.search_product_lot_filter_inherit_product_expiry
+#: model_terms:ir.ui.view,arch_db:product_expiry.view_stock_lot_search_inherit_product_expiry
 msgid "Expiration Alerts"
 msgstr ""
 
@@ -208,6 +217,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:product_expiry.field_stock_move_line__expiration_date
 #: model:ir.model.fields,field_description:product_expiry.field_stock_quant__expiration_date
 #: model_terms:ir.ui.view,arch_db:product_expiry.stock_report_delivery_document_inherit_product_expiry
+#: model_terms:ir.ui.view,arch_db:product_expiry.view_product_category_form_expiry
 #: model_terms:ir.ui.view,arch_db:product_expiry.view_product_form_expiry
 msgid "Expiration Date"
 msgstr ""
@@ -228,7 +238,7 @@ msgid "Expired Lot(s)"
 msgstr ""
 
 #. module: product_expiry
-#: model_terms:ir.ui.view,arch_db:product_expiry.quant_search_view_inherit_product_expiry
+#: model_terms:ir.ui.view,arch_db:product_expiry.view_stock_quant_search_inherit_product_expiry
 msgid "Expired Lots"
 msgstr ""
 
@@ -249,7 +259,7 @@ msgid "First Expiry First Out (FEFO)"
 msgstr ""
 
 #. module: product_expiry
-#: model:ir.model.fields,help:product_expiry.field_product_product__virtual_available
+#: model:ir.model.fields,help:product_expiry.field_product_product__qty_available_virtual
 msgid ""
 "Forecast quantity (computed as Quantity On Hand - Outgoing + Incoming - Quantity to Remove)\n"
 "In a context with a single Stock Location, this includes goods stored in this location, or any of its children.\n"
@@ -258,17 +268,18 @@ msgid ""
 msgstr ""
 
 #. module: product_expiry
-#: model:ir.model.fields,field_description:product_expiry.field_product_product__virtual_available
+#: model:ir.model.fields,field_description:product_expiry.field_product_product__qty_available_virtual
 msgid "Forecasted Quantity"
 msgstr ""
 
 #. module: product_expiry
-#: model:ir.model.fields,field_description:product_expiry.field_product_product__free_qty
-msgid "Free To Use Quantity "
+#: model:ir.model.fields,field_description:product_expiry.field_product_product__qty_free
+msgid "Free To Use Quantity"
 msgstr ""
 
 #. module: product_expiry
 #: model:ir.model.fields,field_description:product_expiry.field_expiry_picking_confirmation__id
+#: model:ir.model.fields,field_description:product_expiry.field_product_category__id
 #: model:ir.model.fields,field_description:product_expiry.field_product_product__id
 #: model:ir.model.fields,field_description:product_expiry.field_product_template__id
 #: model:ir.model.fields,field_description:product_expiry.field_report_stock_quantity__id
@@ -279,7 +290,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:product_expiry.field_stock_move_line__id
 #: model:ir.model.fields,field_description:product_expiry.field_stock_picking__id
 #: model:ir.model.fields,field_description:product_expiry.field_stock_quant__id
-#: model:ir.model.fields,field_description:product_expiry.field_stock_rule__id
+#: model:ir.model.fields,field_description:product_expiry.field_stock_scheduler__id
 msgid "ID"
 msgstr ""
 
@@ -367,6 +378,11 @@ msgid "Product"
 msgstr ""
 
 #. module: product_expiry
+#: model:ir.model,name:product_expiry.model_product_category
+msgid "Product Category"
+msgstr ""
+
+#. module: product_expiry
 #: model:ir.model.fields,field_description:product_expiry.field_stock_lot__product_expiry_alert
 #: model:ir.model.fields,field_description:product_expiry.field_stock_move_line__is_expired
 msgid "Product Expiry Alert"
@@ -423,8 +439,8 @@ msgid "Stock Replenishment Report"
 msgstr ""
 
 #. module: product_expiry
-#: model:ir.model,name:product_expiry.model_stock_rule
-msgid "Stock Rule"
+#: model:ir.model,name:product_expiry.model_stock_scheduler
+msgid "Stock Scheduler"
 msgstr ""
 
 #. module: product_expiry
@@ -437,6 +453,16 @@ msgstr ""
 #. odoo-python
 #: code:addons/product_expiry/models/production_lot.py:0
 msgid "The alert date has been reached for this lot/serial number"
+msgstr ""
+
+#. module: product_expiry
+#. odoo-python
+#: code:addons/product_expiry/models/product_product.py:0
+msgid ""
+"The expiry delays of %(product)s are numbers of days and cannot be negative:"
+" %(fields)s. A negative delay puts a lot's removal date after its expiration"
+" date, which leaves expired goods reservable and blocks the transfer that "
+"would clear them."
 msgstr ""
 
 #. module: product_expiry
@@ -488,6 +514,7 @@ msgid "Transfer"
 msgstr ""
 
 #. module: product_expiry
+#: model:ir.model.fields,field_description:product_expiry.field_product_category__use_expiration_date
 #: model:ir.model.fields,field_description:product_expiry.field_product_product__use_expiration_date
 #: model:ir.model.fields,field_description:product_expiry.field_product_template__use_expiration_date
 #: model:ir.model.fields,field_description:product_expiry.field_stock_lot__use_expiration_date
@@ -495,6 +522,14 @@ msgstr ""
 #: model:ir.model.fields,field_description:product_expiry.field_stock_move_line__use_expiration_date
 #: model:ir.model.fields,field_description:product_expiry.field_stock_quant__use_expiration_date
 msgid "Use Expiration Date"
+msgstr ""
+
+#. module: product_expiry
+#: model:ir.model.fields,help:product_expiry.field_product_category__use_expiration_date
+msgid ""
+"When this box is ticked, products in this category default to managing "
+"product expiration, with dates on the product and on the corresponding "
+"lot/serial numbers"
 msgstr ""
 
 #. module: product_expiry
@@ -507,7 +542,7 @@ msgstr ""
 msgid ""
 "When this box is ticked, you have the possibility to specify dates to manage"
 " product expiration, on the product and on the corresponding lot/serial "
-"numbers"
+"numbers. Defaults to the product category setting."
 msgstr ""
 
 #. module: product_expiry

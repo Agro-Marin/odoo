@@ -1,7 +1,5 @@
-
-# don't try to be a good boy and sort imports alphabetically.
-# `product.template` should be initialised before `product.product`
 from . import (
+    mixin_product_price,
     product_template,
     product_product,
     ir_attachment,

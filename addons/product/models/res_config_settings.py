@@ -66,12 +66,6 @@ class ResConfigSettings(models.TransientModel):
         if self.group_product_pricelist and not had_group_pl:
             self.env["res.company"]._activate_or_create_pricelists()
         elif had_group_pl and not self.group_product_pricelist:
-            # Only on the enabled -> disabled *transition*. Archiving on every
-            # save while the feature is already off (the previous behaviour)
-            # silently re-archived pricelists an admin had deliberately
-            # reactivated, and did so for every company in the database on any
-            # unrelated settings change. The scope stays global because
-            # `group_product_pricelist` is itself a global group.
             self.env["product.pricelist"].sudo().search(
                 [("active", "=", True)]
             ).action_archive()

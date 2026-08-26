@@ -8,26 +8,15 @@ class ProductAttribute(models.Model):
     _name = "product.attribute"
     _inherit = "mixin.attribute"
     _description = "Product Attribute"
-    # if you change this _order, keep it in sync with the method
-    # `_sort_key_attribute_value`, which extends `product.template` from
-    # `website_sale` (not from this module, despite where this comment sat).
     _order = "sequence, id"
-    # Lets mixin.attribute re-validate existing lines when value_type moves.
     _attribute_line_model = "product.template.attribute.line"
 
     _check_multi_checkbox_no_variant = models.Constraint(
         "CHECK(display_type != 'multi' OR create_variant = 'no_variant')",
         "Multi-checkbox display type is not compatible with the creation of variants",
     )
-    # Product attribute names repeat legitimately, so mixin.catalog's rule is
-    # declined here rather than on mixin.attribute -- other subjects' attribute
-    # vocabularies are flat and want it. A second "Size" holding shoe sizes is
-    # a different dimension from the "Size" holding shirt sizes, and this module
-    # already ships eight attributes a database is free to extend alongside.
     _name_src_uniq = no_name_uniq_index()
 
-    # name and active come from mixin.catalog through mixin.attribute; only the
-    # labels are product-specific.
     name = fields.Char(string="Attribute")
     active = fields.Boolean(
         help="If unchecked, it will allow you to hide the attribute without removing it.",
@@ -52,16 +41,9 @@ class ProductAttribute(models.Model):
         - Never: Variants are never created for the attribute.
         Note: this cannot be changed once the attribute is used on a product.""",
     )
-    # Selection, required and default all come from mixin.attribute; only the
-    # help is product-specific.
     display_type = fields.Selection(
         help="The display type used in the Product Configurator.",
     )
-    # mixin.attribute defaults this to 'single', which limits a line to one
-    # value. That is the wrong reading for a product: a line holds the *menu*
-    # of values the template offers (Color: red, blue, green) and the choice of
-    # one is made per variant, not on the line. Structurally every product
-    # attribute is therefore 'multi'.
     value_type = fields.Selection(
         default="multi",
         help="How many values a single attribute line may hold. Always 'multi' "
@@ -94,16 +76,7 @@ class ProductAttribute(models.Model):
         compute="_compute_count_product_tmpl",
     )
 
-    # === CRUD METHODS === #
-
     def write(self, vals):
-        """Override to make sure attribute type can't be changed if it's used on
-        a product template.
-
-        This is important to prevent because changing the type would make
-        existing combinations invalid without recomputing them, and recomputing
-        them might take too long and we don't want to change products without
-        the user knowing about it."""
         if "create_variant" in vals:
             for pa in self:
                 if (
@@ -125,24 +98,15 @@ class ProductAttribute(models.Model):
         )
         res = super().write(vals)
         if invalidate:
-            # prefetched o2m have to be resequenced
-            # (eg. product.template: attribute_line_ids)
             self.env.flush_all()
             self.env.invalidate_all()
         return res
-
-    # The delete and archive guards live on mixin.attribute; these two hooks
-    # narrow "in use" to what it means here. count_product_tmpl only counts
-    # lines of *active* templates, so an attribute whose only trace is an
-    # archived product stays deletable -- the generic rule would keep it.
 
     def _used_records(self):
         return self.filtered("count_product_tmpl")
 
     def _usage_label(self):
         return ", ".join(self.product_tmpl_ids.mapped("display_name"))
-
-    # === COMPUTE METHODS === #
 
     @api.depends("product_tmpl_ids")
     def _compute_count_product_tmpl(self):
@@ -179,14 +143,10 @@ class ProductAttribute(models.Model):
                 active_test=False
             ).product_tmpl_ids = templates_by_attribute.get(pa.id, False)
 
-    # === ONCHANGE METHODS === #
-
     @api.onchange("display_type")
     def _onchange_display_type(self):
         if self.display_type == "multi" and self.count_product_tmpl == 0:
             self.create_variant = "no_variant"
-
-    # === ACTION METHODS === #
 
     @api.readonly
     def action_view_product_template_attribute_lines(self):
@@ -201,8 +161,6 @@ class ProductAttribute(models.Model):
                 ("product_tmpl_id.active", "=", True),
             ],
         }
-
-    # === TOOLING === #
 
     def _without_no_variant_attributes(self):
         return self.filtered(lambda pa: pa.create_variant != "no_variant")

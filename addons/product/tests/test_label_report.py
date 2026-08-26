@@ -7,7 +7,6 @@ from .common import ProductCommon
 
 @tagged("post_install", "-at_install")
 class TestProductLabelLayout(ProductCommon):
-    """Cover the label layout wizard and the label report data pipeline."""
 
     @classmethod
     def setUpClass(cls):
@@ -38,7 +37,6 @@ class TestProductLabelLayout(ProductCommon):
                 got_xml_id, data = self.wizard._prepare_report_data()
                 self.assertEqual(got_xml_id, xml_id)
                 self.assertEqual(data["price_included"], "xprice" in print_format)
-                # The referenced report must actually exist.
                 self.assertTrue(self.env.ref(xml_id))
 
     def test_quantity_must_be_positive(self):
@@ -52,7 +50,6 @@ class TestProductLabelLayout(ProductCommon):
             wizard._prepare_report_data()
 
     def test_page_count_boundaries(self):
-        """2x7 grid = 14 labels per page: 14 labels → 1 page, 15 → 2 pages."""
         self.wizard.print_format = "2x7xprice"
         for quantity, pages in [(1, 1), (14, 1), (15, 2), (28, 2), (29, 3)]:
             with self.subTest(quantity=quantity):
@@ -66,8 +63,6 @@ class TestProductLabelLayout(ProductCommon):
                 )
 
     def test_quantities_survive_json_roundtrip(self):
-        """The report is called with string keys from the client flow and int
-        keys when rendered server-side: both must work."""
         _xml_id, data = self.wizard._prepare_report_data()
         int_keyed = dict(data, quantity_by_product={self.product.id: 3})
         str_keyed = dict(data, quantity_by_product={str(self.product.id): 3})
@@ -77,7 +72,6 @@ class TestProductLabelLayout(ProductCommon):
             self.assertEqual(values["page_numbers"], 1)
 
     def test_custom_barcodes_merge(self):
-        """Custom barcodes add extra labels and count toward the page total."""
         self.wizard.custom_quantity = 10
         _xml_id, data = self.wizard._prepare_report_data()
         data["custom_barcodes"] = {str(self.product.id): [("LOT-1", 3), ("LOT-2", 2)]}
@@ -86,7 +80,6 @@ class TestProductLabelLayout(ProductCommon):
             values["quantity"][self.product],
             [("PROD-1", 10), ("LOT-1", 3), ("LOT-2", 2)],
         )
-        # 15 labels on a 14-label grid.
         self.assertEqual(values["page_numbers"], 2)
 
     def test_template_path(self):

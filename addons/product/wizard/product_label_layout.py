@@ -40,7 +40,6 @@ class ProductLabelLayout(models.TransientModel):
         if self.custom_quantity <= 0:
             raise UserError(_("You need to set a positive quantity."))
 
-        # Get layout grid
         if self.print_format == "dymo":
             xml_id = "product.report_product_template_label_dymo"
         elif "x" in self.print_format:
@@ -67,7 +66,6 @@ class ProductLabelLayout(models.TransientModel):
                 )
             )
 
-        # Build data to pass to the report
         data = {
             "active_model": active_model,
             "quantity_by_product": dict.fromkeys(products, self.custom_quantity),

@@ -1,6 +1,4 @@
-import datetime
-
-from odoo import Command, _, models
+from odoo import Command, models
 
 
 class StockPicking(models.Model):
@@ -8,33 +6,38 @@ class StockPicking(models.Model):
 
     def _pre_action_done_hook(self):
         res = super()._pre_action_done_hook()
-        # We use the 'skip_expired' context key to avoid to make the check when
-        # user did already confirmed the wizard about expired lots.
-        if res is True and not self.env.context.get('skip_expired'):
-            pickings_to_warn_expired = self._check_expired_lots()
-            if pickings_to_warn_expired:
-                return pickings_to_warn_expired._action_generate_expired_wizard()
+        if res is True and not self.env.context.get("skip_expired"):
+            expired_lines = self._expired_move_lines()
+            if expired_lines:
+                return expired_lines.picking_id._action_generate_expired_wizard(
+                    expired_lines
+                )
         return res
 
+    def _expired_move_lines(self):
+        return self.move_line_ids._filtered_expired()
+
     def _check_expired_lots(self):
-        return self.move_line_ids.filtered(lambda ml: ml.lot_id.product_expiry_alert or (ml.removal_date and ml.removal_date <= datetime.datetime.now())).picking_id
+        return self._expired_move_lines().picking_id
 
-    def _action_generate_expired_wizard(self):
-        expired_lot_ids = self.move_line_ids.filtered(lambda ml: ml.lot_id.product_expiry_alert or (ml.removal_date and ml.removal_date <= datetime.datetime.now())).lot_id.ids
-        view_id = self.env.ref('product_expiry.confirm_expiry_view').id
+    def _action_generate_expired_wizard(self, expired_lines=None):
+        if expired_lines is None:
+            expired_lines = self._expired_move_lines()
+        view_id = self.env.ref("product_expiry.confirm_expiry_view").id
         context = dict(self.env.context)
-
-        context.update({
-            'default_picking_ids': [Command.set(self.ids)],
-            'default_lot_ids': [Command.set(expired_lot_ids)],
-        })
+        context.update(
+            {
+                "default_picking_ids": [Command.set(self.ids)],
+                "default_lot_ids": [Command.set(expired_lines.lot_id.ids)],
+            }
+        )
         return {
-            'name': _('Confirmation'),
-            'type': 'ir.actions.act_window',
-            'res_model': 'expiry.picking.confirmation',
-            'view_mode': 'form',
-            'views': [(view_id, 'form')],
-            'view_id': view_id,
-            'target': 'new',
-            'context': context,
+            "name": self.env._("Confirmation"),
+            "type": "ir.actions.act_window",
+            "res_model": "expiry.picking.confirmation",
+            "view_mode": "form",
+            "views": [(view_id, "form")],
+            "view_id": view_id,
+            "target": "new",
+            "context": context,
         }

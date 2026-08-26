@@ -21,12 +21,6 @@ class ProductDocument(models.Model):
 
     @api.constrains("url", "type")
     def _check_url_scheme(self):
-        """Reject non-web URL schemes (javascript:, file:, ...).
-
-        Documents of type ``url`` are surfaced as clickable links, potentially
-        to portal users (e.g. on quotations), so the scheme must be enforced on
-        every write path — not only in the form onchange.
-        """
         for document in self:
             if (
                 document.type == "url"
@@ -40,17 +34,12 @@ class ProductDocument(models.Model):
                     )
                 )
 
-    # === CRUD METHODS ===#
-
     @api.model_create_multi
     def create(self, vals_list):
         documents = super(
             ProductDocument,
             self.with_context(disable_product_documents_creation=True),
         ).create(vals_list)
-        # Delegated (`_inherits`) fields are written on the parent attachment
-        # before this model's constraint validation runs, so the url check must
-        # be called explicitly on create.
         documents._check_url_scheme()
         return documents
 
@@ -63,10 +52,6 @@ class ProductDocument(models.Model):
                 field: default[field] for field in default if field in ir_fields
             }
         for document, vals in zip(self, vals_list, strict=True):
-            # `vals` is None for a record already copied in this operation (the
-            # same record twice in `self`, or a cycle through a relation).
-            # Skipping also avoids copying an attachment for a document that
-            # `copy()` will not create.
             if vals is None:
                 continue
             vals["ir_attachment_id"] = (
@@ -86,5 +71,4 @@ class ProductDocument(models.Model):
 
     @api.onchange("url")
     def _onchange_url(self):
-        # Early UX feedback in the form; the real guarantee is the constraint.
         self._check_url_scheme()

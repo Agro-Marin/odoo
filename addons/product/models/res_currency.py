@@ -5,7 +5,6 @@ class ResCurrency(models.Model):
     _inherit = "res.currency"
 
     def write(self, vals):
-        """Archive pricelist when the linked currency is archived."""
         res = super().write(vals)
 
         if self and "active" in vals and not vals["active"]:
@@ -16,7 +15,6 @@ class ResCurrency(models.Model):
         return res
 
     def _activate_group_multi_currency(self):
-        # for Sale/ POS - Multi currency flows require pricelists
         super()._activate_group_multi_currency()
         if not self.env.user.has_group("product.group_product_pricelist"):
             group_user = self.env.ref("base.group_user").sudo()

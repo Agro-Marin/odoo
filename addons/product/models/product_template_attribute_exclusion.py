@@ -33,7 +33,6 @@ class ProductTemplateAttributeExclusion(models.Model):
         return exclusions
 
     def unlink(self):
-        # Keep a reference to the related templates before the deletion.
         templates = self.product_tmpl_id
         res = super().unlink()
         templates._create_variant_ids()

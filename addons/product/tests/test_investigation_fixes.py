@@ -4,13 +4,6 @@ from odoo.tests import TransactionCase, tagged
 
 @tagged("post_install", "-at_install")
 class TestCompanyDefaultPricelistCurrency(TransactionCase):
-    """The auto-created "Default" pricelist must follow its company's currency.
-
-    `_activate_or_create_pricelists` recognises that pricelist by
-    `currency_id == company_id.currency_id`. When a company changed currency the
-    pricelist kept the old one, so the next activation no longer recognised it
-    and created a *second* pricelist named "Default" for the same company.
-    """
 
     @classmethod
     def setUpClass(cls):
@@ -54,12 +47,6 @@ class TestCompanyDefaultPricelistCurrency(TransactionCase):
         )
         company.write({"currency_id": self.eur.id})
 
-        # Verbatim the call `res_config_settings.set_values` (re-enabling the
-        # Pricelists setting) and `res_currency._activate_group_multi_currency`
-        # (activating a second currency) make -- on the *empty* recordset, so
-        # it sweeps every company. That is what turns the drift into a second
-        # pricelist named "Default"; `res.company.create` does not, because it
-        # only ever passes the companies it just created.
         self.env["res.company"]._activate_or_create_pricelists()
 
         pricelists = self._default_pricelists(company)
@@ -94,7 +81,6 @@ class TestCompanyDefaultPricelistCurrency(TransactionCase):
         )
 
     def test_configured_pricelist_currency_is_left_alone(self):
-        """A pricelist that carries rules is a business decision, not a default."""
         company = self.env["res.company"].create(
             {"name": "PL Configured Co", "currency_id": self.usd.id},
         )
@@ -108,12 +94,6 @@ class TestCompanyDefaultPricelistCurrency(TransactionCase):
         self.assertEqual(configured.currency_id, self.usd)
 
     def test_configured_pricelist_on_archived_products_is_left_alone(self):
-        """The rules must be counted directly, not through `item_ids`.
-
-        `item_ids` carries a domain hiding rules whose product is archived, so
-        a fully configured pricelist reads as rule-less and its currency would
-        be rewritten -- silently re-denominating every `fixed_price` on it.
-        """
         company = self.env["res.company"].create(
             {"name": "PL Archived Co", "currency_id": self.usd.id},
         )
@@ -124,9 +104,6 @@ class TestCompanyDefaultPricelistCurrency(TransactionCase):
         product.active = False
         self.env.invalidate_all()
 
-        # The trap this guards against, asserted so the test cannot silently
-        # stop exercising it: the pricelist still has its rule, yet the
-        # `item_ids = False` lookup the old code used matches it.
         self.assertTrue(
             self.env["product.pricelist.item"]
             .sudo()
@@ -155,23 +132,14 @@ class TestCompanyDefaultPricelistCurrency(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestCatalogContextContract(TransactionCase):
     def test_catalog_action_carries_the_order_id_the_client_reads(self):
-        """`kanban_model.js`/`kanban_controller.js` read `context.order_id`.
-
-        It used to exist only because every caller's button repeated
-        `context="{'order_id': parent.id}"`; a caller that followed the mixin's
-        docstring got a catalog with no quantities and no error.
-        """
         context = self.env[
             "mixin.product.catalog"
         ]._get_action_add_from_catalog_extra_context()
 
         self.assertIn("order_id", context)
-        # One key, not two: `product_catalog_order_id` used to carry the same id
-        # for the half of the client that read that name instead.
         self.assertNotIn("product_catalog_order_id", context)
 
     def test_action_context_reaches_the_client_with_order_id(self):
-        """End to end: no button context, yet the action still carries it."""
         order_model = self.env.registry.get("sale.order")
         if order_model is None:
             self.skipTest("sale not installed")
@@ -187,12 +155,6 @@ class TestCatalogContextContract(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestSectionSearchInputValidation(TransactionCase):
-    """`product_catalog_order_model` / `child_field` arrive from the client.
-
-    They are forwarded verbatim from the catalog kanban's search context, so an
-    unknown model or field name has to fail like the catalog controller does,
-    not as a bare KeyError out of `search()`.
-    """
 
     def _search(self, **ctx):
         return (
@@ -228,18 +190,11 @@ class TestSectionSearchInputValidation(TransactionCase):
             )
 
     def test_incomplete_context_is_not_an_error(self):
-        """Nothing to filter by: the domain stays open, as before."""
         self.assertTrue(self._search(order_id=1) or True)
 
 
 @tagged("post_install", "-at_install")
 class TestPackagingCompanyConsistency(TransactionCase):
-    """`product.uom` must not name a product of another company.
-
-    It is the same shape as `product.combo.item` -- own `company_id`, own
-    multi-company record rule, readable by every employee -- and that model
-    already enforces it.
-    """
 
     @classmethod
     def setUpClass(cls):
@@ -264,7 +219,6 @@ class TestPackagingCompanyConsistency(TransactionCase):
 
     def test_cross_company_packaging_is_rejected(self):
         product_b = self._product(self.company_b)
-        # `_check_company` raises UserError, not ValidationError.
         with self.assertRaises(UserError):
             self.env["product.uom"].create(
                 {
@@ -288,7 +242,6 @@ class TestPackagingCompanyConsistency(TransactionCase):
         self.assertEqual(packaging.company_id, self.company_a)
 
     def test_packaging_for_a_shared_product_is_allowed(self):
-        """A product with no company belongs to every company."""
         shared = (
             self.env["product.template"]
             .create(
@@ -307,14 +260,6 @@ class TestPackagingCompanyConsistency(TransactionCase):
         self.assertFalse(packaging.product_id.company_id)
 
     def test_cross_company_packaging_defeats_the_barcode_check(self):
-        """Why the constraint matters: it is what keeps barcodes unique.
-
-        Both sides of the product/packaging barcode check scope by company, so
-        a packaging filed under company A for a product of company B is
-        invisible to company B's check -- and B may then reuse the barcode.
-        The row is created in SQL because the constraint now refuses it; this
-        reproduces the state a database could already be in.
-        """
         product_b = self._product(self.company_b)
         self.env.cr.execute(
             """
@@ -335,7 +280,6 @@ class TestPackagingCompanyConsistency(TransactionCase):
             " which is exactly what `check_company` now prevents from arising",
         )
 
-        # Control: the same packaging inside company B is caught.
         self.env.cr.execute(
             """
             INSERT INTO product_uom (barcode, company_id, product_id, uom_id,
@@ -351,13 +295,6 @@ class TestPackagingCompanyConsistency(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestPricelistUnknownBase(TransactionCase):
-    """A `base` the rule cannot compute from must say so, not KeyError.
-
-    `base` is a Selection, so `create`/`write` cannot store an unknown value;
-    a column left behind by an uninstalled module that extended the selection
-    can. The old bare `else` passed it to `product._compute_price`, which reads
-    it as a field name.
-    """
 
     def test_unknown_base_raises_a_readable_error(self):
         template = self.env["product.template"].create(
@@ -390,12 +327,9 @@ class TestPricelistUnknownBase(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestLabelLayoutMissingWizard(TransactionCase):
     def test_missing_layout_wizard_is_a_user_error(self):
-        """The wizard is transient: `data` can name one that is already gone."""
-        from odoo.addons.product.report.product_label_report import _prepare_data
-
+        report = self.env["report.product.report_producttemplatelabel2x7"]
         with self.assertRaises(UserError):
-            _prepare_data(
-                self.env,
+            report._get_report_values(
                 [],
                 {"active_model": "product.template", "layout_wizard": 0},
             )
@@ -403,7 +337,6 @@ class TestLabelLayoutMissingWizard(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestTransientWizardIsolation(TransactionCase):
-    """Both product wizards are TransientModels, so neither is isolated by default."""
 
     def test_every_product_wizard_has_an_ownership_rule(self):
         wizards = [
@@ -425,19 +358,6 @@ class TestTransientWizardIsolation(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCatalogPricePortalTarget(TransactionCase):
-    """The catalog card must keep the node `ProductCatalogOrderLine` portals into.
-
-    `order_line.xml` renders the price through
-    `t-portal="`#product-${props.productId}-price`"`, and that target is an empty
-    div declared in the *view arch*, not anywhere in JS. OWL does not degrade
-    when a portal target is missing -- it raises `invalid portal target` from
-    `onMounted`, which takes down the whole kanban rather than one card, and the
-    message names neither the view nor the component.
-
-    Nothing else checks this: the coupling crosses from a `.xml` view record to a
-    `.js` component, so no linter or asset gate sees both ends. An inheriting
-    view that xpath-removes or renames the node is exactly how it would be lost.
-    """
 
     def test_catalog_card_declares_the_price_portal_target(self):
         arch = self.env.ref("product.view_product_product_kanban_catalog").arch_db
@@ -451,7 +371,6 @@ class TestCatalogPricePortalTarget(TransactionCase):
         )
 
     def test_the_order_line_still_addresses_that_target(self):
-        """The other end of the pair, so the test cannot silently outlive it."""
         import pathlib
 
         import odoo.addons.product as product_module

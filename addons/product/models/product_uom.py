@@ -42,16 +42,6 @@ class ProductUom(models.Model):
 
     @api.constrains("barcode", "company_id")
     def _check_barcode_uniqueness(self):
-        """With GS1 nomenclature, products and packagings use the same pattern. Therefore, we need
-        to ensure the uniqueness between products' barcodes and packagings' ones.
-
-        Scoped per company, and symmetric with the product-side check: the
-        previous version searched `product.product` with no company filter,
-        which both rejected legitimate cross-company reuse and -- because the
-        product-side check *does* filter by company -- let a genuine collision
-        through when the packaging and the product belonged to different
-        companies.
-        """
         barcodes_by_company = {
             company: [p.barcode for p in packagings if p.barcode]
             for company, packagings in groupby(self, lambda p: p.company_id)
@@ -61,10 +51,6 @@ class ProductUom(models.Model):
         ]
         if not all_barcodes:
             return
-        # One query for every company in the batch rather than one per company:
-        # the company scoping is a cheap filter on the result, not a reason to
-        # go back to the database. `search_fetch` so the two fields read below
-        # come back with the rows.
         colliding = (
             self.env["product.product"]
             .sudo()
@@ -78,8 +64,6 @@ class ProductUom(models.Model):
             wanted = set(barcodes)
             if any(
                 product.barcode in wanted
-                # A packaging with no company collides with any product; one
-                # owned by a company only with that company's or a shared one.
                 and (
                     not company
                     or not product.company_id

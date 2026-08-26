@@ -25,7 +25,7 @@ class TestPricelist(ProductVariantsCommon):
                         Command.create(
                             {
                                 "compute_price": "formula",
-                                "base": "list_price",  # based on public price
+                                "base": "list_price",
                                 "price_discount": 10,
                                 "product_id": cls.usb_adapter.id,
                                 "applied_on": "0_product_variant",
@@ -34,7 +34,7 @@ class TestPricelist(ProductVariantsCommon):
                         Command.create(
                             {
                                 "compute_price": "formula",
-                                "base": "list_price",  # based on public price
+                                "base": "list_price",
                                 "price_surcharge": -0.5,
                                 "product_id": cls.datacard.id,
                                 "applied_on": "0_product_variant",
@@ -43,7 +43,7 @@ class TestPricelist(ProductVariantsCommon):
                         Command.create(
                             {
                                 "compute_price": "formula",
-                                "base": "standard_price",  # based on cost
+                                "base": "standard_price",
                                 "price_markup": 99.99,
                                 "applied_on": "3_global",
                             }
@@ -57,13 +57,10 @@ class TestPricelist(ProductVariantsCommon):
             ]
         )
 
-        # Enable pricelist feature
         cls.env.user.group_ids += cls.env.ref("product.group_product_pricelist")
         cls.uom_ton = cls.env.ref("uom.product_uom_ton")
 
     def test_10_discount(self):
-        # Make sure the price using a pricelist is the same than without after
-        # applying the computation manually
 
         self.assertEqual(
             self.pricelist._get_product_price(self.usb_adapter, 1.0) * 0.9,
@@ -85,7 +82,6 @@ class TestPricelist(ProductVariantsCommon):
             ),
         )
 
-        # price_surcharge applies to product default UoM, here "Units", so surcharge will be multiplied
         self.assertAlmostEqual(
             self.sale_pricelist_id._get_product_price(
                 self.datacard, 1.0, uom=self.uom_unit
@@ -97,12 +93,9 @@ class TestPricelist(ProductVariantsCommon):
         )
 
     def test_11_markup(self):
-        """Ensure `price_markup` always equals negative `price_discount`."""
-        # Check create values
         for item in self.sale_pricelist_id.item_ids:
             self.assertEqual(item.price_markup, -item.price_discount)
 
-        # Overwrite create values, and check again
         self.sale_pricelist_id.item_ids[0].price_discount = 0
         self.sale_pricelist_id.item_ids[1].price_discount = -20.02
         self.sale_pricelist_id.item_ids[2].price_markup = -0.5
@@ -110,12 +103,9 @@ class TestPricelist(ProductVariantsCommon):
             self.assertEqual(item.price_markup, -item.price_discount)
 
     def test_20_pricelist_uom(self):
-        # Verify that the pricelist rules are correctly using the product's default UoM
-        # as reference, and return a result according to the target UoM (as specific in the context)
 
         tonne_price = 100
 
-        # setup product stored in 'tonnes', with a discounted pricelist for qty > 3 tonnes
         spam = self.env["product.product"].create(
             {
                 "name": "1 tonne of spam",
@@ -130,9 +120,9 @@ class TestPricelist(ProductVariantsCommon):
                 "pricelist_id": self.pricelist.id,
                 "applied_on": "0_product_variant",
                 "compute_price": "formula",
-                "base": "list_price",  # based on public price
-                "min_quantity": 3,  # min = 3 tonnes
-                "price_surcharge": -10,  # -10 EUR / tonne
+                "base": "list_price",
+                "min_quantity": 3,
+                "price_surcharge": -10,
                 "product_id": spam.id,
             }
         )
@@ -144,7 +134,6 @@ class TestPricelist(ProductVariantsCommon):
                 unit_price, expected_unit_price, msg="Computed unit price is wrong"
             )
 
-        # Test prices - they are *per unit*, the quantity is only here to match the pricelist rules!
         test_unit_price(2, self.uom_kgm.id, tonne_price / 1000.0)
         test_unit_price(2000, self.uom_kgm.id, tonne_price / 1000.0)
         test_unit_price(3500, self.uom_kgm.id, (tonne_price - 10) / 1000.0)
@@ -152,18 +141,6 @@ class TestPricelist(ProductVariantsCommon):
         test_unit_price(3, self.uom_ton.id, tonne_price - 10)
 
     def test_21_pricelist_min_quantity_near_the_rounding_floor(self):
-        """A quantity converted into the product's UoM only ever feeds the
-        `min_quantity` comparison, so it must not be rounded.
-
-        `_compute_quantity` quantises at 10^-digits of the *destination* unit
-        and rounds UP, so for a Ton-measured product every order below 10 kg
-        arrived as 0.01 Ton -- which is also the smallest threshold
-        `min_quantity` can express, since it is `digits="Product Unit"` too.
-        A 0.5 kg order therefore matched a 10 kg bulk tier and was charged its
-        price. `test_20_pricelist_uom` above exercises the same shape with a
-        3 Ton threshold, three hundred times above the floor, which is why it
-        never caught this.
-        """
         tonne_price = 1000.0
         bulk = self.env["product.product"].create(
             {
@@ -181,7 +158,7 @@ class TestPricelist(ProductVariantsCommon):
                 "product_id": bulk.id,
                 "compute_price": "fixed",
                 "fixed_price": tonne_price / 2,
-                "min_quantity": 0.01,  # = 10 kg, the smallest expressible tier
+                "min_quantity": 0.01,
             }
         )
 
@@ -204,7 +181,6 @@ class TestPricelist(ProductVariantsCommon):
                 )
 
     def test_30_pricelists_order(self):
-        # Verify the order of pricelists after creation
 
         ProductPricelist = self.env["product.pricelist"]
         res_partner = self.env["res.partner"].create({"name": "Ready Corner"})
@@ -222,9 +198,6 @@ class TestPricelist(ProductVariantsCommon):
         self.assertEqual(res_partner.property_product_pricelist, pl_first)
 
     def test_40_specific_property_product_pricelist(self):
-        """Ensure that that ``specific_property_product_pricelist`` value only gets set
-        when changing ``property_product_pricelist`` to a non-default value for the partner.
-        """
         pricelist_1, pricelist_2 = self.pricelist, self.sale_pricelist_id
         self.env["product.pricelist"].search(
             [
@@ -236,34 +209,27 @@ class TestPricelist(ProductVariantsCommon):
             ]
         ).active = False
 
-        # Set country to BE -> property defaults to EU pricelist
         with Form(self.partner) as partner_form:
             partner_form.country_id = self.env.ref("base.be")
         self.assertEqual(self.partner.property_product_pricelist, self.pricelist_eu)
         self.assertFalse(self.partner.specific_property_product_pricelist)
 
-        # Set country to KI -> property defaults to highest sequence pricelist
         with Form(self.partner) as partner_form:
             partner_form.country_id = self.env.ref("base.ki")
         self.assertEqual(self.partner.property_product_pricelist, pricelist_1)
         self.assertFalse(self.partner.specific_property_product_pricelist)
 
-        # Setting non-default pricelist as property should update specific property
         with Form(self.partner) as partner_form:
             partner_form.property_product_pricelist = pricelist_2
         self.assertEqual(self.partner.property_product_pricelist, pricelist_2)
         self.assertEqual(self.partner.specific_property_product_pricelist, pricelist_2)
 
-        # Changing partner country shouldn't update (specific) pricelist property
         with Form(self.partner) as partner_form:
             partner_form.country_id = self.env.ref("base.be")
         self.assertEqual(self.partner.property_product_pricelist, pricelist_2)
         self.assertEqual(self.partner.specific_property_product_pricelist, pricelist_2)
 
     def test_45_property_product_pricelist_config_parameter(self):
-        """Check that the ``ir.config_parameter`` gets utilized as fallback to both
-        ``property_product_pricelist`` & ``specific_property_product_pricelist``.
-        """
         pricelist_1, pricelist_2 = self.pricelist, self.sale_pricelist_id
         self.env["product.pricelist"].search(
             [
@@ -278,7 +244,7 @@ class TestPricelist(ProductVariantsCommon):
         with patch.object(
             self.pricelist.__class__,
             "_get_partner_pricelist_multi_search_domain_hook",
-            return_value=Domain.FALSE,  # ensures pricelist falls back on ICP
+            return_value=Domain.FALSE,
         ):
             with Form(self.partner) as partner_form:
                 self.assertEqual(partner_form.property_product_pricelist, pricelist_2)
@@ -337,15 +303,9 @@ class TestPricelist(ProductVariantsCommon):
         ]
 
         with self.assertRaises(UserError):
-            # Should raise because the pricelist would have a rule based on a pricelist
-            # from another company
             self.pricelist.company_id = second_company
 
     def test_pricelists_multi_comp_checks_batch_write(self):
-        """A company change applied to several pricelists at once must still validate
-        the multi-company consistency of their rules (regression: the check used to be
-        skipped for any write touching more than one pricelist).
-        """
         first_company = self.env.company
         second_company = self.env["res.company"].create({"name": "Batch Test Company"})
 
@@ -375,31 +335,20 @@ class TestPricelist(ProductVariantsCommon):
         )
 
         with self.assertRaises(UserError):
-            # Both rules would then depend on a pricelist from another company.
             (pl_a | pl_b).write({"company_id": second_company.id})
 
     def test_pricelists_multi_comp_checks_archived_product(self):
-        """A company change must re-validate rules on *archived* products too.
-
-        The pricelist's ``item_ids`` One2many carries a domain filtering out
-        rules whose product/template is archived. Re-validating a company change
-        through that field therefore skipped such rules, letting a cross-company
-        rule on an archived product survive undetected (regression).
-        """
         first_company = self.env.company
         second_company = self.env["res.company"].create(
             {"name": "Archived Test Company"}
         )
 
-        # Template owned by the second company.
         template = self.env["product.template"].create(
             {
                 "name": "Company B product",
                 "company_id": second_company.id,
             }
         )
-        # Shared pricelist (no company): the rule is consistent because the item
-        # inherits the template's company as long as the pricelist has none.
         shared_pricelist = self.env["product.pricelist"].create(
             {
                 "name": "Archived-check pricelist",
@@ -417,7 +366,6 @@ class TestPricelist(ProductVariantsCommon):
             }
         )
 
-        # Archiving the product moves its rule outside `item_ids`' domain.
         template.action_archive()
         shared_pricelist.invalidate_recordset(["item_ids"])
         self.assertFalse(
@@ -426,7 +374,6 @@ class TestPricelist(ProductVariantsCommon):
         )
 
         with self.assertRaises(UserError):
-            # The rule would then belong to company A but target a company-B product.
             shared_pricelist.company_id = first_company
 
     def test_pricelists_res_partner_form(self):
@@ -478,7 +425,6 @@ class TestPricelist(ProductVariantsCommon):
         self.assertFalse(pricelist_2.item_ids.base_pricelist_id.id)
 
     def test_sync_parent_pricelist(self):
-        """Check that adding a parent to a partner updates the partner's pricelist."""
         self.partner.update(
             {
                 "parent_id": False,
@@ -535,7 +481,6 @@ class TestPricelist(ProductVariantsCommon):
         )
 
     def test_prevent_pricelist_recursion(self):
-        """Ensure recursive pricelist rules raise an error on creation."""
 
         def create_item_vals(pl_from, pl_to):
             return {
@@ -556,7 +501,6 @@ class TestPricelist(ProductVariantsCommon):
             ]
         )
 
-        # A -> B -> C -> D
         Pricelist.item_ids.create(
             [
                 create_item_vals(pl_from, pl_to)
@@ -565,31 +509,22 @@ class TestPricelist(ProductVariantsCommon):
         )
 
         with self.assertRaises(ValidationError):
-            # A -> B -> C -> D -> D -> _ (recurs)
             Pricelist.item_ids.create(create_item_vals(pl_d, pl_d))
         with self.assertRaises(ValidationError):
-            # A -> B -> C -> D -> A -> _ (recurs)
             Pricelist.item_ids.create(create_item_vals(pl_d, pl_a))
         with self.assertRaises(ValidationError):
-            # A -> B -> C -> [B -> _, D] (recurs)
             Pricelist.item_ids.create(create_item_vals(pl_c, pl_b))
 
-        # A -> B, C -> D
         pl_b.item_ids.unlink()
-        # C -> D -> A -> B
         Pricelist.item_ids.create(create_item_vals(pl_d, pl_a))
-        # C -> [B, D -> A -> B]
         Pricelist.item_ids.create(create_item_vals(pl_c, pl_b))
 
         with self.assertRaises(ValidationError):
-            # C -> [B, D -> A -> [B, C -> _]] (recurs)
             Pricelist.item_ids.create(create_item_vals(pl_a, pl_c))
         with self.assertRaises(ValidationError):
-            # C -> [B -> D -> A -> B -> _, D -> _] (recurs)
             Pricelist.item_ids.create(create_item_vals(pl_b, pl_d))
 
     def test_pricelist_rule_linked_to_product_variant(self):
-        """Verify that pricelist rules assigned to a variant remain linked after write."""
         self.product_sofa_red.pricelist_rule_ids = [
             Command.create(
                 {
@@ -620,9 +555,7 @@ class TestPricelist(ProductVariantsCommon):
         self.assertEqual(self.pricelist.item_ids.fixed_price, 79.9)
         self.assertIn(self.product_sofa_red, self.pricelist.item_ids.product_id)
 
-        # Update of template-based rules through variant form
         self.product_template_sofa.pricelist_rule_ids = [
-            # Template-based rule (can be edited through the variants)
             Command.create(
                 {
                     "applied_on": "1_product",
@@ -630,8 +563,6 @@ class TestPricelist(ProductVariantsCommon):
                     "pricelist_id": self.pricelist.id,
                 }
             ),
-            # Rule on another variant than the one being edited. It cannot be edited through the
-            # current variant and therefore shouldn't change when another variant rules are edited.
             Command.create(
                 {
                     "applied_on": "0_product_variant",
@@ -661,9 +592,7 @@ class TestPricelist(ProductVariantsCommon):
         self.assertEqual(len(self.product_template_sofa.pricelist_rule_ids), 2)
 
     def test_pricelist_applied_on_product_variant(self):
-        # product template with variants
         sofa_1 = self.product_template_sofa.product_variant_ids[0]
-        # create pricelist with rule on template
         pricelist = self.env["product.pricelist"].create(
             {
                 "name": "Pricelist for Acoustic Bloc Screens",
@@ -680,15 +609,10 @@ class TestPricelist(ProductVariantsCommon):
                 ],
             }
         )
-        # open rule form and change rule to apply on variant instead of template
         with Form(pricelist.item_ids) as item_form:
             item_form.product_id = sofa_1
-        # check that `applied_on` changed to variant
         self.assertEqual(pricelist.item_ids.applied_on, "0_product_variant")
-        # re-edit rule to apply on template again by clearing `product_id`
         with Form(pricelist.item_ids) as item_form:
             item_form.product_id = self.env["product.product"]
-        # check that `applied_on` changed to template
         self.assertEqual(pricelist.item_ids.applied_on, "1_product")
-        # check that product_id is cleared
         self.assertFalse(pricelist.item_ids.product_id)

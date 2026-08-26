@@ -155,7 +155,6 @@ class TestVariants(ProductVariantsCommon):
             }
         )
 
-        # produced variants: one variant, because mono value
         self.assertEqual(len(test_template.product_variant_ids), 1)
         self.assertEqual(
             test_template.product_variant_ids.product_template_attribute_value_ids.product_attribute_value_id,
@@ -184,7 +183,6 @@ class TestVariants(ProductVariantsCommon):
             }
         )
 
-        # produced variants: one variant, because only 1 combination is possible
         self.assertEqual(len(test_template.product_variant_ids), 1)
         self.assertEqual(
             test_template.product_variant_ids.product_template_attribute_value_ids.product_attribute_value_id,
@@ -225,7 +223,6 @@ class TestVariants(ProductVariantsCommon):
         sofa_size_s = size_attribute_line.product_template_value_ids[0]
         sofa_size_m = size_attribute_line.product_template_value_ids[1]
 
-        # produced variants: two variants, simple matrix
         self.assertEqual(len(test_template.product_variant_ids), 2)
         for ptav in sofa_size_s + sofa_size_m:
             products = self.env["product.product"].search(
@@ -280,7 +277,6 @@ class TestVariants(ProductVariantsCommon):
         sofa_size_m = size_attribute_line.product_template_value_ids[1]
         sofa_size_l = size_attribute_line.product_template_value_ids[2]
 
-        # produced variants: value matrix : 2x3 values
         self.assertEqual(len(test_template.product_variant_ids), 6)
         for value_1 in sofa_attr1_v1 + sofa_attr1_v2:
             for value_2 in sofa_size_s + sofa_size_m + sofa_size_l:
@@ -357,13 +353,11 @@ class TestVariants(ProductVariantsCommon):
         self.assertEqual(len(template.product_variant_ids), 2)
         self.assertEqual(template.name, "Test Copy")
 
-        # test copy of template
         template_copy = template.copy()
         self.assertEqual(template.name, "Test Copy")
         self.assertEqual(template_copy.name, "Test Copy (copy)")
         self.assertEqual(len(template_copy.product_variant_ids), 2)
 
-        # test copy of variant (actually just copying template)
         variant_copy = template_copy.product_variant_ids[0].copy()
         self.assertEqual(template.name, "Test Copy")
         self.assertEqual(template_copy.name, "Test Copy (copy)")
@@ -381,7 +375,6 @@ class TestVariants(ProductVariantsCommon):
             {"name": "Blue", "attribute_id": self.color_attr.id}
         )
 
-        # test copy of variant with dynamic attribute
         template_dyn = self.env["product.template"].create(
             {
                 "name": "Test Dynamical",
@@ -419,7 +412,6 @@ class TestVariants(ProductVariantsCommon):
         self.assertEqual(template_dyn_copy.name, "Test Dynamical (copy)")
 
     def test_standard_price(self):
-        """Ensure template values are correctly (re)computed depending on the context"""
         one_variant_product = self.product
         self.assertEqual(one_variant_product.product_variant_count, 1)
 
@@ -514,7 +506,7 @@ class TestVariants(ProductVariantsCommon):
         )
         self.assertFalse(
             template.barcode
-        )  # 2 active variants --> no barcode on template
+        )
 
         variant_1 = template.product_variant_ids[0]
         variant_2 = template.product_variant_ids[1]
@@ -526,13 +518,13 @@ class TestVariants(ProductVariantsCommon):
         template.invalidate_model(["barcode"])
         self.assertEqual(
             template.barcode, variant_2.barcode
-        )  # 1 active variant --> barcode on template
+        )
 
         variant_1.action_unarchive()
         template.invalidate_model(["barcode"])
         self.assertFalse(
             template.barcode
-        )  # 2 active variants --> no barcode on template
+        )
 
     @mute_logger("odoo.models.unlink")
     def test_archive_all_variants(self):
@@ -566,7 +558,6 @@ class TestVariants(ProductVariantsCommon):
         self.assertTrue(template.active, "Should re-activate template")
 
     def test_open_product_form_with_default_uom_id_is_false(self):
-        """Test default UoM is False when creating a product."""
         uom_unit = self.env.ref("uom.product_uom_unit")
         product_form = Form(
             self.env["product.product"].with_context(
@@ -578,7 +569,6 @@ class TestVariants(ProductVariantsCommon):
         self.assertEqual(uom_unit, product.uom_id)
 
     def test_single_variant_template_computed_values_after_creation(self):
-        """Check that variant-related fields on templates are correctly set."""
         product_template = self.env["product.template"].create(
             {
                 "name": "one variant template",
@@ -626,7 +616,6 @@ class TestVariantsNoCreate(ProductVariantsCommon):
         cls.size_attribute.create_variant = "no_variant"
 
     def test_create_mono(self):
-        """create a product with a 'nocreate' attribute with a single value"""
         template = self.env["product.template"].create(
             {
                 "name": "Sofa",
@@ -647,7 +636,6 @@ class TestVariantsNoCreate(ProductVariantsCommon):
         )
 
     def test_update_mono(self):
-        """modify a product with a 'nocreate' attribute with a single value"""
         template = self.env["product.template"].create(
             {
                 "name": "Sofa",
@@ -674,7 +662,6 @@ class TestVariantsNoCreate(ProductVariantsCommon):
         )
 
     def test_create_multi(self):
-        """create a product with a 'nocreate' attribute with several values"""
         template = self.env["product.template"].create(
             {
                 "name": "Sofa",
@@ -697,7 +684,6 @@ class TestVariantsNoCreate(ProductVariantsCommon):
         )
 
     def test_update_multi(self):
-        """modify a product with a 'nocreate' attribute with several values"""
         template = self.env["product.template"].create(
             {
                 "name": "Sofa",
@@ -724,20 +710,19 @@ class TestVariantsNoCreate(ProductVariantsCommon):
         )
 
     def test_create_mixed_mono(self):
-        """create a product with regular and 'nocreate' attributes"""
         template = self.env["product.template"].create(
             {
                 "name": "Sofa",
                 "uom_id": self.uom_unit.id,
                 "attribute_line_ids": [
                     Command.create(
-                        {  # no variants for this one
+                        {
                             "attribute_id": self.size_attribute.id,
                             "value_ids": [Command.link(self.size_attribute_s.id)],
                         }
                     ),
                     Command.create(
-                        {  # two variants for this one
+                        {
                             "attribute_id": self.color_attribute.id,
                             "value_ids": [
                                 Command.link(self.color_attribute_red.id),
@@ -759,7 +744,6 @@ class TestVariantsNoCreate(ProductVariantsCommon):
 
     @mute_logger("odoo.models.unlink")
     def test_update_mixed_mono(self):
-        """modify a product with regular and 'nocreate' attributes"""
         template = self.env["product.template"].create(
             {
                 "name": "Sofa",
@@ -772,13 +756,13 @@ class TestVariantsNoCreate(ProductVariantsCommon):
             {
                 "attribute_line_ids": [
                     Command.create(
-                        {  # no variants for this one
+                        {
                             "attribute_id": self.size_attribute.id,
                             "value_ids": [Command.link(self.size_attribute_s.id)],
                         }
                     ),
                     Command.create(
-                        {  # two variants for this one
+                        {
                             "attribute_id": self.color_attribute.id,
                             "value_ids": [
                                 Command.link(self.color_attribute_red.id),
@@ -799,20 +783,19 @@ class TestVariantsNoCreate(ProductVariantsCommon):
         )
 
     def test_create_mixed_multi(self):
-        """create a product with regular and 'nocreate' attributes"""
         template = self.env["product.template"].create(
             {
                 "name": "Sofa",
                 "uom_id": self.uom_unit.id,
                 "attribute_line_ids": [
                     Command.create(
-                        {  # no variants for this one
+                        {
                             "attribute_id": self.size_attribute.id,
                             "value_ids": [(6, 0, self.size_attribute.value_ids.ids)],
                         }
                     ),
                     Command.create(
-                        {  # two variants for this one
+                        {
                             "attribute_id": self.color_attribute.id,
                             "value_ids": [
                                 Command.link(self.color_attribute_red.id),
@@ -834,7 +817,6 @@ class TestVariantsNoCreate(ProductVariantsCommon):
 
     @mute_logger("odoo.models.unlink")
     def test_update_mixed_multi(self):
-        """modify a product with regular and 'nocreate' attributes"""
         template = self.env["product.template"].create(
             {
                 "name": "Sofa",
@@ -847,13 +829,13 @@ class TestVariantsNoCreate(ProductVariantsCommon):
             {
                 "attribute_line_ids": [
                     Command.create(
-                        {  # no variants for this one
+                        {
                             "attribute_id": self.size_attribute.id,
                             "value_ids": [(6, 0, self.size_attribute.value_ids.ids)],
                         }
                     ),
                     Command.create(
-                        {  # two variants for this one
+                        {
                             "attribute_id": self.color_attribute.id,
                             "value_ids": [
                                 Command.link(self.color_attribute_red.id),
@@ -874,14 +856,13 @@ class TestVariantsNoCreate(ProductVariantsCommon):
         )
 
     def test_update_variant_with_nocreate(self):
-        """update variants with a 'nocreate' value on variant"""
         template = self.env["product.template"].create(
             {
                 "name": "Sofax",
                 "uom_id": self.uom_unit.id,
                 "attribute_line_ids": [
                     Command.create(
-                        {  # one variant for this one
+                        {
                             "attribute_id": self.color_attribute.id,
                             "value_ids": [(6, 0, self.color_attribute_red.ids)],
                         }
@@ -899,7 +880,6 @@ class TestVariantsNoCreate(ProductVariantsCommon):
             )
         ]
         self.assertEqual(len(template.product_variant_ids), 1)
-        # no_variant attribute should not appear on the variant
         self.assertNotIn(
             self.size_attribute_s,
             template.product_variant_ids.product_template_attribute_value_ids.product_attribute_value_id,
@@ -955,7 +935,6 @@ class TestVariantsNoCreate(ProductVariantsCommon):
         self.assertFalse(second_product.active)
         self.assertFalse(second_product.product_variant_ids)
         products.action_unarchive()
-        # check products should be unarchived successfully.
         self.assertTrue(first_product.active)
         self.assertTrue(second_product.active)
         self.assertTrue(second_product.product_variant_ids)
@@ -967,7 +946,6 @@ class TestVariantsManyAttributes(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # create 10 attributes with 10 values each
         cls.attributes = cls.env["product.attribute"].create(
             [
                 {
@@ -1173,17 +1151,11 @@ class TestVariantsImages(ProductVariantsCommon):
                     "image_variant_1920": cls.images[color_value.name],
                 }
             )
-        # the first one has no image
         cls.variants = cls.template.product_variant_ids
 
         return res
 
     def test_variant_images(self):
-        """Check that on variant, the image used is the image_variant_1920 if set,
-        and defaults to the template image otherwise.
-        """
-        # Pretend setup happened in an older transaction by updating on the SQL layer and making sure it gets reloaded
-        # Using _write_multi() instead of write() because write() only allows updating log access fields at boot time
         before = self.cr.now() - timedelta(milliseconds=1)
         access_dates = {"create_date": before, "write_date": before}
         self.template._write_multi([access_dates])
@@ -1205,20 +1177,15 @@ class TestVariantsImages(ProductVariantsCommon):
         self.template.image_1920 = image_black
         new_last_update = variant_no_image.write_date
 
-        # the first has no image variant, all the others do
         self.assertFalse(variant_no_image.image_variant_1920)
         self.assertTrue(all(images[1:]))
 
-        # template image is the same as this one, since it has no image variant
         self.assertEqual(variant_no_image.image_1920, self.template.image_1920)
-        # having changed the template image should not have changed these
         self.assertEqual(images[1:], self.variants.mapped("image_1920")[1:])
 
-        # last update changed for the variant without image
         self.assertLess(old_last_update, new_last_update)
 
     def test_update_images_with_archived_variants(self):
-        """Update images after variants have been archived"""
         self.variants[1:].write({"active": False})
         self.variants[0].image_1920 = self.images["red"]
         self.assertEqual(self.template.image_1920, self.images["red"])
@@ -1228,14 +1195,6 @@ class TestVariantsImages(ProductVariantsCommon):
 
 @tagged("post_install", "-at_install")
 class TestVariantsArchive(ProductVariantsCommon):
-    """Once a variant is used on orders/invoices, etc, they can't be unlinked.
-    As a result, updating attributes on a product template would simply
-    archive the variants instead. We make sure that at each update, we have
-    the correct active and inactive records.
-
-    In these tests, we use the commands sent by the JS framework to the ORM
-    when using the interface.
-    """
 
     @classmethod
     def setUpClass(cls):
@@ -1263,42 +1222,23 @@ class TestVariantsArchive(ProductVariantsCommon):
 
     @mute_logger("odoo.models.unlink")
     def test_01_update_variant_unlink(self):
-        """Variants are not used anywhere, so removing an attribute line would
-        unlink the variants and create new ones. Nothing too fancy here.
-        """
         variants_2x2 = self.template.product_variant_ids
         self._assert_2color_x_2size()
 
-        # Remove the size line, corresponding variants will be removed too since
-        # they are used nowhere. Since we only kept color, we should have as many
-        # variants as it has values.
         self._remove_ptal_size()
         self._assert_2color_x_0size()
         archived_variants = self._get_archived_variants()
         self.assertFalse(archived_variants)
 
-        # We re-add the line we just removed, so we should get new variants.
         self._add_ptal_size_s_m()
         self._assert_2color_x_2size()
         self.assertFalse(self.template.product_variant_ids & variants_2x2)
 
     @mute_logger("odoo.models.unlink")
     def test_02_update_variant_archive_1_value(self):
-        """We do the same operations on the template as in the previous test,
-        except we simulate that the variants can't be unlinked.
-
-        It follows that variants should be archived instead, so the results
-        should all be different from previous test.
-
-        In this test we have a line that has only one possible value:
-        this is handled differently than the case where we have more than
-        one value, since it does not add new variants.
-        """
         self._remove_ptal_size()
         self._add_ptal_size_s()
 
-        # create a patch to make as if one variant was undeletable
-        # (e.g. present in a field with ondelete=restrict)
         Product = self.env["product.product"]
 
         def unlink(self):
@@ -1311,15 +1251,12 @@ class TestVariantsArchive(ProductVariantsCommon):
         archived_variants = self._get_archived_variants()
         self.assertFalse(archived_variants)
 
-        # Remove the size line, which is the one with only one possible value.
-        # Variants should be kept, just the single value removed from them.
         self._remove_ptal_size()
         self.assertEqual(variants_2x1, self.template.product_variant_ids)
         self._assert_2color_x_0size()
         archived_variants = self._get_archived_variants()
         self.assertFalse(archived_variants)
 
-        # Add the line just removed, so it is added back to the variants.
         self._add_ptal_size_s()
         self.assertEqual(variants_2x1, self.template.product_variant_ids)
         self._assert_2color_x_1size()
@@ -1327,12 +1264,6 @@ class TestVariantsArchive(ProductVariantsCommon):
         self.assertFalse(archived_variants)
 
     def test_02_update_variant_archive_2_value(self):
-        """We do the same operations on the template as in the previous tests,
-        except we simulate that the variants can't be unlinked.
-
-        It follows that variants should be archived instead, so the results
-        should all be different from previous test.
-        """
         Product = self.env["product.product"]
 
         def unlink(slef):
@@ -1345,8 +1276,6 @@ class TestVariantsArchive(ProductVariantsCommon):
         archived_variants = self._get_archived_variants()
         self.assertFalse(archived_variants)
 
-        # CASE remove one attribute line (going from 2*2 to 2*1)
-        # Since they can't be unlinked, existing variants should be archived.
         self._remove_ptal_size()
         variants_2x0 = self.template.product_variant_ids
         self._assert_2color_x_0size()
@@ -1354,23 +1283,6 @@ class TestVariantsArchive(ProductVariantsCommon):
         self.assertEqual(archived_variants, variants_2x2)
         self._assert_2color_x_2size(archived_variants)
 
-        # Add the line just removed, so get back the previous variants.
-        # Since they can't be unlinked, existing variants should be archived.
-        self._add_ptal_size_s_m()
-        self.assertEqual(self.template.product_variant_ids, variants_2x2)
-        self._assert_2color_x_2size()
-        archived_variants = self._get_archived_variants()
-        self.assertEqual(archived_variants, variants_2x0)
-        self._assert_2color_x_0size(archived_variants)
-
-        # we redo the whole remove/read to check
-        self._remove_ptal_size()
-        self.assertEqual(self.template.product_variant_ids, variants_2x0)
-        self._assert_2color_x_0size()
-        archived_variants = self._get_archived_variants()
-        self.assertEqual(archived_variants, variants_2x2)
-        self._assert_2color_x_2size(archived_variants)
-
         self._add_ptal_size_s_m()
         self.assertEqual(self.template.product_variant_ids, variants_2x2)
         self._assert_2color_x_2size()
@@ -1385,9 +1297,20 @@ class TestVariantsArchive(ProductVariantsCommon):
         self.assertEqual(archived_variants, variants_2x2)
         self._assert_2color_x_2size(archived_variants)
 
-        # This time we only add one of the two attributes we've been removing.
-        # This is a single value line, so the value is simply added to existing
-        # variants.
+        self._add_ptal_size_s_m()
+        self.assertEqual(self.template.product_variant_ids, variants_2x2)
+        self._assert_2color_x_2size()
+        archived_variants = self._get_archived_variants()
+        self.assertEqual(archived_variants, variants_2x0)
+        self._assert_2color_x_0size(archived_variants)
+
+        self._remove_ptal_size()
+        self.assertEqual(self.template.product_variant_ids, variants_2x0)
+        self._assert_2color_x_0size()
+        archived_variants = self._get_archived_variants()
+        self.assertEqual(archived_variants, variants_2x2)
+        self._assert_2color_x_2size(archived_variants)
+
         self._add_ptal_size_s()
         self.assertEqual(self.template.product_variant_ids, variants_2x0)
         self._assert_2color_x_1size()
@@ -1411,38 +1334,33 @@ class TestVariantsArchive(ProductVariantsCommon):
         self.assertFalse(archived_variants)
         variants_2x1 = self.template.product_variant_ids
 
-        # CASE: remove single value line, no variant change
         self._remove_ptal_size()
         self.assertEqual(self.template.product_variant_ids, variants_2x1)
         self._assert_2color_x_0size()
         archived_variants = self._get_archived_variants()
         self.assertFalse(archived_variants)
 
-        # CASE: empty combination, this generates a new variant
         self.template.write({"attribute_line_ids": [(2, self.ptal_color.id)]})
         self._assert_0color_x_0size()
         archived_variants = self._get_archived_variants()
         self.assertEqual(archived_variants, variants_2x1)
-        self._assert_2color_x_0size(archived_variants)  # single value are removed
+        self._assert_2color_x_0size(archived_variants)
         variant_0x0 = self.template.product_variant_ids
 
-        # CASE: add single value on empty
         self._add_ptal_size_s()
         self.assertEqual(self.template.product_variant_ids, variant_0x0)
         self._assert_0color_x_1size()
         archived_variants = self._get_archived_variants()
         self.assertEqual(archived_variants, variants_2x1)
-        self._assert_2color_x_0size(archived_variants)  # single value are removed
+        self._assert_2color_x_0size(archived_variants)
 
-        # CASE: empty again
         self._remove_ptal_size()
         self.assertEqual(self.template.product_variant_ids, variant_0x0)
         self._assert_0color_x_0size()
         archived_variants = self._get_archived_variants()
         self.assertEqual(archived_variants, variants_2x1)
-        self._assert_2color_x_0size(archived_variants)  # single value are removed
+        self._assert_2color_x_0size(archived_variants)
 
-        # CASE: re-add everything
         self.template.write(
             {
                 "attribute_line_ids": self._get_add_all_attributes_command(),
@@ -1462,7 +1380,6 @@ class TestVariantsArchive(ProductVariantsCommon):
 
         self.patch(type(Product), "unlink", unlink)
 
-        # CASE: remove one value, line becoming single value
         variants_2x2 = self.template.product_variant_ids
         self.ptal_size.write({"value_ids": [(3, self.size_attribute_m.id)]})
         self._assert_2color_x_1size()
@@ -1473,15 +1390,12 @@ class TestVariantsArchive(ProductVariantsCommon):
         self._assert_2color_x_1size(archived_variants, ptav=self.ptav_size_m)
         self.assertEqual(archived_variants, variants_2x2[1] + variants_2x2[3])
 
-        # CASE: add back the value
         self.ptal_size.write({"value_ids": [Command.link(self.size_attribute_m.id)]})
         self._assert_2color_x_2size()
         self.assertEqual(self.template.product_variant_ids, variants_2x2)
         archived_variants = self._get_archived_variants()
         self.assertFalse(archived_variants)
 
-        # CASE: remove one value, line becoming single value, and then remove
-        # the remaining value
         self.ptal_size.write({"value_ids": [(3, self.size_attribute_m.id)]})
         self._remove_ptal_size()
         self._assert_2color_x_0size()
@@ -1491,7 +1405,6 @@ class TestVariantsArchive(ProductVariantsCommon):
         self.assertEqual(archived_variants, variants_2x2)
         variants_2x0 = self.template.product_variant_ids
 
-        # CASE: add back the values
         self._add_ptal_size_s_m()
         self._assert_2color_x_2size()
         self.assertEqual(self.template.product_variant_ids, variants_2x2)
@@ -1500,7 +1413,6 @@ class TestVariantsArchive(ProductVariantsCommon):
         self.assertEqual(archived_variants, variants_2x0)
 
     def test_name_search_dynamic_attributes(self):
-        # To be able to test dynamic variant "variants" feature must be set up
         self._enable_variants()
         dynamic_attr = self.env["product.attribute"].create(
             {
@@ -1529,9 +1441,6 @@ class TestVariantsArchive(ProductVariantsCommon):
 
     @mute_logger("odoo.models.unlink")
     def test_uom_update_variant(self):
-        """Changing the uom on the template do not behave the same
-        as changing on the product product."""
-        # Required for `uom_id` to be visible in the view
         self._enable_uom()
 
         units = self.uom_unit
@@ -1552,13 +1461,11 @@ class TestVariantsArchive(ProductVariantsCommon):
         ProductAttribute = self.env["product.attribute"]
         ProductAttributeValue = self.env["product.attribute.value"]
 
-        # Patch unlink method to force archiving instead deleting
         def unlink(self):
             self.active = False
 
         self.patch(type(Product), "unlink", unlink)
 
-        # Creating attributes
         pa_color = ProductAttribute.create(
             {"sequence": 1, "name": "color", "create_variant": "dynamic"}
         )
@@ -1605,7 +1512,6 @@ class TestVariantsArchive(ProductVariantsCommon):
         )
         pav_material_wood = material_values[0]
 
-        # Define a template with only color attribute & white value
         template = self.env["product.template"].create(
             {
                 "name": "test product",
@@ -1620,7 +1526,6 @@ class TestVariantsArchive(ProductVariantsCommon):
             }
         )
 
-        # Create a variant (because of dynamic attribute)
         ptav_white = self.env["product.template.attribute.value"].search(
             [
                 ("attribute_line_id", "=", template.attribute_line_ids.id),
@@ -1629,7 +1534,6 @@ class TestVariantsArchive(ProductVariantsCommon):
         )
         product_white = template._create_product_variant(ptav_white)
 
-        # Adding a new value to an existing attribute should not archive the variant
         template.write(
             {
                 "attribute_line_ids": [
@@ -1646,7 +1550,6 @@ class TestVariantsArchive(ProductVariantsCommon):
         )
         self.assertTrue(product_white.active)
 
-        # Removing an attribute value should archive the product using it
         template.write(
             {
                 "attribute_line_ids": [
@@ -1668,7 +1571,6 @@ class TestVariantsArchive(ProductVariantsCommon):
             )
         )
 
-        # Creating a product with the same attributes for testing duplicates
         product_white_duplicate = Product.create(
             {
                 "product_tmpl_id": template.id,
@@ -1676,7 +1578,6 @@ class TestVariantsArchive(ProductVariantsCommon):
                 "active": False,
             }
         )
-        # Reset archiving for the next assert
         template.write(
             {
                 "attribute_line_ids": [
@@ -1693,7 +1594,6 @@ class TestVariantsArchive(ProductVariantsCommon):
         self.assertTrue(product_white.active)
         self.assertFalse(product_white_duplicate.active)
 
-        # Adding a new attribute should archive the old variant
         template.write(
             {
                 "attribute_line_ids": [
@@ -1708,13 +1608,11 @@ class TestVariantsArchive(ProductVariantsCommon):
         )
         self.assertFalse(product_white.active)
 
-        # Reset archiving for the next assert
         template.write(
             {"attribute_line_ids": [(3, template.attribute_line_ids[1].id, 0)]}
         )
         self.assertTrue(product_white.active)
 
-        # Adding a no_variant attribute should not archive the product
         template.write(
             {
                 "attribute_line_ids": [
@@ -1791,8 +1689,6 @@ class TestVariantsArchive(ProductVariantsCommon):
         ]
 
     def _get_archived_variants(self):
-        # Change context to also get archived values when reading them from the
-        # variants.
         return (
             self.env["product.product"]
             .with_context(active_test=False)
@@ -1866,7 +1762,6 @@ class TestVariantsArchive(ProductVariantsCommon):
         )
 
     def _assert_2color_x_2size(self, variants=None):
-        """Assert the full matrix 2 color x 2 size"""
         variants = variants or self.template.product_variant_ids
         self.assertEqual(len(variants), 4)
         self._assert_required_combinations(
@@ -1880,7 +1775,6 @@ class TestVariantsArchive(ProductVariantsCommon):
         )
 
     def _assert_2color_x_1size(self, variants=None, ptav=None):
-        """Assert the matrix 2 color x 1 size"""
         variants = variants or self.template.product_variant_ids
         self.assertEqual(len(variants), 2)
         self._assert_required_combinations(
@@ -1892,7 +1786,6 @@ class TestVariantsArchive(ProductVariantsCommon):
         )
 
     def _assert_2color_x_0size(self, variants=None):
-        """Assert the matrix 2 color x no size"""
         variants = variants or self.template.product_variant_ids
         self.assertEqual(len(variants), 2)
         self._assert_required_combinations(
@@ -1904,7 +1797,6 @@ class TestVariantsArchive(ProductVariantsCommon):
         )
 
     def _assert_0color_x_1size(self, variants=None):
-        """Assert the matrix no color x 1 size"""
         variants = variants or self.template.product_variant_ids
         self.assertEqual(len(variants), 1)
         self.assertEqual(
@@ -1912,19 +1804,12 @@ class TestVariantsArchive(ProductVariantsCommon):
         )
 
     def _assert_0color_x_0size(self, variants=None):
-        """Assert the matrix no color x no size"""
         variants = variants or self.template.product_variant_ids
         self.assertEqual(len(variants), 1)
         self.assertFalse(variants[0].product_template_attribute_value_ids)
 
     @mute_logger("odoo.models.unlink")
     def test_unlink_and_archive_multiple_variants(self):
-        """
-        Test unlinking multiple variants in various scenarios
-        - Unlink one archived variant
-        - Unlink one archived and one active variant
-        - Unlink multiple archived variants and multiple active variants at once
-        """
         products = self.env["product.product"].create(
             [
                 {"name": "variant 1", "description": "var 1"},
@@ -1936,18 +1821,15 @@ class TestVariantsArchive(ProductVariantsCommon):
                 {"name": "variant 7", "description": "var 7"},
             ]
         )
-        # Unlink one archived variant
         products[0].action_archive()
         products[0].unlink()
         self.assertFalse(products[0].exists())
 
-        # Unlink one archived and one active variant
         products[1].action_archive()
         active_and_archived = products[1] + products[2]
         active_and_archived.unlink()
         self.assertFalse(active_and_archived.exists())
 
-        # Unlink multiple archived variants and multiple active variants at once
         multiple_archived = products[3] + products[4]
         multiple_active = products[5] + products[6]
         multiple_archived.action_archive()
@@ -1998,7 +1880,6 @@ class TestVariantsArchive(ProductVariantsCommon):
             "Template should not be deleted when adding attributes to archived template",
         )
         self.assertFalse(template.active, "Template should remain archived")
-        # Verify new variants are created but remain archived
         all_variants = template.product_variant_ids
         self.assertEqual(
             len(all_variants), 2, "Should create 2 variants: S+Red and S+Blue"
@@ -2018,7 +1899,6 @@ class TestVariantWrite(TransactionCase):
         )
         self.assertEqual(len(template.product_variant_ids), 1)
 
-        # check the consistency of one2many field product_variant_ids w.r.t. active variants
         variant1 = template.product_variant_ids
         variant2 = self.env["product.product"].create({"product_tmpl_id": template.id})
         self.assertEqual(template.product_variant_ids, variant1 + variant2)
@@ -2046,8 +1926,6 @@ class TestVariantWrite(TransactionCase):
             }
         )
 
-        # patch template.write to modify pricelist items, which causes some
-        # cache invalidation
         Template = self.registry["product.template"]
         Template_write = Template.write
 
@@ -2060,8 +1938,6 @@ class TestVariantWrite(TransactionCase):
             return result
 
         with unittest.mock.patch.object(Template, "write", write):
-            # change both 'name' and 'sequence': due to some programmed cache
-            # invalidation, the second field may not be properly assigned
             product.write({"name": "Bar", "sequence": 2})
             self.assertEqual(product.name, "Bar")
             self.assertEqual(product.sequence, 2)
@@ -2086,7 +1962,6 @@ class TestVariantsExclusion(ProductVariantsCommon):
             {"name": "256", "attribute_id": cls.storage_attr.id}
         )
 
-        # add attributes to product
         cls.env["product.template.attribute.line"].create(
             [
                 {
@@ -2127,7 +2002,6 @@ class TestVariantsExclusion(ProductVariantsCommon):
 
     @mute_logger("odoo.models.unlink")
     def test_variants_1_exclusion(self):
-        # Create one exclusion for Smartphone S
         self.smartphone_s.write(
             {
                 "exclude_for": [
@@ -2146,7 +2020,6 @@ class TestVariantsExclusion(ProductVariantsCommon):
             "With exclusion {s: [256]}, the smartphone should have 3 active different variants",
         )
 
-        # Delete exclusion
         self.smartphone_s.write(
             {"exclude_for": [(2, self.smartphone_s.exclude_for.id, 0)]}
         )
@@ -2158,7 +2031,6 @@ class TestVariantsExclusion(ProductVariantsCommon):
 
     @mute_logger("odoo.models.unlink")
     def test_variants_2_exclusions_same_line(self):
-        # Create two exclusions for Smartphone S on the same line
         self.smartphone_s.write(
             {
                 "exclude_for": [
@@ -2179,7 +2051,6 @@ class TestVariantsExclusion(ProductVariantsCommon):
             "With exclusion {s: [128, 256]}, the smartphone should have 2 active different variants",
         )
 
-        # Delete one exclusion of the line
         self.smartphone_s.write(
             {
                 "exclude_for": [
@@ -2200,7 +2071,6 @@ class TestVariantsExclusion(ProductVariantsCommon):
             "With exclusion {s: [128]}, the smartphone should have 3 active different variants",
         )
 
-        # Delete exclusion
         self.smartphone_s.write(
             {"exclude_for": [(2, self.smartphone_s.exclude_for.id, 0)]}
         )
@@ -2212,7 +2082,6 @@ class TestVariantsExclusion(ProductVariantsCommon):
 
     @mute_logger("odoo.models.unlink")
     def test_variants_2_exclusions_different_lines(self):
-        # add 1 exclusion
         self.smartphone_s.write(
             {
                 "exclude_for": [
@@ -2226,7 +2095,6 @@ class TestVariantsExclusion(ProductVariantsCommon):
             }
         )
 
-        # add 1 exclusion on a different line
         self.smartphone_s.write(
             {
                 "exclude_for": [
@@ -2245,7 +2113,6 @@ class TestVariantsExclusion(ProductVariantsCommon):
             "With exclusion {s: [128, 256]}, the smartphone should have 2 active different variants",
         )
 
-        # delete one exclusion line
         self.smartphone_s.write(
             {"exclude_for": [(2, self.smartphone_s.exclude_for.ids[0], 0)]}
         )
@@ -2257,10 +2124,6 @@ class TestVariantsExclusion(ProductVariantsCommon):
 
     @mute_logger("odoo.models.unlink")
     def test_exclusions_crud(self):
-        """Make sure that exclusions creation, update & delete are correctly handled.
-
-        Exclusions updates are not necessarily done from a specific template.
-        """
         PTAE = self.env["product.template.attribute.exclusion"]
 
         exclude = PTAE.create(
@@ -2294,10 +2157,6 @@ class TestVariantsExclusion(ProductVariantsCommon):
 
     @mute_logger("odoo.models.unlink")
     def test_dynamic_variants_unarchive(self):
-        """Make sure that exclusions creation, update & delete are correctly handled.
-
-        Exclusions updates are not necessarily done from a specific template.
-        """
         product_template = self.env["product.template"].create(
             {
                 "name": "Test dynamic",
@@ -2341,7 +2200,6 @@ class TestVariantsExclusion(ProductVariantsCommon):
             )
         )
 
-        # Removing one option will archive one variant
         with patch(
             "odoo.addons.product.models.product_product.ProductProduct._filter_to_unlink",
             lambda products: products.filtered(
@@ -2354,7 +2212,6 @@ class TestVariantsExclusion(ProductVariantsCommon):
         self.assertEqual(len(product_template.product_variant_ids), 1)
         self.assertFalse(variant_to_archive.active)
 
-        # Putting it back should unarchive the archived variant
         product_template.attribute_line_ids[1].value_ids = [
             Command.link(self.dynamic_attribute.value_ids[:1].id)
         ]
@@ -2362,14 +2219,6 @@ class TestVariantsExclusion(ProductVariantsCommon):
         self.assertTrue(variant_to_archive.active)
 
     def test_supplierinfo_with_dynamic_attribute(self):
-        """
-        Ensure that supplierinfo.product_id is never automatically set when
-        variants are created dynamically.
-
-        The supplierinfo should remain template-level (product_id = False)
-        unless the user explicitly assigns a specific variant manually,
-        even if only one variant exists initially.
-        """
         product_template = self.env["product.template"].create(
             {
                 "name": "Test dynamic",
@@ -2410,29 +2259,10 @@ class TestVariantsExclusion(ProductVariantsCommon):
 
 @tagged("post_install", "-at_install")
 class TestVariantCombinationIntegrityOnRemoval(ProductVariantsCommon):
-    """Removing an attribute line must never rewrite a surviving variant.
-
-    `product.template.attribute.value.attribute_line_id` is `ondelete="cascade"`.
-    Deleting the line therefore took its values with it at the database level --
-    their `unlink()` override never running -- and the
-    `product_variant_combination` rows went too. Every variant still holding one
-    silently *narrowed*: a red/S variant that could not be deleted started
-    reading as a plain "red" variant, which is exactly the key
-    `_create_variant_ids` matches `existing_variants` on, so the leftover was
-    reactivated as the new red variant instead of a fresh one -- inheriting the
-    stock, barcode and history of a variant describing a configuration that no
-    longer existed.
-
-    Which of the two happened depended only on whether the values were
-    deletable, i.e. on unrelated history: the same removal replaced all four
-    variants on one template and silently reused two on another.
-    """
 
     def setUp(self):
         super().setUp()
 
-        # Variants that cannot be deleted are the case that matters: a deletable
-        # one is simply gone and can be reused by nobody.
         def undeletable(records):
             raise Exception("this variant is referenced elsewhere")
 
@@ -2518,8 +2348,6 @@ class TestVariantCombinationIntegrityOnRemoval(ProductVariantsCommon):
 
     @mute_logger("odoo.models.unlink")
     def test_values_still_carried_by_a_variant_are_archived_not_deleted(self):
-        """The values stay as master data, so the archived variants that still
-        reference them remain describable."""
         template = self._template_2color_x_2size()
         size_line = template.attribute_line_ids.filtered(
             lambda line: line.attribute_id == self.size_attribute

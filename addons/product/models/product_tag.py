@@ -47,21 +47,11 @@ class ProductTag(models.Model):
     )
     image = fields.Image(string="Image", max_width=200, max_height=200)
 
-    # NB: no SQL `unique (name)` here. `name` is `translate=True`, so its column
-    # is jsonb and a UNIQUE index compares whole translation *dicts*:
-    # {"en_US": "Fragile"} and {"en_US": "Fragile", "fr_FR": "Fragile"} are
-    # distinct values and both insert, which silently voided the guarantee as
-    # soon as a second language was installed. The check has to run in Python,
-    # on the value the user actually sees.
     @api.constrains("name")
     def _check_name_uniq(self):
         names = [tag.name for tag in self if tag.name]
         if not names:
             return
-        # One query for the whole batch instead of one per record: importing or
-        # creating tags in bulk ran a `search_count` per row. The duplicate may
-        # be another record in `self` (two new tags sharing a name), so compare
-        # against both the stored rows and the batch itself.
         taken = self.search(
             [("name", "in", names), ("id", "not in", self.ids)]
         ).grouped("name")
@@ -77,18 +67,12 @@ class ProductTag(models.Model):
 
     def copy_data(self, default=None):
         vals_list = super().copy_data(default=default)
-        # A None entry marks a record already copied in this operation (the
-        # same record twice in `self`, or a cycle through a relation); it has
-        # no values to rename and is dropped by `copy()`.
         return [
             vals if vals is None else dict(vals, name=self.env._("%s (copy)", tag.name))
             for tag, vals in zip(self, vals_list, strict=True)
         ]
 
     def copy_translations(self, new, excluded=()):
-        # ``copy_data`` renames ``name`` in the duplicating user's language
-        # only; without this the copy would keep the source record's exact
-        # ``name`` in every other language.
         super().copy_translations(new, excluded=(*excluded, "name"))
         self._copy_translations_of_renamed_field(
             new, "name", lambda record, term: record.env._("%s (copy)", term)

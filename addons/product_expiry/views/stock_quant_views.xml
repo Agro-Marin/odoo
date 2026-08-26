@@ -28,7 +28,7 @@
                        decoration-bf="expiration_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')"/>
                 <field name="removal_date" column_invisible="not context.get('show_removal_date')"
                        decoration-danger="removal_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')"
-                       decoration-bf="expiration_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')"/>
+                       decoration-bf="removal_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')"/>
             </xpath>
         </field>
     </record>

@@ -62,9 +62,7 @@ class ProductCombo(models.Model):
 
     @api.depends("combo_item_ids")
     def _compute_count_combo_item_ids(self):
-        # Initialize count_combo_item_ids to 0 as _read_group won't return any results for new combos.
         self.count_combo_item_ids = 0
-        # Optimization to count the number of combo items in each combo.
         for combo, item_count in self.env["product.combo.item"]._read_group(
             domain=[("combo_id", "in", self.ids)],
             groupby=["combo_id"],

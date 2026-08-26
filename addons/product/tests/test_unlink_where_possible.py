@@ -2,11 +2,6 @@ from odoo.addons.product.tests.common import ProductCommon
 
 
 class SavepointCounter:
-    """Count the ``SAVEPOINT`` statements issued while deleting.
-
-    The property under test is not a timing but a shape: deleting records that
-    are all deletable must not cost one savepoint per record.
-    """
 
     def __init__(self, cr):
         self.cr = cr
@@ -28,10 +23,6 @@ class SavepointCounter:
 
 
 class TestUnlinkWherePossible(ProductCommon):
-    """Deleting product master data is best-effort: whatever the database
-    refuses is archived. The batch must be attempted as a whole and split only
-    on failure.
-    """
 
     def _template_with_values(self, name, count, create_variant="no_variant"):
         attribute = self.env["product.attribute"].create(
@@ -67,7 +58,6 @@ class TestUnlinkWherePossible(ProductCommon):
         return template, template.attribute_line_ids.product_template_value_ids
 
     def test_deletable_values_are_deleted_in_one_batch(self):
-        """Nothing blocked: one attempt, not one savepoint per value."""
         count = 20
         _template, ptavs = self._template_with_values("Batch delete", count)
         self.assertEqual(len(ptavs), count)
@@ -84,13 +74,10 @@ class TestUnlinkWherePossible(ProductCommon):
         )
 
     def test_blocked_value_is_archived_and_the_rest_deleted(self):
-        """One blocked value must not stop the others from being deleted."""
         template, ptavs = self._template_with_values(
             "Mixed delete", 8, create_variant="always"
         )
         pinned_variant = template.product_variant_ids[0]
-        # `product.combo.item.product_id` is ondelete='restrict', so this variant
-        # cannot be deleted, which in turn pins the value it materializes.
         self.env["product.combo"].create(
             {
                 "name": "Mixed delete combo",
@@ -113,7 +100,6 @@ class TestUnlinkWherePossible(ProductCommon):
         )
 
     def test_helper_reports_what_it_could_not_delete(self):
-        """The helper deletes what it can and returns the remainder."""
         from odoo.addons.product.models.utils import unlink_where_possible
 
         _template, ptavs = self._template_with_values("Helper", 4)

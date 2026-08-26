@@ -7,11 +7,6 @@ from odoo.addons.product.tests.common import ProductCommon
 
 @tagged("post_install", "-at_install")
 class TestAttributeLineCreateOrder(ProductCommon):
-    """`product.template.attribute.line.create()` must answer `vals_list` in order.
-
-    Reactivating an archived line used to hoist it to the front of the result,
-    which silently mis-paired every caller that zips the two lists by position.
-    """
 
     @classmethod
     def setUpClass(cls):
@@ -43,20 +38,17 @@ class TestAttributeLineCreateOrder(ProductCommon):
         return line
 
     def test_create_returns_records_in_vals_list_order(self):
-        """The reactivated line must stay at its own index, not jump to front."""
         tmpl_new, tmpl_archived = self.env["product.template"].create(
             [{"name": "OrderNew"}, {"name": "OrderArchived"}]
         )
         self._archived_line(tmpl_archived, self.attr_color)
 
         vals_list = [
-            # [0] brand new -> goes through super().create()
             {
                 "product_tmpl_id": tmpl_new.id,
                 "attribute_id": self.attr_size.id,
                 "value_ids": [Command.set(self.attr_size.value_ids.ids)],
             },
-            # [1] matches the archived line -> reactivated
             {
                 "product_tmpl_id": tmpl_archived.id,
                 "attribute_id": self.attr_color.id,
@@ -75,7 +67,6 @@ class TestAttributeLineCreateOrder(ProductCommon):
             self.assertEqual(line.attribute_id.id, vals["attribute_id"])
 
     def test_create_order_with_archived_line_first(self):
-        """Control: the case that happened to work before must keep working."""
         tmpl_archived, tmpl_new = self.env["product.template"].create(
             [{"name": "OrderArchivedFirst"}, {"name": "OrderNewSecond"}]
         )
@@ -98,13 +89,6 @@ class TestAttributeLineCreateOrder(ProductCommon):
         self.assertEqual(lines.mapped("product_tmpl_id"), tmpl_archived | tmpl_new)
 
     def test_import_products_onto_template_with_archived_line(self):
-        """End-to-end: the product import must not abort on a reactivated line.
-
-        `_import_resolve_ptavs` zips `ptals_to_create` against the result of
-        `create()`. With the reordering, both templates resolved to empty
-        `product.template.attribute.value` records and the whole import died on
-        a raw Postgres type mismatch.
-        """
         tmpl_new, tmpl_archived = self.env["product.template"].create(
             [{"name": "ImportNew"}, {"name": "ImportArchived"}]
         )
@@ -145,7 +129,6 @@ class TestAttributeLineCreateOrder(ProductCommon):
 
 @tagged("post_install", "-at_install")
 class TestTemplateCopyPriceExtra(ProductCommon):
-    """Duplicating a template must carry its extra prices over."""
 
     def test_copy_preserves_price_extra_with_archived_value(self):
         attribute = self.env["product.attribute"].create(
@@ -175,8 +158,6 @@ class TestTemplateCopyPriceExtra(ProductCommon):
         )
         line = template.attribute_line_ids
 
-        # Block deletion of the red variant so removing the value archives its
-        # `product.template.attribute.value` instead of deleting it.
         red_variant = template.product_variant_ids.filtered(
             lambda variant: (
                 variant.product_template_attribute_value_ids.product_attribute_value_id
@@ -215,7 +196,6 @@ class TestTemplateCopyPriceExtra(ProductCommon):
 
 @tagged("post_install", "-at_install")
 class TestSellerPriceUomConversion(ProductCommon):
-    """A vendor unit may be cross-category; the price must not be scaled by it."""
 
     def test_price_discounted_with_incompatible_vendor_uom(self):
         template = self._create_product(
@@ -240,7 +220,6 @@ class TestSellerPriceUomConversion(ProductCommon):
         )
 
     def test_price_discounted_with_compatible_vendor_uom(self):
-        """Control: a convertible vendor unit still converts."""
         template = self._create_product(
             name="Same category seller product", uom_id=self.uom_unit.id
         ).product_tmpl_id
@@ -267,7 +246,6 @@ class TestSellerPriceUomConversion(ProductCommon):
         self.assertEqual(
             self.uom_kgm._compute_price_estimate(100.0, self.uom_unit), 100.0
         )
-        # and still convert when the units are compatible
         self.assertEqual(
             self.uom_dozen._compute_price_report(120.0, self.uom_unit), 10.0
         )
@@ -289,11 +267,6 @@ class TestTemplateBarcodeCheckBatching(ProductCommon):
         return self.env.cr.sql_log_count - before
 
     def test_barcode_constraint_does_not_scale_with_batch_size(self):
-        """The check must cost the same for 5 and for 50 rows.
-
-        Asserting the ratio rather than an absolute count: the absolute number
-        depends on which modules are installed, the invariant does not.
-        """
         small = self._count_check_queries(5, "small")
         large = self._count_check_queries(50, "large")
         self.assertEqual(
@@ -303,7 +276,6 @@ class TestTemplateBarcodeCheckBatching(ProductCommon):
         )
 
     def test_barcode_constraint_still_detects_collisions(self):
-        """Batching must not weaken what the constraint catches."""
         other_company = self.env["res.company"].create({"name": "Barcode Co"})
         self.env.user.company_ids = [Command.link(other_company.id)]
         first = self.env["product.template"].create(

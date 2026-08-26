@@ -6,9 +6,6 @@ from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.stock.tools.quantity import QuantityFilters
 
-# subir-cobertura: the delivery expiry-confirmation wizard description and the
-# expiry-settings onchanges.
-
 
 @tagged("post_install", "-at_install")
 class TestExpiryConfirmationWizard(TransactionCase):
@@ -31,7 +28,6 @@ class TestExpiryConfirmationWizard(TransactionCase):
         )
 
     def test_description_names_the_single_lot(self):
-        """A single expired lot is named in the confirmation message."""
         wizard = self.env["expiry.picking.confirmation"].create(
             {"lot_ids": [Command.set(self.lot_1.ids)]}
         )
@@ -39,7 +35,6 @@ class TestExpiryConfirmationWizard(TransactionCase):
         self.assertIn("EXP-1", wizard.description)
 
     def test_description_lists_multiple_lots(self):
-        """Several expired lots switch the wizard to the listing message."""
         wizard = self.env["expiry.picking.confirmation"].create(
             {"lot_ids": [Command.set([self.lot_1.id, self.lot_2.id])]}
         )
@@ -50,7 +45,6 @@ class TestExpiryConfirmationWizard(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestExpirySettings(TransactionCase):
     def test_disabling_module_clears_delivery_slip_group(self):
-        """Turning off the expiry module clears the delivery-slip expiry group."""
         settings = self.env["res.config.settings"].new(
             {
                 "module_product_expiry": False,
@@ -61,7 +55,6 @@ class TestExpirySettings(TransactionCase):
         self.assertFalse(settings.group_expiry_date_on_delivery_slip)
 
     def test_disabling_lot_slip_clears_expiry_slip(self):
-        """Turning off lots on the delivery slip clears the expiry slip group."""
         settings = self.env["res.config.settings"].new(
             {
                 "group_lot_on_delivery_slip": False,
@@ -75,7 +68,6 @@ class TestExpirySettings(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestExpiryMisc(TransactionCase):
     def test_clearing_tracking_disables_expiration(self):
-        """Removing lot tracking also turns off expiration-date handling."""
         product = self.env["product.product"].create(
             {
                 "name": "Batch",
@@ -89,17 +81,11 @@ class TestExpiryMisc(TransactionCase):
         self.assertFalse(product.use_expiration_date)
 
     def test_scheduler_declares_an_extra_task(self):
-        """The expiry module adds one scheduler task to the run."""
         self.assertGreaterEqual(self.env["stock.scheduler"]._get_tasks_to_do(), 1)
 
 
 @tagged("post_install", "-at_install")
 class TestExpiryQuantityScope(TransactionCase):
-    """The expired-stock narrowing, beside the module that owns `removal_date`.
-
-    Lived in stock's `test_product_quantity_scope` while stock built the domain.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -124,7 +110,6 @@ class TestExpiryQuantityScope(TransactionCase):
         )
 
     def test_removal_date_invalidates_the_quantity_fields(self):
-        """`stock_quant_ids.removal_date` is declared here, so it must work here."""
         product = self.env["product.product"].create(
             {
                 "name": "Scope Expiry Tracked",
@@ -132,10 +117,6 @@ class TestExpiryQuantityScope(TransactionCase):
                 "type": "consu",
                 "tracking": "lot",
                 "use_expiration_date": True,
-                # `removal_date` is the expiration date *minus* `removal_time`, so
-                # a lot needs an expiration far enough out to be fresh at all. With
-                # both left at zero it is born already past removal and the first
-                # read below would be 0 for the wrong reason.
                 "expiration_time": 60,
                 "removal_time": 10,
             },
@@ -168,3 +149,71 @@ class TestExpiryQuantityScope(TransactionCase):
             "stock past its removal date must leave qty_free without an "
             "explicit invalidation",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestExpiryCategoryDefault(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.categ_expiry = cls.env["product.category"].create(
+            {"name": "Perishable", "use_expiration_date": True}
+        )
+        cls.categ_plain = cls.env["product.category"].create(
+            {"name": "Hardware", "use_expiration_date": False}
+        )
+
+    def _create_product(self, categ):
+        return self.env["product.product"].create(
+            {
+                "name": "Batch",
+                "is_storable": True,
+                "tracking": "lot",
+                "categ_id": categ.id,
+            }
+        )
+
+    def test_category_seeds_the_product_flag(self):
+        self.assertTrue(self._create_product(self.categ_expiry).use_expiration_date)
+        self.assertFalse(self._create_product(self.categ_plain).use_expiration_date)
+
+    def test_changing_category_repoints_the_product_flag(self):
+        product = self._create_product(self.categ_plain)
+        product.categ_id = self.categ_expiry
+        self.assertTrue(product.use_expiration_date)
+        product.categ_id = self.categ_plain
+        self.assertFalse(product.use_expiration_date)
+
+    def test_the_product_may_override_its_category(self):
+        product = self._create_product(self.categ_plain)
+        product.use_expiration_date = True
+        self.assertTrue(product.use_expiration_date)
+        product.invalidate_recordset()
+        self.assertTrue(product.use_expiration_date)
+
+    def test_an_untracked_product_ignores_its_category(self):
+        product = self.env["product.product"].create(
+            {"name": "Bolt", "is_storable": True, "tracking": "none"}
+        )
+        product.categ_id = self.categ_expiry
+        self.assertFalse(product.use_expiration_date)
+
+    def test_an_override_survives_a_storability_write(self):
+        product = self._create_product(self.categ_plain)
+        product.use_expiration_date = True
+        product.is_storable = True
+        self.assertTrue(product.use_expiration_date)
+        product.name = "renamed"
+        self.assertTrue(product.use_expiration_date)
+
+    def test_an_explicit_value_wins_over_the_category_at_creation(self):
+        product = self.env["product.product"].create(
+            {
+                "name": "Batch",
+                "is_storable": True,
+                "tracking": "lot",
+                "categ_id": self.categ_expiry.id,
+                "use_expiration_date": False,
+            }
+        )
+        self.assertFalse(product.use_expiration_date)
