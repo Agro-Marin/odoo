@@ -36,7 +36,10 @@ class IrActionsReport(models.Model):
         return self._embed_order_edi_documents(collected_streams, order, builders)
 
     def _embed_order_edi_documents(self, collected_streams, order, builders):
-        pdf_stream = collected_streams[order.id]["stream"]
+        stream_entry = collected_streams.get(order.id)
+        if not stream_entry or not stream_entry.get("stream"):
+            return collected_streams
+        pdf_stream = stream_entry["stream"]
         pdf_content = pdf_stream.getvalue()
         reader_buffer = io.BytesIO(pdf_content)
         reader = OdooPdfFileReader(reader_buffer, strict=False)
@@ -48,7 +51,7 @@ class IrActionsReport(models.Model):
             xml_content = builder._export_order(order_sudo)
 
             writer.add_attachment(
-                builder._export_invoice_filename(order),
+                order._get_edi_filename(builder),
                 xml_content,
                 subtype="text/xml",
             )

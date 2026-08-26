@@ -4,10 +4,8 @@ from datetime import UTC, datetime, time
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
-from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT, SQL, get_lang
-from odoo.tools.translate import _
 
 
 class PurchaseOrderLine(models.Model):
@@ -23,8 +21,14 @@ class PurchaseOrderLine(models.Model):
     _order = "order_id, sequence, id"
     _rec_names_search = ["name", "order_id.name"]
 
-    def _get_order_type(self):
-        return "purchase"
+    _order_type = "purchase"
+    _product_ok_field = "purchase_ok"
+    _analytic_business_domain = "purchase_order"
+    _transfer_verb = "received"
+    _product_tax_field = "supplier_taxes_id"
+    _invoice_move_direction = "in"
+    _invoice_policy_field = "bill_policy"
+    _price_direction = -1
 
     def _get_merge_date_field(self):
         return "date_commitment"
@@ -121,24 +125,6 @@ class PurchaseOrderLine(models.Model):
         for order, order_changes in changes_by_order.items():
             self._post_batched_quantity_changes(order, order_changes, field_name)
 
-    @api.ondelete(at_uninstall=False)
-    def _unlink_except_confirmed(self):
-        lines_to_block = self._check_line_unlink()
-        if lines_to_block:
-            state_description = dict(
-                self._fields["state"]._description_selection(self.env),
-            )
-            state_label = state_description[lines_to_block[0].state]
-            raise UserError(
-                _(
-                    "Cannot delete a purchase order line which is in state '%s'.\n"
-                    "Once a purchase order is confirmed, you can't remove lines that have been "
-                    "invoiced or received (we need to track if something gets invoiced or received).\n"
-                    "Set the quantity to 0 instead.",
-                    state_label,
-                ),
-            )
-
     @api.depends("product_id.purchase_line_warn_msg")
     def _compute_purchase_line_warn_msg(self):
         self._compute_line_warn_msg("purchase_line_warn_msg")
@@ -163,10 +149,6 @@ class PurchaseOrderLine(models.Model):
         return self.product_id.seller_ids.filtered(
             lambda s: s.product_id.id in {False, self.product_id.id},
         ).product_uom_id
-
-    @api.depends("company_id", "fiscal_position_id", "product_id")
-    def _compute_tax_ids(self):
-        return super()._compute_tax_ids()
 
     @api.depends("partner_id", "product_id")
     def _compute_product_uom_id(self):
@@ -318,23 +300,6 @@ class PurchaseOrderLine(models.Model):
                     line.date_commitment = new_date.strftime(
                         DEFAULT_SERVER_DATETIME_FORMAT
                     )
-
-    @api.depends("product_qty", "price_unit", "discount", "tax_ids")
-    def _compute_amounts(self):
-        AccountTax = self.env["account.tax"]
-        for line in self:
-            if line.display_type:
-                line.price_subtotal = False
-                line.price_total = False
-                line.price_tax = False
-                continue
-            company = line.company_id or self.env.company
-            base_line = line._prepare_base_line_for_taxes_computation()
-            AccountTax._add_tax_details_in_base_line(base_line, company)
-            AccountTax._round_base_lines_tax_details([base_line], company)
-            line.price_subtotal = base_line["tax_details"]["total_excluded_currency"]
-            line.price_total = base_line["tax_details"]["total_included_currency"]
-            line.price_tax = line.price_total - line.price_subtotal
 
     @api.depends(
         "state",
@@ -901,8 +866,3 @@ class PurchaseOrderLine(models.Model):
             if original_currency and original_currency != self.currency_id:
                 return True
         return super()._price_update_blocked()
-
-    def _check_write_guards(self, write_vals):
-        for method_name in self._get_check_write_guards():
-            if hasattr(self, method_name):
-                getattr(self, method_name)(write_vals)

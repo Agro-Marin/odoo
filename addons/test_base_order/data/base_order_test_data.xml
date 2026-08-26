@@ -1,11 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<odoo noupdate="1">
+<!-- Not `noupdate`: this sequence once carried the code `sale.order` and
+     shadowed sale's own, renaming every sales order to the BOT prefix.
+     A database that still holds that value must be repaired by upgrading
+     the module, which `noupdate` would prevent. -->
+<odoo>
 
     <record id="seq_base_order_test" model="ir.sequence">
         <field name="name">Base Order Test</field>
-        <field name="code">sale.order</field>
+        <field name="code">base.order.test</field>
         <field name="prefix">BOT</field>
         <field name="padding">4</field>
+        <!--
+            Global, like sale's and purchase's. A company-scoped sequence
+            shadows a global one of the same code, which is how this record
+            took over `sale.order`; it also leaves every other company with
+            no sequence at all, so orders there are created unnamed.
+        -->
+        <field name="company_id" eval="False" />
     </record>
 
 </odoo>

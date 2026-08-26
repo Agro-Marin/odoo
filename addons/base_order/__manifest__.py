@@ -1,6 +1,6 @@
 {
     "name": "Base Order Management",
-    "version": "19.0.3.3.0",
+    "version": "19.0.3.4.0",
     "category": "Hidden",
     "summary": "Foundation mixins for sale and purchase order types",
     "description": """
@@ -46,6 +46,9 @@ amount_taxexc_invoiced, etc.) for drop-in adoption.
         "account",
         "product",
         "base_sql_report",
+    ],
+    "data": [
+        "views/res_partner_category_views.xml",
     ],
     "author": "Odoo Community",
     "website": "https://www.odoo.com",

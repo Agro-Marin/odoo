@@ -1,23 +1,3 @@
-"""Archive the live memberships whose team or salesperson is already archived.
-
-``crm.team.member._constrains_live_endpoints`` refuses these from now on, but a
-constraint only fires on write: a database upgraded from an earlier version can
-still hold rows the old code allowed -- joining an archived team, unarchiving
-onto an archived salesperson, or archiving either endpoint back when neither
-``crm.team.write`` nor ``res.users.write`` cascaded.
-
-They are not inert. Reading a many2many drops archived corecords while the
-searches do not, so every one of these rows is a disagreement between
-``crm.team.member_ids`` and ``search([('member_ids', ...)])``, between
-``res.users.crm_team_ids`` and ``search([('crm_team_ids', ...)])``, and a
-``res_users.sale_team_id`` column pinned to a dead record -- which crm's
-pipeline action and sale_commission both consume. Forbidding new ones is not
-enough; the existing ones have to be cleaned.
-
-Straight SQL, and ``sale_team_id`` recomputed by hand rather than through the
-ORM: loading these records would run the very constraint they violate.
-"""
-
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -40,8 +20,6 @@ def migrate(cr, version):
     if not archived:
         return
 
-    # Re-derive the stored main team: the oldest live membership, matching
-    # res.users._compute_sale_team_id and crm.team.member._order.
     cr.execute(
         """
         WITH main AS (

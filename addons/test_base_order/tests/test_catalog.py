@@ -119,3 +119,19 @@ class TestCatalog(BaseOrderTestCase):
 
         self.assertTrue(line.exists(), "the line must survive outside draft")
         self.assertEqual(line.product_qty, 0.0)
+
+    def test_catalog_is_editable_on_a_live_order(self):
+        order = self._make_order()
+        line = self._make_line(order=order, product_qty=2.0)
+
+        self.assertFalse(order._is_readonly())
+        self.assertFalse(line._get_catalog_single_line_data()["readOnly"])
+
+    def test_catalog_is_readonly_on_a_cancelled_order(self):
+        """`_is_readonly` gates catalog editing (product/controllers/catalog.py)."""
+        order = self._make_order()
+        line = self._make_line(order=order, product_qty=2.0)
+        order.action_cancel()
+
+        self.assertTrue(order._is_readonly())
+        self.assertTrue(line._get_catalog_single_line_data()["readOnly"])

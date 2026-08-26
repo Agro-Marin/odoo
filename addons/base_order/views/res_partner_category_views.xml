@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_partner_category_form_inherit_order" model="ir.ui.view">
+        <field name="name">res.partner.category.form.order</field>
+        <field name="model">res.partner.category</field>
+        <field name="inherit_id" ref="base.view_partner_category_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='parent_id']" position="after">
+                <field name="order_type" />
+                <field
+                    name="group_ids"
+                    widget="many2many_tags"
+                    options="{'no_create': True}" />
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_partner_category_list_inherit_order" model="ir.ui.view">
+        <field name="name">res.partner.category.list.order</field>
+        <field name="model">res.partner.category</field>
+        <field name="inherit_id" ref="base.view_partner_category_list" />
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='color']" position="before">
+                <field name="order_type" optional="show" />
+                <field name="group_ids" widget="many2many_tags" optional="show" />
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

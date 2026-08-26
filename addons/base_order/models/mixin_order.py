@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import timedelta
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.models import MAGIC_COLUMNS
 from odoo.tools import SQL, OrderedSet, format_list
@@ -17,6 +17,40 @@ class MixinOrder(models.AbstractModel):
         "mixin.portal",
         "mixin.product.catalog",
     ]
+
+    #: Which side of the trade this document sits on: ``sale`` or ``purchase``.
+    #: It carries *direction* only -- what a document of this kind means, never
+    #: which document it is. Everything below that used to be derived from it
+    #: is declared separately, because a third order type may behave like a
+    #: sale and still need its own sequence, its own groups and its own keys.
+    _order_type = ""
+
+    #: ``ir.sequence`` code this model draws its names from. Identity, not
+    #: direction: two models sharing a code share one counter, and the
+    #: company-scoped one silently wins.
+    _sequence_code = ""
+    #: ``out`` on a sale, ``in`` on a purchase -- the prefix of the account
+    #: move types this order invoices through.
+    _invoice_move_direction = ""
+    #: ``res.partner`` field holding the payment term to default from.
+    _partner_payment_term_field = ""
+    #: ``res.company`` field holding this order type's lock policy.
+    _lock_setting_field = ""
+    #: Group whose members get their orders locked on confirmation, as an
+    #: xml id. Empty means no group grants it.
+    _auto_lock_group = ""
+    #: Context key that marks an order as sent when the composer posts.
+    _mark_sent_context_key = ""
+    #: Context key that appends the partner name to the display name.
+    _display_name_context_key = ""
+    #: Prefix of this order type's portal route, under ``/my/``.
+    _portal_url_prefix = ""
+    #: ``product.product`` flag the catalog and the line product domain filter on.
+    _product_ok_field = ""
+
+    #: The list/pivot/graph history `action_price_comparison` opens, as an
+    #: xml id. Concrete order models set it.
+    _price_history_action = ""
 
     _STATE_TRANSITIONS = {
         "draft": {"done", "cancel"},
@@ -45,7 +79,7 @@ class MixinOrder(models.AbstractModel):
         return ["name"]
 
     def _get_display_name_context_key(self):
-        return f"{self._get_order_type()}_show_partner_name"
+        return self._display_name_context_key
 
     line_ids = fields.One2many(
         comodel_name="mixin.order.line.fields",
@@ -53,9 +87,6 @@ class MixinOrder(models.AbstractModel):
         string="Order Lines",
         copy=True,
     )
-    #: The list/pivot/graph history `action_price_comparison` opens, as an
-    #: xml id. Concrete order models set it.
-    _price_history_action = ""
 
     show_comparison = fields.Boolean(
         string="Show Comparison",
@@ -166,6 +197,7 @@ class MixinOrder(models.AbstractModel):
         required=True,
         change_default=True,
         check_company=True,
+        domain=lambda self: self._domain_partner_id(),
         index=True,
         tracking=True,
     )
@@ -280,7 +312,7 @@ class MixinOrder(models.AbstractModel):
     )
     is_late = fields.Boolean(
         string="Is Late",
-        store=False,
+        compute="_compute_is_late",
         search="_search_is_late",
         help="True when the order is confirmed and its planned date has passed.",
     )
@@ -292,20 +324,30 @@ class MixinOrder(models.AbstractModel):
         compute="_compute_has_archived_products",
     )
 
-    @api.depends("line_ids", "line_ids.product_id")
+    @api.depends("company_id", "line_ids", "line_ids.product_id")
     def _compute_show_comparison(self):
         # `self.line_ids._name`, not a hardcoded model: sale and purchase both
         # reach this compute and each must count its own lines.
-        line_groupby_product = self.env[self.line_ids._name]._read_group(
-            [
-                ("product_id", "in", self.line_ids.product_id.ids),
-                ("state", "=", "done"),
-            ],
-            ["product_id"],
-            ["order_id:array_agg"],
-        )
-        order_by_product = {p: set(o_ids) for p, o_ids in line_groupby_product}
+        Line = self.env[self.line_ids._name]
+        order_by_product_by_company = {}
+        for company in self.company_id:
+            # Scoped to the company: a confirmed order in another company is
+            # not a comparison this order may draw on, and an unscoped flag
+            # says one exists.
+            order_by_product_by_company[company] = {
+                product: set(order_ids)
+                for product, order_ids in Line._read_group(
+                    [
+                        ("product_id", "in", self.line_ids.product_id.ids),
+                        ("state", "=", "done"),
+                        ("company_id", "in", company._accessible_branches().ids),
+                    ],
+                    ["product_id"],
+                    ["order_id:array_agg"],
+                )
+            }
         for order in self:
+            order_by_product = order_by_product_by_company.get(order.company_id, {})
             order.show_comparison = any(
                 set(order.ids) != order_by_product[p]
                 for p in order.line_ids.product_id
@@ -322,29 +364,40 @@ class MixinOrder(models.AbstractModel):
         action["domain"] = [
             ("state", "=", "done"),
             ("product_id", "in", self.line_ids.product_id.ids),
+            ("company_id", "in", self.company_id._accessible_branches().ids),
         ]
         return action
 
     def _get_order_type(self):
-        raise NotImplementedError(f"{self._name} must implement _get_order_type()")
+        if not self._order_type:
+            raise NotImplementedError(f"{self._name} must declare _order_type")
+        return self._order_type
+
+    def _domain_partner_id(self):
+        return self.env["res.partner.category"]._get_domain_partner_allowed(
+            self._get_order_type(),
+        )
 
     def _get_line_model(self):
         return f"{self._name}.line"
 
     @api.model_create_multi
     def create(self, vals_list):
-        seq_code = f"{self._get_order_type()}.order"
+        seq_code = self._sequence_code
+        default_company_id = None
         for vals in vals_list:
-            company_id = vals.get(
-                "company_id",
-                self.default_get(["company_id"])["company_id"],
-            )
+            if "company_id" in vals:
+                company_id = vals["company_id"]
+            else:
+                if default_company_id is None:
+                    default_company_id = self.default_get(["company_id"])["company_id"]
+                company_id = default_company_id
             self_comp = self.with_company(company_id)
             if vals.get("name", _("New")) == _("New"):
-                date_order = vals.get(
-                    "date_order",
-                    self_comp.default_get(["date_order"])["date_order"],
-                )
+                if "date_order" in vals:
+                    date_order = vals["date_order"]
+                else:
+                    date_order = self_comp.default_get(["date_order"])["date_order"]
                 seq_date = fields.Datetime.context_timestamp(
                     self_comp,
                     fields.Datetime.to_datetime(date_order),
@@ -515,9 +568,31 @@ class MixinOrder(models.AbstractModel):
                 )
             order.fiscal_position_id = cache[key]
 
+    @api.depends("state", "date_commitment")
+    def _compute_is_late(self):
+        """Answer the field with the same domain the filter searches on.
+
+        Not a second implementation of "late": concrete models refine this
+        through `_get_domain_is_late` and `_get_is_late_search_domain`, and
+        purchase's refinement is a `Domain.custom` carrying raw SQL that
+        `filtered_domain` cannot evaluate. Running the search is the only
+        way to keep the value and the filter answering the same question,
+        and a field that disagreed with its own filter is what this
+        replaces.
+        """
+        self.is_late = False
+        saved = self.filtered("id")._origin
+        if not saved:
+            return
+        late = saved.search(
+            Domain("id", "in", saved.ids) & Domain(self._search_is_late("=", True)),
+        )
+        for order in self:
+            order.is_late = order._origin in late
+
     def _search_is_late(self, operator, value):
         if operator not in ("=", "!="):
-            raise ValidationError(_("Unsupported operator."))
+            return NotImplemented
         domain = self._get_domain_is_late(operator, value)
         positive = (operator == "=" and value) or (operator == "!=" and not value)
         return self._get_is_late_search_domain(domain, positive)
@@ -546,9 +621,7 @@ class MixinOrder(models.AbstractModel):
         return 0
 
     def _get_partner_payment_term_field(self):
-        if self._get_order_type() == "sale":
-            return "property_payment_term_id"
-        return "property_supplier_payment_term_id"
+        return self._partner_payment_term_field
 
     def _get_default_user_from_partner(self):
         self.ensure_one()
@@ -577,9 +650,7 @@ class MixinOrder(models.AbstractModel):
         return True
 
     def _get_lock_setting_field(self):
-        if self._get_order_type() == "sale":
-            return "order_lock_so"
-        return "order_lock_po"
+        return self._lock_setting_field
 
     def _get_lock_setting_user(self):
         self.ensure_one()
@@ -587,19 +658,27 @@ class MixinOrder(models.AbstractModel):
 
     def _should_be_locked(self):
         self.ensure_one()
-        order_type = self._get_order_type()
-        company_locks = self.company_id[self._get_lock_setting_field()]
-        return company_locks == "lock" or self._get_lock_setting_user().has_group(
-            f"{order_type}.group_auto_done_setting",
-        )
+        if self.company_id[self._get_lock_setting_field()] == "lock":
+            return True
+        group = self._auto_lock_group
+        return bool(group) and self._get_lock_setting_user().has_group(group)
 
     def _is_readonly(self):
         self.ensure_one()
         return self.state == "cancel"
 
+    def _run_check_registry(self, method_names, *args):
+        """Call each named method in turn.
+
+        Missing names raise. These registries hold guards, and a guard that
+        is listed but silently skipped is worse than one that was never
+        listed -- the list is the only record that it was meant to run.
+        """
+        for method_name in method_names:
+            getattr(self, method_name)(*args)
+
     def _can_confirm(self):
-        for method_name in self._get_can_confirm_validation_methods():
-            getattr(self, method_name)()
+        self._run_check_registry(self._get_can_confirm_validation_methods())
 
     def _get_can_confirm_validation_methods(self):
         return [
@@ -697,8 +776,7 @@ class MixinOrder(models.AbstractModel):
         pass
 
     def _can_cancel(self):
-        for method_name in self._get_can_cancel_validation_methods():
-            getattr(self, method_name)()
+        self._run_check_registry(self._get_can_cancel_validation_methods())
 
     def _get_can_cancel_validation_methods(self):
         return [
@@ -804,14 +882,14 @@ class MixinOrder(models.AbstractModel):
         )
 
     def _check_write_guards(self, vals):
-        for method_name in self._get_check_write_guards():
-            getattr(self, method_name)(vals)
+        self._run_check_registry(self._get_check_write_guards(), vals)
 
     def _get_check_write_guards(self):
         return [
             "_check_write_locked_order",
             "_check_write_state_frozen_fields",
             "_check_write_state_transition",
+            "_check_write_user_id",
         ]
 
     def _get_fields_state_frozen(self):
@@ -829,17 +907,11 @@ class MixinOrder(models.AbstractModel):
         if not candidate:
             return
         for order in locked:
-            forbidden = set()
-            for name in candidate:
-                field = order._fields[name]
-                if field.type in ("many2many", "one2many"):
-                    forbidden.add(name)
-                    continue
-                current = order[name]
-                if field.type == "many2one":
-                    current = current.id
-                if current != vals[name]:
-                    forbidden.add(name)
+            forbidden = {
+                name
+                for name in candidate
+                if order._is_locked_field_changed(name, vals[name])
+            }
             if forbidden:
                 raise UserError(
                     _(
@@ -848,6 +920,25 @@ class MixinOrder(models.AbstractModel):
                         order._get_field_labels(forbidden),
                     ),
                 )
+
+    def _is_locked_field_changed(self, field_name, value):
+        """Whether writing ``value`` would actually change ``field_name``.
+
+        Both sides are put through the field before they are compared. A
+        caller that sends a date as a string -- which is every JSON-RPC
+        client and every import, because a datetime cannot survive the wire
+        as anything else -- otherwise never compares equal to the stored
+        value, and a write that changes nothing is refused.
+        """
+        self.ensure_one()
+        field = self._fields[field_name]
+        if field.type in ("many2many", "one2many"):
+            return set(self[field_name].ids) != set(
+                self.new({field_name: value})[field_name].ids,
+            )
+        return field.convert_to_cache(
+            value, self, validate=False
+        ) != field.convert_to_cache(self[field_name], self, validate=False)
 
     def _get_fields_user_editable(self):
         return {
@@ -912,6 +1003,25 @@ class MixinOrder(models.AbstractModel):
             sorted(field_names),
         )
 
+    def _check_write_user_id(self, vals):
+        if "user_id" not in vals or self.env.su:
+            return
+        group = self._get_all_documents_group()
+        if not group or self.env.user.has_group(group):
+            return
+        if vals["user_id"] == self.env.uid:
+            return
+        raise AccessError(
+            _(
+                "You are limited to your own documents, so you may only make "
+                "yourself responsible for an order. Ask someone with access to "
+                "all documents to reassign it.",
+            ),
+        )
+
+    def _get_all_documents_group(self):
+        return False
+
     def _get_warning_group(self):
         return False
 
@@ -949,11 +1059,17 @@ class MixinOrder(models.AbstractModel):
 
     def _get_duplicate_orders(self):
         ref_field = self._get_duplicate_ref_field()
-        orders = self.filtered(lambda order: order.id and order[ref_field])
+        orders = self.filtered(
+            lambda order: order.id and (order[ref_field] or order.origin),
+        )
         if not orders:
             return {}
 
-        self.flush_model(["company_id", "partner_id", ref_field, "origin", "state"])
+        # `name` is read by the query as `duplicate_order.name`, so a rename
+        # made in this transaction has to reach the table before it runs.
+        self.flush_model(
+            ["company_id", "partner_id", "name", ref_field, "origin", "state"],
+        )
 
         result = self.env.execute_query(
             SQL(
@@ -982,9 +1098,7 @@ class MixinOrder(models.AbstractModel):
         return {order_id: set(duplicate_ids) for order_id, duplicate_ids in result}
 
     def _get_mark_sent_context_key(self):
-        order_type = self._get_order_type()
-        prefix = "so" if order_type == "sale" else "rfq"
-        return f"mark_{prefix}_as_sent"
+        return self._mark_sent_context_key
 
     def _mark_as_sent(self):
         for order in self:
@@ -1135,7 +1249,7 @@ class MixinOrder(models.AbstractModel):
         return
 
     def _get_portal_url_prefix(self):
-        return self._get_order_type()
+        return self._portal_url_prefix
 
     def _compute_access_url(self):
         super()._compute_access_url()
@@ -1199,9 +1313,7 @@ class MixinOrder(models.AbstractModel):
         )
 
     def _get_catalog_product_ok_field(self):
-        raise NotImplementedError(
-            f"{self._name} must implement _get_catalog_product_ok_field()"
-        )
+        return self._product_ok_field
 
     def _get_product_catalog_order_data(self, products, **kwargs):
         res = super()._get_product_catalog_order_data(products, **kwargs)
@@ -1278,6 +1390,16 @@ class MixinOrder(models.AbstractModel):
 
     def _get_edi_builders(self):
         return []
+
+    def _get_edi_filename(self, builder):
+        """Filename for this order's EDI attachment.
+
+        The builders belong to `account` and their hook is named for
+        invoices; an order is what we hand it. Named here once, rather
+        than the mismatch being repeated at every call site.
+        """
+        self.ensure_one()
+        return builder._export_invoice_filename(self)
 
     def create_document_from_attachment(self, attachment_ids):
         attachments = self.env["ir.attachment"].browse(attachment_ids)

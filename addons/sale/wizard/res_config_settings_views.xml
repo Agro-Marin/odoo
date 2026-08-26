@@ -10,6 +10,26 @@
             <xpath expr="//form" position="inside">
                 <app notApp="1" string="Sales" data-string="Sales" name="sale_management"
                     groups="sales_team.group_sale_manager">
+                    <block title="Sales Teams" name="sales_team_setting_container">
+                        <!-- 'is_membership_multi' is declared and enforced by
+                             sales_team; this is one of its two placements in
+                             Settings, the other being crm's app. It has to
+                             appear in both: the banner on the team form turns
+                             the option ON from anywhere, and a database running
+                             the Sales app without CRM had nowhere to turn it
+                             back off.
+
+                             "the Sales app", not "the sale module": this <app>
+                             is declared notApp="1" here and flipped to 0 by
+                             sale_management, so a database that pulls in sale
+                             as a dependency only (point_of_sale, website_sale)
+                             shows no Sales tab at all and this setting with it.
+                             Closing that last shape would mean giving
+                             sales_team a Settings placement of its own. -->
+                        <setting help="Assign salespersons into multiple Sales Teams.">
+                            <field name="is_membership_multi" />
+                        </setting>
+                    </block>
                     <block title="Product Catalog" name="catalog_setting_container">
                         <setting id="variant_options"
                             help="Sell variants of a product using attributes (size, color, etc.)"

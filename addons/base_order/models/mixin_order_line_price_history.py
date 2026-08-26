@@ -141,8 +141,7 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
 
     def _get_price_direction(self) -> int:
         """``1`` when a higher price is favorable, ``-1`` when a lower one is."""
-        order_type = self.env[self._price_history_line_model]._get_order_type()
-        return 1 if order_type == "sale" else -1
+        return self.env[self._price_history_line_model]._price_direction
 
     @api.depends("line_id")
     def _compute_currency_id(self):

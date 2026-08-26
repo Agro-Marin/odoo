@@ -16,7 +16,7 @@
                     <group>
                         <group>
                             <field name="color" required="True" widget="color_picker"/>
-                            <field name="parent_id"/>
+                            <field name="parent_id" domain="[('id', '!=', id)]"/>
                             <field name="active" widget="boolean_toggle"/>
                         </group>
                     </group>

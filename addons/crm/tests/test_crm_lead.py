@@ -1212,3 +1212,42 @@ class TestCrmLeadMailTrackingDuration(MailTrackingDurationMixinCase):
 
     def test_crm_lead_queries_batch_mail_tracking_duration(self):
         self._test_queries_batch_duration_tracking()
+
+
+@tagged('lead_internals')
+class TestLeadTeamIsAlive(TestCrmCommon):
+    """A lead never lands on an archived sales team.
+
+    `crm.lead.team_id` is stored, so a dead team written once stays written.
+    `_compute_team_id` calls `crm.team._get_default_team_id`, whose membership
+    and company fallbacks used to leave the `active` leaf to the caller's
+    `active_test` -- and crm sets `active_test=False` in real contexts: the
+    Lost Reason and UTM lead actions, and the `lead_ids` / `opportunity_ids`
+    fields of the convert-to-opportunity wizards all carry it. A lead created
+    or reassigned under one of them was handed an archived team.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env['crm.team'].search([]).action_archive()
+        cls.dead_team = cls.env['crm.team'].create({
+            'name': 'Archived Team',
+            'company_id': False,
+            'user_id': cls.user_sales_manager.id,
+            'use_leads': True,
+        })
+        cls.dead_team.action_archive()
+
+    def test_no_archived_team_whatever_the_active_test(self):
+        for active_test in (True, False):
+            with self.subTest(active_test=active_test):
+                lead = self.env['crm.lead'].with_context(
+                    active_test=active_test,
+                ).create({'name': 'Alive?', 'type': 'lead'})
+                lead.user_id = self.user_sales_manager.id
+                lead.flush_recordset()
+                self.assertFalse(
+                    lead.team_id,
+                    'the only team is archived, so the lead gets none',
+                )

@@ -35,8 +35,7 @@
         <field name="mode">primary</field>
         <field name="priority">32</field>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='crm_team_id']" position="replace">
-            </xpath>
+            <xpath expr="//field[@name='crm_team_id']" position="replace"/>
         </field>
     </record>
 
@@ -77,8 +76,7 @@
         <field name="mode">primary</field>
         <field name="priority">32</field>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='crm_team_id']" position="replace">
-            </xpath>
+            <xpath expr="//field[@name='crm_team_id']" position="replace"/>
         </field>
     </record>
 
@@ -89,7 +87,6 @@
             <form string="Sales Men" js_class="crm_team_form">
                 <field name="active" invisible="1"/>
                 <field name="company_id" invisible="1"/>
-                <field name="is_membership_multi" invisible="1"/>
                 <field name="member_warning" invisible="1"/>
                 <field name="user_company_ids" invisible="1"/>
                 <sheet>
@@ -145,7 +142,6 @@
         <field name="mode">primary</field>
         <field name="priority">32</field>
         <field name="arch" type="xml">
-            <!-- <xpath expr="//div[@name='crm_team_id']" position="replace"/> -->
             <xpath expr="//group[@name='crm_team_id']" position="replace"/>
             <xpath expr="//group[@name='member_partner_info']/div" position="attributes">
                 <attribute name="class">px-0</attribute>

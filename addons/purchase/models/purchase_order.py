@@ -31,16 +31,21 @@ class PurchaseOrder(models.Model):
     _check_company_auto = True
     _order = "priority desc, id desc"
 
-    def _get_fields_rec_search_base(self):
-        return ["name", "partner_ref"]
-
-    def _get_order_type(self):
-        return "purchase"
-
     _price_history_action = "purchase.action_purchase_history"
 
-    def _get_catalog_product_ok_field(self):
-        return "purchase_ok"
+    _order_type = "purchase"
+    _sequence_code = "purchase.order"
+    _invoice_move_direction = "in"
+    _partner_payment_term_field = "property_supplier_payment_term_id"
+    _lock_setting_field = "order_lock_po"
+    _auto_lock_group = "purchase.group_auto_done_setting"
+    _mark_sent_context_key = "mark_rfq_as_sent"
+    _display_name_context_key = "purchase_show_partner_name"
+    _portal_url_prefix = "purchase"
+    _product_ok_field = "purchase_ok"
+
+    def _get_fields_rec_search_base(self):
+        return ["name", "partner_ref"]
 
     partner_id = fields.Many2one(
         string="Vendor",
@@ -247,6 +252,9 @@ class PurchaseOrder(models.Model):
                 currency_obj=self.currency_id,
             )
         return suffix
+
+    def _get_all_documents_group(self):
+        return "purchase.group_purchase_user_all"
 
     def _get_warning_group(self):
         return "purchase.group_warning_purchase"

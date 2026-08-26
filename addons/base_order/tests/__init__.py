@@ -5,3 +5,4 @@ from . import test_order_edi_report
 from . import test_order_portal
 from . import test_order_report
 from . import test_order_shared_features
+from . import test_order_partner_domain

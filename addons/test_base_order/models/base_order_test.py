@@ -15,25 +15,35 @@ class BaseOrderTest(models.Model):
 
     # Order line block
     line_ids = fields.One2many(comodel_name="base.order.test.line")
+    # Declared on `mixin.order` with an abstract comodel: a concrete model
+    # that does not repoint it hands back `mixin.order` records.
+    duplicated_order_ids = fields.Many2many(comodel_name="base.order.test")
     # References
     partner_ref = fields.Char(copy=False)
 
     # HELPER METHODS
 
-    def _get_order_type(self):
-        return "sale"
+    # A third order type: it behaves like a sale, and it is not sale.order.
+    # Direction is shared; identity is its own -- that split is the whole
+    # reason these are separate declarations.
+    _order_type = "sale"
+    _invoice_move_direction = "out"
+    _partner_payment_term_field = "property_payment_term_id"
+    _lock_setting_field = "order_lock_so"
+    _product_ok_field = "sale_ok"
+
+    _sequence_code = "base.order.test"
+    _mark_sent_context_key = "mark_base_order_test_as_sent"
+    _display_name_context_key = "base_order_test_show_partner_name"
+    _portal_url_prefix = "base-order-test"
+    _auto_lock_group = ""
 
     def _get_duplicate_ref_field(self):
         return "partner_ref"
 
     # ─── Hooks consumed by later tasks (safe generic defaults) ─────
 
-    def _get_catalog_product_ok_field(self):
-        return "sale_ok"
-
     def _get_display_name_suffix(self):
-        # Base default context key resolves to "sale_show_partner_name"
-        # (test order type is "sale").
         if not self.env.context.get(self._get_display_name_context_key()):
             return ""
         return f" - {self.partner_id.name}" if self.partner_id.name else ""

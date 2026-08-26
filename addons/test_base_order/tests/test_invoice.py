@@ -179,3 +179,86 @@ class TestInvoice(BaseOrderTestCase):
         )
 
         self.assertLessEqual(lines, order.line_ids)
+
+    def test_search_invoice_ids_finds_the_order_that_carries_it(self):
+        invoiced = self._make_order()
+        self._line_on(invoiced)
+        invoiced.action_confirm()
+        move = invoiced._create_invoices()
+        other = self._make_order()
+        self._line_on(other)
+        other.action_confirm()
+        scope = [("id", "in", (invoiced + other).ids)]
+        Order = self.env["base.order.test"]
+
+        found = Order.search([*scope, ("invoice_ids", "in", move.ids)])
+
+        self.assertEqual(found, invoiced)
+
+    def test_search_invoice_ids_false_finds_the_uninvoiced_order(self):
+        invoiced = self._make_order()
+        self._line_on(invoiced)
+        invoiced.action_confirm()
+        invoiced._create_invoices()
+        uninvoiced = self._make_order()
+        self._line_on(uninvoiced)
+        uninvoiced.action_confirm()
+        scope = [("id", "in", (invoiced + uninvoiced).ids)]
+        Order = self.env["base.order.test"]
+
+        found = Order.search([*scope, ("invoice_ids", "in", [False])])
+
+        self.assertEqual(found, uninvoiced)
+
+    def test_search_invoice_ids_mixes_an_invoice_with_false(self):
+        """The two halves are alternatives, not a conjunction.
+
+        The raw-SQL path this replaced ANDed them, so asking for `[a move,
+        False]` asked for orders that both carry that move and carry no
+        invoice at all -- which is nothing, every time.
+        """
+        invoiced = self._make_order()
+        self._line_on(invoiced)
+        invoiced.action_confirm()
+        move = invoiced._create_invoices()
+        other_invoiced = self._make_order()
+        self._line_on(other_invoiced)
+        other_invoiced.action_confirm()
+        other_invoiced._create_invoices()
+        uninvoiced = self._make_order()
+        self._line_on(uninvoiced)
+        uninvoiced.action_confirm()
+        every = invoiced + other_invoiced + uninvoiced
+        Order = self.env["base.order.test"]
+
+        found = Order.search(
+            [("id", "in", every.ids), ("invoice_ids", "in", [*move.ids, False])],
+        )
+
+        self.assertEqual(found, invoiced + uninvoiced)
+
+    def test_an_all_negative_invoice_is_turned_into_a_refund(self):
+        """`_switch_negative_moves` flips a move whose total came out below zero.
+
+        An order invoiced past its ordered quantity has a negative quantity
+        left to invoice, so the move built from it totals below zero. A
+        customer invoice for a negative amount is not what was meant -- it is
+        a credit note, and the move type is switched to say so.
+        """
+        order = self._make_order()
+        self._line_on(order, product_qty=2.0, price_unit=50.0, qty_invoiced_input=5.0)
+        order.action_confirm()
+
+        move = order._create_invoices()
+
+        self.assertEqual(move.move_type, "out_refund")
+        self.assertGreater(move.amount_total, 0.0)
+
+    def test_a_positive_invoice_keeps_its_move_type(self):
+        order = self._make_order()
+        self._line_on(order, product_qty=2.0, price_unit=50.0)
+        order.action_confirm()
+
+        move = order._create_invoices()
+
+        self.assertEqual(move.move_type, "out_invoice")

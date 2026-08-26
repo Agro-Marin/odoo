@@ -84,7 +84,7 @@ class OrderPortalMixin:
             else Order
         )
 
-        request.session[cfg["session_key"]] = orders.ids[:100]
+        request.session[cfg["session_key"]] = orders.ids[: self._items_per_page]
 
         values.update(
             {
@@ -110,7 +110,7 @@ class OrderPortalMixin:
 
         xml_content = builder._export_order(order_sudo)
 
-        download_name = builder._export_invoice_filename(order_sudo)
+        download_name = order_sudo._get_edi_filename(builder)
 
         http_headers = [
             ("Content-Type", "text/xml"),

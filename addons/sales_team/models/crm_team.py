@@ -15,114 +15,9 @@ class CrmTeam(models.Model):
     def _default_color(self):
         return random.randint(1, 11)
 
-    def _get_default_team_id(self, user_id=False, domain=False):
-        """Compute default team id for sales related documents. Not called by
-        default_get, as it takes additional parameters and is meant to be
-        called by other default methods.
-
-        Heuristic (when multiple match: take from default context value or first
-        sequence ordered)
-
-          1- any of my teams (member OR responsible) matching domain, either from
-             context or based on _order;
-          2- any of my teams (member OR responsible), either from context or based
-             on _order;
-          3- default from context
-          4- any team matching my company and domain (based on company rule)
-          5- any team matching my company (based on company rule)
-
-        :param user_id: salesperson to target, fallback on env.uid;
-        :param domain: optional domain to filter teams (like use_lead = True);
-        """
-        if not user_id:
-            user = self.env.user
-        else:
-            user = self.env["res.users"].sudo().browse(user_id)
-        default_team = self.env["crm.team"]
-        if context_team_id := self.env.context.get("default_team_id"):
-            # Existence and `active` are checked, nothing else: a bare browse
-            # accepted a stale action context or saved filter naming a team that
-            # has since been archived or deleted, and handed it back as the
-            # default for a brand new sales document. crm.team.member already
-            # refuses to point a live row at an archived team; a fresh document
-            # has no more business doing so.
-            #
-            # sudo, and the active leaf spelled out, both deliberately. The
-            # record rules must NOT filter this: a context default is an explicit
-            # server-side instruction (sale_crm carries the lead's team over to
-            # its quotation, website_sale names the website's team) and the actor
-            # is not always allowed to read the team they are legitimately being
-            # put on. Rule-filtering it here would silently swap those teams for
-            # the reader's own -- a behaviour change, not a fix.
-            default_team = self.browse(
-                self.env["crm.team"]
-                .sudo()
-                .search(
-                    [
-                        ("id", "=", context_team_id),
-                        ("active", "=", True),
-                    ]
-                )
-                .ids
-            )
-        valid_cids = [False] + [
-            c for c in user.company_ids.ids if c in self.env.companies.ids
-        ]
-
-        # 1- find in user memberships - note that if current user in C1 searches
-        # for team belonging to a user in C1/C2 -> only results for C1 will be returned
-        team = self.env["crm.team"]
-        teams = self.env["crm.team"].search(
-            [
-                ("company_id", "in", valid_cids),
-                "|",
-                ("user_id", "=", user.id),
-                ("member_ids", "in", [user.id]),
-            ]
-        )
-        if teams and domain:
-            filtered_teams = teams.filtered_domain(domain)
-            if default_team and default_team in filtered_teams:
-                team = default_team
-            else:
-                team = filtered_teams[:1]
-
-        # 2- any of my teams
-        if not team:
-            if default_team and default_team in teams:
-                team = default_team
-            else:
-                team = teams[:1]
-
-        # 3- default: context
-        if not team and default_team:
-            team = default_team
-
-        if not team:
-            # 4/5- default: based on company rule, the first team matching the
-            # domain if one is given, else simply the first. _order already ranks
-            # them, so both are one row from the database.
-            #
-            # `domain` is AND-ed into the search instead of being applied in
-            # memory afterwards: filtered_domain had to load every team of the
-            # company to pick a single row, and this step is reached exactly for
-            # the users who have no team of their own -- so it runs per
-            # salesperson over a mass import, table scan and all. The trade is
-            # that `domain` must now be a searchable domain; every caller in the
-            # workspace passes one over stored fields (crm's use_leads /
-            # use_opportunities, sale's _check_company_domain).
-            company_domain = [("company_id", "in", valid_cids)]
-            if domain:
-                team = self.search(company_domain + list(domain), limit=1)
-            if not team:
-                team = self.search(company_domain, limit=1)
-
-        return team
-
     def _default_favorite_user_ids(self):
         return [(6, 0, [self.env.uid])]
 
-    # description
     name = fields.Char("Sales Team", required=True, translate=True)
     sequence = fields.Integer("Sequence", default=10)
     active = fields.Boolean(
@@ -142,7 +37,6 @@ class CrmTeam(models.Model):
         check_company=True,
         domain=[("share", "!=", True)],
     )
-    # memberships
     is_membership_multi = fields.Boolean(
         "Multiple Memberships Allowed",
         compute="_compute_is_membership_multi",
@@ -178,7 +72,6 @@ class CrmTeam(models.Model):
         string="Sales Team Members (incl. inactive)",
         context={"active_test": False},
     )
-    # UX options
     color = fields.Integer(
         string="Color Index",
         help="The color of the channel",
@@ -202,24 +95,6 @@ class CrmTeam(models.Model):
         string="Dashboard Button", compute="_compute_dashboard_button_name"
     )
 
-    @api.model
-    def _is_membership_multi(self):
-        """Whether a salesperson may belong to several sales teams.
-
-        ``ir.config_parameter`` stores strings, so the raw parameter must never
-        be used as a boolean: unticking "Multi Teams" in the settings writes the
-        literal ``'False'`` (``res.config.settings.set_values`` calls
-        ``str(bool(value))``), which is truthy in Python. Reading it raw made the
-        toggle one-way -- the settings page reported "off" while every mono-mode
-        code path stayed disabled.
-        """
-        return str2bool(
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("sales_team.membership_multi", ""),
-            default=False,
-        )
-
     @api.constrains("company_id")
     def _constrains_company_members(self):
         for team in self.filtered("company_id"):
@@ -227,8 +102,6 @@ class CrmTeam(models.Model):
                 lambda m, team=team: team.company_id not in m.user_id.company_ids
             )
             if invalid_members:
-                # ValidationError, like every other @api.constrains here; it
-                # subclasses UserError, so callers catching that still catch this
                 raise ValidationError(
                     _(
                         "The following team members are not allowed in company '%(company)s' of the Sales Team '%(team)s': %(users)s",
@@ -238,148 +111,15 @@ class CrmTeam(models.Model):
                     )
                 )
 
-    @api.depends("sequence")  # TDE FIXME: force compute in new mode
-    def _compute_is_membership_multi(self):
-        self.is_membership_multi = self._is_membership_multi()
-
-    # 'user_id' belongs in the trigger: reassigning a membership to another
-    # salesperson changes who is on the team, and without it member_ids stayed
-    # stale until something unrelated invalidated the cache
-    @api.depends("crm_team_member_ids.active", "crm_team_member_ids.user_id")
-    def _compute_member_ids(self):
-        for team in self:
-            team.member_ids = team.crm_team_member_ids.user_id
-
-    def _inverse_member_ids(self):
-        to_create, to_archive = [], self.env["crm.team.member"]
-        for team in self:
-            # pre-save value to avoid having _compute_member_ids interfering
-            # while building membership status
-            memberships = team.crm_team_member_ids  # active only, see field context
-            users_current = team.member_ids
-
-            to_create += [
-                {"crm_team_id": team.id, "user_id": user.id}
-                for user in users_current - memberships.user_id
-            ]
-            to_archive += memberships.filtered(
-                lambda m, users_current=users_current: m.user_id not in users_current
-            )
-
-        # batched: one create and one archive for the whole recordset, instead of
-        # a create per team and a write per membership
-        if to_create:
-            self.env["crm.team.member"].create(to_create)
-        if to_archive:
-            to_archive.action_archive()
-
-    @api.depends("is_membership_multi", "member_ids")
-    def _compute_member_warning(self):
-        """Display a warning message to warn user they are about to archive
-        other memberships. Only valid in mono-membership mode and take into
-        account only active memberships as we may keep several archived
-        memberships."""
-        self.member_warning = False
-        teams = self.filtered(
-            lambda team: not team.is_membership_multi and team.member_ids
-        )
-        if not teams:
-            return
-
-        # One query for the whole recordset, and the same query the membership's
-        # own warning asks -- see crm.team.member._get_live_teams_by_user for why
-        # the active leaf is explicit and why this must not be sudoed.
-        teams_by_user = self.env["crm.team.member"]._get_live_teams_by_user(
-            teams.member_ids
-        )
-
-        for team in teams:
-            user_names, other_teams = [], self.env["crm.team"]
-            for user in team.member_ids:
-                elsewhere = teams_by_user.get(user, self.env["crm.team"]) - team._origin
-                if elsewhere:
-                    user_names.append(user.name)
-                    other_teams |= elsewhere
-            if user_names:
-                team.member_warning = _(
-                    "%(user_names)s already in other teams (%(team_names)s).",
-                    user_names=", ".join(user_names),
-                    team_names=", ".join(other_teams.mapped("name")),
-                )
-
-    def _search_member_ids(self, operator, value):
-        # Mirror of res.users._search_crm_team_ids, built from the same helper.
-        # The dotted path this replaces expanded to an 'any' carrying the raw
-        # operator, so 'not in' asked "has SOME member who is not X" instead of
-        # "has NO member X" -- a team keeping one other salesperson matched --
-        # and '= False' asked for a membership whose required user_id was False,
-        # which no row can satisfy, so teams with no member were unfindable.
-        # Both spellings are reachable from the team search view's 'member_ids'.
-        return self.env["crm.team.member"]._search_live_projection(
-            "crm_team_member_ids", "user_id", operator, value
-        )
-
-    # 'name' should not be in the trigger, but as 'company_id' is possibly not present in the view
-    # because it depends on the multi-company group, we use it as fake trigger to force computation
-    @api.depends("company_id", "name")
-    def _compute_member_company_ids(self):
-        """Available companies for members. Either team company if set, either
-        any company if not set on team."""
-        all_companies = self.env["res.company"].search([])
-        for team in self:
-            team.member_company_ids = team.company_id or all_companies
-
-    @api.depends("favorite_user_ids")
-    @api.depends_context("uid")
-    def _compute_is_favorite(self):
-        # depends_context('uid'): the value is per-reader, and without it the
-        # first reader's answer is cached and served to everyone else
-        for team in self:
-            team.is_favorite = self.env.user in team.favorite_user_ids
-
-    def _inverse_is_favorite(self):
-        sudoed_self = self.sudo()
-        to_fav = sudoed_self.filtered(
-            lambda team: self.env.user not in team.favorite_user_ids
-        )
-        to_fav.write({"favorite_user_ids": [(4, self.env.uid)]})
-        (sudoed_self - to_fav).write({"favorite_user_ids": [(3, self.env.uid)]})
-        return True
-
-    def _compute_dashboard_button_name(self):
-        """Sets the dashboard button name."""
-        self.dashboard_button_name = _("Dashboard")
-
-    # ------------------------------------------------------------
-    # CRUD
-    # ------------------------------------------------------------
-
     @api.model_create_multi
     def create(self, vals_list):
         teams = super(CrmTeam, self.with_context(mail_create_nosubscribe=True)).create(
             vals_list
         )
-        # crm.team.member.create already grants the favourite, but when a team is
-        # created together with its memberships the default for 'favorite_user_ids'
-        # is applied after the one2many and replaces what the memberships added.
-        # Re-granting here, once creation is over, is the only point that cannot
-        # be overwritten.
         teams.crm_team_member_ids._add_to_team_favorites()
         return teams
 
     def write(self, vals):
-        """Archiving a team cascades the archive to its memberships.
-
-        Team-side mirror of :meth:`res.users.write`: a live membership pointing
-        at an archived team is the state ``crm_team_ids`` reads and searches
-        disagree about, and the one that pins the stored ``sale_team_id`` to a
-        dead team. Archiving frees both to settle on live teams only.
-
-        In ``write`` rather than ``action_archive``: the action is only the UI
-        path, so ``team.write({'active': False})`` used to leave the memberships
-        live. Restoring the team does not resurrect them, exactly like the
-        user-side counterpart.
-        """
         res = super().write(vals)
         if vals.get("active") is False:
             self.crm_team_member_ids.action_archive()
@@ -387,13 +127,6 @@ class CrmTeam(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_default(self):
-        """Protect the teams other modules reference by XML id.
-
-        ``env.ref`` is tolerant here: a database where one of these records was
-        removed must still be able to delete *any* team, and the main Sales team
-        is protected alongside the Website and POS ones because sale, crm and
-        their dependants resolve it by XML id.
-        """
         default_teams = self.browse()
         for xmlid in (
             "sales_team.team_sales_department",
@@ -409,26 +142,93 @@ class CrmTeam(models.Model):
                 _('Cannot delete default team "%(name)s"', name=protected[0].name)
             )
 
-    # ------------------------------------------------------------
-    # ACTIONS
-    # ------------------------------------------------------------
+    @api.depends("sequence")
+    def _compute_is_membership_multi(self):
+        self.is_membership_multi = self._is_membership_multi()
+
+    @api.depends("crm_team_member_ids.active", "crm_team_member_ids.user_id")
+    def _compute_member_ids(self):
+        for team in self:
+            team.member_ids = team.crm_team_member_ids.user_id
+
+    @api.depends("is_membership_multi", "member_ids")
+    def _compute_member_warning(self):
+        self.member_warning = False
+        teams = self.filtered(
+            lambda team: not team.is_membership_multi and team.member_ids
+        )
+        if not teams:
+            return
+
+        teams_by_user = self.env["crm.team.member"]._get_live_teams_by_user(
+            teams.member_ids
+        )
+
+        for team in teams:
+            user_names, other_teams = [], self.env["crm.team"]
+            for user in team.member_ids:
+                elsewhere = teams_by_user.get(user, self.env["crm.team"]) - team._origin
+                if elsewhere:
+                    user_names.append(user.name)
+                    other_teams |= elsewhere
+            if user_names:
+                team.member_warning = self.env[
+                    "crm.team.member"
+                ]._get_membership_warning(user_names, other_teams)
+
+    @api.depends("company_id", "name")
+    def _compute_member_company_ids(self):
+        all_companies = self.env["res.company"].search([])
+        for team in self:
+            team.member_company_ids = team.company_id or all_companies
+
+    @api.depends("favorite_user_ids")
+    @api.depends_context("uid")
+    def _compute_is_favorite(self):
+        for team in self:
+            team.is_favorite = self.env.user in team.favorite_user_ids
+
+    def _compute_dashboard_button_name(self):
+        self.dashboard_button_name = _("Dashboard")
+
+    def _search_member_ids(self, operator, value):
+        return self.env["crm.team.member"]._search_live_projection(
+            "crm_team_member_ids", "user_id", operator, value
+        )
+
+    def _inverse_member_ids(self):
+        to_create, to_archive = [], self.env["crm.team.member"]
+        for team in self:
+            memberships = team.crm_team_member_ids
+            users_current = team.member_ids
+
+            to_create += [
+                {"crm_team_id": team.id, "user_id": user.id}
+                for user in users_current - memberships.user_id
+            ]
+            to_archive += memberships.filtered(
+                lambda m, users_current=users_current: m.user_id not in users_current
+            )
+
+        if to_create:
+            self.env["crm.team.member"].create(to_create)
+        if to_archive:
+            to_archive.action_archive()
+
+    def _inverse_is_favorite(self):
+        sudoed_self = self.sudo()
+        to_fav = sudoed_self.filtered(
+            lambda team: self.env.user not in team.favorite_user_ids
+        )
+        to_fav.write({"favorite_user_ids": [(4, self.env.uid)]})
+        (sudoed_self - to_fav).write({"favorite_user_ids": [(3, self.env.uid)]})
+        return True
 
     def action_primary_channel_button(self):
-        """Skeleton function to be overloaded It will return the adequate action
-        depending on the Sales Team's options."""
         return False
 
     @api.model
     def action_activate_multi_membership(self):
-        """Allow salespersons to belong to several teams, from the warning banner.
-
-        Multi-membership is a Sales setting, but it lives in an
-        ``ir.config_parameter``, which only Settings administrators may write.
-        Calling ``set_param`` straight from the client therefore failed for the
-        Sales Administrators the banner is addressed to, and succeeded only for
-        Settings administrators. The permission check belongs here, server-side,
-        where it is authoritative and can grant exactly the intended group.
-        """
         if not self.env.user.has_group("sales_team.group_sale_manager"):
             raise AccessError(
                 _(
@@ -438,3 +238,71 @@ class CrmTeam(models.Model):
         self.env["ir.config_parameter"].sudo().set_param(
             "sales_team.membership_multi", True
         )
+
+    @api.model
+    def _is_membership_multi(self):
+        return str2bool(
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("sales_team.membership_multi", ""),
+            default=False,
+        )
+
+    def _get_default_team_id(self, user_id=False, domain=()):
+        user = (
+            self.env["res.users"].sudo().browse(user_id) if user_id else self.env.user
+        )
+        context_team = self._get_context_default_team()
+        live_teams = self._get_domain_live_teams(user)
+
+        own_teams = self._get_live_teams_for_user(user, live_teams)
+        preferred = own_teams.filtered_domain(domain) if domain else own_teams
+
+        for candidates in (preferred, own_teams):
+            if candidates:
+                if context_team and context_team in candidates:
+                    return context_team
+                return candidates[:1]
+
+        if context_team:
+            return context_team
+
+        return self._get_company_default_team(live_teams, domain)
+
+    def _get_context_default_team(self):
+        context_team_id = self.env.context.get("default_team_id")
+        if not context_team_id:
+            return self.browse()
+        return self.browse(
+            self.sudo()
+            .search([("id", "=", context_team_id), ("active", "=", True)])
+            .ids
+        )
+
+    def _get_domain_live_teams(self, user):
+        valid_cids = [False] + [
+            cid for cid in user.company_ids.ids if cid in self.env.companies.ids
+        ]
+        return [("active", "=", True), ("company_id", "in", valid_cids)]
+
+    def _get_live_teams_for_user(self, user, live_teams):
+        return self.browse(
+            self.sudo()
+            .search(
+                [
+                    *live_teams,
+                    "|",
+                    ("user_id", "=", user.id),
+                    ("member_ids", "in", [user.id]),
+                ]
+            )
+            .ids
+        )
+
+    def _get_company_default_team(self, live_teams, domain):
+        teams = self.sudo()
+        if domain:
+            team = teams.search(live_teams + list(domain), limit=1)
+            if team:
+                return self.browse(team.ids)
+        return self.browse(teams.search(live_teams, limit=1).ids)

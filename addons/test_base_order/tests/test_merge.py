@@ -20,6 +20,29 @@ class TestMerge(BaseOrderTestCase):
         self._make_line(order=order, **vals)
         return order
 
+    def _order_with_section(self, prefix):
+        order = self._make_order()
+        Line = self.env["base.order.test.line"]
+        Line.create(
+            {
+                "order_id": order.id,
+                "display_type": "line_section",
+                "name": f"{prefix} SECTION",
+                "sequence": 10,
+            }
+        )
+        Line.create(
+            {
+                "order_id": order.id,
+                "product_id": self.product.id,
+                "product_qty": 1.0,
+                "price_unit": 10.0 if prefix == "A" else 20.0,
+                "name": f"{prefix} line",
+                "sequence": 11,
+            }
+        )
+        return order
+
     def test_merge_does_not_consolidate_lines_with_different_price(self):
         order_a = self._order_with_line(price_unit=100.0)
         order_b = self._order_with_line(price_unit=150.0)
@@ -77,3 +100,81 @@ class TestMerge(BaseOrderTestCase):
         )
         self.assertEqual(lines.product_qty, 2.0)
         self.assertEqual(lines.price_unit, 100.0)
+
+    def test_merged_sections_do_not_collide_on_sequence(self):
+        """Sequences are per-order, so every source repeats the target's."""
+        first = self._order_with_section("A")
+        second = self._order_with_section("B")
+
+        (first + second).action_merge()
+
+        target = first if first.state == "draft" else second
+        sequences = target.line_ids.mapped("sequence")
+        self.assertEqual(
+            len(sequences),
+            len(set(sequences)),
+            f"two merged lines share a sequence: {sorted(sequences)}",
+        )
+        names = target.line_ids.sorted("sequence").mapped("name")
+        self.assertEqual(
+            names.index("A SECTION") + 1,
+            names.index("A line"),
+            "a section must stay immediately above the line it introduces",
+        )
+        self.assertLess(
+            names.index("A SECTION"),
+            names.index("B SECTION"),
+            "the target's own block comes first",
+        )
+
+    def _order_with_identical_lines(self, count):
+        order = self._make_order()
+        for _index in range(count):
+            self._make_line(order=order, product_qty=1.0, price_unit=10.0)
+        return order
+
+    def test_a_target_carrying_duplicate_lines_does_not_break_the_merge(self):
+        """The index is pruned when equivalent target lines are folded.
+
+        Folding unlinks all but the first, and an index still holding them
+        handed a deleted record to the next source line sharing the key -- the
+        merge died with MissingError partway through, having already moved
+        some lines.
+        """
+        target = self._order_with_identical_lines(2)
+        first_source = self._order_with_identical_lines(1)
+        second_source = self._order_with_identical_lines(1)
+
+        (target + first_source + second_source).action_merge()
+
+        self.assertEqual(len(target.line_ids), 1)
+        self.assertAlmostEqual(target.line_ids.product_qty, 4.0, places=2)
+
+    def test_folding_conserves_the_total_quantity(self):
+        target = self._order_with_identical_lines(3)
+        source = self._order_with_identical_lines(2)
+        total = sum((target + source).line_ids.mapped("product_qty"))
+
+        (target + source).action_merge()
+
+        self.assertAlmostEqual(
+            sum(target.line_ids.mapped("product_qty")),
+            total,
+            places=2,
+        )
+
+    def test_finding_matches_changes_nothing_on_its_own(self):
+        """`_merge_find_matching_line` reads; `_merge_collapse_matches` writes."""
+        target = self._order_with_identical_lines(2)
+        source = self._order_with_identical_lines(1)
+        candidates = list(target.line_ids)
+
+        matches = target._merge_find_matching_line(source.line_ids, candidates)
+
+        self.assertEqual(len(matches), 2)
+        self.assertEqual(len(target.line_ids), 2, "finding must not fold")
+        self.assertEqual(
+            target.line_ids.mapped("product_qty"),
+            [1.0, 1.0],
+            "finding must not move quantity",
+        )

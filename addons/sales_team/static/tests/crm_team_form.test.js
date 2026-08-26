@@ -1,4 +1,5 @@
 import { expect, test } from "@odoo/hoot";
+import { queryFirst, waitFor } from "@odoo/hoot-dom";
 import { contains as webContains, onRpc } from "@web/../tests/web_test_helpers";
 import {
     contains,
@@ -99,4 +100,12 @@ test("crm team form keeps the alert when activation is refused", async () => {
     // the option is still off, so the alert must survive
     await contains(".alert:visible", { count: 1 });
     expect.verifySteps(["action_activate_multi_membership"]);
+
+    // whatever went wrong is reported, not replaced by boilerplate. The
+    // server's own AccessError is unreachable from this UI (the button lives
+    // inside a group_sale_manager span, so only an administrator is ever shown
+    // it); what a manager can hit is every other failure, and a fixed "an error
+    // occurred" named none of them.
+    await waitFor(".o_notification");
+    expect(queryFirst(".o_notification_content")).toHaveText("Access Denied");
 });

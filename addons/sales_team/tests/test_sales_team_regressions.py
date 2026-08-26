@@ -1,9 +1,3 @@
-"""Regression tests for defects the rest of the suite did not cover.
-
-Each test here failed before the fix it is named after; they are grouped by the
-surface they guard rather than by model.
-"""
-
 from odoo import exceptions
 from odoo.tests.common import users
 
@@ -12,16 +6,7 @@ from odoo.addons.sales_team.tests.common import TestSalesCommon
 
 
 class TestMembershipMultiParameter(TestSalesCommon):
-    """`sales_team.membership_multi` is a string parameter, not a boolean."""
-
     def test_parameter_string_false_is_false(self):
-        """'False' is what the settings screen writes when the box is unticked.
-
-        ``res.config.settings.set_values`` stores ``str(bool(value))``, so an
-        unticked box persists the literal ``'False'`` -- truthy in Python. Reading
-        the parameter raw made the toggle one-way: the settings page reported
-        "off" while every mono-membership code path stayed disabled.
-        """
         ICP = self.env["ir.config_parameter"].sudo()
         for raw, expected in (
             ("False", False),
@@ -52,8 +37,6 @@ class TestMembershipMultiParameter(TestSalesCommon):
 
 
 class TestArchivedMembershipVisibility(TestSalesCommon):
-    """An archived membership must not survive anywhere as a live one."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -71,12 +54,6 @@ class TestArchivedMembershipVisibility(TestSalesCommon):
         )
 
     def test_search_crm_team_ids_matches_compute(self):
-        """search() and the compute must agree, in every context.
-
-        sale's "Team Documents" record rules are written on the search side
-        (``user_id.crm_team_ids``): while these disagreed, a salesperson who had
-        left a team kept exposing their orders and invoices to it forever.
-        """
         self.sales_team_1_m1.action_archive()
         self.env.flush_all()
         self.env.invalidate_all()
@@ -86,7 +63,6 @@ class TestArchivedMembershipVisibility(TestSalesCommon):
             [("crm_team_ids", "in", self.sales_team_1.ids)]
         )
         self.assertNotIn(self.user_sales_leads, matched)
-        # the live membership is untouched
         self.assertIn(self.other_team, self.user_sales_leads.crm_team_ids)
         self.assertIn(
             self.user_sales_leads,
@@ -94,16 +70,6 @@ class TestArchivedMembershipVisibility(TestSalesCommon):
         )
 
     def test_search_crm_team_ids_keeps_archived_users(self):
-        """The active_test override is about archived *users*; keep that.
-
-        This used to build the state in two steps -- archive the user, then
-        unarchive one of their memberships -- because the cascade had closed the
-        one-step version. ``_constrains_live_endpoints`` now closes that one too:
-        a live membership on an archived salesperson is precisely the row the
-        many2many reads and the searches disagree about. What is still reachable,
-        and still worth guarding, is the other half: an archived user remains
-        searchable through ``crm_team_ids`` under ``active_test=False``.
-        """
         self.user_sales_leads.with_context(active_test=False).write({"active": False})
         self.env.flush_all()
         self.env.invalidate_all()
@@ -126,7 +92,6 @@ class TestArchivedMembershipVisibility(TestSalesCommon):
         )
 
     def test_an_archived_user_cannot_keep_a_live_membership(self):
-        """The state the test above used to build, now structurally refused."""
         self.user_sales_leads.with_context(active_test=False).write({"active": False})
         self.env.flush_all()
         self.assertFalse(self.other_membership.active, "the cascade archived it")
@@ -135,11 +100,6 @@ class TestArchivedMembershipVisibility(TestSalesCommon):
             self.env.flush_all()
 
     def test_sale_team_id_ignores_archived_membership(self):
-        """The stored field must not depend on the caller's active_test.
-
-        ``sale_team_id`` is stored, so a recompute triggered from a context with
-        ``active_test=False`` used to persist an archived team.
-        """
         self.assertEqual(self.user_sales_leads.sale_team_id, self.sales_team_1)
         archiving_env = self.env(context=dict(self.env.context, active_test=False))
         self.sales_team_1_m1.with_env(archiving_env).action_archive()
@@ -154,7 +114,6 @@ class TestArchivedMembershipVisibility(TestSalesCommon):
         self.assertEqual(self.user_sales_leads.sale_team_id, self.other_team)
 
     def test_member_warning_ignores_archived_membership(self):
-        """The warning counts live memberships whatever the context."""
         self.env["ir.config_parameter"].sudo().set_param(
             "sales_team.membership_multi", False
         )
@@ -175,8 +134,6 @@ class TestArchivedMembershipVisibility(TestSalesCommon):
 
 
 class TestMonoMembership(TestSalesCommon):
-    """A salesperson belongs to exactly one team in mono-membership mode."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -198,7 +155,6 @@ class TestMonoMembership(TestSalesCommon):
         )
 
     def test_creating_archived_membership_keeps_the_active_one(self):
-        """Recording history must not evict the salesperson's live team."""
         live = self.env["crm.team.member"].create(
             {"user_id": self.salesperson.id, "crm_team_id": self.team_a.id}
         )
@@ -220,7 +176,6 @@ class TestMonoMembership(TestSalesCommon):
         self.assertEqual(self.salesperson.sale_team_id, self.team_a)
 
     def test_batch_unarchive_keeps_a_single_team(self):
-        """A multi-record Unarchive must end like repeated single writes."""
         member_a = self.env["crm.team.member"].create(
             {"user_id": self.salesperson.id, "crm_team_id": self.team_a.id}
         )
@@ -247,7 +202,6 @@ class TestMonoMembership(TestSalesCommon):
         self.assertEqual(len(self._active_memberships()), 1)
 
     def test_same_team_duplicate_still_raises(self):
-        """Evicting other teams must not silently swallow a real duplicate."""
         self.env["crm.team.member"].create(
             {"user_id": self.salesperson.id, "crm_team_id": self.team_a.id}
         )
@@ -260,7 +214,6 @@ class TestMonoMembership(TestSalesCommon):
 
 class TestMembershipCompanyChecks(TestSalesCommon):
     def test_unarchive_rechecks_company(self):
-        """A team may change company while a membership sits archived."""
         company_2 = self.env["res.company"].create({"name": "Regression Co2"})
         team = self.env["crm.team"].create({"name": "Movable", "company_id": False})
         membership = self.env["crm.team.member"].create(
@@ -269,7 +222,7 @@ class TestMembershipCompanyChecks(TestSalesCommon):
         membership.action_archive()
         self.env.flush_all()
 
-        team.company_id = company_2.id  # allowed: no active member left
+        team.company_id = company_2.id
         self.env.flush_all()
 
         with self.assertRaises(exceptions.UserError):
@@ -277,13 +230,6 @@ class TestMembershipCompanyChecks(TestSalesCommon):
 
 
 class TestMembershipMultiCompany(TestSalesCommon):
-    """Memberships are company-scoped like the teams they belong to.
-
-    ``crm.team`` had a multi-company rule and ``crm.team.member`` did not, so the
-    membership rows of another company's teams stayed readable to every internal
-    user even though the team itself was hidden.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -331,7 +277,6 @@ class TestMembershipMultiCompany(TestSalesCommon):
             self.shared_membership,
             self.env["crm.team.member"].with_user(reader).search([]),
         )
-        # and the owning company still sees its own
         self.assertTrue(
             self.foreign_membership.with_user(self.foreign_user).read(["name"])
         )
@@ -348,7 +293,6 @@ class TestDefaultTeamProtection(TestSalesCommon):
                 self.env.ref(xmlid).unlink()
 
     def test_unlink_survives_a_missing_default_xmlid(self):
-        """A database missing one of the XML ids must still delete other teams."""
         self.env["ir.model.data"].search(
             [("module", "=", "sales_team"), ("name", "=", "pos_sales_team")]
         ).unlink()
@@ -365,12 +309,6 @@ class TestDefaultTeamProtection(TestSalesCommon):
 
 class TestUserArchiving(TestSalesCommon):
     def test_settings_admin_can_archive_a_salesperson(self):
-        """Deactivating a user is a Settings job, not a Sales one.
-
-        Only Sales administrators may write on crm.team.member, so cascading the
-        archive without sudo made a plain Settings administrator unable to
-        deactivate any user who happened to be on a sales team.
-        """
         settings_admin = mail_new_test_user(
             self.env,
             login="settings_admin",
@@ -387,15 +325,6 @@ class TestUserArchiving(TestSalesCommon):
 
 
 class TestCompanyRevocation(TestSalesCommon):
-    """Taking a company away from a salesperson must not leave a live membership.
-
-    ``crm.team.member`` requires the team's company to be one of the
-    salesperson's, but no constraint can trigger on a write to
-    ``res.users.company_ids`` -- so this route left behind a membership that
-    both constraints reject and that ``action_unarchive`` refuses to re-create,
-    while ``crm_team_ids`` went on reporting the team to sale's record rules.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -439,10 +368,8 @@ class TestCompanyRevocation(TestSalesCommon):
         self.assertEqual(self.salesperson.sale_team_id, self.team_shared)
 
     def test_the_surviving_state_passes_the_constraints(self):
-        """The state left behind must be one the model would accept."""
         self.salesperson.write({"company_ids": [(6, 0, [self.company_main.id])]})
         self.env.flush_all()
-        # both constraints agreed this state was invalid; now nothing violates them
         self.team_c2._constrains_company_members()
         self.env["crm.team.member"].search(
             [("user_id", "=", self.salesperson.id)]
@@ -456,7 +383,6 @@ class TestCompanyRevocation(TestSalesCommon):
         self.assertTrue(self.member_shared.active)
 
     def test_a_settings_admin_can_revoke(self):
-        """Managing companies is a Settings job, not a Sales one."""
         settings_admin = mail_new_test_user(
             self.env,
             login="rev_settings_admin",
@@ -482,15 +408,12 @@ class TestFavorite(TestSalesCommon):
             (self.user_sales_manager, self.user_sales_leads),
             (self.user_sales_leads, self.user_sales_manager),
         ):
-            # order matters: without depends_context('uid') the first reader's
-            # answer is cached under a uid-less key and served to the second
             self.env.invalidate_all()
             expected_first = first == self.user_sales_manager
             self.assertEqual(team.with_user(first).is_favorite, expected_first)
             self.assertEqual(team.with_user(second).is_favorite, not expected_first)
 
     def test_is_favorite_follows_favorite_user_ids(self):
-        """Without @api.depends the flag goes stale as soon as members are added."""
         team = self.env["crm.team"].create({"name": "Favourite 2", "company_id": False})
         as_leads = team.with_user(self.user_sales_leads)
         self.assertFalse(as_leads.is_favorite)
@@ -502,7 +425,6 @@ class TestFavorite(TestSalesCommon):
         self.assertFalse(as_leads.is_favorite)
 
     def test_adding_members_refreshes_the_flag(self):
-        """crm.team.create/write add members to favourites behind the field."""
         team = self.env["crm.team"].create(
             {
                 "name": "Favourite 3",
@@ -514,13 +436,6 @@ class TestFavorite(TestSalesCommon):
         self.assertTrue(team.with_user(self.user_sales_leads).is_favorite)
 
     def test_every_way_of_joining_a_team_grants_the_favourite(self):
-        """Joining a team must reach the dashboard however it was done.
-
-        Favouriting hung off crm.team.create/write watching ``member_ids``, so
-        the very same act -- putting a salesperson on a team -- landed on their
-        dashboard or not depending on which side of the relation was written.
-        """
-        # multi mode: otherwise each new team would legitimately evict the last
         self.env["ir.config_parameter"].sudo().set_param(
             "sales_team.membership_multi", True
         )
@@ -563,15 +478,6 @@ class TestFavorite(TestSalesCommon):
 
 
 class TestMultiMembershipActivation(TestSalesCommon):
-    """The "Activate Multi-team" banner button.
-
-    The permission check used to sit in the form controller, guarding on the
-    *async* ``user.hasGroup`` without awaiting it -- so it never fired -- and the
-    client then wrote the ``ir.config_parameter`` itself. Writing that model needs
-    Settings rights, so the button was broken for the Sales Administrators the
-    banner addresses and worked only for Settings administrators.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -596,34 +502,22 @@ class TestMultiMembershipActivation(TestSalesCommon):
         self.assertFalse(self.env["crm.team"]._is_membership_multi())
 
     def test_activation_does_not_require_settings_rights(self):
-        """A Sales Administrator has no rights on ir.config_parameter."""
         manager = self.user_sales_manager
         self.assertFalse(manager.has_group("base.group_system"))
         with self.assertRaises(exceptions.AccessError), self.env.cr.savepoint():
             self.env["ir.config_parameter"].with_user(manager).set_param(
                 "sales_team.membership_multi", True
             )
-        # ... yet the sales-side action works, because it sudoes the write
         self.env["crm.team"].with_user(manager).action_activate_multi_membership()
         self.env.invalidate_all()
         self.assertTrue(self.env["crm.team"]._is_membership_multi())
 
 
 class TestMembershipQueries(TestSalesCommon):
-    """The computes used by list and kanban views must not scale with the table."""
-
     @users("user_sales_manager")
     def test_member_warning_is_batched(self):
-        """One query for the whole recordset, not one per team.
-
-        Every team must actually have members: with an empty ``member_ids`` the
-        domain collapses to a false leaf and no query is emitted at all, which
-        hides the per-team search this guards against.
-        """
         ICP = self.env["ir.config_parameter"].sudo()
-        ICP.set_param(
-            "sales_team.membership_multi", True
-        )  # so the setup keeps them all
+        ICP.set_param("sales_team.membership_multi", True)
         salespersons = (
             self.env["res.users"]
             .sudo()
@@ -659,14 +553,6 @@ class TestMembershipQueries(TestSalesCommon):
 
 
 class TestSearchCrmTeamIds(TestSalesCommon):
-    """``res.users.crm_team_ids`` must search like the many2many it presents.
-
-    The search method pushed the operator inside the ``any``, so a negative
-    operator asked "has SOME live membership whose team is not X" where the
-    field means "has NO live membership whose team is X". ``= False`` asked for
-    a membership whose (required) team was False and so matched nobody.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -687,7 +573,6 @@ class TestSearchCrmTeamIds(TestSalesCommon):
                 {"user_id": cls.user_ab.id, "crm_team_id": cls.team_b.id},
             ]
         )
-        # an archived membership must read as "not in that team"
         cls.env["crm.team.member"].create(
             {"user_id": cls.user_none.id, "crm_team_id": cls.team_a.id}
         ).action_archive()
@@ -702,7 +587,6 @@ class TestSearchCrmTeamIds(TestSalesCommon):
         )
 
     def test_negative_operators(self):
-        """A member of A must not match "not in A", whichever spelling is used."""
         for operator, value in (("not in", self.team_a.ids), ("!=", self.team_a.id)):
             found = self._search(operator, value)
             self.assertNotIn(
@@ -733,7 +617,6 @@ class TestSearchCrmTeamIds(TestSalesCommon):
         self.assertEqual(self._search("!=", False), self.user_ab)
 
     def test_matches_a_stored_many2many(self):
-        """Pin the semantics to a real stored m2m on mirrored data."""
         cat_a, cat_b = self.env["res.partner.category"].create(
             [{"name": "MA"}, {"name": "MB"}]
         )
@@ -764,16 +647,6 @@ class TestSearchCrmTeamIds(TestSalesCommon):
 
 
 class TestSearchMemberIds(TestSalesCommon):
-    """``crm.team.member_ids`` must search like the many2many it presents.
-
-    Same defects as ``res.users.crm_team_ids``, seen from the other end of the
-    join and left behind when that side was repaired: the dotted path carried
-    the raw operator into the traversal, so ``not in`` asked "has SOME member
-    who is not X" where the field means "has NO member X", and ``= False``
-    asked for a membership whose required ``user_id`` was False. Both spellings
-    are reachable from ``crm_team_view_search``.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -797,7 +670,6 @@ class TestSearchMemberIds(TestSalesCommon):
                 {"user_id": cls.member_b.id, "crm_team_id": cls.team_b.id},
             ]
         )
-        # a former member of A: archived, so it must read as "not a member"
         cls.env["crm.team.member"].create(
             {"user_id": cls.member_b.id, "crm_team_id": cls.team_a.id}
         ).action_archive()
@@ -810,7 +682,6 @@ class TestSearchMemberIds(TestSalesCommon):
         )
 
     def test_negative_operators(self):
-        """A team keeping another member must not match "not in [that member]"."""
         for operator, value in (
             ("not in", self.member_a.ids),
             ("!=", self.member_a.id),
@@ -844,7 +715,6 @@ class TestSearchMemberIds(TestSalesCommon):
         )
 
     def test_matches_a_stored_many2many(self):
-        """Pin the semantics to a real stored m2m on mirrored data."""
         cat_a, cat_b = self.env["res.partner.category"].create(
             [{"name": "TA"}, {"name": "TB"}]
         )
@@ -877,13 +747,6 @@ class TestSearchMemberIds(TestSalesCommon):
 
 
 class TestSearchCrmTeamIdsMixedFalse(TestSalesCommon):
-    """The other end of the join had one shape left: ``in [False, <id>]``.
-
-    The guard only recognised a list of *nothing but* False, so a list mixing
-    False with real ids silently dropped the "no team at all" half and returned
-    only the members of those teams.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -917,14 +780,6 @@ class TestSearchCrmTeamIdsMixedFalse(TestSalesCommon):
 
 
 class TestMonoMembershipReassignment(TestSalesCommon):
-    """Mono mode is about which (team, salesperson) pairs are live.
-
-    Repointing a live membership at another salesperson mints a new pair just
-    as activating one does, so it has to evict that salesperson's other teams.
-    Enforcement hung off ``vals.get('active')`` alone, so this route left them
-    on two teams -- the very state mono mode exists to prevent.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -970,7 +825,6 @@ class TestMonoMembershipReassignment(TestSalesCommon):
         self.assertFalse(self._live_teams(self.alice))
 
     def test_multi_mode_keeps_both(self):
-        """The eviction is mono-mode only; multi mode must be untouched."""
         self.env["ir.config_parameter"].sudo().set_param(
             "sales_team.membership_multi", True
         )
@@ -991,13 +845,6 @@ class TestMonoMembershipReassignment(TestSalesCommon):
 
 
 class TestDefaultTeamFromContext(TestSalesCommon):
-    """``default_team_id`` was browsed straight from the context.
-
-    A bare browse honours neither ``active`` nor the record rules, so a stale
-    action context or saved filter naming a dead -- or foreign -- team handed it
-    back as the default for a brand new sales document.
-    """
-
     def test_archived_context_team_is_not_proposed(self):
         live = self.env["crm.team"].create({"name": "Live", "company_id": False})
         dead = self.env["crm.team"].create({"name": "Dead", "company_id": False})
@@ -1011,7 +858,6 @@ class TestDefaultTeamFromContext(TestSalesCommon):
         )
         self.assertNotEqual(team, dead, "an archived team must not be proposed")
         self.assertTrue(not team or team.active)
-        # the fallbacks still work
         self.assertTrue(
             self.env["crm.team"]
             .with_context(default_team_id=live.id)
@@ -1034,16 +880,11 @@ class TestDefaultTeamFromContext(TestSalesCommon):
         self.assertNotEqual(team.id, dangling_id)
 
     def test_unreadable_context_team_is_still_honoured(self):
-        """A context default is an instruction, not a suggestion.
-
-        Deliberately *not* filtered by the record rules: sale_crm carries a
-        lead's team over to its quotation and website_sale names the website's
-        team, and the actor is not always allowed to read the team they are
-        legitimately being put on. Rule-filtering here would silently swap those
-        for the reader's own team.
-        """
-        salesman = self.user_sales_salesman  # sees only the teams they lead or join
-        hidden = self.env["crm.team"].create({"name": "Hidden", "company_id": False})
+        salesman = self.user_sales_salesman
+        other_company = self.env["res.company"].create({"name": "Ctx Other Co"})
+        hidden = self.env["crm.team"].create(
+            {"name": "Hidden", "company_id": other_company.id}
+        )
         self.env.flush_all()
         self.assertFalse(
             self.env["crm.team"]
@@ -1062,7 +903,6 @@ class TestDefaultTeamFromContext(TestSalesCommon):
         self.assertFalse(team.env.su, "and it must not come back sudoed")
 
     def test_readable_context_team_still_wins(self):
-        """Guard against validating the default into oblivion."""
         own = self.env["crm.team"].create(
             {
                 "name": "Own",
@@ -1082,15 +922,6 @@ class TestDefaultTeamFromContext(TestSalesCommon):
 
 
 class TestMembershipVisibility(TestSalesCommon):
-    """A membership is visible exactly when its team is.
-
-    crm.team is restricted to the teams a salesperson leads or belongs to, but
-    its membership rows carried no matching rule, so a salesperson could search
-    up the roster of a team they cannot open. The team's *name* stayed hidden --
-    reading crm_team_id's display name needs read on crm.team -- but the rows,
-    their user_id and the size of the team did not.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1144,69 +975,98 @@ class TestMembershipVisibility(TestSalesCommon):
         )
         self.assertIn(self.led, visible, "so does the roster of a team I lead")
 
-    def test_visibility_matches_the_team_rule_for_every_profile(self):
-        """The invariant, asserted across the whole ladder rather than assumed.
+    PROFILES = {
+        "plain internal": "base.group_user",
+        "salesman own": "sales_team.group_sale_salesman",
+        "salesman team": "sales_team.group_sale_salesman_team",
+        "salesman all": "sales_team.group_sale_salesman_all_leads",
+        "sales manager": "sales_team.group_sale_manager",
+    }
 
-        The plain internal user is in here deliberately: they see every team,
-        because crm.team carries no restrictive rule for them, so they must go
-        on seeing every membership too. Tightening only one side of the join is
-        what produced the mismatch this rule fixes -- in the other direction.
-        """
-        profiles = {
-            "plain internal": "base.group_user",
-            "salesman own": "sales_team.group_sale_salesman",
-            "salesman team": "sales_team.group_sale_salesman_team",
-            "salesman all": "sales_team.group_sale_salesman_all_leads",
-            "sales manager": "sales_team.group_sale_manager",
-        }
-        all_memberships = self.env["crm.team.member"].search([])
-        for label, group in profiles.items():
-            reader = mail_new_test_user(
+    def _reader(self, label, group):
+        cache = self.__dict__.setdefault("_reader_cache", {})
+        if group not in cache:
+            cache[group] = mail_new_test_user(
                 self.env,
                 login=f"vis_{group.rsplit('.', 1)[-1]}",
                 name=label,
                 groups=group,
             )
-            readable_teams = self.env["crm.team"].with_user(reader).search([])
+        return cache[group]
+
+    def test_a_readable_team_never_implies_a_readable_roster(self):
+        for label, group in self.PROFILES.items():
+            reader = self._reader(label, group)
             visible = self.env["crm.team.member"].with_user(reader).search([])
-            for membership in all_memberships:
-                self.assertEqual(
-                    membership in visible,
-                    membership.crm_team_id in readable_teams,
-                    f"{label}: membership {membership.id} visibility disagrees with its team",
-                )
+            readable_teams = self.env["crm.team"].with_user(reader).search([])
+            self.assertIn(
+                self.foreign_team,
+                readable_teams,
+                f"{label}: a team's row must be readable so team_id can render",
+            )
+            if reader.has_group("sales_team.group_sale_salesman_all_leads"):
+                continue
+            self.assertNotIn(
+                self.theirs,
+                visible,
+                f"{label}: a foreign roster must stay hidden",
+            )
+
+    def test_the_ladder_never_narrows_either_model(self):
+        for model in ("crm.team", "crm.team.member"):
+            counts = [
+                len(self.env[model].with_user(self._reader(label, group)).search([]))
+                for label, group in self.PROFILES.items()
+            ]
+            self.assertEqual(
+                counts,
+                sorted(counts),
+                f"{model}: visibility is not monotone along "
+                f"{list(self.PROFILES)}: {counts}",
+            )
+
+    def test_a_plain_internal_user_reads_no_foreign_roster(self):
+        reader = self._reader("plain internal", "base.group_user")
+        self.assertFalse(self.env["crm.team.member"].with_user(reader).search([]))
+        self.assertIn(
+            self.foreign_team,
+            self.env["crm.team"].with_user(reader).search([]),
+            "team names must stay readable outside the Sales app",
+        )
+
+    def test_own_memberships_stay_readable_without_a_sales_group(self):
+        member = mail_new_test_user(
+            self.env, login="vis_own", name="Vis Own", groups="base.group_user"
+        )
+        own_team = self.env["crm.team"].create({"name": "Own", "company_id": False})
+        self.env["crm.team.member"].create(
+            {"user_id": member.id, "crm_team_id": own_team.id}
+        )
+        readable = self.env["crm.team.member"].with_user(member).search([])
+        self.assertEqual(readable.crm_team_id, own_team)
 
     def test_the_team_roster_still_renders(self):
-        """Guard against locking a salesperson out of their own team's members."""
         team = self.my_team.with_user(self.salesman)
         self.assertEqual(team.member_ids, self.salesman | self.teammate)
         self.assertEqual(team.crm_team_member_ids, self.mine | self.mates)
 
     def test_all_documents_and_managers_are_unaffected(self):
         for user in (
-            self.user_sales_leads,  # group_sale_salesman_all_leads
+            self.user_sales_leads,
             self.user_sales_manager,
-        ):  # group_sale_manager
+        ):
             visible = self.env["crm.team.member"].with_user(user).search([])
             self.assertIn(
                 self.theirs, visible, f"{user.login} must still see everything"
             )
 
     def test_own_teams_still_resolve(self):
-        """The rule reads user.crm_team_ids, which reads memberships: no cycle."""
         as_self = self.salesman.with_user(self.salesman)
         self.assertEqual(as_self.crm_team_ids, self.my_team)
         self.assertEqual(as_self.sale_team_id, self.my_team)
 
 
 class TestDefaultTeamFallbackQueries(TestSalesCommon):
-    """Steps 4/5 must not load the whole team table to return one row.
-
-    They are reached exactly for the salespeople who have no team of their own,
-    so over a mass import they ran per salesperson -- and the old code searched
-    every team of the company just to hand the first match to filtered_domain.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1234,7 +1094,6 @@ class TestDefaultTeamFallbackQueries(TestSalesCommon):
         cls.env.flush_all()
 
     def test_domain_fallback_picks_the_same_team_as_filtered_domain(self):
-        """Pin the new searched domain against the in-memory semantics."""
         domain = [("name", "=", "Wanted")]
         team = (
             self.env["crm.team"]
@@ -1246,7 +1105,6 @@ class TestDefaultTeamFallbackQueries(TestSalesCommon):
         self.assertEqual(team, self.wanted)
 
     def test_domain_fallback_falls_back_to_the_first_team(self):
-        """A domain matching nothing still yields the first team, as before."""
         domain = [("name", "=", "No Such Team")]
         team = (
             self.env["crm.team"]
@@ -1258,17 +1116,6 @@ class TestDefaultTeamFallbackQueries(TestSalesCommon):
         self.assertEqual(team, self.wanted, "sequence 1 ranks first")
 
     def _rows_fetched_by_fallback(self):
-        """Rows the fallback pulls out of Postgres, not queries it issues.
-
-        Query *count* is the wrong probe here -- the old code also got there in
-        a couple of statements. What it did was select every team of the company
-        and fetch the domain's field for all of them so filtered_domain could
-        run in memory, so the cost shows up in rows, and only rows.
-        """
-        # No invalidate_all(): the first call of the transaction also loads the
-        # rules, the user and the companies, and those hundred-odd rows would
-        # swamp the figure being compared. The searches themselves always hit
-        # the database, so a warm cache does not hide them.
         rows = [0]
         cursor_cls = type(self.env.cr)
         original = cursor_cls.execute
@@ -1288,13 +1135,7 @@ class TestDefaultTeamFallbackQueries(TestSalesCommon):
         return rows[0]
 
     def test_fallback_does_not_scale_with_the_table(self):
-        """The claim is "constant", so assert it against two table sizes.
-
-        Pinning one absolute number would only re-measure whatever the rest of
-        the stack costs today; growing the table five-fold and demanding the
-        same figure is the actual property.
-        """
-        self._rows_fetched_by_fallback()  # warm the rules and the user
+        self._rows_fetched_by_fallback()
         small = self._rows_fetched_by_fallback()
         self.env["crm.team"].create(
             [
@@ -1318,8 +1159,6 @@ class TestDefaultTeamFallbackQueries(TestSalesCommon):
 
 
 class TestArchivedTeamMembership(TestSalesCommon):
-    """A live membership must never point at an archived team."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1333,7 +1172,6 @@ class TestArchivedTeamMembership(TestSalesCommon):
         cls.env.flush_all()
 
     def test_write_active_false_cascades_like_the_action(self):
-        """The action is only the UI path; the cascade belongs to write."""
         self.team.write({"active": False})
         self.env.flush_all()
         self.assertFalse(self.member.active)
@@ -1364,11 +1202,6 @@ class TestArchivedTeamMembership(TestSalesCommon):
             self.env.flush_all()
 
     def test_cannot_join_a_team_as_an_archived_user(self):
-        """The salesperson end of the same invariant, which had no guard.
-
-        A live membership on a dead user is the state the many2many reads and
-        the searches disagree about, seen from the other side of the join.
-        """
         ghost = mail_new_test_user(
             self.env, login="ghost_user", name="Ghost User", groups="base.group_user"
         )
@@ -1381,7 +1214,7 @@ class TestArchivedTeamMembership(TestSalesCommon):
             self.env.flush_all()
 
     def test_cannot_unarchive_a_membership_of_an_archived_user(self):
-        self.user_sales_leads.action_archive()  # cascades the archive
+        self.user_sales_leads.action_archive()
         self.env.flush_all()
         self.assertFalse(self.member.active)
         with self.assertRaises(exceptions.ValidationError):
@@ -1389,7 +1222,6 @@ class TestArchivedTeamMembership(TestSalesCommon):
             self.env.flush_all()
 
     def test_reads_and_searches_agree_on_an_archived_user(self):
-        """The three symptoms the guard exists to prevent, asserted together."""
         self.user_sales_leads.action_archive()
         self.env.flush_all()
         self.env.invalidate_all()
@@ -1417,7 +1249,6 @@ class TestArchivedTeamMembership(TestSalesCommon):
         )
 
     def test_stored_sale_team_id_never_holds_an_archived_team(self):
-        """crm's pipeline action and sale_commission both read this column."""
         self.team.write({"active": False})
         self.env.flush_all()
         self.env.cr.execute(
@@ -1428,8 +1259,6 @@ class TestArchivedTeamMembership(TestSalesCommon):
 
 
 class TestMemberWarningVisibility(TestSalesCommon):
-    """The warning must not name -- or crash on -- a team the reader cannot see."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1489,7 +1318,6 @@ class TestMemberWarningVisibility(TestSalesCommon):
         )
 
     def test_a_visible_team_is_still_reported(self):
-        """Guard against silencing the warning altogether."""
         self.env["ir.config_parameter"].sudo().set_param(
             "sales_team.membership_multi", True
         )
@@ -1511,7 +1339,6 @@ class TestMemberWarningVisibility(TestSalesCommon):
 
 class TestMemberIdsDependencies(TestSalesCommon):
     def test_member_ids_follows_a_membership_reassignment(self):
-        """Moving a membership to another salesperson changes who is on the team."""
         self.env["ir.config_parameter"].sudo().set_param(
             "sales_team.membership_multi", True
         )
@@ -1534,13 +1361,6 @@ class TestMemberIdsDependencies(TestSalesCommon):
 
 
 class TestSalespersonDomain(TestSalesCommon):
-    """The domain behind crm.team.member.user_id, which replaced a computed m2m.
-
-    It excludes exactly the live members of the targeted team -- no more (mono
-    mode used to hide every salesperson holding a membership anywhere, which the
-    team form's own member_ids accepted) and no fewer.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1609,13 +1429,6 @@ class TestSalespersonDomain(TestSalesCommon):
         self.assertEqual(self._selectable(self.team_a.id), multi)
 
     def test_mono_mode_transfer_goes_through(self):
-        """The users this domain newly offers in mono mode must transfer cleanly.
-
-        The old computed field hid, in mono mode, every salesperson already on a
-        team -- so the Members form could not move anyone, while the team form's
-        'member_ids' did it happily. Now that both offer the same people, the
-        move has to end where _enforce_mono_membership says: one live membership.
-        """
         self.env["ir.config_parameter"].sudo().set_param(
             "sales_team.membership_multi", False
         )
@@ -1641,7 +1454,6 @@ class TestSalespersonDomain(TestSalesCommon):
         self.assertEqual(self.in_a.sale_team_id, self.team_b)
 
     def test_agrees_with_the_constraint_it_anticipates(self):
-        """Everyone offered can be added; the one hidden cannot."""
         for user in self._selectable(self.team_a.id):
             with self.env.cr.savepoint():
                 self.env["crm.team.member"].create(
@@ -1653,3 +1465,273 @@ class TestSalespersonDomain(TestSalesCommon):
                 {"crm_team_id": self.team_a.id, "user_id": self.in_a.id}
             )
             self.env.flush_all()
+
+
+class TestMembershipMultiIsInvalidatedEverywhere(TestSalesCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env["ir.config_parameter"].sudo().set_param(
+            "sales_team.membership_multi", False
+        )
+
+    def _cached_copies(self):
+        return {
+            name
+            for name, model in self.env.registry.items()
+            if (field := model._fields.get("is_membership_multi"))
+            and field.compute
+            and not field.store
+        }
+
+    def test_only_crm_team_caches_the_setting(self):
+        self.assertEqual(self._cached_copies(), {"crm.team"})
+
+    def test_every_cached_copy_follows_the_parameter(self):
+        ICP = self.env["ir.config_parameter"].sudo()
+        for expected, value in ((True, True), (False, False)):
+            with self.subTest(value=value):
+                ICP.set_param("sales_team.membership_multi", value)
+                self.assertEqual(self.env["crm.team"]._is_membership_multi(), expected)
+                for name in self._cached_copies():
+                    record = self.env[name].search([], limit=1)
+                    if record:
+                        self.assertEqual(record.is_membership_multi, expected)
+
+    def test_unsetting_the_parameter_also_invalidates(self):
+        ICP = self.env["ir.config_parameter"].sudo()
+        ICP.set_param("sales_team.membership_multi", True)
+        self.assertTrue(self.sales_team_1.is_membership_multi)
+
+        ICP.search([("key", "=", "sales_team.membership_multi")]).unlink()
+        self.assertFalse(self.sales_team_1.is_membership_multi)
+
+
+class TestMonoModeIsNotRetroactive(TestSalesCommon):
+    def test_flipping_to_mono_leaves_the_extra_memberships_live(self):
+        ICP = self.env["ir.config_parameter"].sudo()
+        ICP.set_param("sales_team.membership_multi", True)
+        second = self.env["crm.team"].create(
+            {"name": "Mono Second", "company_id": False}
+        )
+        self.env["crm.team.member"].create(
+            {"crm_team_id": second.id, "user_id": self.user_sales_leads.id}
+        )
+        self.assertEqual(len(self.user_sales_leads.crm_team_ids), 2)
+
+        ICP.set_param("sales_team.membership_multi", False)
+        self.assertEqual(
+            len(self.user_sales_leads.crm_team_ids),
+            2,
+            "mono mode constrains writes, it does not rewrite history",
+        )
+
+    def test_the_state_is_surfaced_rather_than_silently_kept(self):
+        ICP = self.env["ir.config_parameter"].sudo()
+        ICP.set_param("sales_team.membership_multi", True)
+        second = self.env["crm.team"].create(
+            {"name": "Mono Second", "company_id": False}
+        )
+        self.env["crm.team.member"].create(
+            {"crm_team_id": second.id, "user_id": self.user_sales_leads.id}
+        )
+        ICP.set_param("sales_team.membership_multi", False)
+
+        self.assertIn("Mono Second", self.sales_team_1.member_warning or "")
+
+
+class TestDefaultTeamIsNotCallerDependent(TestSalesCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env["ir.config_parameter"].sudo().set_param(
+            "sales_team.membership_multi", True
+        )
+        cls.env["crm.team"].search([]).write({"sequence": 9000})
+        cls.filer = mail_new_test_user(
+            cls.env,
+            login="dep_filer",
+            name="Dep Filer",
+            groups="sales_team.group_sale_salesman_team",
+        )
+        cls.owner = mail_new_test_user(
+            cls.env,
+            login="dep_owner",
+            name="Dep Owner",
+            groups="sales_team.group_sale_salesman_team",
+        )
+        cls.owner_team = cls.env["crm.team"].create(
+            {"name": "Owner Team", "sequence": 10, "company_id": False}
+        )
+        cls.shared_team = cls.env["crm.team"].create(
+            {"name": "Shared Team", "sequence": 20, "company_id": False}
+        )
+        cls.env["crm.team.member"].create(
+            [
+                {"crm_team_id": cls.owner_team.id, "user_id": cls.owner.id},
+                {"crm_team_id": cls.shared_team.id, "user_id": cls.owner.id},
+                {"crm_team_id": cls.shared_team.id, "user_id": cls.filer.id},
+            ]
+        )
+        cls.env.flush_all()
+
+    def test_every_caller_gets_the_same_team(self):
+        CrmTeam = self.env["crm.team"]
+        for actor in (self.env.user, self.filer, self.owner):
+            self.assertEqual(
+                CrmTeam.with_user(actor)._get_default_team_id(user_id=self.owner.id),
+                self.owner_team,
+                f"{actor.login} got a different default team for the same salesperson",
+            )
+
+    def test_the_answer_is_not_sudoed(self):
+        team = (
+            self.env["crm.team"]
+            .with_user(self.filer)
+            ._get_default_team_id(user_id=self.owner.id)
+        )
+        self.assertFalse(team.env.su)
+
+    def test_the_company_fallback_is_caller_independent_too(self):
+        loner = mail_new_test_user(
+            self.env,
+            login="dep_loner",
+            name="Dep Loner",
+            groups="sales_team.group_sale_salesman",
+        )
+        self.env.flush_all()
+        CrmTeam = self.env["crm.team"]
+        answers = {
+            CrmTeam.with_user(actor)._get_default_team_id(user_id=loner.id)
+            for actor in (self.env.user, self.filer, self.owner)
+        }
+        self.assertEqual(len(answers), 1, f"the fallback differed by caller: {answers}")
+        self.assertEqual(answers.pop(), self.owner_team)
+
+    def test_a_document_opens_for_the_person_who_filed_it(self):
+        team = (
+            self.env["crm.team"]
+            .with_user(self.filer)
+            ._get_default_team_id(user_id=self.owner.id)
+        )
+        self.assertEqual(team, self.owner_team)
+        self.env.invalidate_all()
+        self.assertEqual(
+            team.with_user(self.filer).display_name,
+            "Owner Team",
+            "the filer cannot open a document carrying the team they just "
+            "filed it under",
+        )
+
+
+class TestSalespersonDomainSelfExclusion(TestSalesCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.team = cls.env["crm.team"].create({"name": "Excl", "company_id": False})
+        cls.member_user = mail_new_test_user(
+            cls.env,
+            login="excl_user",
+            name="Excl User",
+            groups="sales_team.group_sale_salesman",
+        )
+        cls.membership = cls.env["crm.team.member"].create(
+            {"crm_team_id": cls.team.id, "user_id": cls.member_user.id}
+        )
+        cls.env.flush_all()
+
+    def _offered(self, record_id):
+        domain = [
+            ("share", "=", False),
+            (
+                "crm_team_member_ids",
+                "not any",
+                [
+                    ("active", "=", True),
+                    ("crm_team_id", "=", self.team.id),
+                    ("id", "!=", record_id),
+                ],
+            ),
+        ]
+        return self.env["res.users"].search(domain)
+
+    def test_the_saved_record_offers_its_own_salesperson(self):
+        self.assertIn(self.member_user, self._offered(self.membership.id))
+
+    def test_a_new_record_still_excludes_existing_members(self):
+        self.assertNotIn(self.member_user, self._offered(False))
+
+    def test_another_membership_still_excludes_them(self):
+        other = self.env["crm.team.member"].create(
+            {
+                "crm_team_id": self.env["crm.team"]
+                .create({"name": "Excl2", "company_id": False})
+                .id,
+                "user_id": mail_new_test_user(
+                    self.env, login="excl_other", name="Excl Other"
+                ).id,
+            }
+        )
+        self.assertNotIn(self.member_user, self._offered(other.id))
+
+
+class TestDefaultTeamIgnoresArchived(TestSalesCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.leader = mail_new_test_user(
+            cls.env,
+            login="arch_leader",
+            name="Arch Leader",
+            groups="sales_team.group_sale_salesman",
+        )
+        cls.env["crm.team"].search([]).write({"active": False})
+        cls.dead_team = cls.env["crm.team"].create(
+            {"name": "Dead", "company_id": False, "user_id": cls.leader.id}
+        )
+        cls.dead_team.action_archive()
+        cls.env.flush_all()
+
+    def test_no_live_team_means_no_default(self):
+        team = self.env["crm.team"].with_user(self.leader)._get_default_team_id()
+        self.assertFalse(team)
+
+    def test_archived_team_is_not_proposed_under_active_test_false(self):
+        team = (
+            self.env["crm.team"]
+            .with_user(self.leader)
+            .with_context(active_test=False)
+            ._get_default_team_id()
+        )
+        self.assertFalse(team, "an archived team is never a default for a new document")
+
+    def test_the_company_fallback_is_archive_blind_too(self):
+        stranger = mail_new_test_user(
+            self.env,
+            login="arch_stranger",
+            name="Arch Stranger",
+            groups="sales_team.group_sale_salesman_all_leads",
+        )
+        for domain in (False, [("name", "=", "Dead")]):
+            with self.subTest(domain=domain):
+                team = (
+                    self.env["crm.team"]
+                    .with_user(stranger)
+                    .with_context(active_test=False)
+                    ._get_default_team_id(domain=domain)
+                )
+                self.assertFalse(team)
+
+    def test_a_live_team_is_still_found(self):
+        live = self.env["crm.team"].create(
+            {"name": "Alive", "company_id": False, "user_id": self.leader.id}
+        )
+        for context in ({}, {"active_test": False}):
+            with self.subTest(context=context):
+                self.assertEqual(
+                    self.env["crm.team"]
+                    .with_user(self.leader)
+                    .with_context(**context)
+                    ._get_default_team_id(),
+                    live,
+                )

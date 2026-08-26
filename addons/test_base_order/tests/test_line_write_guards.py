@@ -141,3 +141,36 @@ class TestLineWriteGuards(BaseOrderTestCase):
         line = self._make_line(product_id=False, name="", sequence=7)
 
         self.assertIn("7", line._get_line_identifier(line))
+
+    def test_a_confirmed_line_cannot_be_deleted(self):
+        """Once an order is confirmed its lines are tracked, not removable."""
+        order = self._make_order()
+        line = self._make_line(order=order)
+        order.action_confirm()
+
+        with self.assertRaises(UserError):
+            line.unlink()
+
+    def test_a_draft_line_can_be_deleted(self):
+        order = self._make_order()
+        line = self._make_line(order=order)
+
+        line.unlink()
+
+        self.assertFalse(order.line_ids)
+
+    def test_a_display_line_can_be_deleted_from_a_confirmed_order(self):
+        order = self._make_order()
+        self._make_line(order=order)
+        section = self.env["base.order.test.line"].create(
+            {
+                "order_id": order.id,
+                "display_type": "line_section",
+                "name": "A section",
+            }
+        )
+        order.action_confirm()
+
+        section.unlink()
+
+        self.assertNotIn(section, order.line_ids)

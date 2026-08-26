@@ -8,6 +8,12 @@ class MixinOrderLineAmount(models.AbstractModel):
     _name = "mixin.order.line.amount"
     _description = "Order Line Amount Computation"
 
+    #: ``product.product`` field holding the taxes to default from.
+    _product_tax_field = ""
+    #: ``1`` when a higher price is favorable to us, ``-1`` when a lower one is.
+    #: The price-history wizard reads it off the line model.
+    _price_direction = 0
+
     currency_id = fields.Many2one("res.currency")
 
     product_qty = fields.Float(
@@ -179,7 +185,8 @@ class MixinOrderLineAmount(models.AbstractModel):
             line.price_unit_auto = auto_price
             if line._should_update_price(auto_price, old_shadow, force_recompute):
                 line.price_unit = auto_price
-                line.discount = auto_discount
+                if line._should_update_discount(auto_discount, force_recompute):
+                    line.discount = auto_discount
 
     def _get_auto_price_and_discount(self):
         raise NotImplementedError(
@@ -218,6 +225,31 @@ class MixinOrderLineAmount(models.AbstractModel):
             and float_compare(
                 self.price_unit,
                 new_auto_price,
+                precision_digits=precision,
+            )
+            != 0
+        )
+
+    def _should_update_discount(self, new_auto_discount, force_recompute=False):
+        """Whether the automatic discount may overwrite the one on the line.
+
+        Asked separately from the price because a discount cannot be read
+        back out of the unit price. A line created with `price_unit` at the
+        automatic price and an explicit `discount` looks untouched to the
+        price test, so the discount was being reset to the automatic value;
+        `_compute_amounts` then precomputed the subtotal from the reset
+        value, and the caller's discount was restored afterwards -- leaving
+        a stored line whose discount and subtotal disagree.
+        """
+        self.ensure_one()
+        if force_recompute or self._origin.id:
+            return True
+        precision = self.env["decimal.precision"].get_precision("Discount")
+        return not (
+            self.discount
+            and float_compare(
+                self.discount,
+                new_auto_discount,
                 precision_digits=precision,
             )
             != 0
@@ -336,14 +368,12 @@ class MixinOrderLineAmount(models.AbstractModel):
             )
 
     def _get_product_tax_field(self):
-        if self._get_order_type() == "sale":
-            return "taxes_id"
-        return "supplier_taxes_id"
+        return self._product_tax_field
 
     def _get_custom_compute_tax_cache_key(self):
         return ()
 
-    @api.depends("company_id", "product_id")
+    @api.depends("company_id", "product_id", "order_id.fiscal_position_id")
     def _compute_tax_ids(self):
         lines_by_company = defaultdict(lambda: self.env[self._name])
         cached_taxes = {}
@@ -375,7 +405,13 @@ class MixinOrderLineAmount(models.AbstractModel):
     def _tax_ids_include_product(self, line):
         return True
 
-    @api.depends("company_id", "partner_id", "product_id")
+    @api.depends(
+        "company_id",
+        "partner_id",
+        "product_id",
+        "product_categ_id",
+        "order_id.partner_id.category_id",
+    )
     def _compute_analytic_distribution(self):
         cache = {}
         AnalyticModel = self.env["account.analytic.distribution.model"]

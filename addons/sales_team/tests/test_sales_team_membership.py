@@ -5,8 +5,6 @@ from odoo.addons.sales_team.tests.common import TestSalesCommon
 
 
 class TestMembership(TestSalesCommon):
-    """Tests to ensure membership behavior"""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -19,36 +17,28 @@ class TestMembership(TestSalesCommon):
         cls.env["ir.config_parameter"].set_param("sales_team.membership_multi", True)
 
     def test_archive_user_archives_team_member(self):
-        """Test that archiving a user also archives their linked team member."""
         self.assertTrue(self.sales_team_1_m1.active)
         self.user_sales_leads.action_archive()
         self.assertFalse(self.sales_team_1_m1.active)
 
     def test_archive_team_archives_team_member(self):
-        """Archiving a team archives its memberships (team-side mirror of user archive)."""
         self.assertTrue(self.sales_team_1_m1.active)
         self.assertTrue(self.sales_team_1_m2.active)
         self.sales_team_1.action_archive()
         self.assertFalse(self.sales_team_1_m1.active)
         self.assertFalse(self.sales_team_1_m2.active)
-        # Asymmetric on purpose: restoring the team does not resurrect memberships,
-        # exactly like res.users.action_archive on the user side.
         self.sales_team_1.action_unarchive()
         self.assertFalse(self.sales_team_1_m1.active)
         self.assertFalse(self.sales_team_1_m2.active)
 
     def test_leader_can_read_led_team(self):
-        """A plain salesman reads a team they lead even without a membership."""
-        # crm_rule_personal_salesteam is a noupdate record, so `-u` does not refresh
-        # its domain on existing databases; the deploy-time migration replicates this
-        # write. Setting it here keeps the test deterministic on any database state.
         leader_domain = (
             "['|', ('user_id', '=', user.id), ('id', 'in', user.crm_team_ids.ids)]"
         )
         self.env.ref(
             "sales_team.crm_rule_personal_salesteam"
         ).domain_force = leader_domain
-        salesman = self.user_sales_salesman  # group_sale_salesman -> rule 705 only
+        salesman = self.user_sales_salesman
         led_team = self.env["crm.team"].create(
             {
                 "name": "Led Not Member",
@@ -66,13 +56,14 @@ class TestMembership(TestSalesCommon):
         self.assertNotIn(
             salesman, led_team.member_ids, "leader must not be auto-added as member"
         )
-        # leader-aware rule: the salesman reads the team they lead...
         self.assertEqual(
             led_team.with_user(salesman).read(["name"])[0]["name"], "Led Not Member"
         )
-        # ...but still cannot read a team they neither lead nor belong to.
+        self.assertEqual(
+            foreign_team.with_user(salesman).read(["name"])[0]["name"], "Foreign Team"
+        )
         with self.assertRaises(exceptions.AccessError):
-            foreign_team.with_user(salesman).read(["name"])
+            foreign_team.with_user(salesman).write({"name": "Trolling"})
 
     @users("user_sales_manager")
     def test_fields(self):
@@ -87,18 +78,15 @@ class TestMembership(TestSalesCommon):
 
     @users("user_sales_manager")
     def test_members_mono(self):
-        """Test mono mode using the user m2m relationship"""
         self.env["ir.config_parameter"].sudo().set_param(
             "sales_team.membership_multi", False
         )
-        # ensure initial data
         sales_team_1 = self.sales_team_1.with_user(self.env.user)
         new_team = self.new_team.with_user(self.env.user)
         self.assertEqual(
             sales_team_1.member_ids, self.user_sales_leads | self.user_admin
         )
 
-        # test various add / remove on computed m2m
         self.assertEqual(new_team.member_ids, self.env["res.users"])
         new_team.write({"member_ids": [(4, self.env.uid)]})
         self.assertEqual(new_team.member_ids, self.env.user)
@@ -111,10 +99,8 @@ class TestMembership(TestSalesCommon):
         )
         self.assertEqual(new_team.member_ids, self.env.user | self.user_sales_leads)
 
-        # archived memberships on sales_team_1 for user_sales_leads
         self.assertEqual(sales_team_1.member_ids, self.user_admin)
 
-        # create a new user on the fly, just for testing
         self.user_sales_manager.write(
             {"group_ids": [(4, self.env.ref("base.group_system").id)]}
         )
@@ -149,20 +135,15 @@ class TestMembership(TestSalesCommon):
             .with_context(active_test=False)
             .search([("user_id", "=", self.user_sales_leads.id)])
         )
-        self.assertEqual(
-            len(memberships), 3
-        )  # subscribed twice to new_team + subscribed to sales_team_1
+        self.assertEqual(len(memberships), 3)
         self.assertEqual(memberships.crm_team_id, sales_team_1 | new_team)
         self.assertFalse(
             memberships.filtered(lambda m: m.crm_team_id == sales_team_1).active
         )
         new_team_memberships = memberships.filtered(lambda m: m.crm_team_id == new_team)
-        self.assertEqual(
-            len(new_team_memberships), 2
-        )  # subscribed, removed, then subscribed again
+        self.assertEqual(len(new_team_memberships), 2)
         self.assertTrue(set(new_team_memberships.mapped("active")), {False, True})
 
-        # still avoid duplicated team / user entries
         with self.assertRaises(exceptions.UserError):
             self.env["crm.team.member"].create(
                 {"crm_team_id": new_team.id, "user_id": new_user.id}
@@ -170,14 +151,12 @@ class TestMembership(TestSalesCommon):
 
     @users("user_sales_manager")
     def test_members_multi(self):
-        # ensure initial data
         sales_team_1 = self.sales_team_1.with_user(self.env.user)
         new_team = self.new_team.with_user(self.env.user)
         self.assertEqual(
             sales_team_1.member_ids, self.user_sales_leads | self.user_admin
         )
 
-        # test various add / remove on computed m2m
         self.assertEqual(new_team.member_ids, self.env["res.users"])
         new_team.write(
             {"member_ids": [(4, self.env.uid), (4, self.user_sales_leads.id)]}
@@ -190,12 +169,10 @@ class TestMembership(TestSalesCommon):
         )
         self.assertEqual(new_team.member_ids, self.env.user | self.user_sales_leads)
 
-        # nothing changed on sales_team_1
         self.assertEqual(
             sales_team_1.member_ids, self.user_sales_leads | self.user_admin
         )
 
-        # create a new user on the fly, just for testing
         self.user_sales_manager.write(
             {"group_ids": [(4, self.env.ref("base.group_system").id)]}
         )
@@ -225,7 +202,6 @@ class TestMembership(TestSalesCommon):
         )
         self.env.flush_all()
 
-        # still avoid duplicated team / user entries
         with self.assertRaises(exceptions.UserError):
             self.env["crm.team.member"].create(
                 {"crm_team_id": new_team.id, "user_id": new_user.id}
@@ -233,18 +209,15 @@ class TestMembership(TestSalesCommon):
 
     @users("user_sales_manager")
     def test_memberships_mono(self):
-        """Test mono mode: updating crm_team_member_ids field"""
         self.env["ir.config_parameter"].sudo().set_param(
             "sales_team.membership_multi", False
         )
-        # ensure initial data
         sales_team_1 = self.env["crm.team"].browse(self.sales_team_1.ids)
         new_team = self.env["crm.team"].browse(self.new_team.ids)
         self.assertEqual(
             sales_team_1.member_ids, self.user_sales_leads | self.user_admin
         )
 
-        # subscribe on new team (user_sales_leads will have two memberships -> old one deactivated)
         self.assertEqual(new_team.member_ids, self.env["res.users"])
         new_team.write(
             {
@@ -271,7 +244,6 @@ class TestMembership(TestSalesCommon):
             memberships.filtered(lambda m: m.crm_team_id == new_team).active
         )
 
-        # subscribe user_sales_leads on old team -> old membership still archived and kept
         sales_team_1.write(
             {"crm_team_member_ids": [(0, 0, {"user_id": self.user_sales_leads.id})]}
         )
@@ -283,7 +255,6 @@ class TestMembership(TestSalesCommon):
         self.assertTrue(memberships < memberships_new)
         self.assertEqual(memberships.crm_team_id, sales_team_1 | new_team)
 
-        # old membership is still inactive, new membership is active
         old_st_1 = memberships_new.filtered(
             lambda m: m.crm_team_id == sales_team_1 and m in memberships
         )
@@ -295,37 +266,31 @@ class TestMembership(TestSalesCommon):
         self.assertTrue(new_st_1.active)
         self.assertFalse(new_nt.active)
 
-        # check members fields
         self.assertEqual(new_team.member_ids, self.env.user)
         self.assertEqual(
             sales_team_1.member_ids, self.user_admin | self.user_sales_leads
         )
 
-        # activate another team membership: previous team membership should be de activated
         new_nt.action_unarchive()
         self.assertTrue(new_nt.active)
         self.assertFalse(old_st_1.active)
         self.assertFalse(new_st_1.active)
-        # activate another team membership: previous team membership should be de activated
         old_st_1.action_unarchive()
         self.assertFalse(new_nt.active)
         self.assertTrue(old_st_1.active)
         self.assertFalse(new_st_1.active)
 
-        # try to activate duplicate memberships again, which should trigger issues
         with self.assertRaises(exceptions.UserError):
             new_st_1.action_unarchive()
 
     @users("user_sales_manager")
     def test_memberships_multi(self):
-        # ensure initial data
         sales_team_1 = self.env["crm.team"].browse(self.sales_team_1.ids)
         new_team = self.env["crm.team"].browse(self.new_team.ids)
         self.assertEqual(
             sales_team_1.member_ids, self.user_sales_leads | self.user_admin
         )
 
-        # subscribe on new team (user_sales_leads will have two memberships -> old one deactivated)
         self.assertEqual(new_team.member_ids, self.env["res.users"])
         new_team.write(
             {
@@ -354,11 +319,9 @@ class TestMembership(TestSalesCommon):
             memberships.filtered(lambda m: m.crm_team_id == new_team).active
         )
 
-        # archive membership on sales_team_1 and try creating a new one
         memberships.filtered(lambda m: m.crm_team_id == sales_team_1).write(
             {"active": False}
         )
-        # subscribe user_sales_leads on old team -> old membership still archived and kept
         sales_team_1.write(
             {"crm_team_member_ids": [(0, 0, {"user_id": self.user_sales_leads.id})]}
         )
@@ -370,7 +333,6 @@ class TestMembership(TestSalesCommon):
         self.assertTrue(memberships < memberships_new)
         self.assertEqual(memberships.crm_team_id, sales_team_1 | new_team)
 
-        # old membership is still inactive, new membership is active
         old_st_1 = memberships_new.filtered(
             lambda m: m.crm_team_id == sales_team_1 and m in memberships
         )
@@ -382,13 +344,11 @@ class TestMembership(TestSalesCommon):
         self.assertTrue(new_st_1.active)
         self.assertTrue(new_nt.active)
 
-        # check members fields
         self.assertEqual(new_team.member_ids, self.env.user | self.user_sales_leads)
         self.assertEqual(
             sales_team_1.member_ids, self.user_admin | self.user_sales_leads
         )
 
-        # try to activate duplicate memberships again, which should trigger issues
         with self.assertRaises(exceptions.UserError):
             old_st_1.action_unarchive()
 
@@ -403,7 +363,6 @@ class TestMembership(TestSalesCommon):
         self.assertEqual(new_team.crm_team_member_all_ids, self.env["crm.team.member"])
         self.assertEqual(new_team.member_ids, self.env["res.users"])
 
-        # creating memberships correctly updates m2m without any refresh
         new_member = self.env["crm.team.member"].create(
             {
                 "user_id": self.env.user.id,
@@ -414,7 +373,6 @@ class TestMembership(TestSalesCommon):
         self.assertEqual(new_team.crm_team_member_all_ids, new_member)
         self.assertEqual(new_team.member_ids, self.env.user)
 
-        # adding members correctly update o2m with right values
         new_team.write({"member_ids": [(4, self.user_sales_leads.id)]})
         added = self.env["crm.team.member"].search(
             [
@@ -426,19 +384,16 @@ class TestMembership(TestSalesCommon):
         self.assertEqual(new_team.crm_team_member_all_ids, new_member + added)
         self.assertEqual(new_team.member_ids, self.env.user | self.user_sales_leads)
 
-        # archiving membership correctly updates m2m and o2m
         added.write({"active": False})
         self.assertEqual(new_team.crm_team_member_ids, new_member)
         self.assertEqual(new_team.crm_team_member_all_ids, new_member + added)
         self.assertEqual(new_team.member_ids, self.env.user)
 
-        # reactivating correctly updates m2m and o2m
         added.write({"active": True})
         self.assertEqual(new_team.crm_team_member_ids, new_member + added)
         self.assertEqual(new_team.crm_team_member_all_ids, new_member + added)
         self.assertEqual(new_team.member_ids, self.env.user | self.user_sales_leads)
 
-        # archived are kept if duplicated on write
         admin_original = self.env["crm.team.member"].search(
             [
                 ("crm_team_id", "=", sales_team_1.id),
@@ -454,15 +409,12 @@ class TestMembership(TestSalesCommon):
             }
         )
         admin_original.write({"crm_team_id": new_team.id})
-        # send to db as errors may pop at that step (like trying to set NULL on a m2o inverse of o2m)
         self.env.flush_all()
         self.assertTrue(self.user_admin in new_team.member_ids)
         self.assertTrue(admin_original.active)
         self.assertTrue(admin_archived.exists())
         self.assertFalse(admin_archived.active)
 
-        # moving a membership onto a team where the salesperson is already active
-        # is a duplicate; _constrains_membership refuses it in Python
         with self.assertRaises(exceptions.ValidationError):
             added.write({"crm_team_id": sales_team_1.id})
 
@@ -472,26 +424,22 @@ class TestMembership(TestSalesCommon):
         self.assertEqual(self.user_sales_leads.crm_team_ids, self.sales_team_1)
         self.assertEqual(self.user_sales_leads.sale_team_id, self.sales_team_1)
 
-        # subscribe to new team -> default team is still the old one
         self.new_team.write({"member_ids": [(4, self.user_sales_leads.id)]})
         self.assertEqual(
             self.user_sales_leads.crm_team_ids, self.sales_team_1 | self.new_team
         )
         self.assertEqual(self.user_sales_leads.sale_team_id, self.sales_team_1)
 
-        # archive membership to first team -> second one becomes default
         self.sales_team_1_m1.write({"active": False})
         self.assertEqual(self.user_sales_leads.crm_team_ids, self.new_team)
         self.assertEqual(self.user_sales_leads.sale_team_id, self.new_team)
 
-        # activate membership to first team -> first one becomes default again
         self.sales_team_1_m1.write({"active": True})
         self.assertEqual(
             self.user_sales_leads.crm_team_ids, self.sales_team_1 | self.new_team
         )
         self.assertEqual(self.user_sales_leads.sale_team_id, self.sales_team_1)
 
-        # keep only one membership -> default team
         self.sales_team_1_m1.unlink()
         self.assertEqual(self.user_sales_leads.crm_team_ids, self.new_team)
         self.assertEqual(self.user_sales_leads.sale_team_id, self.new_team)

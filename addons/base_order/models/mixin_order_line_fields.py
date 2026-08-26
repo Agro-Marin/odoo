@@ -11,6 +11,17 @@ class MixinOrderLineFields(models.AbstractModel):
     _name = "mixin.order.line.fields"
     _description = "Common Order Line Fields"
 
+    #: Mirrors `mixin.order._order_type` -- direction only.
+    _order_type = ""
+    #: ``product.product`` flag this line's product domain filters on.
+    _product_ok_field = ""
+    #: ``account.analytic.distribution.model`` business domain for these lines.
+    _analytic_business_domain = ""
+    #: What moving the goods is called for this order type -- "delivered" on a
+    #: sale, "received" on a purchase. Only user-facing prose uses it; the
+    #: field itself is `qty_transferred` on every type.
+    _transfer_verb = "transferred"
+
     order_id = fields.Many2one(
         comodel_name="mixin.order",
         string="Order Reference",
@@ -185,18 +196,25 @@ class MixinOrderLineFields(models.AbstractModel):
         "Forbidden values on non-accountable order line",
     )
 
+    def _run_check_registry(self, method_names, *args):
+        """Call each named method in turn; a missing name raises."""
+        for method_name in method_names:
+            getattr(self, method_name)(*args)
+
     def _get_order_type(self):
-        raise NotImplementedError(f"{self._name} must implement _get_order_type()")
+        if not self._order_type:
+            raise NotImplementedError(f"{self._name} must declare _order_type")
+        return self._order_type
 
     def _domain_product_id(self):
         if self._abstract:
             # Field descriptions are evaluated lazily, so `fields_get()` reaches
             # this domain on the mixin itself -- from Studio, from JSON-RPC, from
-            # base's technical-guide report. There is no order type there, and no
-            # records to filter either, so the honest answer is "no restriction"
-            # rather than the NotImplementedError a concrete host still gets.
+            # base's technical-guide report. There is no product-ok field there,
+            # and no records to filter either, so the honest answer is "no
+            # restriction" rather than a domain on the empty field name.
             return []
-        return [(f"{self._get_order_type()}_ok", "=", True)]
+        return [(self._product_ok_field, "=", True)]
 
     def _get_merge_date_field(self):
         return
@@ -374,8 +392,7 @@ class MixinOrderLineFields(models.AbstractModel):
         return self.parent_id
 
     def _check_write_guards(self, write_vals):
-        for method_name in self._get_check_write_guards():
-            getattr(self, method_name)(write_vals)
+        self._run_check_registry(self._get_check_write_guards(), write_vals)
 
     def _get_check_write_guards(self):
         return [
@@ -495,10 +512,11 @@ class MixinOrderLineFields(models.AbstractModel):
                 _(
                     "Cannot delete a %(line_type)s which is in state '%(state)s'.\n"
                     "Once an order is confirmed, you can't remove lines that have "
-                    "been invoiced or transferred (we need to track if something "
-                    "gets invoiced or transferred).\nSet the quantity to 0 instead.",
+                    "been invoiced or %(verb)s (we need to track if something "
+                    "gets invoiced or %(verb)s).\nSet the quantity to 0 instead.",
                     line_type=self._description.lower(),
                     state=state_label,
+                    verb=self._transfer_verb,
                 ),
             )
 
@@ -611,7 +629,7 @@ class MixinOrderLineFields(models.AbstractModel):
         return self.filtered(lambda line: not line.display_type)
 
     def _check_analytic_distribution(self):
-        business_domain = f"{self._get_order_type()}_order"
+        business_domain = self._analytic_business_domain
         for line in self._lines_to_check_analytic_distribution():
             line._validate_distribution(
                 product=line.product_id.id,

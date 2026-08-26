@@ -96,37 +96,61 @@ class MixinOrderMerge(models.AbstractModel):
         )
 
     def _merge_lines(self, target, sources, line_index):
-        for source_line in sources.line_ids:
-            if source_line.display_type:
-                source_line.order_id = target
-                continue
+        # Sequences are per-order, so every source repeats the target's own
+        # numbering. Moved lines are renumbered past whatever the target
+        # already holds, in their original order; otherwise two sections both
+        # land on 10 and the merged document interleaves them.
+        sequence = self._merge_next_sequence(target)
+        for source in sources:
+            for source_line in source.line_ids.sorted("sequence"):
+                if source_line.display_type:
+                    source_line.write({"order_id": target.id, "sequence": sequence})
+                    sequence += 1
+                    continue
 
-            key = self._merge_get_line_key(source_line)
-            match = self._merge_find_matching_line(
-                source_line,
-                line_index.get(key, []),
-            )
+                key = self._merge_get_line_key(source_line)
+                candidates = line_index.get(key, [])
+                match = self._merge_collapse_matches(
+                    self._merge_find_matching_line(source_line, candidates),
+                    candidates,
+                )
 
-            if match:
-                match._merge_order_line(source_line)
-            else:
-                source_line.order_id = target
-                line_index[key].append(source_line)
+                if match:
+                    match._merge_order_line(source_line)
+                else:
+                    source_line.write({"order_id": target.id, "sequence": sequence})
+                    sequence += 1
+                    line_index[key].append(source_line)
+
+    def _merge_next_sequence(self, target):
+        return max(target.line_ids.mapped("sequence"), default=0) + 1
 
     def _merge_find_matching_line(self, source_line, candidates):
-        line_model = f"{self._name}.line"
-        matches = self.env[line_model]
-
+        """Target lines ``source_line`` may merge into. Reads; changes nothing."""
+        matches = self.env[self._get_line_model()]
         for candidate in candidates:
             if self._merge_lines_match_date(candidate, source_line):
                 matches |= candidate
+        return matches
 
-        if len(matches) > 1:
-            matches[0].product_qty += sum(matches[1:].mapped("product_qty"))
-            matches[1:].unlink()
-            return matches[0]
+    def _merge_collapse_matches(self, matches, candidates):
+        """Fold equivalent target lines into the first, and return it.
 
-        return matches[:1]
+        ``candidates`` is the index entry the matches were drawn from, and it
+        is pruned here because the folded lines are unlinked: an index still
+        holding them hands a deleted record to the next source line sharing
+        the key, and the merge dies with MissingError partway through, having
+        already moved some lines.
+        """
+        if len(matches) <= 1:
+            return matches[:1]
+        keeper, folded = matches[0], matches[1:]
+        keeper.product_qty += sum(folded.mapped("product_qty"))
+        for line in folded:
+            if line in candidates:
+                candidates.remove(line)
+        folded.unlink()
+        return keeper
 
     def _merge_lines_match_date(self, line1, line2):
         field_name = line1._get_merge_date_field()

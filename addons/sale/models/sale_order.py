@@ -34,15 +34,18 @@ class SaleOrder(models.Model):
     _check_company_auto = True
     _order = "date_order desc, id desc"
 
-
-    def _get_order_type(self):
-        return "sale"
-
     _price_history_action = "sale.action_sale_history"
 
-    def _get_catalog_product_ok_field(self):
-        return "sale_ok"
-
+    _order_type = "sale"
+    _sequence_code = "sale.order"
+    _invoice_move_direction = "out"
+    _partner_payment_term_field = "property_payment_term_id"
+    _lock_setting_field = "order_lock_so"
+    _auto_lock_group = "sale.group_auto_done_setting"
+    _mark_sent_context_key = "mark_so_as_sent"
+    _display_name_context_key = "sale_show_partner_name"
+    _portal_url_prefix = "orders"
+    _product_ok_field = "sale_ok"
 
     terms_type = fields.Selection(
         related="company_id.terms_type",
@@ -325,9 +328,7 @@ class SaleOrder(models.Model):
         help="True if the pricelist was changed",
     )
 
-
     _date_order_id_idx = models.Index("(date_order desc, id desc)")
-
 
     _date_order_conditional_required = models.Constraint(
         """CHECK(
@@ -346,15 +347,6 @@ class SaleOrder(models.Model):
                         "Prepayment percentage must be greater than 0%% and at most 100%%."
                     ),
                 )
-
-
-    @api.model
-    def get_empty_list_help(self, help_message):
-        self = self.with_context(
-            empty_list_help_document_name=_("sale order"),
-        )
-        return super().get_empty_list_help(help_message)
-
 
     def _compute_field_value(self, field):
         if field.name != "has_upsell_opportunity" or self.env.context.get(
@@ -376,13 +368,6 @@ class SaleOrder(models.Model):
         )
         upselling_orders._create_upsell_activity()
         return None
-
-    def _get_portal_url_prefix(self):
-        return "orders"
-
-    def _get_validity_days(self):
-        self.ensure_one()
-        return self.company_id.quotation_validity_days
 
     @api.depends("company_id")
     def _compute_has_active_pricelist(self):
@@ -416,14 +401,6 @@ class SaleOrder(models.Model):
         for order in self:
             order.require_payment = order.company_id.portal_confirmation_pay
 
-    @api.depends("company_id")
-    def _compute_require_signature(self):
-        for order in self:
-            order.require_signature = order.company_id.portal_confirmation_sign
-
-    def _get_confirmed_type_name(self):
-        return _("Sale Order")
-
     @api.depends("require_payment")
     def _compute_prepayment_percent(self):
         for order in self:
@@ -434,10 +411,10 @@ class SaleOrder(models.Model):
     def _compute_display_name(self):
         return super()._compute_display_name()
 
-    def _get_display_name_suffix(self):
-        if not self.env.context.get("sale_show_partner_name"):
-            return ""
-        return f" - {self.partner_id.name}" if self.partner_id.name else ""
+    @api.depends("company_id")
+    def _compute_require_signature(self):
+        for order in self:
+            order.require_signature = order.company_id.portal_confirmation_sign
 
     @api.depends("partner_id")
     def _compute_notes(self):
@@ -502,18 +479,6 @@ class SaleOrder(models.Model):
         for order in self:
             order = order.with_company(order.company_id)
             order.payment_term_id = order.partner_id.property_payment_term_id
-
-    def _get_default_user_from_partner(self):
-        self.ensure_one()
-        return (
-            self.partner_id.user_id
-            or self.partner_id.commercial_partner_id.user_id
-            or (
-                self.env.user.has_group("sales_team.group_sale_salesman")
-                and self.env.user
-            )
-            or self.env["res.users"]
-        )
 
     @api.depends("user_id")
     def _compute_team_id(self):
@@ -608,15 +573,6 @@ class SaleOrder(models.Model):
             else:
                 order.date_planned = False
 
-    def _get_warning_group(self):
-        return "sale.group_warning_sale"
-
-    def _get_partner_warn_field(self):
-        return "sale_warn_msg"
-
-    def _get_line_warn_field(self):
-        return "sale_line_warn_msg"
-
     @api.depends(
         "partner_id.name",
         "partner_id.sale_warn_msg",
@@ -627,22 +583,6 @@ class SaleOrder(models.Model):
     )
     def _compute_sale_warning_text(self):
         self._compute_warning_text("sale_warning_text")
-
-    def _get_additional_base_lines(self):
-        return self._add_base_lines_for_early_payment_discount()
-
-    def _resolve_invoice_state_to_do(self, states, lines_domain):
-        self.ensure_one()
-        if "no" in states:
-            invoiceable_lines = self.line_ids.filtered_domain(
-                lines_domain + [("invoice_state", "=", "to do")],
-            )
-            auxiliary_lines = invoiceable_lines.filtered(
-                lambda sol: not sol._can_be_invoiced_alone(),
-            )
-            if invoiceable_lines and invoiceable_lines == auxiliary_lines:
-                return "no"
-        return "to do"
 
     @api.depends(
         "line_ids.product_id",
@@ -676,7 +616,6 @@ class SaleOrder(models.Model):
                 for tx in order.transaction_ids
                 if tx.state in ("authorized", "done")
             )
-
 
     @api.onchange("company_id")
     def _onchange_company_id(self):
@@ -824,6 +763,8 @@ class SaleOrder(models.Model):
             self.line_ids and self._origin.pricelist_id != self.pricelist_id
         )
 
+    def _default_team_id(self):
+        return self.env.context.get("default_team_id", False) or self.team_id.id
 
     def action_invoice_matching(self):
         self.ensure_one()
@@ -849,12 +790,6 @@ class SaleOrder(models.Model):
                 ("product_id", "in", product_ids),
             ],
         }
-
-    def _get_confirmation_context(self):
-        context = self.env.context.copy()
-        context.pop("default_name", None)
-        context.pop("default_user_id", None)
-        return context
 
     def action_confirm(self):
         res = super().action_confirm()
@@ -949,7 +884,6 @@ class SaleOrder(models.Model):
             "target": "new",
         }
 
-
     def _merge_validate_selection(self, quotations):
         if len(quotations) < 2:
             raise UserError(
@@ -972,7 +906,6 @@ class SaleOrder(models.Model):
 
     def _get_merge_result_name(self):
         return _("Merged Quotations")
-
 
     def _create_upsell_activity(self):
         self.activity_unlink(["mail.mail_activity_data_todo"])
@@ -1021,6 +954,71 @@ class SaleOrder(models.Model):
             )
 
         return subtitles
+
+    @api.model
+    def get_empty_list_help(self, help_message):
+        self = self.with_context(
+            empty_list_help_document_name=_("sale order"),
+        )
+        return super().get_empty_list_help(help_message)
+
+    def _get_validity_days(self):
+        self.ensure_one()
+        return self.company_id.quotation_validity_days
+
+    def _get_confirmed_type_name(self):
+        return _("Sale Order")
+
+    def _get_display_name_suffix(self):
+        if not self.env.context.get("sale_show_partner_name"):
+            return ""
+        return f" - {self.partner_id.name}" if self.partner_id.name else ""
+
+    def _get_default_user_from_partner(self):
+        self.ensure_one()
+        return (
+            self.partner_id.user_id
+            or self.partner_id.commercial_partner_id.user_id
+            or (
+                self.env.user.has_group("sales_team.group_sale_salesman")
+                and self.env.user
+            )
+            or self.env["res.users"]
+        )
+
+    def _get_all_documents_group(self):
+        return "sales_team.group_sale_salesman_all_leads"
+
+    def _get_warning_group(self):
+        return "sale.group_warning_sale"
+
+    def _get_partner_warn_field(self):
+        return "sale_warn_msg"
+
+    def _get_line_warn_field(self):
+        return "sale_line_warn_msg"
+
+    def _get_additional_base_lines(self):
+        return self._add_base_lines_for_early_payment_discount()
+
+    def _resolve_invoice_state_to_do(self, states):
+        self.ensure_one()
+        if "no" in states:
+            invoiceable_lines = self.line_ids.filtered_domain(
+                self._get_rollup_lines_domain() + [("invoice_state", "=", "to do")],
+            )
+            auxiliary_lines = invoiceable_lines.filtered(
+                lambda sol: not sol._can_be_invoiced_alone(),
+            )
+            if invoiceable_lines and invoiceable_lines == auxiliary_lines:
+                return "no"
+        return "to do"
+
+    def _get_confirmation_context(self):
+        context = self.env.context.copy()
+        context.pop("default_name", None)
+        context.pop("default_user_id", None)
+        return context
 
     def _tweak_notify_recipient_groups(self, groups):
         if self.env.context.get("proforma"):
@@ -1080,7 +1078,6 @@ class SaleOrder(models.Model):
         if not self:
             return super()._get_model_description(model_name)
         return self.type_name
-
 
     def _get_invoice_action_context(self):
         context = super()._get_invoice_action_context()
@@ -1304,7 +1301,6 @@ class SaleOrder(models.Model):
         )
         return values
 
-
     def _force_lines_to_invoice_policy_order(self):
         for line in self.line_ids:
             if line.state == "done":
@@ -1316,9 +1312,7 @@ class SaleOrder(models.Model):
         prepayment_amount = self._get_prepayment_required_amount()
         remaining_balance = self.amount_total - self.amount_paid
         if self.state == "draft" and self.require_payment:
-            suggested_amount = (
-                prepayment_amount
-            )
+            suggested_amount = prepayment_amount
         else:
             suggested_amount = remaining_balance
         return {
@@ -1342,9 +1336,8 @@ class SaleOrder(models.Model):
         def show_line(line):
             if line.is_downpayment:
                 return (
-                    (line.display_type and down_payment_lines)
-                    or line in down_payment_lines
-                )
+                    line.display_type and down_payment_lines
+                ) or line in down_payment_lines
             return line.display_type == "line_section" or not (
                 line.parent_id.collapse_composition
                 or line.parent_id.parent_id.collapse_composition
@@ -1366,7 +1359,6 @@ class SaleOrder(models.Model):
         payment_utils.check_rights_on_recordset(self)
 
         self.sudo().authorized_transaction_ids.action_void()
-
 
     def _has_to_be_paid(self):
         self.ensure_one()
@@ -1397,7 +1389,6 @@ class SaleOrder(models.Model):
     def _get_portal_return_action(self):
         self.ensure_one()
         return self.env.ref("sale.action_quotations_with_onboarding")
-
 
     def _get_catalog_product_data(self, products, **kwargs):
         pricelist = self.pricelist_id._get_products_price(
@@ -1431,7 +1422,6 @@ class SaleOrder(models.Model):
     def _get_catalog_line_price(self, line):
         return line._get_price_discounted()
 
-
     def _filter_product_documents(self, documents):
         return documents.filtered(
             lambda document: (
@@ -1462,7 +1452,6 @@ class SaleOrder(models.Model):
             | self.line_ids.product_template_id.product_document_ids
         )
         return self._filter_product_documents(documents).sorted()
-
 
     def _add_base_lines_for_early_payment_discount(self):
         self.ensure_one()
@@ -1525,9 +1514,7 @@ class SaleOrder(models.Model):
         )
         self.env["ir.cron"]._commit_progress(remaining=len(pending_email_orders))
         for order in pending_email_orders:
-            order = order[
-                0
-            ]
+            order = order[0]
             order._send_mail_order_notification(
                 order.pending_email_template_id,
                 allow_deferred_sending=False,
@@ -1536,9 +1523,6 @@ class SaleOrder(models.Model):
             remaining_time = self.env["ir.cron"]._commit_progress(processed=1)
             if not remaining_time:
                 break
-
-    def _default_team_id(self):
-        return self.env.context.get("default_team_id", False) or self.team_id.id
 
     def _generate_downpayment_invoices(self):
         generated_invoices = self.env["account.move"]
@@ -1726,7 +1710,6 @@ class SaleOrder(models.Model):
         for order in self:
             order._send_mail_order_notification(mail_template)
 
-
     def _is_confirmation_amount_reached(self):
         self.ensure_one()
         amount_comparison = self.currency_id.compare_amounts(
@@ -1787,10 +1770,8 @@ class SaleOrder(models.Model):
                 ),
             )
 
-
     def _can_confirm_analytic_distribution(self):
         self.line_ids._check_analytic_distribution()
-
 
     def _get_fields_state_frozen(self):
         return {

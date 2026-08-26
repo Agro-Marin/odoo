@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        `mixin.order.line.price.history.action_open_history` resolves this by
+        xml id, so the wizard needs one to be exercised at all.
+    -->
+    <record id="action_base_order_test_history" model="ir.actions.act_window">
+        <field name="res_model">base.order.test.line</field>
+        <field name="view_mode">list</field>
+    </record>
+
+</odoo>

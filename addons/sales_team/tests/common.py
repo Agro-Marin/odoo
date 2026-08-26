@@ -39,7 +39,6 @@ class SalesTeamCommon(BaseCommon):
                 "name": "Test Sales Team",
             }
         )
-        # Disable other teams (demo data/existing data)
         cls.env["crm.team"].search(
             [
                 ("id", "!=", cls.sale_team.id),
@@ -57,21 +56,6 @@ class TestSalesCommon(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.env["ir.config_parameter"].set_param("sales_team.membership_multi", False)
-
-        # Salesmen organization
-        # ------------------------------------------------------------
-        # Role: M (team member) R (team manager)
-        # SALESMAN---------------sales_team_1
-        # admin------------------M-----------
-        # user_sales_manager-----R-----------
-        # user_sales_leads-------M-----------
-        # user_sales_salesman----/-----------
-
-        # Sales teams organization
-        # ------------------------------------------------------------
-        # SALESTEAM-----------SEQU-----COMPANY
-        # sales_team_1--------5--------False
-        # data----------------9999-----??
 
         cls.company_main = cls.env.user.company_id
         cls.user_admin = cls.env.ref("base.user_admin")
@@ -127,16 +111,8 @@ class TestSalesCommon(TransactionCase):
 
 
 class TestSalesMC(TestSalesCommon):
-    """Multi Company / Multi Sales Team environment"""
-
     @classmethod
     def setUpClass(cls):
-        """Teams / Company
-
-        * sales_team_1: False
-        * team_c2: company_2
-        * team_mc: company_main
-        """
         super().setUpClass()
         cls.company_2 = cls.env["res.company"].create(
             {
@@ -162,7 +138,6 @@ class TestSalesMC(TestSalesCommon):
             }
         )
 
-        # admin and sale manager belong to new company also
         (cls.user_admin | cls.user_sales_manager).write(
             {"company_ids": [(4, cls.company_2.id)]}
         )

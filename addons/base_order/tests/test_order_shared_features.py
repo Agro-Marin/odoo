@@ -1,8 +1,29 @@
+from unittest.mock import patch
+
+from odoo.exceptions import AccessError
+from odoo.fields import Command
 from odoo.tests import TransactionCase, tagged
 
 
 @tagged("post_install", "-at_install")
 class TestOrderSharedFeatures(TransactionCase):
+    _ALL_DOCUMENTS_GROUPS = {
+        "sale.order": "sales_team.group_sale_salesman_all_leads",
+        "purchase.order": "purchase.group_purchase_user_all",
+    }
+    _OWN_DOCUMENTS_GROUPS = {
+        "sale.order": "sales_team.group_sale_salesman",
+        "purchase.order": "purchase.group_purchase_user",
+    }
+    _MANAGER_GROUPS = {
+        "sale.order": "sales_team.group_sale_manager",
+        "purchase.order": "purchase.group_purchase_manager",
+    }
+    _PARTNER_RESPONSIBLE_FIELDS = {
+        "sale.order": "user_id",
+        "purchase.order": "user_purchase_id",
+    }
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -303,3 +324,111 @@ class TestOrderSharedFeatures(TransactionCase):
                 )
 
                 self.assertEqual(invoice_line[field], "")
+
+    def _user_in_group(self, group_xmlid):
+        return self.env["res.users"].create(
+            {
+                "name": "Order Responsible",
+                "login": f"order-responsible-{group_xmlid}",
+                "group_ids": [Command.set(self.env.ref(group_xmlid).ids)],
+            },
+        )
+
+    def _order_of(self, model, group_xmlid):
+        user = self._user_in_group(group_xmlid)
+        order = self.env[model].with_user(user).create({"partner_id": self.partner.id})
+        return user, order
+
+    def test_each_order_type_declares_a_group_that_resolves(self):
+        for model, group in self._ALL_DOCUMENTS_GROUPS.items():
+            with self.subTest(model=model):
+                self.assertEqual(self.env[model]._get_all_documents_group(), group)
+                self.assertTrue(self.env.ref(group, raise_if_not_found=False))
+
+    def test_a_restricted_user_cannot_hand_an_order_to_someone_else(self):
+        for model, group in self._OWN_DOCUMENTS_GROUPS.items():
+            with self.subTest(model=model):
+                user, order = self._order_of(model, group)
+                other = self._user_in_group(self._ALL_DOCUMENTS_GROUPS[model])
+
+                with self.assertRaises(AccessError):
+                    order.write({"user_id": other.id})
+
+                # Not just any AccessError: without the guard the write lands and
+                # mail's readback is what raises, leaving the order handed over.
+                self.assertEqual(order.sudo().user_id, user)
+
+    def test_a_restricted_user_may_still_make_themselves_responsible(self):
+        for model, group in self._OWN_DOCUMENTS_GROUPS.items():
+            with self.subTest(model=model):
+                user, order = self._order_of(model, group)
+                order.sudo().user_id = False
+
+                order.write({"user_id": user.id})
+
+                self.assertEqual(order.user_id, user)
+
+    def test_access_to_all_documents_may_reassign_the_responsible(self):
+        for model, group in self._ALL_DOCUMENTS_GROUPS.items():
+            with self.subTest(model=model):
+                _user, order = self._order_of(model, group)
+                other = self._user_in_group(self._MANAGER_GROUPS[model])
+
+                order.write({"user_id": other.id})
+
+                self.assertEqual(order.user_id, other)
+
+    def test_a_manager_may_reassign_the_responsible(self):
+        for model, group in self._MANAGER_GROUPS.items():
+            with self.subTest(model=model):
+                _user, order = self._order_of(model, group)
+                other = self._user_in_group(self._ALL_DOCUMENTS_GROUPS[model])
+
+                order.write({"user_id": other.id})
+
+                self.assertEqual(order.user_id, other)
+
+    def test_the_guard_stands_aside_for_a_model_declaring_no_group(self):
+        # The guard is exercised directly: a restricted user who really did
+        # hand the order over loses read access to it, and mail's auto-subscribe
+        # then fails on the readback, which would mask what is under test.
+        for model, group in self._OWN_DOCUMENTS_GROUPS.items():
+            with self.subTest(model=model):
+                _user, order = self._order_of(model, group)
+                other = self._user_in_group(self._ALL_DOCUMENTS_GROUPS[model])
+
+                with self.assertRaises(AccessError):
+                    order._check_write_user_id({"user_id": other.id})
+
+                with patch.object(
+                    type(self.env[model]),
+                    "_get_all_documents_group",
+                    lambda self: False,
+                ):
+                    order._check_write_user_id({"user_id": other.id})
+
+    def test_the_guard_does_not_fire_when_the_partner_recomputes_the_responsible(self):
+        for model, group in self._OWN_DOCUMENTS_GROUPS.items():
+            with self.subTest(model=model):
+                user, order = self._order_of(model, group)
+                assignee = self._user_in_group(self._ALL_DOCUMENTS_GROUPS[model])
+                partner = self.env["res.partner"].create(
+                    {
+                        "name": "Assigned Counterparty",
+                        self._PARTNER_RESPONSIBLE_FIELDS[model]: assignee.id,
+                    },
+                )
+
+                order.write({"partner_id": partner.id})
+
+                self.assertEqual(order.sudo().user_id, user, "the compute left it be")
+
+    def test_sudo_bypasses_the_guard(self):
+        for model, group in self._OWN_DOCUMENTS_GROUPS.items():
+            with self.subTest(model=model):
+                _user, order = self._order_of(model, group)
+                other = self._user_in_group(self._ALL_DOCUMENTS_GROUPS[model])
+
+                order.sudo().write({"user_id": other.id})
+
+                self.assertEqual(order.sudo().user_id, other)

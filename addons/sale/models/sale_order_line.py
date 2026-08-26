@@ -23,8 +23,14 @@ class SaleOrderLine(models.Model):
     _order = "order_id, sequence, id"
     _rec_names_search = ["name", "order_id.name"]
 
-    def _get_order_type(self):
-        return "sale"
+    _order_type = "sale"
+    _product_ok_field = "sale_ok"
+    _analytic_business_domain = "sale_order"
+    _transfer_verb = "delivered"
+    _product_tax_field = "taxes_id"
+    _invoice_move_direction = "out"
+    _invoice_policy_field = "invoice_policy"
+    _price_direction = 1
 
 
     order_id = fields.Many2one(comodel_name="sale.order")
@@ -254,24 +260,6 @@ class SaleOrderLine(models.Model):
 
         return super().write(vals)
 
-    @api.ondelete(at_uninstall=False)
-    def _unlink_except_confirmed(self):
-        lines_to_block = self._check_line_unlink()
-        if lines_to_block:
-            state_description = dict(
-                self._fields["state"]._description_selection(self.env),
-            )
-            state_label = state_description[lines_to_block[0].state]
-            raise UserError(
-                _(
-                    "Cannot delete a sales order line which is in state '%s'.\n"
-                    "Once a sales order is confirmed, you can't remove lines that have been "
-                    "invoiced or delivered (we need to track if something gets invoiced or delivered).\n"
-                    "Set the quantity to 0 instead.",
-                    state_label,
-                ),
-            )
-
 
     def _add_precomputed_values(self, vals_list):
         original_values = [
@@ -356,16 +344,6 @@ class SaleOrderLine(models.Model):
 
     def _tax_ids_include_product(self, line):
         return line.product_type != "combo"
-
-    @api.depends(
-        "partner_id",
-        "product_id",
-        "product_categ_id",
-        "company_id",
-        "order_id.partner_id.category_id",
-    )
-    def _compute_analytic_distribution(self):
-        super()._compute_analytic_distribution()
 
     @api.depends("product_id")
     def _compute_custom_attribute_values(self):
@@ -582,31 +560,6 @@ class SaleOrderLine(models.Model):
             line.price_unit_discounted_taxexc = line.price_unit * (
                 1 - (line.discount or 0.0) / 100.0
             )
-
-    @api.depends("tax_ids", "product_qty", "price_unit", "discount")
-    def _compute_amounts(self):
-        AccountTax = self.env["account.tax"]
-        lines = self.filtered(lambda l: not l.display_type)
-        if not lines:
-            return
-
-        base_lines_by_company = defaultdict(list)
-        line_to_base = {}
-        for line in lines:
-            base_line = line._prepare_base_line_for_taxes_computation()
-            company = line.company_id or self.env.company
-            base_lines_by_company[company].append(base_line)
-            line_to_base[line.id] = base_line
-
-        for company, base_lines in base_lines_by_company.items():
-            AccountTax._add_tax_details_in_base_lines(base_lines, company)
-            AccountTax._round_base_lines_tax_details(base_lines, company)
-
-        for line in lines:
-            base_line = line_to_base[line.id]
-            line.price_subtotal = base_line["tax_details"]["total_excluded_currency"]
-            line.price_total = base_line["tax_details"]["total_included_currency"]
-            line.price_tax = line.price_total - line.price_subtotal
 
     @api.depends(
         "qty_transferred_method",
@@ -1495,11 +1448,6 @@ class SaleOrderLine(models.Model):
         return self.filtered(
             lambda line: not line.display_type and line.state == "draft",
         )
-
-    def _check_write_guards(self, write_vals):
-        for method_name in self._get_check_write_guards():
-            if hasattr(self, method_name):
-                getattr(self, method_name)(write_vals)
 
     def _get_check_write_guards(self):
         return super()._get_check_write_guards() + [
