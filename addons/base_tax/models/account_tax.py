@@ -826,7 +826,7 @@ class AccountTax(models.Model):
     def _eval_taxes_computation_prepare_product_values(
         self, default_product_values, product=None
     ):
-        """Convert the product passed as parameter to a dictionary to be passed to '_eval_taxes_computation_prepare_context'.
+        """Convert the product passed as parameter to a dictionary to be passed to the taxes computation evaluation context.
 
         Note: In javascript, this method is not available. You have to ensure the necessary product fields are well
         loaded to not break the management of taxes with custom formula byt using
@@ -916,7 +916,7 @@ class AccountTax(models.Model):
     def _eval_taxes_computation_prepare_product_uom_values(
         self, default_product_uom_values, product_uom_id=None
     ):
-        """Convert the product uom passed as parameter to a dictionary to be passed to '_eval_taxes_computation_prepare_context'.
+        """Convert the product uom passed as parameter to a dictionary to be passed to the taxes computation evaluation context.
 
         Note: In javascript, this method takes an additional parameter being the results of the
         '_eval_taxes_computation_prepare_product_uom_default_values' method because this method is not callable in javascript but must
@@ -1008,7 +1008,7 @@ class AccountTax(models.Model):
             * batch_per_tax: A mapping of each tax to its batch.
             * group_per_tax: A mapping of each tax retrieved from a group of taxes.
             * sorted_taxes: A recordset of all taxes in the order on which they need to be evaluated.
-                            Note that we consider the sequence of the parent for group of taxes.
+                            We consider the sequence of the parent for group of taxes.
                             Eg. considering letters as taxes and alphabetic order as sequence :
                             [G, B([A, D, F]), E, C] will be computed as [A, D, F, C, E, G]
         """
@@ -1182,7 +1182,7 @@ class AccountTax(models.Model):
         :param batch:               The batch of taxes containing this tax.
         :param raw_base:            The base on which the tax should be computed.
         :param evaluation_context:  The context containing all relevant info to compute the tax.
-        :return:                    The tax amount.
+        :return:                    The tax amount or None if it has be evaluated later.
         """
         self.ensure_one()
         if self.amount_type == "percent":
@@ -1207,7 +1207,7 @@ class AccountTax(models.Model):
         :param batch:               The batch of taxes containing this tax.
         :param raw_base:            The base on which the tax should be computed.
         :param evaluation_context:  The context containing all relevant info to compute the tax.
-        :return:                    The tax amount.
+        :return:                    The tax amount or None if it has be evaluated later.
         """
         self.ensure_one()
         if self.amount_type == "percent":
