@@ -411,7 +411,10 @@ class TestProjectFlow(TestProjectCommon, MailCase):
                 "subject": "Test",
                 "body_html": "<p>Test</p>",
                 "auto_delete": True,
-                "model_id": self.env.ref("project.model_project_phase").id,
+                # `project.phase.mail_template_id` is domain'd to
+                # `[("model", "=", "project.project")]`: the mail is sent when a
+                # PROJECT enters the phase, so it renders against the project.
+                "model_id": self.env.ref("project.model_project_project").id,
             }
         )
         project_A = self.env["project.project"].create(
