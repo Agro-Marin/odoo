@@ -19,7 +19,7 @@ class ResCompany(models.Model):
     def create(self, vals_list):
         res = super().create(vals_list)
         if modules.module.current_test:
-            # while running the test, mark enrichment as done
+            # Skip enrichment in tests so no IAP request is ever issued.
             res.sudo().iap_enrich_auto_done = True
         else:
             res.iap_enrich_auto()
@@ -97,7 +97,7 @@ class ResCompany(models.Model):
         >>> company.email, company._get_company_domain()
         ("info@proximus.be", "proximus.be")
         >>> company.website, company._get_company_domain()
-        ("www.info.proximus.be", "proximus.be")
+        ("https://www.info.proximus.be", "proximus.be")
         """
         self.ensure_one()
 

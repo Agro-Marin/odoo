@@ -56,7 +56,6 @@ export function usePartnerAutocomplete() {
   }
 
   function isGSTNumber(value) {
-    // Check if the input is a valid GST number.
     let isGST = false;
     if (value && value.length === 15) {
       const allGSTinRe = [
@@ -175,7 +174,6 @@ export function usePartnerAutocomplete() {
   async function getCreateData(company) {
     let companyData = await enrichCompany(company);
 
-    // Fetch additional company info via Autocomplete Enrichment API
     let isEnrichAccessible = false;
     if (companyData.error) {
       if (companyData.error_message === "Insufficient Credit") {
