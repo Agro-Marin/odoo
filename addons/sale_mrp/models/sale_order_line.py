@@ -43,7 +43,7 @@ class SaleOrderLine(models.Model):
         return boms, relevant_bom
 
     def _compute_display_qty_widget(self):
-        """The inventory widget should now be visible in more cases"""
+        """Hide the widget for kit lines; show it for draft storable consu lines that have components."""
         super()._compute_display_qty_widget()
         for line in self.filtered(lambda x: x.product_id and x.product_id.is_storable):
             # Hide the widget for kits since forecast doesn't support them.
