@@ -1084,13 +1084,15 @@ class Screencaster:
         concat_script_path = self.frames_dir.with_suffix(".txt")
         with concat_script_path.open("w") as concat_file:
             for f, next_frame in zip_longest(frames, islice(frames, 1, None)):
-                frame_file_path = f["file_path"]
-
                 if f["timestamp"] is not None:
                     end_time = next_frame["timestamp"] if next_frame else t
                     duration = end_time - f["timestamp"]
-                concat_file.write(f"file '{frame_file_path}'\nduration {duration}\n")
-            concat_file.write(f"file '{frame_file_path}'")
+                concat_file.write(f"file '{f['file_path']}'\nduration {duration}\n")
+            # ffmpeg's concat demuxer wants the last file repeated so the final
+            # frame gets its duration. Read it from frames[-1] rather than
+            # relying on the loop variable outliving the loop, which only held
+            # because of the `if not self.frames` guard above.
+            concat_file.write(f"file '{frames[-1]['file_path']}'\n")
 
         try:
             ffmpeg_path = find_in_path("ffmpeg")
