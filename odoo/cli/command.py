@@ -398,20 +398,22 @@ def find_command(name: str) -> type[Command] | None:
     if not Command.is_valid_name(name):
         return None
 
-    if command := commands.get(name):
-        return command
+    if name not in commands:
+        # Built-in imported first, addon commands loaded second, so that an
+        # addon-provided `cli/{name}.py` overriding a built-in of the same
+        # name actually wins dispatch — matching what `__init_subclass__`'s
+        # "second registration wins" warning already promises. Importing the
+        # built-in first used to also *return* it immediately, before
+        # `load_addons_commands` ever ran, so the override was registered
+        # (and could appear in `help`) but never reachable by direct dispatch.
+        expected_module = f"odoo.cli.{name}"
+        try:
+            __import__(expected_module)
+        except ModuleNotFoundError as e:
+            if e.name != expected_module:
+                raise
+        load_addons_commands(command=name)
 
-    expected_module = f"odoo.cli.{name}"
-    try:
-        __import__(expected_module)
-    except ModuleNotFoundError as e:
-        if e.name != expected_module:
-            raise
-    else:
-        if name in commands:
-            return commands[name]
-
-    load_addons_commands(command=name)
     return commands.get(name)
 
 
