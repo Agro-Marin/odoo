@@ -233,7 +233,10 @@ def indent_code(code: str, level: int) -> str:
 class QwebCallParameters(NamedTuple):
     context: dict[str, Any]
     view_ref: str | int
-    method: str | None
+    # A compiled function for a `t-set` / `t-call` body, whose generated code
+    # holds it as a global; a name only where the frame must resolve it against
+    # a compile of `view_ref`; None for the template's own entry point.
+    method: FunctionType | str | None
     values: dict[str, Any] | None
     scope: bool | Literal["root"]
     directive: str
@@ -248,9 +251,12 @@ class QwebCallParameters(NamedTuple):
             if k not in ("__qweb_root_values", "__qweb_attrs__")
             if v is not qweb_root_values.get(k)
         }
+        # `method` is usually a compiled function; its `repr` is an address
+        # nobody can read, and this repr is what a traceback frame shows.
+        method = getattr(self.method, "__name__", self.method)
         return (
             f"<QwebCallParameters context={context!r} view_ref={self.view_ref!r}"
-            f" method={self.method!r} values={values!r} scope={self.scope!r}"
+            f" method={method!r} values={values!r} scope={self.scope!r}"
             f" directive={self.directive!r} path_xml={self.path_xml!r}>"
         )
 
@@ -419,7 +425,6 @@ class IrQweb(models.AbstractModel):
         irQweb = self.with_context(**options)._prepare_environment(values)
         _compiled_cache = irQweb.env.context.get("__qweb_compiled_cache")
         irQweb = irQweb.with_context(
-            __qweb_loaded_functions={},
             __qweb_compiled_cache={} if _compiled_cache is None else _compiled_cache,
             __qweb_loaded_codes={},
             __qweb_loaded_options={},
@@ -452,7 +457,6 @@ class IrQweb(models.AbstractModel):
         directive: str = "render",
     ) -> Iterator[str]:
         root_values = values["__qweb_root_values"]
-        loaded_functions = self.env.context["__qweb_loaded_functions"]
         compiled_cache = self.env.context["__qweb_compiled_cache"]
 
         params = QwebCallParameters(
@@ -494,19 +498,27 @@ class IrQweb(models.AbstractModel):
                     if params.context:
                         irQweb = irQweb.with_context(**params.context)
 
-                    render_template = loaded_functions.get(params.method)
-
-                    compile_key = (
-                        params.view_ref,
-                        irQweb._template_cache_signature(),
-                    )
-                    compiled = compiled_cache.get(compile_key)
-                    if compiled is None:
-                        compiled = irQweb._compile(params.view_ref)
-                        compiled_cache[compile_key] = compiled
-                        loaded_functions.update(compiled[0])
-                    template_functions, def_name, options = compiled
-                    if not render_template:
+                    if callable(params.method):
+                        # A `t-set` or `t-call` body carries its own compiled
+                        # function, so the frame needs no lookup at all: not the
+                        # name map, which cannot tell two compiles of one
+                        # template apart, and not a compile of `params.view_ref`,
+                        # which for an inline etree template is the sentinel
+                        # `"etree._Element"` and can only ever fail.  Options are
+                        # left unset; `_resolve_error_frame` falls back to
+                        # `__qweb_loaded_options` keyed by the same ref.
+                        render_template = params.method
+                        options = None
+                    else:
+                        compile_key = (
+                            params.view_ref,
+                            irQweb._template_cache_signature(),
+                        )
+                        compiled = compiled_cache.get(compile_key)
+                        if compiled is None:
+                            compiled = irQweb._compile(params.view_ref)
+                            compiled_cache[compile_key] = compiled
+                        template_functions, def_name, options = compiled
                         render_template = template_functions[params.method or def_name]
 
                     if params.scope:
@@ -968,7 +980,6 @@ class IrQweb(models.AbstractModel):
                 if 'xmlid' not in values:
                     values['xmlid'] = {options["ref_name"]!r}
                     values['viewid'] = {options["ref"]!r}
-                self.env.context['__qweb_loaded_functions'].update(template_functions)
                 self.env.context['__qweb_loaded_options'][{options["ref"]!r}] = self.env.context['__qweb_loaded_options'][{options["ref_name"]!r}] = template_options
                 self.env.context['__qweb_loaded_codes'][{options["ref"]!r}] = self.env.context['__qweb_loaded_codes'][{options["ref_name"]!r}] = code
                 yield from {def_name}_content(self, values)
@@ -1956,7 +1967,7 @@ class IrQweb(models.AbstractModel):
                     code.append(
                         indent_code(
                             f"""
-                        values[{varname!r}] = QwebContent(self, QwebCallParameters(self.env.context, {compile_context["ref"]!r}, {def_name!r}, values.copy(), 'root', 't-set', (template_options['ref'], {path!r}, {xml!r})))
+                        values[{varname!r}] = QwebContent(self, QwebCallParameters(self.env.context, {compile_context["ref"]!r}, {def_name}, values.copy(), 'root', 't-set', (template_options['ref'], {path!r}, {xml!r})))
                     """,
                             level,
                         )
@@ -2493,7 +2504,7 @@ class IrQweb(models.AbstractModel):
                 indent_code(
                     f"""
                 t_call_content_values = values.copy()
-                qwebContent = QwebContent(self, QwebCallParameters(self.env.context, {compile_context["ref"]!r}, {def_name!r}, t_call_content_values, 'root', 'inner-content', (template_options['ref'], {path!r}, {xml!r})))
+                qwebContent = QwebContent(self, QwebCallParameters(self.env.context, {compile_context["ref"]!r}, {def_name}, t_call_content_values, 'root', 'inner-content', (template_options['ref'], {path!r}, {xml!r})))
                 t_call_values = {{{T_CALL_SLOT!r}: qwebContent}}
             """,
                     level,
@@ -2834,7 +2845,7 @@ class _MockIrQWeb(IrQweb):
     def _prepare_environment(self, values: dict[str, Any]) -> Self:
         values["true"] = True
         values["false"] = False
-        return self.with_context(__qweb_loaded_functions={})
+        return self
 
     def _get_field(self, *args: Any) -> None:
         msg = "Fields are not allowed in this rendering mode. Please use \"env['ir.qweb']._render\" method"

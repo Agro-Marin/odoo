@@ -4177,3 +4177,69 @@ class TestQWebOneOutputDirectivePerNode(TransactionCase):
     def test_one_output_directive_is_unaffected(self):
         view = self._view("out_alone", "<t><span t-out=\"'A'\"/></t>")
         self.assertEqual(str(self.env["ir.qweb"]._render(view.id)), "<span>A</span>")
+
+
+class TestQWebTwoSignaturesInOneRender(TransactionCase):
+    """One template compiled twice in one render must not blur into one.
+
+    Every generated function name is `template_{key}_{id}_...`: derived from the
+    ref, carrying nothing of `_template_cache_signature()`.  Compiling the same
+    template under two signatures in one render therefore wrote both function
+    sets under the same names, and `__qweb_loaded_functions` -- consulted before
+    the per-compile `template_functions` and winning over it -- handed the later
+    compile's body to a frame belonging to the earlier one.
+
+    Two signatures share one render whenever a `t-call` carries `t-options` or
+    `t-lang` touching a `_get_template_cache_keys()` member.  `preserve_comments`
+    is the cheapest of those to drive; with `lang` the same mechanism serves the
+    wrong translation.
+    """
+
+    def _view(self, key, arch):
+        return self.env["ir.ui.view"].create(
+            {"name": key, "type": "qweb", "key": f"base.{key}", "arch_db": arch}
+        )
+
+    def setUp(self):
+        super().setUp()
+        self._view(
+            "two_sig_root",
+            """<t t-name="base.two_sig_root">
+                <t t-set="msg"><!--C-->X</t>
+                <t t-if="not depth">
+                    <t t-call="base.two_sig_root" depth="1"
+                       t-options="{'preserve_comments': True}"/>
+                </t>
+                <span t-out="msg"/>
+            </t>""",
+        )
+        self.env.registry.clear_cache("templates")
+
+    def _render(self, **values):
+        return " ".join(
+            str(self.env["ir.qweb"]._render("base.two_sig_root", values)).split()
+        )
+
+    def test_the_outer_frame_keeps_the_body_it_was_compiled_with(self):
+        # The inner call compiles the same ref under preserve_comments=True and
+        # its `t_set` function overwrote the outer one's entry, so the outer
+        # span rendered a comment its own compile had stripped.
+        self.assertEqual(
+            self._render(),
+            "<span><!--C-->X</span> <span>X</span>",
+            "the nested compile's body leaked into the outer frame",
+        )
+
+    def test_each_signature_alone_is_unchanged(self):
+        self.assertEqual(self._render(depth=1), "<span>X</span>")
+        self.env.registry.clear_cache("templates")
+        self.assertEqual(
+            " ".join(
+                str(
+                    self.env["ir.qweb"]
+                    .with_context(preserve_comments=True)
+                    ._render("base.two_sig_root", {"depth": 1})
+                ).split()
+            ),
+            "<span><!--C-->X</span>",
+        )

@@ -173,7 +173,6 @@ class TestQwebFieldRelative(common.TransactionCase):
 
 class TestQwebFieldRecordContext(common.TransactionCase):
     QWEB_INTERNALS = (
-        "__qweb_loaded_functions",
         "__qweb_compiled_cache",
         "__qweb_loaded_codes",
         "__qweb_loaded_options",
@@ -192,7 +191,6 @@ class TestQwebFieldRecordContext(common.TransactionCase):
 
         converter = self.env["ir.qweb.field"].with_context(
             tz="Pacific/Auckland",
-            __qweb_loaded_functions={},
             __qweb_compiled_cache={},
             __qweb_loaded_codes={},
             __qweb_loaded_options={},
