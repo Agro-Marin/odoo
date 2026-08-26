@@ -200,7 +200,7 @@ class StockWarehouseOrderpoint(models.Model):
             "purchase.action_purchase_order"
         )
 
-        # Remvove the context since the action basically display RFQ and not PO.
+        # Drop the context: the action displays RFQs, not confirmed POs.
         result["context"] = {}
         order_line_ids = self.env["purchase.order.line"].search(
             [("orderpoint_id", "=", self.id)],
