@@ -169,6 +169,7 @@ class TestEveryToolAgrees:
         ("architecture", "py_x2many_count"): "ROOT",
         ("architecture", "sql_in_placeholder"): "ROOT",
         ("architecture", "py_count_as_boolean"): "ROOT",
+        ("architecture", "py_shadowed_member"): "ROOT",
         ("architecture", "py_unresolved_calls"): "ROOT",
         ("architecture", "js_deployment_layers"): "ROOT",
         ("architecture", "js_arch_info_surface"): "ROOT",

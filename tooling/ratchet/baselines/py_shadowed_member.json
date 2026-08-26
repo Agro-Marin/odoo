@@ -1,0 +1,4 @@
+{
+  "count": 0,
+  "note": "New gate, ADR-0062. A class body defines each member once.\n\nThe core package is at zero from the start: its one offender was\nir.ui.view._migrate_self_handled_arch, defined at line 454 and again at 3058,\nand it is removed in the same change that adds this gate. Nothing else in\nodoo/ shadows a member.\n\nThe rule had to learn one distinction before it could be floored here. An\n@overload stub is not a definition -- the undecorated implementation that\nfollows the stubs is -- so reporting that implementation fired 13 times across\nodoo/orm and odoo/libs (Field.__get__, Environment.ref, TraversalMixin.mapped,\nLRU.pop and nine more), every one of them correct code. @property is NOT\nexempted the same way: the legitimate redefinition is @x.setter, and a bare\n`def` after a @property is the accident this exists to catch."
+}

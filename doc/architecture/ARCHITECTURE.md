@@ -150,7 +150,7 @@ lifecycle*](runtime.md#request-lifecycle-http).
 | **Scenarios** | end-to-end threads — installing a module, upgrading a populated database | [`scenarios.md`](scenarios.md) |
 | **Qualities** | how much the forces cost, measured — so a change can fail one | [`qualities.md`](qualities.md) |
 | **Risks** | where the implementation and the design demonstrably disagree | [`risks.md`](risks.md) |
-| **Decisions** | why the architecture is this way, dated and immutable — architecture decisions, 0001–0061 | `doc/adr/` |
+| **Decisions** | why the architecture is this way, dated and immutable — architecture decisions, 0001–0062 | `doc/adr/` |
 
 Rationale is not a view. Each gate's module docstring carries its own, beside
 the `MEASURED` block `doc_measured.py` keeps fresh; decisions are in

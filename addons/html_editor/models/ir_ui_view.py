@@ -12,12 +12,12 @@ from odoo.addons.base.models.ir_ui_view import MOVABLE_BRANDING
 
 _logger = logging.getLogger(__name__)
 
-EDITING_ATTRIBUTES = MOVABLE_BRANDING + [
+EDITING_ATTRIBUTES = MOVABLE_BRANDING | {
     'data-oe-type',
     'data-oe-expression',
     'data-oe-translation-id',
-    'data-note-id'
-]
+    'data-note-id',
+}
 
 
 class IrUiView(models.Model):

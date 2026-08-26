@@ -50,16 +50,19 @@ from .ir_ui_view_name_manager import NameManager
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from odoo.tools import SetDefinitions
+
 _logger = logging.getLogger(__name__)
 
-MOVABLE_BRANDING = [
-    "data-oe-model",
-    "data-oe-id",
-    "data-oe-field",
-    "data-oe-xpath",
-    "data-oe-source-id",
-]
-_MOVABLE_BRANDING_SET = frozenset(MOVABLE_BRANDING)
+MOVABLE_BRANDING = frozenset(
+    {
+        "data-oe-model",
+        "data-oe-id",
+        "data-oe-field",
+        "data-oe-xpath",
+        "data-oe-source-id",
+    }
+)
 VIEW_MODIFIERS = ("column_invisible", "invisible", "readonly", "required")
 
 CALENDAR_DATE_ATTRS = ("date_start", "date_delay", "date_stop", "color", "all_day")
@@ -85,9 +88,6 @@ _REVALIDATE_ALWAYS = frozenset({"active", "arch_db", "inherit_id"})
 _REVALIDATE_ON_CHANGE = frozenset({"mode", "model", "priority", "type"})
 
 _COMBINATION_ERRORS = (ValidationError, ValueError, etree.ParseError, TypeError)
-
-_SELF_HANDLED_ATTR = "data-self-handled"
-_SELF_HANDLED_CONSTRUCTS = frozenset({"dropdown", "modal"})
 
 _CTE_EXCLUDED_FIELDS = frozenset(
     {
@@ -150,8 +150,23 @@ def _iter_declarations(
 
 
 def _extract_view_arch(
-    document: etree._ElementTree, xmlid: str, filepath: str
+    document: etree._ElementTree,
+    xmlid: str,
+    filepath: str,
+    _seen: frozenset[str] = frozenset(),
 ) -> str | None:
+    if xmlid in _seen:
+        # A `view_id` ref chain that comes back to something already resolved
+        # has no arch at the end of it, and following it again never
+        # terminates. `None` is this function's "not found", so the caller
+        # already handles it.
+        _logger.warning(
+            "Cyclic view_id reference in file '%s': %s revisits '%s'",
+            filepath,
+            " -> ".join([*sorted(_seen), xmlid]),
+            xmlid,
+        )
+        return None
     if "." not in xmlid:
         raise ValueError(f"Invalid xmlid {xmlid!r}: expected 'module.name' format")
     module, view_id = xmlid.split(".", 1)
@@ -179,7 +194,9 @@ def _extract_view_arch(
                     return None
                 ref_module, _, ref_view_id = ref.rpartition(".")
                 ref_xmlid = f"{ref_module or module}.{ref_view_id}"
-                return _extract_view_arch(document, ref_xmlid, filepath)
+                return _extract_view_arch(
+                    document, ref_xmlid, filepath, _seen | {xmlid}
+                )
 
             return None
 
@@ -211,6 +228,20 @@ _XML_ENCODING_DECL_RE = re.compile(r"<\?xml[^>]*encoding=.*?\?>", re.IGNORECASE)
 _ARCH_FS_REF_RE = re.compile(r"(?<!%)%\((?P<xmlid>.*?)\)[ds]")
 
 _TOOLTIP_ATTR_RE = re.compile(r"^(t-att-|t-attf-)?data-tooltip(-template|-info)?$")
+
+_DEFAULT_PERIOD_RE = re.compile(r"(year|month)((-|\+)[1-9]\d*)?")
+
+_ATTRIBUTE_CHECKERS = {
+    "class": "_check_attr_class",
+    "t-att-class": "_check_attr_class",
+    "t-attf-class": "_check_attr_class",
+    "context": "_check_attr_context",
+    "col": "_check_attr_integer",
+    "colspan": "_check_attr_integer",
+    "data-bs-toggle": "_check_attr_data_bs_toggle",
+    "role": "_check_attr_role",
+    "group": "_check_attr_group",
+}
 
 _QWEB_DIRECTIVES_ALLOWED = re.compile(r"t-translation")
 _QWEB_DIRECTIVES_ALLOWED_TEMPLATE = re.compile(
@@ -443,57 +474,16 @@ class IrUiView(models.Model):
                     "arch_updated": False,
                 }
             else:
-                continue
+                raise ValueError(
+                    f"reset_arch() got mode={mode!r}; expected 'soft' or 'hard'. "
+                    f"Skipping silently makes a wrong mode indistinguishable "
+                    f"from a view that had nothing to reset."
+                )
             if not arch:
                 continue
             view.with_context(no_save_prev=True, lang=None).write(write_dict)
             reset += view
         return reset
-
-    @api.model
-    def _migrate_self_handled_arch(self) -> Self:
-        views = self.with_context(lang=None).search(
-            [("type", "!=", "qweb"), ("arch_db", "like", "data-bs-")]
-        )
-        migrated = self.browse()
-        for view in views:
-            arch = view.arch_db
-            if not arch:
-                continue
-            try:
-                tree = etree.fromstring(arch)
-            except etree.XMLSyntaxError:
-                _logger.warning(
-                    "Skipping self-handled arch migration for view %s: "
-                    "arch does not parse",
-                    view.id,
-                )
-                continue
-            if not self._rewrite_self_handled_nodes(tree):
-                continue
-            view.with_context(no_save_prev=True).write(
-                {"arch_db": etree.tostring(tree, encoding="unicode")}
-            )
-            migrated += view
-        return migrated
-
-    def _rewrite_self_handled_nodes(self, tree: _Element) -> bool:
-        changed = False
-        for node in tree.xpath("//*[@data-bs-toggle]"):
-            construct = node.get("data-bs-toggle")
-            if construct not in _SELF_HANDLED_CONSTRUCTS:
-                continue
-            del node.attrib["data-bs-toggle"]
-            node.set(_SELF_HANDLED_ATTR, construct)
-            if construct == "modal" and "data-bs-target" in node.attrib:
-                node.set("data-modal-target", node.get("data-bs-target"))
-                del node.attrib["data-bs-target"]
-            changed = True
-        for node in tree.xpath('//*[@data-bs-dismiss="modal"]'):
-            del node.attrib["data-bs-dismiss"]
-            node.set("data-modal-dismiss", "1")
-            changed = True
-        return changed
 
     def _get_ir_model_data_rows(self) -> dict[int, list[dict[str, Any]]]:
         rows_by_view: dict[int, list[dict[str, Any]]] = collections.defaultdict(list)
@@ -615,11 +605,33 @@ class IrUiView(models.Model):
                         message = f"View inheritance may not use attribute {attr!r} as a selector."
                         self._raise_view_error(message, node)
 
+    def _get_combined_archs_by_id(self) -> dict[int, _Element]:
+        # _get_combined_archs() resolves a whole recordset in ONE recursive
+        # CTE. _get_combined_arch() is ensure_one() over it, so asking for the
+        # views one at a time paid one CTE per view -- 40 of _check_xml's 42
+        # queries at N=40, on every create, on every write that touches
+        # active/arch_db/inherit_id, and over every view a module ships.
+        #
+        # Two cases still want the loop, and an empty dict is how this says so.
+        # Under pool._init the batch is strictly more permissive: check_view_ids
+        # becomes the union of every chain in the recordset, so
+        # _filter_loaded_views would admit an ancestor that resolving this view
+        # alone had excluded. And when the batch raises, only the loop can say
+        # which view was responsible.
+        if len(self) < 2 or self.pool._init:
+            return {}
+        try:
+            return dict(zip(self.ids, self._get_combined_archs(), strict=True))
+        except _COMBINATION_ERRORS:
+            return {}
+
     def _check_xml(self) -> bool:
         partial_validation = self.env.context.get("ir_ui_view_partial_validation")
         views = self.with_context(
             validate_view_ids=(self._ids if partial_validation else True)
         )
+
+        combined_archs = views._get_combined_archs_by_id()
 
         for view in views:
             if partial_validation and not view.arch:
@@ -629,7 +641,11 @@ class IrUiView(models.Model):
                     view_arch = etree.fromstring(view.arch or "<data/>")
                     view._valid_inheritance(view_arch)
 
-                combined_arch = view._get_combined_arch()
+                combined_arch = (
+                    combined_archs[view.id]
+                    if view.id in combined_archs
+                    else view._get_combined_arch()
+                )
 
                 if not self.env.context.get("_skip_primary_extensions_check") and (
                     view.inherit_id or view.inherit_children_ids
@@ -779,6 +795,7 @@ class IrUiView(models.Model):
 
     @api.depends("arch")
     def _compute_warning_info(self) -> None:
+        combined_archs = self._get_combined_archs_by_id()
         for view in self:
             view.warning_info = ""
             if not view.arch:
@@ -787,7 +804,11 @@ class IrUiView(models.Model):
                 if view.inherit_id:
                     view_arch = etree.fromstring(view.arch)
                     view._valid_inheritance(view_arch)
-                combined_arch = view._get_combined_arch()
+                combined_arch = (
+                    combined_archs[view.id]
+                    if view.id in combined_archs
+                    else view._get_combined_arch()
+                )
                 if view.type != "qweb":
                     name_manager = view._postprocess_view(
                         combined_arch, view.model, preserve_groups=True
@@ -982,8 +1003,12 @@ class IrUiView(models.Model):
         )
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
-        has_default_without_key = default and "key" not in default
+        # `default` absent and `default` empty are the same request -- a copy
+        # that was told nothing about the key. Both must re-key: the product's
+        # duplicate button calls copy() with no default at all, and a shared
+        # key makes the copy a COW-specific view of its original.
         default = dict(default or {})
+        has_default_without_key = "key" not in default
         vals_list = super().copy_data(default=default)
         for view, vals in zip(self, vals_list, strict=True):
             if view.key and has_default_without_key:
@@ -1025,6 +1050,7 @@ class IrUiView(models.Model):
                """
 
     @api.model
+    @tools.ormcache()
     def _get_fields_inheriting_views(self) -> list[str]:
         return [
             f.name
@@ -1086,7 +1112,7 @@ class IrUiView(models.Model):
         if not rows:
             return self.browse()
 
-        ids, *columns = zip(*rows, strict=False)
+        ids, *columns = zip(*rows, strict=True)
         views = self.browse(ids)
 
         for fname, column in zip(field_names, columns, strict=True):
@@ -1146,9 +1172,12 @@ class IrUiView(models.Model):
         return f"{self.name} ({self.xml_id})" if self.xml_id else self.name
 
     def _view_error_context(self, node: _Element | None) -> dict[str, Any]:
+        # `self` is a single view on every raising path, but this also runs
+        # from _log_view_warning; a multi-record `self.name` raises ValueError,
+        # which the getattr this replaces did not catch either.
         return {
             "view": self,
-            "name": getattr(self, "name", None),
+            "name": self.name if len(self) == 1 else None,
             "xmlid": self.env.context.get("install_xmlid") or self.xml_id,
             "view.model": self.model,
             "view.parent": self.inherit_id,
@@ -1282,7 +1311,53 @@ class IrUiView(models.Model):
         self.ensure_one()
         return self._get_combined_archs()[0]
 
+    def _prefetch_ancestry(self) -> None:
+        # The walk in _get_combined_archs() reads inherit_id one level at a
+        # time, and every level is a fresh single-record recordset, so the ORM
+        # prefetches per level: one SELECT per level of inheritance on every
+        # combine. One recursive CTE upward seeds the whole chain, and the walk
+        # then runs from cache. _get_inheriting_views() already resolves the
+        # downward half the same way; this is the missing symmetry.
+        if not self.ids:
+            return
+
+        # Only when it can pay. A view whose whole chain is already cached --
+        # the common case by far: 772 of 1355 views in a base+website install
+        # are roots -- costs nothing to walk, and issuing the CTE anyway makes
+        # the cheap case one query worse. base's own query-count pins caught
+        # exactly that.
+        field = self._fields["inherit_id"]
+        pending = self
+        while pending:
+            if any(not self.env.cache.contains(view, field) for view in pending):
+                break
+            pending = pending.inherit_id
+        else:
+            return
+
+        rows = self.env.execute_query(
+            SQL(
+                """
+                WITH RECURSIVE ir_ui_view_ancestry AS (
+                    SELECT id, inherit_id FROM ir_ui_view WHERE id IN %(ids)s
+                UNION
+                    SELECT parent.id, parent.inherit_id
+                    FROM ir_ui_view parent
+                    INNER JOIN ir_ui_view_ancestry child
+                            ON child.inherit_id = parent.id
+                )
+                SELECT id, inherit_id FROM ir_ui_view_ancestry
+                """,
+                ids=tuple(self.ids),
+            )
+        )
+        if not rows:
+            return
+        ids, inherit_ids = zip(*rows, strict=True)
+        self._fields["inherit_id"]._insert_cache(self.browse(ids), inherit_ids)
+
     def _get_combined_archs(self) -> list[_Element]:
+        self._prefetch_ancestry()
         parented = []
         roots = self.env["ir.ui.view"]
         for root in self:
@@ -1418,9 +1493,11 @@ class IrUiView(models.Model):
         ids, xmlids = partition(lambda v: isinstance(v, int), ids_or_xmlids)
 
         view_by_id = {}
-        field_names = [f.name for f in IrUiView._fields.values() if f.prefetch is True]
         if xmlids:
-            domain = Domain("id", "in", ids) | Domain(self._get_template_domain(xmlids))
+            field_names = [
+                f.name for f in IrUiView._fields.values() if f.prefetch is True
+            ]
+            domain = Domain("id", "in", ids) | self._get_template_domain(xmlids)
             views = IrUiView.search_fetch(
                 domain, field_names, order=self._get_template_order()
             )
@@ -1497,9 +1574,11 @@ class IrUiView(models.Model):
         )
 
         refs = [
-            int(ref) if isinstance(ref, int) or ref.isdigit() else ref for ref in refs
+            int(ref) if isinstance(ref, int) or ref.isdigit() else ref
+            for ref in refs
+            if ref
         ]
-        missing_refs = [ref for ref in refs if ref and ref not in compile_batch]
+        missing_refs = [ref for ref in refs if ref not in compile_batch]
         if not missing_refs:
             return compile_batch
 
@@ -1669,7 +1748,7 @@ class IrUiView(models.Model):
         node_info: dict[str, Any] | None,
         *,
         translate: bool,
-    ) -> tuple[NameManager, Any, Any, Any]:
+    ) -> tuple[NameManager, SetDefinitions, Any]:
         if model_name not in self.env:
             self._raise_view_error(
                 _("Model not found: %(model)s", model=model_name), node
@@ -1679,9 +1758,6 @@ class IrUiView(models.Model):
 
         model_groups = (
             node_info["model_groups"] if node_info else group_definitions.universe
-        )
-        view_groups = (
-            node_info["view_groups"] if node_info else group_definitions.universe
         )
         parent_name_manager = node_info["name_manager"] if node_info else None
 
@@ -1694,11 +1770,13 @@ class IrUiView(models.Model):
         name_manager = NameManager(
             model, parent=parent_name_manager, model_groups=model_groups
         )
-        return name_manager, group_definitions, model_groups, view_groups
+        # view_groups is not returned: it comes straight back out of node_info
+        # unchanged, and both callers already hold node_info.
+        return name_manager, group_definitions, model_groups
 
     def _narrow_model_groups(self, node_info: dict[str, Any], field: Any) -> None:
         if field.groups:
-            group_definitions = self.env["res.groups"]._get_group_definitions()
+            group_definitions = node_info["group_definitions"]
             node_info["model_groups"] &= group_definitions.parse(
                 field.groups, raise_if_not_found=False
             )
@@ -1731,8 +1809,11 @@ class IrUiView(models.Model):
     ) -> NameManager:
         root = node
 
-        name_manager, group_definitions, model_groups, view_groups = (
-            self._init_view_processing(root, model_name, node_info, translate=True)
+        name_manager, group_definitions, model_groups = self._init_view_processing(
+            root, model_name, node_info, translate=True
+        )
+        view_groups = (
+            node_info["view_groups"] if node_info else group_definitions.universe
         )
         model = name_manager.model
 
@@ -1742,6 +1823,7 @@ class IrUiView(models.Model):
             "model_groups": model_groups,
             "view_groups": view_groups,
             "name_manager": name_manager,
+            "group_definitions": group_definitions,
         }
 
         preserve_groups = options.get("preserve_groups")
@@ -1879,19 +1961,21 @@ class IrUiView(models.Model):
         self, field: Any, field_node: _Element, node_info: dict[str, Any]
     ) -> list[_Element]:
         current_view_types = [el.tag for el in _xpath_descendant_field(field_node)]
-        missing_view_types = []
-        if not any(
-            view_type in current_view_types
-            for view_type in field_node.get("mode", "kanban,list").split(",")
-        ):
-            missing_view_types.append(
-                field_node.get(
-                    "mode", "kanban" if node_info.get("mobile") else "list"
-                ).split(",")[0]
-            )
-
-        if not missing_view_types:
+        # `mode` is read once. The two defaults are preserved exactly as they
+        # were, disagreement and all: absent, the presence test asks about
+        # both kanban and list, while the type actually added is list (kanban
+        # on mobile). Collapsing them would be a behaviour change, and which
+        # of the two is right is a question for the x2many rendering, not for
+        # a refactor of how the attribute is read.
+        declared_mode = field_node.get("mode")
+        wanted = declared_mode.split(",") if declared_mode else ["kanban", "list"]
+        if any(view_type in current_view_types for view_type in wanted):
             return []
+        missing_view_types = [
+            wanted[0]
+            if declared_mode
+            else ("kanban" if node_info.get("mobile") else "list")
+        ]
 
         comodel = self.env[field.comodel_name].sudo(False)
         refs = self._get_view_refs(field_node)
@@ -2037,13 +2121,26 @@ class IrUiView(models.Model):
         node_info: dict[str, Any],
     ) -> None:
         name = node.get("name")
+        if not name:
+            return
         field = name_manager.model._fields.get(name)
         if not field or not field.comodel_name:
             return
         node_info["children"] = []
+        # The comodel pass runs over a detached scope, not over `node` itself.
+        # Handing `node` to _postprocess_view makes it that walk's own root, so
+        # this handler is dispatched on it again; the recursion then stops only
+        # if the comodel happens to lack a relational field of the same name.
+        # res.partner.parent_id does not, and get_view() died of a
+        # RecursionError on a view that had created and validated cleanly.
+        # E.groupby(*node) reparents the children and copies no attributes, so
+        # the inner root has no `name` and returns at the guard above.
+        scope = E.groupby(*node)
         self._postprocess_view(
-            node, field.comodel_name, editable=False, node_info=node_info
+            scope, field.comodel_name, editable=False, node_info=node_info
         )
+        node.attrib.update(scope.attrib)
+        node.extend(scope)
         name_manager.has_field(node, name, node_info)
 
     def _postprocess_tag_label(
@@ -2163,8 +2260,11 @@ class IrUiView(models.Model):
             )
 
         validate = node_info["validate"] if node_info else False
-        name_manager, group_definitions, model_groups, view_groups = (
-            self._init_view_processing(node, model_name, node_info, translate=False)
+        name_manager, group_definitions, model_groups = self._init_view_processing(
+            node, model_name, node_info, translate=False
+        )
+        view_groups = (
+            node_info["view_groups"] if node_info else group_definitions.universe
         )
 
         root_view_type = node.tag
@@ -2193,6 +2293,7 @@ class IrUiView(models.Model):
                 "model_groups": model_groups,
                 "view_groups": view_groups,
                 "name_manager": name_manager,
+                "group_definitions": group_definitions,
             }
             if groups := node.get("groups"):
                 for group_name in groups.replace("!", "").split(","):
@@ -2214,21 +2315,12 @@ class IrUiView(models.Model):
 
         return name_manager
 
-    def _check_view_tag_form(
-        self,
-        node: _Element,
-        name_manager: NameManager,
-        node_info: dict[str, Any],
-    ) -> None:
-        pass
-
     def _check_view_tag_list(
         self,
         node: _Element,
         name_manager: NameManager,
         node_info: dict[str, Any],
     ) -> None:
-        self._check_view_tag_form(node, name_manager, node_info)
         if not node_info["validate"]:
             return
         editable_attr = node.get("editable")
@@ -2401,10 +2493,14 @@ class IrUiView(models.Model):
                 node_info,
             )
         if node.get("date") and (default_periods := node.get("default_period")):
-            custom_options = {f"custom_{child.attrib['name']}" for child in node}
+            custom_options = {
+                f"custom_{child_name}"
+                for child in node.iterchildren(tag=etree.Element)
+                if (child_name := child.get("name"))
+            }
             for default_period in default_periods.split(","):
-                if not re.fullmatch(
-                    r"(year|month)((-|\+)[1-9]\d*)?", default_period
+                if not _DEFAULT_PERIOD_RE.fullmatch(
+                    default_period
                 ) and default_period not in custom_options | {
                     "first_quarter",
                     "second_quarter",
@@ -2633,7 +2729,6 @@ class IrUiView(models.Model):
         name_manager: NameManager,
         node_info: dict[str, Any],
     ) -> None:
-
         for attr in VIEW_MODIFIERS:
             py_expression = node.attrib.get(attr)
             if py_expression:
@@ -2646,105 +2741,184 @@ class IrUiView(models.Model):
                 )
 
         for attr, expr in node.items():
-            if attr in ("class", "t-att-class", "t-attf-class"):
-                self._check_classes(node, expr)
+            checker = _ATTRIBUTE_CHECKERS.get(attr) or self._prefix_attribute_checker(
+                attr
+            )
+            if checker is not None:
+                getattr(self, checker)(node, name_manager, attr, expr, node_info)
 
-            elif attr == "context":
-                try:
-                    vnames = get_expression_field_names(expr)
-                except SyntaxError as e:
-                    message = _(
-                        "Invalid context: “%(expr)s” is not a valid Python expression \n\n %(error)s",
-                        expr=expr,
-                        error=e,
-                    )
-                    self._raise_view_error(message, node, from_exception=e)
-                if vnames:
-                    name_manager.must_have_fields(
-                        node, vnames, node_info, ("context", expr)
-                    )
-                for key, val_ast in get_dict_asts(expr).items():
-                    if key == "group_by":
-                        if not isinstance(val_ast, ast.Constant) or not isinstance(
-                            val_ast.value, str
-                        ):
-                            msg = _(
-                                '"group_by" value must be a string %(attribute)s=“%(value)s”',
-                                attribute=attr,
-                                value=expr,
-                            )
-                            self._raise_view_error(msg, node)
-                        group_by = val_ast.value
-                        fname = group_by.split(":")[0]
-                        if fname not in name_manager.model._fields:
-                            msg = _(
-                                'Unknown field “%(field)s” in "group_by" value in %(attribute)s=“%(value)s”',
-                                field=fname,
-                                attribute=attr,
-                                value=expr,
-                            )
-                            self._raise_view_error(msg, node)
+    @staticmethod
+    def _prefix_attribute_checker(attr: str) -> str | None:
+        # Order matters here and did in the ladder this replaces:
+        # `t-att-data-tooltip` matches both the tooltip pattern and the `t-`
+        # prefix, and the tooltip rule is the one that raises.
+        if attr.startswith("decoration-"):
+            return "_check_attr_decoration"
+        if _TOOLTIP_ATTR_RE.match(attr):
+            return "_check_attr_tooltip"
+        if attr.startswith("t-"):
+            return "_check_attr_qweb"
+        return None
 
-            elif attr in ("col", "colspan"):
-                if not expr.isdigit():
-                    self._raise_view_error(
-                        _(
-                            "“%(attribute)s” value must be an integer (%(value)s)",
-                            attribute=attr,
-                            value=expr,
-                        ),
-                        node,
-                    )
+    def _check_attr_class(
+        self,
+        node: _Element,
+        name_manager: NameManager,
+        attr: str,
+        expr: str,
+        node_info: dict[str, Any],
+    ) -> None:
+        self._check_classes(node, expr)
 
-            elif attr.startswith("decoration-"):
-                vnames = get_expression_field_names(expr)
-                if vnames:
-                    name_manager.must_have_fields(node, vnames, node_info, (attr, expr))
-
-            elif attr == "data-bs-toggle" and expr == "tab":
-                if node.get("role") != "tab":
-                    msg = 'tab link (data-bs-toggle="tab") must have "tab" role'
-                    self._log_view_warning(msg, node)
-                aria_control = node.get("aria-controls") or node.get(
-                    "t-att-aria-controls"
+    def _check_attr_context(
+        self,
+        node: _Element,
+        name_manager: NameManager,
+        attr: str,
+        expr: str,
+        node_info: dict[str, Any],
+    ) -> None:
+        try:
+            vnames = get_expression_field_names(expr)
+        except SyntaxError as e:
+            message = _(
+                "Invalid context: \u201c%(expr)s\u201d is not a valid Python expression \n\n %(error)s",
+                expr=expr,
+                error=e,
+            )
+            self._raise_view_error(message, node, from_exception=e)
+        if vnames:
+            name_manager.must_have_fields(node, vnames, node_info, ("context", expr))
+        for key, val_ast in get_dict_asts(expr).items():
+            if key != "group_by":
+                continue
+            if not isinstance(val_ast, ast.Constant) or not isinstance(
+                val_ast.value, str
+            ):
+                msg = _(
+                    '"group_by" value must be a string %(attribute)s=\u201c%(value)s\u201d',
+                    attribute=attr,
+                    value=expr,
                 )
-                if not aria_control and not node.get("t-attf-aria-controls"):
-                    msg = 'tab link (data-bs-toggle="tab") must have "aria_control" defined'
-                    self._log_view_warning(msg, node)
-                if aria_control and "#" in aria_control:
-                    msg = 'aria-controls in tablink cannot contains "#"'
-                    self._log_view_warning(msg, node)
-
-            elif attr == "role" and expr in ("presentation", "none"):
-                msg = (
-                    "A role cannot be `none` or `presentation`. "
-                    "All your elements must be accessible with screen readers, describe it."
+                self._raise_view_error(msg, node)
+            fname = val_ast.value.split(":")[0]
+            if fname not in name_manager.model._fields:
+                msg = _(
+                    'Unknown field \u201c%(field)s\u201d in "group_by" value in %(attribute)s=\u201c%(value)s\u201d',
+                    field=fname,
+                    attribute=attr,
+                    value=expr,
                 )
-                self._log_view_warning(msg, node)
+                self._raise_view_error(msg, node)
 
-            elif attr == "group":
-                msg = "attribute 'group' is not valid.  Did you mean 'groups'?"
-                self._log_view_warning(msg, node)
+    def _check_attr_integer(
+        self,
+        node: _Element,
+        name_manager: NameManager,
+        attr: str,
+        expr: str,
+        node_info: dict[str, Any],
+    ) -> None:
+        if not expr.isdigit():
+            self._raise_view_error(
+                _(
+                    "\u201c%(attribute)s\u201d value must be an integer (%(value)s)",
+                    attribute=attr,
+                    value=expr,
+                ),
+                node,
+            )
 
-            elif _TOOLTIP_ATTR_RE.match(attr):
-                self._raise_view_error(
-                    _("Forbidden attribute used in arch (%s).", attr), node
-                )
+    def _check_attr_decoration(
+        self,
+        node: _Element,
+        name_manager: NameManager,
+        attr: str,
+        expr: str,
+        node_info: dict[str, Any],
+    ) -> None:
+        vnames = get_expression_field_names(expr)
+        if vnames:
+            name_manager.must_have_fields(node, vnames, node_info, (attr, expr))
 
-            elif attr.startswith("t-"):
-                self._check_qweb_directive(node, attr, node_info["view_type"])
-                if COMP_REGEX.search(expr):
-                    self._raise_view_error(
-                        _("Forbidden use of `__comp__` in arch."), node
-                    )
+    def _check_attr_data_bs_toggle(
+        self,
+        node: _Element,
+        name_manager: NameManager,
+        attr: str,
+        expr: str,
+        node_info: dict[str, Any],
+    ) -> None:
+        if expr != "tab":
+            return
+        if node.get("role") != "tab":
+            self._log_view_warning(
+                'tab link (data-bs-toggle="tab") must have "tab" role', node
+            )
+        aria_control = node.get("aria-controls") or node.get("t-att-aria-controls")
+        if not aria_control and not node.get("t-attf-aria-controls"):
+            self._log_view_warning(
+                'tab link (data-bs-toggle="tab") must have "aria_control" defined',
+                node,
+            )
+        if aria_control and "#" in aria_control:
+            self._log_view_warning('aria-controls in tablink cannot contains "#"', node)
+
+    def _check_attr_role(
+        self,
+        node: _Element,
+        name_manager: NameManager,
+        attr: str,
+        expr: str,
+        node_info: dict[str, Any],
+    ) -> None:
+        if expr in ("presentation", "none"):
+            self._log_view_warning(
+                "A role cannot be `none` or `presentation`. "
+                "All your elements must be accessible with screen readers, "
+                "describe it.",
+                node,
+            )
+
+    def _check_attr_group(
+        self,
+        node: _Element,
+        name_manager: NameManager,
+        attr: str,
+        expr: str,
+        node_info: dict[str, Any],
+    ) -> None:
+        self._log_view_warning(
+            "attribute 'group' is not valid.  Did you mean 'groups'?", node
+        )
+
+    def _check_attr_tooltip(
+        self,
+        node: _Element,
+        name_manager: NameManager,
+        attr: str,
+        expr: str,
+        node_info: dict[str, Any],
+    ) -> None:
+        self._raise_view_error(_("Forbidden attribute used in arch (%s).", attr), node)
+
+    def _check_attr_qweb(
+        self,
+        node: _Element,
+        name_manager: NameManager,
+        attr: str,
+        expr: str,
+        node_info: dict[str, Any],
+    ) -> None:
+        self._check_qweb_directive(node, attr, node_info["view_type"])
+        if COMP_REGEX.search(expr):
+            self._raise_view_error(_("Forbidden use of `__comp__` in arch."), node)
 
     def _check_classes(self, node: _Element, expr: str) -> None:
         for msg in check_class_accessibility(node, expr):
             self._log_view_warning(msg, node)
 
-    def _check_fa_class_accessibility(
-        self, node: _Element, description: str
-    ) -> None:
+    def _check_fa_class_accessibility(self, node: _Element, description: str) -> None:
         for msg in check_fa_class_accessibility(node, description):
             self._log_view_warning(msg, node)
 
@@ -2875,7 +3049,7 @@ class IrUiView(models.Model):
     ) -> None:
         if e.get("t-ignore") or e.tag == "head":
             for descendant in e.iterdescendants(tag=etree.Element):
-                if not _MOVABLE_BRANDING_SET.intersection(descendant.attrib):
+                if not MOVABLE_BRANDING.intersection(descendant.attrib):
                     continue
                 self._pop_view_branding(descendant)
 
@@ -2968,7 +3142,9 @@ class IrUiView(models.Model):
     @api.model
     def _check_module_views(self, module: str) -> None:
         if not self.pool._init:
-            msg = "_check_module_views() must only be called during module initialization"
+            msg = (
+                "_check_module_views() must only be called during module initialization"
+            )
             raise RuntimeError(msg)
 
         prefix = module + "."
@@ -3056,7 +3232,7 @@ class IrUiView(models.Model):
 
     @api.model
     def _migrate_self_handled_arch(self) -> Self:
-        views = self.search(
+        views = self.with_context(lang=None).search(
             [
                 ("type", "in", ("form", "list", "kanban", "search")),
                 ("arch_db", "like", "data-bs-"),
@@ -3071,13 +3247,19 @@ class IrUiView(models.Model):
                 continue
             if not self._rewrite_self_handled(arch):
                 continue
-            view.arch = etree.tostring(arch, encoding="unicode")
+            # no_save_prev: a mechanical respelling is not an edit anyone wants
+            # to undo, and arch_prev is a single slot -- writing it here spends
+            # the reset wizard's default "soft" mode on this instead of on
+            # whatever the user last changed.
+            view.with_context(no_save_prev=True).write(
+                {"arch_db": etree.tostring(arch, encoding="unicode")}
+            )
             migrated |= view
         _logger.info("Migrated data-api arch on %s view(s)", len(migrated))
         return migrated
 
     @api.model
-    def _rewrite_self_handled(self, arch) -> bool:
+    def _rewrite_self_handled(self, arch: _Element) -> bool:
         changed = False
         for node in arch.iter(etree.Element):
             for (attr, value), (

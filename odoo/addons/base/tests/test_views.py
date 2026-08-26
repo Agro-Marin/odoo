@@ -7922,3 +7922,347 @@ class TestSelfHandledArchMigration(ViewCase):
         )
         self.assertNotIn(view, self.View._migrate_self_handled_arch())
         self.assertIn('data-bs-toggle="dropdown"', view.arch)
+
+
+class TestShadowedMigrationBehaviour(ViewCase):
+    """`_migrate_self_handled_arch` was defined twice, and the wrong one won.
+
+    Four tests already covered the respellings, and they passed against both
+    implementations -- which is why three weeks of the intended one being dead
+    went unnoticed. These cover the differences the two disagreed on.
+    """
+
+    def _view_with_an_unsaved_edit(self):
+        view = self.View.create(
+            {
+                "name": "shadowed migration",
+                "model": "ir.ui.view",
+                "type": "form",
+                "arch": """<form>
+                    <field name="name"/>
+                    <a data-bs-toggle="dropdown">m</a>
+                </form>""",
+            }
+        )
+        self.env.flush_all()
+        view.arch = """<form>
+            <field name="name"/>
+            <field name="model"/>
+            <a data-bs-toggle="dropdown">m</a>
+        </form>"""
+        self.env.flush_all()
+        self.env.invalidate_all()
+        return view
+
+    def test_the_migration_does_not_spend_the_users_undo_slot(self):
+        view = self._view_with_an_unsaved_edit()
+        undo_target = view.arch_prev
+
+        self.assertNotIn(
+            'name="model"',
+            undo_target,
+            "arch_prev should hold the state BEFORE the user's edit",
+        )
+
+        self.View._migrate_self_handled_arch()
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        self.assertIn("data-self-handled", view.arch, "the migration ran")
+        self.assertEqual(
+            view.arch_prev,
+            undo_target,
+            "arch_prev is a single slot and reset_arch(mode='soft') -- the "
+            "reset wizard's default -- is what reads it. A mechanical "
+            "respelling that writes it turns the user's undo into a no-op.",
+        )
+
+    def test_a_soft_reset_still_reaches_the_state_before_the_users_edit(self):
+        view = self._view_with_an_unsaved_edit()
+        self.View._migrate_self_handled_arch()
+        self.env.flush_all()
+
+        self.assertTrue(view.reset_arch(mode="soft"))
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertNotIn('name="model"', view.arch)
+
+    def test_an_alert_dismiss_moves_to_the_service_that_reads_it(self):
+        # web/static/src/ui/alert/dismiss_alert_service.js listens on
+        # [data-dismiss-alert]; Bootstrap's own enableDismissTrigger(Alert)
+        # listens on [data-bs-dismiss="alert"]. Both work, so this pins which
+        # spelling the fork writes rather than claiming the other is broken.
+        view = self.View.create(
+            {
+                "name": "alert",
+                "model": "ir.ui.view",
+                "type": "form",
+                "arch": '<form><div class="alert">'
+                '<button data-bs-dismiss="alert">x</button></div></form>',
+            }
+        )
+        self.View._migrate_self_handled_arch()
+        self.assertIn('data-dismiss-alert="1"', view.arch)
+        self.assertNotIn("data-bs-dismiss", view.arch)
+
+
+class TestGroupbyPostprocessTermination(ViewCase):
+    def test_a_self_referencing_groupby_does_not_recurse(self):
+        # <groupby name="parent_id"> on res.partner: the comodel is res.partner
+        # and it declares parent_id too, so handing the node itself to
+        # _postprocess_view made it that walk's own root, dispatched the same
+        # handler, and get_view() died of a RecursionError on a view that had
+        # created and validated cleanly. 250 many2one fields close this cycle.
+        view = self.View.create(
+            {
+                "name": "self-referencing groupby",
+                "model": "res.partner",
+                "type": "list",
+                "arch": """<list>
+                    <field name="name"/>
+                    <groupby name="parent_id">
+                        <field name="display_name"/>
+                    </groupby>
+                </list>""",
+            }
+        )
+        result = self.env["res.partner"].get_view(view_id=view.id, view_type="list")
+        self.assertIn("groupby", result["arch"])
+
+    def test_the_groupby_contents_are_still_processed_against_the_comodel(self):
+        view = self.View.create(
+            {
+                "name": "groupby comodel",
+                "model": "res.partner",
+                "type": "list",
+                "arch": """<list>
+                    <field name="name"/>
+                    <groupby name="parent_id">
+                        <field name="display_name"/>
+                    </groupby>
+                </list>""",
+            }
+        )
+        arch = etree.fromstring(
+            self.env["res.partner"].get_view(view_id=view.id, view_type="list")["arch"]
+        )
+        groupby = arch.find("groupby")
+        self.assertIsNotNone(groupby, "the node survives the detached-scope pass")
+        self.assertEqual(
+            [child.get("name") for child in groupby.iter("field")],
+            ["display_name"],
+            "its children come back, and come back processed",
+        )
+
+
+class TestFilterDefaultPeriodChildren(ViewCase):
+    def _search_view(self, child):
+        return self.View.create(
+            {
+                "name": "filter children",
+                "model": "res.partner",
+                "type": "search",
+                "arch": f"""<search>
+                    <filter name="f" date="create_date"
+                            default_period="month" domain="[]">{child}</filter>
+                </search>""",
+            }
+        )
+
+    def test_a_comment_child_does_not_raise_a_bare_keyerror(self):
+        # child.attrib['name'] was a raw subscript over every child, comments
+        # included. KeyError is a LookupError, so it matched none of
+        # _check_xml's handlers and escaped validation with no view, file or
+        # line attached to it.
+        self.assertTrue(self._search_view("<!-- a note -->"))
+
+    def test_an_unnamed_element_child_does_not_raise_a_bare_keyerror(self):
+        self.assertTrue(self._search_view("<separator/>"))
+
+    def test_a_named_child_still_registers_as_a_custom_period(self):
+        view = self._search_view('<filter name="mine" domain="[]"/>')
+        view.write({"arch": view.arch.replace('"month"', '"custom_mine"')})
+        self.assertIn("custom_mine", view.arch)
+
+    def test_an_unknown_default_period_is_still_rejected(self):
+        with self.assertRaises(ValidationError):
+            self._search_view("").write(
+                {
+                    "arch_db": """<search>
+                    <filter name="f" date="create_date"
+                            default_period="fortnight" domain="[]"/>
+                </search>"""
+                }
+            )
+
+
+class TestCopyRegeneratesTheKey(ViewCase):
+    def _qweb(self):
+        return self.View.create(
+            {
+                "name": "keyed template",
+                "type": "qweb",
+                "key": "base.copy_key_probe",
+                "arch": "<t t-name='base.copy_key_probe'>x</t>",
+            }
+        )
+
+    def test_a_plain_copy_gets_its_own_key(self):
+        # record_lifecycle.js calls copy() with no default at all, so the
+        # product's duplicate button took exactly the branch that re-used the
+        # key. A shared key makes the copy a COW-specific view of its original.
+        original = self._qweb()
+        self.assertNotEqual(original.copy().key, original.key)
+
+    def test_an_empty_default_is_the_same_request_as_no_default(self):
+        original = self._qweb()
+        self.assertNotEqual(original.copy({}).key, original.key)
+
+    def test_an_explicit_key_is_honoured(self):
+        original = self._qweb()
+        self.assertEqual(original.copy({"key": "base.chosen"}).key, "base.chosen")
+
+    def test_the_copy_is_not_a_cow_specific_view_of_its_original(self):
+        original = self._qweb()
+        copy = original.copy()
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertNotIn(copy.id, original._get_specific_views().ids)
+
+
+@tagged("post_install", "-at_install")
+class TestCombineIsBatched(ViewCase):
+    """Batching is declined while `pool._init`, so these must run after it.
+
+    At install, `_get_combined_archs()` over a whole recordset makes
+    `check_view_ids` the union of every chain in it, and `_filter_loaded_views`
+    then admits an ancestor that resolving one view alone had excluded -- a
+    different arch, not just a cheaper one. Run `-at_install` these measured 22
+    queries for 20 views and a root whose extension the batch applied and the
+    loop filtered out. That is the guard working, and it is pinned below by
+    TestCombineBatchingIsDeclinedAtInstall.
+    """
+
+    def _forms(self, count):
+        views = self.View.create(
+            [
+                {
+                    "name": f"batched {index}",
+                    "model": "res.partner",
+                    "type": "form",
+                    "arch": f'<form><field name="name"/><!--{index}--></form>',
+                }
+                for index in range(count)
+            ]
+        )
+        self.env.flush_all()
+        self.env.invalidate_all()
+        return self.View.browse(views.ids)
+
+    def _queries_to_validate(self, count):
+        views = self._forms(count)
+        before = self.env.cr.sql_log_count
+        views._check_xml()
+        return self.env.cr.sql_log_count - before
+
+    def test_validating_many_views_costs_one_combine_not_one_each(self):
+        # _get_combined_arch() is ensure_one() over _get_combined_archs(), so
+        # the loop paid one recursive CTE per view: 40 of _check_xml's 42
+        # queries at N=40. An absolute assertQueryCount at N=1 cannot see this
+        # class of defect at all -- so this asserts the MARGINAL cost, over two
+        # sizes, which is the only shape that catches an N+1 in a batch path.
+        small = self._queries_to_validate(2)
+        large = self._queries_to_validate(20)
+        self.assertLessEqual(
+            large - small,
+            2,
+            f"validating 18 more views cost {large - small} more queries "
+            f"({small} at N=2, {large} at N=20). _check_xml() is combining one "
+            f"view at a time again; _get_combined_archs() does the whole set "
+            f"in one recursive CTE.",
+        )
+
+    def test_the_batched_and_looped_combines_agree(self):
+        root = self.View.create(
+            {
+                "name": "combine root",
+                "model": "res.partner",
+                "type": "form",
+                "arch": '<form><field name="name"/></form>',
+            }
+        )
+        extension = self.View.create(
+            {
+                "name": "combine extension",
+                "model": "res.partner",
+                "type": "form",
+                "inherit_id": root.id,
+                "arch": """<data>
+                    <xpath expr="//field[@name='name']" position="after">
+                        <field name="email"/>
+                    </xpath>
+                </data>""",
+            }
+        )
+        self.env.flush_all()
+        self.env.invalidate_all()
+        pair = self.View.browse([root.id, extension.id])
+
+        looped = [
+            etree.tostring(view._get_combined_arch(), encoding="unicode")
+            for view in pair
+        ]
+        self.env.invalidate_all()
+        pair = self.View.browse([root.id, extension.id])
+        batched = [
+            etree.tostring(tree, encoding="unicode")
+            for tree in pair._get_combined_archs()
+        ]
+        self.assertEqual(looped, batched)
+
+
+class TestCombineBatchingIsDeclinedAtInstall(ViewCase):
+    def test_the_batch_is_declined_while_the_registry_is_loading(self):
+        # This class is at_install by default, which is the point: while
+        # pool._init is set, batching would widen check_view_ids to the union
+        # of every chain in the recordset and change the resulting arch.
+        # Declining is not a missed optimisation, it is the correctness guard.
+        self.assertTrue(self.env.registry._init, "this must run at install")
+        views = self.View.create(
+            [
+                {
+                    "name": f"declined {index}",
+                    "model": "res.partner",
+                    "type": "form",
+                    "arch": f'<form><field name="name"/><!--{index}--></form>',
+                }
+                for index in range(3)
+            ]
+        )
+        self.assertEqual(views._get_combined_archs_by_id(), {})
+
+
+class TestResetArchRejectsAnUnknownMode(ViewCase):
+    def test_an_unknown_mode_raises_rather_than_reporting_nothing_to_do(self):
+        # website/controllers/main.py passes a mode straight off an HTTP
+        # request. `continue` made a wrong value indistinguishable from a view
+        # that simply had nothing to reset.
+        view = self.View.create(
+            {
+                "name": "reset mode",
+                "model": "res.partner",
+                "type": "form",
+                "arch": '<form><field name="name"/></form>',
+            }
+        )
+        with self.assertRaises(ValueError):
+            view.reset_arch(mode="sideways")
+
+
+class TestPreloadViewsIgnoresFalsyRefs(ViewCase):
+    def test_a_none_ref_is_skipped_rather_than_crashing(self):
+        # `ref.isdigit()` ran in the comprehension above the `if ref` filter.
+        self.assertIsInstance(self.View._preload_views([None]), dict)
+
+    def test_an_empty_ref_is_skipped(self):
+        self.assertIsInstance(self.View._preload_views([""]), dict)

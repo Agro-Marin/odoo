@@ -107,7 +107,7 @@ needs the previous representation and is filed as `post-` has nothing to read.
 [`scenarios.md`](scenarios.md#scenario-b--upgrading-a-database-that-holds-data).
 
 **Cost.** Silent data loss on upgrade of a populated database. Not caught by any
-gate — all 51 are structural and DB-free — and not caught by either DB-free test
+gate — all 52 are structural and DB-free — and not caught by either DB-free test
 tier.
 
 **Narrowed 2026-08-09: the syntactic half is caught, the semantic half is the
@@ -133,9 +133,9 @@ integration lane. Nothing cheaper can see the semantic half.
 
 ## R4 — "Enforced" means structural only
 
-**What.** The 51 boundary checkers read import graphs, call graphs,
+**What.** The 52 boundary checkers read import graphs, call graphs,
 reached-member sets and documents. None executes the framework. A change can
-satisfy all 51 and both DB-free tiers and still be wrong.
+satisfy all 52 and both DB-free tiers and still be wrong.
 
 **Evidence.** Recorded in [`gates.md`](gates.md#the-limits-of-enforced): renaming
 `OrmCore`'s slots (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed
