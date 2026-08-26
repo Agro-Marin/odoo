@@ -77,3 +77,21 @@ class FileTouchable(AddonManifestPatched):
             return result
 
         return patch.object(pathlib.Path, "stat", patched_stat)
+
+    def _bump_last_attachment_write_date(self, offset_seconds):
+        """Push the most recently created ir.attachment's write_date
+        `offset_seconds` into the future.
+
+        write_date is a magic column the ORM's write() silently ignores,
+        so there is no way to fake it through the ORM the way _touch()
+        fakes a source file's mtime — this goes through raw SQL
+        (PostgreSQL-only, via clock_timestamp()) on purpose, to simulate
+        a stale server clock relative to a bundle's source files.
+        """
+        self.env["ir.attachment"].flush_model(["checksum", "write_date"])
+        self.cr.execute(
+            "UPDATE ir_attachment SET write_date = clock_timestamp() + (%s * interval '1 second') "
+            "WHERE id = (SELECT max(id) FROM ir_attachment)",
+            (offset_seconds,),
+        )
+        self.env["ir.attachment"].invalidate_model(["write_date"])
