@@ -85,8 +85,8 @@ def get_canonical_headers(headers):
         Requests using the signed URL *must* pass the specified header
         (name and value) with each request for the URL.
 
-    :rtype: str
-    :returns: List of headers, normalized / sortted per the URL refernced above.
+    :rtype: List[str], List[Tuple[str, str]]
+    :returns: A tuple of the canonical header lines and the ordered (key, value) pairs.
     """
     if headers is None:
         headers = []
