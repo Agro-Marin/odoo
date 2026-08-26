@@ -362,7 +362,7 @@ class EventEvent(models.Model):
         this is done using side-methods to ease inheritance.
 
         :returns: list of fields, each of which triggering a menu update
-          like website_menu, website_track, ...
+          like community_menu, website_track, ...
         :rtype: list"""
         return ["community_menu", "introduction_menu", "register_menu"]
 
@@ -428,9 +428,8 @@ class EventEvent(models.Model):
           * url: if set, url to a route (do not use xml_id in that case);
           * xml_id: template linked to the page (do not use url in that case);
           * sequence: specific sequence of menu entry to be set on the menu;
-          * menu_type: type of menu entry (used in inheriting modules to ease
-            menu management; not used in this module in 13.3 due to technical
-            limitations);
+          * menu_type: type of menu entry, used to match menu entries to their
+            triggering field, both in this module and in inheriting modules;
           * parent_menu_type: menu_type of already created menu entry (used for
             making submenu of existing menu entry)
         """
