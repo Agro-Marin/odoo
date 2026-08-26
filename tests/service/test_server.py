@@ -53,6 +53,7 @@ import pytest
 import werkzeug.serving
 
 from odoo.service import _base_server, _helpers, _prefork, _threaded
+from odoo.service import wsgi as _helpers_wsgi
 
 # ---------------------------------------------------------------------------
 # Module under test
@@ -1807,6 +1808,104 @@ def log_handler(srv, monkeypatch):
     h.log = MagicMock()
     stamp_rpc_model_method(monkeypatch)
     return h
+
+
+class TestLoggingBaseWSGIServerMixIn:
+    """``handle_error``: a client hanging up is not an error; anything else is.
+
+    Both WSGI server flavours mix this in (``BaseWSGIServerNoBind`` for the
+    prefork worker, ``ThreadedWSGIServerReloadable`` for the threaded one), and
+    socketserver calls it for every exception that escapes a handler.  Neither
+    half was executed by any test (measured).
+
+    The two failure modes it sits between are both bad and both silent:
+    logging ``BrokenPipeError`` turns every closed browser tab into a traceback
+    in the log — under load, a client that disconnects mid-response is routine —
+    while dropping the rest turns a real handler bug into nothing at all.
+    """
+
+    @staticmethod
+    def _server():
+        return object.__new__(_helpers_wsgi.LoggingBaseWSGIServerMixIn)
+
+    def test_a_client_hangup_is_not_logged(self, caplog):
+        import logging
+
+        with caplog.at_level(logging.DEBUG, logger="odoo.service.server"):
+            with patch.object(
+                _helpers_wsgi.sys, "exception", return_value=BrokenPipeError()
+            ):
+                self._server().handle_error(None, ("127.0.0.1", 51234))
+        assert caplog.records == [], (
+            f"a disconnected client produced log output: {caplog.records!r}"
+        )
+
+    def test_any_other_exception_is_logged_with_its_traceback(self, caplog):
+        import logging
+
+        boom = ValueError("handler blew up")
+        with caplog.at_level(logging.DEBUG, logger="odoo.service.server"):
+            with patch.object(_helpers_wsgi.sys, "exception", return_value=boom):
+                self._server().handle_error(None, ("10.0.0.7", 4242))
+
+        errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
+        assert errors, "a handler exception produced no ERROR record"
+        assert errors[0].exc_info is not None, (
+            "logged without exc_info, so the traceback — the only thing that "
+            "says WHERE the handler failed — is gone"
+        )
+        assert "10.0.0.7" in str(errors[0].args), (
+            "the record does not name the client the request came from"
+        )
+
+    def test_no_exception_in_flight_still_logs(self, caplog):
+        """``sys.exception()`` is ``None`` outside an ``except`` block.  Reaching
+        here with nothing in flight is odd but must not itself raise — this runs
+        on the accept loop."""
+        import logging
+
+        with caplog.at_level(logging.DEBUG, logger="odoo.service.server"):
+            with patch.object(_helpers_wsgi.sys, "exception", return_value=None):
+                self._server().handle_error(None, ("127.0.0.1", 1))
+        assert any(r.levelno >= logging.ERROR for r in caplog.records)
+
+
+class TestBaseWSGIServerNoBind:
+    """The prefork worker builds a WSGI server that must NOT own a port.
+
+    ``WorkerHTTP.start`` does ``BaseWSGIServerNoBind(self.multi.app)``: the
+    workers share the ONE listening socket the master opened and passed down, so
+    a per-worker server that bound its own port would either fail on the address
+    already in use or, worse, succeed on a different one and serve traffic nobody
+    is routing to it.
+
+    werkzeug's ``BaseWSGIServer.__init__`` binds and activates as a matter of
+    course, so all three overrides here are load-bearing, and none was executed
+    by any test.
+    """
+
+    def test_it_does_not_leave_a_socket_bound(self, srv):
+        server = srv.BaseWSGIServerNoBind(MagicMock())
+        assert server.socket.fileno() == -1, (
+            "the constructor left a bound socket open; the prefork worker is "
+            "supposed to serve the master's inherited one"
+        )
+
+    def test_server_bind_takes_no_port(self, srv):
+        server = srv.BaseWSGIServerNoBind(MagicMock())
+        assert (server.server_name, server.server_port) == ("127.0.0.1", 0)
+
+    def test_server_activate_does_not_listen(self, srv):
+        """``server_activate`` is where socketserver calls ``listen()``.  It is
+        overridden to a no-op, so calling it again on a closed socket must still
+        be harmless — which is exactly what proves it does not listen."""
+        server = srv.BaseWSGIServerNoBind(MagicMock())
+        server.server_activate()  # must not raise on the closed socket
+
+    def test_it_carries_the_logging_mixin(self, srv):
+        """The flavour split is easy to lose in a refactor: a worker whose server
+        dropped the mixin would log a traceback per client disconnect."""
+        assert issubclass(srv.BaseWSGIServerNoBind, srv.LoggingBaseWSGIServerMixIn)
 
 
 class TestCommonRequestHandlerLogError:
