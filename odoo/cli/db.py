@@ -439,6 +439,7 @@ class Db(Command):
                 raise
 
     def duplicate(self, args: argparse.Namespace) -> None:
+        self._check_source_not_target(args.source, args.target)
         self._check_target_free(args.target, force=args.force)
         self._check_source_exists(args.source)
         self._drop_if_exists(args.target)
@@ -447,6 +448,7 @@ class Db(Command):
         )
 
     def rename(self, args: argparse.Namespace) -> None:
+        self._check_source_not_target(args.source, args.target)
         self._check_not_protected(args.source)
         self._check_target_free(args.target, force=args.force)
         self._check_source_exists(args.source)
@@ -495,6 +497,19 @@ class Db(Command):
         is dropped, not after."""
         if not exp_db_exist(source):
             sys.exit(f"Source database {source} does not exist.")
+
+    def _check_source_not_target(self, source: str, target: str) -> None:
+        """Abort when ``source`` and ``target`` are the same database.
+
+        Without this, ``--force`` with source == target drops the only
+        copy via ``_check_target_free``'s own ``_drop_if_exists(target)``
+        before the operation on ``source`` ever runs, destroying the
+        database instead of duplicating/renaming it.
+        """
+        if source == target:
+            sys.exit(
+                f"Source and target database are both {source!r}: aborting."
+            )
 
     def _drop_if_exists(self, target: str) -> None:
         """Drop ``target`` (with filestore) if present; no-op otherwise.
