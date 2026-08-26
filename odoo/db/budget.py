@@ -16,7 +16,7 @@ class ConnectionBudget:
     counter, so this costs the same lock acquisition it always did.
     """
 
-    __slots__ = ("_cond", "_in_use", "exhausted", "maxconn")
+    __slots__ = ("_cond", "_exhausted", "_in_use", "maxconn")
 
     def __init__(self, maxconn: int):
         if maxconn <= 0:
@@ -24,7 +24,7 @@ class ConnectionBudget:
         self.maxconn = maxconn
         self._cond = threading.Condition(threading.Lock())
         self._in_use = 0
-        self.exhausted = 0
+        self._exhausted = 0
 
     def acquire(self, timeout: float) -> bool:
         endtime = None
@@ -39,7 +39,7 @@ class ConnectionBudget:
                 if remaining <= 0 or not self._cond.wait(remaining):
                     if self._in_use < self.maxconn:
                         continue
-                    self.exhausted += 1
+                    self._exhausted += 1
                     return False
             self._in_use += 1
             return True
@@ -60,3 +60,8 @@ class ConnectionBudget:
     def in_use(self) -> int:
         with self._cond:
             return self._in_use
+
+    @property
+    def exhausted(self) -> int:
+        with self._cond:
+            return self._exhausted
