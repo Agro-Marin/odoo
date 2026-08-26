@@ -4243,3 +4243,93 @@ class TestQWebTwoSignaturesInOneRender(TransactionCase):
             ),
             "<span><!--C-->X</span>",
         )
+
+
+class TestQWebContentComparison(TransactionCase):
+    """A `t-set` body must compare as the text it renders.
+
+    `QwebContent` forwards attribute access through `__getattr__`, which Python
+    does not consult for an implicit dunder lookup, so the class had no `__eq__`
+    and no `__hash__` and a body value was equal to nothing but itself.  Nothing
+    in the four repositories compares one today -- of 443 `t-set`-body variables
+    declared, none is compared -- so this closes a trap rather than a live wrong
+    render.  `t-value` is the control: it produces a plain string and always
+    compared correctly, which is what made the asymmetry invisible.
+    """
+
+    def _render(self, arch, values=None):
+        return str(self.env["ir.qweb"]._render(etree.fromstring(arch), values or {}))
+
+    def test_a_body_equals_the_text_it_renders(self):
+        self.assertEqual(
+            self._render(
+                "<t><t t-set='x'>AB</t>"
+                "<t t-if=\"x == 'AB'\">EQ</t><t t-else=''>NEQ</t></t>"
+            ),
+            "EQ",
+        )
+
+    def test_a_t_value_string_is_unchanged(self):
+        self.assertEqual(
+            self._render(
+                "<t><t t-set='x' t-value=\"'AB'\"/>"
+                "<t t-if=\"x == 'AB'\">EQ</t><t t-else=''>NEQ</t></t>"
+            ),
+            "EQ",
+        )
+
+    def test_a_body_is_found_by_containment_and_by_key(self):
+        self.assertEqual(
+            self._render(
+                "<t><t t-set='x'>AB</t>"
+                "<t t-if=\"x in ['AB']\">IN</t><t t-else=''>OUT</t></t>"
+            ),
+            "IN",
+        )
+        self.assertEqual(
+            self._render(
+                "<t><t t-set='x'>AB</t><t t-out=\"{'AB': 'HIT'}.get(x, 'MISS')\"/></t>"
+            ),
+            "HIT",
+        )
+
+    def test_a_body_that_differs_still_compares_unequal(self):
+        self.assertEqual(
+            self._render(
+                "<t><t t-set='x'>AB</t>"
+                "<t t-if=\"x == 'ZZ'\">EQ</t><t t-else=''>NEQ</t></t>"
+            ),
+            "NEQ",
+        )
+
+    def test_the_operations_that_already_worked_still_do(self):
+        self.assertEqual(
+            self._render("<t><t t-set='x'>ABC</t><t t-out='len(x)'/></t>"), "3"
+        )
+        self.assertEqual(
+            self._render("<t><t t-set='x'> AB </t>[<t t-out='x.strip()'/>]</t>"),
+            "[AB]",
+        )
+        self.assertEqual(
+            self._render(
+                "<t><t t-set='x'></t><t t-if='x'>TRUE</t><t t-else=''>FALSE</t></t>"
+            ),
+            "FALSE",
+        )
+
+    def test_comparison_does_not_cost_laziness(self):
+        # The value the template never looks at must still never be rendered.
+        rendered = []
+        original = QwebContent.__str__
+
+        def spy(content):
+            if content.html is None:
+                rendered.append(content)
+            return original(content)
+
+        with patch.object(QwebContent, "__str__", spy):
+            out = self._render(
+                "<t><t t-set='unused'>EXPENSIVE</t><span>only this</span></t>"
+            )
+        self.assertEqual(out, "<span>only this</span>")
+        self.assertFalse(rendered, "an unreferenced t-set body was rendered")

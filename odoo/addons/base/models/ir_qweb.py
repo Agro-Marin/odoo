@@ -325,6 +325,36 @@ class QwebContent:
     def __getitem__(self, key: int | slice) -> Any:
         return Markup(self)[key]
 
+    # `__getattr__` forwards to `Markup(self)`, but Python never consults it for
+    # an implicit dunder lookup: those go to the type.  Without these, a `t-set`
+    # body compared unequal to the text it renders -- `<t t-set="x">AB</t>` then
+    # `t-if="x == 'AB'"` took the else branch, `x in ['AB']` was False and
+    # `{'AB': ...}[x]` missed -- while `len(x)`, `x.strip()` and truthiness all
+    # behaved, so nothing looked wrong.  Comparing forces the render, which it
+    # must: the answer is not knowable without it.  Everything that does not
+    # need the value stays lazy, which
+    # `test_qweb_content_does_not_render_on_a_dunder_probe` pins.
+    def __eq__(self, other: object) -> bool:
+        return Markup(self) == other
+
+    def __ne__(self, other: object) -> bool:
+        return Markup(self) != other
+
+    def __lt__(self, other: Any) -> bool:
+        return Markup(self) < other
+
+    def __le__(self, other: Any) -> bool:
+        return Markup(self) <= other
+
+    def __gt__(self, other: Any) -> bool:
+        return Markup(self) > other
+
+    def __ge__(self, other: Any) -> bool:
+        return Markup(self) >= other
+
+    def __hash__(self) -> int:
+        return hash(Markup(self))
+
     def __add__(self, other: Any) -> Markup:
         return Markup(self).__add__(other)
 
