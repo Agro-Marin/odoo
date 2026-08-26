@@ -519,7 +519,7 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def _policy_fallback_value(self, field: ConvertibleField) -> Any:
-        """What an unresolvable value becomes, or None when it must be reported.
+        """Return what an unresolvable value becomes, or None to report it.
 
         `None` is the "no fallback" answer and never a value. SKIP is falsy on
         purpose, so callers must test this with `is None` and never with `or`.
@@ -720,7 +720,8 @@ class IrFieldsConverter(models.AbstractModel):
     def _build_selection_index(
         self, field: fields.Field
     ) -> tuple[dict[str, Any], dict[str, str]]:
-        """Token -> item, and item -> the label to show the reader.
+        """Map every token a reader may type to its value, and each value to
+        the label to show back.
 
         Both come out of the same pass, and for a stored selection out of the
         same query: the `name` jsonb the translation lookup already reads
