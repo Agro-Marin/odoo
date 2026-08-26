@@ -66,8 +66,6 @@ class PdfReader(PdfReaderBase):
         super().__init__(stream, strict)
 
 
-PdfFileReader = PdfReader
-
 _logger = getLogger(__name__)
 DEFAULT_PDF_DATETIME_FORMAT = "D:%Y%m%d%H%M%S+00'00'"
 REGEX_SUBTYPE_UNFORMATED = re.compile(r"^\w+/[\w-]+$")
@@ -107,13 +105,11 @@ class BrandedFileWriter(PdfWriter):
         super().write_stream(*args, **kwargs)
 
 
-PdfFileWriter = BrandedFileWriter
-
 
 def merge_pdf(pdf_data: list[bytes]) -> bytes:
-    writer = PdfFileWriter()
+    writer = BrandedFileWriter()
     for document in pdf_data:
-        reader = PdfFileReader(io.BytesIO(document), strict=False)
+        reader = PdfReader(io.BytesIO(document), strict=False)
         for page in range(len(reader.pages)):
             writer.add_page(reader.pages[page])
 
@@ -132,8 +128,8 @@ def fill_form_fields_pdf(writer: PdfWriter, form_fields: dict[str, Any]) -> None
 
 
 def rotate_pdf(pdf: bytes) -> bytes:
-    writer = PdfFileWriter()
-    reader = PdfFileReader(io.BytesIO(pdf), strict=False)
+    writer = BrandedFileWriter()
+    reader = PdfReader(io.BytesIO(pdf), strict=False)
     for page in range(len(reader.pages)):
         page = reader.pages[page]
         page.rotate(90)
@@ -167,9 +163,9 @@ def extract_page(attachment, num_page=0) -> io.BytesIO | None:
     pdf_stream = to_pdf_stream(attachment)
     if not pdf_stream:
         return None
-    pdf = PdfFileReader(pdf_stream)
+    pdf = PdfReader(pdf_stream)
     page = pdf.pages[num_page]
-    pdf_writer = PdfFileWriter()
+    pdf_writer = BrandedFileWriter()
     pdf_writer.add_page(page)
     stream = io.BytesIO()
     pdf_writer.write(stream)
@@ -191,7 +187,7 @@ def add_banner(
 
         thickness = 2 * cm
 
-    old_pdf = PdfFileReader(pdf_stream, strict=False)
+    old_pdf = PdfReader(pdf_stream, strict=False)
     packet = io.BytesIO()
     can = canvas.Canvas(packet)
     with file_open("base/static/img/main_partner-image.png", mode="rb") as f:
@@ -233,8 +229,8 @@ def add_banner(
 
     can.save()
 
-    watermark_pdf = PdfFileReader(packet)
-    new_pdf = PdfFileWriter()
+    watermark_pdf = PdfReader(packet)
+    new_pdf = BrandedFileWriter()
     for p in range(len(old_pdf.pages)):
         new_pdf.add_page(old_pdf.pages[p])
         new_page = new_pdf.pages[-1]
@@ -268,7 +264,7 @@ def reshape_text(text: str) -> str:
     return text
 
 
-class OdooPdfFileReader(PdfFileReader):
+class OdooPdfFileReader(PdfReader):
     def get_attachments(self) -> Generator[tuple[str, bytes]]:
         if self.is_encrypted:
             self.decrypt("")
@@ -300,7 +296,7 @@ class OdooPdfFileReader(PdfFileReader):
             return
 
 
-class OdooPdfFileWriter(PdfFileWriter):
+class OdooPdfFileWriter(BrandedFileWriter):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._reader: PdfReader | None = None

@@ -12,7 +12,7 @@ from reportlab.platypus import Frame, KeepInFrame, Paragraph
 from odoo import fields, models, api, _
 from odoo.addons.iap.tools import iap_tools
 from odoo.exceptions import AccessError, UserError
-from odoo.tools.pdf import PdfFileReader, PdfFileWriter
+from odoo.tools.pdf import PdfReader, BrandedFileWriter
 from odoo.tools.safe_eval import safe_eval
 
 DEFAULT_ENDPOINT = 'https://iap-snailmail.odoo.com'
@@ -476,7 +476,7 @@ class SnailmailLetter(models.Model):
         return address_split
 
     def _add_cover_page(self, invoice_bin: bytes):
-        out_writer = PdfFileWriter()
+        out_writer = BrandedFileWriter()
         address_split = self._get_cover_address_split()
         address_split[0] = self.partner_id.name or (self.partner_id.parent_id and self.partner_id.parent_id.name) or address_split[0]
         address = '<br/>'.join(address_split)
@@ -496,9 +496,9 @@ class SnailmailLetter(models.Model):
         canvas.save()
         cover_buf.seek(0)
 
-        invoice = PdfFileReader(io.BytesIO(invoice_bin))
+        invoice = PdfReader(io.BytesIO(invoice_bin))
         cover_bin = io.BytesIO(cover_buf.getvalue())
-        cover_file = PdfFileReader(cover_bin)
+        cover_file = PdfReader(cover_bin)
         out_writer.append_pages_from_reader(cover_file)
 
         # Add a blank buffer page to avoid printing behind the cover page
@@ -543,9 +543,9 @@ class SnailmailLetter(models.Model):
         canvas.save()
         pdf_buf.seek(0)
 
-        new_pdf = PdfFileReader(pdf_buf)
-        curr_pdf = PdfFileReader(io.BytesIO(invoice_bin))
-        out = PdfFileWriter()
+        new_pdf = PdfReader(pdf_buf)
+        curr_pdf = PdfReader(io.BytesIO(invoice_bin))
+        out = BrandedFileWriter()
         for page in curr_pdf.pages:
             # Add the reader page to the writer first, then merge onto the
             # writer's writable copy — mutating a reader page triggers pypdf's

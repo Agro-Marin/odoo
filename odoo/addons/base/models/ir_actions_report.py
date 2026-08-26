@@ -44,7 +44,7 @@ from odoo.libs.barcode import (
 from odoo.libs.json import loads as json_loads
 from odoo.service import security
 from odoo.tools import is_html_empty
-from odoo.tools.pdf import PdfFileReader, PdfFileWriter, PdfReadError
+from odoo.tools.pdf import BrandedFileWriter, PdfReader, PdfReadError
 from odoo.tools.safe_eval import safe_eval, time
 
 from odoo.addons.base.models.report_paperformat import PAPER_SIZE_BY_KEY
@@ -1765,10 +1765,10 @@ class IrActionsReport(models.Model):
     ) -> io.BytesIO:
         if on_stream_error is None:
             on_stream_error = self._prepare_merge_pdfs_error
-        writer = PdfFileWriter()
+        writer = BrandedFileWriter()
         for stream in streams:
             try:
-                reader = PdfFileReader(stream)
+                reader = PdfReader(stream)
                 writer.append_pages_from_reader(reader)
             except (
                 PdfReadError,

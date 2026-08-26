@@ -5,10 +5,10 @@ import json
 from odoo import _, api, models
 from odoo.tools import format_amount, format_date, format_datetime, pdf, str2bool
 from odoo.tools.pdf import (
+    BrandedFileWriter,
     NameObject,
     NumberObject,
-    PdfFileReader,
-    PdfFileWriter,
+    PdfReader,
     create_string_object,
 )
 
@@ -47,7 +47,7 @@ class IrActionsReport(models.Model):
                     continue
 
                 form_fields_values_mapping = {}
-                writer = PdfFileWriter()
+                writer = BrandedFileWriter()
 
                 self_with_order_context = self.with_context(
                     use_babel=True, lang=order._get_lang() or self.env.user.lang
@@ -102,7 +102,7 @@ class IrActionsReport(models.Model):
 
         Note: document.ensure_one(), order.ensure_one(), order_line and order_line.ensure_one()
 
-        :param PdfFileWriter writer: the writer to which pages needs to be added
+        :param BrandedFileWriter writer: the writer to which pages needs to be added
         :param recordset document: the document that needs to be added to the writer and get its
                                    form fields mapped. Either a quotation.document or a
                                    product.document.
@@ -222,7 +222,7 @@ class IrActionsReport(models.Model):
     def _add_pages_to_writer(self, writer, document, prefix=None):
         """Add a PDF doc to the writer and fill the form text fields present in the pages if needed.
 
-        :param PdfFileWriter writer: the writer to which pages needs to be added
+        :param BrandedFileWriter writer: the writer to which pages needs to be added
         :param bytes document: the document to add in the final pdf
         :param str prefix: the prefix needed to update existing form field name, if any, to be able
                            to add the correct values in fields with the same name but on different
@@ -230,7 +230,7 @@ class IrActionsReport(models.Model):
                            order lines. (optional)
         :return: None
         """
-        reader = PdfFileReader(io.BytesIO(document), strict=False)
+        reader = PdfReader(io.BytesIO(document), strict=False)
 
         field_names = set()
         if prefix:

@@ -9,7 +9,7 @@ from reportlab.pdfgen import canvas
 from odoo import Command, http
 from odoo.tests.common import HttpCase, tagged
 from odoo.tools import mute_logger
-from odoo.tools.pdf import PdfFileReader
+from odoo.tools.pdf import PdfReader
 
 from .test_documents_common import GIF, TransactionCaseDocuments
 from odoo.addons.mail.tests.common import mail_new_test_user
@@ -383,7 +383,7 @@ class TestDocumentsPublicRouteHardening(HttpCase):
         self.assertEqual(len(documents), 2)
         self.assertEqual(documents.mapped("name"), ["first two.pdf", "last one.pdf"])
         page_counts = [
-            len(PdfFileReader(BytesIO(document.raw), strict=False).pages)
+            len(PdfReader(BytesIO(document.raw), strict=False).pages)
             for document in documents
         ]
         self.assertEqual(page_counts, [2, 1], "pages must be routed to the right file")

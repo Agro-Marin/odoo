@@ -21,7 +21,7 @@ from odoo.libs.filesystem import get_extension
 from odoo.tools import groupby
 from odoo.tools.image import image_process
 from odoo.tools.misc import clean_context
-from odoo.tools.pdf import PdfFileReader
+from odoo.tools.pdf import PdfReader
 
 from odoo.addons.documents.tools import UserFolder
 from odoo.addons.mail.tools import link_preview
@@ -1790,7 +1790,7 @@ class DocumentsDocument(models.Model):
             return False
         stream = io.BytesIO(decoded)
         try:
-            return len(PdfFileReader(stream, strict=False).pages) > 1
+            return len(PdfReader(stream, strict=False).pages) > 1
         except AttributeError:
             raise
         except Exception:

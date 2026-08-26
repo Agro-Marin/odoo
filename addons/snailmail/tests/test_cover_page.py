@@ -4,7 +4,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen.canvas import Canvas
 
 from odoo.tests import TransactionCase
-from odoo.tools.pdf import PdfFileReader
+from odoo.tools.pdf import PdfReader
 
 
 def _pdf_of(page_labels):
@@ -47,21 +47,21 @@ class TestCoverPage(TransactionCase):
         )
 
     def _pages(self, pdf_bin):
-        return len(PdfFileReader(io.BytesIO(pdf_bin)).pages)
+        return len(PdfReader(io.BytesIO(pdf_bin)).pages)
 
     def test_the_cover_page_is_added_at_the_front(self):
         body = _pdf_of(["body-1", "body-2"])
         merged = self.letter._add_cover_page(body)
 
         self.assertEqual(self._pages(merged), 3, "one cover page was added")
-        first = PdfFileReader(io.BytesIO(merged)).pages[0].extract_text()
+        first = PdfReader(io.BytesIO(merged)).pages[0].extract_text()
         self.assertNotIn(
             "body-1",
             first,
             "the cover is the first page; the body follows it. A method that "
             "appended would put the body first.",
         )
-        last = PdfFileReader(io.BytesIO(merged)).pages[-1].extract_text()
+        last = PdfReader(io.BytesIO(merged)).pages[-1].extract_text()
         self.assertIn("body-2", last, "the body keeps its own order behind the cover")
 
     def test_duplex_adds_a_blank_page_behind_the_cover(self):

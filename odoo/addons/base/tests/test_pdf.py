@@ -18,7 +18,7 @@ class TestPdf(TransactionCase):
         attachments = list(self.minimal_pdf_reader.get_attachments())
         self.assertEqual(len(attachments), 0)
 
-        pdf_writer = pdf.PdfFileWriter()
+        pdf_writer = pdf.BrandedFileWriter()
         pdf_writer.clone_reader_document_root(self.minimal_pdf_reader)
         pdf_writer.add_attachment("test_attachment.txt", b"My awesome attachment")
         out = io.BytesIO()
@@ -80,7 +80,7 @@ class TestPdf(TransactionCase):
         merged_reader_buffer.close()
 
     def test_branded_file_writer(self):
-        pdf_writer = pdf.PdfFileWriter()
+        pdf_writer = pdf.BrandedFileWriter()
         pdf_writer.clone_reader_document_root(self.minimal_pdf_reader)
         writer_buffer = io.BytesIO()
         pdf_writer.write(writer_buffer)
@@ -88,7 +88,7 @@ class TestPdf(TransactionCase):
         writer_buffer.close()
 
         reader_buffer = io.BytesIO(branded_content)
-        pdf_reader = pdf.PdfFileReader(reader_buffer)
+        pdf_reader = pdf.PdfReader(reader_buffer)
         pdf_info = pdf_reader.metadata
         self.assertEqual(pdf_info["/Producer"], "Odoo")
         self.assertEqual(pdf_info["/Creator"], "Odoo")

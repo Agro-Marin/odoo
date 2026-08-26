@@ -13,7 +13,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 from odoo.http import request
 from odoo.tools import html2plaintext
-from odoo.tools.pdf import PdfFileReader
+from odoo.tools.pdf import PdfReader
 
 _logger = logging.getLogger(__name__)
 
@@ -1876,7 +1876,7 @@ class SlideSlide(models.Model):
 
         if data_bytes.startswith(b"%PDF-"):
             try:
-                pdf = PdfFileReader(io.BytesIO(data_bytes))
+                pdf = PdfReader(io.BytesIO(data_bytes))
                 return (5 * len(pdf.pages)) / 60
             except Exception:
                 # as this is a nice to have, fail silently

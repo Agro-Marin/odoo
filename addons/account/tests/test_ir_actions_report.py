@@ -5,7 +5,7 @@ import re
 from odoo.exceptions import RedirectWarning
 from odoo.tests import tagged
 from odoo.tools import file_open, mute_logger, pdf
-from odoo.tools.pdf import PdfFileReader, PdfFileWriter
+from odoo.tools.pdf import BrandedFileWriter, PdfReader
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
@@ -51,8 +51,8 @@ class TestIrActionsReport(AccountTestInvoicingCommon):
     def test_download_with_encrypted_pdf(self):
         attach_name = "original_vendor_bill.pdf"
         with file_open("base/tests/minimal.pdf", "rb") as pdf_file:
-            pdf_reader = PdfFileReader(pdf_file)
-            pdf_writer = PdfFileWriter()
+            pdf_reader = PdfReader(pdf_file)
+            pdf_writer = BrandedFileWriter()
             for page_num in range(len(pdf_reader.pages)):
                 pdf_writer.add_page(pdf_reader.pages[page_num])
             pdf_writer.encrypt("")
