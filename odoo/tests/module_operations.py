@@ -213,10 +213,22 @@ def test_standalone(args: argparse.Namespace) -> None:
     for module_name in registry._init_modules:
         odoo.tests.loader.get_test_modules(module_name)
 
-    funcs = list(
-        unique(
-            func for tag in args.standalone.split(",") for func in standalone_tests[tag]
+    requested = [tag.strip() for tag in args.standalone.split(",") if tag.strip()]
+    # standalone_tests is a defaultdict(list), so an unknown tag used to yield
+    # [] and insert the key: a typo ran zero scripts, logged "0 standalone
+    # scripts executed" and exited 0. Same reasoning as the runner's
+    # "--test-tags matched no test at all" guard -- a selector that matches
+    # nothing is a mistake, not a pass.
+    if unknown := [tag for tag in requested if tag not in standalone_tests]:
+        _logger.error(
+            "unknown standalone tag(s): %s; registered: %s",
+            ", ".join(sorted(unknown)),
+            ", ".join(sorted(standalone_tests)) or "(none)",
         )
+        sys.exit(1)
+
+    funcs = list(
+        unique(func for tag in requested for func in standalone_tests[tag])
     )
 
     start_time = time.monotonic()
