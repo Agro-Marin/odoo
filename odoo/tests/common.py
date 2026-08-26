@@ -1496,9 +1496,10 @@ class freeze_time:
     """Wraps ``freezegun.freeze_time`` so a class decorated with it freezes at
     the point ``TransactionCase.setUpClass`` chooses, not at import.
 
-    Line 1415 below replaces ``freezegun.freeze_time`` with this class
-    process-wide, so ``from freezegun import freeze_time`` resolves here in any
-    module imported after ``odoo.tests.common``. **The signature must therefore
+    The module-level ``freezegun.freeze_time = freeze_time`` at the bottom of
+    this file replaces ``freezegun.freeze_time`` with this class process-wide,
+    so ``from freezegun import freeze_time`` resolves here in any module
+    imported after ``odoo.tests.common``. **The signature must therefore
     stay a superset of freezegun's**: it used to accept five of freezegun
     1.5.5's eight arguments, silently dropping ``ignore``, ``as_arg`` and
     ``real_asyncio``, so the same call was valid or a ``TypeError`` depending on
