@@ -22,7 +22,6 @@ class WebsiteMail(http.Controller):
         if request.env.user != request.website.user_id:
             partner_ids = request.env.user.partner_id.ids
         else:
-            # mail_thread method
             try:
                 self.env["ir.http"]._check_request_recaptcha_token(
                     "website_mail_follow"
@@ -41,7 +40,6 @@ class WebsiteMail(http.Controller):
             record.sudo().message_unsubscribe(partner_ids)
             return False
         else:
-            # add partner to session
             request.session["partner_id"] = partner_ids[0]
             record.sudo().message_subscribe(partner_ids)
             return True
