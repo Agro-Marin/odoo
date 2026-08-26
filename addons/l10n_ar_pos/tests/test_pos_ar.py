@@ -10,7 +10,6 @@ class TestPosAR(AccountTestInvoicingHttpCommon, TestAr):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Create user.
         cls.pos_user = cls.env["res.users"].create(
             {
                 "name": "A simple PoS man!",
