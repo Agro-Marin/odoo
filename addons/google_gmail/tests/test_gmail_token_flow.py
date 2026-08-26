@@ -6,7 +6,8 @@ from unittest.mock import MagicMock, patch
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
-MIXIN_MODULE = "odoo.addons.google_gmail.models.mixin_google_gmail"
+# the flow itself lives in the shared provider mixin
+MIXIN_MODULE = "odoo.addons.mail_oauth2.models.mixin_oauth2_mail_provider"
 
 
 @tagged("post_install", "-at_install")
@@ -36,7 +37,7 @@ class TestGmailTokenFlow(TransactionCase):
             f"{MIXIN_MODULE}.requests.post",
             return_value=self._response(payload=payload),
         ) as post:
-            result = self.Mixin._fetch_gmail_token("refresh_token", refresh_token="RT")
+            result = self.Mixin._get_gmail_token("refresh_token", refresh_token="RT")
         self.assertEqual(result, payload)
         sent = post.call_args.kwargs["data"]
         self.assertEqual(sent["client_id"], "test-client-id")
@@ -50,7 +51,7 @@ class TestGmailTokenFlow(TransactionCase):
             ),
             self.assertRaises(UserError),
         ):
-            self.Mixin._fetch_gmail_token("refresh_token", refresh_token="RT")
+            self.Mixin._get_gmail_token("refresh_token", refresh_token="RT")
 
     def test_refresh_token_maps_tuple_and_expiration(self):
         """The authorization-code exchange maps to (refresh, access, expiry)."""
@@ -60,7 +61,7 @@ class TestGmailTokenFlow(TransactionCase):
             f"{MIXIN_MODULE}.requests.post",
             return_value=self._response(payload=payload),
         ):
-            refresh, access, expiration = self.Mixin._fetch_gmail_refresh_token("CODE")
+            refresh, access, expiration = self.Mixin._get_gmail_refresh_token("CODE")
         self.assertEqual((refresh, access), ("RT", "AT"))
         self.assertGreaterEqual(expiration, before + 1000)
 
@@ -71,7 +72,7 @@ class TestGmailTokenFlow(TransactionCase):
             f"{MIXIN_MODULE}.requests.post",
             return_value=self._response(payload=payload),
         ) as post:
-            access, _expiration = self.Mixin._fetch_gmail_access_token("RT")
+            access, _expiration = self.Mixin._get_gmail_access_token("RT")
         self.assertEqual(access, "AT2")
         post.assert_called_once()
 
@@ -83,7 +84,7 @@ class TestGmailTokenFlow(TransactionCase):
             ),
             self.assertRaises(UserError),
         ):
-            self.Mixin._fetch_gmail_access_token_iap("RT")
+            self.Mixin._get_gmail_access_token_iap("RT")
 
     def test_iap_payload_error_rejected(self):
         """An IAP error payload is converted into a UserError (negative)."""
@@ -94,4 +95,4 @@ class TestGmailTokenFlow(TransactionCase):
             ),
             self.assertRaises(UserError),
         ):
-            self.Mixin._fetch_gmail_access_token_iap("RT")
+            self.Mixin._get_gmail_access_token_iap("RT")

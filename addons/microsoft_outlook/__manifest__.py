@@ -4,6 +4,7 @@
     "category": "Hidden",
     "description": "Outlook support for incoming / outgoing mail servers",
     "depends": [
+        "mail_oauth2",
         "mail",
     ],
     "data": [

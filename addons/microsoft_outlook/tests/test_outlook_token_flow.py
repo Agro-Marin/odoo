@@ -6,7 +6,8 @@ from unittest.mock import MagicMock, patch
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
-MIXIN_MODULE = "odoo.addons.microsoft_outlook.models.mixin_microsoft_outlook"
+# the flow itself lives in the shared provider mixin
+MIXIN_MODULE = "odoo.addons.mail_oauth2.models.mixin_oauth2_mail_provider"
 
 
 @tagged("post_install", "-at_install")
@@ -36,7 +37,7 @@ class TestOutlookTokenFlow(TransactionCase):
             f"{MIXIN_MODULE}.requests.post",
             return_value=self._response(payload=payload),
         ) as post:
-            result = self.Mixin._fetch_outlook_token(
+            result = self.Mixin._get_outlook_token(
                 "refresh_token", refresh_token="RT"
             )
         self.assertEqual(result, payload)
@@ -52,7 +53,7 @@ class TestOutlookTokenFlow(TransactionCase):
             ),
             self.assertRaises(UserError),
         ):
-            self.Mixin._fetch_outlook_token("refresh_token", refresh_token="RT")
+            self.Mixin._get_outlook_token("refresh_token", refresh_token="RT")
 
     def test_refresh_token_maps_tuple_and_expiration(self):
         """The authorization-code exchange maps to (refresh, access, expiry)."""
@@ -62,7 +63,7 @@ class TestOutlookTokenFlow(TransactionCase):
             f"{MIXIN_MODULE}.requests.post",
             return_value=self._response(payload=payload),
         ):
-            refresh, access, expiration = self.Mixin._fetch_outlook_refresh_token(
+            refresh, access, expiration = self.Mixin._get_outlook_refresh_token(
                 "CODE"
             )
         self.assertEqual((refresh, access), ("RT", "AT"))
@@ -85,7 +86,7 @@ class TestOutlookTokenFlow(TransactionCase):
             return_value=self._response(payload=payload),
         ) as post:
             refresh, access, id_token, _expiration = (
-                self.Mixin._fetch_outlook_access_token("RT")
+                self.Mixin._get_outlook_access_token("RT")
             )
         self.assertEqual((refresh, access, id_token), ("RT2", "AT2", "IDT"))
         post.assert_called_once()
@@ -98,7 +99,7 @@ class TestOutlookTokenFlow(TransactionCase):
             ),
             self.assertRaises(UserError),
         ):
-            self.Mixin._fetch_outlook_access_token_iap("RT")
+            self.Mixin._get_outlook_access_token_iap("RT")
 
     def test_iap_payload_error_rejected(self):
         """An IAP error payload is converted into a UserError (negative)."""
@@ -109,4 +110,4 @@ class TestOutlookTokenFlow(TransactionCase):
             ),
             self.assertRaises(UserError),
         ):
-            self.Mixin._fetch_outlook_access_token_iap("RT")
+            self.Mixin._get_outlook_access_token_iap("RT")

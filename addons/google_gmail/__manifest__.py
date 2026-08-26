@@ -4,6 +4,7 @@
     "category": "Hidden",
     "description": "Gmail support for incoming / outgoing mail servers",
     "depends": [
+        "mail_oauth2",
         "mail",
     ],
     "data": [

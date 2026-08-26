@@ -40,7 +40,7 @@ class MicrosoftOutlookController(http.Controller):
         record_sudo = self._get_outlook_record(model_name, rec_id, csrf_token)
 
         try:
-            refresh_token, access_token, expiration = record_sudo._fetch_outlook_refresh_token(code)
+            refresh_token, access_token, expiration = record_sudo._get_outlook_refresh_token(code)
         except UserError as e:
             return request.render('microsoft_outlook.microsoft_outlook_oauth_error', {
                 'error': str(e),
@@ -90,7 +90,7 @@ class MicrosoftOutlookController(http.Controller):
             # could pair one account's id_token with another account's refresh_token. So
             # we ask a fresh one to the API; coming straight from it (or from IAP, with a
             # direct HTTP request), its signature needs no check.
-            refresh_token, access_token, id_token, expiration = record._fetch_outlook_access_token(refresh_token)
+            refresh_token, access_token, id_token, expiration = record._get_outlook_access_token(refresh_token)
             id_token_data = id_token.split(".")[1]
             id_token_data += '=' * (-len(id_token_data) % 4)  # `=` padding can be missing
             email = json.loads(base64.b64decode(id_token_data)).get('email')

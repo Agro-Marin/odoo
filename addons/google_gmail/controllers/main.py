@@ -44,7 +44,7 @@ class GoogleGmailController(http.Controller):
         record_sudo = self._get_gmail_record(model_name, rec_id, csrf_token)
 
         try:
-            refresh_token, access_token, expiration = record_sudo._fetch_gmail_refresh_token(code)
+            refresh_token, access_token, expiration = record_sudo._get_gmail_refresh_token(code)
         except UserError as e:
             return request.render('google_gmail.google_gmail_oauth_error', {
                 'error': str(e),

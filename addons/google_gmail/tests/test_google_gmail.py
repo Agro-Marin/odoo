@@ -21,7 +21,7 @@ class TestIrMailServer(TransactionCase):
 
     def test_generate_oauth2_string_token(self):
         """Testing the generation of the oauth2 token
-        should take care of google_gmail_mixin.GMAIL_TOKEN_VALIDITY_THRESHOLD
+        should take care of OAUTH2_TOKEN_VALIDITY_THRESHOLD
         """
         current_token_expiry = int(datetime(2021, 12, 15, 11, 0, 0).timestamp())
         new_token_expiry = int(datetime(2021, 12, 15, 12, 0, 1).timestamp())
@@ -30,19 +30,19 @@ class TestIrMailServer(TransactionCase):
                 "2021-12-15 10:59:50",
                 False,
                 "fake_access_token",
-                ("Google Gmail: reuse existing access token. Expire in %i minutes", 0),
+                ("%s: reuse existing access token. It expires in %i minutes", "Gmail", 0),
             ),
             (
                 "2021-12-15 10:59:55",
                 True,
                 "new-access-token",
-                ("Google Gmail: fetch new access token. Expires in %i minutes", 60),
+                ("%s: fetch new access token. It expires in %i minutes", "Gmail", 60),
             ),
             (
                 "2021-12-15 11:00:01",
                 True,
                 "new-access-token",
-                ("Google Gmail: fetch new access token. Expires in %i minutes", 60),
+                ("%s: fetch new access token. It expires in %i minutes", "Gmail", 60),
             ),
         ]
 
@@ -54,11 +54,11 @@ class TestIrMailServer(TransactionCase):
         ) in cases:
             with self.subTest(currenct_datetime=current_datetime), \
                 freeze_time(current_datetime), \
-                mock.patch("odoo.addons.google_gmail.models.mixin_google_gmail._logger.info") as mock_logger, \
+                mock.patch("odoo.addons.mail_oauth2.models.mixin_oauth2_mail_provider._logger.info") as mock_logger, \
                 mock.patch(
-                    "odoo.addons.google_gmail.models.mixin_google_gmail.MixinGoogleGmail._fetch_gmail_access_token",
+                    "odoo.addons.google_gmail.models.mixin_google_gmail.MixinGoogleGmail._get_gmail_access_token",
                     return_value=("new-access-token", new_token_expiry),
-                ) as mock_fetch_gmail_access_token:
+                ) as mock_get_gmail_access_token:
                 self.mail_server.google_gmail_access_token_expiration = current_token_expiry
                 oauth2_string = self.mail_server._generate_oauth2_string(
                     "user-account", "refresh-token"
@@ -68,8 +68,8 @@ class TestIrMailServer(TransactionCase):
                     oauth2_string,
                 )
                 if assert_new_token_generation_called:
-                    mock_fetch_gmail_access_token.assert_called_once()
+                    mock_get_gmail_access_token.assert_called_once()
                 else:
-                    mock_fetch_gmail_access_token.assert_not_called()
+                    mock_get_gmail_access_token.assert_not_called()
 
                 mock_logger.assert_called_once_with(*expected_log)
