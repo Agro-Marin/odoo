@@ -1,36 +1,4 @@
 #!/usr/bin/env python3
-"""Run test_lint's Python AST checkers over any roots, without odoo-bin.
-
-WHY THIS EXISTS. The checkers live in an odoo *addon*, so the only way to run
-them was to install `test_lint` into a database, and `lint_case.is_core_path`
-scopes every gate to the checkout the framework is running from. The sibling
-repositories are therefore checked by nothing at all. Measured 2026-08-25 with
-this script, under exactly the corpus rules the gate applies:
-
-    agromarin        1760 files    156 findings   (81 n-plus-one, 22 sql-injection, ...)
-    enterprise       7786 files    731 findings   (423 n-plus-one, 275 noqa-rationale, ...)
-    design-themes     129 files      2 findings
-    ---------------------------------------------
-                                    889, against 557 in the repository that is gated
-
-Each sibling repository runs `--check` from its own "Architecture Boundaries
-(cross-repo)" workflow, which already checks this fork out beside itself. The
-floors live here, in `tooling/ratchet/baselines/lint_<rule>_<scope>.json`,
-because that is where the gate and every other floor live -- scoped by
-provenance, so a run judges only its own repository's count.
-
-    python tooling/lint/py_lint.py ../agromarin --count
-    python tooling/lint/py_lint.py ../agromarin --rule sql-injection
-    python tooling/lint/py_lint.py ../agromarin --count --rule sql-injection   # bare integer
-    python tooling/lint/py_lint.py agromarin --check --scope agromarin
-
-`--check` defaults to `--mode no-increase` for the same reason the other
-cross-repo ratchets do: an exact floor across a repository boundary would make
-every fix in a sibling red until a matching commit landed here to bank it.
-Growth still fails. Lowering a sibling floor is done by hand from a workspace
-that holds all four checkouts, which is what `naming` already asks for.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -39,12 +7,13 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _repo_root import find_odoo_root
+
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parent.parent
+REPO = find_odoo_root(Path(__file__).resolve(), tool="py_lint")
 CHECKERS_DIR = REPO / "odoo" / "addons" / "test_lint" / "tests"
 
-#: Mirrors `_py_scan._NOT_OURS`. Kept in step by
-#: `tooling/lint/test_py_lint.py`, which reads both and compares.
 NOT_OURS = (
     "/_vendor/",
     "/upgrades/",
@@ -55,14 +24,6 @@ NOT_OURS = (
 
 
 def _load(name: str):
-    """Import one checker module by path, as a member of a synthetic package.
-
-    The modules use relative imports (`from ._suppression import ...`), so they
-    need a package to be relative *to*; `_test_lint_checkers` is that package,
-    rooted at the tests directory. Loading them this way rather than moving nine
-    files into `tooling/` keeps the gate and this script running the same code,
-    which is the only property that matters here.
-    """
     package = "_test_lint_checkers"
     if package not in sys.modules:
         spec = importlib.util.spec_from_file_location(
@@ -71,8 +32,6 @@ def _load(name: str):
             submodule_search_locations=[str(CHECKERS_DIR)],
         )
         module = importlib.util.module_from_spec(spec)
-        # A bare namespace: executing the real `__init__` would import every test
-        # module, and those do need odoo.
         sys.modules[package] = module
     full = f"{package}.{name}"
     if full in sys.modules:
@@ -122,14 +81,6 @@ def python_files(roots: list[str]) -> list[str]:
 
 
 def in_an_addon(path: str) -> bool:
-    """Is this file part of an addon, or part of the framework?
-
-    `orm-import` -- the facade rule -- applies to addon code and not to the ORM
-    itself, so getting this wrong makes the framework report 23 findings against
-    the gate's 0. An addon is a directory with a `__manifest__.py`; everything
-    above the nearest one is framework. In a sibling repository every file is in
-    an addon, which is why this only shows up when the tool is pointed here.
-    """
     for parent in Path(path).parents:
         if (parent / "__manifest__.py").is_file():
             return True
@@ -168,10 +119,6 @@ def scan(roots: list[str]):
         suppresses = suppression.Suppressions(
             comments, rules.ALIASES, rules.UNSUPPRESSABLE
         )
-        # Same statement spans the gate uses, so a directive placed anywhere in
-        # the statement waives here too. Without this the tool and the gate
-        # disagree about what is suppressed, which is the one thing that makes
-        # the tool untrustworthy.
         spans = rules.statement_spans(unit.nodes)
         for checker in rules.CHECKERS:
             if not checker.applies_to(unit):
@@ -204,12 +151,6 @@ def scan(roots: list[str]):
 
 
 def _ratchet():
-    """`tooling/ratchet/ratchet.py`, loaded by path.
-
-    Registered in `sys.modules` before execution: it carries `from __future__
-    import annotations` and a dataclass whose field annotations name the class
-    itself, which `dataclasses` resolves through `sys.modules[cls.__module__]`.
-    """
     name = "_py_lint_ratchet"
     if name in sys.modules:
         return sys.modules[name]
@@ -230,7 +171,6 @@ def gate_name(rule: str, scope: str) -> str:
 
 
 def check(findings, scope: str, mode: str) -> int:
-    """Hold every rule at its floor for this scope. Returns a process exit code."""
     ratchet = _ratchet()
     counts = Counter(rule for rule, *_ in findings)
     rules = sorted(set(counts) | _scoped_gates(ratchet, scope))
@@ -250,12 +190,6 @@ def check(findings, scope: str, mode: str) -> int:
 
 
 def _scoped_gates(ratchet, scope: str) -> set[str]:
-    """Rules this scope already has a committed floor for.
-
-    Without this a rule that has been driven to zero would stop being evaluated
-    the moment it reported nothing, and its floor would sit there unchecked
-    while the debt crept back under a `no-increase` mode that never ran.
-    """
     suffix = f"_{scope}.json"
     return {
         path.name[len("lint_") : -len(suffix)].replace("_", "-")
@@ -265,7 +199,7 @@ def _scoped_gates(ratchet, scope: str) -> set[str]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="py_lint.py", description=__doc__.split("\n")[0]
+        prog="py_lint.py", description=__doc__
     )
     parser.add_argument("roots", nargs="+", help="directories to scan")
     parser.add_argument("--rule", help="only this rule")
@@ -297,8 +231,6 @@ def main(argv: list[str] | None = None) -> int:
         return check(findings, args.scope, args.mode)
 
     if args.count and args.rule:
-        # A bare integer, so the existing `--count | xargs ratchet.py ...` shape
-        # the other cross-repo gates use works here too.
         print(len(findings))
     elif args.count:
         by_rule = Counter(rule for rule, *_ in findings)
