@@ -58,7 +58,8 @@ def test_the_text_area_is_still_reachable_and_still_the_heavy_one():
 
 
 def test_all_matches_the_export_table():
-    table = json.loads(_probe("""
+    table = json.loads(
+        _probe("""
         import json
         from odoo import libs
         print(json.dumps({
@@ -66,7 +67,8 @@ def test_all_matches_the_export_table():
             "resolvable": sorted(libs._AREA_OF),
             "duplicated": len(libs.__all__) != len(set(libs.__all__)),
         }))
-    """))
+    """)
+    )
     advertised, resolvable = set(table["advertised"]), set(table["resolvable"])
     assert advertised == resolvable, (
         "__all__ and _EXPORTS disagree -- advertised but unresolvable: "
@@ -77,7 +79,8 @@ def test_all_matches_the_export_table():
 
 
 def test_every_advertised_name_resolves():
-    unresolved = json.loads(_probe("""
+    unresolved = json.loads(
+        _probe("""
         import json
         from odoo import libs
         unresolved = []
@@ -87,7 +90,8 @@ def test_every_advertised_name_resolves():
             except AttributeError:
                 unresolved.append(name)
         print(json.dumps(unresolved))
-    """))
+    """)
+    )
     assert unresolved == [], f"advertised but unresolvable: {unresolved}"
 
 

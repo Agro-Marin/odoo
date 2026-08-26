@@ -193,9 +193,7 @@ class ImageProcess:
                 if asked_width < w or asked_height < h:
                     self._extract_gif_frames()
                     for frame in [self.image, *self.animated_frames]:
-                        frame.thumbnail(
-                            (asked_width, asked_height), Resampling.LANCZOS
-                        )
+                        frame.thumbnail((asked_width, asked_height), Resampling.LANCZOS)
                     self.operations_count += 1
                 return self
             if expand and (asked_width > w or asked_height > h):

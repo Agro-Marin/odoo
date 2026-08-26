@@ -333,7 +333,10 @@ class EsbuildCompiler:
             external_specifier_flags = []
             alias_flags += self._standalone_alias_flags(
                 odoo_root,
-                {flag.partition("=")[0].removeprefix("--alias:") for flag in alias_flags},
+                {
+                    flag.partition("=")[0].removeprefix("--alias:")
+                    for flag in alias_flags
+                },
             )
         else:
             external_specifier_flags = [
@@ -460,7 +463,7 @@ class EsbuildCompiler:
                 continue
             try:
                 path = file_path(url.lstrip("/"))
-            except (ValueError, FileNotFoundError):
+            except ValueError, FileNotFoundError:
                 continue
             flags.append(f"--alias:{spec}=./{os.path.relpath(path, odoo_root)}")
         return flags

@@ -132,7 +132,6 @@ class TestHardcodedImportMaps(unittest.TestCase):
 
 
 class TestIotHomepagePlaceholder(unittest.TestCase):
-
     VIEWS = _REPO_ROOT / "addons/iot_drivers/views"
     CONTROLLER = _REPO_ROOT / "addons/iot_drivers/controllers/homepage.py"
 

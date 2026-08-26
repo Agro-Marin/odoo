@@ -473,9 +473,7 @@ class LoadMixin(_ModelStubs):
         imd = self.env["ir.model.data"].sudo()
 
         xml_ids = [data["xml_id"] for data in data_list if data.get("xml_id")]
-        existing = {
-            f"{row[1]}.{row[2]}": row for row in imd._get_xmlids(xml_ids, self)
-        }
+        existing = {f"{row[1]}.{row[2]}": row for row in imd._get_xmlids(xml_ids, self)}
 
         to_create = []
         to_update = []

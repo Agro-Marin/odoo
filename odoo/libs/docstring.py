@@ -79,9 +79,7 @@ _SAFE_SETTINGS: typing.Final[dict[str, typing.Any]] = {
 }
 
 
-def _make_settings(
-    writer_name: str, overrides: dict[str, typing.Any]
-) -> typing.Any:
+def _make_settings(writer_name: str, overrides: dict[str, typing.Any]) -> typing.Any:
     parser = parsers.get_parser_class("restructuredtext")()
     reader = readers.get_reader_class("standalone")(parser)
     writer = writers.get_writer_class(writer_name)()
@@ -129,7 +127,6 @@ def render_children_html(tree: nodes.Element) -> str:
 
 
 class InfoField(typing.NamedTuple):
-
     kind: str | None
     name: str
     body: nodes.Element
@@ -172,7 +169,6 @@ ParamKind = typing.Literal[
 
 @dataclasses.dataclass(slots=True)
 class Param:
-
     name: str
     kind: ParamKind
     default: typing.Any
