@@ -531,9 +531,7 @@ class CalendarEvent(models.Model):
     @api.depends("allday", "start", "stop")
     def _compute_dates(self):
         """Adapt the value of start_date(time)/stop_date(time)
-        according to start/stop fields and allday. Also, compute
-        the duration for not allday meeting ; otherwise the
-        duration is set to zero, since the meeting last all the day.
+        according to start/stop fields and allday.
         """
         for meeting in self:
             if meeting.allday and meeting.start and meeting.stop:
