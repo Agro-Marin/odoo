@@ -92,7 +92,7 @@ def service_metrics() -> dict[str, Any]:
 
     if hasattr(server, "workers"):
         # Only the master knows the fleet.  A worker reached this line holding
-        # the PreforkServer it inherited through os.fork() (_prefork.py:142):
+        # the PreforkServer it inherited through os.fork() (_prefork.py:144):
         # workers_*, population, generation and long_polling_pid are all frozen
         # at the instant of that fork and never updated in the child, so each
         # worker would publish a different — and wrong — view of the fleet.
