@@ -43,16 +43,11 @@ _PLAN_MAX_ITERATIONS = 100
 
 
 class ResourceCalendar(models.Model):
-    """Calendar model for a resource. It has
-
-    - attendance_ids: list of resource.calendar.attendance that are a working
-                    interval in a given weekday.
-    - leave_ids: list of leaves linked to this calendar. A leave can be general
-                or linked to a specific resource, depending on its resource_id.
+    """Calendar model for a resource.
 
     All methods in this class use intervals. An interval is a tuple holding
-    (begin_datetime, end_datetime). A list of intervals is therefore a list of
-    tuples, holding several intervals of work or leaves."""
+    (begin_datetime, end_datetime, payload_record). A list of intervals is
+    therefore a list of tuples, holding several intervals of work or leaves."""
 
     _name = "resource.calendar"
     _description = "Resource Working Time"
