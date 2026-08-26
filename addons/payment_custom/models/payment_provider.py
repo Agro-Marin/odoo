@@ -45,7 +45,10 @@ class PaymentProvider(models.Model):
     # === ACTION METHODS ===#
 
     def action_recompute_pending_msg(self):
-        """Recompute the pending message to include the existing bank accounts."""
+        """Recompute the pending message to include the existing bank accounts.
+
+        No-op if `account_payment` is not installed.
+        """
         account_payment_module = self.env["ir.module.module"]._get("account_payment")
         if account_payment_module.state == "installed":
             for provider in self.filtered(lambda p: p.custom_mode == "wire_transfer"):
