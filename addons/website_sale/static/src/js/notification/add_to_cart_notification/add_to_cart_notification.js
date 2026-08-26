@@ -38,7 +38,7 @@ export class AddToCartNotification extends Component {
      * Return the lines linked to the provided line id.
      *
      * @param {Number} lineId The id of the line whose linked lines to return.
-     * @return {Object[]} The lines which aren't linked to other lines.
+     * @return {Object[]} The lines linked to the provided line id.
      */
     getLinkedLines(lineId) {
         return this.props.lines.filter(line => line.linked_line_id === lineId);
