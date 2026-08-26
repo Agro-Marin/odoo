@@ -407,6 +407,44 @@ class TestCharsetLabels(unittest.TestCase):
                 self.assertEqual(codecs.lookup(label).name, "cp874")
 
 
+class TestXmlParsedAsHtmlWarningScope(unittest.TestCase):
+    """The bs4 warning is suppressed for ofxparse, and for nobody else."""
+
+    XML = "<?xml version='1.0'?><OFX><X>1</X></OFX>"
+
+    def _warnings_from(self, call):
+        import warnings
+
+        from odoo._monkeypatches import bs4 as bs4_patch
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.resetwarnings()
+            warnings.simplefilter("always")
+            bs4_patch.patch_module()
+            call()
+            return [type(entry.message).__name__ for entry in caught]
+
+    def test_the_warning_is_silenced_for_ofxparse(self):
+        import bs4
+
+        if not hasattr(bs4, "XMLParsedAsHTMLWarning"):
+            self.skipTest("bs4 does not raise XMLParsedAsHTMLWarning")
+        from ofxparse.ofxparse import soup_maker
+
+        caught = self._warnings_from(lambda: soup_maker(io.BytesIO(self.XML.encode())))
+        self.assertNotIn("XMLParsedAsHTMLWarning", caught)
+
+    def test_an_unrelated_caller_still_hears_it(self):
+        import bs4
+
+        if not hasattr(bs4, "XMLParsedAsHTMLWarning"):
+            self.skipTest("bs4 does not raise XMLParsedAsHTMLWarning")
+        caught = self._warnings_from(
+            lambda: bs4.BeautifulSoup(self.XML, "html.parser")
+        )
+        self.assertIn("XMLParsedAsHTMLWarning", caught)
+
+
 class TestBabelLocaleAlias(unittest.TestCase):
     def test_bare_nb_has_a_territory(self):
         import babel.core
