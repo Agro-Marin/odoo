@@ -491,7 +491,13 @@ class Form:
         else:
             field_names = []
 
-        if field_name and not self._view["onchange"][field_name]:
+        # .get: a field can be in self._view["fields"] without being in
+        # ["onchange"], which is built once from the view tree. The daterange
+        # fix-up registers the related start/end field in fields, fields_spec
+        # and modifiers, but _onchange_spec only walks <field> nodes and that
+        # partner field has none -- so assigning it raised KeyError here instead
+        # of simply having no onchange to run, which is what a falsy spec means.
+        if field_name and not self._view["onchange"].get(field_name):
             return None
 
         record = self._record
