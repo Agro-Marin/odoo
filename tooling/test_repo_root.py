@@ -156,6 +156,7 @@ class TestEveryToolAgrees:
         ("architecture", "pool_surface_check"): "REPO_ROOT",
         ("architecture", "worker_thread_surface_check"): "REPO_ROOT",
         ("architecture", "mixin_coupling_check"): "ROOT",
+        ("architecture", "module_depends_installable"): "ROOT",
         ("architecture", "libs_facade_check"): "REPO_ROOT",
         ("architecture", "facade_surface_check"): "REPO_ROOT",
         ("architecture", "mail_hook_keyword_check"): "ROOT",

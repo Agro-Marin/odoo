@@ -54,6 +54,7 @@ odoo/
 ├── modules/        The module graph (iterated by phase, dependency depth,
 │   │               then name) and what loads it
 │   └── module_graph, module, loading, migration, db, neutralize,
+│       _protocols (what a loader needs of a cursor, narrower than one),
 │       registry/ (a re-export shim — `Registry` itself is Layer 3, in
 │                  `orm/runtime/registry.py`)
 ├── tools/          Odoo-COUPLED utilities (need ORM / config / runtime)

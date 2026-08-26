@@ -145,7 +145,37 @@ specifiers (see `addons/web/machine_doc_v1/ESM_BUNDLING.md`):
 
 * a changed `*.test.js` file → its own suite;
 * anything else → every test file that imports it **directly**, plus test
-  files that import a `src` file which imports the changed file (**one hop**).
+  files that import a file which imports the changed file (**one hop**);
+* a changed file that calls `patch(X)` → whatever tests **X**, because nothing
+  imports a patch module and the graph alone therefore reached nothing.
+
+**The hop set is `static/src` plus the non-`*.test.js` files under
+`static/tests`.** Fixtures and helpers such as `@point_of_sale/../tests/unit/utils`
+are what most suites import instead of the module under test; they are in
+neither tree's "src" nor "tests" list by name, and a hop through one used to be
+invisible. Measured 2026-08-26: `pos_hr/app/services/pos_store.js` selected 0
+suites and now selects 8, or 51 with `--downstream` — re-derive with
+`./hoot-affected [--downstream] <file>`, these move as suites are added.
+
+**A patch module is imported by nothing** — the bundle loads it for its side
+effect — so before the `patch(X)` rule, changing any `patch()`-calling src file
+printed `# no affected suites detected`, which reads exactly like "nothing to
+run". That was ~1100 files of the fork's ~6100 when the rule was written; count
+them now with
+
+```bash
+python3 -c 'import sys; sys.path.insert(0,"."); import hoot_lib as H; \
+print(sum(1 for f in H._iter_src_files() if H.patch_targets_of(f)), "of", len(H._iter_src_files()))'
+```
+
+The rule reads the *call*, not the import list:
+a file that imports `patch`, `_t` and `LoginScreen` but only patches the last
+selects only the last one's suites.
+
+**An installer module that only patches other addons needs `--downstream`.**
+Without it the result is filtered to suites in the changed file's own addon, and
+a module like `agromarin/marin` owns none — so plain `--affected` is correctly,
+but unhelpfully, empty for it.
 
 The suite name is derived exactly as `tests/_framework/start.hoot.js`
 (`_suiteNameFromSpecifier`) does, e.g. `web/static/tests/core/domain.test.js` →

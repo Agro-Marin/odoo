@@ -1,12 +1,12 @@
 {
   "gate": "mypy",
   "package": "modules",
-  "total": 70,
+  "total": 68,
   "note": "Per-file ceilings for the files mypy excepts; membership still comes from exceptions/mypy/modules.txt. Harvested with the mypy version pinned in requirements-dev.txt \u2014 a different version reports different counts.",
   "budgets": {
     "odoo/modules/db.py": 3,
     "odoo/modules/loading.py": 55,
     "odoo/modules/module.py": 9,
-    "odoo/modules/module_graph.py": 3
+    "odoo/modules/module_graph.py": 1
   }
 }

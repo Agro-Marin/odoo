@@ -320,7 +320,32 @@ PUBLIC_SURFACE_PIN = ROOT / "tooling" / "architecture" / "public_surface_web.txt
 METADATA = ROOT / "odoo" / "orm" / "models" / "mixins" / "_metadata.py"
 GUIDELINES = ROOT / "doc" / "coding_guidelines.rst"
 
+
+def architecture_checkers() -> tuple[int, ...]:
+    """Distinct gate scripts architecture.yml actually invokes.
+
+    risks.md states this number three times while arguing that passing every
+    structural gate is not the same as being right. test_architecture_doc.py
+    already compared the prose against the workflow, so the figure was checked
+    -- but it was not MEASURED, so the only way to move it was to retype it in
+    three places, which is what ADR-0041 exists to stop.
+    """
+    workflow = (ROOT / ".github" / "workflows" / "architecture.yml").read_text(
+        encoding="utf-8"
+    )
+    return (
+        len(set(re.findall(r"python tooling/architecture/([\w.]+\.py)", workflow))),
+    )
+
+
 FIGURES: tuple[Figure, ...] = (
+    Figure(
+        "architecture_checkers",
+        RISKS,
+        re.compile(r"(?:all|The)\s+(\d+)\s+(?:are structural|boundary checkers|and)"),
+        architecture_checkers,
+        _plain,
+    ),
     Figure(
         "bundled_modules",
         GATES,

@@ -484,6 +484,67 @@ class TestAffectedSuiteSelection:
         assert "@stock/inventory_report_list" in suites
         assert not any(s.startswith("@stock/tours/") for s in suites)
 
+    def test_a_patch_file_selects_the_suites_that_test_what_it_patches(self):
+        # pos_hr's login_screen.js is imported by nothing -- the bundle loads it
+        # for its patch() side effect -- so the import graph alone returned an
+        # empty list, indistinguishable from "nothing to run".
+        suites = H.affected_suites(
+            [
+                self._p(
+                    "addons/pos_hr/static/src/app/screens/login_screen/login_screen.js"
+                )
+            ]
+        )
+        assert "@pos_hr/unit/components/screens/login_screen" in suites
+
+    def test_patch_targets_are_read_from_the_call_not_the_import_list(self):
+        path = self._p(
+            "addons/pos_hr/static/src/app/screens/login_screen/login_screen.js"
+        )
+        targets = H.patch_targets_of(path)
+        # The file also imports @web/core/utils/patch, _t, hooks -- none of which
+        # it patches. Only the patch() argument counts.
+        assert targets == {"@point_of_sale/app/screens/login_screen/login_screen"}
+
+    def test_a_file_that_patches_nothing_has_no_patch_targets(self):
+        assert (
+            H.patch_targets_of(self._p("addons/web/static/src/core/utils/patch.js"))
+            == set()
+        )
+
+    def test_patch_targets_resolve_a_relative_specifier(self, tmp_path):
+        f = self._p("addons/web/static/src/core/relative_patcher_probe.js")
+        f.write_text(
+            'import { Thing } from "./utils/patch";\npatch(Thing, {});\n',
+            encoding="utf-8",
+        )
+        try:
+            assert H.patch_targets_of(f) == {"@web/core/utils/patch"}
+        finally:
+            f.unlink()
+
+    def test_a_test_helper_is_a_hop_a_suite_can_be_reached_through(self):
+        # Nearly every POS suite imports @point_of_sale/../tests/unit/utils
+        # rather than the module under test. That helper is neither src nor
+        # *.test.js, so hops through it used to be invisible.
+        helpers = H._iter_hop_files()
+        utils = self._p("addons/point_of_sale/static/tests/unit/utils.js")
+        assert utils in helpers
+        # No suite file is pulled in as a hop: what the tests tree contributes
+        # is helpers only. (Three stray *.test.js sit under static/src and so
+        # arrive via _iter_src_files, as they did before; not this set's doing.)
+        from_tests_tree = [f for f in helpers if "/static/tests/" in f.as_posix()]
+        assert from_tests_tree
+        assert not any(f.name.endswith(".test.js") for f in from_tests_tree)
+
+    def test_patching_the_pos_store_reaches_other_addons_downstream(self):
+        suites = H.affected_suites(
+            [self._p("addons/pos_hr/static/src/app/services/pos_store.js")],
+            downstream=True,
+        )
+        # Reached only through the shared test helper, i.e. both fixes at once.
+        assert any(s.startswith("@pos_discount/") for s in suites), suites
+
     def test_every_selected_suite_is_one_hoot_can_register(self):
         tours = [
             f

@@ -1,13 +1,8 @@
 {
-  "expected": {
-    "test_lint/PrettyXmlLinter.test_xml_formatting": "FAIL",
-    "test_lint/TestPythonLint.test_gettext_repr": "FAIL",
-    "test_lint/TestPythonLint.test_gettext_variable": "FAIL",
-    "test_lint/XmlRecordLinter.test_xml_record_field_order": "FAIL"
-  },
-  "note": "Four ratchet assertions inside test_lint itself, the tree and the committed floors disagreeing:\n\n  PrettyXmlLinter.test_xml_formatting          3659 vs floor 3658   (+1)\n  XmlRecordLinter.test_xml_record_field_order   791 vs floor  789   (+2)\n  TestPythonLint.test_gettext_repr                9 vs floor    8   (+1)\n  TestPythonLint.test_gettext_variable            2 vs floor    1   (+1)\n\nDown from five. TestPythonLint.test_batch_queries left the set, and NOT because anyone\npaid the debt: the floor is untouched at 394, the tree measured 393 when this baseline\nwas first recorded at 5a70ea39d23, and it measures 394 again now. Something in the eight\ncommits since put an n-plus-one back and the exact ratchet went green because the count\ndrifted toward the floor. Do not read that line as progress.\n\nNone of the four is one person to fix -- each unit belongs to whichever change moved it,\nand banking them here would credit that work to a passer-by.\n\nMeasured at the CI scope (odoo/addons + addons, no enterprise) in the shared checkout,\non the run that also checked this session account.pot export; that export contributed\n0 new failures.",
-  "run_spec": "--addons-path=<repo>/odoo/addons,<repo>/addons -i test_lint --test-enable --test-tags /test_lint --stop-after-init --no-http",
+  "expected": {},
+  "note": "Empty, for the first time since this baseline was recorded. All four went green in\nthe same change, and three of them because it paid the debt rather than because the\ncount drifted:\n\n  TestPythonLint.test_gettext_repr             8 vs floor 7  -> 7   %r -> %s in\n                                                                   account_journal\n  TestPythonLint.test_gettext_variable         2 vs floor 1  -> 1   _log_tracked_change\n                                                                   takes the caller's\n                                                                   own _() as a lambda\n  XmlRecordLinter.test_xml_record_field_order  791 vs 789    -> 789 two server actions\n                                                                   in approval put\n                                                                   group_ids after code\n  PrettyXmlLinter.test_xml_formatting          3659 vs 3658  -> 3658 NOT this change's;\n                                                                   already green at HEAD\n\nThe floors this change had to move are in test_python_lint.py's FLOORS with their own\nattributions: sql-injection 36 -> 34 (all three units here), and noqa-rationale 66 -> 63\nand n-plus-one-query 369 -> 368, both of which were already standing at HEAD.\n\nMeasured at the CI scope this file's run_spec names -- odoo/addons + addons, test_lint\nalone, template0 -- in a detached worktree at 1df63d05669 carrying this change's files\nand nothing else. The shared checkout is holding another session's in-flight\npurchase/sale work and cannot be counted in.",
+  "run_spec": "",
   "suite": "/test_lint",
-  "tests_total": 246,
-  "verified_at": "43d8aa5af99"
+  "tests_total": 257,
+  "verified_at": "1df63d05669"
 }

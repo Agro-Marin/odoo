@@ -1,0 +1,10 @@
+{
+  "expected": {
+    "website_slides/TestUiPublisher.test_course_publisher_elearning_manager": "FAIL"
+  },
+  "note": "7 -> 1. The five deterministic failures are fixed at their roots, and the two that were recorded as flaky now pass three runs in a row -- plausibly because two of those roots were what made them flaky. What was fixed: a dialog opened from inside a shadow-root app rendered in the page behind it (web/ui/dialog + three stale mail call sites still passing the pre-rootId 'context' option), which took out course_review_modification and course_reviews_reaction_public; a container replacing its children without stopping the interactions bound to it, which is why a saved o_text_highlight reached fullscreen with no SVG; and three tour steps describing a UI that moved -- Edit sits behind Expand on a message you did not author, the tag dialog's two SelectMenus were indistinguishable so ':last' named the wrong one, and two clicks landed on markup whose interactions had not started yet. What remains: TestUiPublisher.test_course_publisher_elearning_manager now runs all 77 of its steps (it used to die at 33) and then fails INTERMITTENTLY on an uncaught 'getDocument - expected either data, range, or url parameter' with no Odoo frame in its stack. Instrumenting both Odoo entry points on a failing run shows two getDocument calls, both with valid parameters, so the caller reaching that throw is a third one and is NOT root-caused. Do not assume it is the upload preview. Detail: agromarin-knowledge/research/2026-08-26-website-slides-tour-failures-unmasked.md",
+  "run_spec": "-i website_slides --test-enable --test-tags '/website_slides'",
+  "suite": "/website_slides",
+  "tests_total": 155,
+  "verified_at": "499add892ff"
+}

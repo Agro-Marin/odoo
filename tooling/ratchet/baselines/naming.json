@@ -1,4 +1,4 @@
 {
-  "count": 143,
-  "note": "144 -> 143. Re-derived on the rebase of 19.0-marin onto origin/19.0-marin. Neither parent's floor measures the composed tree: this branch's was taken before origin's 102 commits were under it, origin's before this branch's 124 were. Measured in a detached worktree at the rebased tip, so no working-tree state is carried. An exact ratchet fails in the falling direction too, which is why the reductions are banked here rather than left red."
+  "count": 130,
+  "note": "website_slides drops to zero offenders. 135 -> 130. Five `_fetch_*` definitions renamed to the canonical `_get_*` (_get_external_metadata, _get_youtube_metadata, _get_google_drive_metadata, _get_vimeo_metadata, _get_thumbnail) and `_ensure_quiz_survey` to `_check_quiz_survey`. Renamed rather than baselined because two of the offenders were new code added in the same change: raising the floor to admit them would have made the gate pay for its own violation. Nothing outside addons/website_slides references any of the six -- verified by grep across odoo/addons, enterprise and agromarin -- so the rename is confined to the module. An exact ratchet fails in the falling direction too, which is why the reduction is banked here."
 }

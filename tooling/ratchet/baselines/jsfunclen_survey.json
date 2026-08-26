@@ -1,0 +1,4 @@
+{
+  "count": 6,
+  "note": "New floor. survey ships 5651 lines of JS -- survey_form.js alone is 1727 -- and js_function_length.py did not accept --addon survey at all, so none of it was measured in either direction. Six offenders at onboarding.\n\nUnlike its Python sibling this gate ratchets the OFFENDER COUNT, so splitting a long function lowers it.\n\nOpened alongside the audit that wired ranking, constant_sum and file_upload into prepareSubmitValues -- three question types that rendered, validated and saved server-side while the client switch had no case for them, which is the kind of thing an unmeasured 1727-line file hides."
+}

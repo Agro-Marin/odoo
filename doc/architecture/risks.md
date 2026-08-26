@@ -107,7 +107,7 @@ needs the previous representation and is filed as `post-` has nothing to read.
 [`scenarios.md`](scenarios.md#scenario-b--upgrading-a-database-that-holds-data).
 
 **Cost.** Silent data loss on upgrade of a populated database. Not caught by any
-gate — all 52 are structural and DB-free — and not caught by either DB-free test
+gate — all 54 are structural and DB-free — and not caught by either DB-free test
 tier.
 
 **Narrowed 2026-08-09: the syntactic half is caught, the semantic half is the
@@ -122,7 +122,7 @@ happen, and it needed no schema knowledge to detect.
 than an error, because an addon may legitimately keep a helper module beside its
 scripts. Measured across this repository's two addon trees — the scope CI
 reproduces, a workspace reading being whatever checkouts happened to be on
-disk: **193** scripts in `migrations/` and **5** in `upgrades/`, all correctly
+disk: **199** scripts in `migrations/` and **5** in `upgrades/`, all correctly
 prefixed, **0** dropped.
 
 A risk stated at the level of its hardest half hides the half that is cheap to
@@ -133,9 +133,9 @@ integration lane. Nothing cheaper can see the semantic half.
 
 ## R4 — "Enforced" means structural only
 
-**What.** The 52 boundary checkers read import graphs, call graphs,
+**What.** The 54 boundary checkers read import graphs, call graphs,
 reached-member sets and documents. None executes the framework. A change can
-satisfy all 52 and both DB-free tiers and still be wrong.
+satisfy all 54 and both DB-free tiers and still be wrong.
 
 **Evidence.** Recorded in [`gates.md`](gates.md#the-limits-of-enforced): renaming
 `OrmCore`'s slots (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed

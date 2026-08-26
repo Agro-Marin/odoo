@@ -1,0 +1,12 @@
+{
+  "expected": {
+    "l10n_fr_reports/TestFrenchTaxClosing.test_fr_send_edi_vat_values_vat_due_to_administration": "ERROR",
+    "l10n_fr_reports/TestFrenchTaxClosing.test_fr_send_empty_declaration_to_administration": "ERROR",
+    "l10n_fr_reports/TestFrenchTaxClosing.test_fr_tax_closing_with_different_tax_groups_and_different_accounts": "ERROR"
+  },
+  "note": "Three TestFrenchTaxClosing tests raise RedirectWarning out of account_move posting. Measured in a detached enterprise worktree at HEAD, so neither this session's fec fix nor another session's in-flight account_accountant work is in the tree. The suite's fourth failure, test_import_fec_export's sibling in l10n_fr_fec_import, was a stale b''.join over a bytes file_content and is fixed rather than baselined.",
+  "run_spec": "-i l10n_fr_reports --test-enable --test-tags '/l10n_fr_reports'",
+  "suite": "/l10n_fr_reports",
+  "tests_total": 12,
+  "verified_at": "4077a5dfd9f"
+}

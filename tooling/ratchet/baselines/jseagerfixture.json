@@ -1,0 +1,4 @@
+{
+  "count": 0,
+  "note": "Drift-zero on arrival. js_eager_mock_fixture.py counts test fixtures that mutate another addon's mock model at module scope; ADR-0065 has the argument and the 37 scoped failures it cost.\n\nThe sweep that lands with this floor took the tree to zero, so there is no debt to record -- the floor exists to stop the fifty-first. Run against the commit before the sweep the same script reports 26 in odoo and 24 in enterprise, which is the check that the gate measures what the record says it does.\n\nCommand: python tooling/architecture/js_eager_mock_fixture.py --count"
+}

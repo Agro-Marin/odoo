@@ -411,6 +411,35 @@ jobs:
           echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
+      - name: Run installable-dependency check
+        id: module_depends_installable
+        # ADR-0062. Marking a module `installable: False` is how a replacement
+        # holds against the next module update, and it silently strands every
+        # module that depends on it: the graph drops the dependent with one
+        # WARNING, leaves it in state `to install`, and odoo-bin exits 0. No
+        # suite runs, because the module never loads. Indian GST reporting sat
+        # unreachable that way from the day account_invoice_extract was
+        # disabled until 2026-08-24.
+        #
+        # A contract rather than a ratchet: the fix for one occurrence is small
+        # -- drop the dependency, port what was used, or disable the dependent
+        # too -- and a floor would bank the next silent breakage.
+        #
+        # Absence is deliberately NOT an offence. This lane checks out odoo
+        # alone, so most of the addons path is out of scope, and
+        # `addons_data_dir` can supply a module at runtime that no checkout
+        # carries. enterprise/ and agromarin/ pass --roots from their own
+        # cross-repo lane, which is where the defect this gate was written for
+        # lived -- one sibling module depending on another beside it.
+        run: |
+          set +e
+          python tooling/architecture/module_depends_installable.py --check \
+            | tee /tmp/module_depends_installable.log
+          GATE_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+          exit "${GATE_EXIT}"
+
       - name: Run Python import-cycle check
         id: py_cycles
         # The Python half of what js_cycle_check.py does for the client. Both
@@ -784,6 +813,22 @@ jobs:
           set -e
           exit $rc
 
+      - name: Run Python function-length ratchet (survey)
+        id: py_funclen_survey
+        # Same pair as `--addon mail` and `--addon loyalty` above, for the same
+        # reason: `pyfunclen` measures the core package and `pyfunclen_addons`
+        # only refuses growth, so an addon's own budget is floored by nothing.
+        # Excess lines above the budget, not the count of offenders.
+        run: |
+          set +e
+          python tooling/architecture/py_function_length.py --addon survey | tee /tmp/py_funclen_survey.log
+          python tooling/architecture/py_function_length.py --addon survey --count \
+            | xargs python tooling/ratchet/ratchet.py pyfunclen_survey --count
+          rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          set -e
+          exit $rc
+
       - name: Run x2many-counter ratchet (core)
         id: py_x2many_count
         # ADR-0052. Counters that count by hand: `len(record.x_ids)` in a
@@ -1051,6 +1096,21 @@ jobs:
           set -e
           exit $rc
 
+      - name: Run JS function-length ratchet (survey)
+        id: js_funclen_survey
+        # The sixth tree. Onboarded at six offenders: survey ships 5651 lines of
+        # JS, survey_form.js alone is 1727, and `--addon` did not accept `survey`
+        # at all -- none of it was measured in either direction.
+        run: |
+          set +e
+          python tooling/architecture/js_function_length.py --addon survey | tee /tmp/js_funclen_survey.log
+          python tooling/architecture/js_function_length.py --addon survey --count \
+            | xargs python tooling/ratchet/ratchet.py jsfunclen_survey --count
+          rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          set -e
+          exit $rc
+
       - name: Run vacuous zero-count assertion ratchet
         id: js_vacuous
         # ADR-0044. `expect(".o_x").toHaveCount(0)` where `.o_x` is a class the
@@ -1061,6 +1121,23 @@ jobs:
           python tooling/architecture/js_vacuous_assertions.py --top 0 | tee /tmp/js_vacuous.log
           python tooling/architecture/js_vacuous_assertions.py --count \
             | xargs python tooling/ratchet/ratchet.py jsvacuous --count
+          rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          set -e
+          exit $rc
+
+      - name: Run eager mock-fixture gate
+        id: js_eager_fixture
+        # ADR-0065. Hoot imports every test file in the bundle during
+        # collection and model definitions are job-scoped per test, so a
+        # fixture written at module scope runs for every suite EXCEPT the one
+        # that wrote it. Fifty of these cost 37 scoped failures across twelve
+        # POS addons before anyone read them as one defect.
+        run: |
+          set +e
+          python tooling/architecture/js_eager_mock_fixture.py --top 0 | tee /tmp/js_eager_fixture.log
+          python tooling/architecture/js_eager_mock_fixture.py --count \
+            | xargs python tooling/ratchet/ratchet.py jseagerfixture --count
           rc=$?
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
@@ -1655,6 +1732,7 @@ jobs:
             cat /tmp/py_funclen_mail.log 2>/dev/null || echo "(python mail gate did not run)"
             cat /tmp/py_funclen_loyalty.log 2>/dev/null || echo "(python loyalty gate did not run)"
             cat /tmp/py_funclen_tooling.log 2>/dev/null || echo "(python tooling gate did not run)"
+            cat /tmp/py_funclen_survey.log 2>/dev/null || echo "(python survey gate did not run)"
             cat /tmp/js_funclen_mail.log 2>/dev/null || echo "(mail gate did not run)"
             echo '```'
             echo ""
@@ -1688,7 +1766,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Annotate PR on failure
-        if: always() && (steps.layers.outputs.exit_code != '0' || steps.mixin_coupling.outputs.exit_code != '0' || steps.subsystem_map.outputs.exit_code != '0' || steps.package_index.outputs.exit_code != '0' || steps.env_surface.outputs.exit_code != '0' || steps.pool_surface.outputs.exit_code != '0' || steps.env_model_surface.outputs.exit_code != '0' || steps.worker_thread_surface.outputs.exit_code != '0' || steps.libs_facade.outputs.exit_code != '0' || steps.py_cycles.outputs.exit_code != '0' || steps.js_layers.outputs.exit_code != '0' || steps.js_deployment_layers.outputs.exit_code != '0' || steps.js_cycles.outputs.exit_code != '0' || steps.named_exports.outputs.exit_code != '0' || steps.js_parity.outputs.exit_code != '0' || steps.js_cohesion.outputs.exit_code != '0' || steps.js_resolution.outputs.exit_code != '0' || steps.js_self_bridge.outputs.exit_code != '0' || steps.js_component_data_access.outputs.exit_code != '0' || steps.js_component_face.outputs.exit_code != '0' || steps.js_forced_render.outputs.exit_code != '0' || steps.js_patch_blind_facade.outputs.exit_code != '0' || steps.py_funclen.outputs.exit_code != '0' || steps.py_funclen_addons.outputs.exit_code != '0' || steps.py_funclen_mail.outputs.exit_code != '0' || steps.py_funclen_loyalty.outputs.exit_code != '0' || steps.py_funclen_tooling.outputs.exit_code != '0' || steps.py_x2many_count.outputs.exit_code != '0' || steps.py_x2many_count_addons.outputs.exit_code != '0' || steps.py_x2many_count_mail.outputs.exit_code != '0' || steps.py_x2many_count_account.outputs.exit_code != '0' || steps.py_x2many_count_stock.outputs.exit_code != '0' || steps.py_x2many_count_project.outputs.exit_code != '0' || steps.sql_in_placeholder.outputs.exit_code != '0' || steps.sql_in_placeholder_addons.outputs.exit_code != '0' || steps.py_count_as_boolean.outputs.exit_code != '0' || steps.py_count_as_boolean_addons.outputs.exit_code != '0' || steps.py_shadowed_member.outputs.exit_code != '0' || steps.py_shadowed_member_addons.outputs.exit_code != '0' || steps.js_funclen.outputs.exit_code != '0' || steps.js_duplication.outputs.exit_code != '0' || steps.js_funclen_mail.outputs.exit_code != '0' || steps.js_funclen_account.outputs.exit_code != '0' || steps.js_funclen_stock.outputs.exit_code != '0' || steps.js_funclen_product.outputs.exit_code != '0' || steps.js_vacuous.outputs.exit_code != '0' || steps.naming_vocab.outputs.exit_code != '0' || steps.field_hooks.outputs.exit_code != '0' || steps.hook_purity.outputs.exit_code != '0' || steps.edi_vocabulary.outputs.exit_code != '0' || steps.js_private.outputs.exit_code != '0' || steps.js_private_crosstree.outputs.exit_code != '0' || steps.js_serviceshape.outputs.exit_code != '0' || steps.js_serviceshape_mail.outputs.exit_code != '0' || steps.js_serviceshape_account.outputs.exit_code != '0' || steps.js_serviceshape_stock.outputs.exit_code != '0' || steps.js_surface.outputs.exit_code != '0' || steps.js_surface_mail.outputs.exit_code != '0' || steps.js_extension_surface.outputs.exit_code != '0' || steps.js_env_config_surface.outputs.exit_code != '0' || steps.js_action_surface.outputs.exit_code != '0' || steps.js_template_binding.outputs.exit_code != '0' || steps.js_arch_info_surface.outputs.exit_code != '0' || steps.js_field_record_surface.outputs.exit_code != '0' || steps.xml_refs.outputs.exit_code != '0' || steps.js_mixin_coupling.outputs.exit_code != '0' || steps.mail_hook_keywords.outputs.exit_code != '0' || steps.compute_ctx.outputs.exit_code != '0' || steps.translation_catalog.outputs.exit_code != '0' || steps.sql_placeholder.outputs.exit_code != '0' || steps.unresolved_calls.outputs.exit_code != '0' || steps.facade_surface.outputs.exit_code != '0' || steps.order_line_qty.outputs.exit_code != '0')
+        if: always() && (steps.layers.outputs.exit_code != '0' || steps.mixin_coupling.outputs.exit_code != '0' || steps.subsystem_map.outputs.exit_code != '0' || steps.package_index.outputs.exit_code != '0' || steps.env_surface.outputs.exit_code != '0' || steps.pool_surface.outputs.exit_code != '0' || steps.env_model_surface.outputs.exit_code != '0' || steps.worker_thread_surface.outputs.exit_code != '0' || steps.libs_facade.outputs.exit_code != '0' || steps.py_cycles.outputs.exit_code != '0' || steps.js_layers.outputs.exit_code != '0' || steps.js_deployment_layers.outputs.exit_code != '0' || steps.js_cycles.outputs.exit_code != '0' || steps.named_exports.outputs.exit_code != '0' || steps.js_parity.outputs.exit_code != '0' || steps.js_cohesion.outputs.exit_code != '0' || steps.js_resolution.outputs.exit_code != '0' || steps.js_self_bridge.outputs.exit_code != '0' || steps.js_component_data_access.outputs.exit_code != '0' || steps.js_component_face.outputs.exit_code != '0' || steps.js_forced_render.outputs.exit_code != '0' || steps.js_patch_blind_facade.outputs.exit_code != '0' || steps.py_funclen.outputs.exit_code != '0' || steps.py_funclen_addons.outputs.exit_code != '0' || steps.py_funclen_mail.outputs.exit_code != '0' || steps.py_funclen_loyalty.outputs.exit_code != '0' || steps.py_funclen_survey.outputs.exit_code != '0' || steps.py_x2many_count.outputs.exit_code != '0' || steps.py_x2many_count_addons.outputs.exit_code != '0' || steps.py_x2many_count_mail.outputs.exit_code != '0' || steps.py_x2many_count_account.outputs.exit_code != '0' || steps.py_x2many_count_stock.outputs.exit_code != '0' || steps.py_x2many_count_project.outputs.exit_code != '0' || steps.sql_in_placeholder.outputs.exit_code != '0' || steps.sql_in_placeholder_addons.outputs.exit_code != '0' || steps.py_count_as_boolean.outputs.exit_code != '0' || steps.py_count_as_boolean_addons.outputs.exit_code != '0' || steps.js_funclen.outputs.exit_code != '0' || steps.js_duplication.outputs.exit_code != '0' || steps.js_funclen_mail.outputs.exit_code != '0' || steps.js_funclen_account.outputs.exit_code != '0' || steps.js_funclen_stock.outputs.exit_code != '0' || steps.js_funclen_product.outputs.exit_code != '0' || steps.js_funclen_survey.outputs.exit_code != '0' || steps.js_vacuous.outputs.exit_code != '0' || steps.js_eager_fixture.outputs.exit_code != '0' || steps.naming_vocab.outputs.exit_code != '0' || steps.field_hooks.outputs.exit_code != '0' || steps.hook_purity.outputs.exit_code != '0' || steps.edi_vocabulary.outputs.exit_code != '0' || steps.js_private.outputs.exit_code != '0' || steps.js_private_crosstree.outputs.exit_code != '0' || steps.js_serviceshape.outputs.exit_code != '0' || steps.js_serviceshape_mail.outputs.exit_code != '0' || steps.js_serviceshape_account.outputs.exit_code != '0' || steps.js_serviceshape_stock.outputs.exit_code != '0' || steps.js_surface.outputs.exit_code != '0' || steps.js_surface_mail.outputs.exit_code != '0' || steps.js_extension_surface.outputs.exit_code != '0' || steps.js_env_config_surface.outputs.exit_code != '0' || steps.js_action_surface.outputs.exit_code != '0' || steps.js_template_binding.outputs.exit_code != '0' || steps.js_arch_info_surface.outputs.exit_code != '0' || steps.js_field_record_surface.outputs.exit_code != '0' || steps.xml_refs.outputs.exit_code != '0' || steps.js_mixin_coupling.outputs.exit_code != '0' || steps.mail_hook_keywords.outputs.exit_code != '0' || steps.compute_ctx.outputs.exit_code != '0' || steps.translation_catalog.outputs.exit_code != '0' || steps.sql_placeholder.outputs.exit_code != '0' || steps.unresolved_calls.outputs.exit_code != '0' || steps.facade_surface.outputs.exit_code != '0' || steps.order_line_qty.outputs.exit_code != '0' || steps.module_depends_installable.outputs.exit_code != '0' || steps.py_funclen_tooling.outputs.exit_code != '0' || steps.py_shadowed_member.outputs.exit_code != '0' || steps.py_shadowed_member_addons.outputs.exit_code != '0')
         uses: actions/github-script@v7
         with:
           script: |

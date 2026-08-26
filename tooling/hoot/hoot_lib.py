@@ -993,6 +993,7 @@ ADDONS_ROOTS = _addons_roots()
 WEB_ADDONS_ROOT = ODOO_ROOT / "addons"
 
 sys.path.insert(0, str(SCRIPT_DIR.parent / "architecture"))
+from js_imports import strip_comments  # noqa: E402
 from js_layer_check import collect_imports  # noqa: E402
 
 
@@ -1192,6 +1193,78 @@ def _imports_of(path: Path, probe: re.Pattern[str] | None = None) -> set[str]:
     return specs
 
 
+_PATCH_CALL_RE = re.compile(r"\bpatch\s*\(\s*([A-Za-z_$][\w$]*)")
+_IMPORT_BINDING_RE = re.compile(
+    r"""\bimport\s+(?P<clause>\{[^}]*\}|\*\s+as\s+[A-Za-z_$][\w$]*|[A-Za-z_$][\w$]*)"""
+    r"""\s+from\s*['"](?P<spec>[^'"\n]+)['"]"""
+)
+
+
+def _import_bindings(text: str) -> dict[str, str]:
+    bindings: dict[str, str] = {}
+    for match in _IMPORT_BINDING_RE.finditer(text):
+        clause, spec = match.group("clause"), match.group("spec")
+        if clause.startswith("{"):
+            for part in clause.strip("{}").split(","):
+                names = re.findall(r"[A-Za-z_$][\w$]*", part)
+                if names:
+                    bindings[names[-1]] = spec
+        else:
+            names = re.findall(r"[A-Za-z_$][\w$]*", clause)
+            if names:
+                bindings[names[-1]] = spec
+    return bindings
+
+
+def patch_targets_of(path: Path) -> set[str]:
+    """Specifiers this file passes to ``patch()``.
+
+    A patch module is imported by nothing -- the bundle loads it for its side
+    effect -- so the import graph cannot reach it and ``--affected`` selected
+    zero suites for any change to one. 1094 of the fork's src files call
+    ``patch()``. Reading the call sites recovers the edge the graph is missing:
+    a file that patches X affects whatever tests X.
+    """
+    try:
+        text = strip_comments(path.read_text(encoding="utf-8", errors="replace"))
+    except OSError:
+        return set()
+    idents = {m.group(1) for m in _PATCH_CALL_RE.finditer(text)}
+    if not idents:
+        return set()
+    bindings = _import_bindings(text)
+    own = file_to_specifier(path)
+    base = own.rsplit("/", 1)[0] if own else None
+    specs: set[str] = set()
+    for ident in idents:
+        spec = bindings.get(ident)
+        if not spec:
+            continue
+        if spec.startswith("."):
+            if not base:
+                continue
+            spec = re.sub(r"\.js$", "", posixpath.normpath(f"{base}/{spec}"))
+        if spec.startswith("@"):
+            specs.add(spec)
+    return specs
+
+
+def _iter_hop_files() -> list[Path]:
+    """Files a test may reach the changed module THROUGH.
+
+    ``static/src`` plus the non-``.test.js`` files under ``static/tests`` --
+    fixtures and helpers such as ``@point_of_sale/../tests/unit/utils``, which
+    almost every POS suite imports instead of the module under test. They are
+    in neither ``_iter_src_files`` nor ``_iter_test_files``, so a hop through
+    one used to be invisible.
+    """
+    return _iter_src_files() + [
+        f
+        for f in _iter_static_files("tests", "*.js")
+        if not f.name.endswith(".test.js")
+    ]
+
+
 def _specifier_probe(specs: set[str]) -> re.Pattern[str] | None:
 
     if not specs:
@@ -1258,6 +1331,7 @@ def affected_suites(changed: list[Path], *, downstream: bool = False) -> list[st
                 suites.add(suite)
         else:
             changed_specs.add(spec)
+            changed_specs |= patch_targets_of(path)
 
     def keep(names: set[str]) -> list[str]:
         if downstream:
@@ -1271,7 +1345,7 @@ def affected_suites(changed: list[Path], *, downstream: bool = False) -> list[st
 
     hop_specs: set[str] = set()
     changed_probe = _specifier_probe(changed_specs)
-    for src in _iter_src_files():
+    for src in _iter_hop_files():
         if _imports_of(src, changed_probe) & changed_specs:
             spec = file_to_specifier(src)
             if spec:

@@ -14,7 +14,6 @@ odoo/orm/components/tests/test_core.py
 odoo/orm/components/tests/test_integration.py
 odoo/orm/components/tests/test_model_graph.py
 odoo/orm/components/tests/test_recompute.py
-odoo/orm/components/tests/test_storage.py
 odoo/orm/components/tests/test_unit_of_work.py
 odoo/orm/decorators.py
 odoo/orm/domain/ast.py
