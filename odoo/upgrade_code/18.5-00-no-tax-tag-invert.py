@@ -44,25 +44,11 @@ def tax_grouper(row_iter: Iterator[dict[str, str]]) -> Iterator[list[dict[str, s
     yield current_batch
 
 
-def tag_factor(tax_rows: list[dict[str, str]]) -> defaultdict:
-    tag2factor: defaultdict[str, defaultdict[str, float]] = defaultdict(
-        lambda: defaultdict(float)
-    )
-    for row in tax_rows:
-        document_type = row["repartition_line_ids/document_type"]
-        factor_percent = float(row.get("repartition_line_ids/factor_percent") or 100)
-        if tags := row.get("repartition_line_ids/tag_ids"):
-            for tag in tags.split("||"):
-                tag2factor[document_type][tag] += factor_percent
-    return tag2factor
-
-
 def remove_sign(
     tag_string: str,
     tag_signs: dict[str, int | str],
     type_tax_use: str,
     document_type: str,
-    tag2factor: dict[str, float],
 ) -> str:
     tags = []
     if not tag_string:
@@ -152,7 +138,6 @@ def upgrade(file_manager: FileManager) -> None:
             if type_tax_use == "none":
                 type_tax_use = group_data.get(tax_rows[0]["id"]) or "none"
             assert type_tax_use
-            tag2factor = tag_factor(tax_rows)
             for row in tax_rows:
                 document_type = row["repartition_line_ids/document_type"]
                 writer.writerow(
@@ -163,7 +148,6 @@ def upgrade(file_manager: FileManager) -> None:
                                 country_tax_signs,
                                 type_tax_use,
                                 document_type,
-                                tag2factor[document_type],
                             )
                             if fname == "repartition_line_ids/tag_ids"
                             else value
