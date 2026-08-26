@@ -18,6 +18,7 @@ from odoo.api import SUPERUSER_ID
 from odoo.db.errors import PG_RETRY_EXCEPTIONS
 from odoo.exceptions import (
     ConcurrencyError,
+    MissingError,
     RetryableJobError,
     TerminalJobError,
     UserError,
@@ -900,16 +901,6 @@ class IrJob(models.Model):
                 )
             ) from None
         records = model.browse(job["record_ids"] or [])
-        if records and not records.exists():
-            raise TerminalJobError(
-                env._(
-                    "Job %(id)s targets %(model)s %(ids)s, and none of those "
-                    "records exists any more.",
-                    id=job["id"],
-                    model=job["model_name"],
-                    ids=job["record_ids"],
-                )
-            )
         if _job_config_of(type(records), job["method_name"]) is None:
             raise TerminalJobError(
                 env._(
@@ -930,11 +921,24 @@ class IrJob(models.Model):
             job["max_retries"],
         )
         job.pop("defer", None)
-        with _running_job(job):
-            getattr(records, job["method_name"])(
-                *(job["args"] or []), **(job["kwargs"] or {})
-            )
-        env.flush_all()
+        try:
+            with _running_job(job):
+                getattr(records, job["method_name"])(
+                    *(job["args"] or []), **(job["kwargs"] or {})
+                )
+            env.flush_all()
+        except MissingError:
+            if records and not records.exists():
+                raise TerminalJobError(
+                    env._(
+                        "Job %(id)s targets %(model)s %(ids)s, and none of those "
+                        "records exists any more.",
+                        id=job["id"],
+                        model=job["model_name"],
+                        ids=job["record_ids"],
+                    )
+                ) from None
+            raise
         if defer := job.get("defer"):
             IrJob._record_deferral(cr, job, defer)
             return

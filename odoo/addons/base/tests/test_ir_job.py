@@ -367,6 +367,23 @@ class TestIrJob(TransactionCase):
         with self.assertRaises(TerminalJobError):
             IrJob._run_claimed(self.env.cr, job)
 
+    def test_a_job_that_succeeds_never_pays_for_the_existence_check(self):
+        self.partner.delayed()._ir_job_test_append()
+        self.env.flush_all()
+        job = self._claim()
+
+        with patch.object(type(self.partner), "exists", autospec=True) as exists:
+            IrJob._run_claimed(self.env.cr, job)
+
+        exists.assert_not_called()
+        self.assertEqual(
+            self.env["ir.job"].browse(job["id"]).state,
+            "done",
+            "the vanished-records check belongs on the failure path: run eagerly "
+            "it cost one query per job -- 9.0 statements per job against 8.0 -- "
+            "to catch a case almost no job hits",
+        )
+
     def test_requeue_restores_the_deferral_budget(self):
         job = self.partner.delayed()._ir_job_test_poll()
         self.env.flush_all()
