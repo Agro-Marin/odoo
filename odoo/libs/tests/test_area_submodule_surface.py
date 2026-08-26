@@ -15,7 +15,7 @@ _REPO = _LIBS.parents[1]
 
 
 DECLARED_SUBMODULE_EXPORTS: dict[str, set[str]] = {
-    "filesystem": {"appdirs", "mimetypes", "osutil"},
+    "filesystem": {"appdirs", "mimetypes", "osutil", "samples"},
     "web": {"urls"},
 }
 

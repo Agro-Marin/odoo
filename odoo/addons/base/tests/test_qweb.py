@@ -3340,27 +3340,32 @@ class TestQWebHelpers(TransactionCase):
         }
         return CompileContext(**{**defaults, **fields})
 
-    def test_the_two_addressing_modes_stay_separate(self):
-        ctx = self._context(ref_name="tpl", context={"snippet-key": "s"})
-        self.assertEqual(ctx.ref_name, "tpl")
-        self.assertEqual(
-            ctx.get("snippet-key"),
-            "s",
-            "`.get()` reads the caller's context, which stays open-ended",
+    def test_compiler_state_and_caller_context_are_separate_namespaces(self):
+        compile_context = self._context(
+            context={"ref_name": "the caller's", "snippet-key": "abc"},
+            ref_name="the compiler's",
         )
-        self.assertIn("snippet-key", ctx)
-        self.assertIsNone(
-            ctx.get("ref_name"),
-            "compiler state must not be reachable through the caller's namespace, "
-            "or a caller-supplied key shadows it",
+        self.assertEqual(compile_context.ref_name, "the compiler's")
+        self.assertEqual(compile_context.get("ref_name"), "the caller's")
+        self.assertEqual(compile_context.get("snippet-key"), "abc")
+        self.assertIn("snippet-key", compile_context)
+        self.assertNotIn("ref", compile_context)
+
+    def test_compile_context_is_not_subscriptable(self):
+        compile_context = self._context(context={"snippet-key": "abc"})
+        msg = (
+            "subscripting is what made the two namespaces indistinguishable; "
+            "its absence is ADR-0063's decision, not an omission"
         )
-        self.assertNotIn("ref_name", ctx)
-        with self.assertRaises(
-            TypeError,
-            msg="subscripting is what made the two namespaces indistinguishable; "
-            "its absence is ADR-0063's decision, not an omission",
-        ):
-            ctx["ref_name"]
+        with self.assertRaises(TypeError, msg=msg):
+            compile_context["ref_name"]
+        with self.assertRaises(TypeError, msg=msg):
+            compile_context["snippet-key"]
+
+    def test_compile_context_refuses_an_undeclared_field(self):
+        compile_context = self._context()
+        with self.assertRaises(AttributeError):
+            compile_context.ref_nmae = "typo"
 
     def test_compile_format(self):
         qweb = self.env["ir.qweb"]

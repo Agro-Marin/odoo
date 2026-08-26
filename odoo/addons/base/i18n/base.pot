@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0+e\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-23 18:14+0000\n"
-"PO-Revision-Date: 2026-08-23 18:14+0000\n"
+"POT-Creation-Date: 2026-08-26 22:39+0000\n"
+"PO-Revision-Date: 2026-08-26 22:39+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -875,8 +875,14 @@ msgid ""
 "  What ``AIOrchestrator`` drives.\n"
 "* ``tools/catalog_client.py`` -- ``CatalogAIClient``, one class driving every\n"
 "  catalog vendor off ``PROVIDERS``. Fail-soft, key passed in per call, and the\n"
-"  only one that reaches ``groq``, ``moonshot`` and ``gemini_openai``, which have\n"
-"  no class. It arrived from ``telegram_bot`` in 19.0.1.7.0, where being a second\n"
+"  only way to reach the ``gemini_openai`` endpoint, which the catalog's\n"
+"  ``gemini`` entry uses for chat and which no class targets -- ``GeminiClient``\n"
+"  is on ``gemini``, the native wire. ``groq`` and ``moonshot`` DO have classes,\n"
+"  in ``tools/ai_clients/openai_wire_vendors.py``, registered like the rest:\n"
+"  ``tests/test_registry_coherence.py`` requires every catalog vendor to be in\n"
+"  ``AI_CLIENT_REGISTRY`` so that ``_get_ai_client`` can answer for whichever one\n"
+"  the orchestrator selects. Neither is re-exported from ``tools/__init__.py``.\n"
+"  It arrived from ``telegram_bot`` in 19.0.1.7.0, where being a second\n"
 "  implementation of the same two chat wires had let the two drift.\n"
 "\n"
 "The third is not HTTP at all and so inherits none of that.\n"
@@ -957,7 +963,7 @@ msgid ""
 "* ``api.endpoint.outbound`` -- REST and external service callers\n"
 "* ``api.event.log`` -- event log for both directions\n"
 "* ``api.response.cache`` -- outbound response cache\n"
-"* ``api.channel.mixin`` -- behaviour shared by both endpoint models\n"
+"* ``mixin.api.channel`` -- behaviour shared by both endpoint models\n"
 "\n"
 "Authentication\n"
 "--------------\n"
@@ -2921,8 +2927,8 @@ msgid ""
 "* ``approval.request`` / ``approval.approver`` -- the request and its approvers\n"
 "* ``approval.category`` / ``approval.category.approver`` -- request types and\n"
 "  their default approvers\n"
-"* ``approval.rule`` / ``approval.tier`` / ``mixin.approval.threshold`` -- routing\n"
-"  by amount and by tier, sequential or parallel\n"
+"* ``approval.rule`` / ``mixin.approval.threshold`` -- routing by amount,\n"
+"  quantity, date range or priority; adding or replacing approvers\n"
 "* ``mixin.approval`` -- puts the workflow on any model\n"
 "* ``approval.document.requirement`` -- documents a category demands\n"
 "* ``approval.template`` -- reusable request presets\n"
@@ -2966,6 +2972,7 @@ msgid ""
 "* **mixin.order.line.amount** — pricing and tax computation (line-level)\n"
 "* **mixin.order.line.fields** — common structural fields, CRUD guards,\n"
 "  transfer tracking\n"
+"* **mixin.order.state.rollup** — gathers line states for an order-level rollup\n"
 "* **mixin.order.invoice** — invoice tracking (order-level)\n"
 "* **mixin.order.line.invoice** — invoice tracking (line-level)\n"
 "* **mixin.order.merge** — quotation/RFQ merge system\n"
@@ -3001,11 +3008,14 @@ msgid ""
 "Mixins:\n"
 "-------\n"
 "* **mixin.order.stock** — transfer status, effective date, incoterms\n"
-"* **mixin.order.line.stock** — qty_to_transfer, stock move helpers\n"
+"* **mixin.order.line.stock** — transfer status, qty_to_transfer, move helpers\n"
 "\n"
-"The order-level ``_compute_transfer_state`` is IDENTICAL between sale_stock\n"
-"and purchase_stock — only ``_compute_date_effective`` differs (customer\n"
-"location filter for sale, non-supplier for purchase).\n"
+"``transfer_state`` is computed per line from the quantities and rolled up to\n"
+"the order through ``mixin.order.state.rollup``, the same engine ``base_order``\n"
+"uses for ``invoice_state``.  Both levels are IDENTICAL between sale_stock and\n"
+"purchase_stock, which override the wording only; ``_compute_date_effective``\n"
+"is the one piece that genuinely differs (customer location filter for sale,\n"
+"non-supplier for purchase).\n"
 msgstr ""
 
 #. module: base
@@ -3023,8 +3033,8 @@ msgid ""
 "define SELECT / FROM / WHERE / GROUP BY clauses as dicts and lists rather than\n"
 "monolithic strings; inheritance is just dict / list mutation::\n"
 "\n"
-"    def _get_select_fields(self):\n"
-"        fields = super()._get_select_fields()\n"
+"    def _get_fields_select(self):\n"
+"        fields = super()._get_fields_select()\n"
 "        fields[\"margin\"] = \"SUM(l.margin)\"\n"
 "        return fields\n"
 "\n"
@@ -3049,6 +3059,25 @@ msgid ""
 "  on SELECT from unpopulated MVs, so the previous default would break queries\n"
 "  until the first cron tick.\n"
 "\n"
+"``mixin.rolling.report``\n"
+"------------------------\n"
+"A report whose grain is a closed period -- a day, a week -- where only the\n"
+"newest period can still change.  Stores the report in a real table and rewrites\n"
+"a trailing window per tick (``DELETE`` then ``INSERT``) instead of re-deriving\n"
+"every row, which ``REFRESH MATERIALIZED VIEW`` has no way to avoid.\n"
+"\n"
+"Two rules make the window agree with a full rebuild rather than merely\n"
+"resemble it, and the mixin's docstring carries the measurements behind both:\n"
+"\n"
+"* the scan must re-admit each window-function partition's last row from before\n"
+"  the cutoff, or that partition's first in-window row computes without a\n"
+"  predecessor;\n"
+"* the cutoff must land on a grain boundary, or the period it falls inside is\n"
+"  deleted and re-inserted truncated.\n"
+"\n"
+"``refresh(full=True)`` rebuilds everything, and ``_rolling_mark_stale()`` is how\n"
+"a setting that rewrites history asks for that on the next tick.\n"
+"\n"
 "Composition\n"
 "-----------\n"
 "The two mixins compose.  When both are inherited, the ``_materialized`` marker\n"
@@ -3063,7 +3092,7 @@ msgid ""
 "        _inherit = [\"mixin.sql.report\", \"mixin.materialized.view\"]\n"
 "        _auto = False\n"
 "\n"
-"        def _get_select_fields(self): ...\n"
+"        def _get_fields_select(self): ...\n"
 "        def _get_from_tables(self): ...\n"
 "\n"
 "        def init(self):\n"
@@ -3584,6 +3613,10 @@ msgid ""
 "* ``POST /web/hook/<uuid>`` -- Confirm-Tarima ingest through a\n"
 "  ``base.automation`` on_webhook rule, HMAC-SHA256 verified; delegates to the\n"
 "  transport-agnostic ``stock.scale._create_from_confirm()``\n"
+"* ``POST /api/webhook/<uuid>`` -- compatibility alias for the same rule, kept\n"
+"  because the deployed RPi stations hardcode the path the retired\n"
+"  ``api_webhook`` module used to serve. Same rule, same HMAC, same replay and\n"
+"  rate-limit checks. Remove it once every station posts to ``/web/hook/``\n"
 "* ``GET /api/v1/pickings/<warehouse_code>`` -- catalog snapshot; bearer auth,\n"
 "  ETag/304\n"
 "* ``GET /api/v1/config/<station_id>`` -- per-station configuration; bearer auth,\n"
@@ -4098,15 +4131,15 @@ msgid ""
 "Credit Management\n"
 "=================\n"
 "\n"
-"Credit status on ``res.partner``, computed daily and enforced on sales and\n"
-"invoicing.\n"
+"Credit standing on ``res.partner``, enforced on sales and invoicing.\n"
 "\n"
 "* four-tier ``credit_status``: Cash Only, Under Review, Credit Authorized,\n"
-"  Legal Process\n"
-"* credit condition types with configurable rules\n"
+"  Legal Process, derived from document compliance alone so it is never stale\n"
+"* credit condition types with configurable document rules\n"
 "* document compliance and expiration through ``documents_compliance``\n"
-"* payment history analysis\n"
-"* sale order and customer invoice validation against the status\n"
+"* overdue receivables checked live when an order or invoice is validated\n"
+"* credit limit backed by the collateral of valid documents, a standing trusted\n"
+"  amount, and auditable ``credit.authorization`` records\n"
 "* Legal Process locks the partner down\n"
 msgstr ""
 
@@ -4338,7 +4371,7 @@ msgid ""
 "parser reported success. Escalation is per field, so what a free strategy read\n"
 "is kept and only the gaps cost money.\n"
 "\n"
-"``document.extract.mixin``\n"
+"``mixin.document.extract``\n"
 "--------------------------\n"
 "What a record gets by inheriting it: a state, the result with its provenance,\n"
 "the fields nobody could read, a synchronous and a queued way to run, and a\n"
@@ -4417,10 +4450,22 @@ msgid ""
 "model. Verified at 150 and 200 dpi: a QR stamped in a page corner survives\n"
 "rendering and decodes whole.\n"
 "\n"
-"zbar via ``pyzbar``, declared: a pure ctypes binding with no transitive\n"
-"dependencies, against a ``libzbar`` that is already present. Nothing in a shared\n"
-"environment moves to satisfy it, so there is no reason to leave it optional and\n"
-"every reason to fail loudly rather than read no barcodes and say nothing.\n"
+"``zxing-cpp``, declared: one wheel with the decoder compiled into it and no\n"
+"transitive dependencies. Nothing in a shared environment moves to satisfy it, so\n"
+"there is no reason to leave it optional and every reason to fail loudly rather\n"
+"than read no barcodes and say nothing.\n"
+"\n"
+"This used to read zbar via ``pyzbar``, and the claim that justified declaring\n"
+"that one -- \"against a ``libzbar`` that is already present\" -- was not true here:\n"
+"no ``libzbar`` is installed on the workspace, so ``pyzbar`` was never importable,\n"
+"the reader logged \"No barcode reading\" and returned nothing on every page, and\n"
+"the module could not install at all once its declaration was checked. A binding\n"
+"is only as declarable as the system library underneath it, which is the argument\n"
+"for a decoder that has no system library underneath it. Verified on this\n"
+"module's own fixtures: the SAT QR decodes byte-identically raw, and still decodes\n"
+"after being stamped into a PDF and rendered at both 150 and 200 dpi. It also\n"
+"reads Code128, EAN-13 and Code39, and adds DataMatrix and PDF417, which libzbar\n"
+"does not do.\n"
 "\n"
 "``document_extract_ocr`` makes the opposite call about its own engine, and the\n"
 "difference is the point rather than an inconsistency: RapidOCR pulls\n"
@@ -4443,19 +4488,33 @@ msgid ""
 "which is what ``DocumentSource`` is for, and putting it there means every\n"
 "strategy that needs text gains scanned documents without knowing OCR happened.\n"
 "\n"
-"RapidOCR: PaddleOCR's PP-OCR models exported to ONNX. Apache-2.0, ~12 MB of\n"
+"RapidOCR: PaddleOCR's PP-OCR models exported to ONNX. Apache-2.0, ~32 MB of\n"
 "weights inside the wheel, CPU-only, no download at first use and no network at\n"
 "inference. Measured at 2.4 s for a rendered page, reading a CFE bill's service\n"
 "number, tariff, meter number, period and total exactly.\n"
 "\n"
 "The engine, and what installing it costs\n"
 "----------------------------------------\n"
-"``rapidocr-onnxruntime``, declared. It brings ``onnxruntime``,\n"
-"``opencv-python``, ``pyclipper`` and ``flatbuffers`` -- five packages and about\n"
-"90 MB -- and, measured rather than assumed, upgrades nothing: the ``numpy``,\n"
-"``scipy``, ``shapely`` and ``pyproj`` a workspace already has all satisfy it\n"
-"unchanged. Nothing another module depends on moves to make room for it, which is\n"
-"what makes declaring it honest rather than imposing.\n"
+"``rapidocr`` plus ``onnxruntime``, both declared. The package this used to name,\n"
+"``rapidocr-onnxruntime``, is the same project under its old name and is frozen:\n"
+"every release after the pinned 1.2.3 -- 1.3.24 and 1.4.4 -- caps at\n"
+"``python_requires <3.13``, so on 3.14 the old name cannot move at all. ``rapidocr``\n"
+"3.x is its continuation, ships PP-OCRv6 rather than v4, and declares\n"
+"``<4``.\n"
+"\n"
+"It no longer bundles an inference backend, which is why ``onnxruntime`` is now\n"
+"named here rather than arriving underneath: ``rapidocr`` exposes no extras, so a\n"
+"declaration that does not name it installs a package that raises\n"
+"``ImportError: onnxruntime is not installed`` on first use instead of at install\n"
+"time.\n"
+"\n"
+"Nine packages and about 120 MB, against five and 105 MB before -- the four added\n"
+"are ``omegaconf``, its ``antlr4-python3-runtime``, ``tqdm`` and ``colorlog``, all\n"
+"small. Measured rather than assumed, it still upgrades nothing: the ``numpy``,\n"
+"``scipy``, ``shapely``, ``pyproj``, ``Pillow``, ``PyYAML``, ``six`` and\n"
+"``requests`` a workspace already has all satisfy it unchanged. Nothing another\n"
+"module depends on moves to make room for it, which is what makes declaring it\n"
+"honest rather than imposing.\n"
 "\n"
 "What it does not make work\n"
 "--------------------------\n"
@@ -5017,7 +5076,7 @@ msgid ""
 "Encrypted Field Mixin\n"
 "=====================\n"
 "\n"
-"``encryption.mixin`` encrypts named fields at rest with Fernet (AES-128), keyed\n"
+"``mixin.encryption`` encrypts named fields at rest with Fernet (AES-128), keyed\n"
 "from the ``ODOO_API_ENCRYPTION_KEY`` environment variable rather than from the\n"
 "database. Old keys stay readable through ``ODOO_API_ENCRYPTION_KEY_V<n>`` while\n"
 "a rotation is in flight, and ``encryption_key_version`` records which key each\n"
@@ -6054,7 +6113,7 @@ msgid ""
 "=======================================\n"
 "This module allows for line-level addresses when getting taxes from avatax.\n"
 "\n"
-"A current limitation is a single order line with more than one stock move (i.e. 10 units of \n"
+"A current limitation is a single order line with more than one stock move (i.e. 10 units of\n"
 "product A, 2 shipped from warehouse #1 and 8 from warehouse #2). In this case the sale orders should be\n"
 "split per delivery.\n"
 msgstr ""
@@ -6229,13 +6288,6 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_lmmg_default
-msgid ""
-"\n"
-"Long description of module's purpose\n"
-msgstr ""
-
-#. module: base
 #: model:ir.module.module,description:base.module_l10n_lu_hr_payroll
 msgid ""
 "\n"
@@ -6287,8 +6339,8 @@ msgid ""
 "* ``/mcp/auth/validate`` -- API key validation\n"
 "* ``/mcp/models``, ``/mcp/models/<model>/access`` -- enabled models and the\n"
 "  operations allowed on them\n"
-"* ``/mcp/xmlrpc/common``, ``/mcp/xmlrpc/db``, ``/mcp/xmlrpc/object`` -- XML-RPC\n"
-"  surface for the client\n"
+"* ``/mcp/xmlrpc/common``, ``/mcp/xmlrpc/object`` -- XML-RPC surface for the\n"
+"  client\n"
 "\n"
 "Models\n"
 "------\n"
@@ -7639,9 +7691,12 @@ msgid ""
 "* rate limit: more than ``po_rate_limit_count`` orders or\n"
 "  ``po_rate_limit_amount`` within ``po_rate_limit_hours``\n"
 "\n"
-"``po_validation_level`` and ``order_approval_mode`` select sequential or\n"
-"parallel routing; ``po_auto_confirm_on_approval`` confirms the order once\n"
-"approved. Settings → Purchase carries the company-level rules.\n"
+"``po_validation_level`` sets how strict validation is (none / above a manager\n"
+"threshold / always). ``order_approval_mode`` only chooses which trigger fields\n"
+"the category form shows — every non-empty criterion above constrains matching\n"
+"regardless of it. Sequential vs parallel routing is ``approve_sequentially`` on\n"
+"the category. ``po_auto_confirm_on_approval`` confirms the order once approved.\n"
+"Settings → Purchase carries the company-level rules.\n"
 msgstr ""
 
 #. module: base
@@ -7729,7 +7784,7 @@ msgid ""
 "devices.\n"
 "\n"
 "* ``dav.addressbook``, ``dav.calendar``, ``dav.sync.state``,\n"
-"  ``dav.conflict.resolution``, ``mixin.dav.performance``\n"
+"  ``dav.conflict.resolution``, ``dav.performance``\n"
 "* ``remote.device`` extended with DAV fields, used for client authentication\n"
 "* ``res.partner`` and ``calendar.event`` extended with vCard / iCalendar\n"
 "  serialization\n"
@@ -7860,8 +7915,11 @@ msgid ""
 "* rate limit: more than ``so_rate_limit_count`` orders or\n"
 "  ``so_rate_limit_amount`` within ``so_rate_limit_hours``\n"
 "\n"
-"``so_validation_level`` and ``so_approval_mode`` select sequential or parallel\n"
-"routing; ``so_auto_confirm_on_approval`` confirms the order once approved.\n"
+"``so_validation_level`` sets how strict validation is (none / above a manager\n"
+"threshold / always). ``so_approval_mode`` only chooses which trigger fields the\n"
+"category form shows — every non-empty criterion above constrains matching\n"
+"regardless of it. Sequential vs parallel routing is ``approve_sequentially`` on\n"
+"the category. ``so_auto_confirm_on_approval`` confirms the order once approved.\n"
 "Settings → Sales carries the company-level rules.\n"
 msgstr ""
 
@@ -8003,13 +8061,6 @@ msgid ""
 "local Post company.\n"
 "\n"
 "See: https://www.bpost.be/portal/goHome\n"
-msgstr ""
-
-#. module: base
-#: model:ir.module.module,description:base.module_link_tracker
-msgid ""
-"\n"
-"Shorten URLs and use them to track clicks and UTMs\n"
 msgstr ""
 
 #. module: base
@@ -8182,9 +8233,11 @@ msgid ""
 "* operation types in ``picking_type_ids``\n"
 "* product categories in ``stock_product_categ_ids``\n"
 "\n"
-"``stock_validation_level`` and ``stock_approval_mode`` select sequential or\n"
-"parallel routing; ``stock_auto_validate_on_approval`` validates the transfer\n"
-"once approved.\n"
+"``stock_validation_level`` sets how strict validation is.\n"
+"``stock_approval_mode`` only chooses which trigger fields the category form\n"
+"shows — every non-empty criterion above constrains matching regardless of it.\n"
+"Sequential vs parallel routing is ``approve_sequentially`` on the category.\n"
+"``stock_auto_validate_on_approval`` validates the transfer once approved.\n"
 "\n"
 "Requests carry ``vehicle_id`` and ``odometer`` (``has_vehicle`` /\n"
 "``has_odometer`` on the category) and write an asset log on approval.\n"
@@ -9305,7 +9358,7 @@ msgstr ""
 #: model:ir.module.module,description:base.module_website_mass_mailing_sms
 msgid ""
 "\n"
-"This module adds a new template to the Newsletter Block to allow \n"
+"This module adds a new template to the Newsletter Block to allow\n"
 "your visitors to subscribe with their phone number.\n"
 msgstr ""
 
@@ -10422,7 +10475,7 @@ msgstr ""
 #: model:ir.module.module,description:base.module_quality_iot
 msgid ""
 "\n"
-"This module provides the link between quality steps and IoT devices. \n"
+"This module provides the link between quality steps and IoT devices.\n"
 msgstr ""
 
 #. module: base
@@ -10853,7 +10906,7 @@ msgid ""
 "Vendor Bill Document Extraction\n"
 "===============================\n"
 "\n"
-"Puts ``document.extract.mixin`` on ``account.move``, replacing\n"
+"Puts ``mixin.document.extract`` on ``account.move``, replacing\n"
 "``account_invoice_extract``'s reading of a vendor bill.\n"
 "\n"
 "What the cascade adds over a single service is order. A Mexican vendor bill\n"
@@ -11057,6 +11110,29 @@ msgid ""
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,description:base.module_product_docs_xiuman_data
+msgid ""
+"\n"
+"Xiuman Product Documents (data)\n"
+"===============================\n"
+"\n"
+"Data module: installing it creates and publishes the **44 Xiuman technical\n"
+"data sheets** (``product.technical.sheet``) and **44 safety data sheets**\n"
+"(``product.msds``), attaching the branded PDF to every active presentation of\n"
+"each product. The content was extracted from APGM's masters (FT XIUMAN,\n"
+"Aug 2026; _hds_muestra, Jul 2026).\n"
+"\n"
+"The loader matches products by database id (every AgroMarin database descends\n"
+"from the same origin); a product that does not exist in the target database is\n"
+"skipped with a log line, so installing on a partial database is safe. The load\n"
+"is idempotent: reinstalling replaces the sheets this module created, matched\n"
+"by product name.\n"
+"\n"
+"Demolition, Omenix and Zomec are deliberately excluded (no active product /\n"
+"no stock and no sales — business decision, 2026-08-24).\n"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,description:base.module_website_xiuman
 msgid ""
 "\n"
@@ -11106,141 +11182,6 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,summary:base.module_delivery_mondialrelay
 msgid " Let's choose a Point Relais® as shipping address "
-msgstr ""
-
-#. module: base
-#: model:ir.actions.report,print_report_name:base.report_ir_model_overview
-msgid "'Model overview - %s' % object.model"
-msgstr ""
-
-#. module: base
-#: model:ir.actions.report,print_report_name:base.ir_module_reference_print
-msgid "'Technical guide - %s' % object.name"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "C"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "Details"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "Domain:"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "Flags"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "Groups:"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "Idx"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "Inherits:"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference_document
-msgid "Installed version"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "Inverse field:"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "Label"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "No"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference_document
-msgid "Objects"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "On delete:"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "R"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "Relation:"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "Rights"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "Ro"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "Rq"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "Selection:"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "Size:"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference_document
-msgid "Technical guide:"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "Tr"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "U"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "W"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
-msgid "Yes"
 msgstr ""
 
 #. module: base
@@ -11295,6 +11236,15 @@ msgstr ""
 
 #. module: base
 #. odoo-python
+#: code:addons/base/models/ir_mail_server.py:0
+msgid ""
+"%(entries)s is not a valid entry for the FROM filtering of %(server)s. Give "
+"a comma-separated list of email addresses (joe@example.com) or of domains "
+"(example.com)."
+msgstr ""
+
+#. module: base
+#. odoo-python
 #: code:addons/base/models/ir_attachment.py:0
 msgid ""
 "%(field)s of %(model)s cannot be backed by an attachment: res_field must "
@@ -11313,6 +11263,27 @@ msgstr ""
 msgid ""
 "%(integral_amount)s %(currency_unit)s and %(fractional_amount)s "
 "%(currency_subunit)s"
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/res_partner.py:0
+msgid ""
+"%(lead)s\n"
+"%(remedy)s\n"
+"\n"
+"Linked active users :\n"
+"%(names)s"
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/res_partner.py:0
+msgid ""
+"%(lead)s\n"
+"%(remedy)s\n"
+"\n"
+"Linked active users : %(names)s"
 msgstr ""
 
 #. module: base
@@ -11382,6 +11353,14 @@ msgstr ""
 #. odoo-python
 #: code:addons/base/models/ir_fields.py:0
 msgid ""
+"'%(value)s' does not seem to be a number for field '%(label_property)s' "
+"property (subfield of '%%(field)s' field)."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_fields.py:0
+msgid ""
 "'%(value)s' does not seem to be a valid Property value for field "
 "'%%(field)s'. Each property need at least 'name', 'type' and 'string' "
 "attribute."
@@ -11401,14 +11380,6 @@ msgstr ""
 msgid ""
 "'%(value)s' does not seem to be a valid Tag value for '%(label_property)s' "
 "(subfield of '%%(field)s' field)."
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_fields.py:0
-msgid ""
-"'%(value)s' does not seem to be an float for field '%(label_property)s' "
-"property (subfield of '%%(field)s' field)."
 msgstr ""
 
 #. module: base
@@ -11467,6 +11438,16 @@ msgstr ""
 #. odoo-python
 #: code:addons/base/models/ir_actions.py:0
 msgid "'%s' is reserved, and can not be used as path."
+msgstr ""
+
+#. module: base
+#: model:ir.actions.report,print_report_name:base.report_ir_model_overview
+msgid "'Model overview - %s' % object.model"
+msgstr ""
+
+#. module: base
+#: model:ir.actions.report,print_report_name:base.ir_module_reference_print
+msgid "'Technical guide - %s' % object.name"
 msgstr ""
 
 #. module: base
@@ -11875,11 +11856,6 @@ msgid "1099 Reporting"
 msgstr ""
 
 #. module: base
-#: model:ir.model.fields.selection,name:base.selection__res_lang__time_format__%h:%m:%s
-msgid "13:00:00"
-msgstr ""
-
-#. module: base
 #: model:ir.module.module,shortdesc:base.module_auth_totp_mail
 msgid "2FA Invite mail"
 msgstr ""
@@ -11947,13 +11923,11 @@ msgstr ""
 
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_model_fields_form
-#: model_terms:ir.ui.view,arch_db:base.view_model_form
 msgid "<code>datetime</code> (Python module)"
 msgstr ""
 
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_model_fields_form
-#: model_terms:ir.ui.view,arch_db:base.view_model_form
 msgid "<code>dateutil</code> (Python module)"
 msgstr ""
 
@@ -12035,20 +12009,12 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.view_model_form
-msgid ""
-"<code>self</code> (the set of records to\n"
-"                                                        compute)"
-msgstr ""
-
-#. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_model_fields_form
 msgid "<code>self</code> (the set of records to compute)"
 msgstr ""
 
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_model_fields_form
-#: model_terms:ir.ui.view,arch_db:base.view_model_form
 msgid "<code>time</code> (Python module)"
 msgstr ""
 
@@ -12607,7 +12573,7 @@ msgid ""
 "- ``_compute_l10n_mx_edi_is_cfdi_needed``: checks ``x_treatment`` instead\n"
 "  of blanket MX check\n"
 "- ``create()``: strips taxes from non-fiscal moves\n"
-"- ``_compute_display_send_button``: hides Send for non-fiscal\n"
+"- ``_compute_show_send_button``: hides Send for non-fiscal\n"
 "\n"
 "PUE/PPD payment policy — default PUE; PPD if due date crosses month/year\n"
 "boundary AND not ``cfdi_to_public`` AND not ``force_payment_policy_pue``.\n"
@@ -13416,17 +13382,22 @@ msgid ""
 "========\n"
 "\n"
 "* Telegram Bot API wrapper (``sendMessage``, ``sendDocument``, ``getFile``,\n"
-"  ``answerCallbackQuery``) on top of ``api_gateway``\n"
-"* Webhook handler at ``/telegram/webhook/<bot_token>`` with optional\n"
+"  ``answerCallbackQuery``, ``editMessageReplyMarkup``) on top of ``api_transport``\n"
+"* Webhook handler at ``/telegram/webhook/<bot_token>`` with\n"
 "  ``X-Telegram-Bot-Api-Secret-Token`` verification\n"
+"* **Exactly-once update handling**: Telegram redeliveries are rejected by\n"
+"  ``telegram.update``, and a handler re-run by Odoo's ``retrying()`` replays the\n"
+"  API answers it already got instead of sending them twice\n"
 "* Command routing with three-tier permission model (unlinked, partner,\n"
-"  internal user)\n"
+"  internal user), where \"internal\" excludes portal and other share users\n"
 "* Base commands: ``/start``, ``/ayuda``, ``/quiensoy``\n"
 "* Chat session state machine with per-chat rate limiting (token bucket via\n"
 "  ``credential``) and context storage for multi-step flows\n"
-"* Automatic partner linking by Telegram username\n"
-"* Inbound/outbound message history with ``msg_uid`` deduplication and\n"
-"  15-day auto-vacuum\n"
+"* Markdown helpers that escape interpolated values, so a partner name carrying\n"
+"  ``_``, ``*``, ``` ` ``` or ``[`` cannot make Telegram reject the message\n"
+"* Automatic partner linking by Telegram username, case- and ``@``-insensitive\n"
+"* Inbound/outbound message history with per-chat ``msg_uid`` deduplication,\n"
+"  15-day auto-vacuum for delivered traffic and 90-day for failures\n"
 "* Inline keyboard support (buttons with ``callback_data``)\n"
 "* Log filter that masks bot tokens in werkzeug / ``odoo.http`` output\n"
 "\n"
@@ -13437,17 +13408,24 @@ msgid ""
 "   ``telegram`` and the bot token in ``bearer_token``.\n"
 "2. Go to Telegram > Telegram Bots and create a bot referencing that\n"
 "   credential.\n"
-"3. (Recommended) Set a ``Webhook Secret Token`` on the bot form and use the\n"
-"   same value when calling Telegram ``setWebhook``.\n"
+"3. **Set a Webhook Secret Token on the bot form.** Without it the bot token in\n"
+"   the webhook URL is the only credential, and that URL is written verbatim to\n"
+"   every proxy access log the request passes through; anyone who can read one can\n"
+"   post forged updates and act as any linked user. The bot form warns while it is\n"
+"   empty.\n"
 "4. Register the webhook with Telegram pointing at\n"
-"   ``https://<your-odoo>/telegram/webhook/<bot_token>``.\n"
+"   ``https://<your-odoo>/telegram/webhook/<bot_token>``, passing the same value\n"
+"   as ``secret_token``.\n"
+"5. Add the commands the bot should answer under Telegram > Configuration >\n"
+"   Commands and link them on the bot. A handler registered in Python that is not\n"
+"   linked to the bot answers \"comando desconocido\".\n"
 "\n"
 "Usage\n"
 "=====\n"
 "\n"
 "This is a base module that other ``telegram_bot_*`` modules depend on to add\n"
 "domain-specific functionality (attendance, approval automation, financial\n"
-"reports, daily digests).\n"
+"reports, project tasks).\n"
 "\n"
 "Send a message programmatically:\n"
 "\n"
@@ -13455,6 +13433,14 @@ msgid ""
 "\n"
 "    bot = env['telegram.bot'].search([('name', '=', 'My Bot')], limit=1)\n"
 "    bot.send_message(chat_id='123456', text='Hello from Odoo!')\n"
+"\n"
+"Pass ``parse_mode=None`` for text built from untrusted values, or run the values\n"
+"through the Markdown helpers:\n"
+"\n"
+".. code-block:: python\n"
+"\n"
+"    md = bot.get_markdown_helpers()\n"
+"    bot.send_message(chat.chat_id, f\"Hola {md['bold'](partner.name)}\")\n"
 "\n"
 "Extend with custom commands in a child module:\n"
 "\n"
@@ -13465,14 +13451,26 @@ msgid ""
 "    )\n"
 "\n"
 "    class MyBotController(TelegramController):\n"
-"        _command_handlers = {\n"
-"            **TelegramController._command_handlers,\n"
-"            '/status': '_handle_status_command',\n"
-"        }\n"
-"        _partner_added_cmds = TelegramController._partner_added_cmds | {'/status'}\n"
+"        def __init__(self):\n"
+"            super().__init__()\n"
+"            self._command_handlers['/status'] = '_handle_status_command'\n"
+"            self._partner_added_cmds.add('/status')\n"
 "\n"
 "        def _handle_status_command(self, bot, chat, args, partner=False, internal_user=False):\n"
 "            bot.send_message(chat.chat_id, f'Hello {partner.name}!')\n"
+"\n"
+"Writing a handler\n"
+"=================\n"
+"\n"
+"A handler runs inside a savepoint. If it raises, its database work is rolled\n"
+"back, the conversation is reset to ``idle`` and the user is told — so a crash\n"
+"cannot strand someone mid-flow.\n"
+"\n"
+"What is *not* rolled back is anything already sent to Telegram. Odoo re-runs a\n"
+"whole endpoint on a serialisation conflict, so keep the outbound calls to the\n"
+"model's methods (``send_message``, ``send_document``, ``get_file_content`` …):\n"
+"they go through the replay guard and a re-run reuses the first answer. A raw\n"
+"``requests`` call from a handler will happen once per attempt.\n"
 "\n"
 "Bug Tracker\n"
 "===========\n"
@@ -13486,16 +13484,7 @@ msgid ""
 "Authors\n"
 "~~~~~~~\n"
 "\n"
-"* Odoo Community Association (OCA)\n"
-"\n"
-"Maintainers\n"
-"~~~~~~~~~~~\n"
-"\n"
-"This module is maintained by the OCA.\n"
-"\n"
-".. image:: https://odoo-community.org/logo.png\n"
-"   :alt: Odoo Community Association\n"
-"   :target: https://odoo-community.org\n"
+"* AgroMarin\n"
 msgstr ""
 
 #. module: base
@@ -13872,99 +13861,154 @@ msgid ""
 "Account Move Template\n"
 "=====================\n"
 "\n"
-"..\n"
-"   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-"   !! This file is generated by oca-gen-addon-readme !!\n"
-"   !! changes will be overwritten.                   !!\n"
-"   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-"   !! source digest: sha256:ab1183d8444446ea59dfc6f75aeca7a2828c82a33b206f6ea3fb4de903373db3\n"
-"   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-"\n"
-".. |badge1| image:: https://img.shields.io/badge/maturity-Beta-yellow.png\n"
+".. |badge1| image:: https://img.shields.io/badge/maturity-Production%2FStable-green.png\n"
 "    :target: https://odoo-community.org/page/development-status\n"
-"    :alt: Beta\n"
+"    :alt: Production/Stable\n"
 ".. |badge2| image:: https://img.shields.io/badge/licence-AGPL--3-blue.png\n"
 "    :target: http://www.gnu.org/licenses/agpl-3.0-standalone.html\n"
 "    :alt: License: AGPL-3\n"
-".. |badge3| image:: https://img.shields.io/badge/github-OCA%2Faccount--financial--tools-lightgray.png?logo=github\n"
-"    :target: https://github.com/OCA/account-financial-tools/tree/17.0/account_move_template\n"
-"    :alt: OCA/account-financial-tools\n"
-".. |badge4| image:: https://img.shields.io/badge/weblate-Translate%20me-F47D42.png\n"
-"    :target: https://translation.odoo-community.org/projects/account-financial-tools-17-0/account-financial-tools-17-0-account_move_template\n"
-"    :alt: Translate me on Weblate\n"
-".. |badge5| image:: https://img.shields.io/badge/runboat-Try%20me-875A7B.png\n"
-"    :target: https://runboat.odoo-community.org/builds?repo=OCA/account-financial-tools&target_branch=17.0\n"
-"    :alt: Try me on Runboat\n"
 "\n"
-"|badge1| |badge2| |badge3| |badge4| |badge5|\n"
+"|badge1| |badge2|\n"
 "\n"
-"The user can configure journal entries templates, useful for recurring\n"
-"entries. The amount of each template line can be computed (through\n"
-"python code) or kept as user input.\n"
+"Templates for the documents AgroMarin issues over and over: journal entries,\n"
+"vendor bills, customer invoices, credit notes and outbound payments. A template\n"
+"holds the journal, the partner, the accounts and the products; running it opens\n"
+"a wizard that asks for the few things that change -- a date, an amount, a\n"
+"partner -- and creates the document.\n"
 "\n"
-"If user input, when using the template, user has to fill the amount of\n"
-"every input lines.\n"
-"\n"
-"The journal entry form allows lo load, through a wizard, the template to\n"
-"use and the amounts to fill.\n"
-"\n"
-"**Notable features:**\n"
-"\n"
-"This module enhance the capability of module account_move_template with\n"
-"following features,\n"
-"\n"
-"1. Optional account for negative amount.\n"
-"\n"
-"      When the Journal entry is created, and credit/debit is negative\n"
-"      value, change debit/credit side and use the opt_account_id\n"
-"\n"
-"2. Allow overwrite move line values with overwrite dict.\n"
-"\n"
-"      Normally, the journal items created by the template will require\n"
-"      user input on wizard. This feature allow passing the overwrite\n"
-"      values with a dictionary. This is particularly useful when the\n"
-"      wizard is called by code.\n"
-"\n"
-"      Sample of dictionary to overwrite move lines:\n"
-"\n"
-"      ::\n"
-"\n"
-"         {'L1': {'partner_id': 1, 'amount': 100, 'name': 'some label'},\n"
-"          'L2': {'partner_id': 2, 'amount': 200, 'name': 'some label 2'}, }\n"
+"This module began as ``account_move_template`` from\n"
+"`OCA/account-financial-tools <https://github.com/OCA/account-financial-tools>`_\n"
+"and has since diverged: the upstream features built on ``opt_account_id``, an\n"
+"overwrite dictionary and Python-computed amounts are **not** present here, and\n"
+"everything below was added for this fork. It is no longer generated by\n"
+"``oca-gen-addon-readme``; edit this file directly.\n"
 "\n"
 "**Table of contents**\n"
 "\n"
 ".. contents::\n"
 "   :local:\n"
 "\n"
+"Configuration\n"
+"=============\n"
+"\n"
+"**Journal and account codes.** A template names its journal by *code*, not by\n"
+"id, and each line names its account by *code prefix*. Both resolve at run time,\n"
+"in the company the run belongs to, so one template serves every company that\n"
+"uses the same chart of accounts and the same journal codes. The ``Journal`` and\n"
+"``Account`` pickers next to them show what the stored code currently resolves\n"
+"to; picking one fills the code.\n"
+"\n"
+"**Payment product families.** Set ``Payment family`` (technical name\n"
+"``payment_category_code``) on a product category -- ``AGROQUIMICOS``, ``PAPAS``\n"
+"-- to tag it as part of a family. Subcategories inherit the tag unless they\n"
+"carry one of their own, which splits them off into their own family. A template\n"
+"that ticks ``Take the product from the payment's category`` then draws its\n"
+"product from whichever family the run names.\n"
+"\n"
+"Two system parameters tune the draw:\n"
+"\n"
+"``account_move_template.payment_min_price``\n"
+"   A price floor. Products priced below it are never drawn, which keeps\n"
+"   catalogue placeholders priced at a token amount out of stamped documents.\n"
+"   Defaults to no floor.\n"
+"\n"
+"``account_move_template.random_product_supplier_tax_id``\n"
+"   The id of the supplier tax that a template line with a ``Product category``\n"
+"   filters on. Required by that path; a run raises if it is unset.\n"
+"\n"
+"**Pinning a product.** Set ``Payment Product`` on one category of a family when\n"
+"that family always bills the same article. The pin is used verbatim instead of\n"
+"a draw, so a sibling product can never end up on a stamped CFDI. Only one\n"
+"category per family may pin a product.\n"
+"\n"
 "Usage\n"
 "=====\n"
 "\n"
-"To create new templates:\n"
+"Journal entry templates\n"
+"-----------------------\n"
 "\n"
-"1. Make sure that you have flagged *Show Full Accounting Features* on\n"
-"   your user, and that the user belongs to the *Billing Manager* group.\n"
-"2. Go to *Invoicing / Configuration / Accounting / Journal Entry\n"
-"   Templates* and define there your templates. You can choose to\n"
-"   complete a line using a defined formula, based on other lines, or by\n"
-"   requiring user input.\n"
+"Give the template a journal code, ``Journal Entry`` as the move type, and one\n"
+"line per journal item with an account prefix and a balance. Balances must sum\n"
+"to zero, as on any entry. Run it from the ``Use Template`` button on the\n"
+"template, or from ``Accounting > Create Entry from Template``.\n"
 "\n"
-"To use an existing template:\n"
+"Invoice and bill templates\n"
+"--------------------------\n"
 "\n"
-"1. Go to *Invoicing / Accounting / Actions / Create Entry from Template*\n"
-"2. Select one of the available templates.\n"
-"3. Complete the entries according to the template and click on the\n"
-"   button *Generate Journal Entry*.\n"
+"Pick ``Vendor Bill``, ``Customer Invoice`` or either credit note. Lines carry a\n"
+"product or a product category, a quantity, a unit price, taxes and an optional\n"
+"discount. A line whose product is left to a category draws one at run time.\n"
 "\n"
-"Bug Tracker\n"
-"===========\n"
+"The wizard's ``Amount`` is the **total of the document**. It is distributed\n"
+"across the product lines, with the rounding residue on the last one, so\n"
+"``amount_untaxed`` always equals what was typed. Each line decides how it\n"
+"spends its share through ``Distribution method``:\n"
 "\n"
-"Bugs are tracked on `GitHub Issues <https://github.com/OCA/account-financial-tools/issues>`_.\n"
-"In case of trouble, please check there if your issue has already been reported.\n"
-"If you spotted it first, help us to smash it by providing a detailed and welcomed\n"
-"`feedback <https://github.com/OCA/account-financial-tools/issues/new?body=module:%20account_move_template%0Aversion:%2017.0%0A%0A**Steps%20to%20reproduce**%0A-%20...%0A%0A**Current%20behavior**%0A%0A**Expected%20behavior**>`_.\n"
+"``Collapse (one line, full amount)``\n"
+"   One line, quantity 1, priced at the share. Use it for discounts, fees and\n"
+"   single-item credit notes, where the template's own unit price is only a\n"
+"   placeholder.\n"
 "\n"
-"Do not contact contributors directly about support or help with technical issues.\n"
+"``Split (decompose into units of price_unit)``\n"
+"   As many whole units at the template's unit price as the share pays for, plus\n"
+"   one adjustment line for the remainder. The adjustment carries the same taxes\n"
+"   as the units it completes. Use it for bills expressed as \"N units at X\".\n"
+"\n"
+"Sections and notes\n"
+"------------------\n"
+"\n"
+"A line can be a ``Section`` or a ``Note`` instead of a product. They carry no\n"
+"accounting value, take no share of the amount, and are written to the generated\n"
+"document as display lines in sequence with the product lines around them.\n"
+"\n"
+"Payment templates\n"
+"-----------------\n"
+"\n"
+"Tick ``Is payment``, choose the payment type and partner type, and give the\n"
+"template a bank journal code. Template lines are not used. The wizard's\n"
+"``Payment Amount`` is required, and the payment is returned **in draft** --\n"
+"posting is left to whoever asked for it.\n"
+"\n"
+"Secondary partner\n"
+"-----------------\n"
+"\n"
+"A run can carry a ``diff_partner_id``: the party a discount is applied to, named\n"
+"when the payment was requested. It is informational by default, so the\n"
+"accounting owner stays on the document. Tick ``Issue to the secondary partner``\n"
+"on a template to have that template's documents issued to it instead. Leave it\n"
+"off wherever the owner has to stay on the document -- the customer invoice of a\n"
+"discount run is one of those.\n"
+"\n"
+"Multi-company\n"
+"=============\n"
+"\n"
+"A template may carry a company or leave it empty. An empty company means the\n"
+"template is shared, and its journal code is validated against the companies the\n"
+"user can act for. The run itself always resolves one company -- the wizard's\n"
+"``multicompany_id`` if given, else the template's, else the automation runtime's,\n"
+"else the active one -- and resolves the journal and the accounts inside it.\n"
+"\n"
+"Known issues\n"
+"============\n"
+"\n"
+"* The name of an archived template stays reserved: a new template cannot reuse\n"
+"  it until the archived row is deleted. This follows the framework default for\n"
+"  catalog-style name indexes.\n"
+"\n"
+"Integrations\n"
+"============\n"
+"\n"
+"``automation_account``\n"
+"   Calls the wizard from a server action, passing the runtime's partner, date,\n"
+"   amount, secondary partner, target company and payment family. It takes an\n"
+"   ``auto_post`` flag and posts the result itself.\n"
+"\n"
+"``l10n_mx_edi_account_move_template``\n"
+"   Adds the CFDI usage code and payment method to the wizard and forwards them\n"
+"   to the generated move.\n"
+"\n"
+"``account_move_template_purchase``\n"
+"   Links a template to a purchase bill match.\n"
 "\n"
 "Credits\n"
 "=======\n"
@@ -13972,61 +14016,9 @@ msgid ""
 "Authors\n"
 "-------\n"
 "\n"
-"* Agile Business Group\n"
-"* Aurium Technologies\n"
-"* Vauxoo\n"
-"* ForgeFlow\n"
+"* AgroMarin\n"
 "* Akretion\n"
-"\n"
-"Contributors\n"
-"------------\n"
-"\n"
-"Module Authors\n"
-"~~~~~~~~~~~~~~\n"
-"\n"
-"-  Davide Corio <davide.corio@agilebg.com>\n"
-"-  Lorenzo Battistini <lorenzo.battistini@agilebg.com>\n"
-"-  Paolo Chiara <p.chiara@isa.it>\n"
-"-  Franco Tampieri <franco.tampieri@agilebg.com>\n"
-"-  Alexis de Lattre <alexis.delattre@akretion.com> (full re-write for\n"
-"   v12)\n"
-"\n"
-"Module Contributors\n"
-"~~~~~~~~~~~~~~~~~~~\n"
-"\n"
-"-  Jalal ZAHID <j.zahid@auriumtechnologies.com> (port to v10)\n"
-"-  Alex Comba <alex.comba@agilebg.com> (Port to V8)\n"
-"-  Guewen Baconnier <guewen.baconnier@camptocamp.com>\n"
-"-  Raf Ven <raf.ven@dynapps.be> (port to v11)\n"
-"-  Jordi Ballester <jordi.ballester@forgeflow.com> (ForgeFlow)\n"
-"-  `Sygel <https://www.sygel.es>`__:\n"
-"\n"
-"   -  Harald Panten <harald.panten@sygel.es>\n"
-"   -  Valentin Vinagre <valentin.vinagre@sygel.es>\n"
-"   -  Manuel Regidor <manuel.regidor@sygel.es>\n"
-"\n"
-"-  `Ecosoft <http://ecosoft.co.th>`__:\n"
-"\n"
-"   -  Kitti U. <kittiu@ecosoft.co.th> (Add context overwrite)\n"
-"\n"
-"-  Abraham Anes <abrahamanes@gmail.com>\n"
-"\n"
-"Maintainers\n"
-"-----------\n"
-"\n"
-"This module is maintained by the OCA.\n"
-"\n"
-".. image:: https://odoo-community.org/logo.png\n"
-"   :alt: Odoo Community Association\n"
-"   :target: https://odoo-community.org\n"
-"\n"
-"OCA, or the Odoo Community Association, is a nonprofit organization whose\n"
-"mission is to support the collaborative development of Odoo features and\n"
-"promote its widespread use.\n"
-"\n"
-"This module is part of the `OCA/account-financial-tools <https://github.com/OCA/account-financial-tools/tree/17.0/account_move_template>`_ project on GitHub.\n"
-"\n"
-"You are welcome to contribute. To learn how please visit https://odoo-community.org/page/Contribute.\n"
+"* Odoo Community Association (OCA)\n"
 msgstr ""
 
 #. module: base
@@ -14198,6 +14190,22 @@ msgid ""
 "\n"
 "1. To activate it go to user and active \"Show Invoice Margin\" in\n"
 "   security options.\n"
+"\n"
+"What installing it does to existing invoices\n"
+"--------------------------------------------\n"
+"\n"
+"Nothing. The margin columns are created empty and invoices raised before\n"
+"installation carry no margin, because their cost at the time of sale is not\n"
+"recorded anywhere the module can read.\n"
+"\n"
+"They are left empty on purpose. Seeding them from today's product cost would\n"
+"put a number in every historical report that looks measured but is not, and\n"
+"the earlier behaviour -- assuming a cost of zero, which reports a 100% margin\n"
+"on everything -- was worse still.\n"
+"\n"
+"A line acquires its margin the first time it is recomputed. To backfill a\n"
+"period deliberately, recompute the lines you care about, accepting that the\n"
+"cost used is the product's cost now rather than its cost then.\n"
 "\n"
 "Bug Tracker\n"
 "===========\n"
@@ -14405,8 +14413,9 @@ msgid ""
 "**Prevents:**\n"
 "  - ALL operations including completing existing reservations\n"
 "  - Overrides all soft permissions\n"
-"  - Requires the \"Hard Block Override\" permission — both to operate through it\n"
-"    and to lift or weaken it\n"
+"  - Requires the \"Hard Block Override\" permission — to operate through it, to\n"
+"    lift or weaken it, to archive the location, and to move a location out\n"
+"    from under it\n"
 "\n"
 "**Allows:**\n"
 "  - Only users with the hard block override permission\n"
@@ -14431,6 +14440,7 @@ msgid ""
 "    6. After count complete, unblock location\n"
 "\n"
 "**Warning:** Hard blocks will prevent completing customer orders! Only use when necessary.\n"
+"\n"
 "Visibility Filter on ``qty_available``\n"
 "======================================\n"
 "\n"
@@ -14475,13 +14485,17 @@ msgid ""
 "\n"
 "**Bypass for trusted contexts**\n"
 "\n"
-"Set ``bypass_blocked_locations=True`` in the context to disable the filter\n"
-"even for users without ``stock.group_stock_user`` (e.g. official reports,\n"
-"valuation crons running as a non-admin scheduler):\n"
+"Set ``bypass_blocked_locations=True`` in the context to disable the filter for\n"
+"a system flow (official reports, valuation crons):\n"
 "\n"
 ".. code-block:: python\n"
 "\n"
-"    product.with_context(bypass_blocked_locations=True).qty_available\n"
+"    product.sudo().with_context(bypass_blocked_locations=True).qty_available\n"
+"\n"
+"**The bypass is honoured only under ``env.su``.** Context travels with every\n"
+"``call_kw``, so a key that works for an ordinary session is an off-switch any\n"
+"salesperson can flip from the browser — which is exactly what this filter\n"
+"exists to prevent. Outside ``sudo()`` the key is ignored, not refused.\n"
 "\n"
 "Internal/system jobs that run as ``stock.group_stock_user`` (admin, OdooBot,\n"
 "inventory cron) do not need the bypass — they already see everything.\n"
@@ -14496,6 +14510,7 @@ msgid ""
 "``_get_available_quantity``) keeps its existing exclusion logic — that path\n"
 "is about whether stock can be moved, and is gated by the\n"
 "``group_force_blocked_location_*`` groups, not by ``stock.group_stock_user``.\n"
+"\n"
 "Technical Implementation\n"
 "========================\n"
 "\n"
@@ -14507,7 +14522,13 @@ msgid ""
 "\n"
 "1. **New outgoing reservations** — ``stock.quant._get_gather_domain`` excludes\n"
 "   outgoing-blocked locations from reservation gathering, so a new pick is never\n"
-"   offered blocked stock in the first place.\n"
+"   offered blocked stock in the first place. This holds for **automated**\n"
+"   reservations too: ``stock.rule._run_scheduler_tasks`` and the chained-move\n"
+"   step of ``stock.move._action_done`` both reach ``_action_assign`` through\n"
+"   ``sudo()``, and a reservation taken there is still refused blocked stock.\n"
+"   Without that, the nightly scheduler reserved every location an operator had\n"
+"   just been refused, and re-filled a hard-blocked zone minutes after someone\n"
+"   cleared it for a count.\n"
 "\n"
 "2. **New outgoing quantities** — ``stock.move.line.create`` / ``write`` refuse a\n"
 "   line that *appears*, *grows*, or is *retargeted* onto an outgoing-blocked\n"
@@ -14541,7 +14562,26 @@ msgid ""
 "resolves ``hard`` before it honours any completion.\n"
 "\n"
 "``env.su`` (superuser, crons, imports, any ``sudo()`` flow) bypasses every\n"
-"block. This is the standard Odoo trust boundary.\n"
+"block *at the enforcement layer*. This is the standard Odoo trust boundary: code\n"
+"running as the system is trusted to move stock.\n"
+"\n"
+"**Gathering for a new reservation is the one exception.** The override groups\n"
+"exist so a *person* can force one operation; they are not a standing licence for\n"
+"an unattended run, and no cron has an operator behind it to hold a group. So a\n"
+"gather that is about to take stock for a new reservation applies the full\n"
+"exclusion under ``env.su``, while a gather that is reading a quantity or locating\n"
+"an existing quant does not — the latter is bookkeeping, and filtering it would\n"
+"make a done move fail to find its own quant and book a second one.\n"
+"\n"
+"**No context key sent by a client can move stock.** The gates communicate over\n"
+"the context — ``_action_done`` has to tell the quant layer \"this line predates\n"
+"the block\", and the gather filter has to carry the operator's answer across\n"
+"core's internal ``sudo()``. But the web client controls the context of every\n"
+"``call_kw``, so a plain ``True`` in ``stock_blocked_completing`` would let anyone\n"
+"walk stock out of a quarantine. Each internal key therefore carries a\n"
+"module-level sentinel object rather than a JSON value: unforgeable across the\n"
+"RPC boundary, hashable so ``Environment`` stays cached, and stable so\n"
+"``with_context`` does not churn environments. A forged key reads as absent.\n"
 "\n"
 "**Effective blocking**\n"
 "\n"
@@ -14561,11 +14601,17 @@ msgid ""
 "    - an incoming and an outgoing one → soft_both\n"
 "    - most restrictive always wins\n"
 "\n"
-"Because it is stored, every filter is a single indexed join rather than a\n"
-"subtree walk per query. On a 2 200-location warehouse with 1 210 blocked\n"
+"Because it is stored, every filter is a single join on an indexed column rather\n"
+"than a subtree walk per query. On a 2 200-location warehouse with 1 210 blocked\n"
 "locations, a 50-line delivery's reservation costs the same with the filter\n"
 "active as without it; the previous shape added ~100 queries and ~400 ms to that\n"
 "one operation.\n"
+"\n"
+"The partial index on ``effective_block_type`` covers the rows that *are* blocked,\n"
+"so it serves the visibility filter and the Locations search filters, which ask\n"
+"for them by name. Gather asks the opposite question — every location that is\n"
+"*not* outgoing-blocked — and is served by the ``parent_path`` scan it would have\n"
+"run anyway; the join adds a column test, not a lookup.\n"
 "\n"
 "It is also searchable, which is what the \"Blocked Locations\" filters in the\n"
 "Locations view use — an operator looking for blocked locations means\n"
@@ -14588,6 +14634,16 @@ msgid ""
 "``stock.move._action_done`` records every line that moved through a block, on\n"
 "the picking's chatter — or, for a move with no picking (scrap, inventory\n"
 "adjustment, a bare procurement move), on the location's own chatter.\n"
+"\n"
+"The two halves are taken at different moments, and both moments are forced. The\n"
+"**decision** — which endpoints are blocked, and whether a group resolved them —\n"
+"is taken before ``super()``, because the completing exemption is only in force\n"
+"during ``_action_done`` and a decision taken under it would read as \"allowed, no\n"
+"group needed\" for every line and silence the trail. The **line inventory** is\n"
+"taken from the moves ``super()`` returned, because core cancels unpicked moves\n"
+"and unlinks unpicked lines on its way through: reading the lines it was *given*\n"
+"recorded quantities out of a blocked location for moves that ended in\n"
+"``cancel``.\n"
 "\n"
 "The entry states what actually happened rather than inferring it from group\n"
 "membership:\n"
@@ -14623,14 +14679,32 @@ msgid ""
 "\n"
 "**Governance**\n"
 "\n"
-"* Only ``usage == 'internal'`` locations can be blocked, enforced by an SQL-level\n"
-"  constraint. A block on a view location silently freezes everything beneath it,\n"
-"  and the form hides the field for non-internal usages — so before this was\n"
-"  enforced, a bad import could freeze a warehouse and hide its own off-switch.\n"
-"* Lifting **or weakening** a hard block requires the Hard Block override group.\n"
-"  A block is worth exactly as much as the permission needed to remove it, and\n"
-"  plain write access on ``stock.location`` is not that permission. Applying a\n"
-"  block needs no special group: freezing is the safe direction.\n"
+"* Only ``usage == 'internal'`` locations can be blocked, enforced by a Python\n"
+"  ``@api.constrains`` on ``block_type`` and ``usage``. A block on a view location\n"
+"  silently freezes everything beneath it, and the form hides the field for\n"
+"  non-internal usages — so before this was enforced, a bad import could freeze a\n"
+"  warehouse and hide its own off-switch.\n"
+"* **Four writes release a hard block, and all four cost the same permission.**\n"
+"  Lifting it, weakening it to a soft block, archiving the location, and\n"
+"  re-parenting a location out from under a hard-blocked ancestor all free the\n"
+"  same stock, so all four require the Hard Block override group. Guarding only\n"
+"  the first left the other three as a way for a stock manager to walk around the\n"
+"  block without ever touching ``block_type``. Re-parenting is guarded from both\n"
+"  sides — writing ``location_id`` on the child and writing ``child_ids`` on the\n"
+"  new parent are the same write to the ORM. Moving a location *between* two hard\n"
+"  blocks is not a release and stays open, as does moving a location that carries\n"
+"  the hard block itself. Deleting is not a fifth hole: core refuses to unlink a\n"
+"  location that still has quants (a ``RESTRICT`` foreign key) or sub-locations,\n"
+"  so an unlinkable location has nothing left to release.\n"
+"* **Clearing the reservations of a hard-blocked location requires the override\n"
+"  group.** \"Unreserve All Stock\" undoes other people's work on a frozen\n"
+"  location; ``stock.group_stock_manager`` is not enough. The button is hidden\n"
+"  from users without the group and the method refuses them.\n"
+"* Applying a block needs no special group: freezing is the safe direction.\n"
+"* A blocking reason is required by the location form whenever a block type is\n"
+"  set. It is not a model constraint — an import or an API write can still leave\n"
+"  it empty — but no operator can block a location from the UI without saying\n"
+"  why.\n"
 "\n"
 "Configuration\n"
 "=============\n"
@@ -14802,6 +14876,7 @@ msgid ""
 "    3. Post-Maintenance:\n"
 "       - Unblock location\n"
 "       - Returns to normal use\n"
+"\n"
 "Known Limitations\n"
 "=================\n"
 "\n"
@@ -14810,8 +14885,10 @@ msgid ""
 "  blocked — they bypass reservation entirely, so a block there means nothing.\n"
 "* System / superuser operations (``env.su``: inventory adjustments applied with\n"
 "  ``sudo()``, imports, crons, any ``sudo()`` flow) bypass **all** blocks, soft\n"
-"  and hard alike. This is the standard Odoo trust boundary. It also means an\n"
-"  administrator editing quants directly is not stopped by a block.\n"
+"  and hard alike, at the enforcement layer. This is the standard Odoo trust\n"
+"  boundary. It also means an administrator editing quants directly is not stopped\n"
+"  by a block. The exception is reservation gathering, which refuses blocked stock\n"
+"  to automated runs as well — otherwise the scheduler undoes the block nightly.\n"
 "* ``soft_in`` blocks **all** additions to the location, including finishing an\n"
 "  inbound transfer that was already under way. The new-versus-completing\n"
 "  distinction that ``soft_out`` gets has no equivalent on the incoming side:\n"
@@ -14821,9 +14898,58 @@ msgid ""
 "* The audit trail records operations through a block, not attempts. A refused\n"
 "  operation raises a ``UserError`` to the operator and is not written to any\n"
 "  chatter.\n"
+"* ``reserved_qty_when_blocked`` sums reserved quantities across products, so it\n"
+"  is comparable only where the location holds a single unit of measure. The\n"
+"  chatter entry posted at blocking time carries the per-unit breakdown\n"
+"  (``10.00 Units, 5.00 kg``) and is the figure to read when the location is\n"
+"  mixed.\n"
+"* Changing only the blocking reason on an already-blocked location posts no new\n"
+"  \"Location Blocked\" entry — the change is recorded by field tracking on\n"
+"  ``block_reason``, and re-stamping ``blocked_date``/``blocked_by_user_id`` for\n"
+"  an edited note would lose when the block actually started.\n"
 "* Scrap, inventory corrections and manufacturing consumption pass a **soft**\n"
 "  block without an override group (they are logged). If a quality hold must stop\n"
 "  those too, use a hard block.\n"
+"\n"
+"Upgrading to 19.0.4.0.0\n"
+"=======================\n"
+"\n"
+"* **Behaviour change: four writes now require the Hard Block override group.**\n"
+"  Lifting or weakening a hard block already did; archiving a hard-blocked\n"
+"  location, and re-parenting a location out from under a hard-blocked ancestor,\n"
+"  now do too. Confirm the people who reorganise warehouse layout hold the group,\n"
+"  or that they are not expected to touch frozen zones. Archiving cascades:\n"
+"  archiving a **warehouse** that contains a hard-blocked location is refused for\n"
+"  the same reason, and the message names the location. Deleting the location was\n"
+"  never a way out — core refuses it while quants or sub-locations exist.\n"
+"* **Behaviour change: \"Unreserve All Stock\" requires the Hard Block override\n"
+"  group.** The button is hidden from everyone else. It also posts its chatter\n"
+"  entry as superuser, which fixes a failure where a user without write access on\n"
+"  ``stock.location`` cleared the reservations and then lost the whole\n"
+"  transaction to an ``AccessError`` on ``mail.message``.\n"
+"* **Behaviour change: automated reservations no longer draw on blocked stock.**\n"
+"  ``stock.rule._run_scheduler_tasks`` assigns through ``sudo()``, which used to\n"
+"  skip the gather exclusion entirely: on the previous release a scheduler run\n"
+"  reserved from ``soft_out``, ``soft_both`` **and** ``hard`` locations, and\n"
+"  re-reserved a hard-blocked zone that \"Unreserve All Stock\" had just cleared for\n"
+"  a count. Pickings that were silently filled from blocked stock overnight will\n"
+"  now sit in *Waiting* instead. Expect a one-off rise in unreserved demand on the\n"
+"  first scheduler run after the upgrade, and check whether any of it was relying\n"
+"  on quarantined stock.\n"
+"* **Behaviour change: ``bypass_blocked_locations`` is honoured only under\n"
+"  ``env.su``.** A non-``sudo()`` caller passing it now gets the filtered figures.\n"
+"  Audit any report or integration that sets it without ``sudo()``.\n"
+"* **Behaviour change: the internal context keys no longer accept a JSON value.**\n"
+"  ``stock_blocked_completing``, ``stock_blocked_is_inventory`` and\n"
+"  ``stock_blocked_excluded_types`` carry a sentinel object set by this module.\n"
+"  Anything outside the module that set them to ``True`` was bypassing the block\n"
+"  and no longer does; nothing inside Odoo sets them.\n"
+"* The location form now requires a blocking reason whenever a block type is set.\n"
+"  ``migrations/19.0.4.0.0/post-migrate.py`` logs one warning per blocked location\n"
+"  that has none, so the list is in the upgrade log; no data is changed.\n"
+"* The chatter entry posted at blocking time now reports reserved quantities per\n"
+"  unit of measure instead of one summed figure. ``reserved_qty_when_blocked``\n"
+"  itself is unchanged.\n"
 "\n"
 "Upgrading to 19.0.3.0.0\n"
 "=======================\n"
@@ -15364,20 +15490,20 @@ msgid ""
 "    :target: http://www.gnu.org/licenses/agpl-3.0-standalone.html\n"
 "    :alt: License: AGPL-3\n"
 ".. |badge3| image:: https://img.shields.io/badge/github-OCA%2Fmargin--analysis-lightgray.png?logo=github\n"
-"    :target: https://github.com/OCA/margin-analysis/tree/17.0/account_invoice_margin_sale\n"
+"    :target: https://github.com/OCA/margin-analysis/tree/19.0/account_invoice_margin_sale\n"
 "    :alt: OCA/margin-analysis\n"
 ".. |badge4| image:: https://img.shields.io/badge/weblate-Translate%20me-F47D42.png\n"
-"    :target: https://translation.odoo-community.org/projects/margin-analysis-17-0/margin-analysis-17-0-account_invoice_margin_sale\n"
+"    :target: https://translation.odoo-community.org/projects/margin-analysis-19-0/margin-analysis-19-0-account_invoice_margin_sale\n"
 "    :alt: Translate me on Weblate\n"
 ".. |badge5| image:: https://img.shields.io/badge/runboat-Try%20me-875A7B.png\n"
-"    :target: https://runboat.odoo-community.org/builds?repo=OCA/margin-analysis&target_branch=17.0\n"
+"    :target: https://runboat.odoo-community.org/builds?repo=OCA/margin-analysis&target_branch=19.0\n"
 "    :alt: Try me on Runboat\n"
 "\n"
 "|badge1| |badge2| |badge3| |badge4| |badge5|\n"
 "\n"
-"This module propagates purchase price from sale order line to invoice\n"
-"and discards the invoice lines coming from sale order lines with\n"
-"down-payment when computing the margin.\n"
+"This module makes an invoice line created from a sale order take its cost\n"
+"from that order line instead of from the product, and keeps down payments\n"
+"out of the margin an invoice reports.\n"
 "\n"
 "**Table of contents**\n"
 "\n"
@@ -15392,10 +15518,20 @@ msgid ""
 "Usage\n"
 "=====\n"
 "\n"
-"This module also needs a security group to show margins.\n"
+"Once installed, the cost of every invoice line created from a sale order\n"
+"is taken from the sale order line instead of from the product, and it\n"
+"keeps tracking the sale order after the invoice is posted. Lines that\n"
+"come from a down payment are left out of the invoice margin.\n"
 "\n"
-"1. To activate it go to user and active \"Show Invoice Margin\" in\n"
-"   security options.\n"
+"Because the invoice line keeps tracking its sale order line, editing the\n"
+"cost on the invoice does not stick: the next change to the line or its\n"
+"invoice puts the sale order's figure back. Change the cost on the sale\n"
+"order line instead.\n"
+"\n"
+"Margins are only shown to users who have the \"Show Invoice Margin\"\n"
+"security option enabled. That group is defined by\n"
+"``account_invoice_margin`` and is inherited from it; this module adds no\n"
+"group and no view of its own.\n"
 "\n"
 "Bug Tracker\n"
 "===========\n"
@@ -15403,7 +15539,7 @@ msgid ""
 "Bugs are tracked on `GitHub Issues <https://github.com/OCA/margin-analysis/issues>`_.\n"
 "In case of trouble, please check there if your issue has already been reported.\n"
 "If you spotted it first, help us to smash it by providing a detailed and welcomed\n"
-"`feedback <https://github.com/OCA/margin-analysis/issues/new?body=module:%20account_invoice_margin_sale%0Aversion:%2017.0%0A%0A**Steps%20to%20reproduce**%0A-%20...%0A%0A**Current%20behavior**%0A%0A**Expected%20behavior**>`_.\n"
+"`feedback <https://github.com/OCA/margin-analysis/issues/new?body=module:%20account_invoice_margin_sale%0Aversion:%2019.0%0A%0A**Steps%20to%20reproduce**%0A-%20...%0A%0A**Current%20behavior**%0A%0A**Expected%20behavior**>`_.\n"
 "\n"
 "Do not contact contributors directly about support or help with technical issues.\n"
 "\n"
@@ -15413,10 +15549,15 @@ msgid ""
 "Authors\n"
 "-------\n"
 "\n"
+"* AgroMarin\n"
 "* Tecnativa\n"
 "\n"
 "Contributors\n"
 "------------\n"
+"\n"
+"-  `AgroMarin <https://www.agromarin.mx>`__:\n"
+"\n"
+"   -  Luis Marin\n"
 "\n"
 "-  `Tecnativa <https://www.tecnativa.com>`__:\n"
 "\n"
@@ -15461,7 +15602,7 @@ msgid ""
 "\n"
 "|maintainer-sergio-teruel| |maintainer-carlosdauden|\n"
 "\n"
-"This module is part of the `OCA/margin-analysis <https://github.com/OCA/margin-analysis/tree/17.0/account_invoice_margin_sale>`_ project on GitHub.\n"
+"This module is part of the `OCA/margin-analysis <https://github.com/OCA/margin-analysis/tree/19.0/account_invoice_margin_sale>`_ project on GitHub.\n"
 "\n"
 "You are welcome to contribute. To learn how please visit https://odoo-community.org/page/Contribute.\n"
 msgstr ""
@@ -15577,170 +15718,6 @@ msgid ""
 "-------\n"
 "\n"
 "* AgroMarin\n"
-msgstr ""
-
-#. module: base
-#: model:ir.module.module,description:base.module_account_move_name_sequence
-msgid ""
-"============================\n"
-"Account Move Number Sequence\n"
-"============================\n"
-"\n"
-"..\n"
-"   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-"   !! This file is generated by oca-gen-addon-readme !!\n"
-"   !! changes will be overwritten.                   !!\n"
-"   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-"   !! source digest: sha256:03b876b8607b5c34b0f49870637439187af2b3913e3af50d384838d28ef870ee\n"
-"   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-"\n"
-".. |badge1| image:: https://img.shields.io/badge/maturity-Beta-yellow.png\n"
-"    :target: https://odoo-community.org/page/development-status\n"
-"    :alt: Beta\n"
-".. |badge2| image:: https://img.shields.io/badge/licence-AGPL--3-blue.png\n"
-"    :target: http://www.gnu.org/licenses/agpl-3.0-standalone.html\n"
-"    :alt: License: AGPL-3\n"
-".. |badge3| image:: https://img.shields.io/badge/github-OCA%2Faccount--financial--tools-lightgray.png?logo=github\n"
-"    :target: https://github.com/OCA/account-financial-tools/tree/17.0/account_move_name_sequence\n"
-"    :alt: OCA/account-financial-tools\n"
-".. |badge4| image:: https://img.shields.io/badge/weblate-Translate%20me-F47D42.png\n"
-"    :target: https://translation.odoo-community.org/projects/account-financial-tools-17-0/account-financial-tools-17-0-account_move_name_sequence\n"
-"    :alt: Translate me on Weblate\n"
-".. |badge5| image:: https://img.shields.io/badge/runboat-Try%20me-875A7B.png\n"
-"    :target: https://runboat.odoo-community.org/builds?repo=OCA/account-financial-tools&target_branch=17.0\n"
-"    :alt: Try me on Runboat\n"
-"\n"
-"|badge1| |badge2| |badge3| |badge4| |badge5|\n"
-"\n"
-"In Odoo version 13.0 and previous versions, the number of journal\n"
-"entries was generated from a sequence configured on the journal.\n"
-"\n"
-"In Odoo version 14.0, the number of journal entries can be manually set\n"
-"by the user. Then, the number attributed for the next journal entries in\n"
-"the same journal is computed by a complex piece of code that guesses the\n"
-"format of the journal entry number from the number of the journal entry\n"
-"which was manually entered by the user. It has several drawbacks:\n"
-"\n"
-"-  the available options for the sequence are limited,\n"
-"-  it is not possible to configure the sequence in advance before the\n"
-"   deployment in production,\n"
-"-  as it is error-prone, they added a *Resequence* wizard to re-generate\n"
-"   the journal entry numbers, which can be considered as illegal in many\n"
-"   countries,\n"
-"-  the `piece of\n"
-"   code <https://github.com/odoo/odoo/blob/14.0/addons/account/models/sequence_mixin.py>`__\n"
-"   that handles this is not easy to understand and quite difficult to\n"
-"   debug.\n"
-"\n"
-"Using this module, you can configure what kind of documents the gap\n"
-"sequence may be relaxed And even if you must use no-gap in your company\n"
-"or country it will reduce the concurrency issues since the module is\n"
-"using an extra table (ir_sequence) instead of locking the last record\n"
-"\n"
-"For those like me who think that the implementation before Odoo v14.0\n"
-"was much better, for the accountants who think it should not be possible\n"
-"to manually enter the sequence of a customer invoice, for the auditor\n"
-"who considers that resequencing journal entries is prohibited by law,\n"
-"this module may be a solution to get out of the nightmare.\n"
-"\n"
-"The field names used in this module to configure the sequence on the\n"
-"journal are exactly the same as in Odoo version 13.0 and previous\n"
-"versions. That way, if you migrate to Odoo version 14.0 and you install\n"
-"this module immediately after the migration, you should keep the\n"
-"previous behavior and the same sequences will continue to be used.\n"
-"\n"
-"The module removes access to the *Resequence* wizard on journal entries.\n"
-"\n"
-"**Table of contents**\n"
-"\n"
-".. contents::\n"
-"   :local:\n"
-"\n"
-"Configuration\n"
-"=============\n"
-"\n"
-"On the form view of an account journal, in the first tab, there is a\n"
-"many2one link to the sequence. When you create a new journal, you can\n"
-"keep this field empty and a new sequence will be automatically created\n"
-"when you save the journal.\n"
-"\n"
-"On sale and purchase journals, you have an additional option to have\n"
-"another sequence dedicated to refunds.\n"
-"\n"
-"Upon module installation, all existing journals will be updated with a\n"
-"journal entry sequence (and also a credit note sequence for sale and\n"
-"purchase journals). You should update the configuration of the sequences\n"
-"to fit your needs. You can uncheck the option *Dedicated Credit Note\n"
-"Sequence* on existing sale and purchase journals if you don't want it.\n"
-"For the journals which already have journal entries, you should update\n"
-"the sequence configuration to avoid a discontinuity in the numbering for\n"
-"the next journal entry.\n"
-"\n"
-"Bug Tracker\n"
-"===========\n"
-"\n"
-"Bugs are tracked on `GitHub Issues <https://github.com/OCA/account-financial-tools/issues>`_.\n"
-"In case of trouble, please check there if your issue has already been reported.\n"
-"If you spotted it first, help us to smash it by providing a detailed and welcomed\n"
-"`feedback <https://github.com/OCA/account-financial-tools/issues/new?body=module:%20account_move_name_sequence%0Aversion:%2017.0%0A%0A**Steps%20to%20reproduce**%0A-%20...%0A%0A**Current%20behavior**%0A%0A**Expected%20behavior**>`_.\n"
-"\n"
-"Do not contact contributors directly about support or help with technical issues.\n"
-"\n"
-"Credits\n"
-"=======\n"
-"\n"
-"Authors\n"
-"-------\n"
-"\n"
-"* Akretion\n"
-"* Vauxoo\n"
-"\n"
-"Contributors\n"
-"------------\n"
-"\n"
-"-  `Akretion <https://www.akretion.com>`__:\n"
-"\n"
-"   -  Alexis de Lattre <alexis.delattre@akretion.com>\n"
-"\n"
-"-  `Vauxoo <https://www.vauxoo.com>`__:\n"
-"\n"
-"   -  Moisés López <moylop260@vauxoo.com>\n"
-"   -  Francisco Luna <fluna@vauxoo.com>\n"
-"\n"
-"-  `Factor Libre <https://www.factorlibre.com>`__:\n"
-"\n"
-"   -  Rodrigo Bonilla Martinez <rodrigo.bonilla@factorlibre.com>\n"
-"\n"
-"Maintainers\n"
-"-----------\n"
-"\n"
-"This module is maintained by the OCA.\n"
-"\n"
-".. image:: https://odoo-community.org/logo.png\n"
-"   :alt: Odoo Community Association\n"
-"   :target: https://odoo-community.org\n"
-"\n"
-"OCA, or the Odoo Community Association, is a nonprofit organization whose\n"
-"mission is to support the collaborative development of Odoo features and\n"
-"promote its widespread use.\n"
-"\n"
-".. |maintainer-alexis-via| image:: https://github.com/alexis-via.png?size=40px\n"
-"    :target: https://github.com/alexis-via\n"
-"    :alt: alexis-via\n"
-".. |maintainer-moylop260| image:: https://github.com/moylop260.png?size=40px\n"
-"    :target: https://github.com/moylop260\n"
-"    :alt: moylop260\n"
-".. |maintainer-luisg123v| image:: https://github.com/luisg123v.png?size=40px\n"
-"    :target: https://github.com/luisg123v\n"
-"    :alt: luisg123v\n"
-"\n"
-"Current `maintainers <https://odoo-community.org/page/maintainer-role>`__:\n"
-"\n"
-"|maintainer-alexis-via| |maintainer-moylop260| |maintainer-luisg123v|\n"
-"\n"
-"This module is part of the `OCA/account-financial-tools <https://github.com/OCA/account-financial-tools/tree/17.0/account_move_name_sequence>`_ project on GitHub.\n"
-"\n"
-"You are welcome to contribute. To learn how please visit https://odoo-community.org/page/Contribute.\n"
 msgstr ""
 
 #. module: base
@@ -16525,7 +16502,6 @@ msgid "A payment provider for running fake payment flows for demo purposes."
 msgstr ""
 
 #. module: base
-#: model:ir.model.constraint,message:base.constraint_calendar_event_type_name_src_uniq
 #: model:ir.model.constraint,message:base.constraint_mixin_catalog_name_src_uniq
 #: model:ir.model.constraint,message:base.constraint_mixin_tag_name_src_uniq
 msgid "A record with this name already exists in this catalog."
@@ -16546,7 +16522,6 @@ msgid "A sequence must only be used with character fields."
 msgstr ""
 
 #. module: base
-#: model:ir.model.constraint,message:base.constraint_calendar_event_type_code_uniq
 #: model:ir.model.constraint,message:base.constraint_mixin_tag_code_uniq
 #: model:ir.model.constraint,message:base.constraint_mixin_tag_nested_code_uniq
 #: model:ir.model.constraint,message:base.constraint_tag_tag_code_uniq
@@ -16581,7 +16556,7 @@ msgstr ""
 #. module: base
 #. odoo-python
 #: code:addons/base/models/res_partner.py:0
-msgid "A valid email is required for find_or_create to work properly."
+msgid "A valid email is required for get_or_create to work properly."
 msgstr ""
 
 #. module: base
@@ -16824,6 +16799,11 @@ msgid "ASCII characters are required for %(value)s in %(field)s"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_base_partner_merge_automatic_wizard__absorb_source_values
+msgid "Absorb Source Values"
+msgstr ""
+
+#. module: base
 #: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
 #: model_terms:ir.ui.view,arch_db:base.view_model_search
 msgid "Abstract"
@@ -16875,7 +16855,6 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:base.ir_access_view_form
 #: model_terms:ir.ui.view,arch_db:base.ir_access_view_search
 #: model_terms:ir.ui.view,arch_db:base.ir_access_view_tree
-#: model_terms:ir.ui.view,arch_db:base.ir_access_view_tree_edition
 #: model_terms:ir.ui.view,arch_db:base.view_groups_form
 #: model_terms:ir.ui.view,arch_db:base.view_model_fields_form
 #: model_terms:ir.ui.view,arch_db:base.view_model_form
@@ -17523,18 +17502,6 @@ msgid "Add description templates to projects"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Add direction"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Add directional information (not used for digital)"
-msgstr ""
-
-#. module: base
 #: model:ir.module.module,description:base.module_ai_documents_source
 #: model:ir.module.module,summary:base.module_ai_documents_source
 msgid "Add documents to AI agents as sources."
@@ -17681,7 +17648,6 @@ msgstr ""
 
 #. module: base
 #. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
 #: code:addons/base/models/res_partner.py:0
 #: model_terms:ir.ui.view,arch_db:base.contact
 #: model_terms:ir.ui.view,arch_db:base.no_contact
@@ -17710,12 +17676,6 @@ msgstr ""
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_country_form
 msgid "Address format..."
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Address separator"
 msgstr ""
 
 #. module: base
@@ -18524,6 +18484,13 @@ msgstr ""
 #: model:ir.module.module,summary:base.module_website_delivery_sendcloud
 #: model:ir.module.module,summary:base.module_website_sale_fedex
 msgid "Allows website customers to choose delivery pick-up points"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.actions.act_window,help:base.action_attachment
+msgid ""
+"Also you will find here all the related documents and download it by clicking on any\n"
+"                individual document."
 msgstr ""
 
 #. module: base
@@ -19475,15 +19442,15 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,help:base.field_ir_module_module__auto_install
 msgid ""
-"An auto-installable module is automatically installed by the system when all"
-" its dependencies are satisfied. If the module has no dependency, it is "
-"always installed."
+"An auto-installable module is installed by the system as soon as the "
+"dependencies it names as triggers are being installed, provided every one of"
+" its dependencies can be satisfied."
 msgstr ""
 
 #. module: base
 #. odoo-python
 #: code:addons/base/models/res_partner.py:0
-msgid "An email is required for find_or_create to work"
+msgid "An email is required for get_or_create to work"
 msgstr ""
 
 #. module: base
@@ -19500,6 +19467,14 @@ msgstr ""
 msgid ""
 "An option is not supported by the server:\n"
 " %s"
+msgstr ""
+
+#. module: base
+#: model:ir.model.constraint,message:base.constraint_ir_mail_server_host_required_unless_cli
+msgid ""
+"An outgoing mail server needs an SMTP server address unless it takes its "
+"transport from the command-line configuration. Archive it instead if it is "
+"not meant to deliver."
 msgstr ""
 
 #. module: base
@@ -20469,6 +20444,12 @@ msgid "Asia/Yerevan"
 msgstr ""
 
 #. module: base
+#. odoo-python
+#: code:addons/base/models/res_partner.py:0
+msgid "Ask an administrator to archive their associated user first."
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,summary:base.module_auth_timeout
 msgid "Ask for authentication after user inactivity"
 msgstr ""
@@ -20551,6 +20532,14 @@ msgid "At least one language must be active."
 msgstr ""
 
 #. module: base
+#. odoo-python
+#: code:addons/base/models/ir_mail_server.py:0
+msgid ""
+"At least one valid recipient address should be specified for outgoing emails"
+" (To/Cc/Bcc)"
+msgstr ""
+
+#. module: base
 #: model:ir.model.fields.selection,name:base.selection__res_partner__tz__atlantic/azores
 msgid "Atlantic/Azores"
 msgstr ""
@@ -20613,11 +20602,6 @@ msgstr ""
 #. module: base
 #: model:res.currency,currency_subunit_label:base.LAK
 msgid "Att"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.actions.act_window,help:base.action_attachment
-msgid "Attach a new document"
 msgstr ""
 
 #. module: base
@@ -21267,11 +21251,6 @@ msgid "Bad file format: %s"
 msgstr ""
 
 #. module: base
-#: model:ir.model.fields,field_description:base.field_res_users__barcode
-msgid "Badge ID"
-msgstr ""
-
-#. module: base
 #: model:res.country,name:base.bs
 msgid "Bahamas"
 msgstr ""
@@ -21417,6 +21396,7 @@ msgstr ""
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_res_partner__barcode
+#: model:ir.model.fields,field_description:base.field_res_users__barcode
 #: model:ir.module.category,name:base.module_category_human_resources_barcode
 #: model:ir.module.module,shortdesc:base.module_barcodes
 #: model:ir.module.module,shortdesc:base.module_stock_barcode
@@ -21452,18 +21432,6 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_stock_barcode_picking_batch
 msgid "Barcode for Batch Transfer"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Barcode symbology"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Barcode type, eg: UPCA, EAN13, Code128"
 msgstr ""
 
 #. module: base
@@ -22414,12 +22382,6 @@ msgid "By"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "By default the widget uses the field information"
-msgstr ""
-
-#. module: base
 #: model:res.groups,name:base.group_sanitize_override
 msgid "Bypass HTML Field Sanitize"
 msgstr ""
@@ -22427,6 +22389,11 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_api_stock_scale
 msgid "Báscula HTTP API"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "C"
 msgstr ""
 
 #. module: base
@@ -22723,6 +22690,14 @@ msgstr ""
 
 #. module: base
 #. odoo-python
+#: code:addons/base/models/ir_model_fields.py:0
+msgid ""
+"Cannot check the dependencies of “%(field)s”: its model %(model)s is not in "
+"the registry."
+msgstr ""
+
+#. module: base
+#. odoo-python
 #: code:addons/base/models/res_currency.py:0
 msgid "Cannot convert amount: source currency is not set."
 msgstr ""
@@ -22833,6 +22808,14 @@ msgid "Cannot upgrade module “%s”. It is not installed."
 msgstr ""
 
 #. module: base
+#. odoo-python
+#: code:addons/fields/relational/_base.py:0
+msgid ""
+"Cannot write %(field)s on %(model)s: the commands must run as a real user "
+"and this transaction has no default environment to name one."
+msgstr ""
+
+#. module: base
 #: model:ir.model.fields,field_description:base.field_ir_job_channel__capacity
 msgid "Capacity"
 msgstr ""
@@ -22840,6 +22823,20 @@ msgstr ""
 #. module: base
 #: model:res.country,name:base.cv
 msgid "Cape Verde"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,summary:base.module_quality_mrp_certificate
+msgid ""
+"Capture pH and color quality certificates when a manufacturing order "
+"finishes"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,summary:base.module_account_invoice_margin_sale
+msgid ""
+"Carry the sale order cost onto the invoice and keep down payments out of the"
+" margin"
 msgstr ""
 
 #. module: base
@@ -23153,6 +23150,12 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,summary:base.module_account_check_printing
 msgid "Check printing basic features"
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields,help:base.field_res_partner__employee
+#: model:ir.model.fields,help:base.field_res_users__employee
+msgid "Check this box if this contact is an Employee."
 msgstr ""
 
 #. module: base
@@ -23636,12 +23639,6 @@ msgid "Comm10E 25  105 x 241 mm, U.S. Common 10 Envelope"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Comma"
-msgstr ""
-
-#. module: base
 #: model:ir.model.fields,help:base.field_ir_mail_server__from_filter
 msgid ""
 "Comma-separated list of addresses or domains for which this server can be used.\n"
@@ -23718,8 +23715,6 @@ msgid "Companies"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
 #: model:ir.model.fields,field_description:base.field_ir_attachment__company_id
 #: model:ir.model.fields,field_description:base.field_ir_default__company_id
 #: model:ir.model.fields,field_description:base.field_ir_job__company_id
@@ -23833,14 +23828,6 @@ msgid ""
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid ""
-"Company used for the original currency (only used for t-esc). By default use"
-" the user company"
-msgstr ""
-
-#. module: base
 #: model:ir.module.module,summary:base.module_remote_mobile
 msgid ""
 "Company-owned Android phones as remote.device endpoints (location, call "
@@ -23893,7 +23880,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_model_fields__compute
 #: model:ir.model.fields.selection,name:base.selection__ir_actions_server__evaluation_type__equation
 #: model_terms:ir.ui.view,arch_db:base.view_model_fields_form
-#: model_terms:ir.ui.view,arch_db:base.view_model_form
 msgid "Compute"
 msgstr ""
 
@@ -23913,14 +23899,6 @@ msgstr ""
 msgid ""
 "Computed field to check if the record should be visible according to the "
 "domain"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.view_model_form
-msgid ""
-"Computed fields are defined with the fields <strong>\n"
-"                                                    Dependencies</strong> and <strong>Compute</strong>\n"
-"                                                    ."
 msgstr ""
 
 #. module: base
@@ -24567,6 +24545,11 @@ msgid "Create a new customer in your address book"
 msgstr ""
 
 #. module: base
+#: model_terms:ir.actions.act_window,help:base.action_attachment
+msgid "Create a new document"
+msgstr ""
+
+#. module: base
 #: model_terms:ir.actions.act_window,help:base.action_partner_supplier_form
 msgid "Create a new vendor in your address book"
 msgstr ""
@@ -24749,7 +24732,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_model_relation__create_uid
 #: model:ir.model.fields,field_description:base.field_ir_module_category__create_uid
 #: model:ir.model.fields,field_description:base.field_ir_module_module__create_uid
-#: model:ir.model.fields,field_description:base.field_ir_module_module_exclusion__create_uid
 #: model:ir.model.fields,field_description:base.field_ir_rule__create_uid
 #: model:ir.model.fields,field_description:base.field_ir_sequence__create_uid
 #: model:ir.model.fields,field_description:base.field_ir_sequence_date_range__create_uid
@@ -24842,7 +24824,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_model_fields_selection__create_date
 #: model:ir.model.fields,field_description:base.field_ir_module_category__create_date
 #: model:ir.model.fields,field_description:base.field_ir_module_module__create_date
-#: model:ir.model.fields,field_description:base.field_ir_module_module_exclusion__create_date
 #: model:ir.model.fields,field_description:base.field_ir_rule__create_date
 #: model:ir.model.fields,field_description:base.field_ir_sequence__create_date
 #: model:ir.model.fields,field_description:base.field_ir_sequence_date_range__create_date
@@ -25136,11 +25117,6 @@ msgid "Custom Object"
 msgstr ""
 
 #. module: base
-#: model:ir.ui.menu,name:base.menu_administration_shortcut
-msgid "Custom Shortcuts"
-msgstr ""
-
-#. module: base
 #: model:ir.module.module,shortdesc:base.module_theme_test_custo
 msgid "Custom Theme (Testing suite)"
 msgstr ""
@@ -25342,12 +25318,6 @@ msgid "Dalasi"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Dash"
-msgstr ""
-
-#. module: base
 #: model:ir.module.category,name:base.module_category_productivity_dashboard
 msgid "Dashboard"
 msgstr ""
@@ -25417,8 +25387,6 @@ msgid "Databases"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
 #: model:ir.model.fields,field_description:base.field_res_currency__date
 #: model:ir.model.fields,field_description:base.field_res_currency_rate__name
 #: model_terms:ir.ui.view,arch_db:base.view_currency_rate_search
@@ -25433,46 +25401,6 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_date_range
 msgid "Date Range"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Date format"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Date to compare with the field value, by default use the current date."
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Date unit"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Date unit used for comparison and formatting"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid ""
-"Date unit used for the rounding. The value must be smaller than 'hour' if "
-"you use the digital formatting."
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid ""
-"Date used for the original currency (only used for t-esc). by default use "
-"the current date."
 msgstr ""
 
 #. module: base
@@ -25536,12 +25464,6 @@ msgstr ""
 msgid ""
 "Decimal places taken into account for operations on amounts in this "
 "currency. It is determined by the rounding factor."
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Decimalized number"
 msgstr ""
 
 #. module: base
@@ -25784,7 +25706,7 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:base.demo_force_install_form
 msgid ""
 "Demo data should only be used on test databases!\n"
-"                             Once they are loaded, they cannot be removed!"
+"                                Once they are loaded, they cannot be removed!"
 msgstr ""
 
 #. module: base
@@ -25862,6 +25784,15 @@ msgid "Dependencies"
 msgstr ""
 
 #. module: base
+#. odoo-python
+#: code:addons/base/models/ir_model_fields.py:0
+msgid ""
+"Dependencies are only read for a computed field, so “%(dependency)s” on "
+"“%(field)s” would never be applied. Give the field a compute method or clear"
+" its dependencies."
+msgstr ""
+
+#. module: base
 #: model:ir.model.fields,help:base.field_ir_model_fields__depends
 msgid ""
 "Dependencies of compute method; a list of comma-separated field names, like\n"
@@ -25870,7 +25801,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.model.fields,field_description:base.field_ir_module_module_dependency__depend_id
+#: model:ir.model.fields,field_description:base.field_ir_module_module_dependency__linked_id
 msgid "Dependency"
 msgstr ""
 
@@ -25940,6 +25871,11 @@ msgid "Detailed algorithm:"
 msgstr ""
 
 #. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Details"
+msgstr ""
+
+#. module: base
 #: model:ir.model.fields,help:base.field_res_groups__api_key_duration
 msgid ""
 "Determines the maximum duration of an api key created by a user belonging to"
@@ -25986,12 +25922,6 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_digest_enterprise
 msgid "Digest Enterprise"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Digital formatting"
 msgstr ""
 
 #. module: base
@@ -26171,6 +26101,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_mixin_format_address__display_name
 #: model:ir.model.fields,field_description:base.field_mixin_format_vat_label__display_name
 #: model:ir.model.fields,field_description:base.field_mixin_image__display_name
+#: model:ir.model.fields,field_description:base.field_mixin_merge__display_name
+#: model:ir.model.fields,field_description:base.field_mixin_module_link__display_name
 #: model:ir.model.fields,field_description:base.field_mixin_properties_base_definition__display_name
 #: model:ir.model.fields,field_description:base.field_mixin_tag__display_name
 #: model:ir.model.fields,field_description:base.field_mixin_tag_nested__display_name
@@ -26247,18 +26179,6 @@ msgid "Display and change your products information on electronic Pricer tags"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Display country image"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Display currency"
-msgstr ""
-
-#. module: base
 #: model:ir.module.module,summary:base.module_pos_order_tracking_display
 msgid "Display customer's order status"
 msgstr ""
@@ -26281,50 +26201,14 @@ msgid "Display interactive 3D (glTF/GLB) models in form views"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Display only the date"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Display only the time"
-msgstr ""
-
-#. module: base
 #: model:ir.module.module,summary:base.module_product_asset_remote_hr
 msgid ""
 "Display operator/driver information in GPS tracking dashboard and reports"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Display phone icons"
-msgstr ""
-
-#. module: base
 #: model:ir.module.module,summary:base.module_pos_product_stock
 msgid "Display product stock quantities in POS product cards"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Display the country image if the field is present on the record"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Display the phone icons even if no_marker is True"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Displayed fields"
 msgstr ""
 
 #. module: base
@@ -26581,6 +26465,11 @@ msgid ""
 msgstr ""
 
 #. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Domain:"
+msgstr ""
+
+#. module: base
 #: model:res.country,name:base.dm
 msgid "Dominica"
 msgstr ""
@@ -26603,12 +26492,6 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_l10n_do_check_printing
 msgid "Dominican Republic - Checks Layout"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Don't display the font awesome marker"
 msgstr ""
 
 #. module: base
@@ -26998,7 +26881,6 @@ msgstr ""
 
 #. module: base
 #. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
 #: code:addons/base/models/res_users.py:0
 #: model:ir.model.fields,field_description:base.field_base_partner_merge_automatic_wizard__group_by_email
 #: model:ir.model.fields,field_description:base.field_res_bank__email
@@ -28119,8 +28001,8 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.model.fields,field_description:base.field_ir_module_module_exclusion__exclusion_id
-msgid "Exclusion Module"
+#: model:ir.model.fields,field_description:base.field_ir_module_module_exclusion__linked_id
+msgid "Excluded Module"
 msgstr ""
 
 #. module: base
@@ -28638,6 +28520,14 @@ msgstr ""
 
 #. module: base
 #. odoo-python
+#: code:addons/base/models/ir_model_fields.py:0
+msgid ""
+"Field \"%(field_name)s\" in related path \"%(related_field)s\" is not "
+"stored. Non-stored fields cannot be used in related fields."
+msgstr ""
+
+#. module: base
+#. odoo-python
 #: code:addons/base/models/res_lang.py:0
 msgid "Field \"%s\" is not cached"
 msgstr ""
@@ -28860,9 +28750,9 @@ msgstr ""
 #: model:ir.model.fields,help:base.field_ir_actions_server__webhook_field_ids
 #: model:ir.model.fields,help:base.field_ir_cron__webhook_field_ids
 msgid ""
-"Fields to send in the POST request. The id and model of the record are "
-"always sent as '_id' and '_model'. The name of the action that triggered the"
-" webhook is always sent as '_action'."
+"Fields to send in the POST request.\n"
+"\n"
+"Four keys are always present, whatever is selected here: the record's id as both 'id' and '_id', its model as '_model', and the name of the action that triggered the webhook as '_action'."
 msgstr ""
 
 #. module: base
@@ -28932,6 +28822,14 @@ msgid "File streaming helper model for controllers"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields,help:base.field_base_partner_merge_automatic_wizard__absorb_source_values
+msgid ""
+"Fill the destination's empty fields from the contacts merged into it. Turn "
+"it off to keep the destination's own identity, which is what a catch-all "
+"contact needs."
+msgstr ""
+
+#. module: base
 #: model:res.currency,currency_subunit_label:base.HUF
 msgid "Filler"
 msgstr ""
@@ -28948,7 +28846,6 @@ msgid "Fils"
 msgstr ""
 
 #. module: base
-#: model:ir.model.fields,field_description:base.field_ir_actions_act_window__filter
 #: model:ir.model.fields,field_description:base.field_ir_embedded_actions__filter_ids
 msgid "Filter"
 msgstr ""
@@ -29115,6 +29012,11 @@ msgid "Flag Image Url"
 msgstr ""
 
 #. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Flags"
+msgstr ""
+
+#. module: base
 #: model:ir.module.category,name:base.module_category_fleet
 #: model:ir.module.category,name:base.module_category_human_resources_fleet
 #: model:ir.module.module,shortdesc:base.module_fleet
@@ -29188,15 +29090,6 @@ msgid "Footer text displayed at the bottom of all reports."
 msgstr ""
 
 #. module: base
-#: model:ir.model.fields,help:base.field_ir_actions_server__value
-#: model:ir.model.fields,help:base.field_ir_cron__value
-msgid ""
-"For Python expressions, this field may hold a Python expression that can use the same values as for the code field on the server action,e.g. `env.user.name` to set the current user's name as the value or `record.id` to set the ID of the record on which the action is run.\n"
-"\n"
-"For Static values, the value will be used directly without evaluation, e.g.`42` or `My custom name` or the selected record."
-msgstr ""
-
-#. module: base
 #: model_terms:ir.ui.view,arch_db:base.wizard_lang_export
 msgid ""
 "For more details about translating Odoo in your language, please refer to "
@@ -29219,8 +29112,8 @@ msgstr ""
 #. odoo-python
 #: code:addons/base/wizard/base_partner_merge.py:0
 msgid ""
-"For safety reasons, you cannot merge more than 3 contacts together. You can "
-"re-open the wizard several times if needed."
+"For safety reasons, you cannot merge more than %(limit)s contacts together. "
+"You can re-open the wizard several times if needed."
 msgstr ""
 
 #. module: base
@@ -29261,12 +29154,6 @@ msgid "Form"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Format"
-msgstr ""
-
-#. module: base
 #: model:ir.model.fields,help:base.field_res_partner__email_formatted
 #: model:ir.model.fields,help:base.field_res_users__email_formatted
 msgid "Format email address \"Name <email@domain>\""
@@ -29281,12 +29168,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_res_partner__email_formatted
 #: model:ir.model.fields,field_description:base.field_res_users__email_formatted
 msgid "Formatted Email"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Formatting: long, short, narrow (not used for digital)"
 msgstr ""
 
 #. module: base
@@ -30104,6 +29985,14 @@ msgstr ""
 
 #. module: base
 #. odoo-python
+#: code:addons/base/wizard/base_partner_merge.py:0
+msgid ""
+"Grouping on %(fields)s alone puts every contact sharing an empty value in "
+"one group. Add Email, Name or VAT."
+msgstr ""
+
+#. module: base
+#. odoo-python
 #: code:addons/base/models/res_users.py:0
 #: model:ir.actions.act_window,name:base.action_res_groups
 #: model:ir.model.fields,field_description:base.field_ir_actions_act_window__group_ids
@@ -30162,6 +30051,11 @@ msgstr ""
 #: model:ir.model.fields,help:base.field_ir_cron__group_ids
 msgid ""
 "Groups that can execute the server action. Leave empty to allow everybody."
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Groups:"
 msgstr ""
 
 #. module: base
@@ -30447,12 +30341,6 @@ msgid "Heard Island and McDonald Islands"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Height"
-msgstr ""
-
-#. module: base
 #: model:ir.model.fields,help:base.field_report_paperformat__header_spacing
 msgid ""
 "Height in mm of the header area. Used by report templates (e.g. DIN 5008) as"
@@ -30614,18 +30502,6 @@ msgid "Hide Portal Timesheet Information"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Hide badges"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Hide seconds"
-msgstr ""
-
-#. module: base
 #: model:ir.module.module,shortdesc:base.module_web_scraper_highway
 msgid "Highway Toll Prepayment"
 msgstr ""
@@ -30633,6 +30509,11 @@ msgstr ""
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_attachment_form
 msgid "History"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,summary:base.module_account_3way_match
+msgid "Hold a vendor bill until the goods it bills have been received"
 msgstr ""
 
 #. module: base
@@ -30723,7 +30604,6 @@ msgstr ""
 
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_model_fields_form
-#: model_terms:ir.ui.view,arch_db:base.view_model_form
 msgid "How to define a computed field"
 msgstr ""
 
@@ -30809,12 +30689,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_actions_server__html_value
 #: model:ir.model.fields,field_description:base.field_ir_cron__html_value
 msgid "Html Value"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Human Readable"
 msgstr ""
 
 #. module: base
@@ -30958,6 +30832,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_mixin_format_address__id
 #: model:ir.model.fields,field_description:base.field_mixin_format_vat_label__id
 #: model:ir.model.fields,field_description:base.field_mixin_image__id
+#: model:ir.model.fields,field_description:base.field_mixin_merge__id
+#: model:ir.model.fields,field_description:base.field_mixin_module_link__id
 #: model:ir.model.fields,field_description:base.field_mixin_properties_base_definition__id
 #: model:ir.model.fields,field_description:base.field_mixin_tag__id
 #: model:ir.model.fields,field_description:base.field_mixin_tag_nested__id
@@ -30999,12 +30875,6 @@ msgid "ID"
 msgstr ""
 
 #. module: base
-#: model:ir.model.fields,help:base.field_ir_actions_server__xml_id
-#: model:ir.model.fields,help:base.field_ir_cron__xml_id
-msgid "ID of the action if defined in a XML file"
-msgstr ""
-
-#. module: base
 #: model:ir.model.fields,help:base.field_ir_model_data__res_id
 msgid "ID of the target record in the database"
 msgstr ""
@@ -31012,11 +30882,6 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,help:base.field_ir_ui_view__xml_id
 msgid "ID of the view defined in xml file"
-msgstr ""
-
-#. module: base
-#: model:ir.model.fields,help:base.field_res_users__barcode
-msgid "ID used for employee identification."
 msgstr ""
 
 #. module: base
@@ -31091,6 +30956,11 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,field_description:base.field_base_partner_merge_line__aggr_ids
 msgid "Ids"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Idx"
 msgstr ""
 
 #. module: base
@@ -31443,6 +31313,11 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,summary:base.module_sale_lazada
 msgid "Import Lazada orders and sync deliveries"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,summary:base.module_l10n_mx_account_bank_statement_import
+msgid "Import Mexican bank statement exports (BBVA TXT and XLSX)"
 msgstr ""
 
 #. module: base
@@ -31823,6 +31698,11 @@ msgid ""
 msgstr ""
 
 #. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Inherits:"
+msgstr ""
+
+#. module: base
 #: model:ir.model.fields,field_description:base.field_ir_profile__init_stack_trace
 msgid "Initial stack trace"
 msgstr ""
@@ -31852,6 +31732,7 @@ msgstr ""
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module__state__installed
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module_dependency__state__installed
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module_exclusion__state__installed
+#: model:ir.model.fields.selection,name:base.selection__mixin_module_link__state__installed
 #: model_terms:ir.ui.view,arch_db:base.module_view_kanban
 #: model_terms:ir.ui.view,arch_db:base.view_module_filter
 msgid "Installed"
@@ -31865,6 +31746,11 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_module_module__db_version
 msgid "Installed Version"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference_document
+msgid "Installed version"
 msgstr ""
 
 #. module: base
@@ -32345,6 +32231,11 @@ msgid "Inverse Rate"
 msgstr ""
 
 #. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Inverse field:"
+msgstr ""
+
+#. module: base
 #: model:ir.model.fields.selection,name:base.selection__res_partner__type__invoice
 msgid "Invoice"
 msgstr ""
@@ -32691,6 +32582,14 @@ msgstr ""
 #. odoo-python
 #: code:addons/base/models/ir_job.py:0
 msgid ""
+"Job %(id)s targets %(model)s %(ids)s, and none of those records exists any "
+"more."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_job.py:0
+msgid ""
 "Job %(id)s targets model %(model)s, which no longer exists in this database."
 msgstr ""
 
@@ -32796,12 +32695,6 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,field_description:base.field_base_partner_merge_automatic_wizard__exclude_journal_item
 msgid "Journal Items associated to the contact"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Json"
 msgstr ""
 
 #. module: base
@@ -32951,6 +32844,14 @@ msgstr ""
 #. module: base
 #: model:res.currency,currency_unit_label:base.PGK
 msgid "Kina"
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields,help:base.field_ir_actions_server__crud_model_id
+#: model:ir.model.fields,help:base.field_ir_cron__crud_model_id
+msgid ""
+"Kind of record to create or duplicate. Defaults to the action's own model; a"
+" value set here is kept."
 msgstr ""
 
 #. module: base
@@ -33118,6 +33019,11 @@ msgid "Laari"
 msgstr ""
 
 #. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Label"
+msgstr ""
+
+#. module: base
 #: model:ir.model.fields,help:base.field_res_groups_privilege__placeholder
 msgid ""
 "Label shown for the empty option in the privilege selection field of the "
@@ -33280,7 +33186,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_model_relation__write_uid
 #: model:ir.model.fields,field_description:base.field_ir_module_category__write_uid
 #: model:ir.model.fields,field_description:base.field_ir_module_module__write_uid
-#: model:ir.model.fields,field_description:base.field_ir_module_module_exclusion__write_uid
 #: model:ir.model.fields,field_description:base.field_ir_rule__write_uid
 #: model:ir.model.fields,field_description:base.field_ir_sequence__write_uid
 #: model:ir.model.fields,field_description:base.field_ir_sequence_date_range__write_uid
@@ -33372,7 +33277,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_model_fields_selection__write_date
 #: model:ir.model.fields,field_description:base.field_ir_module_category__write_date
 #: model:ir.model.fields,field_description:base.field_ir_module_module__write_date
-#: model:ir.model.fields,field_description:base.field_ir_module_module_exclusion__write_date
 #: model:ir.model.fields,field_description:base.field_ir_rule__write_date
 #: model:ir.model.fields,field_description:base.field_ir_sequence__write_date
 #: model:ir.model.fields,field_description:base.field_ir_sequence_date_range__write_date
@@ -33668,12 +33572,6 @@ msgid "Line"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Linebreak"
-msgstr ""
-
-#. module: base
 #: model:ir.model.fields,field_description:base.field_base_partner_merge_automatic_wizard__line_ids
 msgid "Lines"
 msgstr ""
@@ -33809,6 +33707,11 @@ msgid "Linked IP address"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_mixin_module_link__linked_id
+msgid "Linked Module"
+msgstr ""
+
+#. module: base
 #: model:res.currency,currency_subunit_label:base.HRK
 msgid "Lipa"
 msgstr ""
@@ -33829,12 +33732,6 @@ msgstr ""
 #. odoo-python
 #: code:addons/base/models/ir_ui_view.py:0
 msgid "List child can only have one of %(tags)s tag (not %(wrong_tag)s)"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "List of contact fields to display in the widget"
 msgstr ""
 
 #. module: base
@@ -33916,6 +33813,11 @@ msgstr ""
 #. module: base
 #: model:ir.actions.act_window,name:base.demo_force_install_action
 msgid "Load demo data"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,summary:base.module_product_docs_xiuman_data
+msgid "Loads the Xiuman technical data sheets and SDS into the database"
 msgstr ""
 
 #. module: base
@@ -34116,12 +34018,6 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:base.ir_logging_search_view
 #: model_terms:ir.ui.view,arch_db:base.ir_logging_tree_view
 msgid "Logs"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Long"
 msgstr ""
 
 #. module: base
@@ -34474,6 +34370,30 @@ msgstr ""
 #. module: base
 #: model:res.country,name:base.mv
 msgid "Maldives"
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_mail_server.py:0
+msgid ""
+"Malformed 'Return-Path' or 'From' address. It should contain one valid plain"
+" ASCII email"
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_mail_server.py:0
+msgid ""
+"Malformed 'Return-Path' or 'From' address: %s - It should contain one valid "
+"plain ASCII email"
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_mail_server.py:0
+msgid ""
+"Malformed 'Return-Path' or 'From' address: %s - It should contain one valid "
+"plain ASCII email (this server does not support SMTPUTF8)"
 msgstr ""
 
 #. module: base
@@ -35100,7 +35020,9 @@ msgstr ""
 #: model:ir.model.fields,help:base.field_ir_job_channel__capacity
 msgid ""
 "Maximum number of jobs of this channel running concurrently, across all job "
-"workers."
+"workers. A channel with no record of its own is not capped here at all: its "
+"concurrency is whatever the worker fleet provides. Create a record to "
+"restrict a channel below that."
 msgstr ""
 
 #. module: base
@@ -35495,6 +35417,11 @@ msgid "Mexico - Agro Surface (SIAP)"
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,shortdesc:base.module_l10n_mx_account_bank_statement_import
+msgid "Mexico - Bank Statement Import"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,shortdesc:base.module_l10n_mx_edi_stock
 msgid "Mexico - Electronic Delivery Guide"
 msgstr ""
@@ -35684,7 +35611,7 @@ msgstr ""
 #: code:addons/base/models/ir_mail_server.py:0
 msgid ""
 "Missing SMTP Server\n"
-"Please define at least one SMTP server, or provide the SMTP parameters explicitly."
+"Please define at least one outgoing mail server, or set --smtp-server in the command-line configuration."
 msgstr ""
 
 #. module: base
@@ -35715,7 +35642,6 @@ msgstr ""
 #: model:ir.model.fields.selection,name:base.selection__res_device__device_type__mobile
 #: model:ir.model.fields.selection,name:base.selection__res_device_log__device_type__mobile
 #: model:ir.module.module,shortdesc:base.module_web_mobile
-#: model_terms:ir.ui.view,arch_db:base.contact
 #: model_terms:ir.ui.view,arch_db:base.res_device_view_kanban
 msgid "Mobile"
 msgstr ""
@@ -35902,6 +35828,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_model_relation__module
 #: model:ir.model.fields,field_description:base.field_ir_module_module_dependency__module_id
 #: model:ir.model.fields,field_description:base.field_ir_module_module_exclusion__module_id
+#: model:ir.model.fields,field_description:base.field_mixin_module_link__module_id
 #: model:ir.model.fields.selection,name:base.selection__base_language_export__export_type__module
 #: model_terms:ir.ui.view,arch_db:base.module_form
 #: model_terms:ir.ui.view,arch_db:base.view_model_constraint_search
@@ -35994,6 +35921,11 @@ msgstr ""
 msgid ""
 "Module for synchronization of Inventory Documents between several companies.\n"
 "   For example, this allows you to have a delivery receipt created automatically in the receiving company when another company of the system confirms a delivery order.\n"
+msgstr ""
+
+#. module: base
+#: model:ir.model,name:base.model_mixin_module_link
+msgid "Module link (a module named by another module's manifest)"
 msgstr ""
 
 #. module: base
@@ -36246,6 +36178,11 @@ msgid "NTN"
 msgstr ""
 
 #. module: base
+#: model:res.country,vat_label:base.mz
+msgid "NUIT"
+msgstr ""
+
+#. module: base
 #: model:ir.model.fields.selection,name:base.selection__res_partner__tz__nz
 msgid "NZ"
 msgstr ""
@@ -36266,8 +36203,6 @@ msgid "Nakfa"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
 #: model:ir.model.fields,field_description:base.field_base_partner_merge_automatic_wizard__group_by_name
 #: model:ir.model.fields,field_description:base.field_ir_actions_todo__name
 #: model:ir.model.fields,field_description:base.field_ir_asset__name
@@ -36286,6 +36221,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_rule__name
 #: model:ir.model.fields,field_description:base.field_ir_sequence__name
 #: model:ir.model.fields,field_description:base.field_mixin_catalog__name
+#: model:ir.model.fields,field_description:base.field_mixin_module_link__name
 #: model:ir.model.fields,field_description:base.field_report_layout__name
 #: model:ir.model.fields,field_description:base.field_report_paperformat__name
 #: model:ir.model.fields,field_description:base.field_res_bank__name
@@ -36314,6 +36250,12 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:base.view_server_action_form
 #: model_terms:ir.ui.view,arch_db:base.view_server_action_tree
 msgid "Name"
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_ir_actions_server__name_is_custom
+#: model:ir.model.fields,field_description:base.field_ir_cron__name_is_custom
+msgid "Name Is Custom"
 msgstr ""
 
 #. module: base
@@ -36358,12 +36300,6 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,description:base.module_theme_nano
 msgid "Nano Theme - Responsive Bootstrap Theme for Odoo CMS"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Narrow"
 msgstr ""
 
 #. module: base
@@ -36550,6 +36486,11 @@ msgstr ""
 #. module: base
 #: model:res.country,name:base.nu
 msgid "Niue"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "No"
 msgstr ""
 
 #. module: base
@@ -36749,6 +36690,7 @@ msgstr ""
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module__state__uninstalled
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module_dependency__state__uninstalled
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module_exclusion__state__uninstalled
+#: model:ir.model.fields.selection,name:base.selection__mixin_module_link__state__uninstalled
 #: model_terms:ir.ui.view,arch_db:base.view_module_filter
 msgid "Not Installed"
 msgstr ""
@@ -36854,6 +36796,11 @@ msgstr ""
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_window_action_form
 msgid "Object"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference_document
+msgid "Objects"
 msgstr ""
 
 #. module: base
@@ -37917,6 +37864,11 @@ msgid "On delete property for many2one fields"
 msgstr ""
 
 #. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "On delete:"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,shortdesc:base.module_onboarding
 msgid "Onboarding Toolbox"
 msgstr ""
@@ -38156,12 +38108,6 @@ msgid "Optional password for SMTP authentication"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Optional timezone name"
-msgstr ""
-
-#. module: base
 #: model:ir.model.fields,help:base.field_ir_mail_server__smtp_user
 msgid "Optional username for SMTP authentication"
 msgstr ""
@@ -38377,12 +38323,6 @@ msgid "Original View"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Original currency"
-msgstr ""
-
-#. module: base
 #: model:ir.model.fields.selection,name:base.selection__res_company__font__oswald
 msgid "Oswald"
 msgstr ""
@@ -38410,13 +38350,6 @@ msgstr ""
 #. module: base
 #: model:res.partner.industry,name:base.res_partner_industry_S
 msgid "Other Services"
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.view_model_form
-msgid ""
-"Other features are accessible through <code>self</code>,\n"
-"                                                    like <code>self.env</code>, etc."
 msgstr ""
 
 #. module: base
@@ -39429,12 +39362,6 @@ msgid "Path to the field to update, e.g. 'partner_id.name'"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Pattern to format"
-msgstr ""
-
-#. module: base
 #: model_terms:ir.ui.view,arch_db:base.ir_job_channel_view_search
 msgid "Paused"
 msgstr ""
@@ -39828,8 +39755,6 @@ msgid "Philippines Checks Layout"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
 #: model:ir.model.fields,field_description:base.field_res_bank__phone
 #: model:ir.model.fields,field_description:base.field_res_company__phone
 #: model:ir.model.fields,field_description:base.field_res_partner__phone
@@ -40304,12 +40229,6 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_power_user
 msgid "Power User"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Precision Digits"
 msgstr ""
 
 #. module: base
@@ -40874,16 +40793,10 @@ msgid "Project, Tasks, Timesheet"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_invoice_margin_sale
-msgid "Propagate margin from sale orders to invoices and exclude downpayments"
-msgstr ""
-
-#. module: base
 #: model:ir.model.fields,field_description:base.field_mixin_properties_base_definition__properties
 #: model:ir.model.fields,field_description:base.field_res_partner__properties
 #: model:ir.model.fields,field_description:base.field_res_users__properties
 #: model_terms:ir.ui.view,arch_db:base.view_model_fields_form
-#: model_terms:ir.ui.view,arch_db:base.view_model_form
 #: model_terms:ir.ui.view,arch_db:base.view_res_partner_filter
 msgid "Properties"
 msgstr ""
@@ -41164,6 +41077,11 @@ msgid "Quality Base"
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,shortdesc:base.module_quality_mrp_certificate
+msgid "Quality Certificates for Manufacturing Orders"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,summary:base.module_quality_mrp
 #: model:ir.module.module,summary:base.module_quality_mrp_workorder
 msgid "Quality Management with MRP"
@@ -41339,6 +41257,11 @@ msgid "Qweb field one2many"
 msgstr ""
 
 #. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "R"
+msgstr ""
+
+#. module: base
 #: model:res.partner.industry,full_name:base.res_partner_industry_R
 msgid "R - ARTS, ENTERTAINMENT AND RECREATION"
 msgstr ""
@@ -41433,6 +41356,14 @@ msgid "Read barcodes and QR codes off a document's pages"
 msgstr ""
 
 #. module: base
+#. odoo-python
+#: code:addons/base/models/res_users.py:0
+msgid ""
+"Reading another user's groups requires an internal user; %(login)s is not "
+"one."
+msgstr ""
+
+#. module: base
 #: model:ir.model.fields,field_description:base.field_ir_model_fields__readonly
 #: model_terms:ir.ui.view,arch_db:base.view_model_fields_search
 msgid "Readonly"
@@ -41471,6 +41402,13 @@ msgid "Real elapsed time"
 msgstr ""
 
 #. module: base
+#. odoo-python
+#: code:addons/base/models/ir_mail_server.py:0
+msgid ""
+"Recipient address requires SMTPUTF8, which this server does not support: %s"
+msgstr ""
+
+#. module: base
 #: model:ir.model.fields,field_description:base.field_ir_actions_server__resource_ref
 #: model:ir.model.fields,field_description:base.field_ir_cron__resource_ref
 #: model:ir.model.fields,field_description:base.field_ir_job__record_ids
@@ -41488,6 +41426,11 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_actions_act_window__res_id
 #: model:ir.model.fields,field_description:base.field_ir_model_data__res_id
 msgid "Record ID"
+msgstr ""
+
+#. module: base
+#: model:ir.model,name:base.model_mixin_merge
+msgid "Record Merge Engine"
 msgstr ""
 
 #. module: base
@@ -41618,12 +41561,6 @@ msgid "Reference"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Reference date"
-msgstr ""
-
-#. module: base
 #: model:ir.module.category,name:base.module_category_human_resources_referrals
 msgid "Referrals"
 msgstr ""
@@ -41697,6 +41634,11 @@ msgstr ""
 msgid ""
 "Relation table names can only contain characters, digits and underscores (up"
 " to 63)."
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Relation:"
 msgstr ""
 
 #. module: base
@@ -41904,7 +41846,6 @@ msgstr ""
 
 #. module: base
 #: model:ir.actions.act_window,name:base.ir_action_report
-#: model:ir.actions.act_window,name:base.reports_action
 #: model:ir.model.fields,field_description:base.field_ir_module_module__reports_by_module
 #: model:ir.ui.menu,name:base.menu_ir_action_report
 #: model:ir.ui.menu,name:base.menu_reports
@@ -42118,6 +42059,11 @@ msgid "Right-to-Left"
 msgstr ""
 
 #. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Rights"
+msgstr ""
+
+#. module: base
 #: model:res.currency,currency_unit_label:base.MYR
 msgid "Ringgit"
 msgstr ""
@@ -42126,6 +42072,11 @@ msgstr ""
 #: model:res.currency,currency_unit_label:base.QAR
 #: model:res.currency,currency_unit_label:base.SAR
 msgid "Riyal"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Ro"
 msgstr ""
 
 #. module: base
@@ -42239,15 +42190,8 @@ msgid "Rounding Factor"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Rounding precision"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Rounding unit"
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Rq"
 msgstr ""
 
 #. module: base
@@ -42474,7 +42418,7 @@ msgstr ""
 
 #. module: base
 #: model:ir.module.module,summary:base.module_base_sql_report
-msgid "SQL report construction and materialized view mixins"
+msgid "SQL report construction, materialized view and rolling report mixins"
 msgstr ""
 
 #. module: base
@@ -43230,14 +43174,13 @@ msgid "Selection Options (Deprecated)"
 msgstr ""
 
 #. module: base
-#: model:ir.model.constraint,message:base.constraint_ir_model_fields_selection_selection_field_uniq
-msgid "Selections values must be unique per field"
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Selection:"
 msgstr ""
 
 #. module: base
-#: model:ir.model.fields,field_description:base.field_res_partner__self
-#: model:ir.model.fields,field_description:base.field_res_users__self
-msgid "Self"
+#: model:ir.model.constraint,message:base.constraint_ir_model_fields_selection_selection_field_uniq
+msgid "Selections values must be unique per field"
 msgstr ""
 
 #. module: base
@@ -43502,12 +43445,6 @@ msgid "Separator Format"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Separator use to split the address from the display_name."
-msgstr ""
-
-#. module: base
 #: model:ir.model,name:base.model_ir_sequence
 #: model:ir.model.fields,field_description:base.field_ir_actions_act_window_view__sequence
 #: model:ir.model.fields,field_description:base.field_ir_actions_server__sequence
@@ -43593,7 +43530,6 @@ msgid "Server"
 msgstr ""
 
 #. module: base
-#: model:ir.model,name:base.model_ir_actions_server
 #: model:ir.model.fields.selection,name:base.selection__ir_actions_server__usage__ir_actions_server
 #: model_terms:ir.ui.view,arch_db:base.view_server_action_form
 #: model_terms:ir.ui.view,arch_db:base.view_server_action_search
@@ -43612,6 +43548,7 @@ msgstr ""
 
 #. module: base
 #: model:ir.actions.act_window,name:base.action_server_action
+#: model:ir.model,name:base.model_ir_actions_server
 #: model:ir.ui.menu,name:base.menu_server_action
 #: model_terms:ir.ui.view,arch_db:base.view_server_action_search
 #: model_terms:ir.ui.view,arch_db:base.view_server_action_tree
@@ -43690,6 +43627,14 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:base.config_wizard_step_view_form
 #: model_terms:ir.ui.view,arch_db:base.ir_actions_todo_tree
 msgid "Set as Todo"
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields,help:base.field_ir_actions_server__name_is_custom
+#: model:ir.model.fields,help:base.field_ir_cron__name_is_custom
+msgid ""
+"Set once the name has been typed rather than derived from the action's type,"
+" so that changing the type stops renaming it."
 msgstr ""
 
 #. module: base
@@ -43816,14 +43761,8 @@ msgid "Shopper's Wishlist"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Short"
-msgstr ""
-
-#. module: base
-#: model:ir.module.module,summary:base.module_lmmg_default
-msgid "Short (1 phrase/line) summary of the module's purpose"
+#: model:ir.module.module,summary:base.module_link_tracker
+msgid "Shorten URLs and use them to track clicks and UTMs"
 msgstr ""
 
 #. module: base
@@ -43994,6 +43933,11 @@ msgid "Size of the field cannot be negative."
 msgstr ""
 
 #. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Size:"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,shortdesc:base.module_hr_skills_survey
 msgid "Skills Certification"
 msgstr ""
@@ -44016,12 +43960,6 @@ msgstr ""
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.base_partner_merge_automatic_wizard_form
 msgid "Skip these contacts"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Slash"
 msgstr ""
 
 #. module: base
@@ -44264,12 +44202,6 @@ msgid "South Sudan"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Space"
-msgstr ""
-
-#. module: base
 #: model:res.country,name:base.es
 msgid "Spain"
 msgstr ""
@@ -44373,14 +44305,6 @@ msgstr ""
 #. module: base
 #: model_terms:ir.actions.act_window,help:base.res_partner_industry_action
 msgid "Specify industries to classify your contacts and draw up reports."
-msgstr ""
-
-#. module: base
-#: model:ir.model.fields,help:base.field_ir_actions_server__crud_model_id
-#: model:ir.model.fields,help:base.field_ir_cron__crud_model_id
-msgid ""
-"Specify which kind of record should be created. Set this field only to "
-"specify a different model than the base model."
 msgstr ""
 
 #. module: base
@@ -44746,6 +44670,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_module_module__state
 #: model:ir.model.fields,field_description:base.field_ir_module_module_dependency__state
 #: model:ir.model.fields,field_description:base.field_ir_module_module_exclusion__state
+#: model:ir.model.fields,field_description:base.field_mixin_module_link__state
 #: model_terms:ir.ui.view,arch_db:base.view_module_filter
 msgid "Status"
 msgstr ""
@@ -45513,6 +45438,11 @@ msgid "Technical guide"
 msgstr ""
 
 #. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodulereference_document
+msgid "Technical guide:"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,description:base.module_approvals_purchase_stock
 msgid "Technical module to link Approvals, Purchase and Inventory together. "
 msgstr ""
@@ -45897,6 +45827,14 @@ msgstr ""
 
 #. module: base
 #. odoo-python
+#: code:addons/base/models/ir_model_fields.py:0
+msgid ""
+"The %(type)s field “%(field)s” has no Related Model. A relational field "
+"cannot be built without one."
+msgstr ""
+
+#. module: base
+#. odoo-python
 #: code:addons/base/models/res_company.py:0
 msgid "The %s of a subsidiary must be the same as its root company."
 msgstr ""
@@ -45931,6 +45869,14 @@ msgstr ""
 msgid ""
 "The 'Update Record' action '%(name)s' has no field to update. Please set an "
 "update path."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_actions_server.py:0
+msgid ""
+"The 'Update Record' action '%(name)s' updates '%(path)s', which lives on "
+"another record. An on-change action may only touch the record being edited."
 msgstr ""
 
 #. module: base
@@ -45981,6 +45927,17 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,help:base.field_res_lang__url_code
 msgid "The Lang Code displayed in the URL"
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_mail_server.py:0
+msgid "The Return-Path or From header is required for any outbound email"
+msgstr ""
+
+#. module: base
+#: model:ir.model.constraint,message:base.constraint_ir_mail_server_smtp_port_in_range
+msgid "The SMTP port must be between 1 and 65535."
 msgstr ""
 
 #. module: base
@@ -46148,34 +46105,12 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model_terms:ir.ui.view,arch_db:base.view_model_form
-msgid ""
-"The field <strong>Compute</strong> is the Python\n"
-"                                                    code to compute the value of the field on a set\n"
-"                                                    of records. The value of the field must be\n"
-"                                                    assigned to each record with a dictionary-like\n"
-"                                                    assignment."
-msgstr ""
-
-#. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_model_fields_form
 msgid ""
 "The field <strong>Compute</strong> is the Python code to compute\n"
 "                                    the value of the field on a set of records. The value of the\n"
 "                                    field must be assigned to each record with a dictionary-like\n"
 "                                    assignment."
-msgstr ""
-
-#. module: base
-#: model_terms:ir.ui.view,arch_db:base.view_model_form
-msgid ""
-"The field <strong>Dependencies</strong> lists the\n"
-"                                                    fields that the current field depends on. It is\n"
-"                                                    a comma-separated list of field names, like <code>name,\n"
-"                                                    size</code>. You can also refer to fields\n"
-"                                                    accessible through other relational fields, for\n"
-"                                                    instance <code>partner_id.company_id.name</code>\n"
-"                                                    ."
 msgstr ""
 
 #. module: base
@@ -46240,12 +46175,6 @@ msgid "The group “%(name)s” defined in view does not exist!"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "The hour must be between 0 and 23"
-msgstr ""
-
-#. module: base
 #: model:ir.model.fields,help:base.field_res_partner__user_id
 #: model:ir.model.fields,help:base.field_res_users__user_id
 msgid "The internal user in charge of this contact."
@@ -46288,6 +46217,13 @@ msgstr ""
 msgid ""
 "The m2o field %s is required but declares its ondelete policy as being 'set "
 "null'. Only 'restrict' and 'cascade' make sense."
+msgstr ""
+
+#. module: base
+#: model:ir.model.constraint,message:base.constraint_ir_mail_server_max_email_size_not_negative
+msgid ""
+"The maximum email size cannot be negative. Leave it at 0 to fall back to the"
+" system-wide default."
 msgstr ""
 
 #. module: base
@@ -46406,7 +46342,6 @@ msgstr ""
 
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_model_fields_form
-#: model_terms:ir.ui.view,arch_db:base.view_model_form
 msgid "The only predefined variables are"
 msgstr ""
 
@@ -46532,6 +46467,14 @@ msgstr ""
 
 #. module: base
 #. odoo-python
+#: code:addons/base/models/ir_actions_report.py:0
+msgid ""
+"The report layout web.minimal_layout is missing, so no PDF body can be "
+"built. Update or reinstall the web module."
+msgstr ""
+
+#. module: base
+#. odoo-python
 #: code:addons/base/models/ir_ui_view.py:0
 msgid ""
 "The root node of a %(view_type)s view should be a <%(view_type)s>, not a "
@@ -46619,12 +46562,28 @@ msgstr ""
 #. module: base
 #. odoo-python
 #: code:addons/base/models/ir_model_fields.py:0
+msgid ""
+"The stored one2many field “%(field)s” has no Relation Field. Name the "
+"many2one on %(comodel)s that points back to %(model)s, or clear Stored."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_model_fields.py:0
 msgid "The table “%s” is used by another, possibly incompatible field(s)."
 msgstr ""
 
 #. module: base
 #: model:ir.model.fields,help:base.field_ir_model_fields__model
 msgid "The technical name of the model this field belongs to"
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_model_fields.py:0
+msgid ""
+"The translation mode is a selection since Odoo 19: pass 'standard', "
+"'html_translate' or 'xml_translate' instead of %(value)s."
 msgstr ""
 
 #. module: base
@@ -46653,12 +46612,6 @@ msgstr ""
 
 #. module: base
 #. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "The value (%s) passed should be positive"
-msgstr ""
-
-#. module: base
-#. odoo-python
 #: code:addons/models/mixins/schema.py:0
 msgid ""
 "The value for %(field_display)s already exists.\n"
@@ -46670,12 +46623,6 @@ msgstr ""
 #. odoo-python
 #: code:addons/base/models/ir_model.py:0
 msgid "The value of 'Fold Field' should be a field name of the model."
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "The value send to monetary field is not a number."
 msgstr ""
 
 #. module: base
@@ -46720,7 +46667,6 @@ msgstr ""
 #. module: base
 #: model:ir.actions.act_url,name:base.action_theme_store
 #: model:ir.ui.menu,name:base.menu_theme_store
-#: model:ir.ui.menu,name:base.menu_theme_store_section
 msgid "Theme Store"
 msgstr ""
 
@@ -46831,7 +46777,7 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:base.wizard_lang_export
 msgid ""
 "This file was generated using the universal <strong>Unicode/UTF-8</strong> file encoding, please be sure to view and edit\n"
-"                             using the same encoding."
+"                            using the same encoding."
 msgstr ""
 
 #. module: base
@@ -47526,6 +47472,7 @@ msgstr ""
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module__state__to_install
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module_dependency__state__to_install
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module_exclusion__state__to_install
+#: model:ir.model.fields.selection,name:base.selection__mixin_module_link__state__to_install
 msgid "To be installed"
 msgstr ""
 
@@ -47533,6 +47480,7 @@ msgstr ""
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module__state__to_remove
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module_dependency__state__to_remove
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module_exclusion__state__to_remove
+#: model:ir.model.fields.selection,name:base.selection__mixin_module_link__state__to_remove
 msgid "To be removed"
 msgstr ""
 
@@ -47540,6 +47488,7 @@ msgstr ""
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module__state__to_upgrade
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module_dependency__state__to_upgrade
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module_exclusion__state__to_upgrade
+#: model:ir.model.fields.selection,name:base.selection__mixin_module_link__state__to_upgrade
 msgid "To be upgraded"
 msgstr ""
 
@@ -47633,6 +47582,11 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_web_tour
 msgid "Tours"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Tr"
 msgstr ""
 
 #. module: base
@@ -47943,6 +47897,11 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_l10n_tr_nilvera_edispatch
 msgid "Türkiye - e-Irsaliye (e-Dispatch)"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "U"
 msgstr ""
 
 #. module: base
@@ -48275,6 +48234,7 @@ msgstr ""
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module__state__uninstallable
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module_dependency__state__uninstallable
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module_exclusion__state__uninstallable
+#: model:ir.model.fields.selection,name:base.selection__mixin_module_link__state__uninstallable
 msgid "Uninstallable"
 msgstr ""
 
@@ -48423,6 +48383,7 @@ msgstr ""
 #: model:ir.model,name:base.model__unknown
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module_dependency__state__unknown
 #: model:ir.model.fields.selection,name:base.selection__ir_module_module_exclusion__state__unknown
+#: model:ir.model.fields.selection,name:base.selection__mixin_module_link__state__unknown
 msgid "Unknown"
 msgstr ""
 
@@ -48718,6 +48679,7 @@ msgstr ""
 
 #. module: base
 #: model:ir.model.fields,help:base.field_res_partner__barcode
+#: model:ir.model.fields,help:base.field_res_users__barcode
 msgid "Use a barcode to identify this contact."
 msgstr ""
 
@@ -48729,18 +48691,6 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,field_description:base.field_report_paperformat__css_margins
 msgid "Use body padding margins"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Use comma"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Use comma instead of the <br> tag to display the address"
 msgstr ""
 
 #. module: base
@@ -49175,12 +49125,6 @@ msgid "Venezuela - Accounting"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Vertical bar"
-msgstr ""
-
-#. module: base
 #: model:res.country,name:base.vn
 msgid "Vietnam"
 msgstr ""
@@ -49349,6 +49293,11 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,summary:base.module_frontdesk
 msgid "Visitor management system"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "W"
 msgstr ""
 
 #. module: base
@@ -49744,6 +49693,19 @@ msgid "Western Sahara"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields,help:base.field_ir_actions_server__value
+#: model:ir.model.fields,help:base.field_ir_cron__value
+msgid ""
+"What to write, read according to 'Value Type'.\n"
+"\n"
+"Update: the value is used as typed, without evaluation -- `42`, `My custom name`, or the id of the selected record.\n"
+"\n"
+"Compute: a Python expression evaluated with the same names the 'Execute Code' action gets, e.g. `env.user.name` or `record.id`.\n"
+"\n"
+"'Create Record' does not read 'Value Type': this field is the name of the record to create, taken literally."
+msgstr ""
+
+#. module: base
 #: model_terms:ir.ui.view,arch_db:base.form_res_users_key_description
 msgid "What's this key for?"
 msgstr ""
@@ -49900,12 +49862,6 @@ msgid "Whether the value is stored in the database."
 msgstr ""
 
 #. module: base
-#: model:ir.model.fields,help:base.field_res_partner__employee
-#: model:ir.model.fields,help:base.field_res_users__employee
-msgid "Whether this contact is an Employee."
-msgstr ""
-
-#. module: base
 #: model:ir.model.fields,help:base.field_ir_module_module_dependency__auto_install_required
 msgid "Whether this dependency blocks automatic installation of the dependent"
 msgstr ""
@@ -49947,12 +49903,6 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,help:base.field_ir_job__defer_reason
 msgid "Why the job last asked to be run again later."
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "Width"
 msgstr ""
 
 #. module: base
@@ -50093,6 +50043,11 @@ msgid "Xiuman"
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,shortdesc:base.module_product_docs_xiuman_data
+msgid "Xiuman Product Documents (data)"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,shortdesc:base.module_website_xiuman
 msgid "Xiuman Website Data"
 msgstr ""
@@ -50115,6 +50070,11 @@ msgstr ""
 #. module: base
 #: model:res.currency,currency_unit_label:base.JPY
 msgid "Yen"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.report_irmodeloverview_document
+msgid "Yes"
 msgstr ""
 
 #. module: base
@@ -50237,12 +50197,6 @@ msgstr ""
 
 #. module: base
 #. odoo-python
-#: code:addons/base/models/res_users.py:0
-msgid "You can only call user.has_group() with your current user."
-msgstr ""
-
-#. module: base
-#. odoo-python
 #: code:addons/base/models/res_device.py:0
 msgid "You can only revoke your own devices."
 msgstr ""
@@ -50264,22 +50218,7 @@ msgstr ""
 #. module: base
 #. odoo-python
 #: code:addons/base/models/res_partner.py:0
-msgid ""
-"You cannot archive contacts linked to an active user.\n"
-"Ask an administrator to archive their associated user first.\n"
-"\n"
-"Linked active users :\n"
-"%(names)s"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/res_partner.py:0
-msgid ""
-"You cannot archive contacts linked to an active user.\n"
-"You first need to archive their associated user.\n"
-"\n"
-"Linked active users : %(names)s"
+msgid "You cannot archive contacts linked to an active user."
 msgstr ""
 
 #. module: base
@@ -50368,22 +50307,7 @@ msgstr ""
 #. module: base
 #. odoo-python
 #: code:addons/base/models/res_partner.py:0
-msgid ""
-"You cannot delete contacts linked to an active user.\n"
-"Ask an administrator to archive their associated user first.\n"
-"\n"
-"Linked active users :\n"
-"%(names)s"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/res_partner.py:0
-msgid ""
-"You cannot delete contacts linked to an active user.\n"
-"You should rather archive them after archiving their associated user.\n"
-"\n"
-"Linked active users : %(names)s"
+msgid "You cannot delete contacts linked to an active user."
 msgstr ""
 
 #. module: base
@@ -50488,8 +50412,23 @@ msgstr ""
 
 #. module: base
 #. odoo-python
+#: code:addons/base/models/res_partner.py:0
+msgid "You first need to archive their associated user."
+msgstr ""
+
+#. module: base
+#. odoo-python
 #: code:addons/base/wizard/base_partner_merge.py:0
 msgid "You have to specify a filter for your selection."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_mail_server.py:0
+msgid ""
+"You must either provide a sender address explicitly or configure using the "
+"combination of `mail.catchall.domain` and `mail.default.from` ICPs, in the "
+"server configuration file or with the --email-from startup parameter."
 msgstr ""
 
 #. module: base
@@ -50499,8 +50438,22 @@ msgid "You must have at least an administrator user."
 msgstr ""
 
 #. module: base
+#. odoo-python
+#: code:addons/base/models/res_partner.py:0
+msgid "You should rather archive them after archiving their associated user."
+msgstr ""
+
+#. module: base
 #: model_terms:ir.actions.act_window,help:base.open_module_tree
 msgid "You should try other search criteria."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_module.py:0
+msgid ""
+"You try to install module \"%(module)s\" that depends on module \"%(dependency)s\".\n"
+"But the latter module cannot be installed."
 msgstr ""
 
 #. module: base
@@ -50703,12 +50656,6 @@ msgid "database id"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "day"
-msgstr ""
-
-#. module: base
 #: model:ir.module.module,shortdesc:base.module_delivery_mondialrelay
 msgid "delivery_mondialrelay"
 msgstr ""
@@ -50905,7 +50852,6 @@ msgstr ""
 
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_model_fields_form
-#: model_terms:ir.ui.view,arch_db:base.view_model_form
 msgid ""
 "for record in self:\n"
 "    record['size'] = len(record.name)"
@@ -50921,12 +50867,6 @@ msgstr ""
 msgid ""
 "has been successfully installed.\n"
 "                        Users can choose their favorite language in their preferences."
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "hour"
 msgstr ""
 
 #. module: base
@@ -50982,40 +50922,13 @@ msgid "l10n_be_pos_sale"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_lmmg_default
-msgid "lmmg_default"
-msgstr ""
-
-#. module: base
-#: model:ir.module.module,shortdesc:base.module_lmmg_theme
-msgid "lmmg_theme"
-msgstr ""
-
-#. module: base
-#: model:ir.module.module,shortdesc:base.module_lmmg_theme2
-msgid "lmmg_theme2"
-msgstr ""
-
-#. module: base
 #: model:ir.model.fields.selection,name:base.selection__res_partner__tz__localtime
 msgid "localtime"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "minute"
-msgstr ""
-
-#. module: base
 #: model_terms:ir.ui.view,arch_db:base.demo_failures_dialog
 msgid "module(s) failed to install and were disabled"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "month"
 msgstr ""
 
 #. module: base
@@ -51096,12 +51009,6 @@ msgstr ""
 #. module: base
 #: model:ir.module.category,name:base.module_category_services_sales
 msgid "sales"
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "second"
 msgstr ""
 
 #. module: base
@@ -51238,20 +51145,13 @@ msgstr ""
 
 #. module: base
 #. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "week"
-msgstr ""
-
-#. module: base
-#. odoo-python
 #: code:addons/base/models/ir_rule.py:0
 msgid "write"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_qweb_fields.py:0
-msgid "year"
+#: model_terms:ir.ui.view,arch_db:base.view_users_form
+msgid "x"
 msgstr ""
 
 #. module: base

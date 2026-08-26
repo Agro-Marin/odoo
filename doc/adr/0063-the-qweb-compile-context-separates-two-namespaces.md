@@ -118,20 +118,25 @@ still one namespace, still `Any`, still no discoverability.
 
 ## Enforcement
 
-The type is the enforcement, and it is a runtime one. `CompileContext` is a
-`@dataclass(slots=True)`, so a compiler key that does not exist is an
-`AttributeError` at the assignment rather than a `None` read three frames later,
-and there is no `__getitem__`, so `ctx['ref_name']` raises `TypeError` at the
-first call rather than resolving into whichever namespace happened to win.
+**The language holds the split, and three tests hold the language.** `CompileContext`
+is a `@dataclass(slots=True)` that defines `get()` and `__contains__` and no
+`__getitem__`, so `ctx['ref_name']` is a `TypeError` rather than a second way to
+spell compiler state, and `slots=True` makes `ctx.ref_nmae = …` an `AttributeError`
+rather than a silently-created field. Neither property is guarded by a gate, and
+neither would survive a well-meaning `__getitem__` added for one call site, so
+`TestQWebHelpers` in `odoo/addons/base/tests/test_qweb.py` pins all three halves
+of the decision: that attribute access and `.get()` of the same key return
+different values, that subscripting raises, and that an undeclared field is
+refused.
 
-`TestQWebHelpers.test_the_two_addressing_modes_stay_separate`
-(`odoo/addons/base/tests/test_qweb.py`) pins all three halves of that: attribute
-access reaches compiler state, `.get()`/`in` reach the caller's context and do
-*not* see compiler fields, and subscripting raises. Re-adding `__getitem__` --
-the migration-friendly alternative this record rejects -- fails there.
+**mypy does not reach this file.** `py_typecheck.yml` runs over
+`odoo.{orm,db,libs,http,service,modules}` and, separately, `odoo.tools`;
+`odoo/addons/base/` is in none of them, so the field types here are documentation
+and an IDE aid, not a checked contract. That is the gap this record leaves open:
+a typo in an *existing* field name is caught, a wrong *type* in one is not.
 
-No static gate covers it. `mypy` runs over `odoo.{orm,db,libs,http,service,modules}`
-and stops short of `odoo.addons`, so the typed fields are checked by no CI lane;
-the dataclass is what carries them. Stated here rather than left implied,
-because the obvious reading of "typed fields" is that a type checker is reading
-them, and none is.
+**Nothing enforces the boundary outside this repository**, by construction — the
+Consequences above say the cost falls on addons that subscript for a compiler key,
+and what they get is the `TypeError`. `libs_facade_check` and the surface gates do
+not look at this, because `ir.qweb` is an addon model rather than a framework
+facade.
