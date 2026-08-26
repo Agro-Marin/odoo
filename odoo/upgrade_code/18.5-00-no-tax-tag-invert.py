@@ -160,7 +160,7 @@ def upgrade(file_manager: FileManager) -> None:
     conflicts = {}
     for country, country_tax_signs in tag_signs.items():
         if errors := [
-            country for country, sign in country_tax_signs.items() if sign == "error"
+            tag for tag, sign in country_tax_signs.items() if sign == "error"
         ]:
             conflicts[country] = errors
 

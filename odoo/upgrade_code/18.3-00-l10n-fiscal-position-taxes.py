@@ -2265,7 +2265,11 @@ def upgrade(file_manager: FileManager) -> None:
     for i, file in enumerate(fiscal_position_data_files, start=1):
         file_manager.print_progress(i, nb_fiscal_position_files, file.path)
 
-        module_name = file.path.parts[-4]
+        # `addon.name`, not `parts[-4]`: the positional index is only right
+        # for the exact `<module>/data/template/<file>.csv` layout, while
+        # `FileAccessor.addon` is whatever the addons path resolved the
+        # module to. Both agree on all 264 files in this tree today.
+        module_name = file.addon.name
         csv_file = csv.DictReader(file.content.splitlines())
         csv_data = list(csv_file)
         field_names = csv_file.fieldnames
@@ -2382,7 +2386,7 @@ def upgrade(file_manager: FileManager) -> None:
     for i, file in enumerate(tax_data_files, start=1):
         file_manager.print_progress(i, nb_tax_files, file.path)
 
-        module_name = file.path.parts[-4]
+        module_name = file.addon.name  # see the loop above
         coa_name = file.path.parts[-1].split("tax-")[1].replace(".csv", "")
         csv_file = csv.DictReader(file.content.splitlines())
         csv_data = list(csv_file)
