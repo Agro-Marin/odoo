@@ -382,7 +382,7 @@ class IrModuleModule(models.Model):
 
         for theme in themes:
             terp = self.get_module_info(theme.name)
-            images = terp.get("images", [])
+            images = terp["images"] if terp else []
             image_paths = ["/%s/%s" % (theme.name, image) for image in images]
             if all(image_path in existing_urls for image_path in image_paths):
                 continue

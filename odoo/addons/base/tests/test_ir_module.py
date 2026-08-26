@@ -1,9 +1,14 @@
 import io
+import os
+import sys
 from unittest.mock import patch
 
 from odoo.exceptions import AccessError, UserError
+from odoo.modules.db import _AUTO_INSTALL_CANDIDATES_QUERY
 from odoo.tests.common import TransactionCase, new_test_user
 from odoo.tools import mute_logger
+
+from odoo.addons.base.models.ir_module import localize_description_images
 
 
 class IrModuleCase(TransactionCase):
@@ -217,8 +222,8 @@ class TestModuleDependencyClosure(TransactionCase):
 
 class IrModuleUnsavedRecordCase(TransactionCase):
     def test_get_module_info_without_name(self):
-        self.assertEqual(self.env["ir.module.module"].get_module_info(False), {})
-        self.assertEqual(self.env["ir.module.module"].get_module_info(""), {})
+        self.assertIsNone(self.env["ir.module.module"].get_module_info(False))
+        self.assertIsNone(self.env["ir.module.module"].get_module_info(""))
 
     def test_manifest_version_on_unsaved_record(self):
         module = self.env["ir.module.module"].new({})
@@ -228,3 +233,334 @@ class IrModuleUnsavedRecordCase(TransactionCase):
         manifest = self.env["ir.module.module"].get_module_info("base")
         self.assertTrue(manifest)
         self.assertTrue(manifest.get("version"))
+
+
+class IrModuleAutoInstallCase(TransactionCase):
+    """The runtime auto-install rule must agree with the SQL one in modules/db.py."""
+
+    def _make(self, name, **kw):
+        return self.env["ir.module.module"].create(
+            {"name": name, "state": "uninstalled", **kw}
+        )
+
+    def _depend(self, module, name, required=True):
+        return self.env["ir.module.module.dependency"].create(
+            {"module_id": module.id, "name": name, "auto_install_required": required}
+        )
+
+    @mute_logger("odoo.addons.base.models.ir_module")
+    def test_uninstallable_non_trigger_dependency_blocks_auto_install(self):
+        trigger = self._make("airm_trigger")
+        self._make("airm_bad", state="uninstallable")
+        victim = self._make("airm_victim", auto_install=True)
+        self._depend(victim, "airm_trigger", required=True)
+        self._depend(victim, "airm_bad", required=False)
+
+        trigger.button_install()
+
+        self.assertEqual(trigger.state, "to install")
+        self.assertEqual(
+            victim.state,
+            "uninstalled",
+            "a module whose hard dependency is uninstallable can never load; "
+            "marking it 'to install' strands it and blocks every later "
+            "module operation until the cron safety net fires",
+        )
+
+    @mute_logger("odoo.addons.base.models.ir_module")
+    def test_unknown_non_trigger_dependency_does_not_abort_the_users_install(self):
+        trigger = self._make("airm_trigger2")
+        victim = self._make("airm_victim2", auto_install=True)
+        self._depend(victim, "airm_trigger2", required=True)
+        self._depend(victim, "airm_no_such_module", required=False)
+
+        trigger.button_install()
+
+        self.assertEqual(trigger.state, "to install")
+        self.assertEqual(victim.state, "uninstalled")
+
+    @mute_logger("odoo.addons.base.models.ir_module")
+    def test_satisfiable_auto_install_still_happens(self):
+        trigger = self._make("airm_trigger3")
+        other = self._make("airm_other3")
+        victim = self._make("airm_victim3", auto_install=True)
+        self._depend(victim, "airm_trigger3", required=True)
+        self._depend(victim, "airm_other3", required=False)
+
+        trigger.button_install()
+
+        self.assertEqual(victim.state, "to install")
+        self.assertEqual(other.state, "to install")
+
+    def test_predicate_matches_the_sql_rule_in_modules_db(self):
+        trigger = self._make("airm_sql_trigger")
+        self._make("airm_sql_bad", state="uninstallable")
+        victim = self._make("airm_sql_victim", auto_install=True)
+        self._depend(victim, "airm_sql_trigger", required=True)
+        self._depend(victim, "airm_sql_bad", required=False)
+        trigger.state = "to install"
+        self.env.flush_all()
+
+        self.env.cr.execute(_AUTO_INSTALL_CANDIDATES_QUERY)
+        sql_says = {row[0] for row in self.env.cr.fetchall()}
+
+        self.assertNotIn("airm_sql_victim", sql_says)
+        self.assertFalse(victim._auto_install_dependencies_satisfiable())
+
+
+class IrModuleConcurrencyGuardCase(TransactionCase):
+    """Odoo cursors are REPEATABLE READ. By the time the guard runs, the request
+    transaction has already read, so its snapshot predates whatever the module
+    operation it is waiting for committed. Reading the pending state on that
+    snapshot -- before OR after taking the lock -- cannot see it."""
+
+    PROBE = "airm_committed_elsewhere"
+
+    def _side_execute(self, sql, params):
+        with self.registry.cursor() as side_cr:
+            side_cr.execute(sql, params)
+            side_cr.commit()
+
+    def _snapshot_sees_probe(self):
+        self.env.cr.execute(
+            "SELECT FROM ir_module_module WHERE name = %s AND state = %s",
+            [self.PROBE, "to install"],
+        )
+        return bool(self.env.cr.rowcount)
+
+    def test_guard_sees_a_pending_state_its_own_snapshot_cannot(self):
+        Module = self.env["ir.module.module"]
+        Module.search_count([])
+
+        if Module._has_pending_module_operation():
+            self.skipTest("a module operation is already pending in this database")
+
+        self._side_execute(
+            "INSERT INTO ir_module_module (name, state) VALUES (%s, %s)",
+            [self.PROBE, "to install"],
+        )
+        self.addCleanup(
+            self._side_execute,
+            "DELETE FROM ir_module_module WHERE name = %s",
+            [self.PROBE],
+        )
+
+        self.assertFalse(
+            self._snapshot_sees_probe(),
+            "precondition: this transaction's frozen snapshot is blind to it",
+        )
+        self.assertTrue(
+            Module._has_pending_module_operation(),
+            "the guard must read committed state, not the request snapshot",
+        )
+
+    def test_guard_does_not_deadlock_against_the_lock_it_runs_under(self):
+        """The guard runs while this transaction holds EXCLUSIVE on the table.
+        A plain SELECT takes ACCESS SHARE, which does not conflict -- a locking
+        read here would hang every module operation instead."""
+        self.env.cr.execute("SET LOCAL lock_timeout = '5s'")
+        self.env.cr.execute("LOCK ir_module_module IN EXCLUSIVE MODE")
+        self.assertIsInstance(
+            self.env["ir.module.module"]._has_pending_module_operation(), bool
+        )
+
+
+class IrModuleDescriptionRenderingCase(TransactionCase):
+    def test_rst_warnings_never_reach_stderr(self):
+        module = self.env["ir.module.module"].create(
+            {
+                "name": "airm_rst",
+                "description": "Too short\n===\n\nbody\n",
+            }
+        )
+        read_fd, write_fd = os.pipe()
+        saved = os.dup(2)
+        os.dup2(write_fd, 2)
+        os.close(write_fd)
+        try:
+            module.invalidate_recordset(["description_html"])
+            self.assertTrue(module.description_html)
+        finally:
+            sys.stderr.flush()
+            os.dup2(saved, 2)
+            os.close(saved)
+        os.set_blocking(read_fd, False)
+        try:
+            leaked = os.read(read_fd, 65536)
+        except BlockingIOError:
+            leaked = b""
+        os.close(read_fd)
+        self.assertEqual(leaked, b"", "docutils must not write to stderr")
+
+    def test_description_images_are_localized(self):
+        html = localize_description_images("airm_mod", '<img src="banner.png"/>')
+        self.assertIn("/airm_mod/static/description/banner.png", html)
+
+    def test_absolute_and_static_image_sources_are_left_alone(self):
+        html = localize_description_images(
+            "airm_mod", '<img src="//cdn/x.png"/><img src="static/y.png"/>'
+        )
+        self.assertIn("//cdn/x.png", html)
+        self.assertNotIn("/airm_mod/static/description/", html)
+
+
+class IrModuleLinkModelCase(TransactionCase):
+    def test_dependency_and_exclusion_share_one_implementation(self):
+        for model in ("ir.module.module.dependency", "ir.module.module.exclusion"):
+            self.assertIn("mixin.module.link", self.env[model]._inherit)
+
+    def test_exclusion_table_has_no_log_access_columns(self):
+        self.assertFalse(self.env["ir.module.module.exclusion"]._log_access)
+
+    def test_linked_id_search_tolerates_deleted_ids(self):
+        Dependency = self.env["ir.module.module.dependency"]
+        self.assertFalse(Dependency.search([("linked_id", "in", [2147483000])]))
+
+    def test_linked_id_search_by_name_agrees_with_search_by_id(self):
+        """Non-id values are handed back to the ORM (NotImplemented) rather than
+        coerced; it resolves them by name, and must land on the same rows."""
+        Dependency = self.env["ir.module.module.dependency"]
+        base = self.env["ir.module.module"].search([("name", "=", "base")])
+        by_id = Dependency.search([("linked_id", "in", base.ids)])
+        by_name = Dependency.search([("linked_id", "in", ["base"])])
+        self.assertTrue(by_id)
+        self.assertEqual(by_id, by_name)
+
+    def test_linked_id_false_matches_the_unknown_dependencies(self):
+        Module = self.env["ir.module.module"]
+        Dependency = self.env["ir.module.module.dependency"]
+        host = Module.create({"name": "airm_host", "state": "uninstalled"})
+        unknown = Dependency.create(
+            {"module_id": host.id, "name": "airm_definitely_absent"}
+        )
+        known = Dependency.create({"module_id": host.id, "name": "base"})
+        self.assertEqual(unknown.state, "unknown")
+        found = Dependency.search([("linked_id", "=", False)])
+        self.assertIn(unknown, found)
+        self.assertNotIn(known, found)
+
+
+class IrModuleUpdateListCountCase(TransactionCase):
+    def test_a_module_that_was_never_installed_is_not_counted(self):
+        """db_version is the *installed* version. A module that was never
+        installed has nothing to update, whatever its manifest says."""
+        Module = self.env["ir.module.module"]
+        never_installed = Module.search(
+            [("state", "=", "uninstalled"), ("name", "!=", "base")], limit=1
+        )
+        self.assertTrue(never_installed, "need an uninstalled module")
+
+        never_installed.db_version = False
+        Module.invalidate_model()
+        without = Module.update_list().updated
+
+        never_installed.db_version = "0.1"
+        Module.invalidate_model()
+        with_stamp = Module.update_list().updated
+
+        self.assertEqual(
+            with_stamp - without,
+            1,
+            "only a module carrying an installed version can be 'updated'",
+        )
+
+    def test_an_outdated_installed_module_is_counted(self):
+        Module = self.env["ir.module.module"]
+        base = Module.search([("name", "=", "base")])
+        base.db_version = "0.1"
+        Module.invalidate_model()
+        with_outdated = Module.update_list().updated
+        base.db_version = "99.0.99"
+        Module.invalidate_model()
+        without_outdated = Module.update_list().updated
+        self.assertEqual(with_outdated - without_outdated, 1)
+
+
+class IrModuleUninstallStateCase(TransactionCase):
+    def test_module_uninstall_clears_every_installed_version_stamp(self):
+        module = self.env["ir.module.module"].create(
+            {
+                "name": "airm_uninstall",
+                "state": "installed",
+                "db_version": "19.0.1.0",
+                "content_checksum": "DEADBEEF",
+                "data_file_checksums": {"v": 1},
+            }
+        )
+        module.module_uninstall()
+        self.assertEqual(module.state, "uninstalled")
+        self.assertFalse(module.db_version)
+        self.assertFalse(module.content_checksum)
+        self.assertFalse(module.data_file_checksums)
+
+
+class IrModuleHasIapCase(TransactionCase):
+    def test_has_iap_tracks_a_new_dependency_without_a_manual_invalidation(self):
+        Module = self.env["ir.module.module"]
+        if not Module._get_id("iap"):
+            self.skipTest("iap module not present in the addons path")
+        module = Module.create({"name": "airm_iap", "state": "uninstalled"})
+        self.assertFalse(module.has_iap)
+        self.env["ir.module.module.dependency"].create(
+            {"module_id": module.id, "name": "iap"}
+        )
+        self.assertTrue(module.has_iap)
+
+    def test_iap_itself_reports_iap(self):
+        Module = self.env["ir.module.module"]
+        iap = Module.search([("name", "=", "iap")])
+        if not iap:
+            self.skipTest("iap module not present in the addons path")
+        self.assertTrue(iap.has_iap)
+
+
+class IrModuleTranslationDiagnosticCase(TransactionCase):
+    """TranslationImporter.imported_langs accumulates for the whole run, but the
+    'no translation' diagnostic is about one module. Reading the shared set made
+    the message depend on where the module sat in the list."""
+
+    def _missing_lines(self, order, translated):
+        Module = self.env["ir.module.module"]
+
+        def fake_load_file(importer, path, lang, **kwargs):
+            if path.startswith(translated):
+                importer.imported_langs.add(lang)
+
+        with (
+            patch(
+                "odoo.addons.base.models.ir_module.get_po_paths",
+                side_effect=lambda module, lang: [f"{module}/i18n/{lang}.po"],
+            ),
+            patch(
+                "odoo.addons.base.models.ir_module.get_datafile_translation_path",
+                side_effect=lambda module: [],
+            ),
+            patch(
+                "odoo.addons.base.models.ir_module.Manifest.for_addon",
+                side_effect=lambda name, **kw: object(),
+            ),
+            patch(
+                "odoo.tools.translate.TranslationImporter.load_file",
+                autospec=True,
+                side_effect=fake_load_file,
+            ),
+            patch("odoo.tools.translate.TranslationImporter.save"),
+            patch("odoo.addons.base.models.ir_module.code_translations.clear"),
+            self.assertLogs("odoo.addons.base.models.ir_module", level="INFO") as logs,
+        ):
+            Module._load_module_terms(order, ["fr_FR"])
+        return {
+            line.split("module ")[1].split(":")[0]
+            for line in logs.output
+            if "no translation for language" in line
+        }
+
+    def test_reported_module_does_not_depend_on_position_in_the_list(self):
+        first = self._missing_lines(["alpha", "beta"], translated="alpha")
+        second = self._missing_lines(["beta", "alpha"], translated="alpha")
+        self.assertEqual(first, {"beta"})
+        self.assertEqual(
+            first,
+            second,
+            "the module without a translation must be reported either way",
+        )

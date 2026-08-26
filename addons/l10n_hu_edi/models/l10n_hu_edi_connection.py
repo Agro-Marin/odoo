@@ -355,7 +355,8 @@ class L10nHuEdiConnection:
         request_id = 'ODOO' + secrets.token_hex(13)
         request_signature = self._calculate_request_signature(credentials['signature_key'], request_id, timestamp, invoice_hashs=invoice_hashs)
         odoo_version = release.version
-        module_version = self.env['ir.module.module'].get_module_info('l10n_hu_edi').get('version').replace('saas~', '').replace('.', '')
+        manifest = self.env['ir.module.module'].get_module_info('l10n_hu_edi')
+        module_version = (manifest['version'] if manifest else '').replace('saas~', '').replace('.', '')
 
         return {
             'requestId': request_id,

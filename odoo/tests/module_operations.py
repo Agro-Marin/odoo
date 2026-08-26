@@ -170,7 +170,7 @@ def test_cycle(args: argparse.Namespace) -> None:
 
         modules = modules.browse(
             topological_sort(
-                {module.id: module.dependencies_id.depend_id.ids for module in modules}
+                {module.id: module.dependencies_id.linked_id.ids for module in modules}
             )
         )
         modules_todo = [(module.id, module.name) for module in modules]

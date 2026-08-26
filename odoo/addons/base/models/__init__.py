@@ -49,6 +49,9 @@ from . import ir_http
 from . import ir_logging
 
 from . import ir_module
+from . import mixin_module_link
+from . import ir_module_module_dependency
+from . import ir_module_module_exclusion
 from . import ir_demo
 from . import ir_demo_failure
 
