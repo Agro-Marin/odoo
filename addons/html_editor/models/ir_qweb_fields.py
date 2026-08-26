@@ -20,6 +20,8 @@ from odoo.tools import posix_to_ldml
 from odoo.tools.json import scriptsafe as json_safe
 from odoo.tools.misc import babel_locale_parse, file_open, get_lang
 
+from odoo.addons.base.models.ir_qweb import indent_code
+
 REMOTE_CONNECTION_TIMEOUT = 2.5
 
 _logger = logging.getLogger(__name__)
@@ -108,22 +110,42 @@ class IrQweb(models.AbstractModel):
         image_preview = el.attrib.pop('t-image-preview', None)
         group = el.attrib.pop('group', None)
         label = el.attrib.pop('label', None)
-        if self.env.user.has_group('base.group_system'):
-            module = self.env['ir.module.module'].search([('name', '=', key)])
-            if not module or module.state == 'installed':
-                return []
-            name = el.attrib.get('string') or 'Snippet'
-            div = Markup('<div name="%s" data-oe-type="snippet" data-module-id="%s" data-module-display-name="%s" data-o-image-preview="%s" data-oe-thumbnail="%s" %s %s><section/></div>') % (
-                name,
-                module.id,
-                module.display_name,
-                escape_silent(image_preview),
-                thumbnail,
-                Markup('data-o-group="%s"') % group if group else '',
-                Markup('data-o-label="%s"') % label if label else '',
-            )
-            self._add_text(div, compile_context)
-        return []
+        name = el.attrib.pop('string', None) or 'Snippet'
+        code = self._flush_text(compile_context, indent)
+        code.append(indent_code(
+            f"yield from self._render_install_placeholder({key!r}, {name!r}, "
+            f"{thumbnail!r}, {image_preview!r}, {group!r}, {label!r})",
+            indent,
+        ))
+        return code
+
+    def _render_install_placeholder(self, key, name, thumbnail, image_preview, group, label):
+        """Emit the "install this module" placeholder, deciding at render time.
+
+        Both decisions used to be taken while compiling. `_generate_code_cached`
+        is an ormcache keyed on `(ref, _template_cache_signature())`, and that
+        signature carries no uid, so `self.env.user.has_group('base.group_system')`
+        at compile time let whichever user warmed the cache decide for everyone:
+        with an administrator first, a plain internal user was served the module's
+        name, id and display name; with a plain user first, the administrator
+        never saw the placeholder at all. The module's `state` was baked in the
+        same way. `_compile_directive_groups` is the pattern this now follows --
+        emit the test, evaluate it per render.
+        """
+        if not self.env.user.has_group('base.group_system'):
+            return
+        module = self.env['ir.module.module'].search([('name', '=', key)])
+        if not module or module.state == 'installed':
+            return
+        yield Markup('<div name="%s" data-oe-type="snippet" data-module-id="%s" data-module-display-name="%s" data-o-image-preview="%s" data-oe-thumbnail="%s" %s %s><section/></div>') % (
+            name,
+            module.id,
+            module.display_name,
+            escape_silent(image_preview),
+            thumbnail,
+            Markup('data-o-group="%s"') % group if group else '',
+            Markup('data-o-label="%s"') % label if label else '',
+        )
 
     def _compile_directive_placeholder(self, el, compile_context, indent):
         el.set('t-att-placeholder', el.attrib.pop('t-placeholder'))
