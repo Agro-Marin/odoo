@@ -69,7 +69,7 @@ class ProductRibbon(models.Model):
     def _get_css_classes(self):
         """
         Return the CSS classes for this ribbon based on style and position.
-        rtype: str
+        :rtype: str
         """
         css_classes = ""
         match self.style:

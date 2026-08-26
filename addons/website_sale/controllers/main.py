@@ -1889,9 +1889,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
     )
     def shop_payment_validate(self, sale_order_id=None, **post):
         """Method that should be called by the server when receiving an update
-        for a transaction. State at this point :
-
-         - UDPATE ME
+        for a transaction.
         """
         if sale_order_id is None:
             order_sudo = request.cart
@@ -1945,7 +1943,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         list_as_website_content=_lt("Shop Confirmation"),
     )
     def shop_payment_confirmation(self, **post):
-        """End of checkout process controller. Confirmation is basically seing
+        """End of checkout process controller. Confirmation shows
         the status of a sale.order. State at this point :
 
          - should not have any context / session info: clean them
@@ -2194,7 +2192,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         return ret
 
     def order_2_return_dict(self, order):
-        """Returns the tracking_cart dict of the order for Google analytics basically defined to be inherited"""
+        """Returns the tracking_cart dict of the order for Google analytics, defined to be inherited"""
         tracking_cart_dict = {
             "transaction_id": order.id,
             "affiliation": order.company_id.name,

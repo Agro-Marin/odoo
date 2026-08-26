@@ -116,7 +116,7 @@ class Cart(PaymentPortal):
             attribute values for the product. Each object contains:
             - `custom_product_template_attribute_value_id`: The custom attribute's id;
             - `custom_value`: The custom attribute's value.
-        :param dict no_variant_attribute_value_ids: The selected non-stored attribute(s), as a list
+        :param list no_variant_attribute_value_ids: The selected non-stored attribute(s), as a list
             of `product.template.attribute.value` ids.
         :param list linked_products: A list of objects representing additional products linked to
             the product added to the cart. Can be combo item or optional products.
