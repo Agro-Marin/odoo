@@ -111,8 +111,6 @@ class TestProductMargin(AccountTestInvoicingCommon):
         )
 
     def test_product_margin(self):
-        """In order to test the product_margin module"""
-
         self.invoices.action_post()
 
         # Sale turnover ( Quantity * Price Subtotal / Quantity)
