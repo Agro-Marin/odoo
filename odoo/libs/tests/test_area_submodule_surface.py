@@ -139,18 +139,29 @@ def _accidental_from_disk(area: str) -> set[str]:
 
 
 def test_accidental_submodule_surface_is_bounded():
-    """37 -> 38: `locale.cardinals_bg`, the Bulgarian numeral implementation.
+    """38 -> 39: `numbers.amount_parse`, the separator-guessing amount reader.
 
-    It moved out of `_monkeypatches/num2words.py`, where 250 lines of language
-    logic were wrapped around a one-line registration. `locale/__init__.py`
-    exports `BulgarianNumerals` and the patch imports the area, so the leaf is
-    accidental surface in the same way `locale.conversions` and
-    `locale.number_format` already are -- one more module on disk that nothing
-    is supposed to import directly.
+    38 was `locale.cardinals_bg`, the Bulgarian numeral implementation, which
+    moved out of `_monkeypatches/num2words.py` where 250 lines of language logic
+    were wrapped around a one-line registration.
+
+    `amount_parse` is the same shape as `numbers.float_utils` beside it: an
+    implementation module whose two functions `numbers/__init__.py` re-exports
+    by name, so the area's contract is unchanged and only the module itself is
+    reachable as `from odoo.libs.numbers import amount_parse`.
+
+    The two alternatives to moving this bound are both worse. Publishing the
+    submodule in `__all__` is what `test_declared_submodule_exports_are_pinned`
+    exists to refuse -- it would make the implementation module part of the
+    area's contract, the opposite of the libs boundary. And a leading underscore
+    would not move the number at all: `_accidental_from_disk` subtracts `__all__`
+    from what is on disk, so `_field_access._fallback` is counted like any other.
+    A legitimate new implementation module therefore costs exactly one unit here,
+    and the bound is meant to be moved with the reason written down.
     """
     total = sum(len(_accidental_from_disk(a)) for a in _areas())
-    assert total <= 38, (
-        f"accidental submodule surface grew to {total} (was 38). Each one is a "
+    assert total <= 39, (
+        f"accidental submodule surface grew to {total} (was 39). Each one is a "
         f"leaf module importable as `from odoo.libs.<area> import <name>`, "
         f"which libs_facade_check cannot see."
     )

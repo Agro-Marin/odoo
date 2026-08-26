@@ -3,10 +3,11 @@ import textwrap
 from pathlib import Path
 
 import pytest
+from _repo_root import find_odoo_root
 
 from . import py_lint
 
-REPO = Path(__file__).resolve().parent.parent.parent
+REPO = find_odoo_root(Path(__file__).resolve(), tool="test_py_lint")
 PY_SCAN = REPO / "odoo" / "addons" / "test_lint" / "tests" / "_py_scan.py"
 
 

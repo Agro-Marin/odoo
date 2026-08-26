@@ -9,9 +9,10 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import patchorder as po
+from _repo_root import find_odoo_root
 
 HERE = Path(__file__).resolve().parent
-ODOO_ROOT = HERE.parent.parent
+ODOO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="test_patchorder")
 
 
 def _js(tmp_path, addon, rel, body):

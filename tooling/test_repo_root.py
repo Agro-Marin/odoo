@@ -1,4 +1,4 @@
-import re
+import ast
 from pathlib import Path
 
 import pytest
@@ -12,6 +12,69 @@ from _repo_root import (
 
 HERE = Path(__file__).resolve()
 ODOO_ROOT = find_odoo_root(HERE, tool="test_repo_root")
+
+
+def _parent_hops(node, known: dict) -> int | None:
+    """How many `.parent` steps `node` is from the file that contains it.
+
+    `Path(__file__).resolve()` is zero. `.parent` adds one and `.parents[n]`
+    adds n + 1, because `p.parents[0]` *is* `p.parent`. A bare name resolves
+    through `known`, which is what lets an intermediate variable be followed.
+    Anything else is not a parent walk and answers None.
+    """
+    if isinstance(node, ast.Name):
+        return known.get(node.id)
+    if isinstance(node, ast.Attribute):
+        if node.attr == "parent":
+            inner = _parent_hops(node.value, known)
+            return None if inner is None else inner + 1
+        if node.attr == "resolve":
+            return _parent_hops(node.value, known)
+        return None
+    if isinstance(node, ast.Call):
+        func = node.func
+        if isinstance(func, ast.Attribute) and func.attr == "resolve":
+            return _parent_hops(func.value, known)
+        name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+        if name == "Path" and len(node.args) == 1:
+            arg = node.args[0]
+            if isinstance(arg, ast.Name) and arg.id == "__file__":
+                return 0
+        return None
+    if isinstance(node, ast.Subscript):
+        value = node.value
+        if not (isinstance(value, ast.Attribute) and value.attr == "parents"):
+            return None
+        index = node.slice
+        if not (isinstance(index, ast.Constant) and isinstance(index.value, int)):
+            return None
+        inner = _parent_hops(value.value, known)
+        return None if inner is None else inner + index.value + 1
+    return None
+
+
+def _lands_on(path: Path, target: Path) -> list[int]:
+    """Line numbers in `path` whose parent walk lands exactly on `target`."""
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except SyntaxError:
+        return []
+
+    known: dict[str, int] = {}
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        name = node.targets[0]
+        hops = _parent_hops(node.value, known)
+        if isinstance(name, ast.Name) and hops is not None:
+            known[name.id] = hops
+
+    hits = set()
+    for node in ast.walk(tree):
+        hops = _parent_hops(node, known)
+        if hops and len(path.parents) >= hops and path.parents[hops - 1] == target:
+            hits.add(node.lineno)
+    return sorted(hits)
 
 
 class TestMarkerWalk:
@@ -139,6 +202,7 @@ class TestEveryToolAgrees:
         ("domain_parity", "check_parity"): "REPO_ROOT",
         ("trace", "stamp"): "ROOT",
         ("patchorder", "patchorder"): "ROOT",
+        ("lint", "py_lint"): "REPO",
     }
 
     def _roots(self):
@@ -188,27 +252,83 @@ class TestEveryToolAgrees:
         assert not offenders, f"private marker walk reintroduced in: {offenders}"
 
     def test_no_tool_counts_parents_to_reach_the_checkout_root(self):
+        """No tool may land on the checkout root by counting parents.
 
-        counted = re.compile(
-            r"""Path\(__file__\)\.resolve\(\)
-                (?:\.parent){3,}          # .parent.parent.parent
-              | Path\(__file__\)\.resolve\(\)\.parents\[\s*([2-9])\s*\]
-            """,
-            re.VERBOSE,
-        )
+        The property is *where the expression lands*, not how many hops it took.
+        A line-regex could only ask the second question, and got both ends of it
+        wrong: it missed the spelling that goes through a variable --
+
+            HERE = Path(__file__).resolve().parent
+            REPO = HERE.parent.parent            # same sin, invisible to a regex
+
+        -- while a fixed hop count cannot be right for every file anyway, since a
+        module one level below `tooling/` reaches the root in two hops and one
+        two levels below needs three. Resolving each binding against its own
+        location answers the question that is actually being asked.
+        """
         offenders = []
         for path in sorted((ODOO_ROOT / "tooling").rglob("*.py")):
             if "__pycache__" in path.parts or path.name == "test_repo_root.py":
                 continue
-            for lineno, line in enumerate(
-                path.read_text(encoding="utf-8").splitlines(), 1
-            ):
-                if counted.search(line.replace("pathlib.", "")):
-                    offenders.append(f"{path.relative_to(ODOO_ROOT)}:{lineno}")
+            offenders.extend(
+                f"{path.relative_to(ODOO_ROOT)}:{lineno}"
+                for lineno in _lands_on(path, ODOO_ROOT)
+            )
         assert not offenders, (
             f"checkout root reached by counting parents in: {offenders} — use "
             f"_repo_root.find_odoo_root(), which is depth-independent and "
             f"raises instead of guessing"
+        )
+
+
+class TestTheSweepSeesEverySpelling:
+    """The sweep above is only worth its runtime if it cannot be evaded.
+
+    Its predecessor could be, by assigning the walk to a name and continuing
+    from there, so every spelling that reaches the checkout root is pinned here
+    against a synthetic tree -- including the two that must NOT be flagged,
+    because a sweep that fails those would push tools away from `.parent` for
+    the directory they legitimately own.
+    """
+
+    @staticmethod
+    def _probe(tmp_path, source):
+        root = tmp_path / "checkout"
+        directory = root / "tooling" / "lint"
+        directory.mkdir(parents=True)
+        (root / ODOO_MARKER).write_text("")
+        probe = directory / "probe.py"
+        probe.write_text(source)
+        return _lands_on(probe, root)
+
+    @pytest.mark.parametrize(
+        "spelling",
+        [
+            "REPO = Path(__file__).resolve().parent.parent.parent",
+            "REPO = Path(__file__).resolve().parents[2]",
+            "HERE = Path(__file__).resolve().parent\nREPO = HERE.parent.parent",
+            "A = Path(__file__).resolve().parent\nB = A.parent\nREPO = B.parent",
+            "REPO = pathlib.Path(__file__).resolve().parent.parent.parent",
+        ],
+    )
+    def test_every_way_of_reaching_the_root_is_caught(self, tmp_path, spelling):
+        assert self._probe(tmp_path, spelling + "\n"), (
+            f"the sweep did not see: {spelling!r}"
+        )
+
+    @pytest.mark.parametrize(
+        "spelling",
+        [
+            "HERE = Path(__file__).resolve().parent",
+            "TOOLING = Path(__file__).resolve().parents[1]",
+            "SIBLING = Path(__file__).resolve().parent / 'data'",
+        ],
+    )
+    def test_a_walk_that_stops_short_of_the_root_is_left_alone(
+        self, tmp_path, spelling
+    ):
+        assert not self._probe(tmp_path, spelling + "\n"), (
+            f"the sweep flagged a walk that does not reach the root: {spelling!r}"
         )
 
 
