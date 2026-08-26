@@ -13,7 +13,8 @@ class Cloc(DatabaseCommand):
         in Python, Javascript or XML. This can be used as rough metric for
         pricing maintenance of customizations.
 
-        It has two modes of operation, either by providing a path:
+        It has two modes of operation, which can be combined in one
+        invocation and are merged into a single report: by providing a path:
 
             odoo-bin cloc -p module_path
 
