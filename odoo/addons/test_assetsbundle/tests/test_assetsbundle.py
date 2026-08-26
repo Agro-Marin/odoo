@@ -20,7 +20,6 @@ from odoo.addons.base.models.assetsbundle import (
     AssetsBundle,
     WebAsset,
     XMLAssetError,
-    _check_rtlcss,
 )
 from odoo.addons.base.models.assetsbundle.common import CompileError
 from odoo.addons.base.models.ir_attachment import IrAttachment
@@ -385,7 +384,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.assertEqual(len(self._any_ira_for_bundle("min.css", rtl=True)), 1)
         self.assertEqual(len(self.bundle.get_attachments("min.css")), 1)
 
-    @unittest.skipUnless(_check_rtlcss(), "rtlcss binary not available")
     def test_15_rtl_invalid_css_generation(self):
         self.bundle = self._get_asset("test_assetsbundle.broken_css", rtl=True)
         with mute_logger("odoo.addons.base.models.assetsbundle"):
