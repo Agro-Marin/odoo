@@ -343,7 +343,6 @@ class WebsiteMenu(models.Model):
 
         return False
 
-    # would be better to take a menu_id as argument
     @api.model
     def get_tree(self, website_id, menu_id=None):
         website = self.env["website"].browse(website_id)
