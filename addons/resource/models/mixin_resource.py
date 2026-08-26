@@ -165,7 +165,7 @@ class MixinResource(models.AbstractModel):
         `domain` is used in order to recognise the leaves to take,
         None means default value ('time_type', '=', 'leave')
 
-        Returns a dict {'days': n, 'hours': h} containing the
+        Returns {record id: {'days': n, 'hours': h}} containing the
         quantity of working time expressed as days and as hours.
         """
         records_per_resource = self._records_per_resource()
@@ -254,8 +254,8 @@ class MixinResource(models.AbstractModel):
         `domain` is used in order to recognise the leaves to take,
         None means default value ('time_type', '=', 'leave')
 
-        Returns a dict {'days': n, 'hours': h} containing the number of leaves
-        expressed as days and as hours.
+        Returns {record id: {'days': n, 'hours': h}} containing the number of
+        leaves expressed as days and as hours.
         """
         records_per_resource = self._records_per_resource()
         result = {}
@@ -322,7 +322,7 @@ class MixinResource(models.AbstractModel):
         `domain` is used in order to recognise the leaves to take,
         None means default value ('time_type', '=', 'leave')
 
-        Returns a list of tuples (day, hours) for each day
+        Returns {record id: [(day, hours), ...]} for each day
         containing at least an attendance.
         """
         result = {}
