@@ -216,7 +216,7 @@ class Domain:
     def _opt_model_name(self) -> str | None:
         return self._opt[1]
 
-    def __new__(cls, *args: object, internal: bool = False) -> Domain:  # noqa: PYI034  see comment above
+    def __new__(cls, *args: object, internal: bool = False) -> Domain:  # noqa: PYI034  can return an existing Domain, _TRUE_DOMAIN, _FALSE_DOMAIN or a DomainCondition, not always an instance of cls, so Self would be wrong
         if len(args) > 1:
             if isinstance(args[0], str):
                 return DomainCondition(*args).checked()
@@ -784,7 +784,7 @@ class DomainCondition(Domain):
     operator: str
     value: typing.Any
 
-    def __new__(cls, field_expr: str, operator: str, value: object) -> DomainCondition:  # noqa: PYI034  see Domain.__new__
+    def __new__(cls, field_expr: str, operator: str, value: object) -> DomainCondition:  # noqa: PYI034  overrides Domain.__new__, whose return type is deliberately not Self (see its noqa)
         self = object.__new__(cls)
         object.__setattr__(self, "field_expr", field_expr)
         object.__setattr__(self, "operator", operator)
