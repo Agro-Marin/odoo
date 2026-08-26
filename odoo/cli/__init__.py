@@ -20,5 +20,10 @@ from .command import (
     odoo_env,
 )
 
+#: Written only by :func:`main`, once dispatch has picked a command — never
+#: by a ``Command`` subclass instantiated/run directly. Code that reads
+#: either global (``odoo/tests/common.py``, ``odoo/tests/shell.py``) sees a
+#: stale/default value on such a direct-invocation path; tests that bypass
+#: ``main()`` (e.g. ``Start().run([...])``) must patch these explicitly.
 COMMAND: str | None = None
 BOOTSTRAP_ADDONS_PATH: str | None = None
