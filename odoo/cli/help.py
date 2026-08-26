@@ -29,11 +29,25 @@ class Help(Command):
         Use '{prog_name} <command> --help' for other individual commands options.
     """)
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.parser.add_argument(
+            "command",
+            nargs="?",
+            metavar="COMMAND",
+            help="show this command's own --help instead of the full list",
+        )
+
     def run(self, args: list[str]) -> None:
-        if args and Command.is_valid_name(args[0]):
+        # Routed through self.parser (not a bare `args[0]` check) so `-h`/
+        # `--help` get argparse's own usage instead of being indistinguishable
+        # from the bare command list, and a stray extra argument is rejected
+        # instead of silently discarded.
+        parsed = self.parser.parse_args(args)
+        if parsed.command and Command.is_valid_name(parsed.command):
             # `odoo-bin help <command>` used to print this list, i.e. answer a
             # question about one command with the index of all of them.
-            return self.run_command_help(args[0])
+            return self.run_command_help(parsed.command)
 
         load_internal_commands()
         load_addons_commands()
