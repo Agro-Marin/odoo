@@ -471,9 +471,16 @@ class ChromeBrowser:
         ws = websocket.create_connection(
             ws_url, enable_multithread=True, suppress_origin=True
         )
-        if ws.getstatus() != 101:
-            raise InfrastructureUnavailable("Cannot connect to chrome dev tools")
-        ws.settimeout(0.01)
+        # The caller only assigns self.ws once this returns, and stop()'s socket
+        # cleanup is gated on hasattr(self, "ws"), so anything that raises
+        # between here and the return leaks a live connection nobody can reach.
+        try:
+            if ws.getstatus() != 101:
+                raise InfrastructureUnavailable("Cannot connect to chrome dev tools")
+            ws.settimeout(0.01)
+        except BaseException:
+            ws.close()
+            raise
         return ws
 
     def _receive(self, dbname: str) -> None:
