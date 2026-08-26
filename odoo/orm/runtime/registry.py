@@ -456,7 +456,7 @@ class Registry(
                     self.field_depends_context.pop(field, None)
 
                     done.add(field)
-                    todo.extend(self.field_setup_dependents.pop(field, ()))  # noqa: B909  see comment above
+                    todo.extend(self.field_setup_dependents.pop(field, ()))  # noqa: B909  todo is a worklist: appending newly discovered dependents here is how they get processed later in this same loop
 
             self.many2one_company_dependents.clear()
 
