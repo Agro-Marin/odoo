@@ -2481,27 +2481,45 @@ class Base_ImportImport(models.TransientModel):
                     },
                 }
         """
-        # add possible selection values into our fallback dictionary for fields of type "selection"
-        for field_string in fallback_values:
-            if fallback_values[field_string]["field_type"] != "selection":
-                continue
-            field_path = field_string.split("/")
-            target_field = field_path[-1]
-            target_model = self.env[fallback_values[field_string]["field_model"]]
+        # What counts as "a value this field accepts" is `ir.fields.converter`'s
+        # answer, not a second list kept here. This used to build
+        #
+        #     selection_values = [str(value).lower() for _key, value in selection]
+        #
+        # where `value` is the LABEL -- so a cell carrying the field's own
+        # stored value was "invalid" and got replaced by the fallback, silently,
+        # even though the converter downstream accepts it. 30 stored writable
+        # selection fields in a `base` + `base_import` registry have at least
+        # one value the labels do not cover, and `ir.sequence.implementation`
+        # imported `no_gap` as `standard` the moment a fallback was configured
+        # for the column. Asking the converter also picks up the labels of every
+        # installed language, which it accepts and this never did.
+        converter = self.env["ir.fields.converter"]
+        for field_string, fallback in fallback_values.items():
+            target_field = field_string.split("/")[-1]
+            target_model = self.env[fallback["field_model"]]
+            field = target_model._fields.get(target_field)
 
+            if fallback["field_type"] == "boolean":
+                trues, falses = converter._get_boolean_tokens()
+                fallback["accepted_values"] = trues | falses
+                continue
+            if fallback["field_type"] != "selection":
+                continue
+
+            if field is not None and field.type == "selection":
+                fallback["accepted_values"] = frozenset(
+                    converter._get_selection_index(field)
+                )
+                continue
             # A Properties sub-column ("<field>.<property>") is not a field of
-            # the model, so fields_get returns nothing for it and indexing the
-            # result raised KeyError -- an HTTP 500 rather than an import error.
-            # The client already sends the selection for those (it reads it off
-            # the field tree), so honour that and only fall back to fields_get.
-            description = (
-                target_model.fields_get([target_field]).get(target_field) or {}
+            # the model, so there is nothing to ask the converter about. The
+            # client already sends the selection for those (it reads it off the
+            # field tree), so honour that.
+            selection = fallback.get("selection") or []
+            fallback["accepted_values"] = frozenset(
+                str(token).lower() for pair in selection for token in pair
             )
-            selection = description.get("selection")
-            if selection is None:
-                selection = fallback_values[field_string].get("selection") or []
-            selection_values = [str(value).lower() for _key, value in selection]
-            fallback_values[field_string]["selection_values"] = selection_values
 
         # check fallback values
         for record_index, records in enumerate(input_file_data):
@@ -2516,20 +2534,14 @@ class Base_ImportImport(models.TransientModel):
                     value = self._stringify_date_like_objects(
                         value, self.env.context.get("import_options", {})
                     )
-                    if fallback_values[field]["field_type"] == "boolean":
-                        value = (
-                            value
-                            if value.lower() in ("0", "1", "true", "false")
-                            else fallback_value
-                        )
-                    elif (
-                        fallback_values[field]["field_type"] == "selection"
-                        and value.lower()
-                        not in fallback_values[field]["selection_values"]
-                    ):
-                        value = (
-                            fallback_value if fallback_value != "skip" else None
-                        )  # don't set any value if we skip
+                    # Only boolean and selection get an accept-list; for any
+                    # other type the cell stands, as it always has. Indexing
+                    # unconditionally here would turn a client sending a third
+                    # field_type into a KeyError, and so into an HTTP 500.
+                    accepted = fallback_values[field].get("accepted_values")
+                    if accepted is not None and value.lower() not in accepted:
+                        # "skip" means leave the cell empty rather than guess
+                        value = fallback_value if fallback_value != "skip" else None
 
                     input_file_data[record_index][column_index] = value
 

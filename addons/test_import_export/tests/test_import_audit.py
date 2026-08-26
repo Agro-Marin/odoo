@@ -9,6 +9,7 @@ not an exception": every one of them used to escape ``execute_import`` -- which
 catches only :class:`ImportValidationError` -- and surface as an HTTP 500.
 """
 
+import contextlib
 import datetime
 import io
 import unittest
@@ -248,6 +249,140 @@ class TestSpreadsheetDateCells(ImportAuditCommon):
             },
         )
         self.assertEqual(data, [["a"]], "unmatched value should take the fallback")
+
+    def test_a_stored_selection_value_is_not_treated_as_invalid(self):
+        """The accept-list was built from the LABELS:
+
+            selection_values = [str(value).lower() for _key, value in selection]
+
+        where `value` is the label. A cell carrying the field's own stored value
+        was therefore "invalid" and was replaced by the fallback -- silently, and
+        even though the converter downstream accepts it. `ir.sequence` imported
+        `no_gap` as `standard` the moment a fallback was configured.
+        """
+        wizard = self._wizard("ir.sequence")
+        data = wizard._handle_fallback_values(
+            ["implementation"],
+            [["no_gap"], ["Standard"], ["not_a_value"]],
+            {
+                "implementation": {
+                    "fallback_value": "standard",
+                    "field_model": "ir.sequence",
+                    "field_type": "selection",
+                }
+            },
+        )
+        self.assertEqual(
+            data,
+            [["no_gap"], ["Standard"], ["standard"]],
+            "a stored value and a label both stand; only the third is invalid",
+        )
+
+    def test_every_stored_selection_value_is_accepted_by_the_fallback_check(self):
+        """The check and `ir.fields.converter` must not disagree about what is
+        valid. They did: 30 stored, writable selection fields in this registry
+        have at least one value the labels do not cover.
+        """
+        wizard = self._wizard("res.partner")
+        converter = self.env["ir.fields.converter"]
+        rejected = []
+        for model_name in self.env.registry.models:
+            model = self.env[model_name]
+            if model._abstract or model._transient:
+                continue
+            for fname, field in model._fields.items():
+                if field.type != "selection" or not field.store or field.readonly:
+                    continue
+                selection = None
+                with contextlib.suppress(Exception):
+                    selection = field._description_selection(self.env)
+                if not selection:
+                    continue
+                values = [v for v, _l in selection if isinstance(v, str) and v]
+                if not values:
+                    continue
+                accepted = frozenset(converter._get_selection_index(field))
+                rejected += [
+                    (model_name, fname, v) for v in values if v.lower() not in accepted
+                ]
+        self.assertFalse(
+            rejected, f"stored values the fallback check would replace: {rejected[:10]}"
+        )
+        # and the wiring actually puts that set where the check reads it
+        fallback = {
+            "implementation": {
+                "fallback_value": "standard",
+                "field_model": "ir.sequence",
+                "field_type": "selection",
+            }
+        }
+        wizard._handle_fallback_values(["implementation"], [["no_gap"]], fallback)
+        self.assertIn("no_gap", fallback["implementation"]["accepted_values"])
+
+    def test_a_boolean_token_the_converter_accepts_is_not_replaced(self):
+        """The boolean branch tested against a hard-coded
+
+            ("0", "1", "true", "false")
+
+        while the converter also accepts `yes`/`no` and every installed
+        language's translations of all four. A cell saying `yes` was replaced by
+        the fallback -- so `active,yes` with a `false` fallback archived the
+        record the file asked to keep.
+        """
+        wizard = self._wizard("res.partner")
+        fallback = {
+            "active": {
+                "fallback_value": "false",
+                "field_model": "res.partner",
+                "field_type": "boolean",
+            }
+        }
+        data = wizard._handle_fallback_values(
+            ["active"],
+            [["yes"], ["no"], ["1"], ["true"], ["maybe"]],
+            fallback,
+        )
+        self.assertEqual(
+            data,
+            [["yes"], ["no"], ["1"], ["true"], ["false"]],
+            "only the token the converter cannot read takes the fallback",
+        )
+        trues, falses = self.env["ir.fields.converter"]._get_boolean_tokens()
+        self.assertEqual(fallback["active"]["accepted_values"], trues | falses)
+
+    def test_a_fallback_on_a_third_field_type_leaves_the_cell_alone(self):
+        """Only boolean and selection get an accept-list. Indexing it
+        unconditionally would turn a client sending any other `field_type` into
+        a KeyError, which `execute_import` does not catch -- an HTTP 500.
+        """
+        wizard = self._wizard("res.partner")
+        data = wizard._handle_fallback_values(
+            ["name"],
+            [["Acme"]],
+            {
+                "name": {
+                    "fallback_value": "x",
+                    "field_model": "res.partner",
+                    "field_type": "char",
+                }
+            },
+        )
+        self.assertEqual(data, [["Acme"]])
+
+    def test_skip_leaves_a_genuinely_invalid_cell_empty(self):
+        wizard = self._wizard("ir.sequence")
+        data = wizard._handle_fallback_values(
+            ["implementation"],
+            [["no_gap"], ["not_a_value"]],
+            {
+                "implementation": {
+                    "fallback_value": "skip",
+                    "field_model": "ir.sequence",
+                    "field_type": "selection",
+                }
+            },
+        )
+        self.assertEqual(data, [["no_gap"], [None]])
 
 
 class TestNameColumn(ImportAuditCommon):
