@@ -12,7 +12,7 @@ class ResConfigSettings(models.TransientModel):
         stored in the old cloud storage provider cannot be fetched. Please
         migrate those cloud storage blobs and the url field of their
         ir.attachment records before change.
-    cloud_storage_mim_file_size: a soft limit for the file size that can be
+    cloud_storage_min_file_size: a soft limit for the file size that can be
         uploaded as the cloud storage attachments for web client.
     """
 
