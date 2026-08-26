@@ -86,14 +86,20 @@ class TagsSelector:
             tag, module, klass, method, file_path = test_filter
             if tag and tag not in test_tags:
                 return False
-            if file_path:
-                if not file_path.endswith(test_module_path):
-                    return False
-            elif module and module != test_module:
+            if file_path and not file_path.endswith(test_module_path):
+                return False
+            # Checked on its own, not as the "else" of file_path: the grammar
+            # lets one spec carry both segments ("/web/tests/test_x.py/base"
+            # parses as file_path + module), and hanging this off the elif meant
+            # the module constraint was silently dropped whenever a file path
+            # was also given.
+            if module and module != test_module:
                 return False
             if klass and klass != test_class:
                 return False
-            return not (method and test_method and method != test_method)
+            if method and test_method and method != test_method:
+                return False
+            return True
 
         if any(_is_matching(test_filter) for test_filter in self.exclude):
             return False
