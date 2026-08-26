@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 else:
     Environment = Any
 
+_MODNAME_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
+
 
 class Scaffold(Command):
     """Generates an Odoo module skeleton."""
@@ -59,9 +61,9 @@ class Scaffold(Command):
 
         try:
             params = args.template.parse_params(args.name)
+            modname = args.template.modname_for(args.name, params)
         except ValueError as err:
             parser.error(str(err))
-        modname = args.template.modname_for(args.name, params)
         dest = directory(args.dest, create=True)
         if not args.force and (dest / modname).exists():
             parser.error(f"{dest / modname} already exists; pass --force to overwrite it")
@@ -205,9 +207,20 @@ class Template:
         return convention.parse(name)
 
     def modname_for(self, name: str, params: dict[str, str]) -> str:
-        """Resolve the on-disk module directory name from ``name``/``params``."""
+        """Resolve the on-disk module directory name from ``name``/``params``.
+
+        :raises ValueError: if the resolved name is not a valid Odoo module
+            name (a valid Python identifier `odoo.addons.<name>` can import)
+        """
         convention = NAMING_CONVENTIONS.get(self.id, DEFAULT_NAMING)
-        return convention.modname(name, params)
+        modname = convention.modname(name, params)
+        if not _MODNAME_RE.match(modname):
+            msg = (
+                f"{modname!r} is not a valid module name: expected "
+                f"{_MODNAME_RE.pattern!r} (name given: {name!r})"
+            )
+            raise ValueError(msg)
+        return modname
 
     def render_to(
         self, modname: str, directory: Path, params: dict[str, str] | None = None
