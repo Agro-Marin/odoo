@@ -125,23 +125,55 @@ class ServerHandle:
     def log_text(self):
         return Path(self.logfile).read_text(encoding="utf-8", errors="replace")
 
-    def wait_for_log(self, needle, timeout=60):
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            if needle in self.log_text():
-                return True
-            time.sleep(0.1)
-        return False
-
     def children(self):
-        """Live direct children (prefork workers, the evented subprocess)."""
+        """Direct children (prefork workers, the evented subprocess, zombies)."""
         try:
             return psutil.Process(self.proc.pid).children(recursive=False)
         except psutil.NoSuchProcess:
             return []
 
-    def worker_pids(self):
-        return {c.pid for c in self.children() if c.is_running()}
+    def http_workers(self):
+        """Live forked workers: not the evented child, and not a zombie.
+
+        The evented long-poller is a ``Popen`` of ``odoo-bin evented``, so it is
+        a child too; it is excluded by its command line rather than by counting,
+        which would silently drift if the master ever spawned something else.
+
+        Zombies are excluded DELIBERATELY and separately — see
+        :meth:`zombie_children`.  Two test modules used to hand-roll this and got
+        that exclusion by accident: ``cmdline()`` on a zombie raises
+        ``psutil.ZombieProcess``, which is a SUBCLASS of ``psutil.NoSuchProcess``,
+        so a bare ``except psutil.NoSuchProcess`` dropped them without saying so.
+        A count built that way cannot tell "reaped and replaced" from "left
+        defunct and replaced", which is the property the supervision suite exists
+        to check.
+        """
+        out = []
+        for child in self.children():
+            try:
+                if child.status() == psutil.STATUS_ZOMBIE:
+                    continue
+                if "evented" not in " ".join(child.cmdline()):
+                    out.append(child)
+            except psutil.NoSuchProcess, psutil.AccessDenied:
+                continue
+        return out
+
+    def zombie_children(self):
+        """Children that exited and nobody reaped.
+
+        The master is the only process that can reap them, so a supervisor that
+        respawns without reaping leaks a process-table entry per recycle — over a
+        long uptime with ``limit_request`` recycling, unbounded.
+        """
+        out = []
+        for child in self.children():
+            try:
+                if child.status() == psutil.STATUS_ZOMBIE:
+                    out.append(child.pid)
+            except psutil.NoSuchProcess:
+                continue
+        return out
 
     def wait_until(self, predicate, timeout=30, interval=0.2):
         deadline = time.monotonic() + timeout

@@ -14,31 +14,12 @@ defunct, and the server keeps serving throughout.
 
 import os
 import signal
-import time
 
-import psutil
 import pytest
 
 from .conftest import requires_pg, requires_posix
 
 WORKERS = 2
-
-
-def _http_workers(srv):
-    """Direct children that are forked workers, not the evented subprocess.
-
-    The evented long-poller is a ``Popen`` of ``odoo-bin evented``, so it is a
-    child too; it is excluded by its command line rather than by counting, which
-    would silently drift if the master ever spawned something else.
-    """
-    out = []
-    for child in srv.children():
-        try:
-            if "evented" not in " ".join(child.cmdline()):
-                out.append(child)
-        except psutil.NoSuchProcess, psutil.AccessDenied:
-            continue
-    return out
 
 
 @requires_pg
@@ -47,14 +28,14 @@ class TestPreforkReplacesAKilledWorker:
     @pytest.fixture
     def prefork(self, server):
         srv = server("--workers", str(WORKERS))
-        assert srv.wait_until(lambda: len(_http_workers(srv)) == WORKERS, timeout=60), (
+        assert srv.wait_until(lambda: len(srv.http_workers()) == WORKERS, timeout=60), (
             f"master did not reach a population of {WORKERS}; "
             f"children: {[c.pid for c in srv.children()]}"
         )
         return srv
 
     def test_population_converges(self, prefork):
-        assert len(_http_workers(prefork)) == WORKERS
+        assert len(prefork.http_workers()) == WORKERS
         assert prefork.is_serving()
 
     def test_a_sigkilled_worker_is_replaced(self, prefork):
@@ -63,18 +44,18 @@ class TestPreforkReplacesAKilledWorker:
         SIGKILL, not SIGTERM: uncatchable, so this tests the master's reaping
         and respawn rather than any cooperative shutdown path in the worker.
         """
-        before = {w.pid for w in _http_workers(prefork)}
+        before = {w.pid for w in prefork.http_workers()}
         victim = min(before)
         os.kill(victim, signal.SIGKILL)
 
         replaced = prefork.wait_until(
             lambda: (
-                len(_http_workers(prefork)) == WORKERS
-                and victim not in {w.pid for w in _http_workers(prefork)}
+                len(prefork.http_workers()) == WORKERS
+                and victim not in {w.pid for w in prefork.http_workers()}
             ),
             timeout=60,
         )
-        after = {w.pid for w in _http_workers(prefork)}
+        after = {w.pid for w in prefork.http_workers()}
         assert replaced, (
             f"master did not replace worker {victim}: population went "
             f"{sorted(before)} -> {sorted(after)}"
@@ -88,18 +69,19 @@ class TestPreforkReplacesAKilledWorker:
         respawns without reaping leaks a process-table entry per recycle — over
         a long uptime with ``limit_request`` recycling, that is unbounded.
         """
-        victim = min(w.pid for w in _http_workers(prefork))
+        victim = min(w.pid for w in prefork.http_workers())
         os.kill(victim, signal.SIGKILL)
         assert prefork.wait_until(
-            lambda: victim not in {w.pid for w in _http_workers(prefork)}, timeout=60
+            lambda: victim not in {w.pid for w in prefork.http_workers()}, timeout=60
         )
-        # Let the master finish its reap cycle (it polls on a ~4s beat).
-        time.sleep(1.0)
-        zombies = []
-        for child in prefork.children():
-            try:
-                if child.status() == psutil.STATUS_ZOMBIE:
-                    zombies.append(child.pid)
-            except psutil.NoSuchProcess:
-                continue
-        assert not zombies, f"unreaped worker(s) left defunct: {zombies}"
+        # Wait on the CONDITION, not on a duration.  This was `time.sleep(1.0)`
+        # under a comment saying the master polls on a ~4s beat — under-waiting
+        # by its own reasoning.  (Measured, the master reaps on SIGCHLD in ~6ms,
+        # so the sleep was also 160x longer than needed; a condition wait is
+        # right at both ends.)
+        reaped = prefork.wait_until(lambda: not prefork.zombie_children(), timeout=30)
+        assert reaped, (
+            f"unreaped worker(s) left defunct: {prefork.zombie_children()}. The "
+            f"master is the only process that can reap them, so this leaks a "
+            f"process-table entry per recycle."
+        )

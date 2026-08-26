@@ -27,8 +27,6 @@ import socket
 import threading
 import time
 
-import psutil
-
 from .conftest import requires_pg, requires_posix
 
 WORKERS = 2
@@ -39,7 +37,7 @@ RELOAD_TIMEOUT_S = 60.0
 
 
 def _child_pids(srv):
-    """Direct children that are not the evented subprocess.
+    """Worker pids, via the shared ``ServerHandle`` helper.
 
     At boot this is exactly the worker set.  During a reload the outgoing
     master's drain process is a fork of the master and therefore shares its
@@ -47,14 +45,7 @@ def _child_pids(srv):
     is why the completion signal below keys on the ORIGINAL pids disappearing
     rather than on any count.
     """
-    out = set()
-    for child in srv.children():
-        try:
-            if "evented" not in " ".join(child.cmdline()):
-                out.add(child.pid)
-        except psutil.NoSuchProcess, psutil.AccessDenied:
-            continue
-    return out
+    return {worker.pid for worker in srv.http_workers()}
 
 
 class _Poller(threading.Thread):
