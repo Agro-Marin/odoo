@@ -14,24 +14,27 @@ class SmsTracker(models.Model):
     Note: Only admins/system user should need to access (a fortiori modify) these technical
       records so no "sudo" is used nor should be required here.
     """
-    _name = 'sms.tracker'
+
+    _name = "sms.tracker"
     _description = "Link SMS to mailing/sms tracking models"
 
     SMS_STATE_TO_NOTIFICATION_STATUS = {
-        'canceled': 'canceled',
-        'process': 'process',
-        'error': 'exception',
-        'outgoing': 'ready',
-        'sent': 'sent',
-        'pending': 'pending',
+        "canceled": "canceled",
+        "process": "process",
+        "error": "exception",
+        "outgoing": "ready",
+        "sent": "sent",
+        "pending": "pending",
     }
 
-    sms_uuid = fields.Char('SMS uuid', required=True)
-    mail_notification_id = fields.Many2one('mail.notification', ondelete='cascade', index='btree_not_null')
+    sms_uuid = fields.Char("SMS uuid", required=True)
+    mail_notification_id = fields.Many2one(
+        "mail.notification", ondelete="cascade", index="btree_not_null"
+    )
 
     _sms_uuid_unique = models.Constraint(
-        'unique(sms_uuid)',
-        'A record for this UUID already exists',
+        "unique(sms_uuid)",
+        "A record for this UUID already exists",
     )
 
     def _action_update_from_provider_error(self, provider_error):
@@ -40,42 +43,58 @@ class SmsTracker(models.Model):
             If provided, notification values will be derived from it.
             (see ``_get_tracker_values_from_provider_error``)
         """
-        failure_reason = self.env.context.get("sms_known_failure_reason")  # TODO RIGR in master: pass as param instead of context
-        failure_type = f'sms_{provider_error}'
+        failure_reason = self.env.context.get(
+            "sms_known_failure_reason"
+        )  # TODO RIGR in master: pass as param instead of context
+        failure_type = f"sms_{provider_error}"
         error_status = None
-        if failure_type not in self.env['sms.sms'].DELIVERY_ERRORS:
-            failure_type = 'unknown'
+        if failure_type not in self.env["sms.sms"].DELIVERY_ERRORS:
+            failure_type = "unknown"
             failure_reason = failure_reason or provider_error
-        elif failure_type in self.env['sms.sms'].BOUNCE_DELIVERY_ERRORS:
+        elif failure_type in self.env["sms.sms"].BOUNCE_DELIVERY_ERRORS:
             error_status = "bounce"
 
-        self._update_sms_notifications(error_status or 'exception', failure_type=failure_type, failure_reason=failure_reason)
+        self._update_sms_notifications(
+            error_status or "exception",
+            failure_type=failure_type,
+            failure_reason=failure_reason,
+        )
         return error_status, failure_type, failure_reason
 
-    def _action_update_from_sms_state(self, sms_state, failure_type=False, failure_reason=False):
+    def _action_update_from_sms_state(
+        self, sms_state, failure_type=False, failure_reason=False
+    ):
         notification_status = self.SMS_STATE_TO_NOTIFICATION_STATUS[sms_state]
-        self._update_sms_notifications(notification_status, failure_type=failure_type, failure_reason=failure_reason)
+        self._update_sms_notifications(
+            notification_status,
+            failure_type=failure_type,
+            failure_reason=failure_reason,
+        )
 
-    def _update_sms_notifications(self, notification_status, failure_type=False, failure_reason=False):
+    def _update_sms_notifications(
+        self, notification_status, failure_type=False, failure_reason=False
+    ):
         # canceled is a state which means that the SMS sending order should not be sent to the SMS service.
         # `process`, `pending` are sent to IAP which is not revertible (as `sent` which means "delivered").
         notifications_statuses_to_ignore = {
-            'canceled': ['canceled', 'process', 'pending', 'sent'],
-            'ready': ['ready', 'process', 'pending', 'sent'],
-            'process': ['process', 'pending', 'sent'],
-            'pending': ['pending', 'sent'],
-            'bounce': ['bounce', 'sent'],
-            'sent': ['sent'],
-            'exception': ['exception'],
+            "canceled": ["canceled", "process", "pending", "sent"],
+            "ready": ["ready", "process", "pending", "sent"],
+            "process": ["process", "pending", "sent"],
+            "pending": ["pending", "sent"],
+            "bounce": ["bounce", "sent"],
+            "sent": ["sent"],
+            "exception": ["exception"],
         }[notification_status]
         notifications = self.mail_notification_id.filtered(
             lambda n: n.notification_status not in notifications_statuses_to_ignore
         )
         if notifications:
-            notifications.write({
-                'notification_status': notification_status,
-                'failure_type': failure_type,
-                'failure_reason': failure_reason,
-            })
-            if not self.env.context.get('sms_skip_msg_notification'):
+            notifications.write(
+                {
+                    "notification_status": notification_status,
+                    "failure_type": failure_type,
+                    "failure_reason": failure_reason,
+                }
+            )
+            if not self.env.context.get("sms_skip_msg_notification"):
                 notifications.mail_message_id._notify_message_notification_update()
