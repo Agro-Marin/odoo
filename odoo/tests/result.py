@@ -178,7 +178,16 @@ class OdooTestResult:
         # a clean pass over a suite that never executed.
         self.infrastructure_skipped += 1
         if REQUIRE_INFRA:
-            self.errors_count += 1
+            if self._soft_fail:
+                # A non-final auto-retry attempt: record that the attempt failed
+                # without booking a permanent error, exactly as addError and
+                # addFailure do. Counting here made an infra skip on the first
+                # attempt fail the run even when a later attempt succeeded --
+                # and because this branch logs at ERROR the retry loop never
+                # broke early, so the count was incurred once per attempt.
+                self.had_failure = True
+            else:
+                self.errors_count += 1
             self.log(
                 logging.ERROR,
                 "INFRASTRUCTURE UNAVAILABLE %s : %s (ODOO_REQUIRE_INFRA=1)",
