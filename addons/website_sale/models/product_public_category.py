@@ -151,7 +151,7 @@ class ProductPublicCategory(models.Model):
                 )
             ]
         ).get_result_ids()
-        # Note that if the `value` is False, the ORM will invert the domain below
+        # If the `value` is False, the ORM will invert the domain below
         return [
             "|",
             ("id", "in", published_categ_ids),

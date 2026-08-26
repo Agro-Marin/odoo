@@ -384,6 +384,7 @@ class SaleOrder(models.Model):
 
         :param product_id: product id, as a `product.product` id.
         :param quantity: the quantity to add to the cart.
+        :param uom_id: the unit of measure of the added quantity, as a `uom.uom` id.
         :param kwargs: Additional parameters given to deeper method calls.
         :return: values used by the cart service to give feedback to the customer.
         """
@@ -444,8 +445,6 @@ class SaleOrder(models.Model):
         :param int product_id: the product being added/removed, as a `product.product` id
         :param int linked_line_id: optional, the parent line (for optional products), as a
             `sale.order.line` id
-        :param list optional_product_ids: optional, the optional products of the line, as a list
-            of `product.product` ids
         :param list no_variant_attribute_value_ids: list of `product.template.attribute.value` ids
             whose attribute is configured as `no_variant`
         :param dict kwargs: unused parameters, maybe used in overrides or other cart update methods
