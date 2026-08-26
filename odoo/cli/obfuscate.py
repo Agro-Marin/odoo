@@ -737,6 +737,8 @@ class Obfuscate(DatabaseCommand):
     def _unobfuscate(
         self, opt: argparse.Namespace, pwd: str, tables: dict[str, set[str]]
     ) -> None:
+        if not opt.yes:
+            self.confirm_not_secure()
         _logger.info("Unobfuscating datas")
         for table, columns in tables.items():
             _logger.info("Unobfuscating table %s", table)
