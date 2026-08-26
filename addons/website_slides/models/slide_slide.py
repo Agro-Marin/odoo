@@ -1774,7 +1774,7 @@ class SlideSlide(models.Model):
           OR 'image_url' containing an external link to the thumbnail when 'fetch_image' param is False
         - 'completion_time' matching the video duration
 
-        :param image_url_only: if False, will return 'image_url' instead of binary data
+        :param image_url_only: if True, will return 'image_url' instead of binary data
           Typically used when displaying a slide preview to the end user.
         :return a tuple (values, error) containing the values of the slide and a potential error
           (e.g: 'Video could not be found')"""
