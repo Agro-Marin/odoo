@@ -20,7 +20,7 @@ class LocationSelectorController(Controller):
         Determine the country based on GeoIP or fallback on the order's delivery address' country.
 
         :param int order_id: The sales order, as a `sale.order` id.
-        :param int zip_code: The zip code to look up to.
+        :param str zip_code: The zip code to look up to.
         :return: The close pickup locations data.
         :rtype: dict
         """
