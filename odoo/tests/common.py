@@ -466,11 +466,25 @@ class BaseCase(case.TestCase):
     def setUpClass(cls) -> None:
         def check_remaining_processes() -> None:
             current_process = psutil.Process()
-            children = current_process.children(recursive=False)
+            # recursive: a leaked child's own children are just as leaked, and
+            # reaping only the first generation left them reparented to init.
+            children = current_process.children(recursive=True)
             for child in children:
                 _logger.warning("A child process was found, terminating it: %s", child)
                 child.terminate()
-            psutil.wait_procs(children, timeout=10)
+            _, alive = psutil.wait_procs(children, timeout=10)
+            if alive:
+                # The result used to be discarded, so a child that ignores
+                # SIGTERM was warned about and then leaked while the cleanup
+                # reported success. Same pattern as ChromeBrowser.stop().
+                _logger.warning(
+                    "Killing %d child process(es) that survived terminate(): %s",
+                    len(alive),
+                    ", ".join(str(p) for p in alive),
+                )
+                for child in alive:
+                    child.kill()
+                psutil.wait_procs(alive, timeout=5)
 
         cls.addClassCleanup(check_remaining_processes)
 
