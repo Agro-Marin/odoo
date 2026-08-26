@@ -23,14 +23,37 @@
 #     auto_install module has to stay pinned in requirements.txt instead. cbor2
 #     is the one such case and lives there.
 #
-# Do NOT "simplify" chardet away to charset-normalizer: measured on 26 KB of
-# cp1252/latin-1 Mexican Spanish (the shape agromarin marin/bbva_parser.py
-# reads), charset-normalizer picks cp1250 at confidence 1.0 and mangles the text
-# ('º'->'ş', 'ñ'->'ń') on BOTH its detect() shim and its native
-# from_bytes().best(), while chardet answers ISO-8859-1 and round-trips exactly.
-# It also returns 'utf-8' rather than None for undetectable input, which would
-# silently disable the "could not detect the encoding" error in base_import.
-# The pin is held two majors below the current 7.x for that reason.
+# chardet 5.2.0 is held against BOTH a different library and a newer chardet.
+# The corpus for both is the shape agromarin
+# l10n_mx_account_bank_statement_import/readers/bbva.py reads: ~30 KB of
+# cp1252/latin-1 Mexican Spanish, plus the same text in French, German, Polish,
+# Russian and Japanese across cp1250/cp1251/koi8-r/shift_jis/utf-8, and 4 KB of
+# high-entropy bytes that must detect as None.
+#
+# Do NOT "simplify" chardet away to charset-normalizer: it picks cp1250 at
+# confidence 1.0 and mangles the text ('º'->'ş', 'ñ'->'ń') on BOTH its detect()
+# shim and its native from_bytes().best(), while chardet answers ISO-8859-1 and
+# round-trips exactly. It also returns 'utf-8' rather than None for undetectable
+# input, which would silently disable the "could not detect the encoding" error
+# in base_import.
+#
+# Do NOT bump to 7.x either, which is a separate question and was measured
+# separately -- the argument above is about a different package and settles
+# nothing about the version. 7.0.0 rewrote the detector behind compiled wheels
+# and regressed it. Text correctly decoded, of 16 cases:
+#   5.2.0  15/16   undetectable -> None
+#   6.0.0  14/16   undetectable -> None
+#   7.6.0  12/16   undetectable -> 'cp875'
+# 7.6.0 reads French cp1252/latin-1 as koi8-t and the Mexican-Spanish files as
+# CP874, i.e. 'ASOCIACIÓN AGRÍCOLA' -> 'ASOCIACIำN AGRอCOLA' -- the same failure
+# charset-normalizer is rejected for, now inside chardet. Worse, it returns
+# 'cp875' at confidence 0.037 for undetectable bytes instead of None, which is
+# exactly the second defect above: base_import's "Could not detect the file's
+# encoding" error (t24068 F19) stops firing and the file imports as mojibake.
+# 6.0.0 is safe -- it names WINDOWS-1252 where 5.2.0 says the broader
+# ISO-8859-1, and its two misses return None, so they raise rather than corrupt
+# -- but it loses koi8-r, which 5.2.0 gets right, so it buys nothing.
+# Re-measure before moving; do not read "7.x is current" as a reason to.
 chardet==5.2.0  # base_import, mail
 defusedxml==0.7.1  # attachment_indexation, website
 google-auth==2.56.3  # cloud_storage_google
