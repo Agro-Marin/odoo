@@ -321,7 +321,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.assertEqual(version0, version1)
         self.assertEqual(date0, date1)
 
-    def test_11_css_content_invalidation(self):
+    def test_10_css_content_invalidation(self):
         bundle0 = self._get_asset(self.cssbundle_name)
         bundle0.css()
 
@@ -342,7 +342,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
 
         self.assertEqual(len(self._any_ira_for_bundle("min.css")), 1)
 
-    def test_12_css_debug(self):
+    def test_11_css_debug(self):
         debug_bundle = self._get_asset(self.cssbundle_name, debug_assets=True)
         links = debug_bundle.get_links()
         self.assertEqual(links[0], "/web/assets/debug/test_assetsbundle.bundle2.css")
@@ -354,7 +354,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
             "there should be one css asset created in debug mode",
         )
 
-    def test_14_duplicated_css_assets(self):
+    def test_12_duplicated_css_assets(self):
         bundle0 = self._get_asset(self.cssbundle_name)
         bundle0.css()
         self.assertEqual(len(self._any_ira_for_bundle("min.css")), 1)
@@ -367,7 +367,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
         content = bundle0.get_links()
         self.assertIn("test_assetsbundle.bundle2.min.css", content[0])
 
-    def test_15_rtl_css_generation(self):
+    def test_13_rtl_css_generation(self):
         self.bundle = self._get_asset(self.cssbundle_name, rtl=True)
 
         self.assertEqual(len(self._any_ira_for_bundle("min.css", rtl=True)), 0)
@@ -380,14 +380,14 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.assertEqual(len(self._any_ira_for_bundle("min.css", rtl=True)), 1)
         self.assertEqual(len(self.bundle.get_attachments("min.css")), 1)
 
-    def test_15_rtl_invalid_css_generation(self):
+    def test_14_rtl_invalid_css_generation(self):
         self.bundle = self._get_asset("test_assetsbundle.broken_css", rtl=True)
         with mute_logger("odoo.addons.base.models.assetsbundle"):
             self.bundle.css()
         self.assertEqual(len(self.bundle.css_errors), 1)
         self.assertIn("rtlcss: error processing payload", self.bundle.css_errors[0])
 
-    def test_16_ltr_and_rtl_css_access(self):
+    def test_15_ltr_and_rtl_css_access(self):
         ltr_bundle0 = self._get_asset(self.cssbundle_name, debug_assets=False)
         ltr_bundle0.css()
 
@@ -438,7 +438,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
         self.assertEqual(len(css_bundles), 2)
 
-    def test_17_css_bundle_date_invalidation(self):
+    def test_16_css_bundle_date_invalidation(self):
         ltr_bundle0 = self._get_asset(self.cssbundle_name, debug_assets=True)
         ltr_bundle0.css()
         ltr_last_modified0 = ltr_bundle0.get_checksum("css")
@@ -484,7 +484,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
             )
             self.assertEqual(len(css_bundles), 2)
 
-    def test_18_css_bundle_content_invalidation(self):
+    def test_17_css_bundle_content_invalidation(self):
         ltr_bundle0 = self._get_asset(self.cssbundle_name)
         ltr_bundle0.css()
 
@@ -535,7 +535,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
         self.assertEqual(len(css_bundles), 2)
 
-    def test_19_css_in_debug_assets(self):
+    def test_18_css_in_debug_assets(self):
         debug_bundle = self._get_asset(self.cssbundle_name, rtl=True, debug_assets=True)
         content = debug_bundle.get_links()
 
@@ -561,7 +561,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
             "there should be an css assets bundle created in /rtl if user's lang direction is rtl and debug=assets",
         )
 
-    def test_20_external_lib_assets(self):
+    def test_19_external_lib_assets(self):
         html = self.env["ir.ui.view"]._render_template("test_assetsbundle.template2")
 
         bundle = self.env["ir.qweb"]._get_asset_bundle("test_assetsbundle.bundle4")
@@ -588,7 +588,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
             ),
         )
 
-    def test_21_external_lib_assets_debug_mode(self):
+    def test_20_external_lib_assets_debug_mode(self):
         html = self.env["ir.ui.view"]._render_template(
             "test_assetsbundle.template2", {"debug": "assets"}
         )
