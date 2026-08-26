@@ -317,8 +317,11 @@ class Db(Command):
             "list",
             help="List databases visible to this Odoo instance",
             description="Lists the databases this instance can see, one per "
-            "line — the same set the database-manager UI shows, so db_name "
-            "and dbfilter from the config constrain the result.",
+            "line. db_name from the config constrains the result the same "
+            "way it does for the database-manager UI. dbfilter does NOT: "
+            "it is a regex evaluated against an HTTP request host, which "
+            "has no meaning outside a web request, so this command lists "
+            "every database dbfilter would otherwise narrow down.",
         )
         list_parser.set_defaults(func=self.list)
         return list_parser
