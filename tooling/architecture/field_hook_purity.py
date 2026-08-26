@@ -53,6 +53,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import _ast_cache
+import _sources
 import field_hook_naming as fh
 import naming_vocabulary as nv
 from _repo_root import find_odoo_root
@@ -144,7 +145,7 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
             tree = _ast_cache.parse_file(path)
         except SyntaxError, UnicodeDecodeError:
             continue
-        display = str(nv._display(path))
+        display = _sources.display(path, ROOT)
         for model, attr, method, field, line in fh._field_hooks(tree):
             hooks[model, method].add(attr)
             served[model, method].add(field)

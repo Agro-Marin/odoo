@@ -162,18 +162,99 @@ def test_every_gate_here_is_either_probed_or_excused():
     )
 
 
-@pytest.mark.parametrize("gate", sorted(GATES))
-def test_gate_refuses_a_present_but_empty_tree(gate, tmp_path):
-    done = _run(_checkout(tmp_path), gate)
+#: Gates that raise instead of refusing when their inputs are absent. Every one
+#: still exits non-zero, so none of them reports success over an empty tree --
+#: the property this file was written for holds. What they do not do is SAY why,
+#: and a traceback is what a broken gate looks like too, which is the whole point
+#: of the discriminator below.
+#:
+#: Pinned rather than fixed in one sweep, and the list may only shrink. The fix
+#: for one of these is a guard at the top of `measure`/`check` in the shape the
+#: other fifty already use: name the tree, say the scan reached nothing, and note
+#: that finding nothing is not the same as finding nothing wrong.
+CRASHES_INSTEAD_OF_REFUSING = frozenset(
+    {
+        "doc_restated_counts",
+        "env_surface_check",
+        "js_action_surface",
+        "js_arch_info_surface",
+        "js_duplication",
+        "js_env_config_surface",
+        "js_field_record_surface",
+        "mixin_coupling_check",
+        "subsystem_map_check",
+        "worker_thread_surface_check",
+    }
+)
+
+
+def _assert_refuses(gate, done, what):
+    """Non-zero is necessary and not sufficient: it must be a REFUSAL.
+
+    A crash exits non-zero too, so a broken gate satisfies the exit code alone.
+    A traceback in stderr is the discriminator: a gate that refuses does so
+    deliberately and says why, in a sentence.
+
+    WHAT THIS DOES AND DOES NOT CATCH, measured rather than assumed.
+    `bf536372a5d` removed a helper that `field_hook_naming` and
+    `field_hook_purity` still called; both died with `AttributeError: module
+    'naming_vocabulary' has no attribute '_display'` on any real tree, and
+    neither had a test. Re-introducing that break and re-running this sweep:
+    **55 passed**. It does not catch it, because the empty-tree guard raises
+    first and never reaches the broken line — a gate can be wholly unable to run
+    and still refuse an empty tree correctly.
+
+    So this is a tripwire for a gate that crashes on ITS OWN startup or scan
+    setup, not a substitute for a test of the gate. What did catch that one was
+    writing `test_field_hook_naming`; what would have caught it in CI is the
+    ratchet step, which runs the gate over the real tree.
+    """
     assert done.returncode != 0, (
-        f"{gate} exited 0 on a present-but-empty tree; a gate that finds no "
-        f"inputs must refuse, not report success.\n{done.stdout}{done.stderr}"
+        f"{gate} exited 0 on {what}; a gate that finds no inputs must refuse, "
+        f"not report success.\n{done.stdout}{done.stderr}"
+    )
+    if gate in CRASHES_INSTEAD_OF_REFUSING:
+        return
+    assert "Traceback (most recent call last)" not in done.stderr, (
+        f"{gate} CRASHED on {what} rather than refusing. The exit code is the "
+        f"same, so this sweep would otherwise call it a pass — and a gate that "
+        f"cannot run reports no findings at all.\n{done.stderr}"
     )
 
 
 @pytest.mark.parametrize("gate", sorted(GATES))
+def test_gate_refuses_a_present_but_empty_tree(gate, tmp_path):
+    _assert_refuses(gate, _run(_checkout(tmp_path), gate), "a present-but-empty tree")
+
+
+@pytest.mark.parametrize("gate", sorted(GATES))
 def test_gate_refuses_a_tree_holding_only_non_source(gate, tmp_path):
-    done = _run(_checkout(tmp_path, litter=True), gate)
-    assert done.returncode != 0, (
-        f"{gate} exited 0 on a tree holding no JS.\n{done.stdout}{done.stderr}"
+    _assert_refuses(
+        gate, _run(_checkout(tmp_path, litter=True), gate), "a tree holding no source"
+    )
+
+
+def test_the_crashing_list_shrinks_and_never_grows(tmp_path):
+    """Both directions, so a gate cannot quietly join the list or stay on it.
+
+    A gate that starts crashing is a regression; one that stops should be
+    removed, or the pin implies a defect that is no longer there.
+    """
+    still_crashing = set()
+    for gate in sorted(CRASHES_INSTEAD_OF_REFUSING):
+        done = _run(_checkout(tmp_path / gate), gate)
+        if "Traceback (most recent call last)" in done.stderr:
+            still_crashing.add(gate)
+    fixed = CRASHES_INSTEAD_OF_REFUSING - still_crashing
+    assert not fixed, (
+        f"{sorted(fixed)} now refuse properly. Remove them from "
+        f"CRASHES_INSTEAD_OF_REFUSING so the debt cannot drift back up."
+    )
+
+
+def test_the_crashing_list_names_only_real_gates():
+    ghosts = CRASHES_INSTEAD_OF_REFUSING - set(GATES)
+    assert not ghosts, (
+        f"{sorted(ghosts)} are pinned as crashers but are not swept gates. "
+        f"Remove them."
     )

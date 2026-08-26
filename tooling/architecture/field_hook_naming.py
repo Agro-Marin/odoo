@@ -32,6 +32,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import _ast_cache
+import _sources
 import naming_vocabulary as nv
 from _repo_root import find_odoo_root
 
@@ -307,7 +308,7 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
             tree = _ast_cache.parse_file(path)
         except SyntaxError, UnicodeDecodeError:
             continue
-        display = str(nv._display(path))
+        display = _sources.display(path, ROOT)
         for model, attr, method, field, line in _field_hooks(tree):
             seen[model, attr, method].setdefault(field, (display, line))
         for node in ast.walk(tree):
