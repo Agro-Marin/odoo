@@ -32,11 +32,11 @@ class StockPicking(models.Model):
 
     def _auto_init(self):
         """
-        Create related field here, too slow
-        when computing it afterwards through _compute_related.
+        Create the sale_id column here, too slow to backfill afterwards via
+        the stored compute.
 
-        Since group_id.sale_id is created in this module,
-        no need for an UPDATE statement.
+        No UPDATE statement is needed since _compute_sale_id fills it on
+        demand.
         """
         if not column_exists(self.env.cr, "stock_picking", "sale_id"):
             create_column(self.env.cr, "stock_picking", "sale_id", "int4")
