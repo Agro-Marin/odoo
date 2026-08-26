@@ -1696,6 +1696,56 @@ class TestIrCronRunLoopContract(TransactionCase, CronMixinCase):
         self.assertEqual(len(rows), 1, "one row per run, not one per attempt")
         self.assertEqual(rows.done, 2)
 
+    def _count_attempts(self, *, slice_seconds, deadline_seconds, per_attempt):
+        state = {"n": 0}
+
+        def mocked_run(self):
+            state["n"] += 1
+            time.sleep(per_attempt)
+            self.env["ir.cron"]._commit_progress(processed=1, remaining=99)
+
+        self.cron._trigger()
+        self.env.flush_all()
+        with (
+            self.enter_registry_test_mode(),
+            patch.object(ir_cron, "MIN_TIME_PER_JOB", slice_seconds),
+            patch.object(self.registry["ir.actions.server"], "run", mocked_run),
+            self.registry.cursor() as cr,
+        ):
+            deadline = (
+                None
+                if deadline_seconds is None
+                else time.monotonic() + deadline_seconds
+            )
+            self.registry["ir.cron"]._run_job(cr, self._acquire(cr), deadline=deadline)
+        return state["n"]
+
+    def test_the_slice_the_run_count_and_the_pass_deadline_compose(self):
+        self.assertEqual(
+            self._count_attempts(
+                slice_seconds=0.1, deadline_seconds=60, per_attempt=0.02
+            ),
+            MIN_RUNS_PER_JOB,
+            "a job whose attempts are quicker than the slice still gets its "
+            "minimum count, even though the slice ran out first",
+        )
+        self.assertGreater(
+            self._count_attempts(
+                slice_seconds=1, deadline_seconds=60, per_attempt=0.02
+            ),
+            MIN_RUNS_PER_JOB,
+            "and a job with a slice left over keeps going past that minimum: "
+            "the two are a floor and a floor, not a floor and a ceiling",
+        )
+        self.assertLess(
+            self._count_attempts(
+                slice_seconds=0.1, deadline_seconds=0.05, per_attempt=0.02
+            ),
+            MIN_RUNS_PER_JOB,
+            "but the cron pass outranks both -- the minimum count is owed by "
+            "the job's slice, not by the pass",
+        )
+
     def test_direct_trigger_honours_record_rules(self):
         self.env["ir.rule"].create(
             {
