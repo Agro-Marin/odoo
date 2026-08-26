@@ -48,11 +48,22 @@ class SaleOrderLine(models.Model):
                 product_cost, line.product_id.cost_currency_id
             )
 
-    @api.depends("price_subtotal", "product_uom_qty", "purchase_price")
+    @api.depends(
+        "price_subtotal",
+        "price_unit",
+        "product_qty",
+        "purchase_price",
+        "qty_transferred",
+    )
     def _compute_margin(self):
         for line in self:
+            # `product_qty`, `qty_transferred` and `purchase_price` are all in the
+            # LINE's unit -- `_compute_purchase_price` converts the cost into
+            # `product_uom_id` explicitly. `product_uom_qty` is the same quantity
+            # in the product's REFERENCE unit, so pairing it with a per-line-unit
+            # price multiplies the conversion factor in twice.
             # Find alternative calculation when line is added to order from delivery
-            if line.qty_transferred and not line.product_uom_qty:
+            if line.qty_transferred and not line.product_qty:
                 calculated_subtotal = line.price_unit * line.qty_transferred
                 line.margin = calculated_subtotal - (
                     line.purchase_price * line.qty_transferred
@@ -62,7 +73,7 @@ class SaleOrderLine(models.Model):
                 )
             else:
                 line.margin = line.price_subtotal - (
-                    line.purchase_price * line.product_uom_qty
+                    line.purchase_price * line.product_qty
                 )
                 line.margin_percent = (
                     line.price_subtotal and line.margin / line.price_subtotal

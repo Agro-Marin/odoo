@@ -28,9 +28,10 @@ class SaleOrderLine(models.Model):
                 if qty_from_delivery <= 0:
                     purch_price = product.standard_price
                 else:
-                    qty_from_std_price = max(
-                        line.product_uom_qty - qty_from_delivery, 0
-                    )
+                    # both in the line's unit: `qty_transferred` is reconciled
+                    # into `product_uom_id`, and `product_qty` is the ordered
+                    # quantity in that same unit.
+                    qty_from_std_price = max(line.product_qty - qty_from_delivery, 0)
                     purch_price = (
                         qty_from_delivery * price_unit_from_delivery
                         + qty_from_std_price * product.standard_price
@@ -42,7 +43,7 @@ class SaleOrderLine(models.Model):
                     purch_price_uom,
                     product.cost_currency_id,
                 )
-            elif not line.product_uom_qty and line.qty_transferred:
+            elif not line.product_qty and line.qty_transferred:
                 # if line added from delivery and standard price, pass to super
                 line_ids_to_pass.add(line.id)
         return super(

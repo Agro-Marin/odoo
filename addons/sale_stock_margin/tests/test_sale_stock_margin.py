@@ -385,7 +385,9 @@ class TestSaleStockMargin(TestStockValuationCommon):
             subtype_id=self.env["ir.model.data"]._xmlid_to_res_id("mail.mt_comment"),
         )
 
-        self.assertEqual(so.state, "sent")
+        # `sent` is a BOOLEAN in this fork, not a state: `ORDER_STATE` is
+        # draft/done/cancel and `_mark_as_sent` writes `sent=True`.
+        self.assertTrue(so.sent)
         self.assertEqual(so.line_ids[0].purchase_price, 15)
         so.action_confirm()
         self.assertEqual(so.line_ids[0].purchase_price, 15)

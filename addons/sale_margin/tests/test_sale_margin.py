@@ -13,7 +13,7 @@ class TestSaleMargin(SaleCommon):
             Command.create(
                 {
                     "price_unit": 1000.0,
-                    "product_uom_qty": 10.0,
+                    "product_qty": 10.0,
                     "product_id": self.product.id,
                 }
             ),
@@ -33,7 +33,7 @@ class TestSaleMargin(SaleCommon):
             Command.create(
                 {
                     "price_unit": 20.0,
-                    "product_uom_qty": 1.0,
+                    "product_qty": 1.0,
                     "state": "draft",
                     "product_id": self.service_product.id,
                 }
@@ -42,7 +42,7 @@ class TestSaleMargin(SaleCommon):
                 {
                     "price_unit": -100.0,
                     "purchase_price": 0.0,
-                    "product_uom_qty": 1.0,
+                    "product_qty": 1.0,
                     "state": "draft",
                     "product_id": self.product.id,
                 }
@@ -79,7 +79,7 @@ class TestSaleMargin(SaleCommon):
                 {
                     "product_id": self.product.id,
                     "price_unit": 70.0,
-                    "product_uom_qty": 1.0,
+                    "product_qty": 1.0,
                 }
             )
         ]
@@ -108,14 +108,14 @@ class TestSaleMargin(SaleCommon):
             Command.create(
                 {
                     "price_unit": 100.0,
-                    "product_uom_qty": 3.0,
+                    "product_qty": 3.0,
                     "product_id": self.service_product.id,
                 }
             ),
             Command.create(
                 {
                     "price_unit": -50.0,
-                    "product_uom_qty": 1.0,
+                    "product_qty": 1.0,
                     "product_id": self.product.id,
                 }
             ),
@@ -150,7 +150,7 @@ class TestSaleMargin(SaleCommon):
             Command.create(
                 {
                     "price_unit": 1000.0,
-                    "product_uom_qty": 10.0,
+                    "product_qty": 10.0,
                     "product_id": self.product.id,
                 }
             ),
