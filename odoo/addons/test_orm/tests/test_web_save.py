@@ -1,4 +1,4 @@
-from odoo.libs.filesystem.tests.test_mimetypes_guess import JPG, SVG
+from odoo.libs.filesystem import JPG, SVG
 from odoo.tests.common import TransactionCase
 
 

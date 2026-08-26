@@ -1,7 +1,7 @@
 import base64
 
 from odoo.exceptions import AccessError
-from odoo.libs.filesystem.tests.test_mimetypes_guess import PNG
+from odoo.libs.filesystem import PNG
 from odoo.tests import HttpCase, tagged
 from odoo.tools import mute_logger
 

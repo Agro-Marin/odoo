@@ -708,17 +708,6 @@ class StockPicking(models.Model):
                 else:
                     picking.state = relevant_move_state
 
-    def _get_cancelled_moveless_ids(self, picking_ids):
-        if not picking_ids:
-            return frozenset()
-        rows = self.env.execute_query(
-            SQL(
-                "SELECT id FROM stock_picking WHERE id IN %s AND state = 'cancel'",
-                tuple(picking_ids),
-            ),
-        )
-        return frozenset(row[0] for row in rows)
-
     @api.depends("move_ids.state", "move_ids.date", "move_type")
     def _compute_date_planned(self):
         for picking in self:

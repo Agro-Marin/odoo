@@ -950,7 +950,7 @@ ways: 6 stems are written with two or more verbs drawn from one semantic family,
 and 103 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 24,490 non-test methods
+``[gate doc_restated_counts]``. The population is the 24,489 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. Semantic families are read off the table
 below, so the justification is computed from the rule it justifies. Census and
@@ -1189,7 +1189,7 @@ Four limits:
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** At 5,427 definitions it is 22.2 % of every method
+**``_get_`` is not a default.** At 5,426 definitions it is 22.2 % of every method
 in this repository's model layer, having absorbed reading, building, deriving and
 computing. The split that matters is against ``_prepare_``: 684 definitions are
 payload builders -- they end in ``_vals``, ``_values``, ``_data``, ``_dict``,

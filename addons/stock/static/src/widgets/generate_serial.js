@@ -183,6 +183,13 @@ export class GenerateDialog extends Component {
 
     async _generate(count, qtyToProcess) {
         const move = this.props.move.data;
+        const lines = move.move_line_ids;
+        // Decided BEFORE the server is asked where to put the new lines: those
+        // lines still occupy their destinations as far as the database is
+        // concerned, so putaway would count capacity they are about to give
+        // back. `action_generate_lot_line_vals` takes `exclude_sml_ids` for
+        // exactly this, and threads it into the putaway count per location.
+        const replacedIds = this.state.keepLines ? [] : [...lines.currentIds];
         const move_line_vals = await this.orm.call(
             "stock.move",
             "action_generate_lot_line_vals",
@@ -195,6 +202,7 @@ export class GenerateDialog extends Component {
                     default_tracking: move.has_tracking,
                     default_quantity: qtyToProcess,
                     default_uom_id: this.isLot ? move.product_uom_id?.id : undefined,
+                    exclude_sml_ids: replacedIds,
                 },
                 this.props.mode,
                 this.state.nextSerial,
@@ -202,16 +210,10 @@ export class GenerateDialog extends Component {
                 this.state.lots,
             ],
         );
-        const lines = move.move_line_ids;
 
-        const commands = [];
-        if (!this.state.keepLines) {
-            commands.push(
-                ...lines.currentIds.map((currentId) =>
-                    x2ManyCommands.delete(currentId),
-                ),
-            );
-        }
+        const commands = replacedIds.map((currentId) =>
+            x2ManyCommands.delete(currentId),
+        );
         for (const values of move_line_vals) {
             commands.push(x2ManyCommands.create(false, values));
         }

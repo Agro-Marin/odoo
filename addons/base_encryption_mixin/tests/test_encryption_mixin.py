@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 from cryptography.fernet import Fernet
 
+from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
@@ -58,6 +59,11 @@ class TestEncryptionMixin(TransactionCase):
         self.assertFalse(self.mixin._decrypt_value(b""))
 
     @mute_logger("odoo.addons.base_encryption_mixin.models.mixin_encryption")
+    def test_a_malformed_token_reports_itself(self):
+        with self.assertRaises(ValidationError) as caught:
+            self.mixin._coerce_fernet_token(b"not base64 at all!!")
+        self.assertIn("Invalid encrypted binary data", str(caught.exception))
+
     def test_a_foreign_key_cannot_read_the_token(self):
         token = self.mixin._encrypt_value("mine")
         with patch.dict(

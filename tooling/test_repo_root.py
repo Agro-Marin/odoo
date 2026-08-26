@@ -175,6 +175,7 @@ class TestEveryToolAgrees:
         ("architecture", "js_deployment_layers"): "ROOT",
         ("architecture", "js_arch_info_surface"): "ROOT",
         ("architecture", "js_env_config_surface"): "ROOT",
+        ("architecture", "js_eager_mock_fixture"): "ROOT",
         ("architecture", "js_extension_surface"): "ROOT",
         ("architecture", "js_field_record_surface"): "ROOT",
         ("architecture", "js_layer_cohesion"): "ROOT",

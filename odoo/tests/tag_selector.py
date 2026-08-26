@@ -97,8 +97,8 @@ class TagsSelector:
                 return False
             if klass and klass != test_class:
                 return False
-            if method and test_method and method != test_method:
-                return False
+            if method and test_method:
+                return method == test_method
             return True
 
         if any(_is_matching(test_filter) for test_filter in self.exclude):

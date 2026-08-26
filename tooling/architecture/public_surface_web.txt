@@ -205,6 +205,7 @@
 @web/ui/notification  odoo
 @web/ui/offcanvas/offcanvas  odoo enterprise
 @web/ui/overlay/overlay_container  odoo
+@web/ui/overlay/root_id  odoo
 @web/ui/popover  odoo enterprise agromarin
 @web/ui/tooltip  odoo enterprise
 @web/ui/ui_service  odoo enterprise

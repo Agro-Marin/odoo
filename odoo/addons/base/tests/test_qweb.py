@@ -3340,6 +3340,28 @@ class TestQWebHelpers(TransactionCase):
         }
         return CompileContext(**{**defaults, **fields})
 
+    def test_the_two_addressing_modes_stay_separate(self):
+        ctx = self._context(ref_name="tpl", context={"snippet-key": "s"})
+        self.assertEqual(ctx.ref_name, "tpl")
+        self.assertEqual(
+            ctx.get("snippet-key"),
+            "s",
+            "`.get()` reads the caller's context, which stays open-ended",
+        )
+        self.assertIn("snippet-key", ctx)
+        self.assertIsNone(
+            ctx.get("ref_name"),
+            "compiler state must not be reachable through the caller's namespace, "
+            "or a caller-supplied key shadows it",
+        )
+        self.assertNotIn("ref_name", ctx)
+        with self.assertRaises(
+            TypeError,
+            msg="subscripting is what made the two namespaces indistinguishable; "
+            "its absence is ADR-0063's decision, not an omission",
+        ):
+            ctx["ref_name"]
+
     def test_compile_format(self):
         qweb = self.env["ir.qweb"]
         code = qweb._compile_format("Save 50%")

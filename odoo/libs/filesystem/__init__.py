@@ -11,11 +11,33 @@ from .mimetypes import (
     neuter_mimetype,
     SystemUser,
 )
+from .samples import (
+    BMP,
+    GIF,
+    JPG,
+    NAMESPACED_SVG,
+    PNG,
+    SVG,
+    TXT,
+    WEBP,
+    XML,
+    ZIP,
+)
 from .which import which
 
 __all__ = [
+    "BMP",
+    "GIF",
+    "JPG",
     "MIMETYPE_HEAD_SIZE",
+    "NAMESPACED_SVG",
+    "PNG",
+    "SVG",
+    "TXT",
     "UNKNOWN_MIMETYPE",
+    "WEBP",
+    "XML",
+    "ZIP",
     "SystemUser",
     "_olecf_mimetypes",
     "appdirs",

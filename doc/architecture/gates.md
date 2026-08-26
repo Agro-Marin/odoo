@@ -242,7 +242,7 @@ mistake for a gate, since it sits beside them and has a `test_js_imports.py`.
 Eleven and not eight, which is what counting only the table above would give:
 `js_face_boundary` and `js_registry_layering` are two of the three enforced by
 the self-test rather than a step of their own, and `cross_repo_coherence` is the
-fiftieth.
+third.
 
 **Seventy-seven** is how many steps CI runs the fifty-four in, each step invoking
 exactly one checker; the self-test is the step above them all. The two figures

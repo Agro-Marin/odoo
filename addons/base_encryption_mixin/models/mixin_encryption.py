@@ -189,8 +189,7 @@ class MixinEncryption(models.AbstractModel):
                 setattr(record, cleartext_field, value)
                 setattr(record, encrypted_field, False)
 
-    @staticmethod
-    def _coerce_fernet_token(encrypted_value: bytes) -> bytes:
+    def _coerce_fernet_token(self, encrypted_value: bytes) -> bytes:
         if isinstance(encrypted_value, str):
             encrypted_value = encrypted_value.encode("utf-8")
         else:
@@ -200,9 +199,7 @@ class MixinEncryption(models.AbstractModel):
         try:
             return base64.b64decode(encrypted_value)
         except Exception as e:
-            raise ValidationError(
-                    self.env._("Invalid encrypted binary data")
-                ) from e
+            raise ValidationError(self.env._("Invalid encrypted binary data")) from e
 
     def _allow_key_fallback(self) -> bool:
         return getattr(self.sudo(), "allow_key_fallback", True)

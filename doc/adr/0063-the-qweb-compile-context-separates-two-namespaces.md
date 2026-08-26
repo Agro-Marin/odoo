@@ -115,3 +115,23 @@ still one namespace, still `Any`, still no discoverability.
   nothing here checks that a compile reads only those — the hole ADR-0063 does
   not close, and `html_editor`'s `t-install` was one instance of it
   (`40c834be658`).
+
+## Enforcement
+
+The type is the enforcement, and it is a runtime one. `CompileContext` is a
+`@dataclass(slots=True)`, so a compiler key that does not exist is an
+`AttributeError` at the assignment rather than a `None` read three frames later,
+and there is no `__getitem__`, so `ctx['ref_name']` raises `TypeError` at the
+first call rather than resolving into whichever namespace happened to win.
+
+`TestQWebHelpers.test_the_two_addressing_modes_stay_separate`
+(`odoo/addons/base/tests/test_qweb.py`) pins all three halves of that: attribute
+access reaches compiler state, `.get()`/`in` reach the caller's context and do
+*not* see compiler fields, and subscripting raises. Re-adding `__getitem__` --
+the migration-friendly alternative this record rejects -- fails there.
+
+No static gate covers it. `mypy` runs over `odoo.{orm,db,libs,http,service,modules}`
+and stops short of `odoo.addons`, so the typed fields are checked by no CI lane;
+the dataclass is what carries them. Stated here rather than left implied,
+because the obvious reading of "typed fields" is that a type checker is reading
+them, and none is.

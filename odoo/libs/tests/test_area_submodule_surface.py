@@ -139,7 +139,21 @@ def _accidental_from_disk(area: str) -> set[str]:
 
 
 def test_accidental_submodule_surface_is_bounded():
-    """38 -> 39: `numbers.amount_parse`, the separator-guessing amount reader.
+    """39 -> 40: `filesystem.samples`, the sample bodies the mimetype rules are read against.
+
+    They were constants in `filesystem/tests/test_mimetypes_guess.py`, and three
+    addon suites imported them from there -- a test module reached across the
+    area boundary, which `libs_facade_check` reports and which no re-export could
+    have legalised while they lived under `tests/`. As an implementation module
+    beside `mimetypes.py`, re-exported by name, addon code imports the area and
+    the suite keeps importing the leaf (the Tier-1 stubs replace the package
+    `__init__`, so it must).
+
+    39 -> 40 is the price named below: publishing `samples` in `__all__` would
+    put the module itself in the area's contract, which
+    `test_declared_submodule_exports_are_pinned` exists to refuse.
+
+    38 -> 39: `numbers.amount_parse`, the separator-guessing amount reader.
 
     38 was `locale.cardinals_bg`, the Bulgarian numeral implementation, which
     moved out of `_monkeypatches/num2words.py` where 250 lines of language logic
@@ -160,8 +174,8 @@ def test_accidental_submodule_surface_is_bounded():
     and the bound is meant to be moved with the reason written down.
     """
     total = sum(len(_accidental_from_disk(a)) for a in _areas())
-    assert total <= 39, (
-        f"accidental submodule surface grew to {total} (was 39). Each one is a "
+    assert total <= 40, (
+        f"accidental submodule surface grew to {total} (was 40). Each one is a "
         f"leaf module importable as `from odoo.libs.<area> import <name>`, "
         f"which libs_facade_check cannot see."
     )
