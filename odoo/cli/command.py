@@ -441,10 +441,15 @@ def main() -> None:
     if args and not args[0].startswith("-"):
         command_name = args[0]
         args = args[1:]
-    elif "-h" in args or "--help" in args:
+    elif args and args[0] in ("-h", "--help"):
         command_name = "help"
-        args = [x for x in args if x not in ("-h", "--help")]
+        args = args[1:]
     else:
+        # `-h`/`--help` appears after other flags (e.g. `-d mydb --help`), or
+        # there are no args at all: route to the default command instead of
+        # discarding the preceding flags and showing the unrelated generic
+        # command list — `-d mydb --help` behaves like `server -d mydb
+        # --help`, and the default command's own parser handles --help.
         command_name = DEFAULT_COMMAND
 
     odoo.cli.COMMAND = command_name
