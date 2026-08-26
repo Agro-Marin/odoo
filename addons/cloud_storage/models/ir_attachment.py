@@ -11,57 +11,75 @@ _logger = logging.getLogger(__name__)
 
 
 class IrAttachment(models.Model):
-    _inherit = 'ir.attachment'
+    _inherit = "ir.attachment"
     _cloud_storage_upload_url_time_to_expiry = 300  # 300 seconds
     _cloud_storage_download_url_time_to_expiry = 300  # 300 seconds
 
     type = fields.Selection(
-        selection_add=[('cloud_storage', 'Cloud Storage')],
-        ondelete={'cloud_storage': 'set url'}
+        selection_add=[("cloud_storage", "Cloud Storage")],
+        ondelete={"cloud_storage": "set url"},
     )
 
     def _to_http_stream(self):
-        if (self.type == 'cloud_storage' and
-              self.env['res.config.settings']._get_cloud_storage_configuration()):
+        if (
+            self.type == "cloud_storage"
+            and self.env["res.config.settings"]._get_cloud_storage_configuration()
+        ):
             self.ensure_one()
             info = self._generate_cloud_storage_download_info()
-            stream = Stream(type='url', url=info['url'])
-            if 'time_to_expiry' in info:
+            stream = Stream(type="url", url=info["url"])
+            if "time_to_expiry" in info:
                 # cache the redirection until 10 seconds before the expiry
-                stream.max_age = max(info['time_to_expiry'] - 10, 0)
+                stream.max_age = max(info["time_to_expiry"] - 10, 0)
             return stream
         return super()._to_http_stream()
 
     def _post_add_create(self, **kwargs):
         super()._post_add_create(**kwargs)
-        if kwargs.get('cloud_storage'):
-            if not self.env['ir.config_parameter'].sudo().get_param('cloud_storage_provider'):
-                raise UserError(_('Cloud Storage is not enabled'))
+        if kwargs.get("cloud_storage"):
+            if (
+                not self.env["ir.config_parameter"]
+                .sudo()
+                .get_param("cloud_storage_provider")
+            ):
+                raise UserError(_("Cloud Storage is not enabled"))
             for record in self:
-                record.write({
-                    'raw': False,
-                    'type': 'cloud_storage',
-                    'url': record._generate_cloud_storage_url(),
-                })
+                record.write(
+                    {
+                        "raw": False,
+                        "type": "cloud_storage",
+                        "url": record._generate_cloud_storage_url(),
+                    }
+                )
 
     def _migrate_remote_to_local(self):
-        if self.type != 'cloud_storage':
+        if self.type != "cloud_storage":
             return super()._migrate_remote_to_local()
-        url = self._generate_cloud_storage_download_info()['url']
+        url = self._generate_cloud_storage_download_info()["url"]
         response = requests.get(url, timeout=10)
         response.raise_for_status()
         if response.status_code != 200:
-            raise ValidationError(_(
-                "Failed to download attachment (%(id)s) from cloud: %(code)s - %(reason)s",
-                id=self.id, code=response.status_code, reason=response.reason,
-            ))
+            raise ValidationError(
+                _(
+                    "Failed to download attachment (%(id)s) from cloud: %(code)s - %(reason)s",
+                    id=self.id,
+                    code=response.status_code,
+                    reason=response.reason,
+                )
+            )
         attachment_data = response.content
-        _logger.info("Migrating attachment (%s) with url (%s) from cloud_storage to binary.", self.id, self.url)
-        self.write({
-            'type': 'binary',
-            'url': False,
-            'raw': attachment_data,
-        })
+        _logger.info(
+            "Migrating attachment (%s) with url (%s) from cloud_storage to binary.",
+            self.id,
+            self.url,
+        )
+        self.write(
+            {
+                "type": "binary",
+                "url": False,
+                "raw": attachment_data,
+            }
+        )
         return True
 
     def _generate_cloud_storage_blob_name(self):
@@ -70,7 +88,7 @@ class IrAttachment(models.Model):
 
         :return: A unique blob name str
         """
-        return f'{self.id}/{uuid.uuid4()}/{self.name}'
+        return f"{self.id}/{uuid.uuid4()}/{self.name}"
 
     # Implement the following methods for each cloud storage provider.
     def _generate_cloud_storage_url(self):
@@ -117,8 +135,12 @@ class IrAttachment(models.Model):
     def _get_cloud_storage_unsupported_models(self):
         # Some models may use their attachments' data in the business code
         # We should avoid those attachments to be uploaded to the cloud storage
-        models = self.env.registry.descendants(['mixin.mail.thread.main.attachment'], '_inherit', '_inherits')
-        if 'mixin.documents' in self.env:
-            models.update(self.env.registry.descendants(['mixin.documents'], '_inherit'))
-            models.add('documents.document')
+        models = self.env.registry.descendants(
+            ["mixin.mail.thread.main.attachment"], "_inherit", "_inherits"
+        )
+        if "mixin.documents" in self.env:
+            models.update(
+                self.env.registry.descendants(["mixin.documents"], "_inherit")
+            )
+            models.add("documents.document")
         return list(models)
