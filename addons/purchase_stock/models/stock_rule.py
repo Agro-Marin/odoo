@@ -174,9 +174,10 @@ class StockRule(models.Model):
     def _get_procurements_to_merge(self, procurements):
         """Get a list of procurements values and create groups of procurements
         that would use the same purchase order line.
-        params procurements_list list: procurements requests (not ordered nor
-        sorted).
-        return list: procurements requests grouped by their product_id.
+
+        :param procurements: procurement requests (not ordered nor sorted)
+        :return: procurement requests grouped by the key of
+            :meth:`_get_procurements_to_merge_groupby`
         """
         return [
             pro_g
@@ -243,10 +244,11 @@ class StockRule(models.Model):
     def _merge_procurements(self, procurements_to_merge):
         """Merge the quantity for procurements requests that could use the same
         order line.
-        params similar_procurements list: list of procurements that have been
-        marked as 'alike' from _get_procurements_to_merge method.
-        return a list of procurements values where values of similar_procurements
-        list have been merged.
+
+        :param procurements_to_merge: procurements marked as 'alike' by
+            :meth:`_get_procurements_to_merge`
+        :return: a list of procurements values where the values of
+            ``procurements_to_merge`` have been merged
         """
         merged_procurements = []
         for procurements in procurements_to_merge:
@@ -301,8 +303,8 @@ class StockRule(models.Model):
         )
 
     def _prepare_purchase_order_vals(self, company_id, origins, values):
-        """Create a purchase order for procuremets that share the same domain
-        returned by _prepare_po_get_domain.
+        """Prepare the values for a purchase order shared by procurements
+        matching the same domain returned by _prepare_po_get_domain.
         params values: values of procurements
         params origins: procuremets origins to write on the PO
         """

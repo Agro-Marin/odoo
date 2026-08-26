@@ -52,12 +52,10 @@ class PurchaseReport(models.Model):
         """Add stock-specific joins to purchase report."""
         tables = super()._get_from_tables()
 
-        # Add stock_picking_type join
         tables.append(
             ("stock_picking_type", "spt", "LEFT JOIN", "spt.id=o.picking_type_id")
         )
 
-        # Add order effective date subquery
         # Note: SQL object already includes the alias in the query
         order_effective_date_subquery = SQL(
             """(
