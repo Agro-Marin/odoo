@@ -26,6 +26,7 @@
  - assign_token_route: The route to call to assign a new or existing token to a record.
  - landing_route: The route the user is redirected to after payment.
  - access_token: The access token used to authenticate the partner.
+ - availability_report: The providers' and payment methods' availability statuses.
  -->
  <t t-set="mode" t-value="mode or 'payment'"/>
  <t t-set="allow_token_selection"

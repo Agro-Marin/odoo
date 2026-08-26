@@ -151,7 +151,7 @@ export class PaymentForm extends Interaction {
     // #=== DOM MANIPULATION ===#
 
     /**
-     * Check if the submit button can be enabled and do it if so.
+     * Enable the submit button.
      *
      * @private
      * @param {boolean} unblockUI - Whether the UI should also be unblocked.
@@ -302,7 +302,7 @@ export class PaymentForm extends Interaction {
     }
 
     /**
-     * Check whether the given payment method expects immediate payment.
+     * Check whether the given payment method defers payment (pay later).
      *
      * Override this method to change the submit button label from the default label to "Confirm".
      *

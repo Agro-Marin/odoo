@@ -256,7 +256,7 @@ class PaymentCommon(BaseCommon):
         scope of the new request will not be caught and will make the test fail.
 
         :param class exception_class: The class of the exception to monitor.
-        :param function fun: The function to call when monitoring for exceptions.
+        :param function func: The function to call when monitoring for exceptions.
         :param list args: The positional arguments passed as-is to the called function.
         :param dict kwargs: The keyword arguments passed as-is to the called function.
         :return: None

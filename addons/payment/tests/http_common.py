@@ -191,8 +191,9 @@ class PaymentHttpCommon(PaymentCommon, HttpCase):
     def _prepare_transaction_values(self, payment_method_id, token_id, flow):
         """Prepare the basic payment/transaction route values.
 
-        :param int payment_option_id: The payment option handling the transaction, as a
-                                      `payment.method` id or a `payment.token` id
+        :param int payment_method_id: The payment method handling the transaction, as a
+                                      `payment.method` id
+        :param int token_id: The token handling the transaction, as a `payment.token` id
         :param str flow: The payment flow
         :return: The route values
         :rtype: dict
