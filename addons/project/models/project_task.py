@@ -1954,7 +1954,6 @@ class ProjectTask(models.Model):
         That is, only the users in the same company of the current user.
         So this compute method is a related of `user_ids.name` but with more records that the portal user
         can normally see.
-        (In other words, this compute is only used in project sharing views to see all assignees for each task)
         """
         if self._origin:
             # fetch 'user_ids' in superuser mode (and override value in cache
