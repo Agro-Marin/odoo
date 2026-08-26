@@ -41,15 +41,29 @@ def job_time_real() -> int:
     return config["limit_time_real_cron"] if limit < 0 else limit
 
 
+def cron_real_time_budget() -> float:
+    """Resolved wall-clock budget for a cron pass; 0 means no limit.
+
+    The one answer to "how long may cron work run".  ``--limit-time-real-cron``
+    is a sentinel chain -- negative defers to ``--limit-time-real`` -- and every
+    caller that resolved it inline got a different subset of it right: a
+    deadline computed straight from ``-1`` lands in the past because ``-1`` is
+    truthy, and a watchdog that tests ``if limit and limit > 0`` reads the
+    documented "0 means no limit" as "fall back to the http limit" instead.
+    """
+    limit = config["limit_time_real_cron"]
+    if limit < 0:
+        limit = config["limit_time_real"]
+    return max(limit, 0)
+
+
 def job_real_time_budget() -> float:
     """Resolved wall-clock budget for a job pass; 0 means no limit.
 
     ``job_time_real`` still answers ``-1`` when neither ``--limit-time-real-job``
     nor ``--limit-time-real-cron`` is set, because its job is to walk one step of
     the sentinel chain.  A caller that wants a *number* has to walk the last step
-    too -- ``-1`` is truthy, so a deadline computed straight from it lands in the
-    past and the pass yields before doing any work.  This is the counterpart of
-    ``ir_cron.worker_real_time_budget`` and resolves the whole chain.
+    too.  This is the counterpart of ``cron_real_time_budget``.
     """
     limit = job_time_real()
     if limit < 0:
@@ -86,8 +100,10 @@ __all__ = (
     "SLEEP_INTERVAL",
     "capped_backoff",
     "cron_database_list",
+    "cron_real_time_budget",
     "empty_pipe",
     "job_max_age",
+    "job_real_time_budget",
     "job_time_real",
     "memory_info",
     "over_memory_soft_limit",

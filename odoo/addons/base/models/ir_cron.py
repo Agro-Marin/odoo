@@ -2,7 +2,6 @@ import dataclasses
 import logging
 import math
 import os
-import threading
 import time
 import typing
 from datetime import UTC, datetime, timedelta
@@ -19,12 +18,14 @@ from odoo import api, db, fields, models
 from odoo.api import SUPERUSER_ID, ValuesType
 from odoo.exceptions import LockError, UserError
 from odoo.http import serialize_exception
+from odoo.libs.worker_thread import working_on_database
 from odoo.models import GC_UNLINK_LIMIT
 from odoo.modules import Manifest
 from odoo.modules.loading import reset_modules_state
 from odoo.modules.registry import Registry
+from odoo.service._helpers import cron_real_time_budget
 from odoo.service.transaction import retrying
-from odoo.tools import SQL, config, str2bool
+from odoo.tools import SQL, str2bool
 from odoo.tools.constants import CRON_TRIGGER_CHANNEL
 
 if typing.TYPE_CHECKING:
@@ -58,13 +59,6 @@ NOTIFY_PENDING_KEY = "ir.cron.notify"
 
 ODOO_NOTIFY_FUNCTION = os.getenv("ODOO_NOTIFY_FUNCTION", "pg_notify")
 NOTIFY_CRON_CHANGES = str2bool(os.getenv("ODOO_NOTIFY_CRON_CHANGES", ""), default=False)
-
-
-def worker_real_time_budget() -> float:
-    budget = config["limit_time_real_cron"]
-    if budget < 0:
-        budget = config["limit_time_real"]
-    return max(budget, 0)
 
 
 def notify_channel(channel: str, db_name: str) -> None:
@@ -280,47 +274,44 @@ class IrCron(models.Model):
 
     @staticmethod
     def _process_jobs(db_name: str) -> None:
-        previous_dbname = getattr(threading.current_thread(), "dbname", None)
-        try:
-            db_conn = db.db_connect(db_name)
-            threading.current_thread().dbname = db_name
-            with db_conn.cursor() as cron_cr:
-                cls = IrCron
-                cls._check_version(cron_cr)
-                jobs = cls._get_jobs_ready(cron_cr)
-                cls._check_modules_state(cron_cr, jobs)
-                if not jobs:
-                    return
-                cls._run_jobs_until_deadline(
-                    cron_cr,
-                    job_ids=[job.id for job in jobs],
-                    deadline=cls._get_deadline_pass(),
+        with working_on_database(db_name):
+            try:
+                db_conn = db.db_connect(db_name)
+                with db_conn.cursor() as cron_cr:
+                    cls = IrCron
+                    cls._check_version(cron_cr)
+                    jobs = cls._get_jobs_ready(cron_cr)
+                    cls._check_modules_state(cron_cr, jobs)
+                    if not jobs:
+                        return
+                    cls._run_jobs_until_deadline(
+                        cron_cr,
+                        job_ids=[job.id for job in jobs],
+                        deadline=cls._get_deadline_pass(),
+                    )
+            except BadVersionError:
+                _logger.warning(
+                    "Skipping database %s as its base version is not %s.",
+                    db_name,
+                    BASE_VERSION,
                 )
-        except BadVersionError:
-            _logger.warning(
-                "Skipping database %s as its base version is not %s.",
-                db_name,
-                BASE_VERSION,
-            )
-        except BadModuleStateError:
-            _logger.warning(
-                "Skipping database %s because of modules to install/upgrade/remove.",
-                db_name,
-            )
-        except psycopg.errors.UndefinedTable:
-            _logger.warning("Tried to poll an undefined table on database %s.", db_name)
-        except db.PoolError:
-            _logger.info("Skipping database %s: could not connect.", db_name)
-        except psycopg.ProgrammingError:
-            raise
-        except Exception:
-            _logger.exception("Unexpected exception in cron for database %s:", db_name)
-        finally:
-            if previous_dbname is None:
-                if hasattr(threading.current_thread(), "dbname"):
-                    del threading.current_thread().dbname
-            else:
-                threading.current_thread().dbname = previous_dbname
+            except BadModuleStateError:
+                _logger.warning(
+                    "Skipping database %s because of modules to install/upgrade/remove.",
+                    db_name,
+                )
+            except psycopg.errors.UndefinedTable:
+                _logger.warning(
+                    "Tried to poll an undefined table on database %s.", db_name
+                )
+            except db.PoolError:
+                _logger.info("Skipping database %s: could not connect.", db_name)
+            except psycopg.ProgrammingError:
+                raise
+            except Exception:
+                _logger.exception(
+                    "Unexpected exception in cron for database %s:", db_name
+                )
 
     @staticmethod
     def _get_deadline_pass() -> float | None:
@@ -566,7 +557,7 @@ class IrCron(models.Model):
 
     @staticmethod
     def _get_deadline_run(start_time: float) -> float | None:
-        budget = worker_real_time_budget()
+        budget = cron_real_time_budget()
         return start_time + budget * RUN_BUDGET_RATIO if budget else None
 
     @staticmethod

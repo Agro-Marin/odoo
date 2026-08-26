@@ -36,8 +36,9 @@ from ._helpers import (
     SLEEP_INTERVAL,
     capped_backoff,
     cron_database_list,
+    cron_real_time_budget,
     job_max_age,
-    job_time_real,
+    job_real_time_budget,
     over_memory_soft_limit,
 )
 from .lifecycle import preload_registries
@@ -97,17 +98,12 @@ class ThreadedServer(CommonServer):
                 start_time = getattr(thread, "start_time", None)
                 if start_time:
                     thread_execution_time = now - start_time
-                    thread_limit_time_real = config["limit_time_real"]
-                    if thread_type in ("cron", "job"):
-                        # Jobs resolve their own limit, which defaults to the
-                        # cron one; before, they were simply governed by it.
-                        limit = (
-                            job_time_real()
-                            if thread_type == "job"
-                            else config["limit_time_real_cron"]
-                        )
-                        if limit >= 0:
-                            thread_limit_time_real = limit
+                    if thread_type == "job":
+                        thread_limit_time_real = job_real_time_budget()
+                    elif thread_type == "cron":
+                        thread_limit_time_real = cron_real_time_budget()
+                    else:
+                        thread_limit_time_real = config["limit_time_real"]
                     if (
                         thread_limit_time_real > 0
                         and thread_execution_time > thread_limit_time_real

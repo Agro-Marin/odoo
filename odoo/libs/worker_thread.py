@@ -1,9 +1,18 @@
 from __future__ import annotations
 
 import threading
-from typing import Protocol, cast
+from contextlib import contextmanager
+from typing import TYPE_CHECKING, Protocol, cast
 
-__all__ = ["WorkerThread", "as_worker_thread", "current_worker_thread"]
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+__all__ = [
+    "WorkerThread",
+    "as_worker_thread",
+    "current_worker_thread",
+    "working_on_database",
+]
 
 
 class WorkerThread(Protocol):
@@ -29,3 +38,24 @@ def as_worker_thread(thread: threading.Thread) -> WorkerThread:
 
 def current_worker_thread() -> WorkerThread:
     return as_worker_thread(threading.current_thread())
+
+
+@contextmanager
+def working_on_database(db_name: str) -> Iterator[None]:
+    """Mark this thread as working on ``db_name`` for as long as the block runs.
+
+    The marker is what the log formatter prefixes every line with, so a worker
+    that polls several databases in turn has to put back whatever was there --
+    including the absence of an attribute, which is not the same as ``None``.
+    """
+    thread = threading.current_thread()
+    previous = getattr(thread, "dbname", None)
+    thread.dbname = db_name
+    try:
+        yield
+    finally:
+        if previous is None:
+            if hasattr(thread, "dbname"):
+                del thread.dbname
+        else:
+            thread.dbname = previous

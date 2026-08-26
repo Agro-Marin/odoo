@@ -24,6 +24,7 @@ from odoo.exceptions import (
     ValidationError,
 )
 from odoo.libs import backoff
+from odoo.libs.worker_thread import working_on_database
 from odoo.models import GC_UNLINK_LIMIT
 from odoo.modules.registry import Registry
 from odoo.service._helpers import job_real_time_budget
@@ -581,44 +582,37 @@ class IrJob(models.Model):
 
     @staticmethod
     def _process_jobs(db_name: str) -> None:
-        previous_dbname = getattr(threading.current_thread(), "dbname", None)
-        try:
-            db_conn = db.db_connect(db_name)
-            threading.current_thread().dbname = db_name
-            with db_conn.cursor() as pre_cr:
-                IrCron._check_version(pre_cr)
-                if IrCron._is_any_module_changing(pre_cr):
-                    raise BadModuleStateError
-            IrJob._run_maintenance(db_conn)
-            IrJob._run_promotion(db_conn)
-            with db_conn.cursor() as pre_cr:
-                pre_cr.execute(
-                    "SELECT EXISTS (SELECT 1 FROM ir_job WHERE state = 'pending')"
+        with working_on_database(db_name):
+            try:
+                db_conn = db.db_connect(db_name)
+                with db_conn.cursor() as pre_cr:
+                    IrCron._check_version(pre_cr)
+                    if IrCron._is_any_module_changing(pre_cr):
+                        raise BadModuleStateError
+                IrJob._run_maintenance(db_conn)
+                IrJob._run_promotion(db_conn)
+                with db_conn.cursor() as pre_cr:
+                    pre_cr.execute(
+                        "SELECT EXISTS (SELECT 1 FROM ir_job WHERE state = 'pending')"
+                    )
+                    if not pre_cr.fetchone()[0]:
+                        return
+                IrJob._claim_and_run_loop(db_name, deadline=IrJob._drain_deadline())
+            except BadVersionError:
+                _logger.warning(
+                    "Skipping database %s as its base version is not current.", db_name
                 )
-                if not pre_cr.fetchone()[0]:
-                    return
-            IrJob._claim_and_run_loop(db_name, deadline=IrJob._drain_deadline())
-        except BadVersionError:
-            _logger.warning(
-                "Skipping database %s as its base version is not current.", db_name
-            )
-        except BadModuleStateError:
-            _logger.warning(
-                "Skipping database %s because of modules to install/upgrade/remove.",
-                db_name,
-            )
-        except psycopg.errors.UndefinedTable:
-            _logger.debug("No ir_job table on database %s.", db_name)
-        except db.PoolError:
-            _logger.info("Skipping database %s: could not connect.", db_name)
-        except Exception:
-            _logger.exception("Unexpected exception in job queue for %s:", db_name)
-        finally:
-            if previous_dbname is None:
-                if hasattr(threading.current_thread(), "dbname"):
-                    del threading.current_thread().dbname
-            else:
-                threading.current_thread().dbname = previous_dbname
+            except BadModuleStateError:
+                _logger.warning(
+                    "Skipping database %s because of modules to install/upgrade/remove.",
+                    db_name,
+                )
+            except psycopg.errors.UndefinedTable:
+                _logger.debug("No ir_job table on database %s.", db_name)
+            except db.PoolError:
+                _logger.info("Skipping database %s: could not connect.", db_name)
+            except Exception:
+                _logger.exception("Unexpected exception in job queue for %s:", db_name)
 
     @staticmethod
     def _drain_deadline() -> float | None:

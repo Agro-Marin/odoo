@@ -1204,11 +1204,13 @@ class TestPreforkInitTimeout:
             "limit_time_real": 120,
             "limit_request": 100,
             "limit_time_real_cron": -1,
+            "limit_time_real_job": -1,
             **overrides,
         }
         with (
             patch.object(_prefork, "config", cfg),
             patch.object(_base_server, "config", cfg),
+            patch("odoo.service._helpers.config", cfg),
         ):
             return srv.PreforkServer(MagicMock())
 
@@ -1989,11 +1991,13 @@ class TestThreadedServerProcessLimit:
             "limit_memory_soft": 0,
             "limit_time_real": 60,
             "limit_time_real_cron": 0,
+            "limit_time_real_job": -1,
             **(config_override or {}),
         }
         with (
             patch("odoo.service._helpers.memory_info", return_value=memory),
             patch("odoo.service._threaded.config", cfg),
+            patch("odoo.service._helpers.config", cfg),
             patch("odoo.service._threaded.psutil"),
             patch("threading.enumerate", return_value=list(threads)),
         ):
