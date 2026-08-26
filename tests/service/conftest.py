@@ -139,6 +139,10 @@ def durable_then_close(env):
     env.cr.closed = True
 
 
+# ---------------------------------------------------------------------------
+# Shared source scan for the patch-target gates
+# ---------------------------------------------------------------------------
+
 _SCANNED_TREES = ("tests/service", "odoo/addons", "addons")
 
 _GATE_MODULES = frozenset({"test_db_patch_targets.py", "test_facade_patch_targets.py"})

@@ -379,6 +379,11 @@ class TestServerPhoenixSingleSourceOfTruth:
             _ = srv.server
 
 
+# ---------------------------------------------------------------------------
+# lifecycle.start() — watcher cleanup on the error path
+# ---------------------------------------------------------------------------
+
+
 class TestLifecycleStartWatcherCleanup:
     def test_watcher_stopped_when_server_run_raises(self):
         import odoo
@@ -404,6 +409,11 @@ class TestLifecycleStartWatcherCleanup:
 
         mock_watcher.start.assert_called_once()
         mock_watcher.stop.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# restart() — guard against pre-start invocation
+# ---------------------------------------------------------------------------
 
 
 class TestRestartGuard:
@@ -460,6 +470,11 @@ class TestRestartGuard:
             f"_reexec; the process would never re-exec"
         )
         mock_thread.return_value.start.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# SIGHUP — local sentinel, no signal-module monkey-patch
+# ---------------------------------------------------------------------------
 
 
 class TestSigHupSentinel:

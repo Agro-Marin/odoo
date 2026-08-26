@@ -27,6 +27,11 @@ def server():
     return s
 
 
+# ---------------------------------------------------------------------------
+# ThreadedServer.signal_handler()
+# ---------------------------------------------------------------------------
+
+
 class TestSignalHandlerBehaviour:
     @pytest.mark.parametrize("sig", [signal.SIGINT, signal.SIGTERM])
     def test_first_quit_signal_unwinds_the_main_loop(self, server, sig):
@@ -78,6 +83,11 @@ class TestSignalHandlerOnAPlatformWithoutSighup:
         assert server.quit_signals_received == 1
 
 
+# ---------------------------------------------------------------------------
+# ThreadedServer.start() — the handlers are actually installed
+# ---------------------------------------------------------------------------
+
+
 class TestStartInstallsTheHandlers:
     @pytest.fixture
     def wired(self, server):
@@ -125,6 +135,11 @@ class TestStartInstallsTheHandlers:
         ):
             server.start(stop=True)
         spawn.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# ThreadedServer.stop() — the path a SIGTERM actually takes
+# ---------------------------------------------------------------------------
 
 
 class TestGracefulStop:

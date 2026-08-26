@@ -16,6 +16,10 @@ def _clean_env():
         yield
 
 
+# ---------------------------------------------------------------------------
+# The contract env_float and env_int share
+# ---------------------------------------------------------------------------
+
 PARSERS = [
     pytest.param(_env.env_float, "45", 45.0, 30.0, id="env_float"),
     pytest.param(_env.env_int, "45", 45, 30, id="env_int"),
@@ -77,6 +81,11 @@ class TestGuardedParserContract:
         )
 
 
+# ---------------------------------------------------------------------------
+# env_float — what is specific to parsing a float
+# ---------------------------------------------------------------------------
+
+
 class TestEnvFloat:
     def test_parses_float_string(self):
         with patch.dict(os.environ, {VAR: "0.25"}):
@@ -109,12 +118,22 @@ class TestEnvFloat:
         assert rendered == f"{VAR}='nan' is not finite; using default 1.5"
 
 
+# ---------------------------------------------------------------------------
+# env_int
+# ---------------------------------------------------------------------------
+
+
 class TestEnvInt:
     def test_float_string_is_malformed(self):
         with patch.dict(os.environ, {VAR: "2.0"}):
             assert _env.env_int(VAR, 8) == 8
         with patch.dict(os.environ, {VAR: "2.0"}):
             assert _env.env_float(VAR, 8.0) == 2.0
+
+
+# ---------------------------------------------------------------------------
+# env_str
+# ---------------------------------------------------------------------------
 
 
 class TestEnvStr:

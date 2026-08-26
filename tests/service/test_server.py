@@ -22,6 +22,10 @@ import werkzeug.serving
 from odoo.service import _base_server, _helpers, _prefork, _threaded
 from odoo.service import wsgi as _helpers_wsgi
 
+# ---------------------------------------------------------------------------
+# Module under test
+# ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="module")
 def srv():
@@ -30,10 +34,20 @@ def srv():
     return mod
 
 
+# ---------------------------------------------------------------------------
+# Infrastructure fixtures
+# ---------------------------------------------------------------------------
+
+
 def stamp_rpc_model_method(monkeypatch, value=""):
     monkeypatch.setattr(
         threading.current_thread(), "rpc_model_method", value, raising=False
     )
+
+
+# ---------------------------------------------------------------------------
+# CommonRequestHandler.log_error() / log_request()
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -53,6 +67,11 @@ def multi():
                 os.close(fd)
 
 
+# ---------------------------------------------------------------------------
+# RequestHandler.send_header() / end_headers() — WebSocket guards
+# ---------------------------------------------------------------------------
+
+
 @pytest.fixture
 def worker_cron(srv, multi):
     wc = srv.WorkerCron(multi)
@@ -62,6 +81,11 @@ def worker_cron(srv, multi):
     wc.dbcursor._cnx = shared_cnx
     wc.dbcursor.connection = shared_cnx
     return wc
+
+
+# ---------------------------------------------------------------------------
+# ThreadedWSGIServerReloadable — semaphore throttle
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -81,6 +105,11 @@ def prefork_server(srv):
     obj.workers_cron = {}
     obj.workers_job = {}
     return obj
+
+
+# ---------------------------------------------------------------------------
+# empty_pipe()
+# ---------------------------------------------------------------------------
 
 
 class TestEmptyPipe:
@@ -116,6 +145,11 @@ class TestEmptyPipe:
         finally:
             os.close(r)
             os.close(w)
+
+
+# ---------------------------------------------------------------------------
+# EventServer.watchdog() — a transient failure must not retire it
+# ---------------------------------------------------------------------------
 
 
 class TestEventServerWatchdogSurvivesErrors:
@@ -187,6 +221,11 @@ class TestPreforkServerProcessSignals:
         assert prefork_server.population == 4
 
 
+# ---------------------------------------------------------------------------
+# PreforkServer.fork_and_reload() — http_enable=False reload guard
+# ---------------------------------------------------------------------------
+
+
 class TestPreforkForkAndReloadNoSocket:
     def test_reload_without_socket_reaches_reexec(self, prefork_server):
         prefork_server.socket = None
@@ -225,6 +264,11 @@ class TestPreforkForkAndReloadNoSocket:
             with pytest.raises(SystemExit):
                 prefork_server.fork_and_reload()
         assert seen["env"].get("ODOO_HTTP_SOCKET_FD") == "7"
+
+
+# ---------------------------------------------------------------------------
+# WorkerCron._connect_postgres()
+# ---------------------------------------------------------------------------
 
 
 class TestWorkerCronConnectPostgres:
@@ -272,6 +316,11 @@ class TestWorkerCronConnectPostgres:
         mock_connect.assert_called_once_with("postgres")
 
 
+# ---------------------------------------------------------------------------
+# WorkerCron.sleep() — idle select must not outlast the master watchdog
+# ---------------------------------------------------------------------------
+
+
 class TestWorkerCronSleepWatchdog:
     def _select_timeout(self, worker_cron):
         worker_cron.db_queue.clear()
@@ -299,6 +348,11 @@ class TestWorkerCronSleepWatchdog:
         worker_cron.watchdog_timeout = 120
         timeout = self._select_timeout(worker_cron)
         assert timeout >= 60, timeout
+
+
+# ---------------------------------------------------------------------------
+# WorkerCron.process_work() — reconnect logic (the bug we fixed)
+# ---------------------------------------------------------------------------
 
 
 class TestWorkerCronProcessWorkReconnect:
@@ -404,6 +458,11 @@ class TestWorkerCronProcessWorkReconnect:
                 )
 
 
+# ---------------------------------------------------------------------------
+# WorkerCron.start() — boot-time PG-connect backoff must yield to a stop signal
+# ---------------------------------------------------------------------------
+
+
 class TestWorkerCronStartGracefulShutdown:
     def test_start_stops_retrying_when_alive_cleared(self, worker_cron):
         worker_cron._selector = MagicMock()
@@ -450,6 +509,11 @@ class TestWorkerCronStartGracefulShutdown:
 
         assert slept == [worker_cron.multi.beat / 2]
         assert sum(slept) < 60
+
+
+# ---------------------------------------------------------------------------
+# WorkerCron.process_work() — scheduling logic
+# ---------------------------------------------------------------------------
 
 
 class TestWorkerCronProcessWorkScheduling:
@@ -535,6 +599,11 @@ class TestWorkerCronProcessWorkScheduling:
         assert worker_cron.request_count == 1
 
 
+# ---------------------------------------------------------------------------
+# Worker.stop() / WorkerCron.stop() — resource release
+# ---------------------------------------------------------------------------
+
+
 class TestWorkerStopReleasesResources:
     def test_selector_is_closed(self, bare_worker):
         bare_worker._selector = MagicMock()
@@ -566,6 +635,11 @@ class TestWorkerStopReleasesResources:
         worker_cron._pg_selector = MagicMock()
         worker_cron.dbcursor.close.side_effect = psycopg.OperationalError("gone")
         worker_cron.stop()
+
+
+# ---------------------------------------------------------------------------
+# WorkerCron.check_limits()
+# ---------------------------------------------------------------------------
 
 
 class TestWorkerCronCheckLimits:
@@ -606,6 +680,10 @@ class TestWorkerCronCheckLimits:
         assert worker_cron.alive is True
 
 
+# ---------------------------------------------------------------------------
+# Worker.check_limits() — base class
+# ---------------------------------------------------------------------------
+
 _WORKER_CONFIG = {"limit_memory_soft": 0, "limit_time_cpu": 60}
 _RESOURCE_ATTRS = {"ru_utime": 0.0, "ru_stime": 0.0}
 
@@ -631,6 +709,11 @@ def worker_check_limits_env(memory_bytes=0, config_override=None):
         patch("odoo.service._worker.resource", mock_resource),
     ):
         yield SimpleNamespace(resource=mock_resource, memory_info=mock_memory_info)
+
+
+# ---------------------------------------------------------------------------
+# ThreadedServer.process_limit()
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -711,6 +794,11 @@ class TestWorkerCheckLimits:
         assert bare_worker.alive is True
 
 
+# ---------------------------------------------------------------------------
+# Worker.run() — fault propagation
+# ---------------------------------------------------------------------------
+
+
 class TestWorkerRunFaultExit:
     def _make_worker(self, srv):
         w = object.__new__(srv.Worker)
@@ -748,6 +836,11 @@ class TestWorkerRunFaultExit:
         logged = " ".join(str(c) for c in w.logger.info.call_args_list)
         assert "Exiting cleanly" in logged
         w.stop.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# CommonServer.on_stop() / stop()
+# ---------------------------------------------------------------------------
 
 
 class TestCommonServerCallbacks:
@@ -803,6 +896,11 @@ class TestCommonServerCallbacks:
         later.assert_called_once()
 
 
+# ---------------------------------------------------------------------------
+# PreforkServer.process_zombie()
+# ---------------------------------------------------------------------------
+
+
 class TestPreforkProcessZombie:
     def test_normal_exit_pops_worker(self, prefork_server):
         prefork_server.worker_pop = MagicMock()
@@ -826,6 +924,11 @@ class TestPreforkProcessZombie:
         with patch("os.waitpid", side_effect=OSError(errno.EINTR, "interrupted")):
             with pytest.raises(OSError):
                 prefork_server.process_zombie()
+
+
+# ---------------------------------------------------------------------------
+# PreforkServer.long_polling_popen reconciliation
+# ---------------------------------------------------------------------------
 
 
 class TestLongPollingPopenReconciliation:
@@ -1086,6 +1189,11 @@ class TestPreforkGracefulStopEscalation:
         )
 
 
+# ---------------------------------------------------------------------------
+# PreforkServer.__init__() — limit_time_real -> watchdog timeouts
+# ---------------------------------------------------------------------------
+
+
 class TestPreforkInitTimeout:
     @staticmethod
     def _make(srv, **overrides):
@@ -1125,6 +1233,11 @@ class TestPreforkInitTimeout:
     def test_positive_cron_limit_kept(self, srv):
         s = self._make(srv, limit_time_real_cron=30)
         assert s.cron_timeout == 30
+
+
+# ---------------------------------------------------------------------------
+# PreforkServer._stop_long_polling()
+# ---------------------------------------------------------------------------
 
 
 class TestStopLongPolling:
@@ -1183,6 +1296,11 @@ class TestStopLongPolling:
         proc.wait.assert_called_once()
 
 
+# ---------------------------------------------------------------------------
+# PreforkServer.process_timeout()
+# ---------------------------------------------------------------------------
+
+
 class TestPreforkProcessTimeout:
     def test_kills_timed_out_worker(self, prefork_server):
         stale = MagicMock()
@@ -1210,6 +1328,11 @@ class TestPreforkProcessTimeout:
         prefork_server.worker_kill = MagicMock()
         prefork_server.process_timeout()
         prefork_server.worker_kill.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# PreforkServer.worker_kill()
+# ---------------------------------------------------------------------------
 
 
 class TestPreforkWorkerPop:
@@ -1281,6 +1404,11 @@ class TestPreforkWorkerKill:
         with patch("os.kill", side_effect=OSError(errno.ESRCH, "no such process")):
             prefork_server.worker_kill(1234, signal.SIGTERM)
         prefork_server.worker_pop.assert_called_once_with(1234)
+
+
+# ---------------------------------------------------------------------------
+# Socket activation: IPv6 family detection
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -1582,6 +1710,11 @@ class TestCommonRequestHandlerLogRequestControlChars:
         with patch("odoo.service.wsgi._ANSI_ENABLED", False):
             h.log_request(200, 0)
         assert self.ESC not in h.log.call_args.args[1]
+
+
+# ---------------------------------------------------------------------------
+# EventServer — SIGTERM graceful shutdown (on_stop hooks must run)
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -2052,6 +2185,11 @@ class TestInheritedListenSocketKeepsItsFamily:
             adopted.detach()
 
 
+# ---------------------------------------------------------------------------
+# PreforkServer.fork_and_reload — reload-timeout contract
+# ---------------------------------------------------------------------------
+
+
 class TestForkAndReloadTimeout:
     def test_fork_and_reload_returns_true_on_sighup(self, srv):
         ps = object.__new__(srv.PreforkServer)
@@ -2141,6 +2279,11 @@ class TestForkAndReloadTimeout:
         mock_swg.assert_called_once()
 
 
+# ---------------------------------------------------------------------------
+# CommonServer._ON_STOP_FUNCS — the module-level callback list
+# ---------------------------------------------------------------------------
+
+
 class TestOnStopFuncsModuleLevel:
     @pytest.fixture(autouse=True)
     def _restore(self, srv):
@@ -2173,6 +2316,11 @@ class TestOnStopFuncsModuleLevel:
         cb.assert_called_once()
 
 
+# ---------------------------------------------------------------------------
+# PreforkServer.stop_workers_gracefully() — dict-mutation race
+# ---------------------------------------------------------------------------
+
+
 class TestStopWorkersGracefullyDictRace:
     def test_pop_during_iteration_does_not_raise(self, prefork_server):
         prefork_server.workers = {1: MagicMock(), 2: MagicMock(), 3: MagicMock()}
@@ -2201,6 +2349,11 @@ class TestStopWorkersGracefullyDictRace:
             prefork_server.stop_workers_gracefully()
 
         assert 2 not in prefork_server.workers
+
+
+# ---------------------------------------------------------------------------
+# memory_info log strings — RSS not VMS
+# ---------------------------------------------------------------------------
 
 
 class TestMemoryLogStrings:
@@ -2333,6 +2486,11 @@ class TestEventServerGracefulStop:
         event_server.stop()
 
 
+# ---------------------------------------------------------------------------
+# ThreadedServer.process_limit — real-time-limit log formatting
+# ---------------------------------------------------------------------------
+
+
 class TestProcessLimitRealTimeLog:
     def test_overrun_logs_fractional_seconds(self, srv):
         ts = object.__new__(srv.ThreadedServer)
@@ -2364,6 +2522,11 @@ class TestProcessLimitRealTimeLog:
         assert "virtual" not in fmt, "wall time must not be mislabeled 'virtual'"
         rendered = fmt % ts.logger.warning.call_args.args[1:]
         assert "12.7" in rendered, f"fractional seconds must survive; got {rendered!r}"
+
+
+# ---------------------------------------------------------------------------
+# ThreadedWSGIServerReloadable — websocket upgrade releases the bounded slot
+# ---------------------------------------------------------------------------
 
 
 class _FakeConnection:
@@ -2433,6 +2596,11 @@ class TestHttpSlotReleaseOnWebsocketUpgrade:
         handler.request = _FakeConnection()
         with patch.object(http.server.BaseHTTPRequestHandler, "send_response"):
             handler.send_response(101)
+
+
+# ---------------------------------------------------------------------------
+# _cron.order_notified_first — cron/job scheduling order + de-duplication
+# ---------------------------------------------------------------------------
 
 
 class _StopHarness(BaseException):
@@ -2534,6 +2702,11 @@ class TestListenThreadDoesNotSwallowUnwinds:
             raise ValueError("cron pass blew up")
 
         _drive_listen_thread(listen_server, boom, sleeps_before_stop=3)
+
+
+# ---------------------------------------------------------------------------
+# PreforkServer.stop() — the reload (phoenix) branch must not strand workers
+# ---------------------------------------------------------------------------
 
 
 class TestPreforkPhoenixStopTerminatesSurvivors:

@@ -12,6 +12,11 @@ def common_mod():
     return mod
 
 
+# ---------------------------------------------------------------------------
+# dispatch() allowlist
+# ---------------------------------------------------------------------------
+
+
 class TestDispatchAllowlist:
     def test_allowlist_contains_expected_public_methods(self, common_mod):
         assert set(common_mod._DISPATCH) == {"login", "authenticate", "version"}
@@ -49,6 +54,11 @@ class TestDispatchAllowlist:
         assert result == 42
 
 
+# ---------------------------------------------------------------------------
+# exp_version() — the wire contract
+# ---------------------------------------------------------------------------
+
+
 class TestVersionPayload:
     @pytest.mark.parametrize(
         "key", ["server_version", "server_version_info", "server_serie"]
@@ -81,6 +91,11 @@ class TestVersionPayload:
     def test_an_unknown_module_attribute_still_raises(self, common_mod):
         with pytest.raises(AttributeError, match="no attribute 'NoSuchName'"):
             common_mod.NoSuchName
+
+
+# ---------------------------------------------------------------------------
+# exp_authenticate — connection-failure exceptions must NOT escape
+# ---------------------------------------------------------------------------
 
 
 class TestExpAuthenticateExceptionAbsorption:
@@ -250,6 +265,11 @@ class TestExpAuthenticateNeverServableNames:
             patch.object(common_mod, "Registry", side_effect=_must_not_run),
         ):
             assert common_mod.exp_authenticate("tpl_custom", "a", "b", None) is False
+
+
+# ---------------------------------------------------------------------------
+# exp_authenticate — hostile argument types
+# ---------------------------------------------------------------------------
 
 
 class TestExpAuthenticateArgumentTypes:

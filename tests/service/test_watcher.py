@@ -96,6 +96,11 @@ class TestFSWatcherBase:
         assert result is None
 
 
+# ---------------------------------------------------------------------------
+# FSWatcherBase.handle_asset_file() — the invalidation itself
+# ---------------------------------------------------------------------------
+
+
 class TestFSWatcherAssetInvalidation:
     @pytest.fixture
     def invalidate(self, srv):
@@ -149,6 +154,11 @@ class TestFSWatcherAssetInvalidation:
 
     def test_a_total_outage_is_swallowed_not_raised(self, invalidate):
         assert invalidate(registries=["a", "b"], failing=["a", "b"]) == []
+
+
+# ---------------------------------------------------------------------------
+# FSWatcherInotify — re-watching a subtree the kernel moved or recreated
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.skipif(_watcher.inotify is None, reason="inotify backend not installed")
@@ -444,6 +454,11 @@ class TestBothBackendsCoalesceAssetBursts:
         while len(flushed) < 2 and time.monotonic() < deadline:
             time.sleep(0.01)
         assert len(flushed) == 2, "the timer never emitted the trailing flush"
+
+
+# ---------------------------------------------------------------------------
+# The wiring each backend depends on — recursion, daemon-ness, the run loop
+# ---------------------------------------------------------------------------
 
 
 class TestWatcherWiring:

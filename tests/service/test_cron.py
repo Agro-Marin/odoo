@@ -44,6 +44,11 @@ class TestCronDatabaseList:
             assert list(OrderedSet(_helpers.cron_database_list())) == ["mydb"]
 
 
+# ---------------------------------------------------------------------------
+# _cron.order_notified_first — scheduling order + de-duplication
+# ---------------------------------------------------------------------------
+
+
 class TestOrderNotifiedFirst:
     @pytest.fixture
     def order(self):

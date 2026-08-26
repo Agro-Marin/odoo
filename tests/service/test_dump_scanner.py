@@ -385,6 +385,11 @@ class TestDumpSqlScannerStreaming:
         assert list(db_mod._iter_physical_lines(text)) == ["a\x0bb\x85c d\n", "e\n"]
 
 
+# ---------------------------------------------------------------------------
+# The refusal message — the line number is the whole diagnosis
+# ---------------------------------------------------------------------------
+
+
 class TestTheReportedLineNumber:
     @staticmethod
     def _expected_line(sql):
