@@ -701,7 +701,7 @@ class SlideChannel(models.Model):
     @api.depends("channel_type", "user_id", "can_upload")
     @api.depends_context("uid")
     def _compute_can_publish(self):
-        """For channels of type 'training', only the responsible (see user_id field) can publish slides.
+        """Only a record's responsible (see user_id field) or a member of the manager group can publish slides.
         The 'sudo' user needs to be handled because they are the one used for uploads done on the front-end when the
         logged in user is not publisher but fulfills the upload_group_ids condition. Invited attendees can
         preview the course as public and sudo. Prevent them from uploading."""
