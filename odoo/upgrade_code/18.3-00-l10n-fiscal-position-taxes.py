@@ -2269,6 +2269,11 @@ def upgrade(file_manager: FileManager) -> None:
         csv_file = csv.DictReader(file.content.splitlines())
         csv_data = list(csv_file)
         field_names = csv_file.fieldnames
+        # `fieldnames` is None for an empty file, and `x in None` is a TypeError
+        # that escapes `upgrade()` -- and since `migrate()` flushes only once
+        # every script has run, that discards the whole run's edits.
+        if not field_names:
+            continue
         if SRC_FIELD not in field_names or DEST_FIELD not in field_names:
             log.warning("No src and dest fields in %s...skipping", file.path.parts[-1])
             continue
@@ -2389,6 +2394,8 @@ def upgrade(file_manager: FileManager) -> None:
                 fpfile,
                 module_name,
             )
+        if not csv_file.fieldnames:  # empty file: see the loop above
+            continue
         is_primary_tax = "name" in csv_file.fieldnames
         buffer = StringIO()
         writer = csv.DictWriter(
