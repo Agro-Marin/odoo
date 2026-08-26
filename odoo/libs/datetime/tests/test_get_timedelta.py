@@ -62,4 +62,5 @@ class TestGetTimedelta:
         # A bare KeyError('fortnight') names neither the argument nor the
         # allowed set; start_of and end_of raise ValueError for the same slip.
         with pytest.raises(ValueError, match="Granularity must be"):
-            get_timedelta(1, "fortnight")
+            # the point of the test: a granularity outside the Literal
+            get_timedelta(1, "fortnight")  # type: ignore[arg-type]

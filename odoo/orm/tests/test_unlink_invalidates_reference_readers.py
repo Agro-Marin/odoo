@@ -67,7 +67,11 @@ class Pointer(models.Model):
     @api.depends("ref")
     def _compute_ref_name(self):
         for record in self:
-            record.ref_name = record.ref.exists().name if record.ref else False
+            # a Reference resolves to a recordset at runtime; the descriptor
+            # is typed str, which is the gap this test exists around
+            record.ref_name = (
+                record.ref.exists().name if record.ref else False  # type: ignore[attr-defined]
+            )
 
 
 class Bystander(models.Model):

@@ -153,6 +153,9 @@ class BaseString(Field[str | typing.Literal[False]]):
     def _convert_db_column(
         self, model: ModelLike, column: dict[str, typing.Any]
     ) -> None:
+        assert self.column_type is not None, (
+            f"{self}: a column conversion is only reached for a stored column"
+        )
         if self.translate or column["udt_name"] == "jsonb":
             sql.convert_column_translatable(
                 model.env.cr, model._table, self.name, self.column_type[1]
@@ -165,7 +168,7 @@ class BaseString(Field[str | typing.Literal[False]]):
     def get_trans_terms(self, value: str | None) -> list[str]:
         if not callable(self.translate):
             return [value] if value else []
-        terms = []
+        terms: list[str] = []
         self.translate(terms.append, value)
         return terms
 

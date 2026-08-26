@@ -8,6 +8,17 @@ from odoo.tools import OrderedSet, mute_logger
 BaseCase = unittest.TestCase
 
 
+class _NoCursor:
+    """A graph these tests never ask to query. Passing None said that to a
+    reader and something untrue to a type checker."""
+
+    def execute(self, query, *args, **kwargs):
+        raise AssertionError("this test's graph must not reach the database")
+
+    def fetchall(self):
+        raise AssertionError("this test's graph must not reach the database")
+
+
 class TestGraph(BaseCase):
     @mute_logger("odoo.modules.module_graph")
     def _test_graph_order(
@@ -38,8 +49,7 @@ class TestGraph(BaseCase):
                 {"studio_customization"},
             ),
         ):
-            dummy_cr = None
-            graph = ModuleGraph(dummy_cr)
+            graph = ModuleGraph(_NoCursor())
 
             for modules in modules_list:
                 graph.extend(modules)
@@ -183,7 +193,7 @@ class TestCycleDetection(BaseCase):
         graph = ModuleGraph.__new__(ModuleGraph)
         graph._modules = {}
         graph.mode = "load"
-        graph._cr = None
+        graph._cr = _NoCursor()
         nodes = {}
         for name in edges:
             node = ModuleNode.__new__(ModuleNode)

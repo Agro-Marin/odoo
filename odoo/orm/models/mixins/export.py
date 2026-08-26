@@ -32,8 +32,12 @@ class ExportMixin(_ModelStubs):
 
         if not self._is_an_ordinary_table():
             raise UserError(
-                f"You can not export the column ID of model {self._name}, because the "
-                f"table {self._table} is not an ordinary table."
+                self.env._(
+                    "You can not export the column ID of model %(model)s, because the"
+                    " table %(table)s is not an ordinary table.",
+                    model=self._name,
+                    table=self._table,
+                )
             )
 
         modname = "__export__"

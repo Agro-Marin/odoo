@@ -118,6 +118,16 @@ class BaseCursor:
     def rollback(self) -> None:
         raise NotImplementedError
 
+    # Declared for the type checker and NOT at runtime, deliberately: every
+    # concrete cursor provides these -- Cursor and InMemoryCursor implement
+    # them, TestCursor forwards them to the cursor it wraps through
+    # __getattr__ -- and that hook only fires when normal lookup FAILS, so a
+    # real method here would shadow the forwarding and answer for it.
+    #
+    # `fetchall` and `rowcount` join them because BaseCursor is what
+    # Environment.cr is typed as, and 13 call sites read rows off one.
+    # `fetchscalar` above already calls `self.fetchone()`, so the base has
+    # always required this family while declaring only half of it.
     if TYPE_CHECKING:
 
         def close(self) -> None:
@@ -125,6 +135,15 @@ class BaseCursor:
 
         def fetchone(self) -> tuple[Any, ...] | None:
             pass
+
+        def fetchall(self) -> list[tuple[Any, ...]]:
+            pass
+
+        # a read-only property, because that is what every concrete cursor
+        # makes it; a bare `rowcount: int` declares a writeable attribute and
+        # each of them then reads as narrowing the base.
+        @property
+        def rowcount(self) -> int: ...
 
     def savepoint(self, flush: bool = True) -> Savepoint:
         """Open a SQL savepoint; `flush=False` skips the ORM flush/restore.

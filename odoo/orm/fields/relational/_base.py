@@ -364,6 +364,32 @@ class _RelationalMulti(_Relational):
 
         raise ValueError(f"Wrong value for {self}: {value}")
 
+    def _get_read_context(self) -> dict:
+        """Context for the query that FILLS this field's cache.
+
+        ``active_test`` is forced off and cannot be turned back on by the
+        field's own ``context``. The cache holds corecord ids; archived-ness is
+        applied on the way out, by :meth:`_make_corecords`, off an ``active``
+        value that the ORM keeps fresh. Letting a field narrow the *query*
+        instead moves the filter into the ids themselves, and nothing
+        invalidates a stored x2many when a corecord's ``active`` flips -- so a
+        corecord archived at the moment the cache was filled stayed missing
+        from it for the rest of the transaction, and unarchiving never put it
+        back. Reads under-reported and a write computed from them silently did
+        nothing.
+
+        Dropping the key costs the declaration nothing: ``_make_corecords``
+        reads ``active_test`` from ``self.context`` first, so
+        ``context={'active_test': True}`` still means "always live, whatever
+        the caller asks for" -- it just stops meaning it one transaction at a
+        time.
+        """
+        context = {
+            key: value for key, value in self.context.items() if key != "active_test"
+        }
+        context["active_test"] = False
+        return context
+
     def _make_corecords(
         self, env: Environment, ids: tuple[int | NewId, ...], prefetch_ids: typing.Any
     ) -> BaseModel:

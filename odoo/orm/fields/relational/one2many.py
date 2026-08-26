@@ -129,9 +129,9 @@ class One2many(_RelationalMulti):
 
     @override
     def read(self, records: BaseModel) -> None:
-        context = {"active_test": False}
-        context.update(self.context)
-        comodel = records.env[self.comodel_name].with_context(**context)
+        comodel = records.env[self.comodel_name].with_context(
+            **self._get_read_context()
+        )
         inverse = self.inverse_name
         inverse_field = comodel._fields[inverse]
 

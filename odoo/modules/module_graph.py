@@ -6,12 +6,11 @@ from typing import Literal
 from odoo.db.schema import column_exists
 from odoo.tools import OrderedSet, reset_cached_properties
 
+from ._protocols import SqlReader
 from .module import Manifest
 
 if typing.TYPE_CHECKING:
     from collections.abc import Collection, Iterable, Iterator, Mapping
-
-    from odoo.db import BaseCursor
 
     STATES = Literal[
         "uninstallable",
@@ -88,12 +87,10 @@ class ModuleNode:
 
 
 class ModuleGraph:
-    def __init__(
-        self, cr: BaseCursor, mode: Literal["load", "update"] = "load"
-    ) -> None:
+    def __init__(self, cr: SqlReader, mode: Literal["load", "update"] = "load") -> None:
         self.mode: Literal["load", "update"] = mode
         self._modules: dict[str, ModuleNode] = {}
-        self._cr: BaseCursor = cr
+        self._cr: SqlReader = cr
 
     def __contains__(self, name: str) -> bool:
         return name in self._modules

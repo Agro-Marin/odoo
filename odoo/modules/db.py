@@ -9,6 +9,7 @@ import odoo.api
 import odoo.modules
 import odoo.tools
 from odoo.db import schema as _db_schema
+from odoo.modules._protocols import SqlReader
 
 from .registry import Registry
 
@@ -75,7 +76,7 @@ which is 4681 rows over these 14 columns; this workspace already carries 1554
 modules, so the ceiling is close enough to be worth not standing on."""
 
 
-def _insert_modules(cr: Cursor, rows: list[tuple]) -> dict[str, int]:
+def _insert_modules(cr: SqlReader, rows: list[tuple]) -> dict[str, int]:
     """Insert every module row and return the ids, keyed by module name.
 
     One statement per chunk rather than one per module. The per-module

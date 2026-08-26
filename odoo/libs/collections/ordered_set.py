@@ -2,7 +2,6 @@ __all__ = ["LastOrderedSet", "OrderedSet"]
 
 import itertools
 from collections.abc import (
-    Callable,
     Iterable,
     Iterator,
     Mapping,
@@ -12,7 +11,7 @@ from collections.abc import (
     Set as AbstractSet,
 )
 from functools import reduce
-from typing import Self, cast
+from typing import Self
 
 
 class OrderedSet[T](MutableSet[T]):
@@ -64,10 +63,7 @@ class OrderedSet[T](MutableSet[T]):
     def intersection(self, *others: Iterable[T]) -> OrderedSet[T]:
         if not others:
             return self.copy()
-        intersect = cast(
-            "Callable[[OrderedSet[T], Iterable[T]], OrderedSet[T]]",
-            OrderedSet.__and__,
-        )
+        intersect = OrderedSet.__and__
         return reduce(intersect, others, self)
 
     def copy(self) -> Self:

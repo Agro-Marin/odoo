@@ -119,13 +119,17 @@ class InMemoryCursor(BaseCursor):
             "TransactionCase."
         )
 
+    @property
+    def rowcount(self) -> int:
+        return len(self._last_result)
+
     def fetchall(self) -> list[tuple]:
         return list(self._last_result)
 
     def fetchone(self) -> tuple | None:
         return self._last_result[0] if self._last_result else None
 
-    def fetchmany(self, size: int) -> list[tuple]:
+    def fetchmany(self, size: int = 0) -> list[tuple]:
         return self._last_result[:size]
 
     _DICT_API_UNSUPPORTED = (

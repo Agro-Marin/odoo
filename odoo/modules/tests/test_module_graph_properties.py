@@ -92,7 +92,7 @@ def _random_graph(seed):
     names = ["base"] + [
         ("test_" if rng.random() < 0.3 else "mod_") + f"{i:03d}" for i in range(1, size)
     ]
-    declared = {"base": []}
+    declared: dict[str, list[str]] = {"base": []}
     for i in range(1, size):
         count = rng.randint(1, min(3, len(names)))
         declared[names[i]] = rng.sample(names, count)  # may self-reference or cycle

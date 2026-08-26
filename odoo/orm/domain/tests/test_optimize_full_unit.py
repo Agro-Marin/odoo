@@ -241,7 +241,7 @@ class TestFieldSearchMethodLadder(unittest.TestCase):
         return model
 
     def test_direct_result_is_parsed_as_internal_domain(self):
-        calls = []
+        calls: list = []
         model = self._model({"in": [("a", "=", 1)]}, calls)
         result = DomainCondition(
             "f", "in", OrderedSet([1])
@@ -250,7 +250,7 @@ class TestFieldSearchMethodLadder(unittest.TestCase):
         self.assertEqual(list(result), [("a", "=", 1)])
 
     def test_negative_operator_retries_with_positive_and_negates(self):
-        calls = []
+        calls: list = []
         model = self._model({"in": [("a", "=", 1)]}, calls)
         result = DomainCondition(
             "f", "not in", OrderedSet([1])
@@ -259,7 +259,7 @@ class TestFieldSearchMethodLadder(unittest.TestCase):
         self.assertEqual(list(result), [("a", "!=", 1)])
 
     def test_in_falls_back_to_or_of_equalities(self):
-        calls = []
+        calls: list = []
         model = self._model({"=": lambda v: [("a", "=", v)]}, calls)
         result = DomainCondition(
             "f", "in", OrderedSet([1, 2])
@@ -268,7 +268,7 @@ class TestFieldSearchMethodLadder(unittest.TestCase):
         self.assertEqual(list(result), ["|", ("a", "=", 1), ("a", "=", 2)])
 
     def test_not_in_falls_back_to_and_of_inequalities(self):
-        calls = []
+        calls: list = []
         model = self._model({"!=": lambda v: [("a", "!=", v)]}, calls)
         result = DomainCondition(
             "f", "not in", OrderedSet([1, 2])
@@ -277,7 +277,7 @@ class TestFieldSearchMethodLadder(unittest.TestCase):
         self.assertEqual(list(result), ["&", ("a", "!=", 1), ("a", "!=", 2)])
 
     def test_any_bang_falls_back_to_any_with_sudo_and_warns(self):
-        calls = []
+        calls: list = []
         sub_domain = Domain("a", "=", 3)
         handlers = {
             "any!": NotImplementedError("no any!"),
@@ -299,7 +299,7 @@ class TestFieldSearchMethodLadder(unittest.TestCase):
         )
 
     def test_original_exception_wins_over_later_fallback_failures(self):
-        calls = []
+        calls: list = []
         model = self._model({"in": NotImplementedError("boom-in")}, calls)
         with self.assertRaisesRegex(NotImplementedError, "boom-in"):
             DomainCondition("f", "in", OrderedSet([1]))._optimize_field_search_method(
@@ -320,7 +320,7 @@ class TestFieldSearchMethodLadder(unittest.TestCase):
             def _(self, source, **kwargs):
                 return source % kwargs
 
-        calls = []
+        calls: list = []
         model = self._model({}, calls)
         model._fields["f"].get_description = lambda env, attrs: {"string": "Field F"}
         model.env = _EnvWithIrModel(model)

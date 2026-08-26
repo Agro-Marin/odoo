@@ -16,6 +16,10 @@ could ever take demo.
 """
 
 import unittest
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from odoo.api import Environment
 from unittest.mock import patch
 
 from odoo.modules import loading
@@ -70,7 +74,10 @@ def _run(installed, failing):
         patch.object(loading, "load_demo", fake_load_demo),
     ):
         graph_cls.return_value.__iter__ = lambda self: iter(packages)
-        loading.force_demo(_Env(cr))
+        # _Env is a stand-in for the Environment force_demo reads cr and
+        # model access off; cast says that rather than leaving the double
+        # looking like an accident
+        loading.force_demo(cast("Environment", _Env(cr)))
     return cr
 
 

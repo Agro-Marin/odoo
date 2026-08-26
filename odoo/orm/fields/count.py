@@ -15,7 +15,6 @@ COUNTABLE_TYPES = ("one2many", "many2many")
 
 
 class Count(Integer):
-
     count_of: str = ""
 
     counts_in_database: bool = False
@@ -85,11 +84,16 @@ class Count(Integer):
             self._depends_context = ("active_test",)
 
     @override
-    def get_depends(self, model: BaseModel) -> tuple[typing.Iterable[str], typing.Iterable[str]]:
+    def get_depends(
+        self, model: BaseModel
+    ) -> tuple[typing.Iterable[str], typing.Iterable[str]]:
         depends, depends_context = super().get_depends(model)
         if self.inherited or not self.count_of:
             return depends, depends_context
-        counted = model._fields.get(self.count_of)
+        # `Any`, like the `_counted` accessor below: a counted field is
+        # relational and `domain` is declared on the relational base, not on
+        # `Field`, so the declared type cannot see the half that is read.
+        counted: typing.Any = model._fields.get(self.count_of)
         if counted is None:
             return depends, depends_context
         comodel = model.env[counted.comodel_name]
@@ -161,8 +165,12 @@ class Count(Integer):
         pending: list[int] = []
         if self.counts_in_database:
             cached = counted._get_cache(records.env)
+            # isinstance rather than truthiness: both exclude a NewId, and only
+            # one of them says so in a way the declared type of `id` carries
             pending = [
-                record.id for record in records if record.id and record.id not in cached
+                record.id
+                for record in records
+                if isinstance(record.id, int) and record.id not in cached
             ]
         if pending:
             counts = self._count_in_database(records.browse(pending))

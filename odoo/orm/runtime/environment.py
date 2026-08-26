@@ -331,6 +331,14 @@ class Environment(Mapping[str, "BaseModel"]):
     def lang(self) -> str | None:
         lang = self.context.get("lang")
         if lang and lang != "en_US" and not self["res.lang"]._get_data(code=lang):
+            # NOT self._(): that helper starts with `lang = self.lang or
+            # "en_US"`, and this property is mid-computation, so
+            # cached_property has nothing stored yet and re-enters here. The
+            # invalid code fails the same check, calls the same helper, and the
+            # recursion only ends when something further down raises something
+            # else -- KeyError '_en_US' out of LangDataDict, which names neither
+            # the cause nor the language. A message whose precondition is a
+            # working language cannot be translated by resolving that language.
             raise UserError(f"Invalid language code: {lang}")
         return lang or None
 

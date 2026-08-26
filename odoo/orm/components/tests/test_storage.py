@@ -1,12 +1,34 @@
 import unittest
+from typing import Any
 
 from odoo.orm.components.storage import DictBackend
 
 
-class TestDictBackendInsert(unittest.TestCase):
+class _BackendCase(unittest.TestCase):
+    """Shared fixture, and the one read that must not be spelled inline.
+
+    ``get_row`` answers ``None`` for a row that is not there, so indexing its
+    result directly turns "the write never landed" into a ``TypeError`` about
+    ``NoneType`` -- naming neither the table nor the id -- and a type checker
+    cannot see through it either, because the value really is optional.
+    ``_row`` fails with the row it went looking for, and narrows on the way
+    out.
+    """
+
+    backend: DictBackend
+
     def setUp(self) -> None:
+        super().setUp()
         self.backend = DictBackend()
 
+    def _row(self, table: str, id_: int) -> dict[str, Any]:
+        row = self.backend.get_row(table, id_)
+        if row is None:
+            self.fail(f"no row {id_} in {table!r}")
+        return row
+
+
+class TestDictBackendInsert(_BackendCase):
     def test_insert_single(self) -> None:
         ids = self.backend.insert_rows("partner", ["name"], [("Alice",)])
         self.assertEqual(len(ids), 1)
@@ -37,9 +59,9 @@ class TestDictBackendInsert(unittest.TestCase):
         self.assertEqual(ids, [])
 
 
-class TestDictBackendFetch(unittest.TestCase):
+class TestDictBackendFetch(_BackendCase):
     def setUp(self) -> None:
-        self.backend = DictBackend()
+        super().setUp()
         self.backend.insert_rows(
             "partner",
             ["name", "email"],
@@ -71,9 +93,9 @@ class TestDictBackendFetch(unittest.TestCase):
         self.assertEqual(rows, [])
 
 
-class TestDictBackendUpdate(unittest.TestCase):
+class TestDictBackendUpdate(_BackendCase):
     def setUp(self) -> None:
-        self.backend = DictBackend()
+        super().setUp()
         self.backend.insert_rows("partner", ["name", "email"], [("Alice", "a@x.com")])
 
     def test_update_single_field(self) -> None:
@@ -95,9 +117,9 @@ class TestDictBackendUpdate(unittest.TestCase):
         self.backend.update_rows("nonexistent", [(1, {"name": "Ghost"})])
 
 
-class TestDictBackendDelete(unittest.TestCase):
+class TestDictBackendDelete(_BackendCase):
     def setUp(self) -> None:
-        self.backend = DictBackend()
+        super().setUp()
         self.backend.insert_rows(
             "partner",
             ["name"],
@@ -122,10 +144,7 @@ class TestDictBackendDelete(unittest.TestCase):
         self.backend.delete_rows("nonexistent", [1])
 
 
-class TestDictBackendHelpers(unittest.TestCase):
-    def setUp(self) -> None:
-        self.backend = DictBackend()
-
+class TestDictBackendHelpers(_BackendCase):
     def test_get_row(self) -> None:
         self.backend.insert_rows("partner", ["name"], [("Alice",)])
         row = self.backend.get_row("partner", 1)
@@ -153,10 +172,7 @@ class TestDictBackendHelpers(unittest.TestCase):
         self.assertIn("rows=1", r)
 
 
-class TestDictBackendSealedApi(unittest.TestCase):
-    def setUp(self) -> None:
-        self.backend = DictBackend()
-
+class TestDictBackendSealedApi(_BackendCase):
     def test_put_rows_stores_by_id(self) -> None:
         self.backend.put_rows(
             "partner", [{"id": 5, "name": "Alice"}, {"id": 6, "name": "Bob"}]
@@ -172,7 +188,7 @@ class TestDictBackendSealedApi(unittest.TestCase):
         self.backend.put_rows("partner", [{"id": 1, "name": "Alice"}])
         self.backend.put_rows("partner", [{"id": 1, "name": "Alice2"}])
         self.assertEqual(self.backend.row_count("partner"), 1)
-        self.assertEqual(self.backend.get_row("partner", 1)["name"], "Alice2")
+        self.assertEqual(self._row("partner", 1)["name"], "Alice2")
 
     def test_upsert_updates_existing(self) -> None:
         self.backend.put_rows("partner", [{"id": 1, "name": "Alice", "age": 30}])
@@ -195,17 +211,17 @@ class TestDictBackendSealedApi(unittest.TestCase):
         row = {"id": 1, "name": "Alice"}
         self.backend.put_rows("partner", [row])
         row["name"] = "mutated after the write"
-        self.assertEqual(self.backend.get_row("partner", 1)["name"], "Alice")
+        self.assertEqual(self._row("partner", 1)["name"], "Alice")
 
     def test_reads_do_not_hand_out_a_handle_on_the_table(self) -> None:
         """`get_row`/`get_rows` return reads, not live rows."""
         self.backend.put_rows("partner", [{"id": 1, "name": "Alice"}])
-        got = self.backend.get_row("partner", 1)
+        got = self._row("partner", 1)
         got["name"] = "mutated via read"
-        self.assertEqual(self.backend.get_row("partner", 1)["name"], "Alice")
+        self.assertEqual(self._row("partner", 1)["name"], "Alice")
         many = self.backend.get_rows("partner", [1])
         many[1]["name"] = "mutated via get_rows"
-        self.assertEqual(self.backend.get_row("partner", 1)["name"], "Alice")
+        self.assertEqual(self._row("partner", 1)["name"], "Alice")
 
     def test_upsert_advances_sequence_past_explicit_id(self) -> None:
         """The sibling of ``test_put_rows_advances_sequence_past_explicit_id``.
@@ -229,7 +245,7 @@ class TestDictBackendSealedApi(unittest.TestCase):
         for i in range(5):
             new_ids = self.backend.insert_rows("partner", ["name"], [(f"n{i}",)])
             self.assertNotIn(3, new_ids)
-        self.assertEqual(self.backend.get_row("partner", 3)["name"], "Kept")
+        self.assertEqual(self._row("partner", 3)["name"], "Kept")
         self.assertEqual(self.backend.row_count("partner"), 6)
 
     def test_update_rows_skips_missing(self) -> None:

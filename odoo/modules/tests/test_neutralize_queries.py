@@ -14,9 +14,12 @@ BaseCase = unittest.TestCase
 class _Cursor:
     """Executes nothing; raises for the module named in `fail_on`."""
 
-    def __init__(self, fail_on=None):
+    def __init__(self, fail_on=None, installed=()):
         self.executed = []
         self.fail_on = fail_on
+        #: read by fetchall(); it was only ever set from outside, so the double
+        #: was a step away from an AttributeError that named nothing
+        self.installed = list(installed)
 
     def execute(self, query, params=None):
         self.executed.append(query)

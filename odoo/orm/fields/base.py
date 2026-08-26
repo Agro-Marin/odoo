@@ -297,6 +297,7 @@ class Field[T](
     readonly: bool = False
     required: bool = False
     groups: str | None = None
+    write_groups: str | Callable[[BaseModel], bool] | None = None
     change_default = False
 
     related_field: Field | None = None
@@ -706,6 +707,7 @@ class Field[T](
     _related_string = property(attrgetter("string"))
     _related_help = property(attrgetter("help"))
     _related_groups = property(attrgetter("groups"))
+    _related_write_groups = property(attrgetter("write_groups"))
     _related_aggregator = property(attrgetter("aggregator"))
 
     @functools.cached_property

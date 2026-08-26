@@ -2,18 +2,18 @@ import logging
 import typing
 from contextlib import suppress
 
+from odoo.modules._protocols import SqlReader
 from odoo.modules.module import Manifest
 from odoo.tools.misc import file_open
 
 if typing.TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
-    from odoo.db import Cursor
 
 _logger = logging.getLogger(__name__)
 
 
-def get_installed_modules(cursor: Cursor) -> list[str]:
+def get_installed_modules(cursor: SqlReader) -> list[str]:
     cursor.execute("""
         SELECT name
           FROM ir_module_module
@@ -51,7 +51,7 @@ def get_neutralization_queries(modules: Iterable[str]) -> Iterator[str]:
         yield query
 
 
-def neutralize_database(cursor: Cursor) -> None:
+def neutralize_database(cursor: SqlReader) -> None:
     for module, query in iter_neutralization_queries(get_installed_modules(cursor)):
         try:
             cursor.execute(query)

@@ -11,6 +11,7 @@ from odoo.tools.translate import LazyTranslate, _
 
 from ... import decorators as api
 from ...domain import Domain
+from ...fields.base import determine
 from ...helpers import to_record_ids
 from ...primitives import NO_ACCESS
 from ._model_stubs import _ModelStubs
@@ -31,11 +32,24 @@ class AccessMixin(_ModelStubs):
     def _has_field_access(
         self, field: Field, operation: typing.Literal["read", "write"]
     ) -> bool:
-        if not field.groups or self.env.su:
+        if not (field.groups or field.write_groups) or self.env.su:
             return True
-        if field.groups == NO_ACCESS:
+        if field.groups:
+            if field.groups == NO_ACCESS:
+                return False
+            if not self.env.user.has_groups(field.groups):
+                return False
+        if operation == "write" and field.write_groups:
+            return self._has_write_groups(field)
+        return True
+
+    def _has_write_groups(self, field: Field) -> bool:
+        write_groups = field.write_groups
+        if write_groups == NO_ACCESS:
             return False
-        return self.env.user.has_groups(field.groups)
+        if callable(write_groups):
+            return bool(determine(write_groups, self))
+        return self.env.user.has_groups(write_groups)
 
     @api.model
     def _check_field_access(
@@ -66,31 +80,55 @@ class AccessMixin(_ModelStubs):
         )
 
         if self.env.user._has_group("base.group_no_one"):
-            if field.groups == NO_ACCESS:
-                allowed_groups_msg = _("always forbidden")
-            elif not field.groups:
-                allowed_groups_msg = _("custom field access rules")
-            else:
-                groups_list = []
-                missing_xmlids = []
-                for xmlid in field.groups.split(","):
-                    group = self.env.ref(xmlid.strip(), raise_if_not_found=False)
-                    if group is not None and group._name == "res.groups":
-                        groups_list.append(group)
-                    else:
-                        missing_xmlids.append(xmlid.strip())
-                groups = self.env["res.groups"].union(*groups_list).sorted("id")
-                allowed_groups_msg = _(
-                    "allowed for groups %s",
-                    ", ".join([repr(g.display_name) for g in groups] + missing_xmlids),
-                )
             error_msg += _(
                 "\nUser: %(user)s\nGroups: %(allowed_groups_msg)s",
                 user=self.env.uid,
-                allowed_groups_msg=allowed_groups_msg,
+                allowed_groups_msg=self._get_field_access_message(field, operation),
             )
 
         raise AccessError(error_msg)
+
+    @api.model
+    def _get_field_access_message(
+        self, field: Field, operation: typing.Literal["read", "write"]
+    ) -> str:
+        if field.groups == NO_ACCESS:
+            return _("always forbidden")
+
+        messages = []
+        if field.groups:
+            messages.append(self._get_group_spec_message(field.groups))
+        if operation == "write" and field.write_groups:
+            if field.write_groups == NO_ACCESS:
+                messages.append(_("write always forbidden"))
+            elif callable(field.write_groups):
+                messages.append(_("write gated by a field predicate"))
+            else:
+                messages.append(
+                    _(
+                        "write %(spec)s",
+                        spec=self._get_group_spec_message(field.write_groups),
+                    )
+                )
+        if not messages:
+            return _("custom field access rules")
+        return ", ".join(messages)
+
+    @api.model
+    def _get_group_spec_message(self, group_spec: str) -> str:
+        groups_list = []
+        missing_xmlids = []
+        for xmlid in group_spec.split(","):
+            group = self.env.ref(xmlid.strip(), raise_if_not_found=False)
+            if group is not None and group._name == "res.groups":
+                groups_list.append(group)
+            else:
+                missing_xmlids.append(xmlid.strip())
+        groups = self.env["res.groups"].union(*groups_list).sorted("id")
+        return _(
+            "allowed for groups %s",
+            ", ".join([repr(g.display_name) for g in groups] + missing_xmlids),
+        )
 
     @api.model
     @api.deprecated(

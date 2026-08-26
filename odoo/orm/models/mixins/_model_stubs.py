@@ -39,6 +39,14 @@ class _ModelStubs:
         _parent_name: str
         _parent_store: bool
 
+        # Declared here because ReadMixin and UnlinkMixin call members their
+        # SIBLING mixins own -- _query.ModelQuery and _hooks -- and a mixin
+        # cannot see across the composition it is only half of.
+        @property
+        def _ondelete_methods(self) -> list: ...
+
+        def _as_query(self, ordered: bool = True) -> Query: ...
+
         _inherits: dict
         _inherits_children: set[str]
         _description: str

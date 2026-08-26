@@ -127,12 +127,7 @@ def _narrowing_test_spec() -> str:
     return "" if tags in {"", "+standard"} else tags
 
 
-def preload_registries(dbnames: list[str] | None) -> int:
-    dbnames = dbnames or []
-    rc = 0
-
-    preload_profiler = contextlib.nullcontext()
-
+def _limit_resident_registries(dbnames: list[str]) -> None:
     registries_size = env_int("ODOO_REGISTRY_LRU_SIZE", 0, minimum=0, logger=_logger)
     if not registries_size:
         if os.name == "posix":
@@ -161,10 +156,21 @@ def preload_registries(dbnames: list[str] | None) -> int:
         Registry.idle_timeout = idle_timeout
         _logger.info("Idle registries are dropped after %ds", idle_timeout)
 
+
+def preload_registries(dbnames: list[str] | None) -> int:
+    dbnames = dbnames or []
+    rc = 0
+
+    preload_profiler: contextlib.AbstractContextManager = contextlib.nullcontext()
+
+    _limit_resident_registries(dbnames)
+
     for dbname in dbnames:
         if os.environ.get("ODOO_PROFILE_PRELOAD"):
             interval = env_float("ODOO_PROFILE_PRELOAD_INTERVAL", 0.1, logger=_logger)
-            collectors = [profiler.PeriodicCollector(interval=interval)]
+            collectors: list[str | profiler.Collector] = [
+                profiler.PeriodicCollector(interval=interval)
+            ]
             if os.environ.get("ODOO_PROFILE_PRELOAD_SQL"):
                 collectors.append("sql")
             preload_profiler = profiler.Profiler(db=dbname, collectors=collectors)

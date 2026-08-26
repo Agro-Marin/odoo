@@ -29,14 +29,26 @@ class TestResourceLocation(BaseCase):
         self.addCleanup(p.stop)
         self.root = Path(self._tmp.name)
 
+    def _located(self, path: str) -> ResourceLocation:
+        """The location, asserted found.
+
+        `get_resource_from_path` answers None for a path under no addons path,
+        so attributing its result directly names NoneType instead of the path
+        that failed to resolve.
+        """
+        found = get_resource_from_path(path)
+        if found is None:
+            self.fail(f"{path!r} resolved to no addon")
+        return found
+
     def test_a_file_inside_a_module_is_located(self):
-        found = get_resource_from_path(str(self.root / "probe" / "views" / "a.xml"))
+        found = self._located(str(self.root / "probe" / "views" / "a.xml"))
         self.assertEqual(found, ResourceLocation("probe", "views/a.xml"))
         self.assertEqual(found.module, "probe")
         self.assertEqual(found.relative_path, "views/a.xml")
 
     def test_addons_path_is_what_the_callers_used_to_rebuild(self):
-        found = get_resource_from_path(str(self.root / "probe" / "views" / "a.xml"))
+        found = self._located(str(self.root / "probe" / "views" / "a.xml"))
         self.assertEqual(found.addons_path, "probe/views/a.xml")
         self.assertEqual(found.addons_path, "/".join(found[0:2]))
 
@@ -44,7 +56,7 @@ class TestResourceLocation(BaseCase):
         self.assertIsNone(get_resource_from_path("/definitely/not/an/addon/a.xml"))
 
     def test_the_module_directory_itself_locates_to_an_empty_relative_path(self):
-        found = get_resource_from_path(str(self.root / "probe"))
+        found = self._located(str(self.root / "probe"))
         self.assertEqual(found, ResourceLocation("probe", ""))
 
     def test_the_longest_matching_addons_path_wins(self):

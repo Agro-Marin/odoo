@@ -12,9 +12,9 @@ import psycopg
 from odoo.libs.sql import SQL, make_index_name
 
 if TYPE_CHECKING:
-    from odoo.db import Cursor
+    from odoo.db import BaseCursor
 else:
-    Cursor = typing.Any
+    BaseCursor = typing.Any
 
 _schema = logging.getLogger("odoo.schema")
 
@@ -27,7 +27,7 @@ _CONFDELTYPES = {
 }
 
 
-def existing_tables(cr: Cursor, tablenames: Iterable[str]) -> list[str]:
+def existing_tables(cr: BaseCursor, tablenames: Iterable[str]) -> list[str]:
     cr.execute(
         SQL(
             """
@@ -50,7 +50,7 @@ class FunctionStatus(enum.IntEnum):
     INDEXABLE = 2
 
 
-def has_unaccent(cr: Cursor) -> FunctionStatus:
+def has_unaccent(cr: BaseCursor) -> FunctionStatus:
     """Report whether `unaccent(text)` exists, and whether an index may call it.
 
     Lives here, beside `table_exists`, because it is catalog introspection and
@@ -79,7 +79,7 @@ def has_unaccent(cr: Cursor) -> FunctionStatus:
     return FunctionStatus.INDEXABLE if result[0] == "i" else FunctionStatus.PRESENT
 
 
-def has_trigram(cr: Cursor) -> bool:
+def has_trigram(cr: BaseCursor) -> bool:
     cr.execute("""
         SELECT 1 FROM pg_proc
         WHERE proname = 'word_similarity'
@@ -88,7 +88,7 @@ def has_trigram(cr: Cursor) -> bool:
     return bool(cr.fetchone())
 
 
-def table_exists(cr: Cursor, tablename: str) -> bool:
+def table_exists(cr: BaseCursor, tablename: str) -> bool:
     return len(existing_tables(cr, {tablename})) == 1
 
 
@@ -102,7 +102,7 @@ class TableKind(enum.Enum):
     Other = None
 
 
-def table_kind(cr: Cursor, tablename: str) -> TableKind | None:
+def table_kind(cr: BaseCursor, tablename: str) -> TableKind | None:
     cr.execute(
         SQL(
             """
@@ -145,7 +145,7 @@ SQL_ORDER_BY_TYPE = defaultdict(
 
 
 def create_model_table(
-    cr: Cursor, tablename: str, comment: str | None = None, columns: Sequence = ()
+    cr: BaseCursor, tablename: str, comment: str | None = None, columns: Sequence = ()
 ) -> None:
     colspecs = [
         SQL("id SERIAL NOT NULL"),
@@ -183,7 +183,7 @@ def create_model_table(
     _schema.debug("Table %r: created", tablename)
 
 
-def table_columns(cr: Cursor, tablename: str) -> dict[str, dict]:
+def table_columns(cr: BaseCursor, tablename: str) -> dict[str, dict]:
     cr.execute(
         SQL(
             """
@@ -208,7 +208,7 @@ def table_columns(cr: Cursor, tablename: str) -> dict[str, dict]:
     return {row["column_name"]: row for row in cr.dictfetchall()}
 
 
-def column_exists(cr: Cursor, tablename: str, columnname: str) -> bool:
+def column_exists(cr: BaseCursor, tablename: str, columnname: str) -> bool:
     cr.execute(
         SQL(
             """
@@ -229,7 +229,7 @@ def column_exists(cr: Cursor, tablename: str, columnname: str) -> bool:
 
 
 def create_column(
-    cr: Cursor,
+    cr: BaseCursor,
     tablename: str,
     columnname: str,
     columntype: str,
@@ -262,14 +262,14 @@ def create_column(
 
 
 def convert_column(
-    cr: Cursor, tablename: str, columnname: str, columntype: str
+    cr: BaseCursor, tablename: str, columnname: str, columntype: str
 ) -> None:
     using = SQL("%s::%s", SQL.identifier(columnname), SQL(columntype))
     _convert_column(cr, tablename, columnname, columntype, using)
 
 
 def convert_column_translatable(
-    cr: Cursor, tablename: str, columnname: str, columntype: str
+    cr: BaseCursor, tablename: str, columnname: str, columntype: str
 ) -> None:
     drop_index(cr, make_index_name(tablename, columnname), tablename)
     if columntype == "jsonb":
@@ -284,7 +284,7 @@ def convert_column_translatable(
 
 
 def _convert_column(
-    cr: Cursor, tablename: str, columnname: str, columntype: str, using: SQL
+    cr: BaseCursor, tablename: str, columnname: str, columntype: str, using: SQL
 ) -> None:
     query = SQL(
         "ALTER TABLE %s ALTER COLUMN %s DROP DEFAULT, ALTER COLUMN %s TYPE %s USING %s",
@@ -308,7 +308,7 @@ def _convert_column(
     )
 
 
-def drop_depending_views(cr: Cursor, table: str, column: str) -> None:
+def drop_depending_views(cr: BaseCursor, table: str, column: str) -> None:
     for v, k in get_depending_views(cr, table, column):
         cr.execute(
             SQL(
@@ -320,7 +320,9 @@ def drop_depending_views(cr: Cursor, table: str, column: str) -> None:
         _schema.debug("Drop view %r", v)
 
 
-def get_depending_views(cr: Cursor, table: str, column: str) -> list[tuple[str, str]]:
+def get_depending_views(
+    cr: BaseCursor, table: str, column: str
+) -> list[tuple[str, str]]:
     cr.execute(
         SQL(
             """
@@ -344,7 +346,7 @@ def get_depending_views(cr: Cursor, table: str, column: str) -> list[tuple[str, 
     return cr.fetchall()
 
 
-def set_not_null(cr: Cursor, tablename: str, columnname: str) -> None:
+def set_not_null(cr: BaseCursor, tablename: str, columnname: str) -> None:
     query = SQL(
         "ALTER TABLE %s ALTER COLUMN %s SET NOT NULL",
         SQL.identifier(tablename),
@@ -356,7 +358,7 @@ def set_not_null(cr: Cursor, tablename: str, columnname: str) -> None:
     )
 
 
-def drop_not_null(cr: Cursor, tablename: str, columnname: str) -> None:
+def drop_not_null(cr: BaseCursor, tablename: str, columnname: str) -> None:
     cr.execute(
         SQL(
             "ALTER TABLE %s ALTER COLUMN %s DROP NOT NULL",
@@ -371,7 +373,7 @@ def drop_not_null(cr: Cursor, tablename: str, columnname: str) -> None:
     )
 
 
-def set_default(cr: Cursor, tablename: str, columnname: str, value: object) -> None:
+def set_default(cr: BaseCursor, tablename: str, columnname: str, value: object) -> None:
     cr.execute(
         SQL(
             "ALTER TABLE %s ALTER COLUMN %s SET DEFAULT %s",
@@ -386,7 +388,7 @@ def set_default(cr: Cursor, tablename: str, columnname: str, value: object) -> N
 
 
 def constraint_definition(
-    cr: Cursor, tablename: str, constraintname: str
+    cr: BaseCursor, tablename: str, constraintname: str
 ) -> str | None:
     cr.execute(
         SQL(
@@ -407,7 +409,7 @@ def constraint_definition(
 
 
 def add_constraint(
-    cr: Cursor, tablename: str, constraintname: str, definition: str
+    cr: BaseCursor, tablename: str, constraintname: str, definition: str
 ) -> None:
     query1 = SQL(
         "ALTER TABLE %s ADD CONSTRAINT %s %s",
@@ -431,7 +433,7 @@ def add_constraint(
     )
 
 
-def drop_constraint(cr: Cursor, tablename: str, constraintname: str) -> None:
+def drop_constraint(cr: BaseCursor, tablename: str, constraintname: str) -> None:
     cr.execute(
         SQL(
             "ALTER TABLE %s DROP CONSTRAINT %s",
@@ -443,7 +445,7 @@ def drop_constraint(cr: Cursor, tablename: str, constraintname: str) -> None:
 
 
 def add_foreign_key(
-    cr: Cursor,
+    cr: BaseCursor,
     tablename1: str,
     columnname1: str,
     tablename2: str,
@@ -488,7 +490,7 @@ _FK_BASE_QUERY = """
 
 
 def _get_fk_constraints(
-    cr: Cursor, tablename: str, columnname: str
+    cr: BaseCursor, tablename: str, columnname: str
 ) -> list[tuple[str, str, str, str]]:
     cr.execute(
         SQL(
@@ -503,7 +505,7 @@ def _get_fk_constraints(
 
 
 def get_fk_constraints_batch(
-    cr: Cursor, tablenames: Iterable[str]
+    cr: BaseCursor, tablenames: Iterable[str]
 ) -> list[tuple[str, str, str, str, str, str]]:
     cr.execute(
         SQL(
@@ -517,7 +519,7 @@ def get_fk_constraints_batch(
 
 
 def get_foreign_keys(
-    cr: Cursor,
+    cr: BaseCursor,
     tablename1: str,
     columnname1: str,
     tablename2: str,
@@ -532,7 +534,7 @@ def get_foreign_keys(
     ]
 
 
-def index_exists(cr: Cursor, indexname: str) -> bool:
+def index_exists(cr: BaseCursor, indexname: str) -> bool:
     cr.execute(
         SQL(
             """
@@ -548,7 +550,7 @@ def index_exists(cr: Cursor, indexname: str) -> bool:
     return bool(cr.rowcount)
 
 
-def index_definition(cr: Cursor, indexname: str) -> tuple[str | None, str | None]:
+def index_definition(cr: BaseCursor, indexname: str) -> tuple[str | None, str | None]:
     cr.execute(
         SQL(
             """
@@ -568,7 +570,7 @@ def index_definition(cr: Cursor, indexname: str) -> tuple[str | None, str | None
 
 
 def create_index(
-    cr: Cursor,
+    cr: BaseCursor,
     indexname: str,
     tablename: str,
     expressions: list[str],
@@ -594,7 +596,7 @@ def create_index(
 
 
 def add_index(
-    cr: Cursor,
+    cr: BaseCursor,
     indexname: str,
     tablename: str,
     definition: str | SQL,
@@ -630,12 +632,12 @@ def add_index(
     )
 
 
-def drop_index(cr: Cursor, indexname: str, tablename: str) -> None:
+def drop_index(cr: BaseCursor, indexname: str, tablename: str) -> None:
     cr.execute(SQL("DROP INDEX IF EXISTS %s", SQL.identifier(indexname)))
     _schema.debug("Table %r: dropped index %r", tablename, indexname)
 
 
-def drop_view_if_exists(cr: Cursor, viewname: str) -> None:
+def drop_view_if_exists(cr: BaseCursor, viewname: str) -> None:
     kind = table_kind(cr, viewname)
     if kind == TableKind.View:
         cr.execute(SQL("DROP VIEW %s CASCADE", SQL.identifier(viewname)))
@@ -644,7 +646,10 @@ def drop_view_if_exists(cr: Cursor, viewname: str) -> None:
 
 
 def constraint_columns(
-    cr: Cursor, diagnostics: psycopg.errors.Diagnostic, *, check_registry: bool = False
+    cr: BaseCursor,
+    diagnostics: psycopg.errors.Diagnostic,
+    *,
+    check_registry: bool = False,
 ) -> list[str]:
     if column := diagnostics.column_name:
         return [column]

@@ -50,6 +50,9 @@ class Selection(Field[str | typing.Literal[False]]):
     def setup_related(self, model: BaseModel) -> None:
         super().setup_related(model)
         field = self.related_field
+        # super().setup_related resolves it; the declared type is Optional
+        # because a field is only related once that has run.
+        assert field is not None, f"{self}: setup_related left no related field"
         self.selection = lambda model: field._description_selection(model.env)
         self._selection = None
 

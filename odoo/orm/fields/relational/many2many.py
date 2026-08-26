@@ -194,9 +194,9 @@ class Many2many(_RelationalMulti):
 
     @override
     def read(self, records: BaseModel) -> None:
-        context = {"active_test": False}
-        context.update(self.context)
-        comodel = records.env[self.comodel_name].with_context(**context)
+        comodel = records.env[self.comodel_name].with_context(
+            **self._get_read_context()
+        )
 
         filter_access = self.bypass_search_access and is_search_overridden(
             type(comodel)

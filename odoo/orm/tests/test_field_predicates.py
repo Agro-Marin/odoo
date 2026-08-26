@@ -146,8 +146,15 @@ class TestTheDomainStubKeepsUp(unittest.TestCase):
             targets = [t.id for t in node.targets if isinstance(t, ast.Name)]
             if "_PREDICATES_BY_TYPE" not in targets:
                 continue
-            table = {}
+            assert isinstance(node.value, ast.Dict), (
+                "_PREDICATES_BY_TYPE is expected to be a dict literal"
+            )
+            table: dict[str, set[str]] = {}
             for key, value in zip(node.value.keys, node.value.values, strict=True):
+                assert isinstance(key, ast.Constant) and isinstance(value, ast.Call), (
+                    "_PREDICATES_BY_TYPE maps a literal key to a call"
+                )
+                assert isinstance(key.value, str)
                 table[key.value] = _string_operands(value.args[0])
             return table
         self.fail(f"no _PREDICATES_BY_TYPE assignment found in {self.STUB}")

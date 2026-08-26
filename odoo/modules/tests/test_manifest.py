@@ -22,7 +22,30 @@ import odoo.addons
 BaseCase = unittest.TestCase
 
 
-class TestModuleManifest(BaseCase):
+class _ManifestCase(BaseCase):
+    """`for_addon` answers None; these tests always know it did not.
+
+    Indexing or attributing that result directly reports "NoneType is not
+    subscriptable" instead of naming the module that went missing, and hides
+    the optional from a checker that would otherwise flag every such use.
+    """
+
+    def _found_manifest(self, module_name: str) -> Manifest:
+        manifest = Manifest.for_addon(module_name)
+        if manifest is None:
+            self.fail(f"no manifest for {module_name!r}")
+        return manifest
+
+
+class TestModuleManifest(_ManifestCase):
+    #: created in setUpClass/setUp. Declared because a checker cannot see
+    #: through a method that invents attributes, and every use below then reads
+    #: as an attribute the class does not have.
+    _tmp_dir: tempfile.TemporaryDirectory
+    addons_path: str
+    module_root: str
+    module_name: str
+
     @classmethod
     def setUpClass(cls):
         cls._tmp_dir = tempfile.TemporaryDirectory(prefix="odoo_test_addons_")
@@ -51,7 +74,7 @@ class TestModuleManifest(BaseCase):
         )
 
         with self.assertNoLogs("odoo.modules.module", "WARNING"):
-            manifest = dict(Manifest.for_addon(self.module_name))
+            manifest = dict(self._found_manifest(self.module_name))
 
         self.maxDiff = None
         self.assertDictEqual(
@@ -108,10 +131,11 @@ class TestModuleManifest(BaseCase):
         Path(self.module_root, "__manifest__.py").write_text(
             str({"name": "X", "license": "MIT", "author": "x"}), encoding="utf-8"
         )
-        manifest = Manifest.for_addon(self.module_name)
+        manifest = self._found_manifest(self.module_name)
         orig_auto_install = manifest["auto_install"]
         with self.assertRaisesRegex(TypeError, r"does not support item assignment"):
-            manifest["auto_install"] = not orig_auto_install
+            # the point of the test: Manifest is a read-only mapping
+            manifest["auto_install"] = not orig_auto_install  # type: ignore[index]
         self.assertIs(Manifest.for_addon(self.module_name), manifest)
 
     def test_missing_manifest(self):
@@ -125,7 +149,7 @@ class TestModuleManifest(BaseCase):
             str({"name": f"Temp {self.module_name}"}), encoding="utf-8"
         )
         with self.assertLogs("odoo.modules.module", "WARNING") as capture:
-            manifest = Manifest.for_addon(self.module_name)
+            manifest = self._found_manifest(self.module_name)
             manifest._force_parse()
         self.assertEqual(manifest["license"], "LGPL-3")
         self.assertEqual(manifest["author"], "")
@@ -171,7 +195,7 @@ class TestManifestAutoInstall(BaseCase):
         self.assertEqual(_load_manifest("m", dict(self.BASE))["depends"], ["base"])
 
 
-class TestManifestCache(BaseCase):
+class TestManifestCache(_ManifestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory(prefix="odoo_test_cache_")
         self.addCleanup(self._tmp.cleanup)
@@ -209,8 +233,7 @@ class TestManifestCache(BaseCase):
         name = "probe_appears_later"
         self.assertIsNone(Manifest.for_addon(name, display_warning=False))
         self._make(name)
-        found = Manifest.for_addon(name, display_warning=False)
-        self.assertIsNotNone(found)
+        found = self._found_manifest(name)
         self.assertEqual(found.name, name)
 
     def test_found_manifest_is_cached(self):
@@ -222,12 +245,12 @@ class TestManifestCache(BaseCase):
         # ir.module.module.update_list exists to notice exactly this, so no
         # cache in front of it may answer with the pre-edit content.
         name = self._make("probe_edited", version="1.0")
-        self.assertEqual(Manifest.for_addon(name)["version"], f"{major_version}.1.0")
+        self.assertEqual(self._found_manifest(name)["version"], f"{major_version}.1.0")
         self._write(
             name,
             {"name": "X", "license": "LGPL-3", "author": "x", "version": "9.9"},
         )
-        self.assertEqual(Manifest.for_addon(name)["version"], f"{major_version}.9.9")
+        self.assertEqual(self._found_manifest(name)["version"], f"{major_version}.9.9")
 
     def test_a_manifest_edited_on_disk_is_seen_by_the_full_scan(self):
         name = self._make("probe_scanned", version="1.0")
@@ -274,7 +297,7 @@ class TestExternalDependency(BaseCase):
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         Path(tmp, "odoo_probe_legacy_dep.py").write_text("#\n", encoding="utf-8")
         sys.path.insert(0, tmp)
-        self.addCleanup(lambda: tmp in sys.path and sys.path.remove(tmp))
+        self.addCleanup(lambda: sys.path.remove(tmp) if tmp in sys.path else None)
         importlib.invalidate_caches()
         check_python_external_dependency("odoo_probe_legacy_dep>=1.0")
 
@@ -289,7 +312,7 @@ class TestExternalDependency(BaseCase):
         self.assertNotIn("{dependency", str(err))
 
 
-class TestManifestVersionResilience(BaseCase):
+class TestManifestVersionResilience(_ManifestCase):
     BASE = {"author": "x", "license": "MIT", "name": "X"}
 
     def test_malformed_version_demotes_to_uninstallable(self):
@@ -309,7 +332,7 @@ class TestManifestVersionResilience(BaseCase):
             _load_manifest("m", {**self.BASE, "depends": "base"})
 
 
-class TestModuleIcon(BaseCase):
+class TestModuleIcon(_ManifestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory(prefix="odoo_test_icon_")
         self.addCleanup(self._tmp.cleanup)
@@ -351,7 +374,7 @@ class TestModuleIcon(BaseCase):
         # method of -- a second parse of the same file per module, and the
         # dominant cost of modules.db.initialize.
         name = self._make("probe_no_self_lookup")
-        manifest = Manifest.for_addon(name)
+        manifest = self._found_manifest(name)
         with patch.object(
             Manifest, "for_addon", side_effect=AssertionError("looked itself up")
         ):
@@ -362,9 +385,9 @@ class TestModuleIcon(BaseCase):
             "probe_declared_icon", icon="/base/static/description/icon.png"
         )
         self.assertEqual(
-            Manifest.for_addon(name)["icon"], "/base/static/description/icon.png"
+            self._found_manifest(name)["icon"], "/base/static/description/icon.png"
         )
-        self.assertEqual(get_module_icon(name), Manifest.for_addon(name)["icon"])
+        self.assertEqual(get_module_icon(name), self._found_manifest(name)["icon"])
 
 
 class TestManifestMapping(BaseCase):

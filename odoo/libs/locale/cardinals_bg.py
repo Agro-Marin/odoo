@@ -32,9 +32,14 @@ MASCULINE: Final = 1
 FEMININE: Final = -1
 NEUTER: Final = 0
 
-UNITS: Final[dict[int, tuple[str | None, ...]]] = {
+#: Index 0 of each table is an unused slot, so that the index IS the digit.
+#: It is spelled "" rather than None because every read is already guarded by a
+#: truthiness check on the digit -- `if hundreds:`, `if units:` -- so the slot is
+#: unreachable, and typing it optional made six call sites narrow a value that
+#: cannot arrive while saying nothing about the invariant that keeps it away.
+UNITS: Final[dict[int, tuple[str, ...]]] = {
     NEUTER: (
-        None,
+        "",
         "едно",
         "две",
         "три",
@@ -46,7 +51,7 @@ UNITS: Final[dict[int, tuple[str | None, ...]]] = {
         "девет",
     ),
     MASCULINE: (
-        None,
+        "",
         "един",
         "два",
         "три",
@@ -58,7 +63,7 @@ UNITS: Final[dict[int, tuple[str | None, ...]]] = {
         "девет",
     ),
     FEMININE: (
-        None,
+        "",
         "една",
         "две",
         "три",
@@ -71,8 +76,8 @@ UNITS: Final[dict[int, tuple[str | None, ...]]] = {
     ),
 }
 
-TENS: Final[tuple[str | None, ...]] = (
-    None,
+TENS: Final[tuple[str, ...]] = (
+    "",
     "десет",
     "двадесет",
     "тридесет",
@@ -84,8 +89,8 @@ TENS: Final[tuple[str | None, ...]] = (
     "деветдесет",
 )
 
-HUNDREDS: Final[tuple[str | None, ...]] = (
-    None,
+HUNDREDS: Final[tuple[str, ...]] = (
+    "",
     "сто",
     "двеста",
     "триста",

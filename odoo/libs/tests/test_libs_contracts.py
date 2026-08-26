@@ -465,7 +465,8 @@ class TestFreehashOnlyCatchesUnhashability:
 
     def test_unhashable_still_falls_back(self):
         class Unhashable:
-            __hash__ = None
+            # the documented way to make a class unhashable
+            __hash__ = None  # type: ignore[assignment]
 
         obj = Unhashable()
         assert freehash(obj) == id(obj)

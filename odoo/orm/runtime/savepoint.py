@@ -1,15 +1,28 @@
 from __future__ import annotations
 
 import typing
+from typing import Protocol
 
 from odoo.db.cursor import BaseCursor
 from odoo.db.savepoint import _FlushingSavepoint
 from odoo.tools import reset_cached_properties
 
-if typing.TYPE_CHECKING:
-    from .registry import Registry
-
 _NO_SNAPSHOT: typing.Final = object()
+
+
+class CacheInvalidating(Protocol):
+    """The two members `_reclear_invalidated_caches` reads off a registry.
+
+    Narrower than `Registry` for the reason `db.savepoint.SavepointHost` is
+    narrower than a cursor: a signature that names the whole class claims a
+    dependency the function does not have, and makes every honest stand-in --
+    the fake this method's own test drives it with -- a lie to the checker.
+    """
+
+    @property
+    def cache_invalidated(self) -> set[str]: ...
+
+    def clear_cache(self, *names: str) -> None: ...
 
 
 class _OrmFlushingSavepoint(_FlushingSavepoint):
@@ -23,6 +36,12 @@ class _OrmFlushingSavepoint(_FlushingSavepoint):
 
     def _restore_orm_state(self, cr: BaseCursor) -> None:
         txn = cr.transaction
+        if txn is None:
+            # `_save_orm_state` above already treats a cursor with no
+            # transaction as having no ORM state to snapshot; restoring one
+            # would be restoring nothing, and every line below would reach
+            # through the None it explicitly allows for.
+            return
         if self._saved_default_env is not _NO_SNAPSHOT:
             txn.default_env = self._saved_default_env
         self._reclear_invalidated_caches(txn.registry)
@@ -35,7 +54,7 @@ class _OrmFlushingSavepoint(_FlushingSavepoint):
                 reset_cached_properties(env)
 
     @staticmethod
-    def _reclear_invalidated_caches(registry: Registry) -> None:
+    def _reclear_invalidated_caches(registry: CacheInvalidating) -> None:
         """Drop registry caches this transaction refilled from rolled-back rows.
 
         `clear_cache` runs inline in `create` / `write` / `unlink`, so anything read

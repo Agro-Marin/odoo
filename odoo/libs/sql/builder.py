@@ -37,22 +37,16 @@ class SQL:
         to_flush: Field | Iterable[Field] | None = None,
         **kwargs: object,
     ) -> None:
-        if isinstance(code, SQL) or (
-            code == "%s" and len(args) == 1 and isinstance(args[0], SQL)
-        ):
-            if not isinstance(code, SQL):
-                code, args = args[0], ()
-            if args or kwargs:
-                msg = "SQL() unexpected arguments when code has type SQL"
-                raise TypeError(msg)
-            self.__code = code.__code
-            self.__params = code.__params
-            if to_flush is None:
-                self.__to_flush = code.__to_flush
-            elif hasattr(to_flush, "__iter__"):
-                self.__to_flush = tuple(to_flush)
-            else:
-                self.__to_flush = (to_flush,)
+        # Each SQL spelling returns from its own branch rather than rebinding
+        # `code`. `code = args[0]` widened the parameter to `object` -- `args`
+        # is `*args: object` -- so every read of the adopted SQL below had to
+        # be taken on trust, and `code` stayed `str | SQL` for the whole rest
+        # of the method, which is a str by then and could not be seen to be.
+        if isinstance(code, SQL):
+            self.__adopt(code, args, kwargs, to_flush)
+            return
+        if code == "%s" and len(args) == 1 and isinstance(args[0], SQL):
+            self.__adopt(args[0], (), kwargs, to_flush)
             return
 
         if args and kwargs:
@@ -107,6 +101,26 @@ class SQL:
         self.__code = code.replace("%%", "%%%%") % tuple(code_list)
         self.__params = tuple(params_list)
         self.__to_flush = tuple(to_flush_list)
+
+    def __adopt(
+        self,
+        source: SQL,
+        args: tuple,
+        kwargs: dict,
+        to_flush: Field | Iterable[Field] | None,
+    ) -> None:
+        """Take another SQL's code and params, with this call's to_flush."""
+        if args or kwargs:
+            msg = "SQL() unexpected arguments when code has type SQL"
+            raise TypeError(msg)
+        self.__code = source.__code
+        self.__params = source.__params
+        if to_flush is None:
+            self.__to_flush = source.__to_flush
+        elif hasattr(to_flush, "__iter__"):
+            self.__to_flush = tuple(to_flush)
+        else:
+            self.__to_flush = (to_flush,)
 
     @property
     def code(self) -> str:
