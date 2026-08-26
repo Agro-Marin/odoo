@@ -174,7 +174,7 @@ class ProjectProject(models.Model):
 
     @api.depends("sale_order_id.invoice_state", "tasks.sale_order_id.invoice_state")
     def _compute_has_any_so_to_invoice(self):
-        """Has any Sale Order whose invoice_state is set as To Invoice"""
+        """Has any Sale Order whose invoice_state is 'to do' or 'partial'"""
         if not self.ids:
             self.has_any_so_to_invoice = False
             return
