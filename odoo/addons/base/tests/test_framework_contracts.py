@@ -51,20 +51,25 @@ class TestFrameworkModelContracts(TransactionCase):
                 )
 
     def test_every_declared_member_exists_on_its_model(self):
+        checked = 0
         for model_name, protocol in FRAMEWORK_MODEL_PROTOCOLS.items():
             model = self.env[model_name]
             for name in self._declared_members(protocol):
+                checked += 1
                 with self.subTest(model=model_name, member=name):
                     self.assertTrue(
                         hasattr(model, name),
                         f"{model_name} is missing {name!r}, which the framework "
                         f"calls and {protocol.__name__} declares",
                     )
+        self.assertSweep(range(checked), "no protocol declared a member to check")
 
     def test_every_declared_method_accepts_the_framework_s_calls(self):
+        checked = 0
         for model_name, protocol in FRAMEWORK_MODEL_PROTOCOLS.items():
             model = self.env[model_name]
             for name, proto_func in self._declared_methods(protocol):
+                checked += 1
                 with self.subTest(model=model_name, member=name):
                     impl = getattr(model, name, None)
                     self.assertIsNotNone(impl, f"{model_name}.{name} is missing")
@@ -92,11 +97,14 @@ class TestFrameworkModelContracts(TransactionCase):
                         f"positional args but the framework may pass "
                         f"{wants_most}",
                     )
+        self.assertSweep(range(checked), "no protocol declared a method to check")
 
     def test_declared_attributes_are_fields_not_methods(self):
+        checked = 0
         for model_name, protocol in FRAMEWORK_MODEL_PROTOCOLS.items():
             model = self.env[model_name]
             for name in self._declared_attributes(protocol):
+                checked += 1
                 with self.subTest(model=model_name, attribute=name):
                     self.assertIn(
                         name,
@@ -104,6 +112,7 @@ class TestFrameworkModelContracts(TransactionCase):
                         f"{protocol.__name__} declares {name!r} as an attribute, "
                         f"so {model_name} must carry a field of that name",
                     )
+        self.assertSweep(range(checked), "no protocol declared an attribute to check")
 
     @staticmethod
     def _declared_methods(protocol):

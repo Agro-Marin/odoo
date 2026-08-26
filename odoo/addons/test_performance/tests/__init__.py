@@ -1,4 +1,5 @@
 from . import (
+    test_base_benchmark,
     test_benchmark,
     test_domain_benchmark,
     test_perf,

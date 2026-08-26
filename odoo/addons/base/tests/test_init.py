@@ -66,15 +66,29 @@ class TestInit(BaseCase):
             "orm",
             "tests",
         )
-        for module in sorted(self.odoo_modules_to_test()):
-            set_timezone = any(expect in module for expect in EXPECT_UTC)
-            env = {"TZ": "CET"}
-            timezone = "UTC" if set_timezone else "CET"
+        env = {"TZ": "CET"}
+        modules = sorted(self.odoo_modules_to_test())
+        self.assertTrue(modules, "the sweep found nothing, so it proves nothing")
+        for module in modules:
+            timezone = "UTC" if any(e in module for e in EXPECT_UTC) else "CET"
             code = f"import {module}; import sys, time; sys.exit(0 if (time.tzname[0] == '{timezone}') else 5)"
             with self.subTest(module=module, timezone=timezone):
                 start_time = time.perf_counter()
-                self.run_python(code, env=env, check=False)
+                # check=False and a discarded result made this loop assert
+                # nothing at all: the exit code the child computes IS the test.
+                proc = self.run_python(code, env=env, check=False)
                 end_time = time.perf_counter()
                 _logger.info(
                     "  %s execution time: %.3fs", module, end_time - start_time
+                )
+                self.assertNotEqual(
+                    proc.returncode,
+                    5,
+                    f"importing {module} under TZ=CET left time.tzname[0] != "
+                    f"{timezone!r}",
+                )
+                self.assertEqual(
+                    proc.returncode,
+                    0,
+                    f"importing {module} failed:\n{proc.stderr}",
                 )

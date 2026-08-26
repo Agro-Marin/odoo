@@ -16,8 +16,36 @@ class TestIrActionsExists(TransactionCase):
         self.assertEqual(action.exists(), action)
 
     def test_get_bindings_still_resolves(self):
-        bindings = self.env["ir.actions.actions"]._get_bindings("res.partner")
-        self.assertIsInstance(dict(bindings), dict)
+        """`assertIsInstance(dict(bindings), dict)` stood here and asserted
+        nothing -- `dict(x)` is a dict by construction, so the only way to fail
+        was to raise. This pins the shape callers actually rely on."""
+        Actions = self.env["ir.actions.actions"]
+        action = self.env["ir.actions.act_window"].create(
+            {
+                "name": "audit-binding-shape",
+                "res_model": "res.partner",
+                "binding_model_id": self.env["ir.model"]._get_id("res.partner"),
+            }
+        )
+        bindings = Actions._get_bindings("res.partner")
+        self.assertTrue(bindings, "the action just created must show up")
+
+        vocabulary = set(
+            self.env["ir.actions.actions"]._fields["binding_type"].get_values(self.env)
+        )
+        for binding_type, bucket in bindings.items():
+            with self.subTest(binding_type=binding_type):
+                self.assertIn(binding_type, vocabulary)
+                # A tuple, not a list: frozendict freezes the buckets too, and
+                # callers iterate them out of an ormcache shared between
+                # transactions.
+                self.assertIsInstance(bucket, tuple)
+                for entry in bucket:
+                    self.assertIn("id", entry)
+        self.assertIn(
+            action.id,
+            [entry["id"] for bucket in bindings.values() for entry in bucket],
+        )
 
 
 @tagged("post_install", "-at_install")
@@ -48,6 +76,7 @@ class TestIrActionsBindingsCacheOnCreate(TransactionCase):
         )
 
 
+@tagged("post_install", "-at_install")
 class TestSafeEvalDict(TransactionCase):
     def test_eval_dict_or_default_degrades(self):
         self.assertEqual(_eval_dict_or_default("{'a': 1}", {}, {}), {"a": 1})
@@ -292,7 +321,7 @@ class TestIrActionsReadableFieldsAreFields(TransactionCase):
         ]
 
     def test_readable_fields_are_all_orm_fields(self):
-        for name in self._action_models():
+        for name in self.assertSweep(self._action_models()):
             model = self.env[name]
             virtual = sorted(
                 f for f in model._get_fields_readable() if f not in model._fields
@@ -300,7 +329,7 @@ class TestIrActionsReadableFieldsAreFields(TransactionCase):
             self.assertFalse(virtual, "%s lists non-fields %s" % (name, virtual))
 
     def test_client_only_keys_are_not_orm_fields(self):
-        for name in self._action_models():
+        for name in self.assertSweep(self._action_models()):
             model = self.env[name]
             stored = sorted(
                 k for k in model._get_keys_client_only() if k in model._fields
@@ -778,6 +807,13 @@ class TestIrActionsTableInheritanceRoot(TransactionCase):
         self.assertEqual(set(Actions._get_relations_ondelete_unenforced()), declared)
 
     def test_no_foreign_key_backs_either_end_of_such_a_relation(self):
+        # No `assertSweep` here, unlike the other sweeps in this file: with only
+        # `base` installed no many2many points at the action root table, so an
+        # empty result is the correct answer rather than a discovery that
+        # silently stopped discovering. The anti-vacuity guarantee comes from
+        # `test_many2many_relations_to_the_root_are_swept_on_unlink` above,
+        # which pins the helper against an independently computed set -- an
+        # emptied helper fails there, and a populated one gives this loop work.
         Actions = self.env["ir.actions.actions"]
         for relation, column in Actions._get_relations_ondelete_unenforced():
             with self.subTest(relation=relation, column=column):
@@ -870,9 +906,9 @@ class TestIrActionsUnenforcedReferencesOwnership(TransactionCase):
         self.assertEqual(set(Actions._get_fields_ondelete_unenforced()), expected)
 
     def test_no_related_or_unstored_field_is_swept(self):
-        for model_name, field_name, ondelete in self.env[
-            "ir.actions.actions"
-        ]._get_fields_ondelete_unenforced():
+        for model_name, field_name, ondelete in self.assertSweep(
+            self.env["ir.actions.actions"]._get_fields_ondelete_unenforced()
+        ):
             field = self.env[model_name]._fields[field_name]
             with self.subTest(field=f"{model_name}.{field_name}"):
                 self.assertTrue(field.store)
@@ -1060,7 +1096,7 @@ class TestIrActionsTypeMatchesItsModel(TransactionCase):
 
     def test_the_default_type_is_the_model_name_for_every_subtype(self):
         Actions = self.env["ir.actions.actions"]
-        for name in Actions._get_model_names_in_tree():
+        for name in self.assertSweep(Actions._get_model_names_in_tree()):
             if name == "ir.actions.actions":
                 continue
             with self.subTest(model=name):
@@ -1116,7 +1152,7 @@ class TestIrActionsUnlinkFollowsTheStorage(TransactionCase):
     def test_each_subtype_table_maps_back_to_its_model(self):
         Actions = self.env["ir.actions.actions"]
         by_table = Actions._get_model_names_by_table()
-        for name in Actions._get_model_names_in_tree():
+        for name in self.assertSweep(Actions._get_model_names_in_tree()):
             with self.subTest(model=name):
                 self.assertIn(name, by_table[self.env[name]._table])
 

@@ -58,6 +58,11 @@ $
 
 
 class OdooTestResult:
+    # staticmethod, not a module global: freezegun rewrites bare module-level
+    # references to the real clock, so a test that freezes time made every
+    # duration this class reports fiction.
+    _monotonic = staticmethod(time.monotonic)
+
     _previousTestClass = None
     _moduleSetUpFailed = False
 
@@ -115,13 +120,13 @@ class OdooTestResult:
             self.getDescription(test),
             test=test,
         )
-        self.time_start = time.monotonic()
+        self.time_start = self._monotonic()
         self.queries_start = db.sql_counter
 
     def stopTest(self, test: case.TestCase) -> None:
         if stats_logger.isEnabledFor(logging.INFO):
             self.stats[test.id()] = Stat(
-                time=time.monotonic() - self.time_start,
+                time=self._monotonic() - self.time_start,
                 queries=db.sql_counter - self.queries_start,
             )
 
@@ -351,13 +356,13 @@ class OdooTestResult:
     @contextlib.contextmanager
     def collectStats(self, test_id: str) -> Generator[None]:
         queries_before = db.sql_counter
-        time_start = time.monotonic()
+        time_start = self._monotonic()
 
         try:
             yield
         finally:
             self.stats[test_id] += Stat(
-                time=time.monotonic() - time_start,
+                time=self._monotonic() - time_start,
                 queries=db.sql_counter - queries_before,
             )
 

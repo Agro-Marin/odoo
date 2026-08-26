@@ -110,6 +110,11 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
         patcher.start()
         cls.addClassCleanup(patcher.stop)
 
+        # All three of these are process-global and used to outlive the class:
+        # the warning filter stayed on the stack, the log filter was never
+        # removed, and mail.log kept the raised level for every test that ran
+        # after this file.
+        cls.enterClassContext(warnings.catch_warnings())
         warnings.filterwarnings(
             "ignore",
             "Requiring AUTH while not requiring TLS can lead to security vulnerabilities!",
@@ -125,9 +130,14 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
                     != "tls_context.verify_mode not in {CERT_NONE, CERT_OPTIONAL}; this might cause client connection problems"
                 )
 
-        logging.getLogger("mail.log").addFilter(CustomFilter())
+        mail_log = logging.getLogger("mail.log")
+        log_filter = CustomFilter()
+        mail_log.addFilter(log_filter)
+        cls.addClassCleanup(mail_log.removeFilter, log_filter)
 
-        logging.getLogger("mail.log").setLevel(_logger.getEffectiveLevel() + 10)
+        previous_level = mail_log.level
+        mail_log.setLevel(_logger.getEffectiveLevel() + 10)
+        cls.addClassCleanup(mail_log.setLevel, previous_level)
 
         cls.ssl_ca, cls.ssl_client, cls.ssl_server, cls.ssl_self_signed = [
             Certificate(None, "base/tests/ssl/ca.cert.pem"),

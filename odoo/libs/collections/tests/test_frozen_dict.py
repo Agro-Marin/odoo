@@ -80,3 +80,55 @@ class TestFrozendictCopyAndPickle(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFrozendictRejectsEveryMutator(unittest.TestCase):
+    """Ported from `odoo/addons/base/tests/test_func.py`.
+
+    `TestFrozendictImmutability` above already covers `__setitem__`,
+    `update` and `|=`; these are the five mutators it did not, which the
+    base copy did.
+    """
+
+    def setUp(self):
+        self.frozen = frozendict({"name": "Joe", "age": 42})
+
+    def test_delitem_rejected(self):
+        with self.assertRaises(Exception):
+            del self.frozen["name"]
+
+    def test_setdefault_rejected(self):
+        with self.assertRaises(Exception):
+            self.frozen.setdefault("surname", "Jack")
+
+    def test_pop_rejected(self):
+        with self.assertRaises(Exception):
+            self.frozen.pop("name", "Jack")
+        with self.assertRaises(Exception):
+            self.frozen.pop("surname", "Jack")
+
+    def test_popitem_rejected(self):
+        with self.assertRaises(Exception):
+            self.frozen.popitem()
+
+    def test_clear_rejected(self):
+        with self.assertRaises(Exception):
+            self.frozen.clear()
+
+
+class TestFrozendictHashesNestedValues(unittest.TestCase):
+    def test_hash_of_a_flat_mapping(self):
+        hash(frozendict({"name": "Joe", "age": 42}))
+
+    def test_hash_reaches_into_lists_and_tuples(self):
+        """The base copy built this with `Command.create(...)`, which is a
+        3-tuple; spelled literally here so the suite stays inside `odoo.libs`
+        and does not reach into the ORM for a fixture shape."""
+        hash(
+            frozendict(
+                {
+                    "user_id": (42, "Joe"),
+                    "line_ids": [(0, 0, {"values": [42]})],
+                }
+            )
+        )

@@ -1,11 +1,23 @@
-import base64
+"""Moved from `odoo/addons/base/tests/test_mimetypes.py`.
 
-from odoo.libs.filesystem import (
+It subclassed the framework test case but touched no database and no registry
+-- 14 tests that only ran behind a `createdb` plus a full `base` install.
+`odoo.libs.filesystem` is what they exercise, and this directory is already
+where its other mimetype suites live.
+"""
+
+import base64
+import unittest
+
+# From the leaf module, not the area facade: the Tier-1 stubs
+# (`odoo/_testing_bootstrap.py`) replace the package `__init__`, so its
+# re-exports do not resolve here. Every sibling suite in this directory imports
+# the same way.
+from odoo.libs.filesystem.mimetypes import (
     fix_filename_extension,
     get_extension,
     guess_mimetype,
 )
-from odoo.tests.common import BaseCase
 
 PNG = b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVQI12P4//8/AAX+Av7czFnnAAAAAElFTkSuQmCC"
 GIF = b"R0lGODdhAQABAIAAAP///////ywAAAAAAQABAAACAkQBADs="
@@ -60,7 +72,7 @@ Hello world!
 """
 
 
-class test_guess_mimetype(BaseCase):
+class test_guess_mimetype(unittest.TestCase):
     def test_default_mimetype_empty(self):
         mimetype = guess_mimetype(b"")
         self.assertIn(mimetype, ("application/octet-stream", "application/x-empty"))

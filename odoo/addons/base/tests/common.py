@@ -157,113 +157,140 @@ class BaseCommon(TransactionCase):
         return cls.env[model].browse(id)
 
 
-class TransactionCaseWithUserDemo(TransactionCase):
+class _SeededUserCase:
+    """The demo/portal user setup the five classes below used to each carry.
+
+    `1306a4d80ac` introduced three copies of the demo block with
+    `# YTI TODO: This could be factorized between the different classes` sitting
+    inside them; `c2ebe70ed4e [IMP] *: Remove todos we won't do` removed the
+    marker rather than the duplication. Upstream declined; this fork is not
+    bound by that (`doc/coding_guidelines.rst`, *Scope and precedence*).
+
+    The copies had already drifted twice, which is the cost the comment
+    predicted -- see `_seed_partner_values` and `_rename_admin_partner`.
+    """
+
+    _seed_login = ""
+    _seed_groups = ()
+
     @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
+    def _seed_partner_values(cls):
+        raise NotImplementedError
 
-        cls.env.ref("base.partner_admin").write({"name": "Mitchell Admin"})
-        cls.user_demo = cls.env["res.users"].search([("login", "=", "demo")])
-        cls.partner_demo = cls.user_demo.partner_id
+    @classmethod
+    def _rename_admin_partner(cls):
+        """`SavepointCaseWithUserDemo` has never done this, and the other two
+        demo classes always have. Asymmetric since introduction with no recorded
+        reason, so it stays a hook rather than becoming a behaviour change."""
+        return False
 
-        if not cls.user_demo:
+    @classmethod
+    def _seed_user(cls):
+        if cls._rename_admin_partner():
+            cls.env.ref("base.partner_admin").write({"name": "Mitchell Admin"})
+
+        # sudo to search -- the portal copy always did, the demo copies did not,
+        # and a lookup by login has no reason to depend on the caller's rules.
+        # `with_env` puts the result back in the test environment: returning the
+        # sudo recordset would silently hand every consumer a privileged
+        # `cls.user_demo`, and access-rule assertions written against it would
+        # stop testing anything.
+        user = cls.env["res.users"].sudo().search([("login", "=", cls._seed_login)])
+        user = user.with_env(cls.env)
+        partner = user.partner_id
+
+        if not user:
             cls.env["ir.config_parameter"].sudo().set_param(
                 "auth_password_policy.minlength", 4
             )
-            cls.partner_demo = cls.env["res.partner"].create(
-                {
-                    "name": "Marc Demo",
-                    "email": "mark.brown23@example.com",
-                }
+            partner = cls.env["res.partner"].create(cls._seed_partner_values())
+            user = (
+                cls.env["res.users"]
+                .with_context(**cls._seed_create_context())
+                .create(
+                    {
+                        "login": cls._seed_login,
+                        "password": cls._seed_login,
+                        "partner_id": partner.id,
+                        "group_ids": [
+                            Command.set([cls.env.ref(g).id for g in cls._seed_groups])
+                        ],
+                    }
+                )
             )
-            cls.user_demo = cls.env["res.users"].create(
-                {
-                    "login": "demo",
-                    "password": "demo",
-                    "partner_id": cls.partner_demo.id,
-                    "group_ids": [
-                        Command.set(
-                            [
-                                cls.env.ref("base.group_user").id,
-                                cls.env.ref("base.group_partner_manager").id,
-                            ]
-                        )
-                    ],
-                }
-            )
+        return user, partner
+
+    @classmethod
+    def _seed_create_context(cls):
+        """The portal copies passed `no_reset_password=True` and the demo copies
+        did not. Kept per-class rather than unified: this branch only runs on a
+        database without demo data, and silently stopping a password-reset mail
+        is a behaviour change, not a refactor."""
+        return {}
 
 
-class HttpCaseWithUserDemo(HttpCase):
+class _UserDemoCase(_SeededUserCase):
+    _seed_login = "demo"
+    _seed_groups = ("base.group_user", "base.group_partner_manager")
+
+    @classmethod
+    def _seed_partner_values(cls):
+        return {"name": "Marc Demo", "email": "mark.brown23@example.com"}
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user_demo, cls.partner_demo = cls._seed_user()
+
+
+class _UserPortalCase(_SeededUserCase):
+    _seed_login = "portal"
+    _seed_groups = ("base.group_portal",)
+
+    @classmethod
+    def _seed_partner_values(cls):
+        return {"name": "Joel Willis", "email": "joel.willis63@example.com"}
+
+    @classmethod
+    def _seed_create_context(cls):
+        return {"no_reset_password": True}
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user_portal, cls.partner_portal = cls._seed_user()
+
+
+class TransactionCaseWithUserDemo(_UserDemoCase, TransactionCase):
+    @classmethod
+    def _rename_admin_partner(cls):
+        return True
+
+
+class HttpCaseWithUserDemo(_UserDemoCase, HttpCase):
+    @classmethod
+    def _rename_admin_partner(cls):
+        return True
+
+    @classmethod
+    def _seed_partner_values(cls):
+        """`093c22c1b27 [FIX] auth_totp{,_mail}: remove demo dependency` added
+        the timezone for a runbot failure: `hr` makes `tz` required in a view,
+        which blocks the 2FA setup dialog. Browser-path only, which is why it is
+        on this class and not the transaction ones."""
+        return {**super()._seed_partner_values(), "tz": "UTC"}
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.user_admin = cls.env.ref("base.user_admin")
         cls.user_admin.write({"name": "Mitchell Admin"})
         cls.partner_admin = cls.user_admin.partner_id
-        cls.user_demo = cls.env["res.users"].search([("login", "=", "demo")])
-        cls.partner_demo = cls.user_demo.partner_id
-
-        if not cls.user_demo:
-            cls.env["ir.config_parameter"].sudo().set_param(
-                "auth_password_policy.minlength", 4
-            )
-            cls.partner_demo = cls.env["res.partner"].create(
-                {
-                    "name": "Marc Demo",
-                    "email": "mark.brown23@example.com",
-                    "tz": "UTC",
-                }
-            )
-            cls.user_demo = cls.env["res.users"].create(
-                {
-                    "login": "demo",
-                    "password": "demo",
-                    "partner_id": cls.partner_demo.id,
-                    "group_ids": [
-                        Command.set(
-                            [
-                                cls.env.ref("base.group_user").id,
-                                cls.env.ref("base.group_partner_manager").id,
-                            ]
-                        )
-                    ],
-                }
-            )
 
 
-class SavepointCaseWithUserDemo(TransactionCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-
-        cls.user_demo = cls.env["res.users"].search([("login", "=", "demo")])
-        cls.partner_demo = cls.user_demo.partner_id
-
-        if not cls.user_demo:
-            cls.env["ir.config_parameter"].sudo().set_param(
-                "auth_password_policy.minlength", 4
-            )
-            cls.partner_demo = cls.env["res.partner"].create(
-                {
-                    "name": "Marc Demo",
-                    "email": "mark.brown23@example.com",
-                }
-            )
-            cls.user_demo = cls.env["res.users"].create(
-                {
-                    "login": "demo",
-                    "password": "demo",
-                    "partner_id": cls.partner_demo.id,
-                    "group_ids": [
-                        Command.set(
-                            [
-                                cls.env.ref("base.group_user").id,
-                                cls.env.ref("base.group_partner_manager").id,
-                            ]
-                        )
-                    ],
-                }
-            )
+class SavepointCaseWithUserDemo(_UserDemoCase, TransactionCase):
+    """`SavepointCase` has not existed since it merged into `TransactionCase`;
+    the name survives because 10 files import it."""
 
     @classmethod
     def _load_partners_set(cls):
@@ -474,70 +501,12 @@ class SavepointCaseWithUserDemo(TransactionCase):
         )
 
 
-class TransactionCaseWithUserPortal(TransactionCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.user_portal = cls.env["res.users"].sudo().search([("login", "=", "portal")])
-        cls.partner_portal = cls.user_portal.partner_id
-
-        if not cls.user_portal:
-            cls.env["ir.config_parameter"].sudo().set_param(
-                "auth_password_policy.minlength", 4
-            )
-            cls.partner_portal = cls.env["res.partner"].create(
-                {
-                    "name": "Joel Willis",
-                    "email": "joel.willis63@example.com",
-                }
-            )
-            cls.user_portal = (
-                cls.env["res.users"]
-                .with_context(no_reset_password=True)
-                .create(
-                    {
-                        "login": "portal",
-                        "password": "portal",
-                        "partner_id": cls.partner_portal.id,
-                        "group_ids": [
-                            Command.set([cls.env.ref("base.group_portal").id])
-                        ],
-                    }
-                )
-            )
+class TransactionCaseWithUserPortal(_UserPortalCase, TransactionCase):
+    pass
 
 
-class HttpCaseWithUserPortal(HttpCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.user_portal = cls.env["res.users"].sudo().search([("login", "=", "portal")])
-        cls.partner_portal = cls.user_portal.partner_id
-
-        if not cls.user_portal:
-            cls.env["ir.config_parameter"].sudo().set_param(
-                "auth_password_policy.minlength", 4
-            )
-            cls.partner_portal = cls.env["res.partner"].create(
-                {
-                    "name": "Joel Willis",
-                    "email": "joel.willis63@example.com",
-                }
-            )
-            cls.user_portal = (
-                cls.env["res.users"]
-                .with_context(no_reset_password=True)
-                .create(
-                    {
-                        "login": "portal",
-                        "password": "portal",
-                        "partner_id": cls.partner_portal.id,
-                        "group_ids": [
-                            Command.set([cls.env.ref("base.group_portal").id])
-                        ],
-                    }
-                )
-            )
+class HttpCaseWithUserPortal(_UserPortalCase, HttpCase):
+    pass
 
 
 class MockSmtplibCase:

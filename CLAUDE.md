@@ -131,10 +131,10 @@ shadow the real `import odoo.*` the second group performs.
 
 ```bash
 pytest                                                # DB-free leaf suites
-pytest odoo/orm/tests odoo/http/tests tests/service   # real-import suites
+pytest odoo/orm/tests odoo/http/tests tests/service tests/framework  # real-import
 ```
 
-**Pass all three paths in the second command.** None of them is in `pytest.ini`'s
+**Pass all four paths in the second command.** None of them is in `pytest.ini`'s
 `testpaths`, so a shorter command silently skips whole suites while still
 reporting success — `odoo/orm/tests` alone never touches http or `tests/service`.
 

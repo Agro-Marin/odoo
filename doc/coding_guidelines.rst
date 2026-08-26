@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.3
-:Date: 2026-08-23
+:Version: 6.4
+:Date: 2026-08-25
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -3127,10 +3127,15 @@ imports:
    cd <odoo repo>
 
    pytest                                          # Tier 1 (config: pytest.ini)
-   pytest odoo/orm/tests odoo/http/tests tests/service   # Tier 2 — separate run
+   pytest odoo/orm/tests odoo/http/tests tests/service tests/framework  # Tier 2
 
-Pass **all three** Tier-2 paths. None is in Tier 1's ``testpaths``, so a shorter
+Pass **all four** Tier-2 paths. None is in Tier 1's ``testpaths``, so a shorter
 command silently skips whole suites and still reports success.
+
+``tests/framework`` holds the gates that assert things about the real ``odoo.*``
+packages themselves -- that every public facade declares ``__all__``, and that
+every monkeypatch is applied whatever the import order. They cannot be Tier 1:
+the stubs would replace the objects under test.
 
 Two further suites sit outside the tiers because they need real resources:
 
@@ -4383,6 +4388,13 @@ One row per change, saying what moved. The argument lives in the section it move
    * - Version
      - Date
      - Summary
+   * - 6.4
+     - 2026-08-25
+     - **A fourth Tier-2 path, ``tests/framework``.** The facade ``__all__`` gate
+       and the monkeypatch suite moved there out of ``base/tests``, where they
+       subclassed the framework test case and so needed a database plus a full
+       ``base`` install to check pure imports. §6.0's "pass all N paths" warning
+       now reads four.
    * - 6.3
      - 2026-08-23
      - **Appendix A gains the order-line quantity swap.** ``product_qty`` and

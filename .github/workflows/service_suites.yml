@@ -48,6 +48,11 @@ on:
       # reordered a phase would otherwise not trigger the suite that notices.
       - 'odoo/modules/**'
       - 'requirements*.txt'
+      # The @standalone runner and the one script that exercises it. Both
+      # were broken at HEAD with nothing to notice.
+      - 'odoo/tests/module_operations.py'
+      - 'odoo/addons/base/tests/test_install.py'
+      - 'odoo/addons/base/tests/test_install_addons/**'
       - '.github/workflows/service_suites.yml'
 
 permissions:
@@ -150,3 +155,29 @@ jobs:
         # Separate step for the same reason as above, and because it is the
         # slowest of the three (a real `-i base` per session).
         run: python -m pytest tests/loading -q
+
+      - name: Standalone scripts (module-install isolation)
+        # `@standalone` scripts run through `odoo-bin`'s own runner, never
+        # through pytest or `--test-enable`, so nothing in CI ran them and the
+        # runner was broken at HEAD without anyone noticing:
+        # `odoo/tests/module_operations.py` called
+        # `odoo.service.db._check_faketime_mode`, a name that package does not
+        # export, so every invocation died on an AttributeError.
+        #
+        # `base/tests/test_install.py` is the script that matters here. It
+        # installs a module whose data file fails to parse and asserts the two
+        # modules installed just before it survive intact — the one check that
+        # module installation is isolated per module. It needs its three fixture
+        # addons on the addons path, which is why no ordinary integration lane
+        # picks it up.
+        #
+        # The database must be created but must NOT have the fixture modules
+        # installed: the script skips (and now says so, rather than failing)
+        # when they already are.
+        run: |
+          python odoo-bin -d standalone_ci --addons-path=odoo/addons,addons,odoo/addons/base/tests/test_install_addons \
+            -i base --without-demo=all --stop-after-init --no-http
+          python -m odoo.tests.module_operations \
+            --database standalone_ci \
+            --addons-path=odoo/addons,addons,odoo/addons/base/tests/test_install_addons \
+            standalone test_isolated_install

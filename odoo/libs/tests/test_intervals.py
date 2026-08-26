@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime
 from typing import cast
 
 from odoo.libs.intervals import Intervals, intervals_overlap, invert_intervals
@@ -188,6 +189,231 @@ class TestHelpers(unittest.TestCase):
     def test_invert_empty_range(self):
         self.assertEqual(invert_intervals([], 5, 5), [])
         self.assertEqual(invert_intervals([(1, 2)], 5, 5), [])
+
+
+class _IntervalAlgebra:
+    """The exhaustive union/intersection/difference tables, ported from
+    `odoo/addons/base/tests/test_intervals.py`.
+
+    They lived in a `TransactionCase` whose only use of the database was
+    `self.env["base"]` as an inert payload -- a `createdb` plus a full `base`
+    install to obtain an empty recordset that the algebra never inspects. A
+    payload only has to supply `.union`, so a `frozenset` does the same job here
+    in the DB-free tier.
+
+    `keep_distinct` used to be a second class holding a second copy of these
+    tables. `test_intersection` and `test_difference` were byte-identical
+    between the two -- 26 rows where 13 and a parameter do.
+    """
+
+    keep_distinct = False
+
+    def ints(self, pairs):
+        return [(a, b, frozenset()) for a, b in pairs]
+
+    def _intervals(self, pairs):
+        return Intervals(self.ints(pairs), keep_distinct=self.keep_distinct)
+
+    def test_intersection(self):
+        def check(a, b, c):
+            with self.subTest(a=a, b=b, keep_distinct=self.keep_distinct):
+                self.assertEqual(
+                    list(self._intervals(a) & self._intervals(b)), self.ints(c)
+                )
+
+        check([(10, 20)], [(5, 8)], [])
+        check([(10, 20)], [(5, 10)], [])
+        check([(10, 20)], [(5, 15)], [(10, 15)])
+        check([(10, 20)], [(5, 20)], [(10, 20)])
+        check([(10, 20)], [(5, 25)], [(10, 20)])
+        check([(10, 20)], [(10, 15)], [(10, 15)])
+        check([(10, 20)], [(10, 20)], [(10, 20)])
+        check([(10, 20)], [(10, 25)], [(10, 20)])
+        check([(10, 20)], [(15, 18)], [(15, 18)])
+        check([(10, 20)], [(15, 20)], [(15, 20)])
+        check([(10, 20)], [(15, 25)], [(15, 20)])
+        check([(10, 20)], [(20, 25)], [])
+        check(
+            [(0, 5), (10, 15), (20, 25), (30, 35)],
+            [(6, 7), (9, 12), (13, 17), (22, 23), (24, 40)],
+            [(10, 12), (13, 15), (22, 23), (24, 25), (30, 35)],
+        )
+
+    def test_difference(self):
+        def check(a, b, c):
+            with self.subTest(a=a, b=b, keep_distinct=self.keep_distinct):
+                self.assertEqual(
+                    list(self._intervals(a) - self._intervals(b)), self.ints(c)
+                )
+
+        check([(10, 20)], [(5, 8)], [(10, 20)])
+        check([(10, 20)], [(5, 10)], [(10, 20)])
+        check([(10, 20)], [(5, 15)], [(15, 20)])
+        check([(10, 20)], [(5, 20)], [])
+        check([(10, 20)], [(5, 25)], [])
+        check([(10, 20)], [(10, 15)], [(15, 20)])
+        check([(10, 20)], [(10, 20)], [])
+        check([(10, 20)], [(10, 25)], [])
+        check([(10, 20)], [(15, 18)], [(10, 15), (18, 20)])
+        check([(10, 20)], [(15, 20)], [(10, 15)])
+        check([(10, 20)], [(15, 25)], [(10, 15)])
+        check([(10, 20)], [(20, 25)], [(10, 20)])
+        check(
+            [(0, 5), (10, 15), (20, 25), (30, 35)],
+            [(6, 7), (9, 12), (13, 17), (22, 23), (24, 40)],
+            [(0, 5), (12, 13), (20, 22), (23, 24)],
+        )
+
+
+class TestIntervalAlgebraMerging(_IntervalAlgebra, unittest.TestCase):
+    keep_distinct = False
+
+    def test_union(self):
+        def check(a, b):
+            with self.subTest(a=a):
+                self.assertEqual(list(self._intervals(a)), self.ints(b))
+
+        check([(1, 2), (3, 4)], [(1, 2), (3, 4)])
+        check([(1, 2), (2, 4)], [(1, 4)])
+        check([(1, 3), (2, 4)], [(1, 4)])
+        check([(1, 4), (2, 3)], [(1, 4)])
+        check([(3, 4), (1, 2)], [(1, 2), (3, 4)])
+        check([(2, 4), (1, 2)], [(1, 4)])
+        check([(2, 4), (1, 3)], [(1, 4)])
+        check([(2, 3), (1, 4)], [(1, 4)])
+
+
+class TestIntervalAlgebraKeepDistinct(_IntervalAlgebra, unittest.TestCase):
+    keep_distinct = True
+
+    def test_union(self):
+        def check(a, b):
+            with self.subTest(a=a):
+                self.assertEqual(list(self._intervals(a)), self.ints(b))
+
+        check([(1, 2), (3, 4)], [(1, 2), (3, 4)])
+        check([(1, 2), (2, 4)], [(1, 2), (2, 4)])
+        check([(1, 3), (2, 4)], [(1, 4)])
+        check([(1, 4), (2, 3)], [(1, 4)])
+        check([(1, 4), (1, 4)], [(1, 4)])
+        check([(3, 4), (1, 2)], [(1, 2), (3, 4)])
+        check([(2, 4), (1, 2)], [(1, 2), (2, 4)])
+        check([(2, 4), (1, 3)], [(1, 4)])
+        check([(2, 3), (1, 4)], [(1, 4)])
+
+    def test_an_operand_that_keeps_distinct_does_not_infect_one_that_merges(self):
+        merging = Intervals(self.ints([(0, 10)]), keep_distinct=False)
+        distinct = Intervals(self.ints([(-5, 5), (5, 15)]), keep_distinct=True)
+
+        intersection = merging & distinct
+        self.assertFalse(intersection._keep_distinct)
+        self.assertEqual(len(intersection), 1)
+        self.assertEqual(list(intersection), self.ints([(0, 10)]))
+
+        intersection -= Intervals()
+        self.assertFalse(intersection._keep_distinct)
+        self.assertEqual(intersection._items, self.ints([(0, 10)]))
+
+
+class TestHelperMatrices(unittest.TestCase):
+    """The datetime tables from `base/tests/test_intervals.py::TestUtils`.
+
+    `TestHelpers` above covers the same two helpers qualitatively; these are the
+    exhaustive cases, and they never needed a database either.
+    """
+
+    def test_intervals_intersections(self):
+        test_data = [
+            (
+                (datetime(2023, 2, 14), datetime(2023, 2, 15)),
+                (datetime(2023, 2, 15), datetime(2023, 2, 16)),
+                False,
+            ),
+            (
+                (datetime(2023, 2, 14), datetime(2023, 2, 15)),
+                (datetime(2023, 2, 13), datetime(2023, 2, 16)),
+                True,
+            ),
+            (
+                (datetime(2023, 2, 13), datetime(2023, 2, 16)),
+                (datetime(2023, 2, 14), datetime(2023, 2, 15)),
+                True,
+            ),
+            (
+                (datetime(2023, 2, 13), datetime(2023, 2, 16)),
+                (datetime(2023, 2, 15), datetime(2023, 2, 17)),
+                True,
+            ),
+        ]
+        for interval_a, interval_b, overlaps in test_data:
+            with self.subTest(interval_a=interval_a, interval_b=interval_b):
+                self.assertEqual(intervals_overlap(interval_a, interval_b), overlaps)
+
+    def test_intervals_inversion(self):
+        test_intervals = [
+            (datetime(2023, 2, 5), datetime(2023, 2, 6)),
+            (datetime(2023, 2, 7), datetime(2023, 2, 7)),
+            (datetime(2023, 2, 9), datetime(2023, 2, 10)),
+            (datetime(2023, 2, 10), datetime(2023, 2, 11)),
+            (datetime(2023, 2, 11), datetime(2023, 2, 12)),
+            (datetime(2023, 2, 13), datetime(2023, 2, 15)),
+            (datetime(2023, 2, 14), datetime(2023, 2, 18)),
+            (
+                datetime(2023, 2, 15),
+                datetime(2023, 2, 16),
+            ),
+            (
+                datetime(2023, 2, 25),
+                datetime(2023, 3, 10),
+            ),
+            (datetime(2023, 2, 20), datetime(2023, 2, 22)),
+        ]
+        test_limits = [
+            (datetime(2023, 1, 1), datetime(2023, 4, 1)),
+            (
+                datetime(2023, 2, 5),
+                datetime(2023, 3, 10),
+            ),
+            (
+                datetime(2023, 2, 9),
+                datetime(2023, 2, 12),
+            ),
+            (
+                datetime(2023, 2, 6),
+                datetime(2023, 2, 9),
+            ),
+            (datetime(2023, 2, 8), datetime(2023, 2, 11)),
+        ]
+        test_results = [
+            [
+                (datetime(2023, 1, 1), datetime(2023, 2, 5)),
+                (datetime(2023, 2, 6), datetime(2023, 2, 9)),
+                (datetime(2023, 2, 12), datetime(2023, 2, 13)),
+                (datetime(2023, 2, 18), datetime(2023, 2, 20)),
+                (datetime(2023, 2, 22), datetime(2023, 2, 25)),
+                (datetime(2023, 3, 10), datetime(2023, 4, 1)),
+            ],
+            [
+                (datetime(2023, 2, 6), datetime(2023, 2, 9)),
+                (datetime(2023, 2, 12), datetime(2023, 2, 13)),
+                (datetime(2023, 2, 18), datetime(2023, 2, 20)),
+                (datetime(2023, 2, 22), datetime(2023, 2, 25)),
+            ],
+            [],
+            [
+                (datetime(2023, 2, 6), datetime(2023, 2, 9)),
+            ],
+            [
+                (datetime(2023, 2, 8), datetime(2023, 2, 9)),
+            ],
+        ]
+        for limits, expected_result in zip(test_limits, test_results, strict=False):
+            start, end = limits
+            with self.subTest(start=start, end=end):
+                self.assertListEqual(
+                    invert_intervals(test_intervals, start, end),
+                    expected_result,
+                )
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ import inspect
 import json
 import logging
 import os
+import socket
 import threading
 import time
 import warnings
@@ -2562,21 +2563,76 @@ class TestConcurrentDdlDuringBinaryCopy(BaseCase):
 
 
 class TestBorrowHonoursItsTimeout(BaseCase):
-    BLACKHOLE = {
-        "dbname": "nonexistent",
-        "host": "203.0.113.1",
-        "port": "5432",
-        "connect_timeout": "10",
-        "application_name": "odoo-borrow-budget-test",
-    }
+    """Local sockets, not `203.0.113.1`.
 
-    def test_cold_pool_to_a_blackhole_stays_inside_the_budget(self):
+    Both paths have to reach something that never answers, and each wants a
+    different flavour of it -- measured, because the two are not
+    interchangeable:
+
+    ==================  ============  =========  ===========  =======
+    host                path          borrow     close_all    total
+    ==================  ============  =========  ===========  =======
+    203.0.113.1         pooled        3.00s      **5.00s**    8.00s
+    refused port        pooled        3.00s      0.00s        3.01s
+    203.0.113.1         maintenance   2.03s      0.00s        2.03s
+    refused port        maintenance   **0.00s**  0.00s        0.00s
+    tarpit              maintenance   2.00s      0.00s        2.00s
+    ==================  ============  =========  ===========  =======
+
+    The pooled path exercises its budget against a refused port, because the
+    pool retries until the budget expires; against an unreachable host it also
+    leaves a connect in flight, and `close_all()` then blocks for psycopg's
+    full 5s grace period logging `couldn't stop thread 'pool-1-worker-1'
+    within 5.0 seconds`.
+
+    The maintenance path connects once, directly, so a refusal returns
+    instantly and the test asserts nothing -- it needs a socket that *hangs*.
+    A listening socket that never accepts is exactly that: the handshake
+    completes in the kernel backlog and no PostgreSQL greeting ever arrives.
+
+    10.05s to 5.01s for the class, and no packet leaves the machine.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            cls.refused_port = probe.getsockname()[1]
+
+        tarpit = socket.socket()
+        tarpit.bind(("127.0.0.1", 0))
+        tarpit.listen(1)
+        cls.addClassCleanup(tarpit.close)
+        cls.tarpit_port = tarpit.getsockname()[1]
+
+    def _info(self, port, **overrides):
+        return {
+            "dbname": "nonexistent",
+            "host": "127.0.0.1",
+            "port": str(port),
+            "connect_timeout": "10",
+            "application_name": "odoo-borrow-budget-test",
+            **overrides,
+        }
+
+    def _refused(self, **overrides):
+        """The bind is released in setUpClass, so the port may be taken since.
+        That would have the test dial a stranger, so it is re-checked here."""
+        with socket.socket() as probe:
+            probe.settimeout(0.5)
+            if probe.connect_ex(("127.0.0.1", self.refused_port)) == 0:
+                self.skipTest(f"port {self.refused_port} was taken since setUpClass")
+        return self._info(self.refused_port, **overrides)
+
+    def test_cold_pool_to_an_unreachable_host_stays_inside_the_budget(self):
         budget = 3.0
+        info = self._refused()
         pool = ConnectionPool(maxconn=4, borrow_timeout=budget)
         try:
             start = time.monotonic()
             with self.assertRaises((PoolError, psycopg.Error)):
-                pool.borrow(dict(self.BLACKHOLE))
+                pool.borrow(info)
             elapsed = time.monotonic() - start
             self.assertLess(
                 elapsed,
@@ -2591,12 +2647,22 @@ class TestBorrowHonoursItsTimeout(BaseCase):
 
     def test_maintenance_db_path_stays_inside_the_budget(self):
         budget = 3.0
+        # The tarpit, not the refused port: this path connects once and
+        # directly, so a refusal returns in 0.00s and the assertion below would
+        # hold without the budget existing at all.
+        info = self._info(self.tarpit_port, dbname="postgres")
         pool = ConnectionPool(maxconn=4, borrow_timeout=budget)
         try:
             start = time.monotonic()
             with self.assertRaises((PoolError, psycopg.Error)):
-                pool.borrow({**self.BLACKHOLE, "dbname": "postgres"})
+                pool.borrow(info)
             elapsed = time.monotonic() - start
+            self.assertGreater(
+                elapsed,
+                0.5,
+                "the connect returned at once, so the budget was never reached "
+                "and this test asserts nothing",
+            )
             self.assertLess(
                 elapsed,
                 budget + 1.5,
@@ -3999,11 +4065,19 @@ class TestCronsRecoverLikeRequests(BaseCase):
             "without it a deadlock, a serialization failure or a stale cached "
             "plan counts against the cron's deactivation budget",
         )
+        # The chain is _run_job -> _run_job_within_budget -> _run_callback, and
+        # _callees only sees one level: asserting _run_callback on _run_job read
+        # green for exactly as long as the name was missing from both.
+        self.assertIn(
+            "_run_job_within_budget",
+            _callees(cls._run_job.__func__),
+            "the run loop must go through the budgeted runner",
+        )
         self.assertIn(
             "_run_callback",
-            _callees(cls._run_job.__func__),
-            "the run loop must go through the wrapped runner, not call "
-            "_callback directly",
+            _callees(cls._run_job_within_budget.__func__),
+            "the budgeted runner must go through the wrapped runner, not call "
+            "the server action directly",
         )
 
     def _drive_callback(self, callback):
@@ -4011,16 +4085,16 @@ class TestCronsRecoverLikeRequests(BaseCase):
 
         On a real cursor rather than a TransactionCase, because `retrying()`
         commits and `TestCursor` forbids that from inside a test. Nothing is
-        actually written -- `_callback` is replaced -- so the commit is empty.
+        actually written -- `_run_server_action` is replaced -- so the commit is
+        empty.
         """
         reg = registry()
         with contextlib.closing(reg.cursor()) as cr:
             env = api.Environment(cr, odoo.SUPERUSER_ID, {})
             cron = env["ir.cron"].search([], limit=1)
-            if not cron:
-                self.skipTest("no cron record to drive")
+            self.assertTrue(cron, "base installs crons; one is needed to drive")
             cls = type(cron)
-            with patch.object(cls, "_callback", callback):
+            with patch.object(cls, "_run_server_action", callback):
                 cls._run_callback(
                     cron,
                     {"cron_name": "probe", "ir_actions_server_id": 0},
@@ -4579,7 +4653,7 @@ class TestPartitionedTablesAreVisible(BaseCase):
         try:
             cr.execute("SELECT 1")
             src = inspect.getsource(sql_schema.existing_tables)
-            for relkind in sorted(named):
+            for relkind in self.assertSweep(sorted(named)):
                 self.assertIn(
                     f'"{relkind}"',
                     src,
@@ -5457,8 +5531,16 @@ class TestSavepointRollbackDropsRefilledRegistryCaches(BaseCase):
 
         cleared = []
         original = reg.clear_cache
-        reg.clear_cache = lambda *names: cleared.append(names) or original(*names)
-        self.addCleanup(lambda: setattr(reg, "clear_cache", original))
+
+        # Through self.patch, not a setattr pair: restoring by assignment leaves
+        # `clear_cache` in the registry INSTANCE dict, where it shadows the class
+        # attribute for the rest of the process. Every later test that counts
+        # cache clears with patch.object(type(registry), "clear_cache") then
+        # observes nothing -- three failed outright and three more passed
+        # vacuously on their negative assertions.
+        self.patch(
+            reg, "clear_cache", lambda *names: cleared.append(names) or original(*names)
+        )
 
         try:
             with cr.savepoint(flush=True):

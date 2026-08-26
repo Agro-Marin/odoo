@@ -6,17 +6,14 @@ from . import test_base
 from . import test_basecase
 from . import test_cache
 from . import test_framework_contracts
-from . import test_intervals
 from . import test_date_utils
 from . import test_deprecation
 from . import test_db_cursor
-from . import test_db_service_drop
 from . import test_display_name
 from . import test_export_import_roundtrip
 from . import test_expression
 from . import test_float
 from . import test_format_address_mixin
-from . import test_func
 from . import test_groups
 from . import test_http_case
 from . import test_i18n
@@ -58,7 +55,6 @@ from . import test_cache_scan_predicates
 from . import test_log_access_cache
 from . import test_sort_collation
 from . import test_unaccent_parity
-from . import test_mail
 from . import test_base_language_wizards_audit
 from . import test_base_module_wizards
 from . import test_change_password_wizard_audit
@@ -70,15 +66,12 @@ from . import test_report_layout_audit
 from . import test_report_modernization
 from . import test_report_paperformat_audit
 from . import test_menu
-from . import test_mimetypes
 from . import test_misc
 from . import test_mixin_profiler
 from . import test_module
-from . import test_monkeypatches
 from . import test_orm
 from . import test_ormcache
 from . import test_properties_base_definition
-from . import test_public_surfaces
 from . import test_tag_tag
 from . import test_overrides
 from . import test_query
@@ -127,11 +120,8 @@ from . import test_import_files
 from . import test_nplusone
 from . import test_orm_profiler
 from . import test_base_perf_regression
-from . import test_base_benchmark
 from . import test_backend_integration
 
 from . import test_res_config_install
 from . import test_default_group
-from . import test_server
-from . import test_ir_actions_webhook_logging
-from . import test_ir_actions_webhook_timeout
+from . import test_ir_actions_webhook

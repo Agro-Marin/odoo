@@ -406,22 +406,37 @@ class TestNumericColumnPrecision(TransactionCase):
         )
 
     def test_a_float8_column_is_still_given_a_float(self):
-        model = self.env["res.partner"]
-        for name, field in model._fields.items():
-            if (
-                field.type == "float"
+        """Swept over the registry, not over `res.partner`.
+
+        This used to loop `res.partner._fields` and `break` on the first float8
+        column. There is none -- `partner_latitude` and `partner_longitude` are
+        both `numeric` -- so the loop matched nothing, fell out, and the test
+        reported success having asserted precisely nothing. The guard is what
+        makes that visible; sweeping the registry is what gives it something to
+        check (13 fields, `report.paperformat` among them).
+        """
+        float8_fields = self.assertSweep(
+            (
+                (name, fname, field)
+                for name, model in self.env.registry.items()
+                if not model._abstract
+                for fname, field in self.env[name]._fields.items()
+                if field.type == "float"
                 and field.store
                 and field.column_type
                 and field.column_type[0] == "float8"
-            ):
-                value = field.convert_to_column(1 / 3, model, {})
+            ),
+            "no stored float8 field is installed, so this test cannot check "
+            "what float8 conversion does",
+        )
+        for name, fname, field in float8_fields:
+            with self.subTest(field=f"{name}.{fname}"):
                 self.assertIsInstance(
-                    value,
+                    field.convert_to_column(1 / 3, self.env[name], {}),
                     float,
-                    f"{name} is float8; converting it to Decimal would make "
-                    f"PostgreSQL cast on every comparison",
+                    f"{name}.{fname} is float8; converting it to Decimal would "
+                    f"make PostgreSQL cast on every comparison",
                 )
-                break
 
     def test_what_the_field_decided_is_what_is_stored(self):
         """The field is entitled to round to its own digits -- `partner_latitude`

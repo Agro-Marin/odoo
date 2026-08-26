@@ -1,3 +1,11 @@
+"""`odoo._monkeypatches`: applied, idempotent, and order-independent.
+
+Moved from `odoo/addons/base/tests/test_monkeypatches.py`. It subclassed the framework test
+case but touched no database and no registry, so it only ran behind a
+`createdb` plus a full `base` install. It does need a real `import odoo.*`,
+which is why it is here rather than in a Tier-1 suite.
+"""
+
 import ast as ast_module
 import copy
 import importlib
@@ -5,9 +13,10 @@ import io
 import pathlib
 import pkgutil
 import sys
+import unittest
 
 import odoo._monkeypatches as monkeypatches
-from odoo.tests.common import BaseCase, mute_logger
+from odoo.tools import mute_logger
 
 
 def _patch_submodules():
@@ -18,7 +27,7 @@ def _patch_submodules():
     ]
 
 
-class TestMonkeypatchContract(BaseCase):
+class TestMonkeypatchContract(unittest.TestCase):
     def test_submodules_discovered(self):
         self.assertTrue(
             _patch_submodules(), "no monkeypatch submodules were discovered"
@@ -64,7 +73,7 @@ class TestMonkeypatchContract(BaseCase):
                 )
 
 
-class TestPatchesSurviveEitherImportOrder(BaseCase):
+class TestPatchesSurviveEitherImportOrder(unittest.TestCase):
     def test_importing_every_submodule_leaves_every_patch_applied(self):
         """Importing a patch submodule must apply its patch, not disable it.
 
@@ -98,7 +107,7 @@ class TestPatchesSurviveEitherImportOrder(BaseCase):
         self.assertLessEqual(monkeypatches.applied(), monkeypatches.HOOK_IMPORT.hooks)
 
 
-class TestLoaderCapabilitiesSurvivePatching(BaseCase):
+class TestLoaderCapabilitiesSurvivePatching(unittest.TestCase):
     def _hooked_and_wrapped(self):
         from odoo._monkeypatches import _PatchingLoader
 
@@ -135,7 +144,7 @@ class TestLoaderCapabilitiesSurvivePatching(BaseCase):
                     )
 
 
-class TestCsvPatch(BaseCase):
+class TestCsvPatch(unittest.TestCase):
     def test_field_size_limit_admits_an_inline_image(self):
         """128KiB is the stdlib default; the reader raises rather than truncate."""
         import csv
@@ -151,7 +160,7 @@ class TestCsvPatch(BaseCase):
         self.assertEqual(len(rows[0][0]), len(big))
 
 
-class TestAstLiteralEvalLimit(BaseCase):
+class TestAstLiteralEvalLimit(unittest.TestCase):
     def test_oversized_expression_is_refused(self):
         import ast
 
@@ -213,7 +222,7 @@ class TestAstLiteralEvalLimit(BaseCase):
         return _ctx()
 
 
-class TestEmailHeaderFolding(BaseCase):
+class TestEmailHeaderFolding(unittest.TestCase):
     def _render(self, header, value):
         import email.policy
         from email.message import EmailMessage
@@ -263,7 +272,7 @@ class TestEmailHeaderFolding(BaseCase):
         self.assertEqual(email.policy.SMTP.linesep, "\r\n")
 
 
-class TestExcelSheetNames(BaseCase):
+class TestExcelSheetNames(unittest.TestCase):
     def _sanitize(self, name, taken=()):
         from odoo._monkeypatches._excel_utils import sanitize_excel_sheet_name
 
@@ -306,7 +315,7 @@ class TestExcelSheetNames(BaseCase):
         self.assertFalse(workbook.strings_to_formulas)
 
 
-class TestMimeTypePins(BaseCase):
+class TestMimeTypePins(unittest.TestCase):
     PINS = (
         (".woff", "font/woff"),
         (".eot", "application/vnd.ms-fontobject"),
@@ -378,7 +387,7 @@ class TestMimeTypePins(BaseCase):
         self.assertIs(mimetypes.init, wrapper, "init() was wrapped a second time")
 
 
-class TestCharsetLabels(BaseCase):
+class TestCharsetLabels(unittest.TestCase):
     def test_separatorless_hebrew_variants_resolve(self):
         """Only the spellings `encodings.aliases` misses prove anything here.
 
@@ -423,7 +432,7 @@ class TestCharsetLabels(BaseCase):
                 self.assertEqual(codecs.lookup(label).name, "cp874")
 
 
-class TestBabelLocaleAlias(BaseCase):
+class TestBabelLocaleAlias(unittest.TestCase):
     def test_bare_nb_has_a_territory(self):
         """Request.best_lang maps a territory-less tag through LOCALE_ALIASES and
         turns the KeyError into "no language preference at all"."""
@@ -432,7 +441,7 @@ class TestBabelLocaleAlias(BaseCase):
         self.assertEqual(babel.core.LOCALE_ALIASES["nb"], "nb_NO")
 
 
-class TestWerkzeugJsonModule(BaseCase):
+class TestWerkzeugJsonModule(unittest.TestCase):
     def test_request_and_response_serialise_script_safely(self):
         from werkzeug.wrappers import Request, Response
 
@@ -455,7 +464,7 @@ class TestWerkzeugJsonModule(BaseCase):
         self.assertIsNotNone(copy.deepcopy(box))
 
 
-class TestBulgarianIsRegistered(BaseCase):
+class TestBulgarianIsRegistered(unittest.TestCase):
     """The patch's job is the registration; the language is tested in Tier 1.
 
     `odoo/libs/locale/tests/test_cardinals_bg.py` carries the grammar oracle
@@ -483,3 +492,49 @@ class TestBulgarianIsRegistered(BaseCase):
 
         with self.assertRaises(NotImplementedError):
             num2words(7.5, lang="bg")
+
+
+class TestFreezegunFacade(unittest.TestCase):
+    """`odoo.tests.common` replaces `freezegun.freeze_time` process-wide.
+
+    `from freezegun import freeze_time` therefore resolves to the wrapper in any
+    module imported after `odoo.tests.common`, and to the real one otherwise --
+    so a signature the wrapper does not accept is a `TypeError` that depends on
+    import order. It used to drop three of freezegun's arguments.
+    """
+
+    def test_the_module_attribute_is_the_facade(self):
+        import freezegun
+
+        from odoo.tests.common import freeze_time
+
+        self.assertIs(freezegun.freeze_time, freeze_time)
+
+    def test_the_facade_accepts_every_argument_freezegun_does(self):
+        import inspect
+
+        import freezegun.api
+
+        from odoo.tests.common import freeze_time
+
+        theirs = set(inspect.signature(freezegun.api.freeze_time).parameters)
+        ours = set(inspect.signature(freeze_time.__init__).parameters) - {"self"}
+        self.assertFalse(
+            theirs - ours,
+            f"the facade drops {sorted(theirs - ours)}, so the same call is "
+            f"valid or a TypeError depending on import order",
+        )
+
+    def test_a_dropped_argument_reaches_freezegun(self):
+        """`ignore` is the one that was measured: passing it used to raise
+        `TypeError: freeze_time.__init__() got an unexpected keyword argument`.
+
+        Asserted on the freezer the facade built, not on a clock reading:
+        freezegun resolves `ignore` against the whole call stack, and a test
+        method is always reached through `unittest`, so any stack-based probe
+        from in here reports the ignored answer whatever is passed.
+        """
+        from odoo.tests.common import freeze_time
+
+        frozen = freeze_time("2020-01-01", ignore=["some.module"])
+        self.assertIn("some.module", frozen.freezer.ignore)

@@ -1,8 +1,15 @@
+"""Every public import facade declares and honours `__all__`.
+
+Moved from `odoo/addons/base/tests/test_public_surfaces.py`. It subclassed the framework test
+case but touched no database and no registry, so it only ran behind a
+`createdb` plus a full `base` install. It does need a real `import odoo.*`,
+which is why it is here rather than in a Tier-1 suite.
+"""
+
 import ast
 import importlib
+import unittest
 from pathlib import Path
-
-from odoo.tests import BaseCase
 
 SURFACES = (
     "odoo.api",
@@ -15,7 +22,7 @@ SURFACES = (
 )
 
 
-class TestPublicSurfaces(BaseCase):
+class TestPublicSurfaces(unittest.TestCase):
     def test_every_surface_declares_all(self):
         for name in SURFACES:
             with self.subTest(module=name):
@@ -42,7 +49,7 @@ class TestPublicSurfaces(BaseCase):
                 self.assertEqual(dupes, [], f"{name}.__all__ has duplicates")
 
 
-class TestToolsSurface(BaseCase):
+class TestToolsSurface(unittest.TestCase):
     @staticmethod
     def _reexported_names() -> set[str]:
         source = Path(importlib.import_module("odoo.tools").__file__).read_text(
@@ -77,7 +84,7 @@ class TestToolsSurface(BaseCase):
         self.assertIn("_", odoo.tools.__all__)
 
 
-class TestExceptionsSurface(BaseCase):
+class TestExceptionsSurface(unittest.TestCase):
     def test_all_matches_the_defined_exceptions(self):
         import odoo.exceptions
 

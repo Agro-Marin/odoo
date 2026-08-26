@@ -17,7 +17,6 @@ from odoo.addons.base.models.ir_mail_server import (
     MailDeliveryException,
     OutgoingEmailError,
 )
-from odoo.addons.base.tests import mail_examples
 from odoo.addons.base.tests.common import MockSmtplibCase
 
 
@@ -73,6 +72,59 @@ class _FakeSMTP:
         self, message, smtp_from, smtp_to_list, mail_options=(), rcpt_options=()
     ):
         self.messages.append(message.as_string())
+
+
+_HTML_BODIES = """Two realistic HTML bodies, as MIME round-trip inputs.
+
+Copied out of the sanitiser's fixture corpus, which moved to the libs suite
+that owns it. Importing them from there would have this addon reach past an
+`odoo.libs` area, which `tooling/architecture/libs_facade_check.py` forbids
+-- and rightly: what this test needs is *some* realistic HTML, not that
+corpus. The expected plaintext in the test is what pins the choice."""
+
+MISC_HTML_SOURCE = """
+<font size="2" style="color: rgb(31, 31, 31); font-family: monospace; font-variant: normal; line-height: normal; ">test1</font>
+<div style="color: rgb(31, 31, 31); font-family: monospace; font-variant: normal; line-height: normal; font-size: 12px; font-style: normal; ">
+<b>test2</b></div><div style="color: rgb(31, 31, 31); font-family: monospace; font-variant: normal; line-height: normal; font-size: 12px; ">
+<i>test3</i></div><div style="color: rgb(31, 31, 31); font-family: monospace; font-variant: normal; line-height: normal; font-size: 12px; ">
+<u>test4</u></div><div style="color: rgb(31, 31, 31); font-family: monospace; font-variant: normal; line-height: normal; font-size: 12px; ">
+<strike>test5</strike></div><div style="color: rgb(31, 31, 31); font-family: monospace; font-variant: normal; line-height: normal; ">
+<font size="5">test6</font></div><div><ul><li><font color="#1f1f1f" face="monospace" size="2">test7</font></li><li>
+<font color="#1f1f1f" face="monospace" size="2">test8</font></li></ul><div><ol><li><font color="#1f1f1f" face="monospace" size="2">test9</font>
+</li><li><font color="#1f1f1f" face="monospace" size="2">test10</font></li></ol></div></div>
+<blockquote style="margin: 0 0 0 40px; border: none; padding: 0px;"><div><div><div><font color="#1f1f1f" face="monospace" size="2">
+test11</font></div></div></div></blockquote><blockquote style="margin: 0 0 0 40px; border: none; padding: 0px;">
+<blockquote style="margin: 0 0 0 40px; border: none; padding: 0px;"><div><font color="#1f1f1f" face="monospace" size="2">
+test12</font></div><div><font color="#1f1f1f" face="monospace" size="2"><br></font></div></blockquote></blockquote>
+<font color="#1f1f1f" face="monospace" size="2"><a href="http://google.com">google</a></font>
+<a href="javascript:alert('malicious code')">test link</a>
+"""
+
+QUOTE_THUNDERBIRD_HTML = """<html>
+  <head>
+    <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+  </head>
+  <body text="#000000" bgcolor="#FFFFFF">
+    <div class="moz-cite-prefix">On 01/05/2016 10:24 AM, Raoul
+      Poilvache wrote:<br>
+    </div>
+    <blockquote
+cite="mid:CAP76m_WWFH2KVrbjOxbaozvkmbzZYLWJnQ0n0sy9XpGaCWRf1g@mail.gmail.com"
+      type="cite">
+      <div dir="ltr"><b><i>Test reply. The suite.</i></b><br clear="all">
+        <div><br>
+        </div>
+        -- <br>
+        <div class="gmail_signature">Raoul Poilvache</div>
+      </div>
+    </blockquote>
+    Top cool !!!<br>
+    <br>
+    <pre class="moz-signature" cols="72">--
+Raoul Poilvache
+</pre>
+  </body>
+</html>"""
 
 
 @tagged("mail_server")
@@ -284,8 +336,8 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
             "content",
             "<p>content</p>",
             '<head><meta content="text/html; charset=utf-8" http-equiv="Content-Type"></head><body><p>content</p></body>',
-            mail_examples.MISC_HTML_SOURCE,
-            mail_examples.QUOTE_THUNDERBIRD_HTML,
+            MISC_HTML_SOURCE,
+            QUOTE_THUNDERBIRD_HTML,
         ]
         expected_list = [
             "content",

@@ -8,6 +8,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any
+from unittest import SkipTest
 
 sys.path.append(str(Path(__file__, "../../../").resolve()))
 
@@ -15,6 +16,7 @@ import odoo.tests.loader
 from odoo import api
 from odoo.logutils import init_logger
 from odoo.modules.registry import Registry
+from odoo.service.db.lifecycle import _check_faketime_mode
 from odoo.tests import standalone_tests
 from odoo.tools import config, profiler, topological_sort, unique
 
@@ -208,7 +210,7 @@ def test_uninstall(args: argparse.Namespace) -> None:
 
 
 def test_standalone(args: argparse.Namespace) -> None:
-    odoo.service.db._check_faketime_mode(args.database)
+    _check_faketime_mode(args.database)
     registry = Registry(args.database)
     for module_name in registry._init_modules:
         odoo.tests.loader.get_test_modules(module_name)
@@ -221,6 +223,7 @@ def test_standalone(args: argparse.Namespace) -> None:
 
     start_time = time.monotonic()
     failures = 0
+    skipped = 0
     for index, func in enumerate(funcs, start=1):
         _logger.info(
             "Executing standalone script: %s (%d / %d)",
@@ -235,14 +238,21 @@ def test_standalone(args: argparse.Namespace) -> None:
             with Registry(args.database).cursor() as cr:
                 env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
                 func(env)
+        except SkipTest as exc:
+            # A script states its own preconditions by raising SkipTest; counting
+            # that as a failure made every unmet precondition exit(1).
+            skipped += 1
+            _logger.info("Standalone script %s skipped: %s", func.__name__, exc)
         except Exception:
             failures += 1
             _logger.exception("Standalone script %s failed", func.__name__)
 
     _logger.info(
-        "%d standalone scripts executed in %.2fs",
+        "%d standalone scripts executed in %.2fs (%d skipped, %d failed)",
         len(funcs),
         time.monotonic() - start_time,
+        skipped,
+        failures,
     )
     if failures:
         sys.exit(1)

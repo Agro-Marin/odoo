@@ -735,6 +735,28 @@ class BaseCase(case.TestCase):
         self._assert_queries(expected, actual_queries, contains)
 
     @contextmanager
+    def capturedQueries(self, flush: bool = True) -> Generator[list[str]]:
+        """Collect the statements issued in the block, asserting nothing.
+
+        `assertQueries`/`assertQueriesContain` pin an exact sequence, which is
+        the wrong shape when the question is "how many times did anything hit
+        this table". Without a helper for that, tests hand-rolled their own by
+        assigning over `type(self.env.cr).execute` and restoring it in a
+        `finally` -- a raw type-attribute write that sees only `execute`, misses
+        `executemany`/`copy`/`copy_from`, and leaves the cursor class patched
+        for every other test in the process if the block escapes by a path the
+        `finally` does not cover.
+
+        Yields a list that fills as the block runs::
+
+            with self.capturedQueries() as queries:
+                Partner.create(vals_list)
+            reads = [q for q in queries if 'FROM "res_partner"' in q]
+            self.assertLessEqual(len(reads), 1)
+        """
+        yield from self._patchExecute([], flush)
+
+    @contextmanager
     def assertQueryCount(
         self, default: int = 0, flush: bool = True, **counters: int
     ) -> Generator[None]:
@@ -876,6 +898,27 @@ class BaseCase(case.TestCase):
 
     def assertItemsEqual(self, a: Any, b: Any, msg: str | None = None) -> None:
         self.assertCountEqual(a, b, msg=msg)
+
+    def assertSweep(self, candidates: Any, msg: str | None = None) -> list:
+        """Materialise a discovered iterable, refusing an empty one.
+
+        A test whose only assertions sit inside ``for x in discover():`` reports
+        success when ``discover()`` returns nothing, so a regression that empties
+        the discovery turns the whole battery green. Measured, not theorised:
+        overriding ``ir.actions.actions._get_model_names_in_tree()`` to return an
+        empty frozenset left three such tests passing, and was caught only by
+        unrelated siblings that reach the same helper through production code.
+
+        Wrap the iterable and iterate the result::
+
+            for name in self.assertSweep(Actions._get_model_names_in_tree()):
+        """
+        found = list(candidates)
+        self.assertTrue(
+            found,
+            msg or "the sweep found nothing to check, so it proves nothing",
+        )
+        return found
 
     def assertTreesEqual(self, n1: Any, n2: Any, msg: str | None = None) -> None:
         self.assertIsNotNone(n1, msg)
@@ -1377,22 +1420,40 @@ def tagged(*tags: str) -> Callable:
 
 
 class freeze_time:
+    """Wraps ``freezegun.freeze_time`` so a class decorated with it freezes at
+    the point ``TransactionCase.setUpClass`` chooses, not at import.
+
+    Line 1415 below replaces ``freezegun.freeze_time`` with this class
+    process-wide, so ``from freezegun import freeze_time`` resolves here in any
+    module imported after ``odoo.tests.common``. **The signature must therefore
+    stay a superset of freezegun's**: it used to accept five of freezegun
+    1.5.5's eight arguments, silently dropping ``ignore``, ``as_arg`` and
+    ``real_asyncio``, so the same call was valid or a ``TypeError`` depending on
+    import order.
+    """
+
     _freeze_time = staticmethod(freezegun.freeze_time)
 
     def __init__(
         self,
         time_to_freeze: Any = None,
         tz_offset: int = 0,
+        ignore: list[str] | None = None,
         tick: bool = False,
+        as_arg: bool = False,
         as_kwarg: str = "",
-        auto_tick_seconds: int = 0,
+        auto_tick_seconds: float = 0,
+        real_asyncio: bool = False,
     ) -> None:
         self.freezer = self._freeze_time(
             time_to_freeze=time_to_freeze,
             tz_offset=tz_offset,
+            ignore=ignore,
             tick=tick,
+            as_arg=as_arg,
             as_kwarg=as_kwarg,
             auto_tick_seconds=auto_tick_seconds,
+            real_asyncio=real_asyncio,
         )
 
     def __call__(self, arg: Any) -> Any:

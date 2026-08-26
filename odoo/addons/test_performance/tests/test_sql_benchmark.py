@@ -3,14 +3,11 @@ import json
 import logging
 import statistics
 import time
-from collections.abc import Callable
 from datetime import datetime
-from typing import Any
 
 from odoo.tests.benchmark import (
     OUTLIER_PERCENTILE,
-    BenchmarkStats,
-    run_benchmark,
+    BenchmarkCase,
 )
 from odoo.tests.common import TransactionCase, tagged
 
@@ -21,11 +18,14 @@ WARMUP_ITERATIONS = 5
 
 
 @tagged("standard", "sql_benchmark")
-class TestSQLBenchmark(TransactionCase):
+class TestSQLBenchmark(BenchmarkCase, TransactionCase):
+    benchmark_log_prefix = "SQL_BENCHMARK"
+    benchmark_iterations = DEFAULT_ITERATIONS
+    benchmark_warmup = WARMUP_ITERATIONS
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.all_results: list[BenchmarkStats] = []
         cls.Partner = cls.env["res.partner"]
         cls.User = cls.env["res.users"]
         cls.Country = cls.env["res.country"]
@@ -58,28 +58,6 @@ class TestSQLBenchmark(TransactionCase):
         super().setUp()
         gc.collect()
         self.Partner.search_count([])
-
-    def _run_benchmark(
-        self,
-        name: str,
-        func: Callable[[], Any],
-        iterations: int = DEFAULT_ITERATIONS,
-        warmup: int = WARMUP_ITERATIONS,
-        setup: Callable[[], None] | None = None,
-        teardown: Callable[[], None] | None = None,
-    ) -> BenchmarkStats:
-        stats = run_benchmark(
-            name,
-            func,
-            iterations=iterations,
-            warmup=warmup,
-            setup=setup,
-            teardown=teardown,
-            invalidate=self.env.invalidate_all,
-        )
-        self.all_results.append(stats)
-        _logger.info("[SQL_BENCHMARK] %s", stats.summary("ms"))
-        return stats
 
     def test_01_single_record_read_by_id(self):
         partner = self.Partner.search([], limit=1)

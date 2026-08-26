@@ -115,15 +115,19 @@ jobs:
         # MUST be a separate invocation: the Tier-1 conftests above register
         # process-global sys.modules stubs that would shadow `import odoo`.
         #
-        # ALL THREE PATHS, deliberately. This step used to pass only
+        # ALL FOUR PATHS, deliberately. This step used to pass only
         # `odoo/orm/tests`, which is exactly what pytest.ini warns against:
-        # the other two are in no other tier's `testpaths`, so omitting them
-        # skipped them SILENTLY while the step reported success. That left the
-        # http layer and the whole service layer — RPC dispatch, the database
-        # service, the dump scanner, the prefork supervisor — ungated in CI,
-        # including the regression tests for a restore RCE and an
-        # unauthenticated database-existence oracle.
-        run: python -m pytest odoo/orm/tests odoo/http/tests tests/service -q
+        # the others are in no tier's `testpaths`, so omitting one skips it
+        # SILENTLY while the step reports success. That left the http layer and
+        # the whole service layer — RPC dispatch, the database service, the dump
+        # scanner, the prefork supervisor — ungated in CI, including the
+        # regression tests for a restore RCE and an unauthenticated
+        # database-existence oracle.
+        #
+        # `tests/framework` is the fourth: the facade `__all__` gate and the
+        # monkeypatch suite, moved out of `base/tests` where they needed a
+        # database they never used.
+        run: python -m pytest odoo/orm/tests odoo/http/tests tests/service tests/framework -q
 
       - name: Re-run tests/service in shuffled order (order-independence gate)
         # The service suite passed for months only because alphabetical

@@ -49,3 +49,34 @@ class TestLazy(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLazyComparison(unittest.TestCase):
+    """Ported from `odoo/addons/base/tests/test_func.py`, which reached these
+    through the `odoo.tools` facade from a database-backed test case."""
+
+    def test_ordering_and_equality_force_the_value(self):
+        self.assertTrue(lazy(lambda: 1) <= lazy(lambda: 42))
+        self.assertFalse(lazy(lambda: 42) <= lazy(lambda: 1))
+        self.assertTrue(lazy(lambda: 42) == lazy(lambda: 42))
+        self.assertFalse(lazy(lambda: 1) == lazy(lambda: 42))
+        self.assertFalse(lazy(lambda: 42) != lazy(lambda: 42))
+        self.assertTrue(lazy(lambda: 1) != lazy(lambda: 42))
+
+    def test_equality_delegates_to_an_unhashable_value(self):
+        class Obj:
+            __hash__ = None
+
+            def __init__(self, num):
+                self.num = num
+
+            def __eq__(self, other):
+                if isinstance(other, Obj):
+                    return self.num == other.num
+                msg = "Object does not have the correct type"
+                raise ValueError(msg)
+
+        self.assertTrue(lazy(lambda: Obj(42)) == lazy(lambda: Obj(42)))
+        self.assertFalse(lazy(lambda: Obj(1)) == lazy(lambda: Obj(42)))
+        self.assertFalse(lazy(lambda: Obj(42)) != lazy(lambda: Obj(42)))
+        self.assertTrue(lazy(lambda: Obj(1)) != lazy(lambda: Obj(42)))

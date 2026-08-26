@@ -1,4 +1,5 @@
 import json
+import logging
 import math
 import statistics
 import threading
@@ -13,6 +14,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 OUTLIER_PERCENTILE = 5
+
+_benchmark_logger = logging.getLogger(__name__)
 
 
 def percentile(data: list[float], p: float) -> float:
@@ -395,3 +398,66 @@ def compare_results(baseline: list[dict], current: list[dict]) -> str:
         else:
             lines.append(f"{name:<55s} {bp:>10.1f} {cp:>10.1f} {'inf':>8s}")
     return "\n".join(lines)
+
+
+class BenchmarkCase:
+    """Mixin for a benchmark suite: run, accumulate, and report.
+
+    `test_sql_benchmark.py` and `test_base_benchmark.py` each carried a copy of
+    this `_run_benchmark`. The copies drifted -- the second dropped the summary
+    step that consumes `all_results`, leaving the accumulator dead -- so the
+    implementation lives here and the suites declare only their targets.
+
+    **A benchmark is not a regression test.** `run_benchmark` calls the measured
+    function bare, so a suite built on this fails when an operation *raises*,
+    which makes it a smoke test; it cannot fail when an operation gets slower,
+    because nothing asserts on the timings. Pair it with `assertQueryCount`
+    pins if you want a regression caught.
+    """
+
+    benchmark_log_prefix = "BENCHMARK"
+    benchmark_iterations = 30
+    benchmark_warmup = 5
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cls.all_results: list[BenchmarkStats] = []
+
+    def _run_benchmark(
+        self,
+        name: str,
+        func: Callable[[], Any],
+        *,
+        iterations: int | None = None,
+        warmup: int | None = None,
+        setup: Callable[[], None] | None = None,
+        teardown: Callable[[], None] | None = None,
+        invalidate_cache: bool = True,
+    ) -> BenchmarkStats:
+        stats = run_benchmark(
+            name,
+            func,
+            iterations=self.benchmark_iterations if iterations is None else iterations,
+            warmup=self.benchmark_warmup if warmup is None else warmup,
+            setup=setup,
+            teardown=teardown,
+            invalidate=self.env.invalidate_all if invalidate_cache else None,
+        )
+        self.all_results.append(stats)
+        _benchmark_logger.info("[%s] %s", self.benchmark_log_prefix, stats.summary())
+        return stats
+
+    def log_benchmark_summary(self, unit: str = "auto") -> None:
+        """Report what was accumulated. Without a caller the accumulation is
+        dead weight, which is what happened to the copy in `base`."""
+        prefix = self.benchmark_log_prefix
+        if not self.all_results:
+            _benchmark_logger.info("[%s] no results to summarise", prefix)
+            return
+
+        _benchmark_logger.info(
+            "[%s] %d benchmarks, slowest first:", prefix, len(self.all_results)
+        )
+        for stat in sorted(self.all_results, key=lambda s: -s.mean_us):
+            _benchmark_logger.info("[%s]   %s", prefix, stat.summary(unit))
