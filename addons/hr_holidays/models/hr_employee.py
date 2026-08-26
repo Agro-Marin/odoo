@@ -24,6 +24,12 @@ class HrEmployee(models.Model):
         help='Select the user responsible for approving "Time Off" of this employee.\n'
         "If empty, the approval is done by an Administrator or Approver (determined in settings/users).",
     )
+    leave_ids = fields.One2many(
+        "hr.leave",
+        "employee_id",
+        string="Time Off",
+        groups="hr.group_hr_user",
+    )
     current_leave_id = fields.Many2one(
         "hr.leave.type",
         compute="_compute_current_leave_id",
@@ -73,6 +79,12 @@ class HrEmployee(models.Model):
         ]
     )
 
+    @api.depends(
+        "leave_ids.state",
+        "leave_ids.date_from",
+        "leave_ids.date_to",
+        "leave_ids.holiday_status_id",
+    )
     def _compute_current_leave_id(self):
         self.current_leave_id = False
 
@@ -221,6 +233,12 @@ class HrEmployee(models.Model):
                 return work_intervals[self.resource_id.id]._items[0][0]
         return None
 
+    @api.depends(
+        "leave_ids.state",
+        "leave_ids.date_from",
+        "leave_ids.date_to",
+        "leave_ids.holiday_status_id.time_type",
+    )
     def _compute_leave_status(self):
         # Used SUPERUSER_ID to forcefully get status of other user's leave, to bypass record rule
         holidays = (
