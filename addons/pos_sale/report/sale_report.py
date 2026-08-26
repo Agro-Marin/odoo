@@ -205,9 +205,7 @@ class SaleReport(models.Model):
         }
 
         # Add additional fields from hooks (with POS-specific mappings)
-        additional_fields = (
-            self._get_fields_select()
-        )  # Get sale.report additional fields
+        additional_fields = self._get_fields_select()
         additional_fields_info = self._fill_pos_fields(additional_fields)
         fields.update(additional_fields_info)
 
@@ -316,17 +314,14 @@ class SaleReport(models.Model):
         :return: mapping of {field_name: pos_sql_expression_or_NULL}
         :rtype: dict
         """
-        # Start with NULL for all additional fields
         filled_fields = {}
 
         # Only include fields that are in the additional_fields from sale.report
         available_pos_mappings = self._available_additional_pos_fields()
         for fname in additional_fields:
             if fname in available_pos_mappings:
-                # Use POS-specific mapping
                 filled_fields[fname] = available_pos_mappings[fname]
             else:
-                # Set to NULL for fields that don't exist in POS
                 filled_fields[fname] = "NULL"
 
         return filled_fields
