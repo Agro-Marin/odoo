@@ -546,8 +546,14 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 try:
                     self._do_rollback()
                 except Exception:
-                    _logger.debug("Failed to roll back on cursor close", exc_info=True)
                     keep_in_pool = self._connection_is_clean()
+                    if keep_in_pool:
+                        _logger.warning("Failed to roll back on cursor close")
+                    else:
+                        _logger.exception(
+                            "Failed to roll back on cursor close; discarding "
+                            "connection"
+                        )
             self._obj.close()
         finally:
             self._closed = True
