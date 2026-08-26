@@ -36,15 +36,17 @@ _logger = logging.getLogger(__name__)
 
 
 class Opener(requests.Session):
+    # Both classes read the cursor off self.test_case rather than caching it.
+    # They used to hold self.cr as well, bound once at construction: two paths
+    # to the same object, one of which cannot follow a reassignment of cls.cr.
     def __init__(self, http_case: HttpCase) -> None:
         super().__init__()
         self.test_case = http_case
-        self.cr = http_case.cr
 
     def request(self, *args: Any, **kwargs: Any) -> Any:
         assert self.test_case.opener == self
-        self.cr.flush()
-        self.cr.clear()
+        self.test_case.cr.flush()
+        self.test_case.cr.clear()
         with self.test_case.allow_requests():
             return super().request(*args, **kwargs)
 
@@ -52,12 +54,11 @@ class Opener(requests.Session):
 class Transport(xmlrpclib.Transport):
     def __init__(self, http_case: HttpCase) -> None:
         self.test_case = http_case
-        self.cr = http_case.cr
         super().__init__()
 
     def request(self, *args: Any, **kwargs: Any) -> Any:
-        self.cr.flush()
-        self.cr.clear()
+        self.test_case.cr.flush()
+        self.test_case.cr.clear()
         with self.test_case.allow_requests(all_requests=True):
             return super().request(*args, **kwargs)
 
