@@ -67,7 +67,7 @@ class PurchaseOrder(models.Model):
         """If some PO are cancelled, we need to put an activity on their origin SO (only the open ones). Since a PO can have
         been modified by several SO, when cancelling one PO, many next activities can be schedulded on different SO.
         """
-        sale_to_notify_map = {}  # map SO -> recordset of PO as {sale.order: set(purchase.order.line)}
+        sale_to_notify_map = {}  # map SO -> recordset of PO lines as {sale.order: set(purchase.order.line)}
         for order in self:
             for purchase_line in order.line_ids:
                 if purchase_line.sale_line_id:

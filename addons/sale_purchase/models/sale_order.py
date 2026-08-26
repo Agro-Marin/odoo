@@ -60,7 +60,7 @@ class SaleOrder(models.Model):
         """If some SO are cancelled, we need to put an activity on their generated purchase. If sale lines of
         different sale orders impact different purchase, we only want one activity to be attached.
         """
-        purchase_to_notify_map = {}  # map PO -> recordset of SOL as {purchase.order: set(sale.orde.liner)}
+        purchase_to_notify_map = {}  # map PO -> recordset of SOL as {purchase.order: set(sale.order.line)}
 
         purchase_order_lines = self.env["purchase.order.line"].search(
             [
