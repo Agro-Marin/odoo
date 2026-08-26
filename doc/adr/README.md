@@ -238,6 +238,7 @@ enforce them.
 | [0065](0065-field-level-write-access-is-declared-on-the-field.md) | Field-level write access is declared on the field | 2026-08-25 | Accepted |
 | [0066](0066-a-body-too-large-to-log-is-replaced-and-its-hash-kept.md) | A body too large to log is replaced, and its hash is kept | 2026-08-25 | Accepted |
 | [0067](0067-a-test-fixture-is-scoped-to-the-suite-that-asks-for-it.md) | A test fixture is scoped to the suite that asks for it | 2026-08-26 | Accepted |
+| [0068](0068-a-group-reference-resolves-to-a-group-this-checkout-defines.md) | A group reference resolves to a group this checkout defines | 2026-08-26 | Accepted |
 
 ## Template
 

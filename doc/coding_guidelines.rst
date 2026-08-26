@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.5
-:Date: 2026-08-25
+:Version: 6.6
+:Date: 2026-08-26
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -3844,6 +3844,15 @@ Every new model ships explicit access rules ``[review]``. A model with no
   button, which passes ``default_categ_id``. A field whose value is a *decision*
   reserved to a group -- a cost, a published flag, a customer flag -- is the case
   this is for; leave the rest a view-level ``readonly``.
+* **Spell a group reference so it resolves** ``[test_lint group-reference]``. An
+  external id no group answers to is not an error at runtime: ``_has_group``
+  reads it as "not a member", so ``groups="module.group_typo"`` hides the node
+  from everyone and ``groups="!module.group_typo"`` shows it to everyone, in
+  silence. The gate holds this at zero over the checkout's own modules and says
+  nothing about a reference into a module this checkout does not carry, because
+  that is the optional-dependency idiom -- ``portal`` asking about
+  ``website.group_website_restricted_editor`` is correct, and answers ``False``
+  when ``website`` is absent. ADR-0068.
 
 10.9 Configuration and secrets
 ------------------------------
@@ -4411,6 +4420,13 @@ One row per change, saying what moved. The argument lives in the section it move
    * - Version
      - Date
      - Summary
+   * - 6.6
+     - 2026-08-26
+     - **§10.8 gains a rule on group references.** An external id no group
+       answers to reads as "not a member", so a typo hides a node from everyone
+       and a negated typo shows it to everyone, silently. ``test_lint`` now holds
+       unresolvable references at zero for the checkout's own modules and leaves
+       cross-module ones alone. ADR-0068.
    * - 6.5
      - 2026-08-25
      - **§10.8 gains** ``write_groups``. ``Field.groups`` was the only

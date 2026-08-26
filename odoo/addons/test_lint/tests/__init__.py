@@ -34,3 +34,4 @@ from . import test_asset_paths_exist
 from . import test_bundles_assemble
 from . import test_copy_translations
 from . import test_menu_parents
+from . import test_group_refs
