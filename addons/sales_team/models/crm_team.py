@@ -16,9 +16,9 @@ class CrmTeam(models.Model):
         return random.randint(1, 11)
 
     def _get_default_team_id(self, user_id=False, domain=False):
-        """Compute default team id for sales related documents. Note that this
-        method is not called by default_get as it takes some additional
-        parameters and is meant to be called by other default methods.
+        """Compute default team id for sales related documents. Not called by
+        default_get, as it takes additional parameters and is meant to be
+        called by other default methods.
 
         Heuristic (when multiple match: take from default context value or first
         sequence ordered)
@@ -347,7 +347,7 @@ class CrmTeam(models.Model):
         return True
 
     def _compute_dashboard_button_name(self):
-        """Sets the adequate dashboard button name depending on the Sales Team's options"""
+        """Sets the dashboard button name."""
         self.dashboard_button_name = _("Dashboard")
 
     # ------------------------------------------------------------
