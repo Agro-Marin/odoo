@@ -4069,6 +4069,8 @@ class TestCronsRecoverLikeRequests(BaseCase):
         )
 
     def _drive_callback(self, callback):
+        from odoo.addons.base.tests.test_ir_cron import make_job
+
         reg = registry()
         with contextlib.closing(reg.cursor()) as cr:
             env = api.Environment(cr, odoo.SUPERUSER_ID, {})
@@ -4078,7 +4080,7 @@ class TestCronsRecoverLikeRequests(BaseCase):
             with patch.object(cls, self.ACTION, callback):
                 cls._run_callback(
                     cron,
-                    {"cron_name": "probe", "ir_actions_server_id": 0},
+                    make_job(cron, cron_name="probe", ir_actions_server_id=0),
                     env,
                 )
 

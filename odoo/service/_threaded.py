@@ -106,7 +106,7 @@ class ThreadedServer(CommonServer):
                             if thread_type == "job"
                             else config["limit_time_real_cron"]
                         )
-                        if limit and limit > 0:
+                        if limit >= 0:
                             thread_limit_time_real = limit
                     if (
                         thread_limit_time_real > 0

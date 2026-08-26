@@ -1234,6 +1234,11 @@ class TestPreforkInitTimeout:
         s = self._make(srv, limit_time_real_cron=30)
         assert s.cron_timeout == 30
 
+    def test_zero_cron_limit_disables_the_cron_watchdog_alone(self, srv):
+        s = self._make(srv, limit_time_real_cron=0)
+        assert s.cron_timeout is None, "--limit-time-real-cron=0 means no limit"
+        assert s.timeout == 120, "and it must not disarm the http watchdog"
+
 
 # ---------------------------------------------------------------------------
 # PreforkServer._stop_long_polling()
@@ -2046,6 +2051,24 @@ class TestThreadedServerProcessLimit:
         ):
             tserver.process_limit()
         assert mock_thread in tserver.limits_reached_threads
+
+    def test_zero_cron_limit_does_not_fall_back_to_the_http_limit(self, tserver):
+        mock_thread = MagicMock()
+        mock_thread.daemon = False
+        mock_thread.type = "cron"
+        mock_thread.start_time = time.monotonic() - 9999
+        mock_thread.is_alive.return_value = True
+
+        with self._env(
+            config_override={"limit_time_real": 60, "limit_time_real_cron": 0},
+            threads=[mock_thread],
+        ):
+            tserver.process_limit()
+        assert mock_thread not in tserver.limits_reached_threads, (
+            "--limit-time-real-cron=0 is documented as 'no limit' and PreforkServer "
+            "honours it; the threaded watchdog must not kill the thread at "
+            "limit_time_real instead"
+        )
 
     def test_dead_thread_pruned_from_limits_reached(self, tserver):
         dead = MagicMock()

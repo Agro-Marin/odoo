@@ -1,4 +1,5 @@
 import contextlib
+import dataclasses
 import secrets
 import textwrap
 import time
@@ -10,15 +11,18 @@ from freezegun import freeze_time
 
 import odoo
 from odoo import fields
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 from odoo.modules.registry import Registry
 from odoo.tests import common
 from odoo.tests.common import BaseCase, Like, RecordCapturer, TransactionCase, tagged
 from odoo.tools import config, mute_logger
+from odoo.tools.constants import CRON_TRIGGER_CHANNEL
 
 from odoo.addons.base.models import ir_cron
 from odoo.addons.base.models.ir_cron import (
+    CONSECUTIVE_TIMEOUT_FOR_FAILURE,
     MAX_FAIL_TIME,
+    MAX_STALLED_ATTEMPTS_PER_RUN,
     MIN_DELTA_BEFORE_DEACTIVATION,
     MIN_FAILURE_COUNT_BEFORE_DEACTIVATION,
     MIN_RUNS_PER_JOB,
@@ -29,9 +33,33 @@ from odoo.addons.base.models.ir_cron import (
     BadModuleStateError,
     BadVersionError,
     CompletionStatus,
+    CronJob,
     IrCron,
+    ReadyJob,
 )
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
+
+
+def make_job(cron, **overrides):
+    """A `CronJob` as `_acquire_job` would have built it, for tests that drive
+    the bookkeeping without going through the database."""
+    fields_ = {
+        "id": cron.id,
+        "cron_name": cron.cron_name,
+        "user_id": cron.user_id.id,
+        "ir_actions_server_id": cron.ir_actions_server_id.id,
+        "active": True,
+        "nextcall": cron.nextcall,
+        "lastcall": None,
+        "interval_type": cron.interval_type,
+        "interval_number": cron.interval_number,
+        "failure_count": 0,
+        "first_failure_date": None,
+        "progress_id": None,
+        "timed_out_counter": 0,
+    }
+    fields_.update(overrides)
+    return CronJob(**fields_)
 
 
 class CronMixinCase:
@@ -149,21 +177,21 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.cron.flush_recordset()
 
         ready_jobs = self.registry["ir.cron"]._get_jobs_ready(self.cr)
-        self.assertNotIn(self.cron.id, [job["id"] for job in ready_jobs])
+        self.assertNotIn(self.cron.id, [job.id for job in ready_jobs])
 
     def test_cron_ready_by_nextcall(self):
         self.cron.nextcall = fields.Datetime.now()
         self.cron.flush_recordset()
 
         ready_jobs = self.registry["ir.cron"]._get_jobs_ready(self.cr)
-        self.assertIn(self.cron.id, [job["id"] for job in ready_jobs])
+        self.assertIn(self.cron.id, [job.id for job in ready_jobs])
 
     def test_cron_ready_by_trigger(self):
         self.cron._trigger()
         self.env["ir.cron.trigger"].flush_model()
 
         ready_jobs = self.registry["ir.cron"]._get_jobs_ready(self.cr)
-        self.assertIn(self.cron.id, [job["id"] for job in ready_jobs])
+        self.assertIn(self.cron.id, [job.id for job in ready_jobs])
 
     def test_cron_unactive_never_ready(self):
         self.cron.active = False
@@ -171,7 +199,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.env.flush_all()
 
         ready_jobs = self.registry["ir.cron"]._get_jobs_ready(self.cr)
-        self.assertNotIn(self.cron.id, [job["id"] for job in ready_jobs])
+        self.assertNotIn(self.cron.id, [job.id for job in ready_jobs])
 
     def test_cron_ready_jobs_order(self):
         cron_avg = self.cron.copy()
@@ -189,7 +217,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
         ready_jobs = self.registry["ir.cron"]._get_jobs_ready(self.cr)
 
         self.assertEqual(
-            [job["id"] for job in ready_jobs if job["id"] in crons._ids],
+            [job.id for job in ready_jobs if job.id in crons._ids],
             list(crons._ids),
         )
 
@@ -203,7 +231,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
         ready_jobs = self.registry["ir.cron"]._get_jobs_ready(self.cr)
         self.assertNotIn(
             self.cron.id,
-            [job["id"] for job in ready_jobs],
+            [job.id for job in ready_jobs],
             "the cron shouldn't be ready",
         )
         self.assertFalse(capture.records, "trigger should has been skipped")
@@ -226,7 +254,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
         ready_jobs = self.registry["ir.cron"]._get_jobs_ready(self.cr)
         self.assertIn(
             self.cron.id,
-            [job["id"] for job in ready_jobs],
+            [job.id for job in ready_jobs],
             "cron should be ready",
         )
         self.assertTrue(capture.records, "trigger should has been kept")
@@ -404,7 +432,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
 
                 self.assertEqual(
                     self.cron.id
-                    in [job["id"] for job in self.cron._get_jobs_ready(self.env.cr)],
+                    in [job.id for job in self.cron._get_jobs_ready(self.env.cr)],
                     trigger,
                 )
                 self.assertEqual(state["call_count"], call_count)
@@ -450,10 +478,16 @@ class TestIrCron(TransactionCase, CronMixinCase):
             10,
             "`run` should have been called 10 times",
         )
+        domain = [("cron_id", "=", self.cron.id)]
         self.assertEqual(
-            Progress.search_count([("done", "=", 1), ("cron_id", "=", self.cron.id)]),
+            Progress.search_count(domain),
+            1,
+            "one progress row per run, not one per attempt",
+        )
+        self.assertEqual(
+            sum(Progress.search(domain).mapped("done")),
             10,
-            "There should be 10 progress log for this cron",
+            "and it carries what the run actually processed",
         )
         self.assertEqual(
             Trigger.search_count([("cron_id", "=", self.cron.id)]),
@@ -476,9 +510,14 @@ class TestIrCron(TransactionCase, CronMixinCase):
             "`run` should have been called 10 times",
         )
         self.assertEqual(
-            Progress.search_count([("done", "=", 1), ("cron_id", "=", self.cron.id)]),
+            Progress.search_count(domain),
+            2,
+            "the second run gets its own row",
+        )
+        self.assertEqual(
+            sum(Progress.search(domain).mapped("done")),
             30,
-            "There should be 30 progress log for this cron",
+            "10 from the first run and 20 from the second",
         )
         self.assertEqual(
             Trigger.search_count([("cron_id", "=", self.cron.id)]),
@@ -497,7 +536,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
         ready_jobs = self.registry["ir.cron"]._get_jobs_ready(self.cr)
         self.assertNotIn(
             self.cron.id,
-            [job["id"] for job in ready_jobs],
+            [job.id for job in ready_jobs],
             "The cron has finished executing",
         )
         self.assertEqual(
@@ -506,9 +545,14 @@ class TestIrCron(TransactionCase, CronMixinCase):
             "`run` should have been called one additional time",
         )
         self.assertEqual(
-            Progress.search_count([("done", "=", 1), ("cron_id", "=", self.cron.id)]),
+            Progress.search_count(domain),
+            3,
+            "three runs, three rows",
+        )
+        self.assertEqual(
+            sum(Progress.search(domain).mapped("done")),
             31,
-            "There should be 31 progress logs for this cron",
+            "and 31 records processed across them",
         )
 
     def test_cron_failed_increase(self):
@@ -624,15 +668,21 @@ class TestIrCron(TransactionCase, CronMixinCase):
             "The cron should have succeeded and reset the counter",
         )
 
-    def test_cron_timeout_success(self):
+    def test_cron_timeout_failure_after_recorded_progress(self):
+        calls = {"n": 0}
+
+        def mocked_run(self):
+            calls["n"] += 1
+            self.env["ir.cron"]._commit_progress(processed=1, remaining=5)
+
         self.cron._trigger()
         self.env["ir.cron.progress"].create(
             [
                 {
                     "cron_id": self.cron.id,
-                    "remaining": 0,
-                    "done": 0,
-                    "timed_out_counter": 3,
+                    "remaining": 5,
+                    "done": 5,
+                    "timed_out_counter": CONSECUTIVE_TIMEOUT_FOR_FAILURE,
                 }
             ]
         )
@@ -640,24 +690,20 @@ class TestIrCron(TransactionCase, CronMixinCase):
         with (
             self.enter_registry_test_mode(),
             mute_logger("odoo.addons.base.models.ir_cron"),
+            patch.object(self.registry["ir.actions.server"], "run", mocked_run),
             self.registry.cursor() as cr,
         ):
             self.registry["ir.cron"]._run_job(cr, self._acquire_job(cr))
 
+        self.assertEqual(
+            calls["n"],
+            0,
+            "a job killed CONSECUTIVE_TIMEOUT_FOR_FAILURE times running is a hang; "
+            "having committed a record before each kill does not make it healthy",
+        )
         self.env.invalidate_all()
         self.assertEqual(self.cron.failure_count, 1, "The cron should have failed once")
         self.assertEqual(self.cron.active, True, "The cron should still be active")
-
-        self.cron._trigger()
-        with self.enter_registry_test_mode(), self.registry.cursor() as cr:
-            self.registry["ir.cron"]._run_job(cr, self._acquire_job(cr))
-
-        self.env.invalidate_all()
-        self.assertEqual(
-            self.cron.failure_count,
-            0,
-            "The cron should have succeeded and reset the counter",
-        )
 
     def test_acquire_processed_job(self):
         job = self.env["ir.cron"]._acquire_job(self.cr, self.cron.id)
@@ -699,7 +745,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
             process_jobs(job_ids=job_ids)
             self.assertTrue(
                 all(
-                    any(job_id == call.args[0]["id"] for call in run.mock_calls)
+                    any(job_id == call.args[0].id for call in run.mock_calls)
                     for job_id in job_ids
                 ),
                 "all jobs called at least once",
@@ -771,12 +817,12 @@ class TestIrCron(TransactionCase, CronMixinCase):
             ) as run:
                 run.return_value = CompletionStatus.FULLY_DONE
                 run.side_effect = lambda job, **kw: (
-                    ran.append(job["id"]),
+                    ran.append(job.id),
                     CompletionStatus.FULLY_DONE,
                 )[1]
                 for _pass in range(4):
                     ready = self.registry["ir.cron"]._get_jobs_ready(self.cr)
-                    ready_ids = [job["id"] for job in ready if job["id"] in crons.ids]
+                    ready_ids = [job.id for job in ready if job.id in crons.ids]
                     if not ready_ids:
                         break
                     process_jobs(
@@ -874,12 +920,12 @@ class TestIrCron(TransactionCase, CronMixinCase):
             self.registry.cursor() as cr,
         ):
             job = self._acquire_job(cr)
-            self.assertEqual(job["failure_count"], 0)
+            self.assertEqual(job.failure_count, 0)
             self.assertIsNone(
-                job["first_failure_date"],
+                job.first_failure_date,
                 "NULL must surface as None, as dictfetchone yields it",
             )
-            self.assertTrue(job["active"])
+            self.assertTrue(job.active)
             self.registry["ir.cron"]._run_job(cr, job)
 
         self.env.cr.execute("SELECT active FROM ir_cron WHERE id = %s", [self.cron.id])
@@ -921,15 +967,28 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.assertTrue(recent.exists())
 
     def test_gc_cron_progress_keeps_the_latest_row_of_each_cron(self):
-        progress = self.env["ir.cron.progress"].create(
-            [{"cron_id": self.cron.id, "timed_out_counter": 2}]
+        other = self.env["ir.cron"].create(self._get_cron_data(self.env))
+        older, newer, lone = self.env["ir.cron.progress"].create(
+            [
+                {"cron_id": other.id, "timed_out_counter": 1},
+                {"cron_id": other.id, "timed_out_counter": 2},
+                {"cron_id": self.cron.id, "timed_out_counter": 2},
+            ]
         )
         self.env.flush_all()
-        db_future = progress.create_date + PROGRESS_RETENTION_PERIOD + timedelta(days=1)
+        db_future = lone.create_date + PROGRESS_RETENTION_PERIOD + timedelta(days=1)
         self.patch(self.env.cr, "now", lambda: db_future)
-        removed, _more = self.env["ir.cron.progress"]._gc_cron_progress()
-        self.assertEqual(removed, 0)
-        self.assertTrue(progress.exists())
+        self.env["ir.cron.progress"]._gc_cron_progress()
+        self.env.invalidate_all()
+        self.assertFalse(
+            older.exists(), "a superseded row past the retention period must go"
+        )
+        self.assertTrue(
+            newer.exists(),
+            "but never the newest row of a cron: _acquire_job reads exactly that "
+            "one for done/remaining/timed_out_counter",
+        )
+        self.assertTrue(lone.exists(), "a cron whose only row is old still keeps it")
 
 
 class TestIrCronUser(TransactionCaseWithUserDemo, TestIrCron):
@@ -996,7 +1055,7 @@ class TestIrCronAcquireLock(BaseCase):
         with self.registry.cursor() as cr_a, self.registry.cursor() as cr_b:
             job_a = IrCronModel._acquire_job(cr_a, self.cron_id)
             self.assertIsNotNone(job_a, "connection A should acquire the ready job")
-            self.assertEqual(job_a["id"], self.cron_id)
+            self.assertEqual(job_a.id, self.cron_id)
 
             job_b = IrCronModel._acquire_job(cr_b, self.cron_id)
             self.assertIsNone(
@@ -1020,7 +1079,7 @@ class TestIrCronAcquireLock(BaseCase):
                 job_b,
                 "the job must be acquirable again once the lock is released",
             )
-            self.assertEqual(job_b["id"], self.cron_id)
+            self.assertEqual(job_b.id, self.cron_id)
             cr_b.rollback()
 
     def test_write_on_running_cron_raises_usererror(self):
@@ -1286,19 +1345,10 @@ class TestIrCronUpdateFailureCount(TransactionCase, CronMixinCase):
     def _get_now(self):
         return self.env["ir.cron"]._get_now()
 
-    def _job(self, **overrides):
-        job = {
-            "id": self.cron.id,
-            "cron_name": self.cron.cron_name,
-            "failure_count": 0,
-            "first_failure_date": None,
-            "active": True,
-        }
-        job.update(overrides)
-        return job
-
     def _apply(self, status, **job_overrides):
-        self.env["ir.cron"]._update_failure_count(self._job(**job_overrides), status)
+        job = make_job(self.cron, **job_overrides)
+        Cron = self.env["ir.cron"]
+        Cron._write_job_row(job, Cron._get_failure_vals(job, status))
         self.cron.invalidate_recordset()
 
     def test_first_failure_sets_count_and_date(self):
@@ -1401,9 +1451,7 @@ class TestIrCronDbChecks(TransactionCase):
                 "UPDATE ir_module_module SET state = 'to upgrade' WHERE name = 'base'"
             )
             with self.assertRaises(BadModuleStateError):
-                IrCron._check_modules_state(
-                    self.cr, jobs=[{"nextcall": recent, "write_date": recent}]
-                )
+                IrCron._check_modules_state(self.cr, jobs=[ReadyJob(1, recent, recent)])
 
     def test_check_modules_state_transient_stale_job_forces_reset(self):
         stale = fields.Datetime.now() - MAX_FAIL_TIME - timedelta(hours=1)
@@ -1414,7 +1462,420 @@ class TestIrCronDbChecks(TransactionCase):
             with patch(
                 "odoo.addons.base.models.ir_cron.reset_modules_state"
             ) as reset_mock:
-                IrCron._check_modules_state(
-                    self.cr, jobs=[{"nextcall": stale, "write_date": stale}]
-                )
+                IrCron._check_modules_state(self.cr, jobs=[ReadyJob(1, stale, stale)])
             reset_mock.assert_called_once()
+
+
+class TestIrCronRunLoopContract(TransactionCase, CronMixinCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.cron = cls.env["ir.cron"].create(cls._get_cron_data(cls.env))
+
+    def _acquire(self, cr):
+        self.env.flush_all()
+        job = self.registry["ir.cron"]._acquire_job(
+            cr, self.cron.id, include_not_ready=True
+        )
+        self.assertIsNotNone(job)
+        return job
+
+    def test_the_job_is_told_the_budget_the_loop_will_actually_honour(self):
+        reported = []
+
+        def mocked_run(self):
+            reported.append(
+                self.env["ir.cron"]._commit_progress(processed=1, remaining=5)
+            )
+
+        slice_left = 0.05
+        self.cron._trigger()
+        self.env.flush_all()
+        with (
+            self.enter_registry_test_mode(),
+            patch.object(self.registry["ir.actions.server"], "run", mocked_run),
+            self.registry.cursor() as cr,
+        ):
+            self.registry["ir.cron"]._run_job(
+                cr, self._acquire(cr), deadline=time.monotonic() + slice_left
+            )
+
+        self.assertTrue(reported, "the job must have run at least once")
+        self.assertLessEqual(
+            reported[0],
+            slice_left,
+            "_commit_progress is what an incremental job asks 'how long have I "
+            f"got'; with {slice_left}s left in the cron pass it may not answer "
+            f"with the {MIN_TIME_PER_JOB}s per-job slice",
+        )
+
+    def test_a_job_that_fails_after_progress_stops_retrying_within_one_run(self):
+        calls = {"n": 0}
+
+        def mocked_run(self):
+            calls["n"] += 1
+            self.env["ir.cron"]._commit_progress(processed=1, remaining=5)
+            raise RuntimeError("boom after progress")
+
+        self.cron._trigger()
+        self.env.flush_all()
+        with (
+            self.enter_registry_test_mode(),
+            mute_logger("odoo.addons.base.models.ir_cron"),
+            patch.object(self.registry["ir.actions.server"], "run", mocked_run),
+            self.registry.cursor() as cr,
+        ):
+            self.registry["ir.cron"]._run_job(cr, self._acquire(cr))
+
+        self.assertEqual(
+            calls["n"],
+            MAX_STALLED_ATTEMPTS_PER_RUN + 1,
+            "a job that keeps failing without shortening its queue is not "
+            "making progress; replaying it for the whole per-job slice is a "
+            "hot loop",
+        )
+        self.env.invalidate_all()
+        self.assertEqual(
+            self.cron.failure_count,
+            1,
+            "the run failed, so it must count towards deactivation",
+        )
+        self.assertFalse(
+            self.env["ir.cron.trigger"].search([("cron_id", "=", self.cron.id)]),
+            "a failed run reschedules on the interval, it does not re-queue itself",
+        )
+
+    def test_an_intermittent_failure_does_not_end_the_run(self):
+        calls = {"n": 0}
+
+        def mocked_run(self):
+            calls["n"] += 1
+            self.env["ir.cron"]._commit_progress(processed=1, remaining=5)
+            if calls["n"] % 2:
+                raise RuntimeError("every other one")
+
+        self.cron._trigger()
+        self.env.flush_all()
+        with (
+            self.enter_registry_test_mode(),
+            mute_logger("odoo.addons.base.models.ir_cron"),
+            patch.object(self.registry["ir.actions.server"], "run", mocked_run),
+            self.registry.cursor() as cr,
+        ):
+            self.registry["ir.cron"]._run_job(
+                cr, self._acquire(cr), deadline=time.monotonic() + 0.2
+            )
+
+        self.assertGreater(
+            calls["n"],
+            4,
+            "a failure between two good passes is not a stuck job; only a "
+            "failure that leaves the queue no shorter ends the run",
+        )
+
+    def test_triggering_a_cron_many_times_notifies_the_channel_once(self):
+        sent = []
+        before = len(self.env.cr.postcommit)
+        for _ in range(10):
+            self.cron._trigger()
+        self.assertEqual(
+            len(self.env.cr.postcommit) - before,
+            1,
+            "every NOTIFY opens a connection to the maintenance database and "
+            "carries the same payload; one per transaction is enough",
+        )
+        with patch.object(
+            ir_cron,
+            "notify_channel",
+            lambda channel, db_name: sent.append((channel, db_name)),
+        ):
+            self.env.cr.postcommit.run()
+        self.assertEqual(
+            sent,
+            [(CRON_TRIGGER_CHANNEL, self.env.cr.dbname)],
+            "and the one that survives must still carry channel and database",
+        )
+
+    def test_the_run_loop_does_not_open_a_connection_just_to_check_signaling(self):
+        def mocked_run(self):
+            self.env["ir.cron"]._commit_progress(processed=1, remaining=0)
+
+        self.cron._trigger()
+        self.env.flush_all()
+        with (
+            self.enter_registry_test_mode(),
+            patch.object(self.registry["ir.actions.server"], "run", mocked_run),
+            self.registry.cursor() as cr,
+        ):
+            self.registry["ir.cron"]._run_job(cr, self._acquire(cr))
+            calls = self.registry.check_signaling.call_args_list
+
+            self.assertTrue(calls, "the run loop must still check signaling")
+            passed = [call.args[0] if call.args else None for call in calls]
+            self.assertTrue(
+                all(cursor is not None for cursor in passed),
+                "the loop already holds a cursor for every iteration; borrowing "
+                "a second one from the pool to read two sequences is what "
+                "starves db_maxconn",
+            )
+            self.assertTrue(
+                all(cursor is not cr for cursor in passed),
+                "it must be the job cursor, which _add_progress commits right "
+                "before the check; cursors are REPEATABLE READ, so reading the "
+                "sequences on a cursor mid-transaction would pin them to a "
+                "snapshot taken before the reload was signalled",
+            )
+
+    def test_a_trigger_that_made_the_job_ready_does_not_survive_the_run(self):
+        stamp = datetime(2026, 1, 1, 12, 0, 0, 500000)
+        self.patch(self.env.cr, "now", lambda: stamp)
+        trigger = self.env["ir.cron.trigger"].create(
+            {
+                "cron_id": self.cron.id,
+                "call_at": stamp - timedelta(microseconds=1),
+            }
+        )
+        self.env.flush_all()
+        ready = self.registry["ir.cron"]._get_jobs_ready(self.env.cr)
+        self.assertIn(
+            self.cron.id,
+            [job.id for job in ready],
+            "the trigger is due, so the job is ready",
+        )
+        self.env["ir.cron"]._remove_triggers_due(make_job(self.cron))
+        self.assertFalse(
+            trigger.exists(),
+            "the delete window and the readiness window must be the same clock, "
+            "or the trigger fires the job a second time on the next pass",
+        )
+
+    def test_a_deactivate_asked_for_early_in_a_run_still_takes_effect(self):
+        state = {"n": 0}
+
+        def mocked_run(self):
+            state["n"] += 1
+            Cron = self.env["ir.cron"]
+            if state["n"] == 1:
+                Cron._commit_progress(processed=1, remaining=2, deactivate=True)
+            else:
+                Cron._commit_progress(processed=1, remaining=max(3 - state["n"], 0))
+
+        self.cron._trigger()
+        self.env.flush_all()
+        with (
+            self.enter_registry_test_mode(),
+            patch.object(self.registry["ir.actions.server"], "run", mocked_run),
+            self.registry.cursor() as cr,
+        ):
+            self.registry["ir.cron"]._run_job(
+                cr, self._acquire(cr), deadline=time.monotonic() + 5
+            )
+
+        self.assertGreater(state["n"], 1, "the run must span several attempts")
+        self.env.invalidate_all()
+        self.assertFalse(
+            self.cron.active,
+            "a job that asked to be switched off is switched off; the request "
+            "must not depend on which attempt of the run made it",
+        )
+
+    def test_a_run_leaves_one_progress_row_carrying_its_total(self):
+        def mocked_run(self):
+            self.env["ir.cron"]._commit_progress(processed=2, remaining=0)
+
+        self.cron._trigger()
+        self.env.flush_all()
+        with (
+            self.enter_registry_test_mode(),
+            patch.object(self.registry["ir.actions.server"], "run", mocked_run),
+            self.registry.cursor() as cr,
+        ):
+            self.registry["ir.cron"]._run_job(cr, self._acquire(cr))
+
+        rows = self.env["ir.cron.progress"].search([("cron_id", "=", self.cron.id)])
+        self.assertEqual(len(rows), 1, "one row per run, not one per attempt")
+        self.assertEqual(rows.done, 2)
+
+    def test_direct_trigger_honours_record_rules(self):
+        self.env["ir.rule"].create(
+            {
+                "name": "no cron may be written",
+                "model_id": self.env["ir.model"]._get_id("ir.cron"),
+                "domain_force": "[(0, '=', 1)]",
+                "perm_read": False,
+                "perm_write": True,
+                "perm_create": False,
+                "perm_unlink": False,
+            }
+        )
+        cron = self.cron.with_user(self.env.ref("base.user_admin"))
+        with self.assertRaises(AccessError):
+            cron.method_direct_trigger()
+
+
+class TestIrCronDeactivationNotice(TransactionCase, CronMixinCase):
+    def test_the_notice_names_the_failures_that_happened(self):
+        cron = self.env["ir.cron"].create(self._get_cron_data(self.env))
+        messages = []
+        job = make_job(
+            cron,
+            failure_count=MIN_FAILURE_COUNT_BEFORE_DEACTIVATION + 6,
+            first_failure_date=self.env.cr.now()
+            - MIN_DELTA_BEFORE_DEACTIVATION
+            - timedelta(days=1),
+        )
+        with patch.object(
+            type(self.env["ir.cron"]),
+            "_notify_admin",
+            lambda self, message: messages.append(message),
+        ):
+            self.env["ir.cron"]._get_failure_vals(job, CompletionStatus.FAILED)
+
+        self.assertEqual(len(messages), 1)
+        self.assertIn(
+            str(job.failure_count + 1),
+            messages[0],
+            "the notice must report the failures the job actually accumulated, "
+            "not the threshold that made deactivation possible",
+        )
+
+
+class TestIrCronAttemptConvergence(TransactionCase, CronMixinCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.cron = cls.env["ir.cron"].create(cls._get_cron_data(cls.env))
+
+    def _resolve(
+        self,
+        watermark,
+        *,
+        success,
+        done,
+        remaining,
+        deactivate=False,
+        loop_count=1,
+        job=None,
+    ):
+        return IrCron._resolve_attempt(
+            job if job is not None else make_job(self.cron),
+            success=success,
+            done=done,
+            remaining=remaining,
+            deactivate=deactivate,
+            loop_count=loop_count,
+            progress_watermark=watermark,
+        )
+
+    def _replay(self, attempts):
+        watermark = ir_cron._Watermark()
+        seen = []
+        for success, done, remaining in attempts:
+            status = self._resolve(
+                watermark, success=success, done=done, remaining=remaining
+            )
+            seen.append(status)
+            if status is not None:
+                break
+        return seen
+
+    def test_a_strictly_converging_failure_runs_until_the_queue_empties(self):
+        seen = self._replay([(False, 1, r) for r in (4, 3, 2, 1, 0)])
+        self.assertEqual(
+            seen,
+            [None, None, None, None, CompletionStatus.FAILED],
+            "this is the shape test_cron_process_job's failure_partial pins: "
+            "raising on one record but moving past it every time",
+        )
+
+    def test_one_plateau_is_not_a_stall(self):
+        seen = self._replay([(False, 1, r) for r in (5, 5, 4, 3, 2, 1, 0)])
+        self.assertEqual(len(seen), 7)
+        self.assertEqual(seen[-1], CompletionStatus.FAILED)
+        self.assertTrue(
+            all(status is None for status in seen[:-1]),
+            "a reported queue length that pauses once and then resumes falling "
+            "is still converging",
+        )
+
+    def test_a_queue_that_never_falls_ends_the_run(self):
+        seen = self._replay([(False, 1, 5)] * 20)
+        self.assertEqual(
+            len(seen),
+            MAX_STALLED_ATTEMPTS_PER_RUN + 1,
+            "the first attempt sets the watermark; the next "
+            f"{MAX_STALLED_ATTEMPTS_PER_RUN} fail to beat it",
+        )
+        self.assertEqual(seen[-1], CompletionStatus.FAILED)
+
+    def test_a_success_between_failures_clears_the_stall(self):
+        seen = self._replay(
+            [(False, 1, 5), (False, 1, 5), (True, 1, 5), (False, 1, 5)] * 3
+        )
+        self.assertTrue(
+            all(status is None for status in seen),
+            "a good pass between failures means the job is not wedged; only a "
+            "run of failures with no queue movement is",
+        )
+
+    def test_a_terminal_status_is_never_overridden_by_the_watermark(self):
+        for success, done, remaining, expected in (
+            (False, 0, 0, CompletionStatus.FAILED),
+            (False, 0, 5, CompletionStatus.FAILED),
+            (False, 3, 0, CompletionStatus.FAILED),
+            (True, 3, 0, CompletionStatus.FULLY_DONE),
+            (True, 0, 5, CompletionStatus.PARTIALLY_DONE),
+        ):
+            with self.subTest(success=success, done=done, remaining=remaining):
+                watermark = ir_cron._Watermark()
+                watermark.stalled = MAX_STALLED_ATTEMPTS_PER_RUN
+                watermark.lowest_remaining = 0
+                self.assertEqual(
+                    self._resolve(
+                        watermark, success=success, done=done, remaining=remaining
+                    ),
+                    expected,
+                )
+
+    def test_a_self_deactivating_job_marks_the_job_row(self):
+        job = make_job(self.cron)
+        status = self._resolve(
+            ir_cron._Watermark(),
+            success=True,
+            done=1,
+            remaining=0,
+            deactivate=True,
+            loop_count=0,
+            job=job,
+        )
+        self.assertEqual(status, CompletionStatus.FULLY_DONE)
+        self.assertTrue(
+            job.deactivate,
+            "_commit_progress(deactivate=True) has to reach _get_failure_vals, "
+            "and the job object is the only channel between them",
+        )
+
+
+class TestCronJobRowContract(BaseCase):
+    def test_every_field_the_run_reads_is_a_column_the_query_names(self):
+        outcome = {"deactivate", "run_exception"}
+        declared = {f.name for f in dataclasses.fields(CronJob)} - outcome
+        selected = set(CronJob.COLUMNS) | set(CronJob.PROGRESS_COLUMNS)
+        self.assertEqual(
+            declared,
+            selected,
+            "_acquire_job names its columns instead of SELECT *, because that "
+            "query joins ir_cron to a progress row and dictfetchone keeps only "
+            "the LAST of two same-named columns -- so a new ir_cron column "
+            "called done, remaining or timed_out_counter would silently "
+            "shadow the progress value with no error anywhere",
+        )
+
+    def test_the_progress_columns_are_the_ones_the_join_supplies(self):
+        self.assertEqual(
+            set(CronJob.PROGRESS_COLUMNS),
+            {"progress_id", "timed_out_counter"},
+            "done and remaining were dropped when the timeout guard stopped "
+            "reading them; nothing else in the run reads the acquired row's "
+            "progress totals",
+        )
