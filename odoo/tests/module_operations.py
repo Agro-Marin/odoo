@@ -10,8 +10,6 @@ from pathlib import Path
 from typing import Any
 from unittest import SkipTest
 
-sys.path.append(str(Path(__file__, "../../../").resolve()))
-
 import odoo.tests.loader
 from odoo import api
 from odoo.logutils import init_logger
@@ -287,6 +285,13 @@ class StandaloneAction(_SelectsCommand):
 
 
 if __name__ == "__main__":
+    # Only running this file as a script needs the repo root importable. At
+    # import time it also fired for every process that merely imports this
+    # module -- odoo/addons/base/tests/test_install.py does, and that file is
+    # registered in the package __init__, so every run discovering base's tests
+    # silently grew a sys.path entry.
+    sys.path.append(str(Path(__file__, "../../../").resolve()))
+
     args = parse_args()
 
     config["db_name"] = threading.current_thread().dbname = args.database
