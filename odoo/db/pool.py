@@ -134,6 +134,22 @@ class PoolError(Exception):
     pass
 
 
+class _InFlightProbe:
+    """Lets concurrent first-borrowers of the same key share one probe.
+
+    The leader (whichever thread registers this first, under the pool's
+    lock) runs the real `_probe_connectable` and stores its outcome here;
+    followers wait on `done` and replay that outcome instead of each
+    issuing their own network round trip.
+    """
+
+    __slots__ = ("done", "exc")
+
+    def __init__(self) -> None:
+        self.done = threading.Event()
+        self.exc: BaseException | None = None
+
+
 class ConnectionPool:
     def __init__(
         self,
@@ -169,6 +185,7 @@ class ConnectionPool:
         self._budget = budget if budget is not None else ConnectionBudget(maxconn)
         self._direct_out = 0
         self._reachable_keys: set[frozenset] = set()
+        self._inflight_probes: dict[frozenset, _InFlightProbe] = {}
 
     def __repr__(self) -> str:
         pools = list(self._pools.values())
@@ -238,6 +255,33 @@ class ConnectionPool:
                 exc_info=True,
             )
 
+    def _probe_connectable_deduped(
+        self, key: frozenset, conninfo: str, kwargs: dict, deadline: float | None = None
+    ) -> None:
+        with self._lock:
+            probe = self._inflight_probes.get(key)
+            if probe is None:
+                probe = self._inflight_probes[key] = _InFlightProbe()
+                leader = True
+            else:
+                leader = False
+        if leader:
+            try:
+                self._probe_connectable(conninfo, kwargs, deadline)
+            except BaseException as e:
+                probe.exc = e
+                raise
+            finally:
+                with self._lock:
+                    del self._inflight_probes[key]
+                probe.done.set()
+        else:
+            wait_timeout = (
+                None if deadline is None else max(0.0, deadline - monotonic())
+            )
+            if probe.done.wait(wait_timeout) and probe.exc is not None:
+                raise probe.exc
+
     def _database_absent(
         self, conninfo: str, kwargs: dict, deadline: float | None = None
     ) -> bool:
@@ -286,7 +330,7 @@ class ConnectionPool:
         if self._is_proven_reachable(key):
             self.stats.record_probe_outcome("skipped_proven")
         else:
-            self._probe_connectable(conninfo, kwargs, deadline)
+            self._probe_connectable_deduped(key, conninfo, kwargs, deadline)
 
         with self._lock:
             pool = self._pools.get(key)
