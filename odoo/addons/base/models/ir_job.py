@@ -26,6 +26,7 @@ from odoo.exceptions import (
 from odoo.libs import backoff
 from odoo.models import GC_UNLINK_LIMIT
 from odoo.modules.registry import Registry
+from odoo.service._helpers import job_real_time_budget
 from odoo.tools import SQL
 from odoo.tools.constants import JOB_QUEUE_CHANNEL
 
@@ -34,7 +35,6 @@ from .ir_cron import (
     BadVersionError,
     IrCron,
     notify_channel,
-    worker_real_time_budget,
 )
 
 _logger = logging.getLogger(__name__)
@@ -49,6 +49,8 @@ RETRY_BACKOFF_BASE_S = 10
 RETRY_BACKOFF_MAX_S = 3600
 
 CLAIM_MAX_ATTEMPTS = 10
+CLAIM_BACKOFF_BASE_S = 0.05
+CLAIM_BACKOFF_MAX_S = 1.0
 
 CONCURRENCY_MAX_ATTEMPTS = 5
 CONCURRENCY_BACKOFF_BASE_S = 0.2
@@ -97,12 +99,24 @@ CANCELLABLE_STATES = (JobState.WAIT_DEPS, JobState.SCHEDULED, JobState.PENDING)
 
 RUNNABLE_STATES = (JobState.SCHEDULED, JobState.PENDING)
 
+REQUEUABLE_STATES = (JobState.FAILED, JobState.CANCELLED)
+
 _DUE_STATE_SQL = SQL(
     "CASE WHEN eta IS NULL OR eta <= (now() AT TIME ZONE 'UTC')"
     " THEN 'pending' ELSE 'scheduled' END"
 )
 
 DEAD_DEPENDENCY_STATES = (JobState.FAILED, JobState.CANCELLED)
+
+CLAIMED_COLUMNS = SQL(
+    "id, uuid, channel, priority, model_name, method_name, record_ids, args,"
+    " kwargs, user_id, company_id, context, retry, max_retries, defer_count,"
+    " max_defers"
+)
+
+
+class ClaimContended(Exception):
+    pass
 
 
 def _states_sql(states: tuple[JobState, ...]) -> str:
@@ -200,7 +214,7 @@ class Base(models.AbstractModel):
         max_retries: int | None = None,
         identity_key: str | None = None,
         after: models.BaseModel | None = None,
-        description: str | None = None,
+        name: str | None = None,
     ) -> DelayedProxy:
         return DelayedProxy(
             self,
@@ -211,7 +225,7 @@ class Base(models.AbstractModel):
                 "max_retries": max_retries,
                 "identity_key": identity_key,
                 "after": after,
-                "description": description,
+                "name": name,
             },
         )
 
@@ -227,7 +241,9 @@ class IrJobChannel(models.Model):
         default=1,
         required=True,
         help="Maximum number of jobs of this channel running concurrently, "
-        "across all job workers.",
+        "across all job workers. A channel with no record of its own is not "
+        "capped here at all: its concurrency is whatever the worker fleet "
+        "provides. Create a record to restrict a channel below that.",
     )
     active = fields.Boolean(
         default=True,
@@ -342,7 +358,9 @@ class IrJob(models.Model):
         readonly=True,
     )
 
-    _claim_idx = models.Index("(priority, create_date, id) WHERE state = 'pending'")
+    _claim_idx = models.Index(
+        "(channel, priority, create_date, id) WHERE state = 'pending'"
+    )
     _due_idx = models.Index("(eta) WHERE state = 'scheduled'")
     _capacity_idx = models.Index("(channel) WHERE state = 'started'")
     _retention_idx = models.Index(
@@ -377,7 +395,7 @@ class IrJob(models.Model):
         max_retries: int | None = None,
         identity_key: str | None = None,
         after: models.BaseModel | None = None,
-        description: str | None = None,
+        name: str | None = None,
     ) -> models.BaseModel:
         job_config = _job_config_of(type(records), method_name)
         if job_config is None:
@@ -469,7 +487,7 @@ class IrJob(models.Model):
                     DO NOTHING
                 RETURNING id
                 """,
-                description,
+                name,
                 channel or job_config["channel"],
                 state,
                 priority if priority is not None else job_config["priority"],
@@ -570,12 +588,7 @@ class IrJob(models.Model):
             with db_conn.cursor() as pre_cr:
                 IrCron._check_version(pre_cr)
                 if IrCron._is_any_module_changing(pre_cr):
-                    _logger.debug(
-                        "Skipping database %s because of modules to"
-                        " install/upgrade/remove.",
-                        db_name,
-                    )
-                    return
+                    raise BadModuleStateError
             IrJob._run_maintenance(db_conn)
             IrJob._run_promotion(db_conn)
             with db_conn.cursor() as pre_cr:
@@ -609,7 +622,7 @@ class IrJob(models.Model):
 
     @staticmethod
     def _drain_deadline() -> float | None:
-        budget = worker_real_time_budget()
+        budget = job_real_time_budget()
         return time.monotonic() + budget * DRAIN_BUDGET_RATIO if budget else None
 
     @staticmethod
@@ -682,15 +695,25 @@ class IrJob(models.Model):
                     )
                     IrJob._notify_workers(db_name)
                     return True
-                job = IrJob._claim_next(cr, worker_ident, channels)
+                try:
+                    job = IrJob._claim_next(cr, worker_ident, channels)
+                except ClaimContended as exc:
+                    cr.rollback()
+                    _logger.warning(
+                        "Job drain of %s: %s; notifying so the backlog is retried",
+                        db_name,
+                        exc,
+                    )
+                    IrJob._notify_workers(db_name)
+                    return True
                 if job is None:
                     cr.rollback()
                     return False
                 if (reloaded := registry.check_signaling()) is not registry:
                     registry = reloaded
                     cr.transaction.reset()
+                cr.commit()
                 with _job_session_lock(cr, job["id"]):
-                    cr.commit()
                     exc = IrJob._run_with_concurrency_replay(registry, cr, job)
                     if exc is None:
                         registry.signal_changes()
@@ -748,14 +771,51 @@ class IrJob(models.Model):
             _logger.error("Job %s (%s) failed", job["id"], target, exc_info=exc)
 
     @staticmethod
+    def _runnable_channels(cr, channels: list[str] | None = None) -> list[str]:
+        cr.execute(
+            SQL(
+                """
+                WITH RECURSIVE pending_channel AS (
+                    (SELECT channel FROM ir_job
+                      WHERE state = 'pending' ORDER BY channel LIMIT 1)
+                    UNION ALL
+                    SELECT (SELECT j.channel FROM ir_job j
+                             WHERE j.state = 'pending' AND j.channel > p.channel
+                             ORDER BY j.channel LIMIT 1)
+                      FROM pending_channel p WHERE p.channel IS NOT NULL
+                )
+                SELECT p.channel
+                FROM pending_channel p
+                LEFT JOIN ir_job_channel c ON c.name = p.channel
+                WHERE p.channel IS NOT NULL
+                  %s
+                  AND COALESCE(c.active, TRUE)
+                  AND (c.capacity IS NULL
+                       OR (SELECT count(*) FROM ir_job b
+                            WHERE b.state = 'started' AND b.channel = p.channel)
+                           < c.capacity)
+                """,
+                (
+                    SQL("AND p.channel = ANY(%s)", list(channels))
+                    if channels is not None
+                    else SQL()
+                ),
+            )
+        )
+        return [row[0] for row in cr.fetchall()]
+
+    @staticmethod
     def _claim_next(
         cr, worker_ident: str, channels: list[str] | None = None
     ) -> dict[str, Any] | None:
-        for _attempt in range(CLAIM_MAX_ATTEMPTS):
+        for attempt in range(1, CLAIM_MAX_ATTEMPTS + 1):
             try:
                 cr.execute(
                     "SELECT pg_advisory_xact_lock(hashtextextended('ir_job_claim', 0))"
                 )
+                runnable = IrJob._runnable_channels(cr, channels)
+                if not runnable:
+                    return None
                 cr.execute(
                     SQL(
                         """
@@ -765,56 +825,47 @@ class IrJob(models.Model):
                             worker_ident = %s,
                             write_date = (now() AT TIME ZONE 'UTC')
                         WHERE id = (
-                            WITH saturated AS (
-                                SELECT b.channel
-                                FROM ir_job b
-                                WHERE b.state = 'started'
-                                GROUP BY b.channel
-                                HAVING count(*) >= COALESCE(
-                                    (SELECT c.capacity FROM ir_job_channel c
-                                     WHERE c.name = b.channel AND c.active), 1)
-                            ), paused AS (
-                                SELECT c.name AS channel
-                                FROM ir_job_channel c
-                                WHERE NOT c.active
-                            )
-                            SELECT j.id
-                            FROM ir_job j
-                            WHERE j.state = 'pending'
-                              AND (j.eta IS NULL
-                                   OR j.eta <= (now() AT TIME ZONE 'UTC'))
-                              %s
-                              AND j.channel NOT IN (
-                                  SELECT channel FROM saturated
-                                  UNION ALL SELECT channel FROM paused)
-                            ORDER BY j.priority, j.create_date, j.id
+                            SELECT best.id
+                            FROM unnest(%s::varchar[]) AS runnable(channel)
+                            CROSS JOIN LATERAL (
+                                SELECT j.id, j.priority, j.create_date
+                                FROM ir_job j
+                                WHERE j.state = 'pending'
+                                  AND j.channel = runnable.channel
+                                  AND (j.eta IS NULL
+                                       OR j.eta <= (now() AT TIME ZONE 'UTC'))
+                                ORDER BY j.priority, j.create_date, j.id
+                                LIMIT 1
+                                FOR NO KEY UPDATE SKIP LOCKED
+                            ) best
+                            ORDER BY best.priority, best.create_date, best.id
                             LIMIT 1
-                            FOR NO KEY UPDATE SKIP LOCKED
                         )
-                        RETURNING id, uuid, channel, priority, model_name,
-                                  method_name, record_ids, args, kwargs,
-                                  user_id, company_id, context, retry,
-                                  max_retries, defer_count, max_defers
+                        RETURNING %s
                         """,
                         worker_ident,
-                        (
-                            SQL("AND j.channel = ANY(%s)", list(channels))
-                            if channels is not None
-                            else SQL()
-                        ),
+                        runnable,
+                        CLAIMED_COLUMNS,
                     )
                 )
             except psycopg.errors.SerializationFailure:
                 cr.rollback()
+                if attempt < CLAIM_MAX_ATTEMPTS:
+                    time.sleep(
+                        backoff.delay(
+                            attempt,
+                            base=CLAIM_BACKOFF_BASE_S,
+                            cap=CLAIM_BACKOFF_MAX_S,
+                        )
+                    )
                 continue
             row = cr.fetchone()
             if row is None:
                 return None
             return dict(zip([d.name for d in cr.description], row, strict=True))
-        _logger.warning(
-            "job claim gave up after %s serialization failures", CLAIM_MAX_ATTEMPTS
+        raise ClaimContended(
+            f"job claim lost {CLAIM_MAX_ATTEMPTS} serialization races in a row"
         )
-        return None
 
     @staticmethod
     def _run_claimed(cr, job: dict[str, Any]) -> None:
@@ -841,6 +892,16 @@ class IrJob(models.Model):
                 )
             ) from None
         records = model.browse(job["record_ids"] or [])
+        if records and not records.exists():
+            raise TerminalJobError(
+                env._(
+                    "Job %(id)s targets %(model)s %(ids)s, and none of those "
+                    "records exists any more.",
+                    id=job["id"],
+                    model=job["model_name"],
+                    ids=job["record_ids"],
+                )
+            )
         if _job_config_of(type(records), job["method_name"]) is None:
             raise TerminalJobError(
                 env._(
@@ -953,11 +1014,13 @@ class IrJob(models.Model):
         retry = job["retry"]
         exc_info = _format_exception(exc)
         if retry < job["max_retries"] and not isinstance(exc, TerminalJobError):
-            seconds = getattr(exc, "seconds", None)
+            seconds = exc.seconds if isinstance(exc, RetryableJobError) else None
             delay = (
                 seconds
                 if seconds is not None
-                else min(RETRY_BACKOFF_BASE_S * 2**retry, RETRY_BACKOFF_MAX_S)
+                else backoff.bound(
+                    retry + 1, base=RETRY_BACKOFF_BASE_S, cap=RETRY_BACKOFF_MAX_S
+                )
             )
             cr.execute(
                 SQL(
@@ -1028,7 +1091,8 @@ class IrJob(models.Model):
                     ORDER BY started_at
                     LIMIT %s
                 )
-                SELECT id, requeue FROM candidates WHERE pg_try_advisory_lock(%s)
+                SELECT id, requeue FROM candidates
+                 WHERE pg_try_advisory_xact_lock(%s)
                 """,
                 DEAD_JOB_GRACE_S,
                 REAP_BATCH_SIZE,
@@ -1067,13 +1131,6 @@ class IrJob(models.Model):
                 )
             )
             reaped += cr.rowcount
-        cr.execute(
-            SQL(
-                "SELECT pg_advisory_unlock(%s) FROM unnest(%s::bigint[]) AS id",
-                _advisory_key_sql(SQL.identifier("id")),
-                [job_id for job_id, _requeue in rows],
-            )
-        )
         if reaped:
             _logger.warning(
                 "Reaped %s job(s) from dead workers: %s requeued, %s out of retries",
@@ -1230,14 +1287,12 @@ class IrJob(models.Model):
                         worker_ident = %s,
                         write_date = (now() AT TIME ZONE 'UTC')
                     WHERE id = %s AND state IN %s
-                    RETURNING id, uuid, channel, priority, model_name,
-                              method_name, record_ids, args, kwargs, user_id,
-                              company_id, context, retry, max_retries,
-                              defer_count, max_defers
+                    RETURNING %s
                     """,
                     f"manual:{self.env.uid}",
                     self.id,
                     tuple(RUNNABLE_STATES),
+                    CLAIMED_COLUMNS,
                 )
             )
             row = cr.fetchone()
@@ -1251,28 +1306,29 @@ class IrJob(models.Model):
     def action_requeue(self) -> None:
         self.browse().check_access("write")
         for job in self:
-            if job.state not in DEAD_DEPENDENCY_STATES:
+            if job.state not in REQUEUABLE_STATES:
                 raise UserError(
                     self.env._("Only failed or cancelled jobs can be requeued.")
                 )
-        requeued = False
-        for job in self:
-            waiting = any(dep.state != JobState.DONE for dep in job.depends_on_ids)
-            requeued = requeued or not waiting
-            job.sudo().write(
-                {
-                    "state": JobState.WAIT_DEPS if waiting else JobState.PENDING,
-                    "retry": 0,
-                    "eta": False,
-                    "done_at": False,
-                    "started_at": False,
-                    "worker_ident": False,
-                    "exc_name": False,
-                    "exc_message": False,
-                    "exc_info": False,
-                }
-            )
-        if requeued:
+        cleared = {
+            "retry": 0,
+            "defer_count": 0,
+            "defer_reason": False,
+            "eta": False,
+            "done_at": False,
+            "started_at": False,
+            "worker_ident": False,
+            "exc_name": False,
+            "exc_message": False,
+            "exc_info": False,
+        }
+        waiting = self.filtered(
+            lambda job: any(dep.state != JobState.DONE for dep in job.depends_on_ids)
+        )
+        if waiting:
+            waiting.sudo().write({"state": JobState.WAIT_DEPS, **cleared})
+        if runnable := self - waiting:
+            runnable.sudo().write({"state": JobState.PENDING, **cleared})
             self._notify_after_commit(self.env.cr)
 
     def action_cancel(self) -> None:

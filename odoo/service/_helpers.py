@@ -41,6 +41,22 @@ def job_time_real() -> int:
     return config["limit_time_real_cron"] if limit < 0 else limit
 
 
+def job_real_time_budget() -> float:
+    """Resolved wall-clock budget for a job pass; 0 means no limit.
+
+    ``job_time_real`` still answers ``-1`` when neither ``--limit-time-real-job``
+    nor ``--limit-time-real-cron`` is set, because its job is to walk one step of
+    the sentinel chain.  A caller that wants a *number* has to walk the last step
+    too -- ``-1`` is truthy, so a deadline computed straight from it lands in the
+    past and the pass yields before doing any work.  This is the counterpart of
+    ``ir_cron.worker_real_time_budget`` and resolves the whole chain.
+    """
+    limit = job_time_real()
+    if limit < 0:
+        limit = config["limit_time_real"]
+    return max(limit, 0)
+
+
 def memory_info(process: Any) -> int:
     return process.memory_info().rss
 

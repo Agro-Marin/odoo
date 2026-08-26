@@ -12,7 +12,9 @@ from odoo.exceptions import (
     UserError,
     ValidationError,
 )
+from odoo.libs import backoff
 from odoo.modules.registry import Registry
+from odoo.service._helpers import job_real_time_budget
 from odoo.tests import common
 from odoo.tests.common import BaseCase, TransactionCase
 from odoo.tools import SQL, mute_logger
@@ -123,14 +125,9 @@ class TestIrJob(TransactionCase):
         self.assertEqual(high.state, "started")
         self.assertEqual(high.worker_ident, "test:0")
 
-        self.assertIsNone(self._claim())
-        self.env.cr.execute(
-            "UPDATE ir_job SET state = 'done' WHERE id = %s", (high.id,)
-        )
         claimed = self._claim()
-        self.assertEqual(claimed["id"], low.id)
+        self.assertEqual(claimed["id"], low.id, "priority order, not capacity order")
 
-        self.env.cr.execute("UPDATE ir_job SET state = 'done' WHERE id = %s", (low.id,))
         self.assertIsNone(self._claim())
         self.assertEqual(
             future.state, "scheduled", "a job waiting on its clock is not claimable"
@@ -185,15 +182,85 @@ class TestIrJob(TransactionCase):
         self.assertEqual(first.id, twin.id)
 
     def test_claim_respects_channel_capacity(self):
-        self.partner.delayed(channel="bulk")._ir_job_test_append()
-        self.partner.delayed(channel="bulk")._ir_job_test_append()
-
-        self.assertIsNotNone(self._claim())
-        self.assertIsNone(self._claim(), "implicit capacity of 1")
+        for _ in range(3):
+            self.partner.delayed(channel="bulk")._ir_job_test_append()
 
         self.env["ir.job.channel"].create({"name": "bulk", "capacity": 2})
         self.env.flush_all()
-        self.assertIsNotNone(self._claim(), "explicit capacity of 2")
+        self.assertIsNotNone(self._claim())
+        self.assertIsNotNone(self._claim(), "up to the declared capacity")
+        self.assertIsNone(self._claim(), "and no further")
+
+    def test_an_undeclared_channel_is_not_capped_at_one(self):
+        for _ in range(4):
+            self.partner.delayed(channel="uncapped")._ir_job_test_append()
+        self.env.flush_all()
+
+        claimed = [self._claim() for _ in range(4)]
+        self.assertTrue(
+            all(claimed),
+            "a channel with no ir.job.channel record is bounded by the worker "
+            "fleet, not silently serialised to one job at a time",
+        )
+        self.assertIsNone(self._claim())
+
+    def test_claim_orders_across_every_runnable_channel(self):
+        wanted = []
+        for index, channel in enumerate(("alpha", "beta", "gamma", "delta")):
+            self.partner.delayed(channel=channel, priority=90 - index)
+            wanted.append(
+                (
+                    90 - index,
+                    self.partner.delayed(channel=channel, priority=90 - index)
+                    ._ir_job_test_append()
+                    .id,
+                )
+            )
+        self.env.flush_all()
+
+        claimed = []
+        while job := self._claim():
+            claimed.append(job["id"])
+            self.env.cr.execute(
+                "UPDATE ir_job SET state = 'done' WHERE id = %s", (job["id"],)
+            )
+
+        self.assertEqual(
+            claimed,
+            [job_id for _priority, job_id in sorted(wanted)],
+            "priority order is global, not per channel: restricting the claim to "
+            "the runnable channels must not cost the ordering, and must not be "
+            "paid for with a sort of the whole backlog either",
+        )
+
+    def test_runnable_channels_skips_saturated_paused_and_idle_ones(self):
+        self.env["ir.job.channel"].create(
+            [
+                {"name": "full", "capacity": 1},
+                {"name": "room", "capacity": 2},
+                {"name": "off", "capacity": 9, "active": False},
+                {"name": "idle", "capacity": 9},
+            ]
+        )
+        for channel in ("full", "room", "off"):
+            self.partner.delayed(channel=channel)._ir_job_test_append()
+            self.partner.delayed(channel=channel)._ir_job_test_append()
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE ir_job SET state = 'started' WHERE channel IN ('full', 'room')"
+            " AND id = (SELECT min(id) FROM ir_job b WHERE b.channel = ir_job.channel)"
+        )
+
+        self.assertEqual(
+            sorted(IrJob._runnable_channels(self.env.cr)),
+            ["room"],
+            "'full' is at capacity, 'off' is paused, 'idle' has no pending work",
+        )
+        self.assertEqual(
+            IrJob._runnable_channels(self.env.cr, channels=["off"]),
+            [],
+            "and the worker's own channel filter still applies",
+        )
 
     def test_run_claimed_executes_and_completes_atomically(self):
         self.partner.delayed()._ir_job_test_append(" ran")
@@ -259,6 +326,71 @@ class TestIrJob(TransactionCase):
         self.assertEqual(record.state, "failed")
         self.assertEqual(record.exc_name, "ValueError")
         self.assertTrue(record.done_at)
+
+    def test_the_retry_ladder_is_the_shared_bounded_backoff(self):
+        for retry, expected in enumerate((10, 20, 40, 80, 160)):
+            self.assertEqual(
+                backoff.bound(
+                    retry + 1,
+                    base=ir_job.RETRY_BACKOFF_BASE_S,
+                    cap=ir_job.RETRY_BACKOFF_MAX_S,
+                ),
+                expected,
+                "the ladder is backoff.bound, and unjittered: a stored eta that "
+                "halved on every retry would hammer whatever just failed",
+            )
+
+    def test_only_a_retryable_error_dictates_its_own_delay(self):
+        class SecondsCarrier(ValueError):
+            seconds = 0
+
+        self.partner.delayed(max_retries=5)._ir_job_test_boom()
+        job = self._claim()
+        IrJob._record_failure(self.env.cr, job, SecondsCarrier("boom"))
+
+        record = self.env["ir.job"].browse(job["id"])
+        self.assertEqual(
+            record.state,
+            "scheduled",
+            "an unrelated exception that happens to carry a .seconds attribute "
+            "does not get to bypass the backoff ladder",
+        )
+        self.assertGreater(record.eta, fields.Datetime.now())
+
+    def test_vanished_records_fail_the_job_terminally(self):
+        doomed = self.env["res.partner"].create({"name": "doomed"})
+        doomed.delayed()._ir_job_test_append()
+        self.env.flush_all()
+        doomed.unlink()
+
+        job = self._claim()
+        with self.assertRaises(TerminalJobError):
+            IrJob._run_claimed(self.env.cr, job)
+
+    def test_requeue_restores_the_deferral_budget(self):
+        job = self.partner.delayed()._ir_job_test_poll()
+        self.env.flush_all()
+        job.sudo().write(
+            {
+                "state": "failed",
+                "retry": 5,
+                "defer_count": 3,
+                "max_defers": 3,
+                "defer_reason": "not ready yet",
+            }
+        )
+        self.env.flush_all()
+
+        job.action_requeue()
+        self.assertEqual(job.state, "pending")
+        self.assertEqual(job.retry, 0)
+        self.assertEqual(
+            job.defer_count,
+            0,
+            "a job that died of deferral exhaustion has to be able to defer "
+            "again, or requeueing it just reproduces the same terminal error",
+        )
+        self.assertFalse(job.defer_reason)
 
     def test_reaper_requeues_dead_started_jobs(self):
         job = self.partner.delayed()._ir_job_test_append()
@@ -650,7 +782,6 @@ class TestIrJob(TransactionCase):
         self.assertEqual(record.state, "pending")
         self.assertLess(record.eta - fields.Datetime.now(), timedelta(seconds=5))
 
-
     def test_a_deferred_job_goes_back_on_the_clock(self):
         self.partner.delayed()._ir_job_test_poll(seconds=90)
         job = self._claim()
@@ -974,8 +1105,20 @@ class TestIrJob(TransactionCase):
             (job.id,),
         )
         before = self._advisory_locks_held()
+        savepoint = self.env.cr.savepoint(flush=False)
         self.assertEqual(IrJob._reap_dead_jobs(self.env.cr), 1, "a lock was taken")
-        self.assertEqual(self._advisory_locks_held(), before, "and given back")
+        self.assertEqual(
+            self._advisory_locks_held(),
+            before + 1,
+            "held for the rest of the sweep's transaction",
+        )
+        savepoint.rollback()
+        self.assertEqual(
+            self._advisory_locks_held(),
+            before,
+            "and given back by the transaction unwinding, with nothing to leak: "
+            "the sweep's own explicit unlock is skipped whenever it raises",
+        )
 
     def _advisory_locks_held(self):
         self.env.cr.execute(
@@ -1073,6 +1216,24 @@ class TestIrJobClaimSnapshot(BaseCase):
             cr_b.commit()
             self.assertIsNotNone(job_b, "the stale-snapshot claimer got nothing")
             self.assertNotEqual(job_b["id"], job_a["id"])
+
+    @mute_logger("odoo.db.cursor")
+    def test_a_contended_claim_raises_instead_of_reporting_an_empty_queue(self):
+        with self.registry.cursor() as cr:
+            real = type(cr).execute
+
+            def always_lose(self, query, *args, **kwargs):
+                if "UPDATE ir_job" in str(query):
+                    raise psycopg.errors.SerializationFailure("lost again")
+                return real(self, query, *args, **kwargs)
+
+            with (
+                patch.object(type(cr), "execute", always_lose),
+                patch.object(ir_job, "CLAIM_BACKOFF_BASE_S", 0.0001),
+                patch.object(ir_job, "CLAIM_BACKOFF_MAX_S", 0.0002),
+                self.assertRaises(ir_job.ClaimContended),
+            ):
+                IrJob._claim_next(cr, "contended:0", channels=["claimtest"])
 
 
 class TestIrJobMaintenanceSnapshot(BaseCase):
@@ -1231,6 +1392,43 @@ class TestIrJobExecutorLiveness(BaseCase):
                 "the reaper requeued a job that was running right then",
             )
 
+    def test_the_claim_is_committed_before_the_liveness_lock(self):
+        with self.registry.cursor() as cr, self.registry.cursor() as observer:
+            self._enqueue(cr)
+            job = IrJob._claim_next(cr, "order:0")
+            cr.commit()
+            with ir_job._job_session_lock(cr, job["id"]):
+                observer.execute("SELECT state FROM ir_job WHERE id = %s", (job["id"],))
+                self.assertEqual(
+                    observer.fetchone()[0],
+                    "started",
+                    "the claim has to be committed before the per-job lock is "
+                    "taken: taking the lock first inverts the order against "
+                    "action_run_now and PostgreSQL kills the worker for it",
+                )
+            cr.execute("UPDATE ir_job SET state = 'done' WHERE id = %s", (job["id"],))
+            cr.commit()
+
+    @mute_logger("odoo.addons.base.models.ir_job")
+    def test_a_manual_run_and_a_worker_claim_do_not_deadlock(self):
+        with self.registry.cursor() as cr_worker, self.registry.cursor() as cr_ui:
+            job = self._enqueue(cr_worker)
+            claimed = IrJob._claim_next(cr_worker, "worker:0")
+            cr_worker.commit()
+
+            ui_job = odoo.api.Environment(cr_ui, common.ADMIN_USER_ID, {})[
+                "ir.job"
+            ].browse(job.id)
+            with self.assertRaises(UserError):
+                ui_job.action_run_now()
+
+            with ir_job._job_session_lock(cr_worker, claimed["id"]):
+                pass
+            cr_worker.execute(
+                "UPDATE ir_job SET state = 'done' WHERE id = %s", (claimed["id"],)
+            )
+            cr_worker.commit()
+
     def test_second_manual_run_is_refused_instead_of_blocking(self):
         with self.registry.cursor() as cr_run, self.registry.cursor() as cr_other:
             job = self._enqueue(cr_run)
@@ -1295,6 +1493,62 @@ class TestIrJobDrainLoop(BaseCase):
         self.assertTrue(deadlined)
         notify.assert_called_once_with(self.db_name)
         self.assertEqual(self._states(), {"pending": 2}, "nothing was claimed")
+
+    def test_a_contended_drain_notifies_instead_of_reporting_an_empty_queue(self):
+        self._enqueue(2)
+        with (
+            patch.object(
+                ir_job.IrJob,
+                "_claim_next",
+                staticmethod(
+                    lambda *a, **k: (_ for _ in ()).throw(
+                        ir_job.ClaimContended("lost every race")
+                    )
+                ),
+            ),
+            patch.object(ir_job.IrJob, "_notify_workers") as notify,
+            mute_logger("odoo.addons.base.models.ir_job"),
+        ):
+            deadlined = IrJob._claim_and_run_loop(
+                self.db_name, channels=[self.CHANNEL], deadline=time.monotonic() + 60
+            )
+
+        self.assertTrue(deadlined, "the pass yielded, it did not drain the queue")
+        notify.assert_called_once_with(self.db_name)
+        self.assertEqual(
+            self._states(),
+            {"pending": 2},
+            "losing ten claim races in a row is not the same as an empty queue, "
+            "and must not put the fleet to sleep on a backlog",
+        )
+
+    def test_the_drain_budget_follows_the_job_knob_not_the_cron_one(self):
+        budgets = {}
+        for real, cron, job, expected in (
+            (120, 60, 600, 600),
+            (120, 60, -1, 60),
+            (120, -1, -1, 120),
+            (120, -1, 0, 0),
+        ):
+            with patch.dict(
+                odoo.tools.config.options,
+                {
+                    "limit_time_real": real,
+                    "limit_time_real_cron": cron,
+                    "limit_time_real_job": job,
+                },
+            ):
+                budgets[(real, cron, job)] = job_real_time_budget()
+                deadline = IrJob._drain_deadline()
+            self.assertEqual(budgets[(real, cron, job)], expected)
+            if expected:
+                self.assertGreater(
+                    deadline,
+                    time.monotonic(),
+                    "a budget must never yield a deadline in the past",
+                )
+            else:
+                self.assertIsNone(deadline, "0 means no limit")
 
     def test_drain_publishes_cache_invalidations(self):
         job_model = self.registry["ir.job"]
