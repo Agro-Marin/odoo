@@ -80,7 +80,7 @@ class PaymentPostProcessing(http.Controller):
 
     @classmethod
     def monitor_transaction(cls, transaction):
-        """Make the provided transaction monitored.
+        """Make the provided transaction id monitored.
 
         :param payment.transaction transaction: The transaction to monitor.
         :return: None
