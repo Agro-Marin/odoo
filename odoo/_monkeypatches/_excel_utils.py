@@ -4,6 +4,11 @@ from typing import Final
 
 _INVALID_EXCEL_CHARS_RE: Final[re.Pattern[str]] = re.compile(r"[\[\]:*?/\\]")
 _MAX_SHEET_NAME_LENGTH: Final[int] = 31
+_MAX_DEDUP_SUFFIX: Final[int] = 1000
+
+
+class SheetNameCollisionError(ValueError):
+    """Every `~n` variant of a sanitized sheet name is already taken."""
 
 
 def sanitize_excel_sheet_name(name: str, taken: Iterable[str] = ()) -> str:
@@ -25,6 +30,12 @@ def sanitize_excel_sheet_name(name: str, taken: Iterable[str] = ()) -> str:
     The last two are one rule, not two: truncating is what *creates* the
     clashes, so a sanitizer that truncates and does not then de-duplicate turns
     two long report names into a `DuplicateWorksheetName` at write time.
+
+    Raises `SheetNameCollisionError` if every `~n` variant is taken, rather
+    than returning the name known to clash. Reaching it needs 999 sheets
+    sharing one 31-character prefix, but returning the clashing name only moved
+    the failure to `Workbook.add_worksheet`, where the message names Excel's
+    rule instead of the exhausted namespace that actually caused it.
     """
     if not name:
         return name
@@ -37,10 +48,14 @@ def sanitize_excel_sheet_name(name: str, taken: Iterable[str] = ()) -> str:
     if name.lower() not in lowered:
         return name
 
-    for suffix_n in range(2, 1000):
+    for suffix_n in range(2, _MAX_DEDUP_SUFFIX):
         suffix = f"~{suffix_n}"
         stem = name[: _MAX_SHEET_NAME_LENGTH - len(suffix)].rstrip("'")
         candidate = f"{stem}{suffix}"
         if candidate.lower() not in lowered:
             return candidate
-    return name
+    msg = (
+        f"cannot fit a unique worksheet name for {name!r}: every ~2..~"
+        f"{_MAX_DEDUP_SUFFIX - 1} variant is taken"
+    )
+    raise SheetNameCollisionError(msg)

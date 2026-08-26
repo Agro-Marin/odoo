@@ -274,6 +274,17 @@ class TestExcelSheetNames(unittest.TestCase):
     def test_duplicate_detection_ignores_case_as_excel_does(self):
         self.assertNotEqual(self._sanitize("Sales", ["SALES"]).lower(), "sales")
 
+    def test_exhausted_dedup_suffixes_raise_instead_of_clashing(self):
+        from odoo._monkeypatches._excel_utils import SheetNameCollisionError
+
+        taken = ["Sheet", *(f"Sheet~{n}" for n in range(2, 1000))]
+        with self.assertRaises(SheetNameCollisionError):
+            self._sanitize("Sheet", taken)
+
+    def test_the_last_free_dedup_suffix_is_still_used(self):
+        taken = ["Sheet", *(f"Sheet~{n}" for n in range(2, 999))]
+        self.assertEqual(self._sanitize("Sheet", taken), "Sheet~999")
+
     def test_the_workbook_accepts_two_long_names_that_share_a_prefix(self):
         import xlsxwriter
 
