@@ -1,8 +1,9 @@
-import { test, describe, expect } from "@odoo/hoot";
-import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { describe, expect, test } from "@odoo/hoot";
 import { setupPosEnv } from "@point_of_sale/../tests/unit/utils";
-import { definePosModels } from "@point_of_sale/../tests/unit/data/generate_model_definitions";
-definePosModels();
+import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+
+import { definePosDiscountModels } from "../data/generate_model_definitions.js";
+definePosDiscountModels();
 
 describe("PoS Discount", () => {
     test("changing fiscal positions reapplies the global discount", async () => {

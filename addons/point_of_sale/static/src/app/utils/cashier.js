@@ -9,7 +9,9 @@ export function getCashierUserId(pos) {
 }
 
 export function cashierHasPriceControlRights(pos) {
-    return !pos.config.restrict_price_control || pos.getCashier()._role === "manager";
+    // Optional chaining for the same reason as getCashierUserId: with
+    // module_pos_hr, getCashier() is unset until LoginScreen completes.
+    return !pos.config.restrict_price_control || pos.getCashier()?._role === "manager";
 }
 
 export function setCashier(pos, user) {

@@ -3,8 +3,9 @@ import { click, waitFor } from "@odoo/hoot-dom";
 import { getFilledOrder, setupPosEnv } from "@point_of_sale/../tests/unit/utils";
 import { Orderline } from "@point_of_sale/app/components/orderline/orderline";
 import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product_screen";
-import { definePosSaleModels } from "@pos_sale/../tests/unit/data/generate_model_definitions";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+
+import { definePosSaleModels } from "../data/generate_model_definitions.js";
 
 definePosSaleModels();
 

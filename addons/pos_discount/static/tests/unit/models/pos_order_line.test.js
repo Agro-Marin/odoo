@@ -1,8 +1,9 @@
 import { animationFrame, expect, test } from "@odoo/hoot";
-import { setupPosEnv, getFilledOrder } from "@point_of_sale/../tests/unit/utils";
-import { definePosModels } from "@point_of_sale/../tests/unit/data/generate_model_definitions";
+import { getFilledOrder, setupPosEnv } from "@point_of_sale/../tests/unit/utils";
 
-definePosModels();
+import { definePosDiscountModels } from "../data/generate_model_definitions.js";
+
+definePosDiscountModels();
 
 test("isDiscountLine", async () => {
     const store = await setupPosEnv();
@@ -13,13 +14,13 @@ test("isDiscountLine", async () => {
             product_tmpl_id: product1,
             qty: 1,
         },
-        order
+        order,
     );
     await store.applyDiscount(10);
     await animationFrame();
     const orderline = order.getSelectedOrderline();
     expect(Math.abs(orderline.price_subtotal_incl).toString()).toBe(
-        ((order.amount_total + order.amount_tax) * 0.1).toPrecision(2)
+        ((order.amount_total + order.amount_tax) * 0.1).toPrecision(2),
     );
     expect(orderline.isDiscountLine).toBe(true);
 });
@@ -33,7 +34,7 @@ test("Test taxes after fiscal position with discount product (should not change)
     const discountLine = order.discountLines[0];
     const lineValues = discountLine.prepareBaseLineForTaxesComputationExtraValues();
     const recomputedTaxes = order.fiscal_position_id.getTaxesAfterFiscalPosition(
-        discountLine.product_id.taxes_id
+        discountLine.product_id.taxes_id,
     );
     expect(recomputedTaxes).not.toBe(lineValues.tax_ids);
 });

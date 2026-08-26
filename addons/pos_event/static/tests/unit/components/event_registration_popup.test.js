@@ -1,9 +1,9 @@
 import { expect, test } from "@odoo/hoot";
 import { EventRegistrationPopup } from "@pos_event/app/components/popup/event_registration_popup/event_registration_popup";
 import { mountPosDialog, setupPosEnv } from "@point_of_sale/../tests/unit/utils";
-import { definePosModels } from "@point_of_sale/../tests/unit/data/generate_model_definitions";
+import { definePosEventModels } from "../data/generate_model_definitions.js";
 
-definePosModels();
+definePosEventModels();
 
 test("confirm payload", async () => {
     const store = await setupPosEnv();

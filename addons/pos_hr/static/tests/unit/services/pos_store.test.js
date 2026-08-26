@@ -17,20 +17,17 @@ test("employeeIsAdmin", async () => {
     store.setCashier(emp);
     expect(store.employeeIsAdmin).toBe(true);
 });
-// The three below state `module_pos_hr` and assign `cashier` explicitly instead
-// of relying on the fixture and on `setCashier()`. Both leak across suites: run
-// after the navbar suite, `config.module_pos_hr` arrives false and the override
-// under test is never reached. `handleUrlParams` below sets the flag for the
-// same reason.
+// The three below assign `cashier` directly rather than through
+// `setCashier()`, which writes to pos.session and cannot produce the
+// undefined/false states these assert on. `module_pos_hr` itself no longer
+// needs stating -- the fixture reaches every test via beforeEach.
 test("getCashierUserId returns the user id, not the res.users record", async () => {
     const store = await setupPosEnv();
-    store.config.module_pos_hr = true;
     store.cashier = store.models["hr.employee"].get(3);
     expect(store.getCashierUserId()).toBe(3);
 });
 test("getCashierUserId returns null when no cashier is logged in", async () => {
     const store = await setupPosEnv();
-    store.config.module_pos_hr = true;
     // The Navbar evaluates this on mount, before LoginScreen has picked a
     // cashier, so `cashier` is still undefined -- the state the guard on
     // `employeeIsAdmin` was added for. `resetCashier()` leaves false instead.
@@ -41,7 +38,6 @@ test("getCashierUserId returns null when no cashier is logged in", async () => {
 });
 test("the employee who opened the session can close the register", async () => {
     const store = await setupPosEnv();
-    store.config.module_pos_hr = true;
     store.cashier = store.models["hr.employee"].get(3);
     store.session.user_id = store.models["res.users"].get(3);
     expect(store.employeeIsAdmin).toBe(false);
@@ -93,7 +89,6 @@ test("canEditPayment", async () => {
 });
 test("handleUrlParams prevents unauthorized access when POS is locked with pos_hr", async () => {
     const store = await setupPosEnv();
-    store.config.module_pos_hr = true;
     odoo.from_backend = false;
 
     store.resetCashier();

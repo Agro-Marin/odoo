@@ -1,8 +1,9 @@
 import { expect, test } from "@odoo/hoot";
 import { setupPosEnv } from "@point_of_sale/../tests/unit/utils";
 import { Orderline } from "@point_of_sale/app/components/orderline/orderline";
-import { definePosSaleModels } from "@pos_sale/../tests/unit/data/generate_model_definitions";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+
+import { definePosSaleModels } from "../data/generate_model_definitions.js";
 
 definePosSaleModels();
 

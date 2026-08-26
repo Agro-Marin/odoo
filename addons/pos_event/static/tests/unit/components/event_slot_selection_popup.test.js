@@ -2,9 +2,9 @@ import { expect, test } from "@odoo/hoot";
 import { EventSlotSelectionPopup } from "@pos_event/app/components/popup/event_slot_selection_popup/event_slot_selection_popup";
 import { mountPosDialog, setupPosEnv } from "@point_of_sale/../tests/unit/utils";
 import { click } from "@odoo/hoot-dom";
-import { definePosModels } from "@point_of_sale/../tests/unit/data/generate_model_definitions";
+import { definePosEventModels } from "../data/generate_model_definitions.js";
 
-definePosModels();
+definePosEventModels();
 
 test("confirm payload", async () => {
     const store = await setupPosEnv();

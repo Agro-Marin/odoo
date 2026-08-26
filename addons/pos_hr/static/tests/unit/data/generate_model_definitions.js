@@ -5,6 +5,7 @@ import "./pos_order.data.js";
 import "./pos_payment.data.js";
 import "./pos_session.data.js";
 
+import { beforeEach } from "@odoo/hoot";
 import { definePosModels } from "@point_of_sale/../tests/unit/data/generate_model_definitions";
 
 import { HrEmployee } from "./hr_employee.data.js";
@@ -19,5 +20,12 @@ import { applyHrConfigRecords } from "./pos_config.data.js";
  */
 export const definePosHrModels = () => {
     definePosModels([HrEmployee]);
-    applyHrConfigRecords();
+    // Applied per test via `beforeEach`, NOT at module-eval time: hoot imports
+    // EVERY test file in the unit-test bundle during collection, so an eager
+    // mutation of the shared model definition never reaches the per-test mock
+    // server -- `module_pos_hr` arrived false and every pos_hr override under
+    // test was skipped. `beforeEach` (not `before`) is required: model
+    // definitions are job-scoped per test, so a suite-level hook mutates the
+    // parent job's definition. Same reasoning as pos_restaurant's.
+    beforeEach(applyHrConfigRecords);
 };

@@ -1,10 +1,11 @@
 import { animationFrame, expect, test } from "@odoo/hoot";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { setupPosEnv, expectFormattedPrice } from "@point_of_sale/../tests/unit/utils";
+import { expectFormattedPrice, setupPosEnv } from "@point_of_sale/../tests/unit/utils";
 import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product_screen";
-import { definePosModels } from "@point_of_sale/../tests/unit/data/generate_model_definitions";
+import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 
-definePosModels();
+import { definePosDiscountModels } from "../data/generate_model_definitions.js";
+
+definePosDiscountModels();
 
 test("getNumpadButtons", async () => {
     const store = await setupPosEnv();
@@ -15,7 +16,7 @@ test("getNumpadButtons", async () => {
             product_tmpl_id: product1,
             qty: 1,
         },
-        order
+        order,
     );
     const productScreen = await mountWithCleanup(ProductScreen, {
         props: { orderUuid: order.uuid },
@@ -27,7 +28,7 @@ test("getNumpadButtons", async () => {
         .filter((button) => ["quantity", "discount"].includes(button.value))
         .map((button) => button.disabled);
     expect(Math.abs(order.discountLines[0].priceIncl).toString()).toBe(
-        (order.lines[0].priceIncl * 0.1).toPrecision(2)
+        (order.lines[0].priceIncl * 0.1).toPrecision(2),
     );
 
     expect(receivedButtonsDisableStatue).toEqual([true, true]);
@@ -37,7 +38,7 @@ test("getNumpadButtons", async () => {
     // discount is using eventListener, so we use setTimeout instead.
     setTimeout(() => {
         expect(Math.abs(order.discountLines[0].priceIncl).toString()).toBe(
-            (order.lines[0].priceIncl * 0.1).toPrecision(2)
+            (order.lines[0].priceIncl * 0.1).toPrecision(2),
         );
     }, 100);
 });

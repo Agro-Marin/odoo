@@ -24,7 +24,6 @@ test("showCreateProductButtonWithNonAdmin", async () => {
 
 test("showBackend compares the cashier's user id with the connected user", async () => {
     const store = await setupPosEnv();
-    store.config.module_pos_hr = true;
     const comp = await mountWithCleanup(Navbar, {});
 
     const ownEmployee = store.models["hr.employee"].get(2);

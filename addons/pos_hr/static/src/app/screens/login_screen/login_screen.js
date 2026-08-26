@@ -42,6 +42,15 @@ patch(LoginScreen.prototype, {
             super.openRegister();
         }
     },
+    /**
+     * closePos() lands on the backend session of the logged-in user, so by
+     * default leaving re-identifies the cashier and only lets that user
+     * through. Deployments that accept any employee leaving override this
+     * getter rather than reimplementing clickBack.
+     */
+    get requiresCashierIdentityToExit() {
+        return true;
+    },
     async clickBack() {
         if (!this.pos.config.module_pos_hr) {
             super.clickBack();
@@ -51,20 +60,25 @@ patch(LoginScreen.prototype, {
         if (this.pos.login) {
             this.state.pin = "";
             this.pos.login = false;
-        } else {
-            const employee = await this.selectCashier();
-            if (employee && employee.user_id?.id === this.pos.user.id) {
-                super.clickBack();
-                return;
-            } else if (employee) {
-                this.pos.notification.add(
-                    _t(
-                        "Only the cashier linked to the logged-in user (%s) can proceed to the Backend.",
-                        this.pos.user.name,
-                    ),
-                    { type: "danger" },
-                );
-            }
+            return;
+        }
+
+        if (!this.requiresCashierIdentityToExit) {
+            super.clickBack();
+            return;
+        }
+
+        const employee = await this.selectCashier();
+        if (employee && employee.user_id?.id === this.pos.user.id) {
+            super.clickBack();
+        } else if (employee) {
+            this.pos.notification.add(
+                _t(
+                    "Only the cashier linked to the logged-in user (%s) can proceed to the Backend.",
+                    this.pos.user.name,
+                ),
+                { type: "danger" },
+            );
         }
     },
     get backBtnName() {
