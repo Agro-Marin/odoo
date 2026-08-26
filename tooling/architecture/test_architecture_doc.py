@@ -938,6 +938,36 @@ class TestRuntimeFloors(unittest.TestCase):
         self.assertIn("raise PoolError(", pool.split("sv < MIN_PG_VERSION")[1])
 
 
+def _rule_table_gates(tests: Path) -> set[str]:
+    """Gate names `_rules.RULES` computes rather than spells.
+
+    A `Rule` derives its baseline name -- `gate` is `"lint_" + name.replace("-",
+    "_")` -- so `assert_ratchet` is handed an expression, and no literal for
+    these ever appears anywhere in the module. Scanning call sites alone
+    therefore sees the eleven hand-written floors and misses every rule in the
+    table, which is most of them. The table is read here the same way the
+    property computes it, so the two cannot drift.
+    """
+    source = tests / "_rules.py"
+    if not source.is_file():
+        return set()
+    try:
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+    except SyntaxError:
+        return set()
+    gates: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        called = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+        if called != "Rule" or not node.args:
+            continue
+        first = node.args[0]
+        if isinstance(first, ast.Constant) and isinstance(first.value, str):
+            gates.add("lint_" + first.value.replace("-", "_"))
+    return gates
+
+
 class TestReferencedArtifacts(unittest.TestCase):
     def test_adrs_exist(self) -> None:
         adr_dir = ROOT / "doc" / "adr"
@@ -1087,6 +1117,14 @@ class TestReferencedArtifacts(unittest.TestCase):
         "py_count_as_boolean_agromarin": "agromarin",
     }
 
+    #: Scopes whose `lint_<rule>_<scope>` floors are driven by one
+    #: `py_lint.py <scope> --check --scope <scope>` step in that repository's
+    #: own architecture workflow, which walks every baseline for the scope
+    #: rather than naming them one at a time. A scope absent from here drives
+    #: nothing, so a floor for a fourth repository stays undriven until the
+    #: workflow that runs it is real.
+    SIBLING_PY_LINT_SCOPES = frozenset({"enterprise", "agromarin", "design-themes"})
+
     @staticmethod
     def _gates_the_workflows_drive() -> set[str]:
         driven: set[str] = set()
@@ -1098,6 +1136,55 @@ class TestReferencedArtifacts(unittest.TestCase):
                 )
             )
         return driven
+
+    @staticmethod
+    def _gates_test_lint_drives(on_disk: set[str]) -> set[str]:
+        """Floors `test_lint` holds through `assert_ratchet`, not a workflow line.
+
+        `17f89c418cc` moved test_lint's floors out of Python and into
+        `tooling/ratchet/baselines/`, so `ratchet.py --list` is the whole of the
+        module's debt. What drives them is `test_lint.yml` running the module,
+        and the gate name never appears on a `ratchet.py ... --count` command
+        line, which is the only spelling the workflow scan above can see.
+
+        Every string handed to a call is considered, rather than the second
+        argument of `assert_ratchet` alone, because a gate reaches it three
+        different ways: spelled at the call (`test_manifests`), forwarded
+        through a wrapper (`test_xml_records._assert_clean`), or computed and
+        never spelled at all (`_rules.Rule.gate`, handled below). Narrowing to
+        the direct call site sees only the first of the three.
+
+        Intersected with what is on disk, which is what keeps it exact: a
+        sentence of advice is a string argument too, and only a name that is
+        actually a baseline survives. A floor nothing names still fails.
+        """
+        names: set[str] = set()
+        tests = ROOT / "odoo" / "addons" / "test_lint" / "tests"
+        for path in tests.rglob("*.py"):
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+            except SyntaxError:
+                continue
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                arguments = list(node.args) + [kw.value for kw in node.keywords]
+                names.update(
+                    argument.value
+                    for argument in arguments
+                    if isinstance(argument, ast.Constant)
+                    and isinstance(argument.value, str)
+                )
+        return (names | _rule_table_gates(tests)) & on_disk
+
+    def _gates_sibling_py_lint_drives(self, on_disk: set[str]) -> set[str]:
+        """Floors a sibling's one `py_lint.py --check --scope X` step covers."""
+        return {
+            name
+            for name in on_disk
+            if name.startswith("lint_")
+            and any(name.endswith(f"_{scope}") for scope in self.SIBLING_PY_LINT_SCOPES)
+        }
 
     def test_a_sibling_driven_baseline_is_driven_by_its_sibling(self) -> None:
         siblings = ROOT.parent
@@ -1127,7 +1214,12 @@ class TestReferencedArtifacts(unittest.TestCase):
         on_disk = {
             p.stem for p in (ROOT / "tooling" / "ratchet" / "baselines").glob("*.json")
         }
-        driven = self._gates_the_workflows_drive() | set(self.SIBLING_DRIVEN)
+        driven = (
+            self._gates_the_workflows_drive()
+            | set(self.SIBLING_DRIVEN)
+            | self._gates_test_lint_drives(on_disk)
+            | self._gates_sibling_py_lint_drives(on_disk)
+        )
         self.assertTrue(driven, "no workflow drives ratchet.py; the regex has rotted")
         self.assertEqual(
             driven,
