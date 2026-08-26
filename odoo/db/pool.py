@@ -193,13 +193,16 @@ class ConnectionPool:
         _logger_conn.debug(("%r " + msg), self, *args)
 
     def _is_proven_reachable(self, key: frozenset) -> bool:
-        return key in self._reachable_keys
+        with self._lock:
+            return key in self._reachable_keys
 
     def _mark_reachable(self, key: frozenset) -> None:
-        self._reachable_keys.add(key)
+        with self._lock:
+            self._reachable_keys.add(key)
 
     def _forget_reachable(self, key: frozenset) -> None:
-        self._reachable_keys.discard(key)
+        with self._lock:
+            self._reachable_keys.discard(key)
 
     def _probe_connectable(
         self, conninfo: str, kwargs: dict, deadline: float | None = None
@@ -320,7 +323,7 @@ class ConnectionPool:
             ]
             stale_pools = [self._pools.pop(k) for k in stale_keys]
             for k in stale_keys:
-                self._forget_reachable(k)
+                self._reachable_keys.discard(k)
 
             reap_keys = self._reaper.collect(self._pools, exclude_key=key)
             reaped_pools = [self._pools.pop(k) for k in reap_keys]
@@ -611,7 +614,7 @@ class ConnectionPool:
             for k in [
                 k for k in self._reachable_keys if dict(k).get("database") == db_name
             ]:
-                self._forget_reachable(k)
+                self._reachable_keys.discard(k)
         for pool in pools:
             self._safe_close(pool)
         if pools:
