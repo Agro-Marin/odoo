@@ -63,7 +63,8 @@ export class SetPositionAction extends BuilderAction {
     }
 }
 /*
- * Removes the image in the back-end
+ * Removes the image in the back-end if it is a "product.image" record, otherwise removes it
+ * from the DOM only.
  */
 export class RemoveMediaAction extends BuilderAction {
     static id = "removeMedia";

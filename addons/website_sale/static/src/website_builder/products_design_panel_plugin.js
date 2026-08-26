@@ -216,7 +216,8 @@ class ClassActionWithSuggestedAction extends BuilderAction {
     }
 
     /**
-     * Reverse of applySuggestedClasses for clean operations
+     * Remove the positive classes added by applySuggestedClasses (does not restore the classes
+     * that were removed).
      */
     cleanSuggestedClasses(editingElement, suggestedClasses) {
         if (!suggestedClasses || typeof suggestedClasses !== 'string') {

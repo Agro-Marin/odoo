@@ -5,9 +5,6 @@ import { registry } from "@web/core/registry";
 export class DynamicSnippetProducts extends DynamicSnippetCarousel {
     static selector = ".s_dynamic_snippet_products";
 
-    /**
-     * Gets the category search domain
-     */
     getCategorySearchDomain() {
         const searchDomain = [];
         let productCategoryId = this.el.dataset.productCategoryId;

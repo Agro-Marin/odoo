@@ -201,8 +201,8 @@ class ProductsRibbonOptionPlugin extends Plugin {
     }
 
     /**
-     * Deletes a ribbon.
-     *
+     * Deletes a ribbon, hides/relabels every DOM node sharing its ribbon id, and persists
+     * the change via `_saveRibbons()`.
      */
     deleteRibbon(editingElement) {
         const ribbonId = parseInt(editingElement.querySelector('.o_ribbons')?.dataset.ribbonId);
